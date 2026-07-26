@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import threading
 
 
 REQUIRED_MODULES = {
@@ -56,14 +57,29 @@ def main() -> int:
         from control_panel import app
         from observer import ensure_database_schema
 
-        ensure_database_schema(database_url)
     except Exception as exc:
         print(f"startup failed: {exc}", file=sys.stderr)
         return 1
 
-    print("database ready")
     print(f"control panel listening on 0.0.0.0:{port}")
     print("open the Replit Webview/Preview for this port to use the control panel")
+
+    def initialize_database() -> None:
+        try:
+            ensure_database_schema(database_url)
+            print("database ready")
+        except Exception as exc:
+            # Keep the HTTP health endpoint available so the deployment can
+            # recover from a transient database connection failure. Database
+            # operations expose their own errors and can be retried from the
+            # control panel.
+            print(f"database initialization failed: {exc}", file=sys.stderr)
+
+    threading.Thread(
+        target=initialize_database,
+        name="database-initializer",
+        daemon=True,
+    ).start()
     app.run(host="0.0.0.0", port=port)
     return 0
 

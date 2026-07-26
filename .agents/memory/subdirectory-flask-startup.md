@@ -17,4 +17,6 @@ and generated duplicate workflow configuration.
 run.py` command, use the existing `Start application` workflow, and stop an
 old project process before restarting if port 5000 is occupied. If the
 deployment was previously static, republish after switching it to autoscale;
-the old published build does not inherit the new runtime configuration.
+the old published build does not inherit the new runtime configuration. Keep
+database schema initialization off the critical path before Flask binds its
+port, or autoscale health checks can fail during cold starts.
