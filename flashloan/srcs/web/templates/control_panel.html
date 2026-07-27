@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Observer Control</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1120px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    button, select, input { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    button.danger { border-color: #b42318; color: #b42318; }
+    .toolbar, .chart-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .card strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .card span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+    .asset { display: flex; gap: 10px; align-items: center; border: 1px solid #d9dee7; border-radius: 8px; padding: 10px; background: #fff; }
+    dialog { width: min(560px, calc(100% - 32px)); border: 1px solid #cfd6e2; border-radius: 8px; }
+    canvas { display: block; width: 100%; height: 260px; border: 1px solid #eef1f5; background: #fff; }
+    #diffCanvas { height: 140px; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+    .field label { display: block; color: #667085; font-size: 12px; margin-bottom: 4px; }
+    .field input { width: 100%; }
+  </style>
+</head>
+<body>
+  <header><h1>Binance x Aave Observer</h1><div id="message"></div></header>
+  <main>
+    <div class="toolbar">
+      <button class="primary" id="startBtn">Start</button><button id="stopBtn">Stop</button>
+      <button id="initBtn">Init DB</button><button class="danger" id="clearBtn">Clear DB</button>
+      <button class="danger" id="clearFilesBtn">Clear Files</button><button id="refreshBtn">Refresh</button>
+    </div>
+    <section class="grid">
+      <div class="card"><small>Status</small><strong id="running">-</strong></div>
+      <div class="card"><small>PID</small><strong id="pid">-</strong></div>
+      <div class="card"><small>Symbols</small><strong id="symbols">-</strong></div>
+      <div class="card"><small>DB Rows</small><strong id="rows">-</strong></div>
+    </section>
+    <section class="card">
+      <small>Strategy parameters</small>
+      <div class="settings">
+        <div class="field"><label>Window seconds</label><input id="cfgWindow" type="number" min="0.2" step="0.1"></div>
+        <div class="field"><label>Min up %</label><input id="cfgMinUp" type="number" min="0" step="0.01"></div>
+        <div class="field"><label>Min down %</label><input id="cfgMinDown" type="number" min="0" step="0.01"></div>
+        <div class="field"><label>Slippage bps</label><input id="cfgSlippage" type="number" min="0" max="5000" step="1"></div>
+        <div class="field"><label>Signal max age s</label><input id="cfgMaxAge" type="number" min="1" step="1"></div>
+      </div>
+      <div class="toolbar" style="margin-top:12px;margin-bottom:0"><button class="primary" id="saveConfigBtn">Save Parameters</button><span id="configNote">Changes apply on next observer start.</span></div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>a: highest change</small><strong id="extremeA">-</strong><span id="extremeAText">waiting</span></div>
+      <div class="card"><small>b: biggest drop</small><strong id="extremeB">-</strong><span id="extremeBText">waiting</span></div>
+      <div class="card"><small>Window</small><strong id="extremeWindow">-</strong><span id="extremeMeta">manual calculation</span></div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>x top gainer</small><strong id="triggerX">-</strong><span id="triggerXMeta">waiting</span></div>
+      <div class="card"><small>y top loser</small><strong id="triggerY">-</strong><span id="triggerYMeta">waiting</span></div>
+      <div class="card"><small>Trigger</small><strong id="triggerSignal">-</strong><span id="triggerSignalMeta">waiting</span></div>
+      <div class="card"><small>On-chain decision</small><strong id="onchainDecision">-</strong><span id="onchainDecisionMeta">waiting</span></div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>Signal rate</small><strong id="statSignalRate">-</strong><span id="statSignalCount">waiting</span></div>
+      <div class="card"><small>Avg signal score</small><strong id="statAvgProfit">-</strong></div>
+      <div class="card"><small>Max signal score</small><strong id="statMaxProfit">-</strong></div>
+      <div class="card"><small>Max spread</small><strong id="statMaxSpread">-</strong></div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>Testnet tx success</small><strong id="txSuccessRate">-</strong><span id="txCount">waiting</span></div>
+      <div class="card"><small>Testnet profit units</small><strong id="txProfit">-</strong><span id="txLast">waiting</span></div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>Aave reserve cache</small><strong id="aaveReserveCount">-</strong><span id="aaveReserveMeta">waiting</span></div>
+      <div class="card"><small>Velocity candidates</small><strong id="rawCandidateCount">-</strong><span id="rawCandidateMeta">waiting</span></div>
+      <div class="card"><small>Executable candidates</small><strong id="execCandidateCount">-</strong><span id="execCandidateMeta">waiting</span></div>
+      <div class="card"><small>Executable signal</small><strong id="execSignalPair">-</strong><span id="execSignalMeta">waiting</span></div>
+    </section>
+    <section class="card">
+      <div class="chart-tools"><select id="chartSymbol">__CHART_OPTIONS__</select><button id="chartRefreshBtn">Refresh Chart</button></div>
+      <div id="chartSummary">No chart data loaded</div><div id="chartReadout">Move over the chart to inspect values.</div>
+      <div id="costNote">DEX cost uses live Trader Joe quotes.</div>
+      <table><thead><tr><th>Size</th><th>Buy cost</th><th>Sell cost</th><th>Roundtrip</th><th>Pool buy price</th></tr></thead><tbody id="costTableBody"></tbody></table>
+      <canvas id="priceCanvas"></canvas><canvas id="diffCanvas"></canvas>
+    </section>
+  </main>
+  <dialog id="symbolDialog"><h2>Select symbols</h2><div class="grid">__ASSET_ITEMS__</div><button id="cancelDialog">Cancel</button><button class="primary" id="confirmStart">Start observer</button></dialog>
+  <script>
+    const $ = id => document.getElementById(id), api = async (p,o={}) => { const r = await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d = await r.json(); if(!r.ok) throw new Error(d.error || "request failed"); return d; };
+    const dialog=$("symbolDialog"), priceCanvas=$("priceCanvas"), diffCanvas=$("diffCanvas"); let chartRows=[], cursorIndex=null, feeSlippagePercent=0.30, configDirty=false;
+    const fmtTime = v => new Date(v).toLocaleTimeString([], {hour12:false});
+    const base = s => s ? s.replace(/USDT$/,"") : "";
+    const setChange = (id,s,c) => { const e=$(id); e.textContent=s ? `${s} ${c>=0?"+":""}${c.toFixed(4)}%` : "-"; e.className=c>=0?"positive":"negative"; };
+    function selectedSymbols(){ return [...dialog.querySelectorAll("input:checked")].map(i=>i.value); }
+    function renderExtremes(x){ if(!x){ setChange("extremeA",null,0); setChange("extremeB",null,0); return; } setChange("extremeA",x.a.symbol,x.a.change_percent); setChange("extremeB",x.b.symbol,x.b.change_percent); $("extremeAText").textContent=x.top_2.symbol?`second: ${x.top_2.symbol}`:"second: -"; $("extremeBText").textContent=x.bottom_2.symbol?`second: ${x.bottom_2.symbol}`:"second: -"; $("extremeWindow").textContent=`${x.window_seconds.toFixed(1)}s`; $("extremeMeta").textContent=`${x.sample_count} symbols | ${fmtTime(x.observed_at)}`; }
+    function setConfig(c){ $("cfgWindow").value=c.BINANCE_CHANGE_WINDOW_SECONDS; $("cfgMinUp").value=c.TRIGGER_MIN_UP_CHANGE_PERCENT; $("cfgMinDown").value=c.TRIGGER_MIN_DOWN_CHANGE_PERCENT; $("cfgSlippage").value=c.EXECUTION_SLIPPAGE_BPS; $("cfgMaxAge").value=c.EXECUTION_PLAN_MAX_AGE_SECONDS; }
+    function readConfig(){ return {BINANCE_CHANGE_WINDOW_SECONDS:$("cfgWindow").value,TRIGGER_MIN_UP_CHANGE_PERCENT:$("cfgMinUp").value,TRIGGER_MIN_DOWN_CHANGE_PERCENT:$("cfgMinDown").value,EXECUTION_SLIPPAGE_BPS:$("cfgSlippage").value,EXECUTION_PLAN_MAX_AGE_SECONDS:$("cfgMaxAge").value}; }
+    function renderStats(x){ if(!x){ return; } $("statSignalRate").textContent=`${x.signal_rate_percent.toFixed(2)}%`; $("statSignalCount").textContent=`${x.signals} / ${x.candidates} candidates`; $("statAvgProfit").textContent=`${x.avg_net_profit_usdc.toFixed(4)}`; $("statMaxProfit").textContent=`${x.max_net_profit_usdc.toFixed(4)}`; $("statMaxSpread").textContent=`${x.max_window_spread_percent.toFixed(4)}%`; }
+    function renderTxStats(x){ if(!x){ return; } $("txSuccessRate").textContent=`${x.success_rate_percent.toFixed(2)}%`; $("txCount").textContent=`${x.success} ok / ${x.failed} failed`; $("txProfit").textContent=`${x.profit_units} units`; $("txLast").textContent=x.last_tx?`${x.last_tx.slice(0,10)}...`:"no tx"; }
+    function renderExecutableSignal(x, cache){ $("aaveReserveCount").textContent=cache?cache.asset_count:"-"; $("aaveReserveMeta").textContent=cache&&cache.refreshed_at?`updated ${fmtTime(cache.refreshed_at)}`:"no cache"; $("rawCandidateCount").textContent=x?x.raw_candidate_count:"-"; $("rawCandidateMeta").textContent="velocity windows passing threshold"; $("execCandidateCount").textContent=x?x.executable_candidate_count:"-"; $("execCandidateMeta").textContent=x&&x.executable_symbols?`${x.executable_symbols.length} mapped symbols`:"waiting"; const s=x&&x.signal; $("execSignalPair").textContent=s?`${base(s.x_symbol)} / ${base(s.y_symbol)}`:"none"; $("execSignalMeta").textContent=s?`${s.x_change_percent.toFixed(4)}% / ${s.y_change_percent.toFixed(4)}%`:"no executable pair"; }
+    function renderTrigger(s){ if(!s){ ["triggerX","triggerY","triggerSignal","onchainDecision"].forEach(id=>$(id).textContent="-"); $("triggerXMeta").textContent="waiting"; $("triggerYMeta").textContent="waiting"; $("triggerSignalMeta").textContent="waiting"; $("onchainDecisionMeta").textContent="waiting"; return; } const xc=s.x_change_percent??s.a_change_percent??0, yc=s.y_change_percent??s.b_change_percent??0, xs=s.x_symbol??s.a_symbol, ys=s.y_symbol??s.b_symbol; $("triggerX").textContent=`${base(xs)} ${xc>=0?"+":""}${xc.toFixed(4)}%`; $("triggerX").className=xc>=0?"positive":"negative"; $("triggerXMeta").textContent=`${s.window_seconds.toFixed(3)}s window`; $("triggerY").textContent=`${base(ys)} ${yc>=0?"+":""}${yc.toFixed(4)}%`; $("triggerY").className=yc>=0?"positive":"negative"; $("triggerYMeta").textContent=`source ${s.price_source || "unknown"}`; $("triggerSignal").textContent=s.trigger_signal?"ready":"waiting"; $("triggerSignal").className=s.trigger_signal?"positive":"negative"; $("triggerSignalMeta").textContent=s.trigger_signal?`spread ${s.window_spread_percent.toFixed(4)}%`:(s.blocked_reasons||["below threshold"]).join(", "); $("onchainDecision").textContent=s.onchain_decision_required?"contract":"-"; $("onchainDecisionMeta").textContent=s.execution_plan?"legacy plan present":"dynamic route selection"; }
+    async function refresh(){ try{ const s=await api("/api/status"); $("running").textContent=s.running?"running":"stopped"; $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; $("rows").textContent=s.rows??"-"; if(!configDirty) setConfig(s.strategy_config); renderStats(s.trade_stats); renderTxStats(s.testnet_trade_stats); renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); $("startBtn").disabled=s.running; $("stopBtn").disabled=!s.running; }catch(e){ $("message").textContent=e.message; } }
+    function resize(c){ const r=window.devicePixelRatio||1, b=c.getBoundingClientRect(); c.width=Math.max(320,b.width*r); c.height=Math.max(120,b.height*r); return {w:c.width,h:c.height}; }
+    function draw(c, rows, series, ref){ const {w,h}=resize(c), ctx=c.getContext("2d"), p={l:62,r:20,t:18,b:34}; ctx.clearRect(0,0,w,h); ctx.strokeStyle="#e4e7ec"; ctx.strokeRect(p.l,p.t,w-p.l-p.r,h-p.t-p.b); if(rows.length<2)return; let vals=rows.flatMap(r=>series.map(s=>r[s.key])); if(ref){vals.push(ref,-ref)} let mn=Math.min(...vals), mx=Math.max(...vals); if(mn===mx){mn-=1;mx+=1} const sx=i=>p.l+i/(rows.length-1)*(w-p.l-p.r), sy=v=>p.t+(1-(v-mn)/(mx-mn))*(h-p.t-p.b); if(ref){ctx.setLineDash([6,5]); for(const v of [ref,-ref]){ctx.beginPath();ctx.strokeStyle="#98a2b3";ctx.moveTo(p.l,sy(v));ctx.lineTo(w-p.r,sy(v));ctx.stroke();} ctx.setLineDash([]);} for(const s of series){ctx.beginPath();ctx.strokeStyle=s.color;ctx.lineWidth=2;rows.forEach((r,i)=>i?ctx.lineTo(sx(i),sy(r[s.key])):ctx.moveTo(sx(i),sy(r[s.key])));ctx.stroke();} if(cursorIndex!==null){ctx.beginPath();ctx.strokeStyle="#111827";ctx.moveTo(sx(cursorIndex),p.t);ctx.lineTo(sx(cursorIndex),h-p.b);ctx.stroke();} }
+    function renderCharts(){ draw(priceCanvas,chartRows,[{key:"binance_price",color:"#2563eb"},{key:"aave_price",color:"#dc2626"}]); draw(diffCanvas,chartRows,[{key:"diff_percent",color:"#16a34a"}],feeSlippagePercent); const r=chartRows[cursorIndex??chartRows.length-1]; $("chartReadout").textContent=r?`${fmtTime(r.observed_at)} | Binance ${r.binance_price.toFixed(6)} | Aave ${r.aave_price.toFixed(6)} | diff ${r.diff_percent.toFixed(4)}%`:"No observations yet."; }
+    async function refreshDexCosts(symbol){ try{ const d=await api(`/api/dex-costs?symbol=${symbol}`); $("costNote").textContent=d.costs.length?`${d.dex_name} reference ${d.reference_price_usd.toFixed(6)}`:"No DEX quote"; $("costTableBody").innerHTML=d.costs.map(x=>`<tr><td>${x.amount_usd.toFixed(0)} USDC</td><td>${x.buy_cost_percent.toFixed(4)}%</td><td>${x.sell_cost_percent.toFixed(4)}%</td><td>${x.roundtrip_cost_percent.toFixed(4)}%</td><td>${x.buy_price_usd.toFixed(6)}</td></tr>`).join(""); }catch(e){ $("costTableBody").innerHTML=`<tr><td colspan="5">${e.message}</td></tr>`; } }
+    async function refreshChart(){ try{ const s=$("chartSymbol").value, d=await api(`/api/observations?symbol=${s}&limit=120`); chartRows=d.rows; feeSlippagePercent=d.fee_slippage_percent; $("chartSummary").textContent=chartRows.length?`${s}: diff ${chartRows.at(-1).diff_percent.toFixed(4)}%`:`${s}: no observations`; renderCharts(); refreshDexCosts(s); }catch(e){ $("chartSummary").textContent=e.message; } }
+    function moveCursor(e){ if(!chartRows.length)return; const b=priceCanvas.getBoundingClientRect(), x=(e.touches?e.touches[0].clientX:e.clientX); cursorIndex=Math.round(Math.min(1,Math.max(0,(x-b.left)/b.width))*(chartRows.length-1)); renderCharts(); }
+    $("startBtn").onclick=()=>dialog.showModal(); $("cancelDialog").onclick=()=>dialog.close(); $("refreshBtn").onclick=refresh; $("chartRefreshBtn").onclick=refreshChart; $("chartSymbol").onchange=refreshChart; priceCanvas.onmousemove=moveCursor; diffCanvas.onmousemove=moveCursor;
+    $("initBtn").onclick=async()=>{ await api("/api/init",{method:"POST",body:"{}"}); refresh(); }; $("stopBtn").onclick=async()=>{ await api("/api/stop",{method:"POST",body:"{}"}); refresh(); };
+    document.querySelectorAll(".settings input").forEach(i=>i.oninput=()=>{ configDirty=true; $("configNote").textContent="Unsaved changes"; });
+    $("saveConfigBtn").onclick=async()=>{ const d=await api("/api/strategy-config",{method:"POST",body:JSON.stringify(readConfig())}); configDirty=false; setConfig(d.config); $("configNote").textContent=d.restart_required?"Saved. Restart observer to apply.":"Saved. Applies on next start."; };
+    $("clearBtn").onclick=async()=>{ if(confirm("Clear all observations?")){ await api("/api/clear",{method:"POST",body:"{}"}); refresh(); } }; $("clearFilesBtn").onclick=async()=>{ await api("/api/clear-files",{method:"POST",body:"{}"}); refresh(); };
+    $("confirmStart").onclick=async()=>{ await api("/api/start",{method:"POST",body:JSON.stringify({symbols:selectedSymbols()})}); dialog.close(); refresh(); };
+    refresh(); refreshChart(); setInterval(refresh,1000); setInterval(refreshChart,5000);
+  </script>
+</body>
+</html>

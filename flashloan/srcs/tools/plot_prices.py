@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,10 +10,19 @@ from typing import Optional
 
 import matplotlib
 
-# Replit/服务器通常没有图形桌面，Agg 后端可以直接生成 PNG 文件。
+# Replit/server environments usually have no GUI; Agg can write PNG files.
 matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from core.env_loader import load_env_files
+
+
+load_env_files(__file__)
 
 LOG = logging.getLogger("plot_prices")
 
@@ -21,7 +31,7 @@ DEFAULT_OUTPUT_DIR = "charts"
 
 @dataclass(frozen=True)
 class Observation:
-    """一行价格观测数据。"""
+    """One row of price observation data."""
 
     observed_at: datetime
     symbol: str
@@ -32,7 +42,7 @@ class Observation:
 
 
 def parse_time(value: str) -> datetime:
-    """解析 observer.py 写入的 UTC ISO 时间。"""
+    """Parse UTC ISO timestamps written by observer.py."""
 
     text = value.strip()
     if text.endswith("Z"):
@@ -56,7 +66,7 @@ def require_psycopg():
 def load_observations(
     database_url: str, symbols: Optional[set[str]]
 ) -> dict[str, list[Observation]]:
-    """从 Replit SQL/Postgres 读取观测数据，并按交易对分组。"""
+    """Read observations from Postgres and group them by trading pair."""
 
     grouped: dict[str, list[Observation]] = defaultdict(list)
     params: list[object] = []
@@ -73,7 +83,7 @@ def load_observations(
         ORDER BY symbol, observed_at
     """
     psycopg = require_psycopg()
-    with psycopg.connect(database_url) as connection:
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
@@ -110,7 +120,7 @@ def keep_last(observations: list[Observation], limit: int) -> list[Observation]:
 
 
 def plot_symbol(observations: list[Observation], output_dir: Path) -> Path:
-    """为单个交易对生成价格曲线和价差曲线。"""
+    """Generate price and diff charts for one trading pair."""
 
     symbol = observations[0].symbol
     asset = observations[0].asset
@@ -150,7 +160,7 @@ def plot_symbol(observations: list[Observation], output_dir: Path) -> Path:
     diff_ax.set_xlabel("Time (UTC)")
     diff_ax.grid(True, alpha=0.25)
 
-    # 时间刻度自动压缩，长时间运行后的图不会挤成一团。
+    # Keep long-running charts readable by compacting the time axis.
     locator = mdates.AutoDateLocator(minticks=5, maxticks=10)
     formatter = mdates.ConciseDateFormatter(locator)
     diff_ax.xaxis.set_major_locator(locator)
@@ -165,7 +175,7 @@ def plot_symbol(observations: list[Observation], output_dir: Path) -> Path:
 
 
 def summarize_symbol(observations: list[Observation]) -> str:
-    """生成一个简单摘要，用来快速判断价差是否值得继续研究。"""
+    """Generate a short summary for quick price-diff inspection."""
 
     diffs = [item.diff_percent for item in observations]
     abs_diffs = [abs(value) for value in diffs]

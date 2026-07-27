@@ -1,0 +1,28 @@
+{
+  "name": "flashloan-testnet-executor",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:contracts": "hardhat test",
+    "test:payload": "python -m pytest ../flashloan/srcs/tests/test_execution_payload.py ../flashloan/srcs/tests/test_plan_quotes.py",
+    "test:quotes": "python -m pytest ../flashloan/srcs/tests/test_plan_quotes.py",
+    "test:strategy": "python -m pytest ../flashloan/srcs/tests/test_arbitrage_strategy.py",
+    "preflight:fuji": "hardhat run scripts/preflight-fuji.js --network fuji",
+    "deploy:fuji-fixture": "hardhat run scripts/deploy-fuji-test-fixture.js --network fuji",
+    "deploy:fuji": "hardhat run scripts/deploy-mock-funded-executor.js --network fuji",
+    "deploy:fuji-aave": "hardhat run scripts/deploy-aave-executor.js --network fuji",
+    "deploy:fuji-dynamic": "hardhat run scripts/deploy-dynamic-aave-executor.js --network fuji",
+    "execute:fuji": "hardhat run scripts/execute-fuji-roundtrip.js --network fuji",
+    "execute:fuji-payload": "hardhat run scripts/execute-payload-mock-funded.js --network fuji",
+    "execute:fuji-aave-payload": "hardhat run scripts/execute-aave-payload.js --network fuji",
+    "execute:fuji-dynamic-signal": "hardhat run scripts/execute-dynamic-signal.js --network fuji",
+    "verify:fuji-guards": "hardhat run scripts/verify-fuji-guards.js --network fuji"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "dotenv": "^17.2.1",
+    "hardhat": "^2.26.1"
+  }
+}

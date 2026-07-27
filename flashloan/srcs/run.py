@@ -3,6 +3,11 @@ import os
 import sys
 import threading
 
+from core.env_loader import load_env_files
+
+
+load_env_files(__file__)
+
 
 REQUIRED_MODULES = {
     "flask": "flask",
@@ -12,12 +17,8 @@ REQUIRED_MODULES = {
 }
 
 
-def require_database_url() -> str:
+def optional_database_url() -> str:
     database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError(
-            "DATABASE_URL is required. Attach Replit SQL before starting the system."
-        )
     return database_url
 
 
@@ -50,21 +51,29 @@ def read_port() -> int:
 
 def main() -> int:
     try:
-        database_url = require_database_url()
+        database_url = optional_database_url()
         require_dependencies()
         port = read_port()
 
-        from control_panel import app
-        from observer import ensure_database_schema
+        from web.control_panel import app
+        from db.storage import ensure_database_schema
 
     except Exception as exc:
         print(f"startup failed: {exc}", file=sys.stderr)
         return 1
 
     print(f"control panel listening on 0.0.0.0:{port}")
-    print("open the Replit Webview/Preview for this port to use the control panel")
+    print(f"local URL: http://127.0.0.1:{port}")
+    print("open the Replit Webview/Preview for this port when running on Replit")
 
     def initialize_database() -> None:
+        if not database_url:
+            print(
+                "DATABASE_URL is not configured; database-backed actions will "
+                "return an error until .env or Replit Secrets provides it.",
+                file=sys.stderr,
+            )
+            return
         try:
             ensure_database_schema(database_url)
             print("database ready")
