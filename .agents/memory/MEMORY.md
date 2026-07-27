@@ -1,1 +1,0 @@
-- [Subdirectory Flask startup](subdirectory-flask-startup.md) — keep the root launcher and managed workflow pointed at the app's actual subdirectory, with only one server owning port 5000.

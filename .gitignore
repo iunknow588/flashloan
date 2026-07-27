@@ -1,0 +1,13 @@
+.env
+*.env
+!.env.example
+__pycache__/
+*.py[cod]
+charts/
+observations.csv
+docs/
+back/
+.agents/
+.replit
+replit.md
+git/
