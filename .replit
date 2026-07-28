@@ -1,0 +1,36 @@
+modules = ["python-3.11"]
+run = "cd flashloan/srcs && python run.py"
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[nix]
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["sh", "-c", "cd flashloan/srcs && python run.py"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd flashloan/srcs && python run.py"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
