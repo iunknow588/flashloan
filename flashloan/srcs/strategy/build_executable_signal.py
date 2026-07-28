@@ -67,25 +67,26 @@ def fetch_candidates(database_url: str, since_minutes: int, limit: int) -> list[
     ]
 
 
-def build_signal(candidate: dict) -> dict:
+def build_candidate(candidate: dict) -> dict:
     spread = candidate["x_change_percent"] - candidate["y_change_percent"]
     return {
         "observed_at": candidate["observed_at"],
         "window_seconds": candidate["window_seconds"],
         "sample_count": candidate["sample_count"],
         "price_source": "db_binance_window_extremes",
-        "strategy": "onchain_dynamic_trigger",
-        "best_strategy": "onchain_dynamic_decision",
+        "stage": "aave_candidate",
+        "strategy": "velocity_aave_candidate",
+        "best_strategy": None,
         "basket_size": 1,
         "candidate_pair_count": 1,
-        "evaluated_strategy_count": 4,
+        "evaluated_strategy_count": 0,
         "a_symbol": candidate["x_symbol"],
         "b_symbol": candidate["y_symbol"],
         "x_symbol": candidate["x_symbol"],
         "y_symbol": candidate["y_symbol"],
-        "borrow_symbol": candidate["x_symbol"],
-        "swap_symbol": candidate["y_symbol"],
-        "route_symbols": [candidate["x_symbol"], "ONCHAIN_DYNAMIC", candidate["y_symbol"]],
+        "borrow_symbol": None,
+        "swap_symbol": None,
+        "route_symbols": [],
         "a_change_percent": candidate["x_change_percent"],
         "b_change_percent": candidate["y_change_percent"],
         "x_change_percent": candidate["x_change_percent"],
@@ -97,27 +98,44 @@ def build_signal(candidate: dict) -> dict:
         "window_spread_percent": spread,
         "min_window_spread_percent": float(os.getenv("TRIGGER_MIN_UP_CHANGE_PERCENT", "1.0"))
         + float(os.getenv("TRIGGER_MIN_DOWN_CHANGE_PERCENT", "1.0")),
-        "trigger_signal": True,
-        "signal": True,
-        "profitable": True,
-        "trigger_model": "db_window_velocity_aave_executable_intersection",
+        "trigger_signal": False,
+        "signal": False,
+        "profitable": False,
+        "executable_signal": False,
+        "dex_quote_verified": False,
+        "net_profit_verified": False,
+        "simulation_required": True,
+        "trigger_model": "db_window_velocity_aave_candidate_intersection",
         "onchain_decision_required": True,
-        "blocked_reasons": [],
+        "blocked_reasons": [
+            "dex_quote_not_verified",
+            "net_profit_not_verified",
+            "fork_or_fuji_simulation_not_verified",
+        ],
         "pairs": [],
         "execution_plan": None,
     }
+
+
+def build_verified_signal(candidate: dict) -> dict | None:
+    built = build_candidate(candidate)
+    if (
+        built.get("dex_quote_verified")
+        and built.get("net_profit_verified")
+        and built.get("executable_signal")
+    ):
+        return built
+    return None
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--since-minutes", type=int, default=30)
     parser.add_argument("--limit", type=int, default=100)
+    default_output = SRC_ROOT / "runtime" / "state" / "latest_executable_signal.json"
     parser.add_argument(
         "--output",
-        default=os.getenv(
-            "EXECUTABLE_SIGNAL_FILE",
-            "flashloan/srcs/runtime/state/latest_executable_signal.json",
-        ),
+        default=os.getenv("EXECUTABLE_SIGNAL_FILE", str(default_output)),
     )
     args = parser.parse_args()
 
@@ -137,7 +155,12 @@ def main() -> int:
         "raw_candidate_count": len(candidates),
         "executable_candidate_count": len(filtered),
         "candidates": filtered,
-        "signal": build_signal(filtered[0]) if filtered else None,
+        "candidate": build_candidate(filtered[0]) if filtered else None,
+        "signal": build_verified_signal(filtered[0]) if filtered else None,
+        "blocked_reasons": []
+        if filtered
+        else ["no_recent_aave_matched_velocity_candidate"],
+        "next_required_stage": "dex_quote",
     }
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

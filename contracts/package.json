@@ -18,6 +18,7 @@
     "execute:fuji-payload": "hardhat run scripts/execute-payload-mock-funded.js --network fuji",
     "execute:fuji-aave-payload": "hardhat run scripts/execute-aave-payload.js --network fuji",
     "execute:fuji-dynamic-signal": "hardhat run scripts/execute-dynamic-signal.js --network fuji",
+    "simulate:fuji-dynamic-signal": "hardhat run scripts/simulate-dynamic-signal.js --network fuji",
     "verify:fuji-guards": "hardhat run scripts/verify-fuji-guards.js --network fuji"
   },
   "devDependencies": {

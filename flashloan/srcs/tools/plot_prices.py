@@ -10,7 +10,7 @@ from typing import Optional
 
 import matplotlib
 
-# Replit/server environments usually have no GUI; Agg can write PNG files.
+# Server environments usually have no GUI; Agg can write PNG files.
 matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -213,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--database-url",
         default=os.getenv("DATABASE_URL"),
-        help="Replit SQL/Postgres DATABASE_URL",
+        help="Postgres DATABASE_URL",
     )
     parser.add_argument(
         "--output-dir",
@@ -244,7 +244,7 @@ def main() -> None:
 
     if not args.database_url:
         raise RuntimeError(
-            "DATABASE_URL is required. Run inside Replit with SQL attached or pass --database-url."
+            "DATABASE_URL is required. Configure the environment or pass --database-url."
         )
 
     LOG.info("reading database")

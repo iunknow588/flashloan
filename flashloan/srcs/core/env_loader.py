@@ -52,3 +52,13 @@ def load_env_files(start_path: str | os.PathLike[str]) -> list[Path]:
             os.environ.setdefault(key, value)
         loaded.append(env_path)
     return loaded
+
+
+def resolve_env_path(
+    name: str,
+    default: str | os.PathLike[str],
+    base_dir: str | os.PathLike[str],
+) -> Path:
+    value = os.getenv(name, str(default)).strip()
+    path = Path(value)
+    return path if path.is_absolute() else Path(base_dir) / path

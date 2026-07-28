@@ -22,14 +22,14 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from market.aave_reserve_cache import load_aave_reserve_symbols
-from core.env_loader import load_env_files
+from core.env_loader import load_env_files, resolve_env_path
 from db.storage import (
     append_arbitrage_simulation,
     append_binance_extremes,
     append_binance_price_history,
     append_observations,
     ensure_database_schema,
-    require_psycopg,
+    try_acquire_observer_lock,
 )
 from strategy.trigger_signal import TriggerConfig, build_trigger_signal
 
@@ -37,12 +37,13 @@ from strategy.trigger_signal import TriggerConfig, build_trigger_signal
 load_env_files(__file__)
 
 APP_DIR = str(Path(__file__).resolve().parents[1])
-RUNTIME_DIR = Path(os.getenv("FLASHLOAN_RUNTIME_DIR", str(Path(APP_DIR) / "runtime")))
+RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
 LATEST_ARBITRAGE_PATH = str(STATE_DIR / "latest_arbitrage.json")
 LATEST_EXTREMES_PATH = str(STATE_DIR / "latest_extremes.json")
 DEFAULT_BINANCE_WS_BASES = "wss://stream.binance.com:9443,wss://data-stream.binance.vision:443"
 DEFAULT_BINANCE_REST_BASES = "https://api.binance.com,https://data-api.binance.vision"
+DEFAULT_BINANCE_WS_CHUNK_SIZE = 200
 DEFAULT_RPC = "https://api.avax.network/ext/bc/C/rpc"
 DEFAULT_SYMBOLS = "AVAXUSDT,ETHUSDT,BTCUSDT,AAVEUSDT,USDCUSDT"
 DEFAULT_EXECUTABLE_SYMBOLS = "AVAXUSDT,ETHUSDT,BTCUSDT,AAVEUSDT"
@@ -83,6 +84,7 @@ class ObserverConfig:
     binance_rest_poll_seconds: float
     binance_top_symbols: list[str]
     binance_change_window_seconds: float
+    binance_velocity_side_limit: int
     binance_extreme_write_seconds: float
     binance_price_history_symbols: list[str]
     binance_price_history_write_seconds: float
@@ -342,7 +344,7 @@ def resolve_binance_mover_symbols(rest_bases: list[str], limit: int) -> list[str
 
 def resolve_binance_all_usdt_symbols(rest_bases: list[str], limit: int) -> list[str]:
     supported = sorted(fetch_binance_usdt_symbols(rest_bases))
-    return supported[:limit]
+    return supported if limit <= 0 else supported[:limit]
 
 
 def resolve_binance_top_symbols(rest_bases: list[str], limit: int) -> list[str]:
@@ -362,7 +364,8 @@ def load_config() -> ObserverConfig:
     symbols = [symbol for symbol in env_list("SYMBOLS", DEFAULT_SYMBOLS) if symbol in ASSETS]
     if not symbols:
         raise ValueError("No supported symbols selected.")
-    top_symbols = resolve_binance_top_symbols(rest_bases, max(1, int(env_float("BINANCE_TOP_SYMBOL_LIMIT", 100))))
+    top_symbol_limit = int(env_float("BINANCE_TOP_SYMBOL_LIMIT", 100))
+    top_symbols = resolve_binance_top_symbols(rest_bases, top_symbol_limit)
     price_history_raw = os.getenv("BINANCE_PRICE_HISTORY_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS).strip()
     if price_history_raw.upper() in {"TOP", "TOP_SYMBOLS", "ALL_TOP"}:
         price_history_symbols = top_symbols
@@ -392,6 +395,7 @@ def load_config() -> ObserverConfig:
         binance_rest_poll_seconds=max(1.0, env_float("BINANCE_REST_POLL_SECONDS", 3.0)),
         binance_top_symbols=top_symbols,
         binance_change_window_seconds=max(0.2, env_float("BINANCE_CHANGE_WINDOW_SECONDS", 0.2)),
+        binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", 100))),
         binance_extreme_write_seconds=max(0.2, env_float("BINANCE_EXTREME_WRITE_SECONDS", 1.0)),
         binance_price_history_symbols=price_history_symbols,
         binance_price_history_write_seconds=max(0.2, env_float("BINANCE_PRICE_HISTORY_WRITE_SECONDS", 1.0)),
@@ -481,6 +485,12 @@ async def binance_listener(symbols: Iterable[str], ws_bases: Iterable[str], stat
             base_index += 1
             await sleep_until_next(stop, delay)
             delay = min(delay * 2, 60)
+
+
+def chunked_symbols(symbols: Iterable[str], chunk_size: int) -> list[list[str]]:
+    unique_symbols = list(dict.fromkeys(symbols))
+    size = max(1, chunk_size)
+    return [unique_symbols[index : index + size] for index in range(0, len(unique_symbols), size)]
 
 
 async def binance_rest_poller(config: ObserverConfig, state: PriceState, stop: asyncio.Event) -> None:
@@ -575,7 +585,11 @@ async def extreme_and_arbitrage_reporter(config: ObserverConfig, state: PriceSta
     last_write_at, last_price_sample_at, last_price_flush_at, last_log_at, last_db_error_at = 0.0, 0.0, 0.0, 0.0, 0.0
     price_history_buffer: list[dict] = []
     while not stop.is_set():
-        extremes = await state.window_extremes(config.binance_top_symbols, config.binance_change_window_seconds, 5)
+        extremes = await state.window_extremes(
+            config.binance_top_symbols,
+            config.binance_change_window_seconds,
+            config.binance_velocity_side_limit,
+        )
         executable_symbols = config.trigger.executable_symbols or tuple(config.symbols)
         simulation_extremes = await state.window_extremes(
             executable_symbols,
@@ -654,6 +668,7 @@ async def sleep_until_next(stop: asyncio.Event, seconds: float) -> None:
 async def main() -> None:
     setup_logging()
     config, state, stop = load_config(), PriceState(), asyncio.Event()
+    observer_lock_connection = None
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         with suppress(NotImplementedError):
@@ -662,27 +677,44 @@ async def main() -> None:
         LOG.info("database schema initialization skipped")
     else:
         await asyncio.to_thread(ensure_database_schema, config.database_url)
+    if env_bool("OBSERVER_REQUIRE_DB_LOCK", True):
+        observer_lock_connection = await asyncio.to_thread(try_acquire_observer_lock, config.database_url)
+        if observer_lock_connection is None:
+            LOG.error("another observer already holds the database writer lock; exiting")
+            return
+        LOG.info("database writer lock acquired")
     LOG.info(
-        "observer started top_symbols=%s sample=%.3fs trigger_window=%.3fs trigger_up=%.2f%% trigger_down=%.2f%%",
+        "observer started top_symbols=%s velocity_side_limit=%s sample=%.3fs trigger_window=%.3fs trigger_up=%.2f%% trigger_down=%.2f%%",
         len(config.binance_top_symbols),
+        config.binance_velocity_side_limit,
         config.sample_seconds,
         config.binance_change_window_seconds,
         config.trigger.min_up_change_percent,
         config.trigger.min_down_change_percent,
     )
     binance_symbols = list(dict.fromkeys([*config.symbols, *config.binance_top_symbols]))
+    ws_chunk_size = max(1, int(env_float("BINANCE_WS_CHUNK_SIZE", DEFAULT_BINANCE_WS_CHUNK_SIZE)))
+    binance_chunks = chunked_symbols(binance_symbols, ws_chunk_size)
+    LOG.info("binance websocket chunks=%s chunk_size=%s total_symbols=%s", len(binance_chunks), ws_chunk_size, len(binance_symbols))
     tasks = [
-        asyncio.create_task(binance_listener(binance_symbols, config.binance_ws_bases, state, stop)),
+        *[
+            asyncio.create_task(binance_listener(chunk, config.binance_ws_bases, state, stop))
+            for chunk in binance_chunks
+        ],
         asyncio.create_task(binance_rest_poller(config, state, stop)),
         asyncio.create_task(aave_poller(config, state, stop)),
         asyncio.create_task(reporter(config, state, stop)),
         asyncio.create_task(extreme_and_arbitrage_reporter(config, state, stop)),
         asyncio.create_task(auto_stop_after(config.run_seconds, stop)),
     ]
-    await stop.wait()
-    for task in tasks:
-        task.cancel()
-    await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        await stop.wait()
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        if observer_lock_connection is not None:
+            observer_lock_connection.close()
 
 
 if __name__ == "__main__":

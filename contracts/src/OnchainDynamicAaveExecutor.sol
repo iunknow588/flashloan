@@ -105,6 +105,8 @@ contract OnchainDynamicAaveExecutor is IFlashLoanSimpleReceiverDyn {
     address public owner;
     address public immutable pool;
     bool public paused;
+    uint256 private constant AMOUNT_SCALE_DENOMINATOR = 10000;
+    uint256 private constant MIN_PROFIT_IMPROVEMENT_BPS = 1000;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -189,19 +191,42 @@ contract OnchainDynamicAaveExecutor is IFlashLoanSimpleReceiverDyn {
 
     function _bestQuote(DynamicRequest calldata request) private view returns (QuoteResult memory best) {
         for (uint256 i = 0; i < 4; i++) {
-            QuoteResult memory quote = _quoteStrategy(request, Strategy(i));
-            if (quote.viable && (!best.viable || quote.profitValueUsdc > best.profitValueUsdc)) {
-                best = quote;
+            Strategy strategy = Strategy(i);
+            QuoteResult memory strategyBest = _bestIncrementalQuote(request, strategy);
+            if (strategyBest.viable && (!best.viable || strategyBest.profitValueUsdc > best.profitValueUsdc)) {
+                best = strategyBest;
             }
+        }
+    }
+
+    function _bestIncrementalQuote(
+        DynamicRequest calldata request,
+        Strategy strategy
+    ) private view returns (QuoteResult memory best) {
+        uint256 baseAmount = _baseAmount(request, strategy);
+        for (uint256 j = 0; j < 4; j++) {
+            uint256 amount = (baseAmount * _amountScaleBps(j)) / AMOUNT_SCALE_DENOMINATOR;
+            QuoteResult memory quote = _quoteStrategy(request, strategy, amount);
+            if (!quote.viable) {
+                break;
+            }
+            if (!best.viable) {
+                best = quote;
+                continue;
+            }
+            if (!_isSignificantProfitImprovement(best.profitValueUsdc, quote.profitValueUsdc)) {
+                break;
+            }
+            best = quote;
         }
     }
 
     function _quoteStrategy(
         DynamicRequest calldata request,
-        Strategy strategy
+        Strategy strategy,
+        uint256 amount
     ) private view returns (QuoteResult memory quote) {
         address borrowToken = _borrowToken(strategy, request.xToken, request.yToken);
-        uint256 amount = borrowToken == request.xToken ? request.amountX : request.amountY;
         if (amount == 0) return quote;
 
         address[] memory tokens = _routeTokens(strategy, request.xToken, request.yToken, request.usdc);
@@ -226,6 +251,23 @@ contract OnchainDynamicAaveExecutor is IFlashLoanSimpleReceiverDyn {
             profitValueUsdc: profitValueUsdc,
             viable: profitValueUsdc > 0
         });
+    }
+
+    function _baseAmount(DynamicRequest calldata request, Strategy strategy) private pure returns (uint256) {
+        address borrowToken = _borrowToken(strategy, request.xToken, request.yToken);
+        return borrowToken == request.xToken ? request.amountX : request.amountY;
+    }
+
+    function _amountScaleBps(uint256 index) private pure returns (uint256) {
+        if (index == 0) return 2500;
+        if (index == 1) return 5000;
+        if (index == 2) return 7500;
+        return 10000;
+    }
+
+    function _isSignificantProfitImprovement(uint256 previousProfit, uint256 nextProfit) private pure returns (bool) {
+        if (nextProfit <= previousProfit) return false;
+        return (nextProfit - previousProfit) * AMOUNT_SCALE_DENOMINATOR >= previousProfit * MIN_PROFIT_IMPROVEMENT_BPS;
     }
 
     function _executeStrategy(CallbackPlan memory plan, uint256 amount, uint256 owed) private {

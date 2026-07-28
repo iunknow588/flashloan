@@ -130,6 +130,34 @@ describe("OnchainDynamicAaveExecutor", function () {
       .to.emit(ctx.executor, "DynamicFlashLoanExecuted");
   });
 
+  it("chooses a smaller borrow amount before the flash loan when larger amounts are unquotable", async function () {
+    const ctx = await deployDynamicFixture();
+    const MockSwapRouter = await ethers.getContractFactory("MockSwapRouter");
+    const cappedRouter = await MockSwapRouter.deploy(ctx.owner.address);
+    const cappedRouterAddress = await cappedRouter.getAddress();
+
+    for (const token of [ctx.x, ctx.y, ctx.usdc]) {
+      await token.mint(cappedRouterAddress, 1_000_000n * UNIT);
+    }
+    await cappedRouter.setRate(ctx.xAddress, ctx.usdcAddress, 2n, 1n);
+    await cappedRouter.setRate(ctx.usdcAddress, ctx.yAddress, 2n, 1n);
+    await cappedRouter.setRate(ctx.yAddress, ctx.xAddress, 3n, 10n);
+    await cappedRouter.setRate(ctx.yAddress, ctx.usdcAddress, 8n, 10n);
+    await cappedRouter.setMaxAmountIn(ctx.yAddress, ctx.xAddress, 1_500n * UNIT);
+
+    const request = dynamicRequest(ctx, {
+      router: cappedRouterAddress,
+      amountY: 0n,
+      deadline: await futureDeadline(),
+    });
+    const selectedAmount = request.amountX / 4n;
+    const premium = (selectedAmount * request.premiumBps) / 10000n;
+
+    await expect(ctx.executor.requestDynamicFlashLoan(request))
+      .to.emit(ctx.executor, "DynamicFlashLoanExecuted")
+      .withArgs(ctx.xAddress, 0, selectedAmount, premium);
+  });
+
   it("rejects non-owner requests", async function () {
     const ctx = await deployDynamicFixture();
     const request = dynamicRequest(ctx, { deadline: await futureDeadline() });

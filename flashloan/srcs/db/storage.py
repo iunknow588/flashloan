@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timezone
 
+OBSERVER_ADVISORY_LOCK_ID = 2026072801
+
 
 def require_psycopg():
     try:
@@ -55,7 +57,9 @@ def ensure_database_schema(database_url: str) -> None:
                     bottom_symbol_1 TEXT,
                     bottom_change_percent_1 DOUBLE PRECISION,
                     bottom_symbol_2 TEXT,
-                    bottom_change_percent_2 DOUBLE PRECISION
+                    bottom_change_percent_2 DOUBLE PRECISION,
+                    top_json TEXT,
+                    bottom_json TEXT
                 )
                 """
             )
@@ -135,6 +139,7 @@ def ensure_database_schema(database_url: str) -> None:
                 """
             )
             ensure_schema_columns(cursor)
+            ensure_deduplication_constraints(cursor)
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_arbitrage_simulations_time "
                 "ON arbitrage_simulations(observed_at)"
@@ -183,6 +188,8 @@ def ensure_schema_columns(cursor) -> None:
             "bottom_end_price_2": "DOUBLE PRECISION",
             "bottom_start_time_2": "TIMESTAMPTZ",
             "bottom_end_time_2": "TIMESTAMPTZ",
+            "top_json": "TEXT",
+            "bottom_json": "TEXT",
         },
         "binance_price_history": {
             "observed_at": "TIMESTAMPTZ",
@@ -247,6 +254,57 @@ def ensure_schema_columns(cursor) -> None:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {column_type}")
 
 
+def ensure_deduplication_constraints(cursor) -> None:
+    cursor.execute(
+        """
+        DELETE FROM binance_price_history keep
+        USING binance_price_history dup
+        WHERE keep.id > dup.id
+          AND keep.symbol = dup.symbol
+          AND keep.event_time = dup.event_time
+          AND keep.source = dup.source
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_binance_price_history_symbol_event_source
+        ON binance_price_history(symbol, event_time, source)
+        """
+    )
+    cursor.execute(
+        """
+        DELETE FROM observations keep
+        USING observations dup
+        WHERE keep.id > dup.id
+          AND keep.symbol = dup.symbol
+          AND keep.binance_event_time = dup.binance_event_time
+          AND keep.aave_block = dup.aave_block
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_observations_symbol_event_block
+        ON observations(symbol, binance_event_time, aave_block)
+        """
+    )
+
+
+def try_acquire_observer_lock(database_url: str, lock_id: int = OBSERVER_ADVISORY_LOCK_ID):
+    psycopg = require_psycopg()
+    connection = psycopg.connect(database_url, connect_timeout=8)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))
+            locked = bool(cursor.fetchone()[0])
+        if locked:
+            return connection
+    except Exception:
+        connection.close()
+        raise
+    connection.close()
+    return None
+
+
 def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
     if not rows:
         return
@@ -270,6 +328,7 @@ def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
                     observed_at, symbol, price, event_time, source
                 )
                 VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, event_time, source) DO NOTHING
                 """,
                 values,
             )
@@ -305,6 +364,7 @@ def append_observations(database_url: str, rows: list[dict]) -> None:
                     binance_age_seconds, aave_age_seconds
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, binance_event_time, aave_block) DO NOTHING
                 """,
                 values,
             )
@@ -349,6 +409,8 @@ def append_binance_extremes(database_url: str, extremes: dict) -> None:
         item(bottom, 1, "end_price"),
         item_time(bottom, 1, "start_ms"),
         item_time(bottom, 1, "end_ms"),
+        json.dumps(top, ensure_ascii=True, separators=(",", ":")),
+        json.dumps(bottom, ensure_ascii=True, separators=(",", ":")),
     )
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:
@@ -368,12 +430,13 @@ def append_binance_extremes(database_url: str, extremes: dict) -> None:
                     bottom_start_time_1, bottom_end_time_1,
                     bottom_symbol_2, bottom_change_percent_2,
                     bottom_start_price_2, bottom_end_price_2,
-                    bottom_start_time_2, bottom_end_time_2
+                    bottom_start_time_2, bottom_end_time_2,
+                    top_json, bottom_json
                 )
                 VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s
+                    %s, %s, %s, %s, %s
                 )
                 """,
                 values,

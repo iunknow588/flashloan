@@ -11,6 +11,7 @@ contract MockSwapRouter {
     error InvalidPath();
     error DeadlineExpired();
     error RateNotSet();
+    error AmountTooLarge();
     error AmountOutTooLow(uint256 amountOut, uint256 amountOutMin);
     error TransferFailed();
 
@@ -30,6 +31,7 @@ contract MockSwapRouter {
 
     address public owner;
     mapping(address => mapping(address => Rate)) public rates;
+    mapping(address => mapping(address => uint256)) public maxAmountIn;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -46,6 +48,10 @@ contract MockSwapRouter {
         }
         rates[tokenIn][tokenOut] = Rate(numerator, denominator);
         emit RateSet(tokenIn, tokenOut, numerator, denominator);
+    }
+
+    function setMaxAmountIn(address tokenIn, address tokenOut, uint256 amount) external onlyOwner {
+        maxAmountIn[tokenIn][tokenOut] = amount;
     }
 
     function swapExactTokensForTokens(
@@ -78,6 +84,8 @@ contract MockSwapRouter {
         for (uint256 i = 0; i < path.length - 1; i++) {
             Rate memory rate = rates[path[i]][path[i + 1]];
             if (rate.numerator == 0 || rate.denominator == 0) revert RateNotSet();
+            uint256 maxIn = maxAmountIn[path[i]][path[i + 1]];
+            if (maxIn != 0 && amounts[i] > maxIn) revert AmountTooLarge();
             amounts[i + 1] = (amounts[i] * rate.numerator) / rate.denominator;
         }
     }
@@ -90,6 +98,8 @@ contract MockSwapRouter {
             Rate memory rate = rates[path[i - 1]][path[i]];
             if (rate.numerator == 0 || rate.denominator == 0) revert RateNotSet();
             amounts[i - 1] = (amounts[i] * rate.denominator + rate.numerator - 1) / rate.numerator;
+            uint256 maxIn = maxAmountIn[path[i - 1]][path[i]];
+            if (maxIn != 0 && amounts[i - 1] > maxIn) revert AmountTooLarge();
         }
     }
 }

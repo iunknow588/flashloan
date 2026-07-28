@@ -28,14 +28,17 @@ def pct(start: float, end: float) -> float:
     return (end - start) / start * 100 if start > 0 else 0.0
 
 
-def summarize(values: list[dict]) -> dict:
+def summarize(values: list[dict], thresholds: list[float]) -> dict:
     if not values:
         return {}
     tops = [row["top_change_percent"] for row in values]
     bottoms = [row["bottom_change_percent"] for row in values]
     spreads = [row["top_change_percent"] - row["bottom_change_percent"] for row in values]
-    return {
+    sample_counts = [row["sample_count"] for row in values]
+    summary = {
         "count": len(values),
+        "avg_sample_count": sum(sample_counts) / len(sample_counts),
+        "min_sample_count": min(sample_counts),
         "avg_top_change_percent": sum(tops) / len(tops),
         "avg_bottom_change_percent": sum(bottoms) / len(bottoms),
         "avg_abs_bottom_change_percent": sum(abs(item) for item in bottoms) / len(bottoms),
@@ -43,12 +46,15 @@ def summarize(values: list[dict]) -> dict:
         "max_top_change_percent": max(tops),
         "min_bottom_change_percent": min(bottoms),
         "max_spread_percent": max(spreads),
-        "dual_1pct_trigger_count": sum(
+    }
+    for threshold in thresholds:
+        key = f"dual_{threshold:g}pct_trigger_count".replace(".", "_")
+        summary[key] = sum(
             1
             for row in values
-            if row["top_change_percent"] >= 1.0 and row["bottom_change_percent"] <= -1.0
-        ),
-    }
+            if row["top_change_percent"] >= threshold and row["bottom_change_percent"] <= -threshold
+        )
+    return summary
 
 
 def load_price_history(database_url: str, hours: float) -> list[tuple]:
@@ -60,8 +66,8 @@ def load_price_history(database_url: str, hours: float) -> list[tuple]:
                 """
                 SELECT observed_at, symbol, price, event_time, source
                 FROM binance_price_history
-                WHERE observed_at >= %s
-                ORDER BY observed_at, symbol
+                WHERE event_time >= %s
+                ORDER BY event_time, symbol
                 """,
                 (cutoff,),
             )
@@ -70,13 +76,13 @@ def load_price_history(database_url: str, hours: float) -> list[tuple]:
 
 def replay_windows(rows: list[tuple], window_seconds: float) -> list[dict]:
     by_symbol: dict[str, list[tuple[datetime, float]]] = defaultdict(list)
-    observed_times: set[datetime] = set()
-    latest_by_observed: dict[datetime, dict[str, tuple[datetime, float]]] = defaultdict(dict)
+    event_times: set[datetime] = set()
+    latest_by_event: dict[datetime, dict[str, tuple[datetime, float]]] = defaultdict(dict)
 
     for observed_at, symbol, price, event_time, _source in rows:
-        by_symbol[symbol].append((observed_at, float(price)))
-        observed_times.add(observed_at)
-        latest_by_observed[observed_at][symbol] = (observed_at, float(price))
+        by_symbol[symbol].append((event_time, float(price)))
+        event_times.add(event_time)
+        latest_by_event[event_time][symbol] = (event_time, float(price))
 
     symbol_times = {
         symbol: [item[0] for item in series]
@@ -84,22 +90,22 @@ def replay_windows(rows: list[tuple], window_seconds: float) -> list[dict]:
     }
     results = []
     window = timedelta(seconds=window_seconds)
-    for observed_at in sorted(observed_times):
+    for event_time in sorted(event_times):
         changes = []
-        for symbol, (_end_time, end_price) in latest_by_observed[observed_at].items():
+        for symbol, (_end_time, end_price) in latest_by_event[event_time].items():
             times = symbol_times[symbol]
             series = by_symbol[symbol]
-            start_index = bisect_left(times, observed_at - window)
+            start_index = bisect_left(times, event_time - window)
             if start_index >= len(series):
                 continue
             start_time, start_price = series[start_index]
-            if start_time > observed_at or start_price <= 0:
+            if start_time > event_time or start_price <= 0:
                 continue
             changes.append(
                 {
                     "symbol": symbol,
                     "start_time": start_time,
-                    "end_time": observed_at,
+                    "end_time": event_time,
                     "start_price": start_price,
                     "end_price": end_price,
                     "change_percent": pct(start_price, end_price),
@@ -113,7 +119,8 @@ def replay_windows(rows: list[tuple], window_seconds: float) -> list[dict]:
             continue
         results.append(
             {
-                "observed_at": observed_at,
+                "observed_at": event_time,
+                "sample_count": len(changes),
                 "top_symbol": top["symbol"],
                 "top_change_percent": top["change_percent"],
                 "bottom_symbol": bottom["symbol"],
@@ -135,7 +142,8 @@ def print_summary(name: str, summary: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--hours", type=float, default=2.0)
-    parser.add_argument("--window-seconds", type=float, default=0.2)
+    parser.add_argument("--window-seconds", type=float, nargs="+", default=[0.2])
+    parser.add_argument("--thresholds", type=float, nargs="+", default=[1.0])
     args = parser.parse_args()
 
     database_url = os.getenv("DATABASE_URL", "").strip()
@@ -143,8 +151,12 @@ def main() -> int:
         raise RuntimeError("DATABASE_URL is not configured")
 
     rows = load_price_history(database_url, args.hours)
-    replayed = replay_windows(rows, args.window_seconds)
-    print_summary("replayed_price_history", summarize(replayed))
+    for window_seconds in args.window_seconds:
+        replayed = replay_windows(rows, window_seconds)
+        print_summary(
+            f"replayed_price_history_{window_seconds:g}s",
+            summarize(replayed, args.thresholds),
+        )
     return 0
 
 

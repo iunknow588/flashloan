@@ -50,18 +50,6 @@ function tokenEnvNames(symbol) {
   ];
 }
 
-function tokenAddressFor(symbol) {
-  const address = optionalEnv(...tokenEnvNames(symbol));
-  if (!address) {
-    const cached = cachedTokenAddressFor(symbol);
-    if (cached) {
-      return cached;
-    }
-    throw new Error(`missing token address env/cache for ${symbol}: ${tokenEnvNames(symbol).join(" or ")}`);
-  }
-  return address;
-}
-
 function cachedTokenAddressFor(symbol) {
   const cacheFile = path.resolve(
     process.cwd(),
@@ -80,44 +68,29 @@ function cachedTokenAddressFor(symbol) {
   return "";
 }
 
-function readSignal() {
+function tokenAddressFor(symbol) {
+  const address = optionalEnv(...tokenEnvNames(symbol));
+  if (address) {
+    return address;
+  }
+  const cached = cachedTokenAddressFor(symbol);
+  if (cached) {
+    return cached;
+  }
+  throw new Error(`missing token address env/cache for ${symbol}: ${tokenEnvNames(symbol).join(" or ")}`);
+}
+
+function readCandidate() {
   const file = signalPath();
   const payload = JSON.parse(fs.readFileSync(file, "utf8"));
-  const signal = payload.signal || payload;
-  if (!signal.trigger_signal && !signal.signal) {
-    throw new Error("latest trigger signal is false");
+  const candidate = payload.signal || payload.quoted_candidate || payload.candidate || payload;
+  if (!candidate.x_symbol || !candidate.y_symbol) {
+    throw new Error("candidate must contain x_symbol and y_symbol");
   }
-  if (
-    signal.executable_signal !== true ||
-    signal.dex_quote_verified !== true ||
-    signal.net_profit_verified !== true
-  ) {
-    throw new Error(
-      "signal is not executable: dex quote, net profit, and executable flags must be verified"
-    );
-  }
-  if (!signal.x_symbol || !signal.y_symbol) {
-    throw new Error("signal must contain x_symbol and y_symbol");
-  }
-  return signal;
+  return candidate;
 }
 
-function tradeLogPath() {
-  return path.resolve(process.cwd(), process.env.TESTNET_TRADE_LOG || "deployments/fuji-trades.jsonl");
-}
-
-function appendTradeLog(row) {
-  const logFile = tradeLogPath();
-  fs.mkdirSync(path.dirname(logFile), { recursive: true });
-  fs.appendFileSync(logFile, `${JSON.stringify(row)}\n`);
-}
-
-async function main() {
-  requireEnv("FUJI_RPC_URL");
-  requireEnv("DEPLOYER_PRIVATE_KEY");
-
-  const signal = readSignal();
-  const executorAddress = requireEnv("ONCHAIN_DYNAMIC_AAVE_EXECUTOR_ADDRESS");
+async function buildRequest(candidate) {
   const router = optionalEnv("DYNAMIC_DEX_ROUTER", "FUJI_DEX_ROUTER") || requireEnv("FUJI_DEX_ROUTER");
   const usdc = optionalEnv("DYNAMIC_USDC", "FUJI_USDC") || requireEnv("FUJI_USDC");
   const defaultAmount = envBigInt("DYNAMIC_BORROW_AMOUNT_UNITS", 1000000000000000000n);
@@ -127,11 +100,11 @@ async function main() {
   const minProfitValueUsdc = envBigInt("DYNAMIC_MIN_PROFIT_USDC_UNITS", 1n);
   const slippageBps = envBigInt("DYNAMIC_SLIPPAGE_BPS", 50n);
   const deadlineSeconds = envNumber("DYNAMIC_DEADLINE_SECONDS", 60);
-
   const latest = await hre.ethers.provider.getBlock("latest");
-  const request = {
-    xToken: tokenAddressFor(signal.x_symbol),
-    yToken: tokenAddressFor(signal.y_symbol),
+
+  return {
+    xToken: tokenAddressFor(candidate.x_symbol),
+    yToken: tokenAddressFor(candidate.y_symbol),
     usdc,
     router,
     amountX,
@@ -141,38 +114,35 @@ async function main() {
     deadline: BigInt(latest.timestamp + deadlineSeconds),
     slippageBps,
   };
+}
 
+async function main() {
+  requireEnv("FUJI_RPC_URL");
+  const candidate = readCandidate();
+  const executorAddress = requireEnv("ONCHAIN_DYNAMIC_AAVE_EXECUTOR_ADDRESS");
+  const request = await buildRequest(candidate);
   const executor = await hre.ethers.getContractAt("OnchainDynamicAaveExecutor", executorAddress);
-  const baseLog = {
-    observedAt: signal.observed_at,
-    submittedAt: new Date().toISOString(),
+
+  const result = {
+    simulatedAt: new Date().toISOString(),
     network: hre.network.name,
-    xSymbol: signal.x_symbol,
-    ySymbol: signal.y_symbol,
-    xChangePercent: signal.x_change_percent ?? signal.a_change_percent,
-    yChangePercent: signal.y_change_percent ?? signal.b_change_percent,
+    xSymbol: candidate.x_symbol,
+    ySymbol: candidate.y_symbol,
+    success: false,
   };
 
   try {
-    const tx = await executor.requestDynamicFlashLoan(request);
-    const receipt = await tx.wait();
-    appendTradeLog({
-      ...baseLog,
-      success: true,
-      txHash: tx.hash,
-      gasUsed: receipt.gasUsed.toString(),
-      profitUnits: "0",
-    });
-    console.log(`tx=${tx.hash}`);
-    console.log(`gasUsed=${receipt.gasUsed}`);
-    console.log(`x=${signal.x_symbol} y=${signal.y_symbol}`);
+    await executor.requestDynamicFlashLoan.staticCall(request);
+    const gasEstimate = await executor.requestDynamicFlashLoan.estimateGas(request);
+    result.success = true;
+    result.gasEstimate = gasEstimate.toString();
   } catch (error) {
-    appendTradeLog({
-      ...baseLog,
-      success: false,
-      error: error.shortMessage || error.reason || error.message,
-    });
-    throw error;
+    result.error = error.shortMessage || error.reason || error.message;
+  }
+
+  console.log(JSON.stringify(result, null, 2));
+  if (!result.success) {
+    process.exitCode = 1;
   }
 }
 

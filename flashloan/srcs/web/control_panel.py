@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
@@ -14,17 +15,22 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
-from core.env_loader import load_env_files
+from core.env_loader import load_env_files, resolve_env_path
 from execution.execution_payload import PayloadConfig, build_execution_payload
 from market.observer import ASSETS
 from execution.plan_quotes import quote_execution_plan
 from web.control_panel_config import strategy_config as read_strategy_config, write_strategy_config as save_strategy_config
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
+    available_chart_symbols as read_available_chart_symbols,
+    database_table_counts as read_database_table_counts,
     latest_arbitrage_simulation as read_latest_arbitrage_simulation,
+    latest_arbitrage_simulation_file as read_latest_arbitrage_simulation_file,
     latest_binance_extremes as read_latest_binance_extremes,
+    latest_binance_extremes_file as read_latest_binance_extremes_file,
     latest_executable_signal as read_latest_executable_signal,
     observation_count as read_observation_count,
+    recent_binance_price_history as read_recent_binance_price_history,
     recent_observations as read_recent_observations,
 )
 from web.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
@@ -33,10 +39,13 @@ from db.storage import ensure_database_schema, require_psycopg
 
 WEB_DIR = Path(__file__).resolve().parent
 APP_DIR = SRC_ROOT
-RUNTIME_DIR = Path(os.getenv("FLASHLOAN_RUNTIME_DIR", str(APP_DIR / "runtime")))
+load_env_files(__file__)
+
+RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
 CONFIG_DIR = RUNTIME_DIR / "config"
 CACHE_DIR = RUNTIME_DIR / "cache"
+LOG_DIR = RUNTIME_DIR / "logs"
 OBSERVER_PATH = APP_DIR / "market" / "observer.py"
 TEMPLATE_PATH = WEB_DIR / "templates" / "control_panel.html"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
@@ -47,16 +56,18 @@ OBSERVER_PID_PATH = RUNTIME_DIR / "observer.pid"
 STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
 REPO_ROOT = APP_DIR.parents[1]
 
-load_env_files(__file__)
-
 app = Flask(__name__)
 observer_process: Optional[subprocess.Popen] = None
 selected_symbols: list[str] = []
+discovered_observer_pid: Optional[int] = None
+discovered_observer_checked_at = 0.0
+
+VELOCITY_SIDE_LIMIT = 100
 
 def configured_database_url() -> str:
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
-        raise RuntimeError("DATABASE_URL is required. Attach Replit SQL first.")
+        raise RuntimeError("DATABASE_URL is required. Configure .env or a system environment variable first.")
     return database_url
 
 
@@ -74,6 +85,8 @@ def observer_pid() -> Optional[int]:
 
 
 def process_exists(pid: int) -> bool:
+    if os.name == "nt":
+        return windows_process_exists(pid)
     try:
         os.kill(pid, 0)
         return True
@@ -81,10 +94,62 @@ def process_exists(pid: int) -> bool:
         return False
 
 
+def windows_process_exists(pid: int) -> bool:
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x00100000 | 0x1000, False, int(pid))
+        if not handle:
+            return False
+        try:
+            return kernel32.WaitForSingleObject(handle, 0) == 0x00000102
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:
+        return False
+
+
+def discover_observer_pid() -> Optional[int]:
+    global discovered_observer_checked_at, discovered_observer_pid
+    now = time.monotonic()
+    if (
+        discovered_observer_pid is not None
+        and now - discovered_observer_checked_at < 3.0
+        and process_exists(discovered_observer_pid)
+    ):
+        return discovered_observer_pid
+    discovered_observer_checked_at = now
+    if os.name != "nt":
+        return None
+    try:
+        command = (
+            "Get-CimInstance Win32_Process -Filter \"name = 'python.exe'\" | "
+            "Where-Object { $_.CommandLine -like '*market*observer.py*' } | "
+            "Select-Object -First 1 -ExpandProperty ProcessId"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        raw = result.stdout.strip().splitlines()
+        pid = int(raw[0].strip()) if raw else None
+        discovered_observer_pid = pid if pid and process_exists(pid) else None
+        if discovered_observer_pid is not None:
+            write_observer_pid(discovered_observer_pid)
+        return discovered_observer_pid
+    except Exception:
+        discovered_observer_pid = None
+        return None
+
+
 def read_observer_pid() -> Optional[int]:
     try:
         if not OBSERVER_PID_PATH.exists():
-            return None
+            return discover_observer_pid()
         pid = int(OBSERVER_PID_PATH.read_text(encoding="utf-8").strip())
         if process_exists(pid):
             return pid
@@ -92,6 +157,12 @@ def read_observer_pid() -> Optional[int]:
     except (OSError, ValueError):
         return None
     return None
+
+
+def displayed_symbols(running: bool) -> list[str]:
+    if not running:
+        return []
+    return selected_symbols or velocity_start_symbols()
 
 
 def write_observer_pid(pid: int) -> None:
@@ -109,6 +180,10 @@ def validate_symbols(raw_symbols: object) -> list[str]:
     if not symbols:
         raise ValueError("select at least one symbol")
     return symbols
+
+
+def velocity_start_symbols() -> list[str]:
+    return [f"velocity_top_{VELOCITY_SIDE_LIMIT}", f"velocity_bottom_{VELOCITY_SIDE_LIMIT}"]
 
 
 def strategy_config() -> dict:
@@ -131,8 +206,16 @@ def latest_binance_extremes() -> Optional[dict]:
     return read_latest_binance_extremes(configured_database_url(), LATEST_EXTREMES_PATH)
 
 
+def latest_binance_extremes_file() -> Optional[dict]:
+    return read_latest_binance_extremes_file(LATEST_EXTREMES_PATH)
+
+
 def latest_arbitrage_simulation() -> Optional[dict]:
     return read_latest_arbitrage_simulation(configured_database_url(), LATEST_ARBITRAGE_PATH)
+
+
+def latest_arbitrage_simulation_file() -> Optional[dict]:
+    return read_latest_arbitrage_simulation_file(LATEST_ARBITRAGE_PATH)
 
 
 def latest_executable_signal() -> Optional[dict]:
@@ -147,8 +230,22 @@ def observation_count() -> Optional[int]:
     return read_observation_count(configured_database_url())
 
 
+def database_table_counts() -> Optional[dict]:
+    return read_database_table_counts(configured_database_url())
+
+
 def recent_observations(symbol: str, limit: int) -> list[dict]:
     return read_recent_observations(configured_database_url(), symbol, limit)
+
+
+def recent_binance_price_history(symbol: str, limit: int) -> list[dict]:
+    return read_recent_binance_price_history(configured_database_url(), symbol, limit)
+
+
+def available_chart_symbols(limit: int = 500) -> list[str]:
+    symbols = read_available_chart_symbols(configured_database_url(), limit)
+    merged = list(dict.fromkeys([*ASSETS.keys(), *symbols]))
+    return merged[:limit]
 
 
 def configured_fee_slippage_percent() -> float:
@@ -208,14 +305,9 @@ def assert_fresh_execution_plan(simulation: dict) -> None:
 
 @app.get("/")
 def index():
-    asset_items = "\n".join(
-        f'<label class="asset"><input type="checkbox" value="{escape(symbol)}" checked>'
-        f'<span><strong>{escape(symbol)}</strong><small>{escape(asset.symbol)}</small></span></label>'
-        for symbol, asset in ASSETS.items()
-    )
     chart_options = "\n".join(f'<option value="{escape(symbol)}">{escape(symbol)}</option>' for symbol in ASSETS)
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
-    return template.replace("__ASSET_ITEMS__", asset_items).replace("__CHART_OPTIONS__", chart_options)
+    return template.replace("__CHART_OPTIONS__", chart_options)
 
 
 @app.get("/healthz")
@@ -235,13 +327,22 @@ def status():
         {
             "running": running,
             "pid": observer_pid() if running else None,
-            "symbols": selected_symbols if running else [],
-            "rows": observation_count(),
-            "binance_extremes": safe_latest(latest_binance_extremes),
-            "arbitrage_simulation": safe_latest(latest_arbitrage_simulation),
+            "symbols": displayed_symbols(running),
+            "binance_extremes": safe_latest(latest_binance_extremes_file),
+            "arbitrage_simulation": safe_latest(latest_arbitrage_simulation_file),
             "executable_signal": safe_latest(latest_executable_signal),
             "aave_reserve_cache": safe_latest(aave_reserve_cache),
             "strategy_config": strategy_config(),
+        }
+    )
+
+
+@app.get("/api/db-summary")
+def db_summary():
+    return jsonify(
+        {
+            "rows": observation_count(),
+            "db_counts": database_table_counts(),
             "trade_stats": safe_latest(lambda: read_trade_stats(configured_database_url())),
             "testnet_trade_stats": safe_latest(lambda: read_testnet_trade_stats(REPO_ROOT)),
         }
@@ -275,14 +376,35 @@ def get_testnet_trade_stats():
 @app.get("/api/observations")
 def observations():
     symbol = request.args.get("symbol", "AVAXUSDT").strip().upper()
-    if symbol not in ASSETS:
-        return jsonify({"error": f"unsupported symbol: {symbol}"}), 400
     try:
         limit = max(2, min(int(request.args.get("limit", "120")), 1000))
-        rows = recent_observations(symbol, limit)
+        rows = recent_observations(symbol, limit) if symbol in ASSETS else []
+        mode = "aave_observations" if rows else "binance_price_history"
+        if not rows:
+            rows = recent_binance_price_history(symbol, limit)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify({"symbol": symbol, "limit": limit, "fee_slippage_percent": configured_fee_slippage_percent(), "rows": rows})
+    return jsonify(
+        {
+            "symbol": symbol,
+            "limit": limit,
+            "mode": mode,
+            "supports_aave": symbol in ASSETS and mode == "aave_observations",
+            "supports_dex_costs": symbol in ASSETS and mode == "aave_observations",
+            "fee_slippage_percent": configured_fee_slippage_percent(),
+            "rows": rows,
+        }
+    )
+
+
+@app.get("/api/chart-symbols")
+def chart_symbols():
+    try:
+        limit = max(len(ASSETS), min(int(request.args.get("limit", "500")), 1000))
+        symbols = available_chart_symbols(limit)
+    except Exception as exc:
+        return jsonify({"error": str(exc), "symbols": list(ASSETS.keys())}), 400
+    return jsonify({"symbols": symbols, "aave_symbols": list(ASSETS.keys())})
 
 
 @app.get("/api/binance-extremes/latest")
@@ -388,18 +510,33 @@ def start():
     if is_observer_running():
         return jsonify({"error": "observer is already running"}), 409
     try:
-        symbols = validate_symbols((request.get_json(silent=True) or {}).get("symbols"))
         ensure_database_schema(configured_database_url())
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
     env = os.environ.copy()
-    env["SYMBOLS"] = ",".join(symbols)
+    env["SYMBOLS"] = ",".join(ASSETS.keys())
+    env["BINANCE_SYMBOL_SELECTION"] = "velocity"
+    env["BINANCE_TOP_SYMBOL_LIMIT"] = "0"
+    env["BINANCE_VELOCITY_SIDE_LIMIT"] = str(VELOCITY_SIDE_LIMIT)
+    env["BINANCE_WS_CHUNK_SIZE"] = "200"
+    env["BINANCE_PRICE_HISTORY_SYMBOLS"] = "TOP"
+    env["SKIP_DATABASE_SCHEMA"] = "true"
+    env["OBSERVER_REQUIRE_DB_LOCK"] = "true"
     for key, value in strategy_config().items():
         env[key] = str(value)
-    observer_process = subprocess.Popen([sys.executable, str(OBSERVER_PATH)], cwd=str(APP_DIR), env=env)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    stdout = open(LOG_DIR / "observer_stdout.log", "ab", buffering=0)
+    stderr = open(LOG_DIR / "observer_stderr.log", "ab", buffering=0)
+    observer_process = subprocess.Popen(
+        [sys.executable, str(OBSERVER_PATH)],
+        cwd=str(APP_DIR),
+        env=env,
+        stdout=stdout,
+        stderr=stderr,
+    )
     write_observer_pid(observer_process.pid)
-    selected_symbols = symbols
-    return jsonify({"running": True, "pid": observer_process.pid, "symbols": symbols})
+    selected_symbols = velocity_start_symbols()
+    return jsonify({"running": True, "pid": observer_process.pid, "symbols": selected_symbols})
 
 
 @app.post("/api/init")

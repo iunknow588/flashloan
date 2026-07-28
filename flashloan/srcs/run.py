@@ -64,13 +64,13 @@ def main() -> int:
 
     print(f"control panel listening on 0.0.0.0:{port}")
     print(f"local URL: http://127.0.0.1:{port}")
-    print("open the Replit Webview/Preview for this port when running on Replit")
+    print("open the local control panel URL in your browser")
 
     def initialize_database() -> None:
         if not database_url:
             print(
                 "DATABASE_URL is not configured; database-backed actions will "
-                "return an error until .env or Replit Secrets provides it.",
+                "return an error until .env or the system environment provides it.",
                 file=sys.stderr,
             )
             return
@@ -89,7 +89,7 @@ def main() -> int:
         name="database-initializer",
         daemon=True,
     ).start()
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, threaded=True)
     return 0
 
 

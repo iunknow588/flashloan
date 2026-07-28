@@ -20,18 +20,19 @@ def read_json(path: Path) -> Optional[dict]:
 def latest_binance_extremes(database_url: str, latest_path: Path) -> Optional[dict]:
     data = read_json(latest_path)
     if data:
-        top, bottom = data.get("top") or [], data.get("bottom") or []
-        if top and bottom:
-            return {
-                "observed_at": data.get("observed_at"),
-                "window_seconds": float(data.get("window_seconds", 0)),
-                "sample_count": int(data.get("sample_count", 0)),
-                "a": compact_extreme(top, 0),
-                "top_2": compact_extreme(top, 1),
-                "b": compact_extreme(bottom, 0),
-                "bottom_2": compact_extreme(bottom, 1),
-            }
+        compact = compact_extremes_payload(data)
+        if compact:
+            return compact
     return latest_extremes_from_db(database_url)
+
+
+def latest_binance_extremes_file(latest_path: Path) -> Optional[dict]:
+    data = read_json(latest_path)
+    return compact_extremes_payload(data) if data else None
+
+
+def latest_arbitrage_simulation_file(latest_path: Path) -> Optional[dict]:
+    return read_json(latest_path)
 
 
 def latest_arbitrage_simulation(database_url: str, latest_path: Path) -> Optional[dict]:
@@ -72,6 +73,54 @@ def observation_count(database_url: str) -> Optional[int]:
         return None
 
 
+def database_table_counts(database_url: str) -> Optional[dict]:
+    query = """
+        SELECT
+            (SELECT COUNT(*) FROM observations) AS observations,
+            (SELECT COUNT(*) FROM binance_price_history) AS binance_price_history,
+            (SELECT COUNT(*) FROM binance_window_extremes) AS binance_window_extremes,
+            (SELECT COUNT(*) FROM arbitrage_simulations) AS arbitrage_simulations
+    """
+    try:
+        row = fetch_one(database_url, query)
+        if not row:
+            return None
+        counts = {
+            "observations": int(row[0] or 0),
+            "binance_price_history": int(row[1] or 0),
+            "binance_window_extremes": int(row[2] or 0),
+            "arbitrage_simulations": int(row[3] or 0),
+        }
+        counts["total"] = sum(counts.values())
+        return counts
+    except Exception:
+        return None
+
+
+def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
+    query = """
+        SELECT symbol
+        FROM (
+            SELECT symbol, MAX(observed_at) AS latest_at
+            FROM observations
+            GROUP BY symbol
+            UNION ALL
+            SELECT symbol, MAX(event_time) AS latest_at
+            FROM binance_price_history
+            GROUP BY symbol
+        ) source
+        GROUP BY symbol
+        ORDER BY MAX(latest_at) DESC, symbol
+        LIMIT %s
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (limit,))
+            rows = cursor.fetchall()
+    return [str(row[0]) for row in rows]
+
+
 def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict]:
     query = """
         SELECT observed_at, symbol, asset, binance_price, aave_price, diff_percent
@@ -96,6 +145,34 @@ def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict
     ]
 
 
+def recent_binance_price_history(database_url: str, symbol: str, limit: int) -> list[dict]:
+    query = """
+        SELECT observed_at, symbol, price, event_time, source
+        FROM binance_price_history
+        WHERE symbol = %s
+        ORDER BY event_time DESC
+        LIMIT %s
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (symbol, limit))
+            rows = cursor.fetchall()
+    rows.reverse()
+    return [
+        {
+            "observed_at": iso(row[3] or row[0]),
+            "symbol": str(row[1]),
+            "asset": str(row[1]).replace("USDT", ""),
+            "binance_price": float(row[2]),
+            "aave_price": None,
+            "diff_percent": None,
+            "source": str(row[4]),
+        }
+        for row in rows
+    ]
+
+
 def compact_extreme(items: list[dict], index: int) -> dict:
     if len(items) <= index:
         return {"symbol": None, "change_percent": None}
@@ -103,6 +180,22 @@ def compact_extreme(items: list[dict], index: int) -> dict:
     return {
         "symbol": items[index].get("symbol"),
         "change_percent": float(change_percent) if change_percent is not None else None,
+    }
+
+
+def compact_extremes_payload(data: dict) -> Optional[dict]:
+    top, bottom = data.get("top") or [], data.get("bottom") or []
+    if not top or not bottom:
+        return None
+    return {
+        "observed_at": data.get("observed_at"),
+        "window_seconds": float(data.get("window_seconds", 0)),
+        "sample_count": int(data.get("sample_count", 0)),
+        "price_source": data.get("price_source"),
+        "a": compact_extreme(top, 0),
+        "top_2": compact_extreme(top, 1),
+        "b": compact_extreme(bottom, 0),
+        "bottom_2": compact_extreme(bottom, 1),
     }
 
 

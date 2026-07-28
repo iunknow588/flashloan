@@ -6,6 +6,8 @@ from typing import Optional
 
 from web3 import Web3
 
+SRC_ROOT = Path(__file__).resolve().parents[1]
+
 
 POOL_ABI = [
     {
@@ -36,7 +38,9 @@ ERC20_ABI = [
 
 
 def default_cache_path() -> Path:
-    return Path(os.getenv("AAVE_RESERVE_CACHE_FILE", "flashloan/srcs/runtime/cache/aave_reserve_assets.json"))
+    raw = os.getenv("AAVE_RESERVE_CACHE_FILE", "runtime/cache/aave_reserve_assets.json")
+    path = Path(raw)
+    return path if path.is_absolute() else SRC_ROOT / path
 
 
 def now_iso() -> str:
