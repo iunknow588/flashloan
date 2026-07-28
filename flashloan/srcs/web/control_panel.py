@@ -30,6 +30,7 @@ from web.control_panel_data import (
     latest_binance_extremes_file as read_latest_binance_extremes_file,
     latest_executable_signal as read_latest_executable_signal,
     observation_count as read_observation_count,
+    recent_aave_pair_prices as read_recent_aave_pair_prices,
     recent_binance_price_history as read_recent_binance_price_history,
     recent_observations as read_recent_observations,
 )
@@ -242,6 +243,10 @@ def recent_binance_price_history(symbol: str, limit: int) -> list[dict]:
     return read_recent_binance_price_history(configured_database_url(), symbol, limit)
 
 
+def recent_aave_pair_prices(x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
+    return read_recent_aave_pair_prices(configured_database_url(), x_symbol, y_symbol, limit)
+
+
 def available_chart_symbols(limit: int = 500) -> list[str]:
     symbols = read_available_chart_symbols(configured_database_url(), limit)
     merged = list(dict.fromkeys([*ASSETS.keys(), *symbols]))
@@ -395,6 +400,24 @@ def observations():
             "rows": rows,
         }
     )
+
+
+@app.get("/api/aave-pair-prices")
+def aave_pair_prices():
+    x_symbol = request.args.get("x", "").strip().upper()
+    y_symbol = request.args.get("y", "").strip().upper()
+    if not x_symbol or not y_symbol:
+        simulation = safe_latest(latest_arbitrage_simulation_file) or {}
+        x_symbol = x_symbol or str(simulation.get("x_symbol") or simulation.get("a_symbol") or "").upper()
+        y_symbol = y_symbol or str(simulation.get("y_symbol") or simulation.get("b_symbol") or "").upper()
+    if x_symbol not in ASSETS or y_symbol not in ASSETS:
+        return jsonify({"error": "x and y must be mapped Aave symbols", "rows": []}), 400
+    try:
+        limit = max(2, min(int(request.args.get("limit", "120")), 1000))
+        rows = recent_aave_pair_prices(x_symbol, y_symbol, limit)
+    except Exception as exc:
+        return jsonify({"error": str(exc), "rows": []}), 400
+    return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": rows})
 
 
 @app.get("/api/chart-symbols")

@@ -145,6 +145,51 @@ def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict
     ]
 
 
+def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
+    query = """
+        WITH x_rows AS (
+            SELECT observed_at, aave_price,
+                   row_number() OVER (ORDER BY observed_at DESC) AS rn
+            FROM observations
+            WHERE symbol = %s
+            ORDER BY observed_at DESC
+            LIMIT %s
+        ),
+        y_rows AS (
+            SELECT observed_at, aave_price,
+                   row_number() OVER (ORDER BY observed_at DESC) AS rn
+            FROM observations
+            WHERE symbol = %s
+            ORDER BY observed_at DESC
+            LIMIT %s
+        )
+        SELECT x_rows.observed_at, x_rows.aave_price, y_rows.aave_price
+        FROM x_rows
+        JOIN y_rows ON x_rows.rn = y_rows.rn
+        ORDER BY x_rows.rn DESC
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (x_symbol, limit, y_symbol, limit))
+            rows = cursor.fetchall()
+    result = []
+    for observed_at, x_price, y_price in rows:
+        x_value = float(x_price)
+        y_value = float(y_price)
+        result.append(
+            {
+                "observed_at": iso(observed_at),
+                "x_symbol": x_symbol,
+                "y_symbol": y_symbol,
+                "x_usdc_price": x_value,
+                "y_usdc_price": y_value,
+                "x_y_price": x_value / y_value if y_value > 0 else None,
+            }
+        )
+    return result
+
+
 def recent_binance_price_history(database_url: str, symbol: str, limit: int) -> list[dict]:
     query = """
         SELECT observed_at, symbol, price, event_time, source
