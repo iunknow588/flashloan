@@ -2,7 +2,6 @@
 import importlib
 import os
 import sys
-import threading
 
 from core.env_loader import load_env_files
 
@@ -16,11 +15,6 @@ REQUIRED_MODULES = {
     "web3": "web3",
     "websockets": "websockets",
 }
-
-
-def optional_database_url() -> str:
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    return database_url
 
 
 def require_dependencies() -> None:
@@ -52,45 +46,20 @@ def read_port() -> int:
 
 def main() -> int:
     try:
-        database_url = optional_database_url()
         require_dependencies()
         port = read_port()
 
-        from web.control_panel import app
-        from db.storage import ensure_database_schema
+        from web.control_panel import app, initialize_liquidation_runtime
+
+        initialize_liquidation_runtime()
 
     except Exception as exc:
         print(f"startup failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"control panel listening on 0.0.0.0:{port}")
-    print(f"local URL: http://127.0.0.1:{port}")
-    print("open the local control panel URL in your browser")
-
-    def initialize_database() -> None:
-        if not database_url:
-            print(
-                "DATABASE_URL is not configured; database-backed actions will "
-                "return an error until .env or the system environment provides it.",
-                file=sys.stderr,
-            )
-            return
-        try:
-            ensure_database_schema(database_url)
-            print("database ready")
-        except Exception as exc:
-            # Keep the HTTP health endpoint available so the deployment can
-            # recover from a transient database connection failure. Database
-            # operations expose their own errors and can be retried from the
-            # control panel.
-            print(f"database initialization failed: {exc}", file=sys.stderr)
-
-    threading.Thread(
-        target=initialize_database,
-        name="database-initializer",
-        daemon=True,
-    ).start()
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    print(f"opportunity console listening on 0.0.0.0:{port}")
+    print(f"control panel: http://127.0.0.1:{port}")
+    app.run(host="0.0.0.0", port=port, threaded=True, use_reloader=False)
     return 0
 
 

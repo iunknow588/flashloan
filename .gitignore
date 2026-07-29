@@ -15,7 +15,7 @@ __pycache__/
 *.py[cod]
 charts/
 observations.csv
-flashloan/srcs/runtime/
+flashloan/srcs_dex/runtime/
 flashloan/src_bot/runtime/
 docs/
 back/

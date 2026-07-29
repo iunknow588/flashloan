@@ -4,10 +4,13 @@ import pytest
 
 from execution.liquidation_scan import (
     LiquidationScanConfig,
+    build_liquidation_execution_plan,
+    health_factor_band,
     classify_health_factor,
     estimate_liquidation_profit,
     load_account_addresses,
     scan_account_health,
+    watched_health_rows,
     split_candidate_accounts,
 )
 
@@ -36,6 +39,14 @@ def test_classify_health_factor():
     assert classify_health_factor(0.99, 1.05, 1.0) == "liquidatable"
     assert classify_health_factor(1.02, 1.05, 1.0) == "warning"
     assert classify_health_factor(1.20, 1.05, 1.0) == "healthy"
+
+
+def test_health_factor_band_thresholds():
+    assert health_factor_band(1.30) == "green"
+    assert health_factor_band(1.20) == "beige"
+    assert health_factor_band(1.10) == "yellow"
+    assert health_factor_band(1.00) == "orange"
+    assert health_factor_band(0.99) == "red"
 
 
 def test_estimate_liquidation_profit_subtracts_flashloan_slippage_and_gas():
@@ -71,6 +82,21 @@ def test_split_candidate_accounts():
     assert [item["account"] for item in groups["healthy_accounts"]] == ["c"]
 
 
+def test_watched_health_rows_filters_above_threshold():
+    rows = watched_health_rows(
+        [
+            {"account": "a", "health_factor": 1.49},
+            {"account": "b", "health_factor": 1.31},
+            {"account": "c", "health_factor": 1.29},
+            {"account": "d", "health_factor": 0.99},
+            {"account": "e", "health_factor": 1.50},
+        ]
+    )
+
+    assert [item["account"] for item in rows] == ["d", "c", "b", "a"]
+    assert [item["health_factor_band"] for item in rows] == ["red", "beige", "green", "green"]
+
+
 def test_scan_account_health_uses_fetcher(monkeypatch):
     from execution import liquidation_scan
 
@@ -96,3 +122,20 @@ def test_scan_account_health_uses_fetcher(monkeypatch):
 
     assert rows[0]["status"] == "liquidatable"
     assert rows[0]["liquidation_profit"]["profitable"]
+
+
+def test_build_liquidation_execution_plan_marks_readiness():
+    plan = build_liquidation_execution_plan(
+        "0x0000000000000000000000000000000000000001",
+        {"health_factor": 0.98},
+        {
+            "collateral_symbol": "WETH",
+            "debt_symbol": "USDC",
+            "estimated_profit": {"net_profit_base": 12.5, "gross_profit_base": 15.0},
+        },
+        LiquidationScanConfig(close_factor=0.5),
+    )
+
+    assert plan["execution_ready"]
+    assert plan["profitable"]
+    assert plan["reason"] == "ready for execution preflight"

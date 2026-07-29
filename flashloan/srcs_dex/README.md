@@ -16,11 +16,11 @@ This directory keeps runtime files at the root and source code in functional pac
 ## Common Commands
 
 ```powershell
-python flashloan/srcs/run.py
-python flashloan/srcs/market/observer.py
-python flashloan/srcs/strategy/build_executable_signal.py --since-minutes 60 --limit 200
-python flashloan/srcs/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
-python -m pytest flashloan/srcs/tests
+python flashloan/srcs_dex/run.py
+python flashloan/srcs_dex/market/observer.py
+python flashloan/srcs_dex/strategy/build_executable_signal.py --since-minutes 60 --limit 200
+python flashloan/srcs_dex/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
+python -m pytest flashloan/srcs_dex/tests
 ```
 
 ## Runtime Files
@@ -30,4 +30,4 @@ python -m pytest flashloan/srcs/tests
 - `runtime/cache/`: Aave reserve cache and other low-frequency chain metadata.
 - `runtime/config/`: mutable local strategy config.
 
-Only `.env`, `.env.example`, `requirements.txt`, `run.py`, this README, and source packages should live at the `srcs/` root.
+Only `.env`, `.env.example`, `requirements.txt`, `run.py`, this README, and source packages should live at the `srcs_dex/` root.

@@ -33,7 +33,7 @@ function envNumber(name, defaultValue) {
 function signalPath() {
   return path.resolve(
     process.cwd(),
-    process.env.DYNAMIC_SIGNAL_FILE || "../flashloan/srcs/runtime/state/latest_executable_signal.json"
+    process.env.DYNAMIC_SIGNAL_FILE || "../flashloan/srcs_dex/runtime/state/latest_executable_signal.json"
   );
 }
 
@@ -53,7 +53,7 @@ function tokenEnvNames(symbol) {
 function cachedTokenAddressFor(symbol) {
   const cacheFile = path.resolve(
     process.cwd(),
-    process.env.AAVE_RESERVE_CACHE_FILE || "../flashloan/srcs/runtime/cache/aave_reserve_assets.json"
+    process.env.AAVE_RESERVE_CACHE_FILE || "../flashloan/srcs_dex/runtime/cache/aave_reserve_assets.json"
   );
   if (!fs.existsSync(cacheFile)) {
     return "";
