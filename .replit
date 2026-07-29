@@ -9,6 +9,7 @@ externalPort = 5000
 
 [deployment]
 deploymentTarget = "autoscale"
+build = ["sh", "-c", "pip install flask 'psycopg[binary]' web3 websockets matplotlib gunicorn python-dotenv"]
 run = ["sh", "-c", "cd flashloan/src_bot && python run.py"]
 
 [workflows]

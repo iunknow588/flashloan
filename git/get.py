@@ -141,10 +141,20 @@ def ensure_local_branch_name(root: Path, branch: str) -> None:
     print(f"Renamed unborn branch {current} -> {branch}")
 
 
+def branch_sync_state(root: Path, branch: str) -> tuple[int, int]:
+    run_git(root, "fetch", "origin", branch, "--quiet")
+    counts = run_git(root, "rev-list", "--left-right", "--count", f"origin/{branch}...{branch}", capture=True).stdout.split()
+    if len(counts) < 2:
+        raise RuntimeError(f"Unexpected branch comparison result: {' '.join(counts)}")
+    return int(counts[0]), int(counts[1])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Cross-platform git pull helper.")
     parser.add_argument("--rebase", action="store_true", help="Use git pull --rebase.")
+    parser.add_argument("--merge", action="store_true", help="Use git pull --no-ff when local and remote branches diverged.")
     parser.add_argument("--allow-dirty", action="store_true", help="Allow pulling with a dirty working tree.")
+    parser.add_argument("--no-autostash", action="store_true", help="Do not pass --autostash to git pull --rebase/--merge.")
     return parser
 
 
@@ -160,11 +170,30 @@ def main(argv: list[str] | None = None) -> int:
         ensure_local_branch_name(root, branch)
 
         status = run_git(root, "status", "--porcelain", capture=True).stdout.strip()
-        if status and not args.allow_dirty:
+        if status and not args.allow_dirty and args.no_autostash:
             raise RuntimeError("Working tree is dirty. Commit/stash changes first, or rerun with --allow-dirty.")
 
+        behind, ahead = branch_sync_state(root, branch)
+        if behind == 0 and ahead == 0:
+            print(f"Branch {branch} is already up to date")
+            return 0
+        if ahead > 0 and behind > 0 and not args.rebase and not args.merge:
+            print(
+                f"Local branch and origin/{branch} diverged: local is ahead by {ahead}, behind by {behind}.\n"
+                f"Rebasing local commits on top of origin/{branch}."
+            )
+            args.rebase = True
+
         if args.rebase:
-            run_git(root, "pull", "--rebase", "origin", branch)
+            command = ["pull", "--rebase"]
+            if not args.no_autostash:
+                command.append("--autostash")
+            run_git(root, *command, "origin", branch)
+        elif args.merge:
+            command = ["pull", "--no-ff"]
+            if not args.no_autostash:
+                command.append("--autostash")
+            run_git(root, *command, "origin", branch)
         else:
             run_git(root, "pull", "--ff-only", "origin", branch)
         print(f"Updated branch {branch}")
