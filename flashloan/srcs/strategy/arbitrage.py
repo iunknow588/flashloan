@@ -44,6 +44,23 @@ STRATEGY_ROUTES = {
     },
 }
 
+STABLE_BORROW_STRATEGY_ROUTES = {
+    "strategy_3_stable_usdc_to_y_to_x_to_usdc": {
+        "base_strategy": "strategy_3",
+        "direction": "stable_forward",
+        "route": (STABLE_SYMBOL, "y", "x", STABLE_SYMBOL),
+        "price_phases": ("end", "start", "end"),
+    },
+    "strategy_4_stable_usdc_to_x_to_y_to_usdc": {
+        "base_strategy": "strategy_4",
+        "direction": "stable_reverse",
+        "route": (STABLE_SYMBOL, "x", "y", STABLE_SYMBOL),
+        "price_phases": ("start", "end", "start"),
+    },
+}
+
+ALL_STRATEGY_ROUTES = {**STRATEGY_ROUTES, **STABLE_BORROW_STRATEGY_ROUTES}
+
 
 def choose_signed_strategy(m1: float, m2: float) -> dict:
     values = [
@@ -82,7 +99,7 @@ def _simulate_route_cycle(
     notional_usd: float,
     strategy: str,
 ) -> Optional[dict]:
-    route_config = STRATEGY_ROUTES[strategy]
+    route_config = ALL_STRATEGY_ROUTES[strategy]
     if (
         notional_usd <= 0
         or up.get("symbol") == down.get("symbol")
@@ -137,6 +154,15 @@ def _simulate_route_cycle(
     profit_percent = profit_borrow / borrowed_amount * 100
     gross_relative_edge_percent = profit_percent
 
+    swap_symbol = next(symbol for symbol in route_symbols[1:-1] if symbol != STABLE_SYMBOL)
+    other_symbol = next(
+        symbol
+        for symbol in route_symbols[1:-1]
+        if symbol != STABLE_SYMBOL and symbol != swap_symbol
+    ) if len({symbol for symbol in route_symbols[1:-1] if symbol != STABLE_SYMBOL}) > 1 else swap_symbol
+    borrow_row = None if borrow_symbol == STABLE_SYMBOL else up if borrow_symbol == up["symbol"] else down
+    swap_row = up if swap_symbol == up["symbol"] else down
+
     return {
         "strategy": strategy,
         "base_strategy": route_config["base_strategy"],
@@ -144,13 +170,14 @@ def _simulate_route_cycle(
         "route_symbols": route_symbols,
         "route_steps": route_steps,
         "borrow_symbol": borrow_symbol,
-        "swap_symbol": next(symbol for symbol in route_symbols[1:-1] if symbol != STABLE_SYMBOL),
-        "borrow_change_percent": float((up if borrow_symbol == up["symbol"] else down)["change_percent"]),
-        "swap_change_percent": float((down if borrow_symbol == up["symbol"] else up)["change_percent"]),
+        "swap_symbol": swap_symbol,
+        "borrow_change_percent": 0.0 if borrow_row is None else float(borrow_row["change_percent"]),
+        "swap_change_percent": float(swap_row["change_percent"]),
         "borrow_start_price": borrow_start,
         "borrow_end_price": borrow_end,
-        "swap_start_price": price(next(symbol for symbol in route_symbols[1:-1] if symbol != STABLE_SYMBOL), "start"),
-        "swap_end_price": price(next(symbol for symbol in route_symbols[1:-1] if symbol != STABLE_SYMBOL), "end"),
+        "swap_start_price": price(swap_symbol, "start"),
+        "swap_end_price": price(swap_symbol, "end"),
+        "counter_symbol": other_symbol,
         "notional_usd": notional_usd,
         "borrowed_amount": borrowed_amount,
         "swap_bought": route_steps[0]["output_amount"],
@@ -206,39 +233,31 @@ def simulate_pair(up: dict, down: dict, config: ArbitrageConfig, notional_usd: f
         return None
 
     candidates = [
-        _simulate_route_cycle(up, down, config, notional_usd, "strategy_1_forward_x_to_usdc_to_y_to_x"),
-        _simulate_route_cycle(up, down, config, notional_usd, "strategy_2_forward_x_to_y_to_usdc_to_x"),
+        _simulate_route_cycle(up, down, config, notional_usd, strategy)
+        for strategy in STABLE_BORROW_STRATEGY_ROUTES
     ]
-    forward_candidates = [candidate for candidate in candidates if candidate]
-    if len(forward_candidates) != 2:
+    stable_candidates = [candidate for candidate in candidates if candidate]
+    if not stable_candidates:
         return None
 
-    decision = choose_signed_strategy(forward_candidates[0]["profit_usd"], forward_candidates[1]["profit_usd"])
-    selected_strategy = {
-        ("strategy_1", "forward"): "strategy_1_forward_x_to_usdc_to_y_to_x",
-        ("strategy_1", "reverse"): "strategy_1_reverse_y_to_x_to_usdc_to_y",
-        ("strategy_2", "forward"): "strategy_2_forward_x_to_y_to_usdc_to_x",
-        ("strategy_2", "reverse"): "strategy_2_reverse_y_to_usdc_to_x_to_y",
-    }[(decision["base_strategy"], decision["direction"])]
-    selected = _simulate_route_cycle(up, down, config, notional_usd, selected_strategy)
-    if not selected:
-        return None
-
-    reverse_candidates = [
-        _simulate_route_cycle(up, down, config, notional_usd, "strategy_1_reverse_y_to_x_to_usdc_to_y"),
-        _simulate_route_cycle(up, down, config, notional_usd, "strategy_2_reverse_y_to_usdc_to_x_to_y"),
-    ]
-    viable_candidates = [candidate for candidate in [*forward_candidates, *reverse_candidates] if candidate]
-    best = selected
-    alternate = min(forward_candidates, key=lambda candidate: candidate["profit_usd"])
+    viable_candidates = stable_candidates
+    best = max(viable_candidates, key=lambda candidate: candidate["profit_usd"])
+    alternate = min(viable_candidates, key=lambda candidate: candidate["profit_usd"])
     best = _add_legacy_pair_fields(best, up, down)
     best["best_strategy"] = best["strategy"]
     best["alternate_strategy"] = alternate["strategy"]
-    best["signed_strategy_decision"] = decision
-    best["m1_profit_usd"] = forward_candidates[0]["profit_usd"]
-    best["m2_profit_usd"] = forward_candidates[1]["profit_usd"]
-    best["selected_signed_profit_usd"] = decision["signed_profit_usd"]
-    best["selected_direction_score_usd"] = decision["selection_score_usd"]
+    best["signed_strategy_decision"] = {
+        "base_strategy": best["base_strategy"],
+        "direction": best["direction"],
+        "strategy": best["strategy"],
+        "signed_profit_usd": best["profit_usd"],
+        "selection_score_usd": best["profit_usd"],
+        "should_execute": best["profit_usd"] > 0,
+    }
+    best["m1_profit_usd"] = stable_candidates[0]["profit_usd"]
+    best["m2_profit_usd"] = stable_candidates[1]["profit_usd"] if len(stable_candidates) > 1 else 0.0
+    best["selected_signed_profit_usd"] = best["profit_usd"]
+    best["selected_direction_score_usd"] = best["profit_usd"]
     best["selected_expected_profit_usd"] = best["profit_usd"]
     best["candidate_strategies"] = viable_candidates
     best["x_symbol"] = up["symbol"]
@@ -376,19 +395,27 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
         "observed_at": extremes["observed_at"],
         "window_seconds": extremes["window_seconds"],
         "sample_count": extremes["sample_count"],
+        "gainer_count": int(extremes.get("gainer_count") or 0),
+        "loser_count": int(extremes.get("loser_count") or 0),
+        "observation_universe_size": int(extremes.get("observation_universe_size") or 0),
+        "market_divergence_index": float(extremes.get("market_divergence_index") or 0.0),
         "price_source": extremes.get("price_source", "unknown"),
         "strategy": "cross_grid_best_closed_cycle",
         "basket_size": len(pairs),
         "candidate_pair_count": len(candidate_rows),
-        "evaluated_strategy_count": len(candidate_rows) * 4,
+        "evaluated_strategy_count": len(candidate_rows) * len(STABLE_BORROW_STRATEGY_ROUTES),
         "notional_usd": config.notional_usd,
         "per_leg_notional_usd": per_leg_notional,
         "trade_fee_percent": config.trade_fee_percent,
         "flashloan_fee_percent": config.flashloan_fee_percent,
         "a_symbol": primary["a_symbol"],
         "b_symbol": primary["b_symbol"],
+        "x_symbol": primary["a_symbol"],
+        "y_symbol": primary["b_symbol"],
         "a_change_percent": primary["a_change_percent"],
         "b_change_percent": primary["b_change_percent"],
+        "x_change_percent": primary["a_change_percent"],
+        "y_change_percent": primary["b_change_percent"],
         "borrowed_b": primary["borrowed_b"],
         "a_bought": primary["a_bought"],
         "usdc_after_selling_a": primary["usdc_after_selling_a"],
@@ -426,6 +453,8 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
         "remaining_usd": total_profit_usd,
         "profitable": signal,
         "signal": signal,
+        "trigger_signal": signal,
+        "onchain_decision_required": True,
         "blocked_reasons": blocked_reasons,
         "pairs": pairs,
         "execution_plan": execution_plan,
@@ -470,6 +499,7 @@ def select_disjoint_pair_rows(
 
 
 def build_execution_plan(pairs: list[dict], config: ArbitrageConfig) -> dict:
+    ensure_closed_borrow_routes(pairs)
     buy_steps = []
     sell_steps = []
     repay_steps = []
@@ -528,8 +558,11 @@ def build_execution_plan(pairs: list[dict], config: ArbitrageConfig) -> dict:
     return {
         "version": 1,
         "mode": "paper_sequential",
-        "description": "compare every rising/falling token pair across two signed closed-cycle strategies, execute forward when profit is positive and reverse when profit is negative",
-        "strategy_model": "m_by_n_grid_signed_best_of_two_closed_cycles",
+        "description": "borrow an Aave asset, swap through selected target/intermediate tokens, and end in the same borrowed asset for in-contract repayment",
+        "strategy_model": "m_by_n_grid_usdc_flashloan_stable_borrow_cycle",
+        "route_invariant": "first route symbol must equal final route symbol; repay step must output the borrowed asset",
+        "borrow_symbols": sorted({pair["borrow_symbol"] for pair in pairs}),
+        "repay_symbols": sorted({pair["route_symbols"][-1] for pair in pairs}),
         "assumption_model": "static_pool_state_at_transaction_start",
         "execution_trigger": "pre_existing_dex_quote_edge_or_backrun_after_prior_transaction",
         "requires_static_dex_edge": True,
@@ -544,3 +577,12 @@ def build_execution_plan(pairs: list[dict], config: ArbitrageConfig) -> dict:
         "requires_live_dex_quotes": True,
         "executable_symbols": list(config.executable_symbols),
     }
+
+
+def ensure_closed_borrow_routes(pairs: list[dict]) -> None:
+    for pair in pairs:
+        route_symbols = pair.get("route_symbols") or []
+        if len(route_symbols) < 2 or route_symbols[0] != route_symbols[-1]:
+            raise ValueError(f"route does not end in borrowed asset: {route_symbols}")
+        if pair.get("borrow_symbol") != route_symbols[0]:
+            raise ValueError(f"borrow symbol does not match route start: {pair.get('borrow_symbol')} {route_symbols}")

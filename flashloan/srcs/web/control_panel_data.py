@@ -66,6 +66,59 @@ def aave_reserve_cache(cache_path: Path) -> Optional[dict]:
     }
 
 
+def stable_target_cache(cache_path: Path) -> Optional[dict]:
+    data = read_json(cache_path)
+    if not data:
+        return None
+    assets = data.get("assets") or []
+    symbols = list(dict.fromkeys(item.get("binance_symbol") for item in assets if item.get("binance_symbol")))
+    by_source: dict[str, list[str]] = {}
+    for item in assets:
+        symbol = item.get("binance_symbol")
+        for source in [*(item.get("via_borrows") or []), *(item.get("via_stables") or [])]:
+            by_source.setdefault(str(source), [])
+            if symbol and symbol not in by_source[str(source)]:
+                by_source[str(source)].append(str(symbol))
+    return {
+        "refreshed_at": data.get("refreshed_at"),
+        "router_address": data.get("router_address"),
+        "asset_count": len(assets),
+        "symbols": symbols,
+        "by_source": by_source,
+        "source": data.get("source"),
+    }
+
+
+def borrow_target_universe(aave_cache_path: Path, stable_target_cache_path: Path) -> Optional[dict]:
+    borrow_cache = aave_reserve_cache(aave_cache_path)
+    target_cache = stable_target_cache(stable_target_cache_path)
+    if not borrow_cache or not target_cache:
+        return None
+    borrow_symbols = borrow_cache.get("symbols") or []
+    target_symbols = target_cache.get("symbols") or []
+    target_by_borrow = target_cache.get("by_source") or {}
+    borrow_rows = [
+        {
+            "borrow_symbol": symbol,
+            "borrow_name": symbol.replace("USDT", "") if isinstance(symbol, str) else symbol,
+            "target_count": len(target_by_borrow.get(symbol, [])),
+            "target_symbols": target_by_borrow.get(symbol, []),
+        }
+        for symbol in borrow_symbols
+    ]
+    return {
+        "borrow_count": len(borrow_symbols),
+        "target_count": len(target_symbols),
+        "borrow_symbols": borrow_symbols,
+        "target_symbols": target_symbols,
+        "borrow_rows": borrow_rows,
+        "borrow_cache_refreshed_at": borrow_cache.get("refreshed_at"),
+        "target_cache_refreshed_at": target_cache.get("refreshed_at"),
+        "target_by_borrow": target_by_borrow,
+        "target_source": target_cache.get("source"),
+    }
+
+
 def observation_count(database_url: str) -> Optional[int]:
     try:
         row = fetch_one(database_url, "SELECT COUNT(*) FROM observations")
@@ -482,19 +535,53 @@ def compact_extreme(items: list[dict], index: int) -> dict:
     }
 
 
+def compact_basket_rows(items: list[dict]) -> list[dict]:
+    rows = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            symbol = str(item["symbol"]).upper()
+            change_percent = float(item["change_percent"])
+            start_price = float(item["start_price"])
+            raw_current_price = item.get("current_price")
+            if raw_current_price is None:
+                raw_current_price = item["end_price"]
+            end_price = float(raw_current_price)
+        except (KeyError, TypeError, ValueError):
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "change_percent": change_percent,
+                "start_price": start_price,
+                "current_price": end_price,
+                "price_source": item.get("price_source"),
+                "end_ms": item.get("end_ms"),
+            }
+        )
+    return rows
+
+
 def compact_extremes_payload(data: dict) -> Optional[dict]:
     top, bottom = data.get("top") or [], data.get("bottom") or []
-    if not top or not bottom:
+    basket = compact_basket_rows(data.get("basket") or [])
+    if not top and not bottom and not basket:
         return None
     return {
         "observed_at": data.get("observed_at"),
         "window_seconds": float(data.get("window_seconds", 0)),
         "sample_count": int(data.get("sample_count", 0)),
+        "gainer_count": int(data.get("gainer_count", 0)),
+        "loser_count": int(data.get("loser_count", 0)),
+        "observation_universe_size": int(data.get("observation_universe_size", 0)),
+        "market_divergence_index": float(data.get("market_divergence_index", 0.0)),
         "price_source": data.get("price_source"),
         "a": compact_extreme(top, 0),
         "top_2": compact_extreme(top, 1),
         "b": compact_extreme(bottom, 0),
         "bottom_2": compact_extreme(bottom, 1),
+        "basket": basket,
     }
 
 
@@ -512,6 +599,10 @@ def latest_extremes_from_db(database_url: str) -> Optional[dict]:
         "observed_at": iso(row[0]),
         "window_seconds": float(row[1]),
         "sample_count": int(row[2]),
+        "gainer_count": None,
+        "loser_count": None,
+        "observation_universe_size": None,
+        "market_divergence_index": None,
         "a": {"symbol": row[3], "change_percent": float(row[4]) if row[4] is not None else None},
         "top_2": {"symbol": row[5], "change_percent": float(row[6]) if row[6] is not None else None},
         "b": {"symbol": row[7], "change_percent": float(row[8]) if row[8] is not None else None},

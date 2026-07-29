@@ -59,6 +59,27 @@
       <div class="card"><small>候选明细行</small><strong id="binanceRows">-</strong><span>轻量模式不再写入</span></div>
       <div class="card"><small>速度窗口</small><strong id="velocityRows">-</strong><span>顶部/底部快照</span></div>
     </section>
+    <section class="grid">
+      <div class="card"><small>可借代币</small><strong id="borrowableCount">-</strong><span id="borrowableMeta">等待中</span></div>
+      <div class="card"><small>目标代币</small><strong id="targetCount">-</strong><span id="targetMeta">等待中</span></div>
+    </section>
+    <section class="card">
+      <small>可借代币与目标代币</small>
+      <div class="chips" id="borrowTargetSummary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>可借代币</th>
+              <th>可交换目标</th>
+              <th>目标数量</th>
+              <th>目标示例</th>
+            </tr>
+          </thead>
+          <tbody id="borrowTargetBody"></tbody>
+        </table>
+      </div>
+    </section>
     <section class="card">
       <small>统一周期结构</small>
       <div class="settings" style="margin-bottom:12px">
@@ -88,6 +109,28 @@
       <div class="card"><small>y：跌幅最高</small><strong id="triggerY">-</strong><span id="triggerYMeta">等待中</span></div>
       <div class="card"><small>触发器</small><strong id="triggerSignal">-</strong><span id="triggerSignalMeta">等待中</span></div>
       <div class="card"><small>链上决策</small><strong id="onchainDecision">-</strong><span id="onchainDecisionMeta">等待中</span></div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>a / b</small><strong id="divergenceCounts">-</strong><span id="divergenceCountsMeta">等待中</span></div>
+      <div class="card"><small>分歧指数</small><strong id="divergenceIndex">-</strong><span id="divergenceIndexMeta">等待中</span></div>
+    </section>
+    <section class="card">
+      <small>观察篮子行情</small>
+      <span id="basketMeta">等待中</span>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>代币</th>
+              <th>现价</th>
+              <th>窗口涨跌</th>
+              <th>窗口起价</th>
+              <th>来源</th>
+            </tr>
+          </thead>
+          <tbody id="basketBody"></tbody>
+        </table>
+      </div>
     </section>
     <section class="grid">
       <div class="card"><small>信号率</small><strong id="statSignalRate">-</strong><span id="statSignalCount">等待中</span></div>
@@ -135,6 +178,7 @@
     const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "-";
     const nullPct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "NULL";
     const nullAmount = v => Number.isFinite(v) ? v.toFixed(6) : "NULL";
+    const price = v => Number.isFinite(v) ? v.toPrecision(10).replace(/\.?0+$/,"") : "-";
     const cls = v => Number.isFinite(v) && v >= 0 ? "positive" : "negative";
     const cellCls = v => Number.isFinite(v) ? (v >= 0 ? "positive" : "negative") : "";
     const setChange = (id,s,c) => { const e=$(id); e.textContent=s ? `${s} ${c>=0?"+":""}${c.toFixed(4)}%` : "-"; e.className=c>=0?"positive":"negative"; };
@@ -144,11 +188,14 @@
     function readConfig(){ return {BINANCE_CHANGE_WINDOW_SECONDS:$("cfgWindow").value,TRIGGER_MIN_UP_CHANGE_PERCENT:$("cfgMinUp").value,TRIGGER_MIN_DOWN_CHANGE_PERCENT:$("cfgMinDown").value,EXECUTION_SLIPPAGE_BPS:$("cfgSlippage").value,EXECUTION_PLAN_MAX_AGE_SECONDS:$("cfgMaxAge").value}; }
     function renderStats(x){ if(!x){ return; } $("statSignalRate").textContent=`${x.signal_rate_percent.toFixed(2)}%`; $("statSignalCount").textContent=`${x.signals} / ${x.candidates} 个候选`; $("statAvgProfit").textContent=`${x.avg_net_profit_usdc.toFixed(4)}`; $("statMaxProfit").textContent=`${x.max_net_profit_usdc.toFixed(4)}`; $("statMaxSpread").textContent=`${x.max_window_spread_percent.toFixed(4)}%`; }
     function renderExecutableSignal(x, cache){ $("aaveReserveCount").textContent=cache?cache.asset_count:"-"; $("aaveReserveMeta").textContent=cache&&cache.refreshed_at?`更新于 ${fmtTime(cache.refreshed_at)}`:"无缓存"; $("rawCandidateCount").textContent=x?x.raw_candidate_count:"-"; $("rawCandidateMeta").textContent="通过阈值的速度窗口"; $("execCandidateCount").textContent=x?x.executable_candidate_count:"-"; $("execCandidateMeta").textContent=x&&x.executable_symbols?`${x.executable_symbols.length} 个已映射符号`:"等待中"; const s=x&&x.signal; $("execSignalPair").textContent=s?`${base(s.x_symbol)} / ${base(s.y_symbol)}`:"无"; $("execSignalMeta").textContent=s?`${s.x_change_percent.toFixed(4)}% / ${s.y_change_percent.toFixed(4)}%`:"暂无可执行兑换对"; }
-    function renderTrigger(s){ if(!s){ ["triggerX","triggerY","triggerSignal","onchainDecision"].forEach(id=>$(id).textContent="-"); $("triggerXMeta").textContent="等待中"; $("triggerYMeta").textContent="等待中"; $("triggerSignalMeta").textContent="等待中"; $("onchainDecisionMeta").textContent="等待中"; return; } const xc=s.x_change_percent??s.a_change_percent??0, yc=s.y_change_percent??s.b_change_percent??0, xs=s.x_symbol??s.a_symbol, ys=s.y_symbol??s.b_symbol; $("triggerX").textContent=`${base(xs)} ${xc>=0?"+":""}${xc.toFixed(4)}%`; $("triggerX").className=xc>=0?"positive":"negative"; $("triggerXMeta").textContent=`${s.window_seconds.toFixed(3)} 秒窗口`; $("triggerY").textContent=`${base(ys)} ${yc>=0?"+":""}${yc.toFixed(4)}%`; $("triggerY").className=yc>=0?"positive":"negative"; $("triggerYMeta").textContent=`来源 ${s.price_source || "未知"}`; $("triggerSignal").textContent=s.trigger_signal?"已就绪":"等待中"; $("triggerSignal").className=s.trigger_signal?"positive":"negative"; $("triggerSignalMeta").textContent=s.trigger_signal?`价差 ${s.window_spread_percent.toFixed(4)}%`:(s.blocked_reasons||["低于阈值"]).join("，"); $("onchainDecision").textContent=s.onchain_decision_required?"合约":"-"; $("onchainDecisionMeta").textContent=s.execution_plan?"已有旧执行计划":"动态选择路径"; }
+    function renderBorrowTargetUniverse(u){ if(!u){ $("borrowableCount").textContent="-"; $("targetCount").textContent="-"; $("borrowableMeta").textContent="等待中"; $("targetMeta").textContent="等待中"; $("borrowTargetSummary").innerHTML=""; $("borrowTargetBody").innerHTML=""; return; } $("borrowableCount").textContent=u.borrow_count??0; $("targetCount").textContent=u.target_count??0; $("borrowableMeta").textContent=u.borrow_cache_refreshed_at?`更新于 ${fmtTime(u.borrow_cache_refreshed_at)}`:"无缓存"; $("targetMeta").textContent=u.target_cache_refreshed_at?`更新于 ${fmtTime(u.target_cache_refreshed_at)}`:"无缓存"; $("borrowTargetSummary").innerHTML=`<span class="chip">可借 ${u.borrow_count??0}</span><span class="chip">目标 ${u.target_count??0}</span><span class="chip">来源 ${u.target_source||"未知"}</span>`; $("borrowTargetBody").innerHTML=(u.borrow_rows||[]).map(row=>`<tr><td>${row.borrow_symbol||"-"}</td><td>${(row.target_symbols||[]).join(" / ")||"-"}</td><td>${row.target_count??0}</td><td>${(row.target_symbols||[]).slice(0,12).join(", ")||"-"}</td></tr>`).join("") || '<tr><td colspan="4">暂无映射</td></tr>'; }
+    function renderDivergence(x){ if(!x){ $("divergenceCounts").textContent="-"; $("divergenceIndex").textContent="-"; $("divergenceCountsMeta").textContent="等待中"; $("divergenceIndexMeta").textContent="等待中"; return; } const a=Number.isFinite(x.gainer_count)?x.gainer_count:0, b=Number.isFinite(x.loser_count)?x.loser_count:0, n=Number.isFinite(x.observation_universe_size)?x.observation_universe_size:0, d=Number.isFinite(x.market_divergence_index)?x.market_divergence_index:0; $("divergenceCounts").textContent=`${a} / ${b}`; $("divergenceCountsMeta").textContent=`${n} 个交集币`; $("divergenceIndex").textContent=d.toFixed(3); $("divergenceIndex").className=d>1?"positive":"negative"; $("divergenceIndexMeta").textContent=d>1?"已进入全币对利润计算门槛":"未达到计算阈值"; }
+    function renderBasket(x){ const rows=x&&Array.isArray(x.basket)?x.basket:[]; $("basketMeta").textContent=x?`${rows.length}/${Number.isFinite(x.observation_universe_size)?x.observation_universe_size:0} 个篮子币 | 窗口 ${Number.isFinite(x.window_seconds)?x.window_seconds.toFixed(3):"-"} 秒 | ${x.observed_at?fmtTime(x.observed_at):"-"}`:"等待中"; $("basketBody").innerHTML=rows.map(row=>`<tr><td>${row.symbol||"-"}</td><td>${price(row.current_price)}</td><td class="${cellCls(row.change_percent)}">${pct(row.change_percent)}</td><td>${price(row.start_price)}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="5">暂无篮子行情</td></tr>'; }
+    function renderTrigger(s){ if(!s){ ["triggerX","triggerY","triggerSignal","onchainDecision","divergenceCounts","divergenceIndex"].forEach(id=>$(id).textContent="-"); $("triggerXMeta").textContent="等待中"; $("triggerYMeta").textContent="等待中"; $("triggerSignalMeta").textContent="等待中"; $("onchainDecisionMeta").textContent="等待中"; $("divergenceCountsMeta").textContent="等待中"; $("divergenceIndexMeta").textContent="等待中"; return; } const xc=s.x_change_percent??s.a_change_percent??0, yc=s.y_change_percent??s.b_change_percent??0, xs=s.x_symbol??s.a_symbol, ys=s.y_symbol??s.b_symbol; $("triggerX").textContent=`${base(xs)} ${xc>=0?"+":""}${xc.toFixed(4)}%`; $("triggerX").className=xc>=0?"positive":"negative"; $("triggerXMeta").textContent=`${s.window_seconds.toFixed(3)} 秒窗口`; $("triggerY").textContent=`${base(ys)} ${yc>=0?"+":""}${yc.toFixed(4)}%`; $("triggerY").className=yc>=0?"positive":"negative"; $("triggerYMeta").textContent=`来源 ${s.price_source || "未知"}`; $("triggerSignal").textContent=s.trigger_signal?"已就绪":"等待中"; $("triggerSignal").className=s.trigger_signal?"positive":"negative"; $("triggerSignalMeta").textContent=s.trigger_signal?`价差 ${s.window_spread_percent.toFixed(4)}%`:(s.blocked_reasons||["低于阈值"]).join("，"); $("onchainDecision").textContent=s.onchain_decision_required?"合约":"-"; $("onchainDecisionMeta").textContent=s.execution_plan?"已有旧执行计划":"动态选择路径"; const a=Number.isFinite(s.gainer_count)?s.gainer_count:0, b=Number.isFinite(s.loser_count)?s.loser_count:0; $("divergenceCounts").textContent=`${a} / ${b}`; $("divergenceCountsMeta").textContent=`${Number.isFinite(s.observation_universe_size)?s.observation_universe_size:0} 个交集币`; $("divergenceIndex").textContent=Number.isFinite(s.market_divergence_index)?s.market_divergence_index.toFixed(3):"-"; $("divergenceIndex").className=Number.isFinite(s.market_divergence_index)&&s.market_divergence_index>1?"positive":"negative"; $("divergenceIndexMeta").textContent=Number.isFinite(s.market_divergence_index)&&s.market_divergence_index>1?"已进入全币对利润计算门槛":"未达到计算阈值"; }
     function renderSystemMonitor(m){ const state=m&&m.state?m.state:"stopped"; const text={running:"监测中",initializing:"启动中",stopped:"空闲",error:"错误"}[state]||state; const windowText=Number.isFinite(m&&m.window_seconds)?`${m.window_seconds.toFixed(3)}秒窗口/${m.sample_count||0}样本`:"暂无窗口"; const detail=m?`${m.action}，当前状态${m.observer_stage||"未知"} | 符号${m.symbol_count||0} | Aave${m.aave_reserve_count||0} | ${windowText}`:"等待中"; $("systemState").textContent=text; $("systemState").className=state==="running"?"positive":(state==="error"?"negative":""); $("systemDetail").textContent=detail; $("systemProgress").style.width=`${Number.isFinite(m&&m.percent)?m.percent:0}%`; }
     function renderProgress(p){ const state=p&&p.state?p.state:"stopped"; const text={running:"运行中",initializing:"初始化中",stopped:"已停止",error:"错误"}[state]||state; const percent=Number.isFinite(p&&p.percent)?p.percent:0; $("running").textContent=text; $("running").className=state==="running"?"positive":(state==="error"?"negative":""); $("statusDetail").textContent=p&&p.stage?p.stage:"等待中"; $("statusProgress").style.width=`${percent}%`; }
     function renderLocalSystemStatus(action, percent=25){ $("systemState").textContent="执行中"; $("systemState").className=""; $("systemDetail").textContent=`${action}已经执行，当前状态等待后端返回`; $("systemProgress").style.width=`${percent}%`; $("message").textContent=`${action}中...`; }
-    async function refresh(){ if(refreshing)return; refreshing=true; try{ const s=await api("/api/status"); renderSystemMonitor(s.system_monitor); renderProgress(s.observer_progress); $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; $("message").textContent=s.start_error?zhError(s.start_error):(s.control_status&&s.control_status.message?s.control_status.message:""); if(!configDirty) { setConfig(s.strategy_config); renderSamplingProfile(s.sampling_profile); } renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); $("startBtn").disabled=s.running||s.starting; $("stopBtn").disabled=!s.running&&!s.starting; }catch(e){ $("message").textContent=e.message; } finally { refreshing=false; } }
+    async function refresh(){ if(refreshing)return; refreshing=true; try{ const s=await api("/api/status"); renderSystemMonitor(s.system_monitor); renderProgress(s.observer_progress); $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; $("message").textContent=s.start_error?zhError(s.start_error):(s.control_status&&s.control_status.message?s.control_status.message:""); if(!configDirty) { setConfig(s.strategy_config); renderSamplingProfile(s.sampling_profile); } renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderDivergence(s.binance_extremes); renderBasket(s.binance_extremes); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); renderBorrowTargetUniverse(s.borrow_target_universe); $("startBtn").disabled=s.running||s.starting; $("stopBtn").disabled=!s.running&&!s.starting; }catch(e){ $("message").textContent=e.message; } finally { refreshing=false; } }
     async function refreshDbSummary(){ if(refreshingDb)return; refreshingDb=true; try{ const s=await api("/api/db-summary"); $("rows").textContent=s.rows??"-"; $("binanceRows").textContent=s.db_counts?s.db_counts.binance_candidate_price_history:"-"; $("velocityRows").textContent=s.db_counts?s.db_counts.binance_window_extremes:"-"; if(s.db_counts){ $("systemDetail").textContent=`${$("systemDetail").textContent} | DB ${s.db_counts.total}行`; } renderStats(s.trade_stats); const p=parseFloat($("statusProgress").style.width)||0; if($("running").textContent==="初始化中" && s.db_counts && s.db_counts.binance_candidate_price_history>0) $("statusProgress").style.width=`${Math.max(p,90)}%`; }catch(e){ $("message").textContent=e.message; } finally { refreshingDb=false; } }
     function renderChips(id, label, rows){ $(id).innerHTML=`<span class="chip">${label}</span>` + rows.map(x=>`<span class="chip">${base(x.symbol)} ${pct(x.change_percent)}</span>`).join(""); }
     function shortStrategy(s){ return (s||"-").replace("strategy_1_forward_x_to_usdc_to_y_to_x","x-USDC-y-x").replace("strategy_1_reverse_y_to_x_to_usdc_to_y","y-x-USDC-y").replace("strategy_2_forward_x_to_y_to_usdc_to_x","x-y-USDC-x").replace("strategy_2_reverse_y_to_usdc_to_x_to_y","y-USDC-x-y"); }

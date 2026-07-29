@@ -18,8 +18,8 @@ if str(SRC_ROOT) not in sys.path:
 from execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
 from core.env_loader import load_env_files, resolve_env_path
 from execution.execution_payload import PayloadConfig, build_execution_payload
-from market.aave_reserve_cache import load_aave_reserve_symbol_list
-from market.observer import ASSETS
+from market.aave_reserve_cache import load_aave_reserve_assets
+from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES, env_urls, resolve_aave_binance_overlap_symbols
 from execution.plan_quotes import quote_execution_plan
 from strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
 from web.control_panel_config import (
@@ -29,6 +29,7 @@ from web.control_panel_config import (
 )
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
+    borrow_target_universe as read_borrow_target_universe,
     available_candidate_symbols as read_available_candidate_symbols,
     available_chart_symbols as read_available_chart_symbols,
     database_table_counts as read_database_table_counts,
@@ -66,6 +67,7 @@ LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
 LATEST_EXECUTABLE_SIGNAL_PATH = STATE_DIR / "latest_executable_signal.json"
 LATEST_EXTREMES_PATH = STATE_DIR / "latest_extremes.json"
 AAVE_RESERVE_CACHE_PATH = CACHE_DIR / "aave_reserve_assets.json"
+DEX_BORROW_TARGET_CACHE_PATH = CACHE_DIR / "dex_borrow_targets.json"
 OBSERVER_PID_PATH = RUNTIME_DIR / "observer.pid"
 STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
 REPO_ROOT = APP_DIR.parents[1]
@@ -393,15 +395,22 @@ def build_observer_env() -> tuple[dict, list[str]]:
     rpc_urls = aave_rpc_urls()
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
     reserve_limit = int(os.getenv("AAVE_RESERVE_SYMBOL_LIMIT", str(AAVE_RESERVE_SYMBOL_LIMIT)))
-    reserve_symbols = load_aave_reserve_symbol_list(
+    reserve_assets = load_aave_reserve_assets(
         rpc_urls,
         pool_address,
         limit=reserve_limit,
-        exclude_stables=True,
+        exclude_stables=False,
     ) if pool_address else []
+    reserve_symbols = list(
+        dict.fromkeys(
+            str(asset.get("binance_symbol", "")).upper()
+            for asset in reserve_assets
+            if asset.get("binance_symbol")
+        )
+    )
     tracked_symbols = [*reserve_symbols, "USDCUSDT"]
     env["SYMBOLS"] = ",".join(tracked_symbols if reserve_symbols else ASSETS.keys())
-    env["BINANCE_SYMBOL_SELECTION"] = "velocity"
+    env["BINANCE_SYMBOL_SELECTION"] = "aave_binance_overlap"
     env["BINANCE_TOP_SYMBOL_LIMIT"] = "0"
     env["BINANCE_VELOCITY_SIDE_LIMIT"] = str(VELOCITY_SIDE_LIMIT)
     env["BINANCE_CANDIDATE_DB_SIDE_LIMIT"] = str(VELOCITY_SIDE_LIMIT)
@@ -424,7 +433,13 @@ def build_observer_env() -> tuple[dict, list[str]]:
         env["AAVE_POOL_ADDRESS"] = pool_address
     for key, value in config.items():
         env[key] = str(value)
-    return env, tracked_symbols if reserve_symbols else list(ASSETS.keys())
+    try:
+        rest_bases = env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")
+        display_symbols = resolve_aave_binance_overlap_symbols(rest_bases, int(env["BINANCE_TOP_SYMBOL_LIMIT"]))
+    except Exception:
+        display_symbols = []
+    fallback_symbols = tracked_symbols if reserve_symbols else list(ASSETS.keys())
+    return env, display_symbols or fallback_symbols
 
 
 def start_observer_background() -> None:
@@ -521,6 +536,10 @@ def latest_executable_signal() -> Optional[dict]:
 
 def aave_reserve_cache() -> Optional[dict]:
     return read_aave_reserve_cache(AAVE_RESERVE_CACHE_PATH)
+
+
+def borrow_target_universe() -> Optional[dict]:
+    return read_borrow_target_universe(AAVE_RESERVE_CACHE_PATH, DEX_BORROW_TARGET_CACHE_PATH)
 
 
 def observation_count() -> Optional[int]:
@@ -796,6 +815,7 @@ def status():
             "arbitrage_simulation": safe_latest(latest_arbitrage_simulation_file),
             "executable_signal": safe_latest(latest_executable_signal),
             "aave_reserve_cache": reserve_cache,
+            "borrow_target_universe": safe_latest(borrow_target_universe),
             "strategy_config": strategy_config(),
             "sampling_profile": unified_sampling_profile(strategy_config()),
         }

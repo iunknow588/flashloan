@@ -341,7 +341,9 @@ def load_aave_reserve_assets(
             last_error = exc
             continue
     if cache:
-        assets = list(cache.get("selected") or cache.get("assets") or [])
+        assets = list(cache.get("assets") or [])
+        if exclude_stables and not assets:
+            assets = list(cache.get("selected") or [])
         if exclude_stables:
             assets = [asset for asset in assets if not bool(asset.get("is_stable"))]
         return assets[:limit] if limit else assets

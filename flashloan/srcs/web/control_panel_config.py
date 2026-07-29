@@ -19,9 +19,11 @@ STRATEGY_DEFAULTS = {
     "TRIGGER_MIN_DOWN_CHANGE_PERCENT": 1.0,
 }
 
+MIN_SAMPLING_SECONDS = 0.2
+
 
 def unified_sampling_profile(config: dict) -> dict:
-    seconds = max(1.0, float(config.get("BINANCE_CHANGE_WINDOW_SECONDS", STRATEGY_DEFAULTS["BINANCE_CHANGE_WINDOW_SECONDS"])))
+    seconds = max(MIN_SAMPLING_SECONDS, float(config.get("BINANCE_CHANGE_WINDOW_SECONDS", STRATEGY_DEFAULTS["BINANCE_CHANGE_WINDOW_SECONDS"])))
     return {
         "name": "统一采样周期",
         "seconds": seconds,
@@ -74,7 +76,7 @@ def sanitize_strategy_config(values: dict) -> dict:
     config["ARBITRAGE_BASKET_SIZE"] = max(1, min(int(config["ARBITRAGE_BASKET_SIZE"]), 10))
     config["EXECUTION_SLIPPAGE_BPS"] = max(0, min(int(config["EXECUTION_SLIPPAGE_BPS"]), 5000))
     config["EXECUTION_PLAN_MAX_AGE_SECONDS"] = max(1, int(config["EXECUTION_PLAN_MAX_AGE_SECONDS"]))
-    config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(1.0, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))
+    config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(MIN_SAMPLING_SECONDS, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))
     config["BINANCE_VELOCITY_MIN_CHANGE_PERCENT"] = max(0.0, float(config["BINANCE_VELOCITY_MIN_CHANGE_PERCENT"]))
     return config
 

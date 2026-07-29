@@ -113,8 +113,12 @@ def replay_windows(rows: list[tuple], window_seconds: float) -> list[dict]:
             )
         if len(changes) < 2:
             continue
-        top = max(changes, key=lambda item: item["change_percent"])
-        bottom = min(changes, key=lambda item: item["change_percent"])
+        gainers = [item for item in changes if item["change_percent"] > 0]
+        losers = [item for item in changes if item["change_percent"] < 0]
+        if not gainers or not losers:
+            continue
+        top = max(gainers, key=lambda item: item["change_percent"])
+        bottom = min(losers, key=lambda item: item["change_percent"])
         if top["symbol"] == bottom["symbol"]:
             continue
         results.append(

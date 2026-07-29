@@ -49,11 +49,12 @@ def test_simulate_pair_applies_signed_two_strategy_rule():
 
     pair = simulate_pair(row("X", 10, 12), row("Y", 10, 8), config, 100)
 
-    assert pair["best_strategy"] == "strategy_1_forward_x_to_usdc_to_y_to_x"
-    assert pair["route_symbols"] == ["X", "USDC", "Y", "X"]
-    assert len(pair["candidate_strategies"]) == 4
+    assert pair["best_strategy"] == "strategy_3_stable_usdc_to_y_to_x_to_usdc"
+    assert pair["borrow_symbol"] == "USDC"
+    assert pair["route_symbols"] == ["USDC", "Y", "X", "USDC"]
+    assert len(pair["candidate_strategies"]) == 2
     assert pair["m1_profit_usd"] > 0
-    assert pair["m2_profit_usd"] < 0
+    assert pair["m2_profit_usd"] > 0
     assert pair["profit_usd"] > 0
 
 
@@ -93,11 +94,16 @@ def test_simulate_basket_reports_grid_counts_and_closed_execution_route():
     result = simulate_basket(extremes, config)
 
     assert result["candidate_pair_count"] == 4
-    assert result["evaluated_strategy_count"] == 16
+    assert result["evaluated_strategy_count"] == 8
     assert result["signal"] is True
-    assert result["route_symbols"][0] == result["route_symbols"][-1]
+    assert result["borrow_symbol"] == "USDC"
+    assert result["route_symbols"][0] == "USDC"
+    assert result["route_symbols"][-1] == "USDC"
     plan = result["execution_plan"]
-    assert plan["strategy_model"] == "m_by_n_grid_signed_best_of_two_closed_cycles"
+    assert plan["strategy_model"] == "m_by_n_grid_usdc_flashloan_stable_borrow_cycle"
+    assert plan["route_invariant"] == "first route symbol must equal final route symbol; repay step must output the borrowed asset"
+    assert plan["borrow_symbols"] == ["USDC"]
+    assert plan["repay_symbols"] == ["USDC"]
     assert plan["buy_steps"][0]["from_symbol"] == plan["repay_steps"][0]["to_symbol"]
 
 
@@ -120,11 +126,11 @@ def test_simulate_basket_generates_quote_candidate_when_negative_m_selects_rever
 
     result = simulate_basket(extremes, config)
 
+    assert result["borrow_symbol"] == "USDC"
     assert result["selected_signed_profit_usd"] < 0
-    assert result["selected_direction_score_usd"] > 0
-    assert result["best_strategy"].endswith("_reverse_y_to_usdc_to_x_to_y")
+    assert result["selected_direction_score_usd"] < 0
     assert result["selected_expected_profit_usd"] < 0
     assert result["paper_route_profit_usd"] < 0
-    assert result["candidate_score_usd"] > 0
-    assert result["signal"] is True
-    assert result["execution_plan"] is not None
+    assert result["candidate_score_usd"] < 0
+    assert result["signal"] is False
+    assert result["execution_plan"] is None
