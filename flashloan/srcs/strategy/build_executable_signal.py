@@ -20,9 +20,11 @@ load_env_files(__file__)
 def executable_symbols() -> set[str]:
     raw = os.getenv("TRIGGER_EXECUTABLE_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS).strip()
     if raw.upper() in {"AAVE", "AAVE_RESERVES", "AAVE_POOL"}:
+        reserve_limit = int(os.getenv("AAVE_RESERVE_SYMBOL_LIMIT", "1000"))
         symbols = load_aave_reserve_symbols(
             os.getenv("AVALANCHE_RPC", DEFAULT_RPC).strip(),
             os.getenv("AAVE_POOL_ADDRESS", "").strip(),
+            limit=reserve_limit,
         )
         if symbols:
             return symbols

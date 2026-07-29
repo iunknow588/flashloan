@@ -1,4 +1,11 @@
-from strategy.arbitrage import ArbitrageConfig, choose_signed_strategy, select_cross_pair_rows, simulate_basket, simulate_pair
+from strategy.arbitrage import (
+    ArbitrageConfig,
+    choose_signed_strategy,
+    select_cross_pair_rows,
+    simulate_basket,
+    simulate_four_route_cycles,
+    simulate_pair,
+)
 
 
 def row(symbol: str, start: float, end: float) -> dict:
@@ -48,6 +55,23 @@ def test_simulate_pair_applies_signed_two_strategy_rule():
     assert pair["m1_profit_usd"] > 0
     assert pair["m2_profit_usd"] < 0
     assert pair["profit_usd"] > 0
+
+
+def test_simulate_four_route_cycles_reports_remaining_amount_from_100_tokens():
+    config = ArbitrageConfig(
+        notional_usd=100,
+        trade_fee_percent=0,
+        flashloan_fee_percent=0,
+        min_window_spread_percent=0,
+    )
+
+    routes = simulate_four_route_cycles(row("X", 10, 12), row("Y", 10, 8), config, 100)
+
+    assert len(routes) == 4
+    assert {route["initial_amount"] for route in routes} == {100}
+    assert all(route["route_symbols"][0] == route["route_symbols"][-1] for route in routes)
+    assert all("remaining_amount" in route for route in routes)
+    assert all("profit_percent" in route for route in routes)
 
 
 def test_simulate_basket_reports_grid_counts_and_closed_execution_route():

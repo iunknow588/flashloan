@@ -1,20 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Observer Control</title>
+  <title>速度监控控制台</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
     header, main { padding: 18px 24px; }
     header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
-    main { width: min(1120px, 100%); margin: 0 auto; }
+    main { width: min(1280px, 100%); margin: 0 auto; }
     h1 { margin: 0; font-size: 20px; }
     button, select, input { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
     button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
     button.danger { border-color: #b42318; color: #b42318; }
-    .toolbar, .chart-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .toolbar, .summary-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: center; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
     .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
     .card small { display: block; color: #667085; margin-bottom: 7px; }
@@ -24,121 +24,177 @@
     .negative { color: #b42318; }
     .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.45; }
     dialog { width: min(560px, calc(100% - 32px)); border: 1px solid #cfd6e2; border-radius: 8px; }
-    canvas { display: block; width: 100%; height: 260px; border: 1px solid #eef1f5; background: #fff; }
-    #diffCanvas { height: 140px; margin-top: 10px; }
-    #aavePairCanvas { height: 220px; margin-top: 10px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; color: #475467; font-size: 12px; }
-    .legend span::before { content: ""; display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c); }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
-    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; }
     th:first-child, td:first-child { text-align: left; }
     .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
     .field label { display: block; color: #667085; font-size: 12px; margin-bottom: 4px; }
     .field input { width: 100%; }
+    .field span { display: block; margin-top: 4px; color: #667085; font-size: 11px; line-height: 1.35; }
+    .profile-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 8px; }
+    .profile-item { border: 1px solid #e4e7ec; border-radius: 6px; padding: 8px 10px; background: #fafbfc; }
+    .profile-item small { display: block; color: #667085; margin-bottom: 4px; }
+    .profile-item strong { display: block; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .table-wrap { overflow-x: auto; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .chip { border: 1px solid #d0d5dd; border-radius: 6px; padding: 4px 8px; background: #fff; font-size: 12px; }
+    .progress { height: 8px; width: 100%; margin-top: 8px; overflow: hidden; border-radius: 6px; background: #e4e7ec; }
+    .progress div { height: 100%; width: 0; background: #0f766e; transition: width .3s ease; }
   </style>
 </head>
 <body>
-  <header><h1>Binance x Aave Observer</h1><div id="message"></div></header>
+  <header><h1>币安速度汇总</h1><div id="message"></div></header>
   <main>
     <div class="toolbar">
-      <button class="primary" id="startBtn">Start</button><button id="stopBtn">Stop</button>
-      <button id="initBtn">Init DB</button><button class="danger" id="clearBtn">Clear DB</button>
-      <button class="danger" id="clearFilesBtn">Clear Files</button><button id="refreshBtn">Refresh</button>
+      <button class="primary" id="startBtn">开始</button><button id="stopBtn">停止</button>
+      <button id="initBtn">初始化数据库</button><button class="danger" id="clearBtn">清空数据库</button>
+      <button class="danger" id="clearFilesBtn">清空文件</button><button id="refreshBtn">刷新</button>
     </div>
     <section class="grid">
-      <div class="card"><small>Status</small><strong id="running">-</strong></div>
-      <div class="card"><small>PID</small><strong id="pid">-</strong></div>
-      <div class="card"><small>Symbols</small><strong id="symbols">-</strong></div>
-      <div class="card"><small>Observation Rows</small><strong id="rows">-</strong><span>Aave verification records</span></div>
-      <div class="card"><small>Binance Price Rows</small><strong id="binanceRows">-</strong><span>raw price history</span></div>
-      <div class="card"><small>Velocity Windows</small><strong id="velocityRows">-</strong><span>top/bottom snapshots</span></div>
+      <div class="card"><small>全局监测</small><strong id="systemState">-</strong><span id="systemDetail">等待中</span><div class="progress"><div id="systemProgress"></div></div></div>
+      <div class="card"><small>观察器状态</small><strong id="running">-</strong><span id="statusDetail">等待中</span><div class="progress"><div id="statusProgress"></div></div></div>
+      <div class="card"><small>进程号</small><strong id="pid">-</strong></div>
+      <div class="card"><small>符号</small><strong id="symbols">-</strong></div>
+      <div class="card"><small>观察行</small><strong id="rows">-</strong><span>Aave 验证记录</span></div>
+      <div class="card"><small>候选明细行</small><strong id="binanceRows">-</strong><span>轻量模式不再写入</span></div>
+      <div class="card"><small>速度窗口</small><strong id="velocityRows">-</strong><span>顶部/底部快照</span></div>
     </section>
     <section class="card">
-      <small>Strategy parameters</small>
-      <div class="settings">
-        <div class="field"><label>Window seconds</label><input id="cfgWindow" type="number" min="0.2" step="0.1"></div>
-        <div class="field"><label>Min up %</label><input id="cfgMinUp" type="number" min="0" step="0.01"></div>
-        <div class="field"><label>Min down %</label><input id="cfgMinDown" type="number" min="0" step="0.01"></div>
-        <div class="field"><label>Slippage bps</label><input id="cfgSlippage" type="number" min="0" max="5000" step="1"></div>
-        <div class="field"><label>Signal max age s</label><input id="cfgMaxAge" type="number" min="1" step="1"></div>
+      <small>统一周期结构</small>
+      <div class="settings" style="margin-bottom:12px">
+        <div class="field"><label>周期名称</label><input id="profileName" type="text" readonly></div>
+        <div class="field"><label>周期秒数</label><input id="profileSeconds" type="text" readonly></div>
+        <div class="field"><label>作用范围</label><input id="profileAppliesTo" type="text" readonly></div>
+        <div class="field"><label>Binance 速度窗</label><input id="profileBinance" type="text" readonly></div>
+        <div class="field"><label>Aave 轮询</label><input id="profileAave" type="text" readonly></div>
       </div>
-      <div class="toolbar" style="margin-top:12px;margin-bottom:0"><button class="primary" id="saveConfigBtn">Save Parameters</button><span id="configNote">Changes apply on next observer start.</span></div>
+      <small>策略参数</small>
+      <div class="settings">
+        <div class="field"><label>统一采样间隔（秒）</label><input id="cfgWindow" type="number" min="1" step="0.1"><span id="cfgWindowHint">同时用于 Binance 速度窗和 Aave 轮询。</span></div>
+        <div class="field"><label>最小上涨 %</label><input id="cfgMinUp" type="number" min="0" step="0.01"></div>
+        <div class="field"><label>最小下跌 %</label><input id="cfgMinDown" type="number" min="0" step="0.01"></div>
+        <div class="field"><label>滑点（基点）</label><input id="cfgSlippage" type="number" min="0" max="5000" step="1"></div>
+        <div class="field"><label>信号最大年龄（秒）</label><input id="cfgMaxAge" type="number" min="1" step="1"></div>
+      </div>
+      <div class="toolbar" style="margin-top:12px;margin-bottom:0"><button class="primary" id="saveConfigBtn">保存参数</button><span id="configNote">修改将在下次启动观察器时生效。</span></div>
     </section>
     <section class="grid">
-      <div class="card"><small>a: highest change</small><strong id="extremeA">-</strong><span id="extremeAText">waiting</span></div>
-      <div class="card"><small>b: biggest drop</small><strong id="extremeB">-</strong><span id="extremeBText">waiting</span></div>
-      <div class="card"><small>Window</small><strong id="extremeWindow">-</strong><span id="extremeMeta">manual calculation</span></div>
+      <div class="card"><small>a：最高涨幅</small><strong id="extremeA">-</strong><span id="extremeAText">等待中</span></div>
+      <div class="card"><small>b：最大跌幅</small><strong id="extremeB">-</strong><span id="extremeBText">等待中</span></div>
+      <div class="card"><small>窗口</small><strong id="extremeWindow">-</strong><span id="extremeMeta">手动计算</span></div>
     </section>
     <section class="grid">
-      <div class="card"><small>x top gainer</small><strong id="triggerX">-</strong><span id="triggerXMeta">waiting</span></div>
-      <div class="card"><small>y top loser</small><strong id="triggerY">-</strong><span id="triggerYMeta">waiting</span></div>
-      <div class="card"><small>Trigger</small><strong id="triggerSignal">-</strong><span id="triggerSignalMeta">waiting</span></div>
-      <div class="card"><small>On-chain decision</small><strong id="onchainDecision">-</strong><span id="onchainDecisionMeta">waiting</span></div>
+      <div class="card"><small>x：涨幅最高</small><strong id="triggerX">-</strong><span id="triggerXMeta">等待中</span></div>
+      <div class="card"><small>y：跌幅最高</small><strong id="triggerY">-</strong><span id="triggerYMeta">等待中</span></div>
+      <div class="card"><small>触发器</small><strong id="triggerSignal">-</strong><span id="triggerSignalMeta">等待中</span></div>
+      <div class="card"><small>链上决策</small><strong id="onchainDecision">-</strong><span id="onchainDecisionMeta">等待中</span></div>
     </section>
     <section class="grid">
-      <div class="card"><small>Signal rate</small><strong id="statSignalRate">-</strong><span id="statSignalCount">waiting</span></div>
-      <div class="card"><small>Avg signal score</small><strong id="statAvgProfit">-</strong></div>
-      <div class="card"><small>Max signal score</small><strong id="statMaxProfit">-</strong></div>
-      <div class="card"><small>Max spread</small><strong id="statMaxSpread">-</strong></div>
+      <div class="card"><small>信号率</small><strong id="statSignalRate">-</strong><span id="statSignalCount">等待中</span></div>
+      <div class="card"><small>平均信号分数</small><strong id="statAvgProfit">-</strong></div>
+      <div class="card"><small>最高信号分数</small><strong id="statMaxProfit">-</strong></div>
+      <div class="card"><small>最大价差</small><strong id="statMaxSpread">-</strong></div>
     </section>
     <section class="grid">
-      <div class="card"><small>Testnet tx success</small><strong id="txSuccessRate">-</strong><span id="txCount">waiting</span></div>
-      <div class="card"><small>Testnet profit units</small><strong id="txProfit">-</strong><span id="txLast">waiting</span></div>
-    </section>
-    <section class="grid">
-      <div class="card"><small>Aave reserve cache</small><strong id="aaveReserveCount">-</strong><span id="aaveReserveMeta">waiting</span></div>
-      <div class="card"><small>Velocity candidates</small><strong id="rawCandidateCount">-</strong><span id="rawCandidateMeta">waiting</span></div>
-      <div class="card"><small>Executable candidates</small><strong id="execCandidateCount">-</strong><span id="execCandidateMeta">waiting</span></div>
-      <div class="card"><small>Executable signal</small><strong id="execSignalPair">-</strong><span id="execSignalMeta">waiting</span></div>
+      <div class="card"><small>Aave 储备缓存</small><strong id="aaveReserveCount">-</strong><span id="aaveReserveMeta">等待中</span></div>
+      <div class="card"><small>速度候选</small><strong id="rawCandidateCount">-</strong><span id="rawCandidateMeta">等待中</span></div>
+      <div class="card"><small>可执行候选</small><strong id="execCandidateCount">-</strong><span id="execCandidateMeta">等待中</span></div>
+      <div class="card"><small>可执行信号</small><strong id="execSignalPair">-</strong><span id="execSignalMeta">等待中</span></div>
     </section>
     <section class="card">
-      <div class="chart-tools"><select id="chartSymbol">__CHART_OPTIONS__</select><button id="chartRefreshBtn">Refresh Chart</button></div>
-      <div id="chartSummary">No chart data loaded</div><div id="chartReadout">Move over the chart to inspect values.</div>
-      <div id="costNote">DEX cost uses live Trader Joe quotes.</div>
-      <table><thead><tr><th>Size</th><th>Buy cost</th><th>Sell cost</th><th>Roundtrip</th><th>Pool buy price</th></tr></thead><tbody id="costTableBody"></tbody></table>
-      <canvas id="priceCanvas"></canvas><canvas id="diffCanvas"></canvas>
-    </section>
-    <section class="card">
-      <small>Aave pair prices</small>
-      <div id="aavePairSummary">Waiting for x/y pair</div><div id="aavePairReadout">Move over the chart to inspect values.</div>
-      <div class="legend"><span style="--c:#2563eb">x-USDC</span><span style="--c:#dc2626">y-USDC</span><span style="--c:#7c3aed">x-y</span></div>
-      <canvas id="aavePairCanvas"></canvas>
+      <small>5×5 兑换胜率汇总</small>
+      <div class="summary-tools"><select id="timepointSelect"></select><button id="summaryRefreshBtn">刷新汇总</button></div>
+      <div id="summaryMeta">未选择时间点。</div>
+      <div class="chips" id="topChips"></div>
+      <div class="chips" id="bottomChips"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>兑换对</th><th>路径编号</th><th>起始代币（100）</th>
+              <th>第一跳目标代币及数量</th><th>第二跳目标代币及数量</th><th>第三跳目标代币及数量</th><th>第四跳目标代币及数量</th>
+              <th>盈利比例</th>
+            </tr>
+          </thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+      </div>
     </section>
   </main>
-  <dialog id="symbolDialog"><h2>Start velocity monitor</h2><div class="notice">Monitor Binance USDT pairs, calculate the fastest 100 gainers and fastest 100 losers for each window, then filter executable candidates through Aave reserves.</div><button id="cancelDialog">Cancel</button><button class="primary" id="confirmStart">Confirm start</button></dialog>
+  <dialog id="symbolDialog"><h2>启动速度监控</h2><div class="notice">监控 Aave 储备池映射到 Binance 的 USDT 交易对，按当前采样窗口计算最快的 100 个上涨币种和最快的 100 个下跌币种，并保存速度窗口快照。</div><button id="cancelDialog">取消</button><button class="primary" id="confirmStart">确认启动</button></dialog>
   <script>
-    const $ = id => document.getElementById(id), api = async (p,o={}) => { const r = await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d = await r.json(); if(!r.ok) throw new Error(d.error || "request failed"); return d; };
-    const dialog=$("symbolDialog"), priceCanvas=$("priceCanvas"), diffCanvas=$("diffCanvas"), aavePairCanvas=$("aavePairCanvas"); let chartRows=[], cursorIndex=null, pairRows=[], pairCursorIndex=null, currentPair=null, feeSlippagePercent=0.30, configDirty=false, refreshing=false, refreshingDb=false, chartMode="aave_observations", chartSupportsDex=false;
-    const fmtTime = v => new Date(v).toLocaleTimeString([], {hour12:false});
+    const zhError = value => String(value || "请求失败")
+      .replace("DATABASE_URL is required. Configure .env or a system environment variable first.", "缺少 DATABASE_URL。请先在 .env 或系统环境变量中配置数据库连接。")
+      .replace("initialize database and collect velocity windows first", "请先初始化数据库并采集速度窗口。")
+      .replace("no velocity timepoint found", "没有找到速度时间点。")
+      .replace("request failed", "请求失败");
+    const $ = id => document.getElementById(id), api = async (p,o={}) => { const r = await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d = await r.json(); if(!r.ok) throw new Error(zhError(d.error || "请求失败")); return d; };
+    const dialog=$("symbolDialog"); let configDirty=false, refreshing=false, refreshingDb=false, refreshingSummary=false, summaryPinned=false;
+    const fmtTime = v => new Date(v).toLocaleString([], {hour12:false});
     const base = s => s ? s.replace(/USDT$/,"") : "";
+    const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "-";
+    const nullPct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "NULL";
+    const nullAmount = v => Number.isFinite(v) ? v.toFixed(6) : "NULL";
+    const cls = v => Number.isFinite(v) && v >= 0 ? "positive" : "negative";
+    const cellCls = v => Number.isFinite(v) ? (v >= 0 ? "positive" : "negative") : "";
     const setChange = (id,s,c) => { const e=$(id); e.textContent=s ? `${s} ${c>=0?"+":""}${c.toFixed(4)}%` : "-"; e.className=c>=0?"positive":"negative"; };
-    function renderExtremes(x){ if(!x){ setChange("extremeA",null,0); setChange("extremeB",null,0); return; } setChange("extremeA",x.a.symbol,x.a.change_percent); setChange("extremeB",x.b.symbol,x.b.change_percent); $("extremeAText").textContent=x.top_2.symbol?`second: ${x.top_2.symbol}`:"second: -"; $("extremeBText").textContent=x.bottom_2.symbol?`second: ${x.bottom_2.symbol}`:"second: -"; $("extremeWindow").textContent=`${x.window_seconds.toFixed(1)}s`; $("extremeMeta").textContent=`${x.sample_count} symbols | ${fmtTime(x.observed_at)}`; }
+    function renderExtremes(x){ if(!x){ setChange("extremeA",null,0); setChange("extremeB",null,0); return; } setChange("extremeA",x.a.symbol,x.a.change_percent); setChange("extremeB",x.b.symbol,x.b.change_percent); $("extremeAText").textContent=x.top_2.symbol?`第二名：${x.top_2.symbol}`:"第二名：-"; $("extremeBText").textContent=x.bottom_2.symbol?`第二名：${x.bottom_2.symbol}`:"第二名：-"; $("extremeWindow").textContent=`${x.window_seconds.toFixed(1)} 秒`; $("extremeMeta").textContent=`${x.sample_count} 个符号 | ${fmtTime(x.observed_at)}`; }
+    function renderSamplingProfile(p){ if(!p){ ["profileName","profileSeconds","profileAppliesTo","profileBinance","profileAave"].forEach(id=>$(id).value="-"); return; } $("profileName").value=p.name||"统一采样周期"; $("profileSeconds").value=Number.isFinite(p.seconds)?`${p.seconds.toFixed(1)} 秒`:"-"; $("profileAppliesTo").value=(p.applies_to||[]).join(" / ")||"-"; $("profileBinance").value=Number.isFinite(p.binance_change_window_seconds)?`${p.binance_change_window_seconds.toFixed(1)} 秒`:"-"; $("profileAave").value=Number.isFinite(p.aave_poll_seconds)?`${p.aave_poll_seconds.toFixed(1)} 秒`:"-"; }
     function setConfig(c){ $("cfgWindow").value=c.BINANCE_CHANGE_WINDOW_SECONDS; $("cfgMinUp").value=c.TRIGGER_MIN_UP_CHANGE_PERCENT; $("cfgMinDown").value=c.TRIGGER_MIN_DOWN_CHANGE_PERCENT; $("cfgSlippage").value=c.EXECUTION_SLIPPAGE_BPS; $("cfgMaxAge").value=c.EXECUTION_PLAN_MAX_AGE_SECONDS; }
     function readConfig(){ return {BINANCE_CHANGE_WINDOW_SECONDS:$("cfgWindow").value,TRIGGER_MIN_UP_CHANGE_PERCENT:$("cfgMinUp").value,TRIGGER_MIN_DOWN_CHANGE_PERCENT:$("cfgMinDown").value,EXECUTION_SLIPPAGE_BPS:$("cfgSlippage").value,EXECUTION_PLAN_MAX_AGE_SECONDS:$("cfgMaxAge").value}; }
-    function renderStats(x){ if(!x){ return; } $("statSignalRate").textContent=`${x.signal_rate_percent.toFixed(2)}%`; $("statSignalCount").textContent=`${x.signals} / ${x.candidates} candidates`; $("statAvgProfit").textContent=`${x.avg_net_profit_usdc.toFixed(4)}`; $("statMaxProfit").textContent=`${x.max_net_profit_usdc.toFixed(4)}`; $("statMaxSpread").textContent=`${x.max_window_spread_percent.toFixed(4)}%`; }
-    function renderTxStats(x){ if(!x){ return; } $("txSuccessRate").textContent=`${x.success_rate_percent.toFixed(2)}%`; $("txCount").textContent=`${x.success} ok / ${x.failed} failed`; $("txProfit").textContent=`${x.profit_units} units`; $("txLast").textContent=x.last_tx?`${x.last_tx.slice(0,10)}...`:"no tx"; }
-    function renderExecutableSignal(x, cache){ $("aaveReserveCount").textContent=cache?cache.asset_count:"-"; $("aaveReserveMeta").textContent=cache&&cache.refreshed_at?`updated ${fmtTime(cache.refreshed_at)}`:"no cache"; $("rawCandidateCount").textContent=x?x.raw_candidate_count:"-"; $("rawCandidateMeta").textContent="velocity windows passing threshold"; $("execCandidateCount").textContent=x?x.executable_candidate_count:"-"; $("execCandidateMeta").textContent=x&&x.executable_symbols?`${x.executable_symbols.length} mapped symbols`:"waiting"; const s=x&&x.signal; $("execSignalPair").textContent=s?`${base(s.x_symbol)} / ${base(s.y_symbol)}`:"none"; $("execSignalMeta").textContent=s?`${s.x_change_percent.toFixed(4)}% / ${s.y_change_percent.toFixed(4)}%`:"no executable pair"; }
-    function renderTrigger(s){ if(!s){ ["triggerX","triggerY","triggerSignal","onchainDecision"].forEach(id=>$(id).textContent="-"); $("triggerXMeta").textContent="waiting"; $("triggerYMeta").textContent="waiting"; $("triggerSignalMeta").textContent="waiting"; $("onchainDecisionMeta").textContent="waiting"; return; } const xc=s.x_change_percent??s.a_change_percent??0, yc=s.y_change_percent??s.b_change_percent??0, xs=s.x_symbol??s.a_symbol, ys=s.y_symbol??s.b_symbol; $("triggerX").textContent=`${base(xs)} ${xc>=0?"+":""}${xc.toFixed(4)}%`; $("triggerX").className=xc>=0?"positive":"negative"; $("triggerXMeta").textContent=`${s.window_seconds.toFixed(3)}s window`; $("triggerY").textContent=`${base(ys)} ${yc>=0?"+":""}${yc.toFixed(4)}%`; $("triggerY").className=yc>=0?"positive":"negative"; $("triggerYMeta").textContent=`source ${s.price_source || "unknown"}`; $("triggerSignal").textContent=s.trigger_signal?"ready":"waiting"; $("triggerSignal").className=s.trigger_signal?"positive":"negative"; $("triggerSignalMeta").textContent=s.trigger_signal?`spread ${s.window_spread_percent.toFixed(4)}%`:(s.blocked_reasons||["below threshold"]).join(", "); $("onchainDecision").textContent=s.onchain_decision_required?"contract":"-"; $("onchainDecisionMeta").textContent=s.execution_plan?"legacy plan present":"dynamic route selection"; }
-    async function refresh(){ if(refreshing)return; refreshing=true; try{ const s=await api("/api/status"); $("running").textContent=s.running?"running":"stopped"; $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; if(!configDirty) setConfig(s.strategy_config); renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); const sim=s.arbitrage_simulation||{}, xs=sim.x_symbol||sim.a_symbol, ys=sim.y_symbol||sim.b_symbol; if(xs&&ys){ const key=`${xs}/${ys}`; if(currentPair!==key){ currentPair=key; refreshAavePairChart(xs,ys); } } $("startBtn").disabled=s.running; $("stopBtn").disabled=!s.running; }catch(e){ $("message").textContent=e.message; } finally { refreshing=false; } }
-    async function refreshDbSummary(){ if(refreshingDb)return; refreshingDb=true; try{ const s=await api("/api/db-summary"); $("rows").textContent=s.rows??"-"; $("binanceRows").textContent=s.db_counts?s.db_counts.binance_price_history:"-"; $("velocityRows").textContent=s.db_counts?s.db_counts.binance_window_extremes:"-"; renderStats(s.trade_stats); renderTxStats(s.testnet_trade_stats); }catch(e){ $("message").textContent=e.message; } finally { refreshingDb=false; } }
-    function resize(c){ const r=window.devicePixelRatio||1, b=c.getBoundingClientRect(); c.width=Math.max(320,b.width*r); c.height=Math.max(120,b.height*r); return {w:c.width,h:c.height}; }
-    function draw(c, rows, series, ref, cursor=cursorIndex){ const {w,h}=resize(c), ctx=c.getContext("2d"), p={l:62,r:20,t:18,b:34}; ctx.clearRect(0,0,w,h); ctx.strokeStyle="#e4e7ec"; ctx.strokeRect(p.l,p.t,w-p.l-p.r,h-p.t-p.b); if(rows.length<2)return; let vals=rows.flatMap(r=>series.map(s=>r[s.key])).filter(Number.isFinite); if(ref&&Number.isFinite(ref)){vals.push(ref,-ref)} if(!vals.length)return; let mn=Math.min(...vals), mx=Math.max(...vals); if(mn===mx){mn-=1;mx+=1} const sx=i=>p.l+i/(rows.length-1)*(w-p.l-p.r), sy=v=>p.t+(1-(v-mn)/(mx-mn))*(h-p.t-p.b); if(ref&&Number.isFinite(ref)){ctx.setLineDash([6,5]); for(const v of [ref,-ref]){ctx.beginPath();ctx.strokeStyle="#98a2b3";ctx.moveTo(p.l,sy(v));ctx.lineTo(w-p.r,sy(v));ctx.stroke();} ctx.setLineDash([]);} for(const s of series){ctx.beginPath();ctx.strokeStyle=s.color;ctx.lineWidth=2;let started=false;rows.forEach((r,i)=>{const v=r[s.key]; if(!Number.isFinite(v)){started=false; return;} if(started)ctx.lineTo(sx(i),sy(v)); else {ctx.moveTo(sx(i),sy(v)); started=true;}});ctx.stroke();} if(cursor!==null){ctx.beginPath();ctx.strokeStyle="#111827";ctx.moveTo(sx(cursor),p.t);ctx.lineTo(sx(cursor),h-p.b);ctx.stroke();} }
-    function normalizedRows(rows, keys){ const first={}; for(const k of keys){ const r=rows.find(x=>Number.isFinite(x[k])&&x[k]!==0); first[k]=r?r[k]:null; } return rows.map(r=>{ const out={...r}; for(const k of keys){ out[`${k}_norm`]=first[k]?((r[k]/first[k]-1)*100):null; } return out; }); }
-    function renderCharts(){ const priceSeries=chartMode==="aave_observations"?[{key:"binance_price",color:"#2563eb"},{key:"aave_price",color:"#dc2626"}]:[{key:"binance_price",color:"#2563eb"}]; draw(priceCanvas,chartRows,priceSeries); draw(diffCanvas,chartRows,[{key:"diff_percent",color:"#16a34a"}],chartMode==="aave_observations"?feeSlippagePercent:null); const r=chartRows[cursorIndex??chartRows.length-1]; if(!r){ $("chartReadout").textContent="No observations yet."; return; } $("chartReadout").textContent=chartMode==="aave_observations"?`${fmtTime(r.observed_at)} | Binance ${r.binance_price.toFixed(6)} | Aave ${r.aave_price.toFixed(6)} | diff ${r.diff_percent.toFixed(4)}%`:`${fmtTime(r.observed_at)} | Binance ${r.binance_price.toFixed(10)} | source ${r.source||"db"}`; }
-    function renderAavePairChart(){ const keys=["x_usdc_price","y_usdc_price","x_y_price"], rows=normalizedRows(pairRows,keys); draw(aavePairCanvas,rows,[{key:"x_usdc_price_norm",color:"#2563eb"},{key:"y_usdc_price_norm",color:"#dc2626"},{key:"x_y_price_norm",color:"#7c3aed"}],null,pairCursorIndex); const r=pairRows[pairCursorIndex??pairRows.length-1]; if(!r){ $("aavePairReadout").textContent="No Aave pair data yet."; return; } $("aavePairReadout").textContent=`${fmtTime(r.observed_at)} | ${base(r.x_symbol)}-USDC ${r.x_usdc_price.toFixed(6)} | ${base(r.y_symbol)}-USDC ${r.y_usdc_price.toFixed(6)} | ${base(r.x_symbol)}-${base(r.y_symbol)} ${r.x_y_price.toFixed(8)}`; }
-    async function refreshAavePairChart(x,y){ try{ const d=await api(`/api/aave-pair-prices?x=${x}&y=${y}&limit=120`); pairRows=d.rows; $("aavePairSummary").textContent=pairRows.length?`${base(d.x_symbol)} / ${base(d.y_symbol)} Aave normalized price curves`:`${base(d.x_symbol)} / ${base(d.y_symbol)}: no Aave pair observations`; renderAavePairChart(); }catch(e){ pairRows=[]; $("aavePairSummary").textContent=e.message; renderAavePairChart(); } }
-    async function refreshDexCosts(symbol){ if(!chartSupportsDex){ $("costNote").textContent="DEX cost is available only for mapped Aave/Trader Joe symbols."; $("costTableBody").innerHTML=""; return; } try{ const d=await api(`/api/dex-costs?symbol=${symbol}`); $("costNote").textContent=d.costs.length?`${d.dex_name} reference ${d.reference_price_usd.toFixed(6)}`:"No DEX quote"; $("costTableBody").innerHTML=d.costs.map(x=>`<tr><td>${x.amount_usd.toFixed(0)} USDC</td><td>${x.buy_cost_percent.toFixed(4)}%</td><td>${x.sell_cost_percent.toFixed(4)}%</td><td>${x.roundtrip_cost_percent.toFixed(4)}%</td><td>${x.buy_price_usd.toFixed(6)}</td></tr>`).join(""); }catch(e){ $("costTableBody").innerHTML=`<tr><td colspan="5">${e.message}</td></tr>`; } }
-    async function refreshChartSymbols(){ try{ const current=$("chartSymbol").value; const d=await api("/api/chart-symbols?limit=500"); $("chartSymbol").innerHTML=d.symbols.map(s=>`<option value="${s}">${s}${d.aave_symbols.includes(s)?" *":""}</option>`).join(""); if(d.symbols.includes(current)) $("chartSymbol").value=current; }catch(e){ $("message").textContent=e.message; } }
-    async function refreshChart(){ try{ const s=$("chartSymbol").value, d=await api(`/api/observations?symbol=${s}&limit=120`); chartRows=d.rows; chartMode=d.mode; chartSupportsDex=d.supports_dex_costs; feeSlippagePercent=d.fee_slippage_percent; const last=chartRows.at(-1); $("chartSummary").textContent=last?(chartMode==="aave_observations"?`${s}: diff ${last.diff_percent.toFixed(4)}%`:`${s}: Binance ${last.binance_price.toFixed(10)}`):`${s}: no observations`; renderCharts(); refreshDexCosts(s); }catch(e){ $("chartSummary").textContent=e.message; } }
-    function moveCursor(e){ if(!chartRows.length)return; const b=priceCanvas.getBoundingClientRect(), x=(e.touches?e.touches[0].clientX:e.clientX); cursorIndex=Math.round(Math.min(1,Math.max(0,(x-b.left)/b.width))*(chartRows.length-1)); renderCharts(); }
-    function movePairCursor(e){ if(!pairRows.length)return; const b=aavePairCanvas.getBoundingClientRect(), x=(e.touches?e.touches[0].clientX:e.clientX); pairCursorIndex=Math.round(Math.min(1,Math.max(0,(x-b.left)/b.width))*(pairRows.length-1)); renderAavePairChart(); }
-    $("startBtn").onclick=()=>dialog.showModal(); $("cancelDialog").onclick=()=>dialog.close(); $("refreshBtn").onclick=refresh; $("chartRefreshBtn").onclick=refreshChart; $("chartSymbol").onchange=refreshChart; priceCanvas.onmousemove=moveCursor; diffCanvas.onmousemove=moveCursor; aavePairCanvas.onmousemove=movePairCursor;
-    $("initBtn").onclick=async()=>{ await api("/api/init",{method:"POST",body:"{}"}); refreshDbSummary(); }; $("stopBtn").onclick=async()=>{ await api("/api/stop",{method:"POST",body:"{}"}); refresh(); };
-    document.querySelectorAll(".settings input").forEach(i=>i.oninput=()=>{ configDirty=true; $("configNote").textContent="Unsaved changes"; });
-    $("saveConfigBtn").onclick=async()=>{ const d=await api("/api/strategy-config",{method:"POST",body:JSON.stringify(readConfig())}); configDirty=false; setConfig(d.config); $("configNote").textContent=d.restart_required?"Saved. Restart observer to apply.":"Saved. Applies on next start."; };
-    $("clearBtn").onclick=async()=>{ if(confirm("Clear all observations?")){ await api("/api/clear",{method:"POST",body:"{}"}); refreshDbSummary(); } }; $("clearFilesBtn").onclick=async()=>{ await api("/api/clear-files",{method:"POST",body:"{}"}); refresh(); };
-    $("confirmStart").onclick=async()=>{ await api("/api/start",{method:"POST",body:JSON.stringify({mode:"velocity",side_limit:100})}); dialog.close(); refresh(); };
-    refresh(); refreshDbSummary(); refreshChartSymbols().then(refreshChart); setInterval(refresh,200); setInterval(refreshDbSummary,15000); setInterval(refreshChartSymbols,30000); setInterval(refreshChart,5000); setInterval(()=>{ if(currentPair){ const [x,y]=currentPair.split("/"); refreshAavePairChart(x,y); } },5000);
+    function renderStats(x){ if(!x){ return; } $("statSignalRate").textContent=`${x.signal_rate_percent.toFixed(2)}%`; $("statSignalCount").textContent=`${x.signals} / ${x.candidates} 个候选`; $("statAvgProfit").textContent=`${x.avg_net_profit_usdc.toFixed(4)}`; $("statMaxProfit").textContent=`${x.max_net_profit_usdc.toFixed(4)}`; $("statMaxSpread").textContent=`${x.max_window_spread_percent.toFixed(4)}%`; }
+    function renderExecutableSignal(x, cache){ $("aaveReserveCount").textContent=cache?cache.asset_count:"-"; $("aaveReserveMeta").textContent=cache&&cache.refreshed_at?`更新于 ${fmtTime(cache.refreshed_at)}`:"无缓存"; $("rawCandidateCount").textContent=x?x.raw_candidate_count:"-"; $("rawCandidateMeta").textContent="通过阈值的速度窗口"; $("execCandidateCount").textContent=x?x.executable_candidate_count:"-"; $("execCandidateMeta").textContent=x&&x.executable_symbols?`${x.executable_symbols.length} 个已映射符号`:"等待中"; const s=x&&x.signal; $("execSignalPair").textContent=s?`${base(s.x_symbol)} / ${base(s.y_symbol)}`:"无"; $("execSignalMeta").textContent=s?`${s.x_change_percent.toFixed(4)}% / ${s.y_change_percent.toFixed(4)}%`:"暂无可执行兑换对"; }
+    function renderTrigger(s){ if(!s){ ["triggerX","triggerY","triggerSignal","onchainDecision"].forEach(id=>$(id).textContent="-"); $("triggerXMeta").textContent="等待中"; $("triggerYMeta").textContent="等待中"; $("triggerSignalMeta").textContent="等待中"; $("onchainDecisionMeta").textContent="等待中"; return; } const xc=s.x_change_percent??s.a_change_percent??0, yc=s.y_change_percent??s.b_change_percent??0, xs=s.x_symbol??s.a_symbol, ys=s.y_symbol??s.b_symbol; $("triggerX").textContent=`${base(xs)} ${xc>=0?"+":""}${xc.toFixed(4)}%`; $("triggerX").className=xc>=0?"positive":"negative"; $("triggerXMeta").textContent=`${s.window_seconds.toFixed(3)} 秒窗口`; $("triggerY").textContent=`${base(ys)} ${yc>=0?"+":""}${yc.toFixed(4)}%`; $("triggerY").className=yc>=0?"positive":"negative"; $("triggerYMeta").textContent=`来源 ${s.price_source || "未知"}`; $("triggerSignal").textContent=s.trigger_signal?"已就绪":"等待中"; $("triggerSignal").className=s.trigger_signal?"positive":"negative"; $("triggerSignalMeta").textContent=s.trigger_signal?`价差 ${s.window_spread_percent.toFixed(4)}%`:(s.blocked_reasons||["低于阈值"]).join("，"); $("onchainDecision").textContent=s.onchain_decision_required?"合约":"-"; $("onchainDecisionMeta").textContent=s.execution_plan?"已有旧执行计划":"动态选择路径"; }
+    function renderSystemMonitor(m){ const state=m&&m.state?m.state:"stopped"; const text={running:"监测中",initializing:"启动中",stopped:"空闲",error:"错误"}[state]||state; const windowText=Number.isFinite(m&&m.window_seconds)?`${m.window_seconds.toFixed(3)}秒窗口/${m.sample_count||0}样本`:"暂无窗口"; const detail=m?`${m.action}，当前状态${m.observer_stage||"未知"} | 符号${m.symbol_count||0} | Aave${m.aave_reserve_count||0} | ${windowText}`:"等待中"; $("systemState").textContent=text; $("systemState").className=state==="running"?"positive":(state==="error"?"negative":""); $("systemDetail").textContent=detail; $("systemProgress").style.width=`${Number.isFinite(m&&m.percent)?m.percent:0}%`; }
+    function renderProgress(p){ const state=p&&p.state?p.state:"stopped"; const text={running:"运行中",initializing:"初始化中",stopped:"已停止",error:"错误"}[state]||state; const percent=Number.isFinite(p&&p.percent)?p.percent:0; $("running").textContent=text; $("running").className=state==="running"?"positive":(state==="error"?"negative":""); $("statusDetail").textContent=p&&p.stage?p.stage:"等待中"; $("statusProgress").style.width=`${percent}%`; }
+    function renderLocalSystemStatus(action, percent=25){ $("systemState").textContent="执行中"; $("systemState").className=""; $("systemDetail").textContent=`${action}已经执行，当前状态等待后端返回`; $("systemProgress").style.width=`${percent}%`; $("message").textContent=`${action}中...`; }
+    async function refresh(){ if(refreshing)return; refreshing=true; try{ const s=await api("/api/status"); renderSystemMonitor(s.system_monitor); renderProgress(s.observer_progress); $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; $("message").textContent=s.start_error?zhError(s.start_error):(s.control_status&&s.control_status.message?s.control_status.message:""); if(!configDirty) { setConfig(s.strategy_config); renderSamplingProfile(s.sampling_profile); } renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); $("startBtn").disabled=s.running||s.starting; $("stopBtn").disabled=!s.running&&!s.starting; }catch(e){ $("message").textContent=e.message; } finally { refreshing=false; } }
+    async function refreshDbSummary(){ if(refreshingDb)return; refreshingDb=true; try{ const s=await api("/api/db-summary"); $("rows").textContent=s.rows??"-"; $("binanceRows").textContent=s.db_counts?s.db_counts.binance_candidate_price_history:"-"; $("velocityRows").textContent=s.db_counts?s.db_counts.binance_window_extremes:"-"; if(s.db_counts){ $("systemDetail").textContent=`${$("systemDetail").textContent} | DB ${s.db_counts.total}行`; } renderStats(s.trade_stats); const p=parseFloat($("statusProgress").style.width)||0; if($("running").textContent==="初始化中" && s.db_counts && s.db_counts.binance_candidate_price_history>0) $("statusProgress").style.width=`${Math.max(p,90)}%`; }catch(e){ $("message").textContent=e.message; } finally { refreshingDb=false; } }
+    function renderChips(id, label, rows){ $(id).innerHTML=`<span class="chip">${label}</span>` + rows.map(x=>`<span class="chip">${base(x.symbol)} ${pct(x.change_percent)}</span>`).join(""); }
+    function shortStrategy(s){ return (s||"-").replace("strategy_1_forward_x_to_usdc_to_y_to_x","x-USDC-y-x").replace("strategy_1_reverse_y_to_x_to_usdc_to_y","y-x-USDC-y").replace("strategy_2_forward_x_to_y_to_usdc_to_x","x-y-USDC-x").replace("strategy_2_reverse_y_to_usdc_to_x_to_y","y-USDC-x-y"); }
+    function renderSummary(d){ const rows=d.rows||[]; const note=d.summary_note?` | ${d.summary_note}`:""; const aaveCount=Number.isFinite(d.aave_row_count)?` | Aave可用组 ${d.aave_row_count}/${d.top?.length||0}*${d.bottom?.length||0}`:""; $("summaryMeta").textContent=d.error||`时间 ${fmtTime(d.observed_at)} | 窗口 ${d.window_seconds.toFixed(3)} 秒 | 样本 ${d.sample_count} | 行数 ${rows.length}/${d.expected_rows||100}${aaveCount}${note}`; renderChips("topChips","上涨前 5",d.top||[]); renderChips("bottomChips","下跌前 5",d.bottom||[]); $("summaryBody").innerHTML=rows.map(r=>`<tr><td>${r.pair||`${base(r.x_symbol)} / ${base(r.y_symbol)}`}</td><td>${r.path_no||"-"}</td><td>${r.start_token||"NULL"} ${Number.isFinite(r.start_amount)?r.start_amount.toFixed(2):"NULL"}</td><td>${r.first_hop||"NULL"}</td><td>${r.second_hop||"NULL"}</td><td>${r.third_hop||"NULL"}</td><td>${r.fourth_hop||"NULL"}</td><td class="${cellCls(r.profit_percent)}">${nullPct(r.profit_percent)}</td></tr>`).join("") || '<tr><td colspan="8">暂无汇总行。</td></tr>'; }
+    async function refreshTimepoints(){ try{ const current=$("timepointSelect").value; const d=await api("/api/velocity-timepoints?limit=200"); const timepoints=d.timepoints||[]; $("timepointSelect").innerHTML=timepoints.map(x=>`<option value="${x.id}">${fmtTime(x.observed_at)} | ${x.sample_count}</option>`).join(""); if(summaryPinned && current && [...$("timepointSelect").options].some(opt=>opt.value===current)) { $("timepointSelect").value=current; } else if(timepoints.length) { $("timepointSelect").value=timepoints[0].id; summaryPinned=false; } }catch(e){ $("message").textContent=e.message; } }
+    async function refreshSummary(){ if(refreshingSummary)return; refreshingSummary=true; try{ const id=$("timepointSelect").value; const d=await api(`/api/velocity-summary${id?`?id=${id}`:""}`); renderSummary(d); }catch(e){ renderSummary({error:e.message, rows:[], top:[], bottom:[]}); } finally { refreshingSummary=false; } }
+    $("startBtn").onclick=()=>dialog.showModal(); $("cancelDialog").onclick=()=>dialog.close(); $("refreshBtn").onclick=()=>{ refresh(); refreshDbSummary(); refreshTimepoints().then(refreshSummary); }; $("summaryRefreshBtn").onclick=()=>refreshTimepoints().then(refreshSummary); $("timepointSelect").onchange=()=>{ summaryPinned=true; refreshSummary(); };
+    $("initBtn").onclick=async()=>{
+      const b=$("initBtn");
+      const oldText=b.textContent;
+      b.disabled=true;
+      b.textContent="初始化中...";
+      renderLocalSystemStatus("初始化数据库",25);
+      $("message").textContent="正在初始化数据库，请稍候...";
+      $("running").textContent="初始化中";
+      $("running").className="";
+      $("statusDetail").textContent="正在创建表结构和索引";
+      $("statusProgress").style.width="25%";
+      try{
+        const d=await api("/api/init",{method:"POST",body:"{}"});
+        $("message").textContent=d.initialized?"数据库初始化完成":"数据库初始化未返回结果";
+        $("running").textContent="已完成";
+        $("running").className="positive";
+        $("statusDetail").textContent="数据库初始化完成";
+        $("statusProgress").style.width="100%";
+        refreshDbSummary();
+        refreshTimepoints().then(refreshSummary);
+        refresh();
+      }catch(e){
+        $("message").textContent=e.message;
+        $("running").textContent="错误";
+        $("running").className="negative";
+        $("statusDetail").textContent="数据库初始化失败";
+        $("statusProgress").style.width="0%";
+      }finally{
+        b.disabled=false;
+        b.textContent=oldText;
+      }
+    };
+    $("stopBtn").onclick=async()=>{ renderLocalSystemStatus("停止观察器",25); await api("/api/stop",{method:"POST",body:"{}"}); refresh(); };
+    document.querySelectorAll(".settings input").forEach(i=>i.oninput=()=>{ configDirty=true; $("configNote").textContent="有未保存的修改"; });
+    $("saveConfigBtn").onclick=async()=>{ const d=await api("/api/strategy-config",{method:"POST",body:JSON.stringify(readConfig())}); configDirty=false; setConfig(d.config); renderSamplingProfile(d.sampling_profile); $("configNote").textContent=d.restart_required?"已保存。请重启观察器以生效。":"已保存。下次启动时生效。"; refreshSummary(); };
+    $("clearBtn").onclick=async()=>{ try{ renderLocalSystemStatus("清空数据库",25); const d=await api("/api/clear",{method:"POST",body:"{}"}); $("message").textContent=d.cleared?"数据库已清空":"数据库清空未返回结果"; refresh(); refreshDbSummary(); refreshTimepoints().then(refreshSummary); }catch(e){ $("message").textContent=e.message; refresh(); } };
+    $("clearFilesBtn").onclick=async()=>{ try{ renderLocalSystemStatus("清空文件",25); const d=await api("/api/clear-files",{method:"POST",body:"{}"}); $("message").textContent=d.errors&&d.errors.length?`文件清理部分完成：${d.deleted.length} 个已删除`:"文件已清空"; refresh(); }catch(e){ $("message").textContent=e.message; refresh(); } };
+    $("confirmStart").onclick=async()=>{ const b=$("confirmStart"); b.disabled=true; b.textContent="启动中"; dialog.close(); renderLocalSystemStatus("启动观察器",10); $("message").textContent="正在启动观察器..."; try{ await api("/api/start",{method:"POST",body:JSON.stringify({mode:"velocity",side_limit:10})}); refresh(); }catch(e){ $("message").textContent=e.message; refresh(); } finally { b.disabled=false; b.textContent="确认启动"; } };
+    refresh(); refreshDbSummary(); refreshTimepoints().then(refreshSummary); setInterval(refresh,1000); setInterval(refreshDbSummary,15000); setInterval(()=>refreshTimepoints().then(refreshSummary),10000);
   </script>
 </body>
 </html>

@@ -57,11 +57,12 @@ def aave_reserve_cache(cache_path: Path) -> Optional[dict]:
     if not data:
         return None
     assets = data.get("assets") or []
+    symbols = list(dict.fromkeys(item.get("binance_symbol") for item in assets if item.get("binance_symbol")))
     return {
         "refreshed_at": data.get("refreshed_at"),
         "pool_address": data.get("pool_address"),
         "asset_count": len(assets),
-        "symbols": [item.get("binance_symbol") for item in assets if item.get("binance_symbol")],
+        "symbols": symbols,
     }
 
 
@@ -78,6 +79,8 @@ def database_table_counts(database_url: str) -> Optional[dict]:
         SELECT
             (SELECT COUNT(*) FROM observations) AS observations,
             (SELECT COUNT(*) FROM binance_price_history) AS binance_price_history,
+            (SELECT COUNT(*) FROM binance_candidate_price_history) AS binance_candidate_price_history,
+            (SELECT COUNT(*) FROM binance_pair_price_history) AS binance_pair_price_history,
             (SELECT COUNT(*) FROM binance_window_extremes) AS binance_window_extremes,
             (SELECT COUNT(*) FROM arbitrage_simulations) AS arbitrage_simulations
     """
@@ -88,8 +91,10 @@ def database_table_counts(database_url: str) -> Optional[dict]:
         counts = {
             "observations": int(row[0] or 0),
             "binance_price_history": int(row[1] or 0),
-            "binance_window_extremes": int(row[2] or 0),
-            "arbitrage_simulations": int(row[3] or 0),
+            "binance_candidate_price_history": int(row[2] or 0),
+            "binance_pair_price_history": int(row[3] or 0),
+            "binance_window_extremes": int(row[4] or 0),
+            "arbitrage_simulations": int(row[5] or 0),
         }
         counts["total"] = sum(counts.values())
         return counts
@@ -121,6 +126,122 @@ def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
     return [str(row[0]) for row in rows]
 
 
+def available_candidate_symbols(database_url: str, limit: int = 500) -> list[str]:
+    query = """
+        SELECT symbol
+        FROM (
+            SELECT symbol, MAX(event_time) AS latest_at
+            FROM binance_candidate_price_history
+            GROUP BY symbol
+            UNION ALL
+            SELECT x_symbol AS symbol, MAX(event_time) AS latest_at
+            FROM binance_pair_price_history
+            GROUP BY x_symbol
+            UNION ALL
+            SELECT y_symbol AS symbol, MAX(event_time) AS latest_at
+            FROM binance_pair_price_history
+            GROUP BY y_symbol
+        ) source
+        GROUP BY symbol
+        ORDER BY MAX(latest_at) DESC, symbol
+        LIMIT %s
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (limit,))
+            rows = cursor.fetchall()
+    return [str(row[0]) for row in rows]
+
+
+def recent_velocity_timepoints(database_url: str, limit: int = 200) -> list[dict]:
+    query = """
+        SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
+        FROM binance_window_extremes
+        ORDER BY observed_at DESC
+        LIMIT %s
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (limit,))
+            rows = cursor.fetchall()
+    result = []
+    for row_id, observed_at, window_seconds, sample_count, top_json, bottom_json in rows:
+        top = decode_extreme_json(top_json)
+        bottom = decode_extreme_json(bottom_json)
+        result.append(
+            {
+                "id": int(row_id),
+                "observed_at": iso(observed_at),
+                "window_seconds": float(window_seconds),
+                "sample_count": int(sample_count),
+                "top_symbols": [str(item.get("symbol")) for item in top[:5] if item.get("symbol")],
+                "bottom_symbols": [str(item.get("symbol")) for item in bottom[:5] if item.get("symbol")],
+            }
+        )
+    return result
+
+
+def velocity_timepoint_snapshot(database_url: str, snapshot_id: int | None = None) -> Optional[dict]:
+    if snapshot_id is None:
+        query = """
+            SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
+            FROM binance_window_extremes
+            ORDER BY observed_at DESC
+            LIMIT 1
+        """
+        params = ()
+    else:
+        query = """
+            SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
+            FROM binance_window_extremes
+            WHERE id = %s
+        """
+        params = (snapshot_id,)
+    row = fetch_one(database_url, query, params)
+    if not row:
+        return None
+    row_id, observed_at, window_seconds, sample_count, top_json, bottom_json = row
+    return {
+        "id": int(row_id),
+        "observed_at": iso(observed_at),
+        "window_seconds": float(window_seconds),
+        "sample_count": int(sample_count),
+        "top": decode_extreme_json(top_json),
+        "bottom": decode_extreme_json(bottom_json),
+    }
+
+
+def decode_extreme_json(raw: str | None) -> list[dict]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    rows = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        try:
+            rows.append(
+                {
+                    "symbol": str(item["symbol"]).upper(),
+                    "change_percent": float(item["change_percent"]),
+                    "start_price": float(item["start_price"]),
+                    "end_price": float(item["end_price"]),
+                    "start_ms": item.get("start_ms"),
+                    "end_ms": item.get("end_ms"),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    return rows
+
+
 def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict]:
     query = """
         SELECT observed_at, symbol, asset, binance_price, aave_price, diff_percent
@@ -143,6 +264,62 @@ def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict
         }
         for row in rows
     ]
+
+
+def latest_observation_prices(database_url: str, symbols: list[str]) -> dict[str, dict]:
+    if not symbols:
+        return {}
+    query = """
+        SELECT DISTINCT ON (symbol)
+               observed_at, symbol, asset, binance_price, aave_price, diff_percent
+        FROM observations
+        WHERE symbol = ANY(%s)
+        ORDER BY symbol, observed_at DESC
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (symbols,))
+            rows = cursor.fetchall()
+    result = {}
+    for observed_at, symbol, asset, binance_price, aave_price, diff_percent in rows:
+        result[str(symbol)] = {
+            "observed_at": iso(observed_at),
+            "symbol": str(symbol),
+            "asset": str(asset),
+            "binance_price": float(binance_price),
+            "aave_price": float(aave_price),
+            "diff_percent": float(diff_percent),
+        }
+    return result
+
+
+def latest_observation_prices_at_or_before(database_url: str, symbols: list[str], cutoff_at) -> dict[str, dict]:
+    if not symbols:
+        return {}
+    query = """
+        SELECT DISTINCT ON (symbol)
+               observed_at, symbol, asset, binance_price, aave_price, diff_percent
+        FROM observations
+        WHERE symbol = ANY(%s) AND observed_at <= %s
+        ORDER BY symbol, observed_at DESC
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (symbols, cutoff_at))
+            rows = cursor.fetchall()
+    result = {}
+    for observed_at, symbol, asset, binance_price, aave_price, diff_percent in rows:
+        result[str(symbol)] = {
+            "observed_at": iso(observed_at),
+            "symbol": str(symbol),
+            "asset": str(asset),
+            "binance_price": float(binance_price),
+            "aave_price": float(aave_price),
+            "diff_percent": float(diff_percent),
+        }
+    return result
 
 
 def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
@@ -187,6 +364,83 @@ def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, lim
                 "x_y_price": x_value / y_value if y_value > 0 else None,
             }
         )
+    return result
+
+
+def recent_binance_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
+    query = """
+        SELECT observed_at, x_symbol, y_symbol, x_usdc_price, y_usdc_price, x_y_price, event_time, source
+        FROM binance_pair_price_history
+        WHERE (x_symbol = %s AND y_symbol = %s) OR (x_symbol = %s AND y_symbol = %s)
+        ORDER BY event_time DESC
+        LIMIT %s
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (x_symbol, y_symbol, y_symbol, x_symbol, limit))
+            rows = cursor.fetchall()
+    rows.reverse()
+    result = []
+    for observed_at, stored_x, stored_y, stored_x_price, stored_y_price, stored_pair_price, event_time, source in rows:
+        stored_x = str(stored_x)
+        stored_y = str(stored_y)
+        stored_x_price = float(stored_x_price)
+        stored_y_price = float(stored_y_price)
+        if stored_x == x_symbol and stored_y == y_symbol:
+            x_price = stored_x_price
+            y_price = stored_y_price
+            pair_price = float(stored_pair_price)
+        else:
+            x_price = stored_y_price
+            y_price = stored_x_price
+            pair_price = x_price / y_price if y_price > 0 else None
+        result.append(
+            {
+                "observed_at": iso(event_time or observed_at),
+                "x_symbol": x_symbol,
+                "y_symbol": y_symbol,
+                "x_usdc_price": x_price,
+                "y_usdc_price": y_price,
+                "x_y_price": pair_price,
+                "source": str(source),
+            }
+        )
+    return result
+
+
+def latest_candidate_price_rows(database_url: str, symbols: list[str]) -> dict[str, dict]:
+    if not symbols:
+        return {}
+    query = """
+        SELECT DISTINCT ON (symbol)
+               observed_at, symbol, price_usdc, change_percent, rank_side,
+               rank_position, event_time, source
+        FROM binance_candidate_price_history
+        WHERE symbol = ANY(%s)
+        ORDER BY symbol, event_time DESC
+    """
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (symbols,))
+            rows = cursor.fetchall()
+    result = {}
+    for observed_at, symbol, price_usdc, change_percent, rank_side, rank_position, event_time, source in rows:
+        end_price = float(price_usdc)
+        change = float(change_percent)
+        start_divisor = 1 + change / 100
+        start_price = end_price / start_divisor if start_divisor > 0 else end_price
+        result[str(symbol)] = {
+            "observed_at": iso(event_time or observed_at),
+            "symbol": str(symbol),
+            "start_price": start_price,
+            "end_price": end_price,
+            "change_percent": change,
+            "rank_side": str(rank_side),
+            "rank_position": int(rank_position),
+            "source": str(source),
+        }
     return result
 
 

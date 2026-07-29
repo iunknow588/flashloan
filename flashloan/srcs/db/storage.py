@@ -76,8 +76,49 @@ def ensure_database_schema(database_url: str) -> None:
                 """
             )
             cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS binance_candidate_price_history (
+                    id BIGSERIAL PRIMARY KEY,
+                    observed_at TIMESTAMPTZ NOT NULL,
+                    symbol TEXT NOT NULL,
+                    price_usdc DOUBLE PRECISION NOT NULL,
+                    source_price DOUBLE PRECISION NOT NULL,
+                    usdc_usdt_price DOUBLE PRECISION NOT NULL,
+                    change_percent DOUBLE PRECISION NOT NULL,
+                    rank_side TEXT NOT NULL,
+                    rank_position INTEGER NOT NULL,
+                    event_time TIMESTAMPTZ NOT NULL,
+                    source TEXT NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS binance_pair_price_history (
+                    id BIGSERIAL PRIMARY KEY,
+                    observed_at TIMESTAMPTZ NOT NULL,
+                    x_symbol TEXT NOT NULL,
+                    y_symbol TEXT NOT NULL,
+                    x_usdc_price DOUBLE PRECISION NOT NULL,
+                    y_usdc_price DOUBLE PRECISION NOT NULL,
+                    x_y_price DOUBLE PRECISION NOT NULL,
+                    window_seconds DOUBLE PRECISION NOT NULL,
+                    event_time TIMESTAMPTZ NOT NULL,
+                    source TEXT NOT NULL
+                )
+                """
+            )
+            cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_binance_price_history_symbol_time "
                 "ON binance_price_history(symbol, event_time)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_binance_candidate_price_history_symbol_time "
+                "ON binance_candidate_price_history(symbol, event_time)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_binance_pair_price_history_pair_time "
+                "ON binance_pair_price_history(x_symbol, y_symbol, event_time)"
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_binance_window_extremes_time "
@@ -198,6 +239,29 @@ def ensure_schema_columns(cursor) -> None:
             "event_time": "TIMESTAMPTZ",
             "source": "TEXT",
         },
+        "binance_candidate_price_history": {
+            "observed_at": "TIMESTAMPTZ",
+            "symbol": "TEXT",
+            "price_usdc": "DOUBLE PRECISION",
+            "source_price": "DOUBLE PRECISION",
+            "usdc_usdt_price": "DOUBLE PRECISION",
+            "change_percent": "DOUBLE PRECISION",
+            "rank_side": "TEXT",
+            "rank_position": "INTEGER",
+            "event_time": "TIMESTAMPTZ",
+            "source": "TEXT",
+        },
+        "binance_pair_price_history": {
+            "observed_at": "TIMESTAMPTZ",
+            "x_symbol": "TEXT",
+            "y_symbol": "TEXT",
+            "x_usdc_price": "DOUBLE PRECISION",
+            "y_usdc_price": "DOUBLE PRECISION",
+            "x_y_price": "DOUBLE PRECISION",
+            "window_seconds": "DOUBLE PRECISION",
+            "event_time": "TIMESTAMPTZ",
+            "source": "TEXT",
+        },
         "arbitrage_simulations": {
             "observed_at": "TIMESTAMPTZ",
             "window_seconds": "DOUBLE PRECISION",
@@ -273,6 +337,39 @@ def ensure_deduplication_constraints(cursor) -> None:
     )
     cursor.execute(
         """
+        DELETE FROM binance_candidate_price_history keep
+        USING binance_candidate_price_history dup
+        WHERE keep.id > dup.id
+          AND keep.symbol = dup.symbol
+          AND keep.event_time = dup.event_time
+          AND keep.source = dup.source
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_binance_candidate_symbol_event_source
+        ON binance_candidate_price_history(symbol, event_time, source)
+        """
+    )
+    cursor.execute(
+        """
+        DELETE FROM binance_pair_price_history keep
+        USING binance_pair_price_history dup
+        WHERE keep.id > dup.id
+          AND keep.x_symbol = dup.x_symbol
+          AND keep.y_symbol = dup.y_symbol
+          AND keep.event_time = dup.event_time
+          AND keep.source = dup.source
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_binance_pair_symbols_event_source
+        ON binance_pair_price_history(x_symbol, y_symbol, event_time, source)
+        """
+    )
+    cursor.execute(
+        """
         DELETE FROM observations keep
         USING observations dup
         WHERE keep.id > dup.id
@@ -329,6 +426,75 @@ def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
                 )
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (symbol, event_time, source) DO NOTHING
+                """,
+                values,
+            )
+
+
+def append_binance_candidate_price_history(database_url: str, rows: list[dict]) -> None:
+    if not rows:
+        return
+
+    values = [
+        (
+            row["observed_at"],
+            row["symbol"],
+            float(row["price_usdc"]),
+            float(row["source_price"]),
+            float(row["usdc_usdt_price"]),
+            float(row["change_percent"]),
+            row["rank_side"],
+            int(row["rank_position"]),
+            row["event_time"],
+            row["source"],
+        )
+        for row in rows
+    ]
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO binance_candidate_price_history (
+                    observed_at, symbol, price_usdc, source_price, usdc_usdt_price,
+                    change_percent, rank_side, rank_position, event_time, source
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol, event_time, source) DO NOTHING
+                """,
+                values,
+            )
+
+
+def append_binance_pair_price_history(database_url: str, rows: list[dict]) -> None:
+    if not rows:
+        return
+
+    values = [
+        (
+            row["observed_at"],
+            row["x_symbol"],
+            row["y_symbol"],
+            float(row["x_usdc_price"]),
+            float(row["y_usdc_price"]),
+            float(row["x_y_price"]),
+            float(row["window_seconds"]),
+            row["event_time"],
+            row["source"],
+        )
+        for row in rows
+    ]
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO binance_pair_price_history (
+                    observed_at, x_symbol, y_symbol, x_usdc_price, y_usdc_price,
+                    x_y_price, window_seconds, event_time, source
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (x_symbol, y_symbol, event_time, source) DO NOTHING
                 """,
                 values,
             )

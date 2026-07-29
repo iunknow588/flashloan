@@ -246,6 +246,62 @@ def simulate_pair(up: dict, down: dict, config: ArbitrageConfig, notional_usd: f
     return best
 
 
+def simulate_four_route_cycles(
+    x: dict,
+    y: dict,
+    config: ArbitrageConfig,
+    initial_amount: float = 100.0,
+) -> list[dict]:
+    if (
+        initial_amount <= 0
+        or x.get("symbol") == y.get("symbol")
+        or not _valid_leg(x)
+        or not _valid_leg(y)
+    ):
+        return []
+
+    rows = {"x": x, "y": y}
+    results = []
+    for strategy in STRATEGY_ROUTES:
+        route = STRATEGY_ROUTES[strategy]["route"]
+        borrow_key = route[0]
+        borrow_symbol = STABLE_SYMBOL if borrow_key == STABLE_SYMBOL else rows[borrow_key]["symbol"]
+        borrow_row = None if borrow_symbol == STABLE_SYMBOL else x if borrow_symbol == x["symbol"] else y
+        borrow_start_price = 1.0 if borrow_row is None else float(borrow_row["start_price"])
+        simulation = _simulate_route_cycle(
+            x,
+            y,
+            config,
+            initial_amount * borrow_start_price,
+            strategy,
+        )
+        if not simulation:
+            continue
+        remaining_amount = float(simulation["borrow_rebought"])
+        profit_amount = remaining_amount - initial_amount
+        profit_percent = profit_amount / initial_amount * 100
+        owed_amount = float(simulation["borrow_to_repay"])
+        net_after_repay_amount = remaining_amount - owed_amount
+        results.append(
+            {
+                "strategy": strategy,
+                "route_symbols": simulation["route_symbols"],
+                "route_steps": simulation["route_steps"],
+                "initial_symbol": borrow_symbol,
+                "initial_amount": initial_amount,
+                "remaining_amount": remaining_amount,
+                "profit_amount": profit_amount,
+                "profit_percent": profit_percent,
+                "owed_amount_with_premium": owed_amount,
+                "net_after_flashloan_amount": net_after_repay_amount,
+                "net_after_flashloan_percent": net_after_repay_amount / initial_amount * 100,
+                "trade_fee_percent": config.trade_fee_percent,
+                "flashloan_fee_percent": config.flashloan_fee_percent,
+            }
+        )
+    return results
+
+
 def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
     if config.notional_usd <= 0:
         return None

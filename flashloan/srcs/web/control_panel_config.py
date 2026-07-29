@@ -13,10 +13,25 @@ STRATEGY_DEFAULTS = {
     "ARBITRAGE_MIN_PAPER_PROFIT_USD": 1.0,
     "EXECUTION_SLIPPAGE_BPS": 50,
     "EXECUTION_PLAN_MAX_AGE_SECONDS": 15,
-    "BINANCE_CHANGE_WINDOW_SECONDS": 0.2,
+    "BINANCE_CHANGE_WINDOW_SECONDS": 1.0,
+    "BINANCE_VELOCITY_MIN_CHANGE_PERCENT": 0.2,
     "TRIGGER_MIN_UP_CHANGE_PERCENT": 1.0,
     "TRIGGER_MIN_DOWN_CHANGE_PERCENT": 1.0,
 }
+
+
+def unified_sampling_profile(config: dict) -> dict:
+    seconds = max(1.0, float(config.get("BINANCE_CHANGE_WINDOW_SECONDS", STRATEGY_DEFAULTS["BINANCE_CHANGE_WINDOW_SECONDS"])))
+    return {
+        "name": "统一采样周期",
+        "seconds": seconds,
+        "binance_change_window_seconds": seconds,
+        "sample_seconds": seconds,
+        "observation_write_seconds": seconds,
+        "aave_poll_seconds": seconds,
+        "min_change_percent": max(0.0, float(config.get("BINANCE_VELOCITY_MIN_CHANGE_PERCENT", STRATEGY_DEFAULTS["BINANCE_VELOCITY_MIN_CHANGE_PERCENT"]))),
+        "applies_to": ["Binance速度窗", "Aave轮询", "Aave写库"],
+    }
 
 
 def strategy_config(config_path: Path) -> dict:
@@ -59,7 +74,8 @@ def sanitize_strategy_config(values: dict) -> dict:
     config["ARBITRAGE_BASKET_SIZE"] = max(1, min(int(config["ARBITRAGE_BASKET_SIZE"]), 10))
     config["EXECUTION_SLIPPAGE_BPS"] = max(0, min(int(config["EXECUTION_SLIPPAGE_BPS"]), 5000))
     config["EXECUTION_PLAN_MAX_AGE_SECONDS"] = max(1, int(config["EXECUTION_PLAN_MAX_AGE_SECONDS"]))
-    config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(0.2, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))
+    config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(1.0, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))
+    config["BINANCE_VELOCITY_MIN_CHANGE_PERCENT"] = max(0.0, float(config["BINANCE_VELOCITY_MIN_CHANGE_PERCENT"]))
     return config
 
 

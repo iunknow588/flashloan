@@ -6,6 +6,7 @@ import signal
 import sys
 import time
 from collections import deque
+from itertools import combinations
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -21,12 +22,13 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from market.aave_reserve_cache import load_aave_reserve_symbols
+from market.aave_reserve_cache import load_aave_reserve_assets, load_aave_reserve_symbols, parse_rpc_urls
 from core.env_loader import load_env_files, resolve_env_path
 from db.storage import (
     append_arbitrage_simulation,
+    append_binance_candidate_price_history,
     append_binance_extremes,
-    append_binance_price_history,
+    append_binance_pair_price_history,
     append_observations,
     ensure_database_schema,
     try_acquire_observer_lock,
@@ -45,6 +47,11 @@ DEFAULT_BINANCE_WS_BASES = "wss://stream.binance.com:9443,wss://data-stream.bina
 DEFAULT_BINANCE_REST_BASES = "https://api.binance.com,https://data-api.binance.vision"
 DEFAULT_BINANCE_WS_CHUNK_SIZE = 200
 DEFAULT_RPC = "https://api.avax.network/ext/bc/C/rpc"
+DEFAULT_RPC_CANDIDATES = (
+    "https://api.avax.network/ext/bc/C/rpc,"
+    "https://rpc.ankr.com/avalanche,"
+    "https://avalanche-c-chain-rpc.publicnode.com"
+)
 DEFAULT_SYMBOLS = "AVAXUSDT,ETHUSDT,BTCUSDT,AAVEUSDT,USDCUSDT"
 DEFAULT_EXECUTABLE_SYMBOLS = "AVAXUSDT,ETHUSDT,BTCUSDT,AAVEUSDT"
 COINGECKO_MARKETS_URL = (
@@ -65,6 +72,7 @@ LOG = logging.getLogger("observer")
 
 ORACLE_ABI = [
     {"inputs": [{"internalType": "address", "name": "asset", "type": "address"}], "name": "getAssetPrice", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [{"internalType": "address[]", "name": "assets", "type": "address[]"}], "name": "getAssetsPrices", "outputs": [{"internalType": "uint256[]", "name": "", "type": "uint256[]"}], "stateMutability": "view", "type": "function"},
     {"inputs": [], "name": "BASE_CURRENCY_UNIT", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"},
 ]
 
@@ -79,16 +87,22 @@ class AssetConfig:
 @dataclass(frozen=True)
 class ObserverConfig:
     rpc_url: str
+    rpc_urls: list[str]
+    asset_lookup: dict[str, AssetConfig]
     binance_ws_bases: list[str]
     binance_rest_bases: list[str]
     binance_rest_poll_seconds: float
     binance_top_symbols: list[str]
     binance_change_window_seconds: float
+    binance_velocity_min_change_percent: float
     binance_velocity_side_limit: int
     binance_extreme_write_seconds: float
-    binance_price_history_symbols: list[str]
-    binance_price_history_write_seconds: float
-    binance_price_history_flush_seconds: float
+    binance_candidate_db_side_limit: int
+    binance_pair_price_write_seconds: float
+    binance_pair_price_flush_seconds: float
+    binance_pair_history_writes: bool
+    observation_db_writes: bool
+    aave_verification_enabled: bool
     trigger: TriggerConfig
     symbols: list[str]
     sample_seconds: float
@@ -103,13 +117,15 @@ class ObserverConfig:
     require_binance_ws_for_arbitrage: bool
 
 
-ASSETS = {
+LEGACY_ASSETS = {
     "AVAXUSDT": AssetConfig("WAVAX", "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7", "AVAXUSDT"),
     "ETHUSDT": AssetConfig("WETH.e", "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB", "ETHUSDT"),
     "BTCUSDT": AssetConfig("BTC.b", "0x152b9d0FdC40C096757F570A51E494bd4b943E50", "BTCUSDT"),
     "AAVEUSDT": AssetConfig("AAVE.e", "0x63a72806098Bd3D9520cC43356dD78afe5D386D9", "AAVEUSDT"),
     "USDCUSDT": AssetConfig("USDC", "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", "USDCUSDT"),
 }
+
+ASSETS = LEGACY_ASSETS
 
 
 class PriceState:
@@ -146,6 +162,7 @@ class PriceState:
         window_seconds: float,
         limit: int = 5,
         source: str | None = None,
+        min_change_percent: float = 0.0,
     ) -> dict:
         cutoff_ms = int(time.time() * 1000) - int(window_seconds * 1000)
         rows = []
@@ -175,15 +192,19 @@ class PriceState:
                         "end_ms": end_ms,
                     }
                 )
+        threshold = max(0.0, float(min_change_percent))
+        active_rows = [row for row in rows if abs(float(row.get("change_percent") or 0.0)) >= threshold]
+        ranked_rows = active_rows or rows
         top, bottom = [], []
-        for row in rows:
+        for row in ranked_rows:
             insert_extreme(top, row, limit, reverse=True)
             insert_extreme(bottom, row, limit, reverse=False)
         return {
             "observed_at": now_iso(),
             "window_seconds": window_seconds,
-            "sample_count": len(rows),
+            "sample_count": len(ranked_rows),
             "price_source": source or "mixed",
+            "min_change_percent": threshold,
             "top": top,
             "bottom": bottom,
         }
@@ -210,6 +231,66 @@ class PriceState:
                     }
                 )
         return rows
+
+    async def candidate_and_pair_price_rows(
+        self,
+        extremes: dict,
+        side_limit: int,
+    ) -> tuple[list[dict], list[dict]]:
+        observed_at = now_iso()
+        usdc_usdt_price = 1.0
+        async with self.lock:
+            usdc_item = self.binance.get("USDCUSDT")
+            if usdc_item and usdc_item.get("price", 0) > 0:
+                usdc_usdt_price = float(usdc_item["price"])
+            candidates = []
+            seen: set[str] = set()
+            for side, items in (("top", extremes.get("top") or []), ("bottom", extremes.get("bottom") or [])):
+                for position, item in enumerate(items[:side_limit], start=1):
+                    symbol = str(item.get("symbol") or "").upper()
+                    if not symbol or symbol in seen:
+                        continue
+                    current = self.binance.get(symbol)
+                    if not current:
+                        continue
+                    source_price = float(current["price"])
+                    if source_price <= 0 or usdc_usdt_price <= 0:
+                        continue
+                    price_usdc = source_price / usdc_usdt_price
+                    event_time = utc_from_ms(int(current["event_ms"]))
+                    row = {
+                        "observed_at": observed_at,
+                        "symbol": symbol,
+                        "price_usdc": price_usdc,
+                        "source_price": source_price,
+                        "usdc_usdt_price": usdc_usdt_price,
+                        "change_percent": float(item.get("change_percent") or 0),
+                        "rank_side": side,
+                        "rank_position": position,
+                        "event_time": event_time,
+                        "source": current.get("source", "unknown"),
+                    }
+                    candidates.append(row)
+                    seen.add(symbol)
+
+        pair_rows = []
+        for x, y in combinations(candidates, 2):
+            if x["price_usdc"] <= 0 or y["price_usdc"] <= 0:
+                continue
+            pair_rows.append(
+                {
+                    "observed_at": observed_at,
+                    "x_symbol": x["symbol"],
+                    "y_symbol": y["symbol"],
+                    "x_usdc_price": x["price_usdc"],
+                    "y_usdc_price": y["price_usdc"],
+                    "x_y_price": x["price_usdc"] / y["price_usdc"],
+                    "window_seconds": float(extremes.get("window_seconds") or 0),
+                    "event_time": max(x["event_time"], y["event_time"]),
+                    "source": "binance_candidate",
+                }
+            )
+        return candidates, pair_rows
 
 
 def insert_extreme(items: list[dict], row: dict, limit: int, reverse: bool) -> None:
@@ -238,6 +319,15 @@ def env_float(name: str, default: float) -> float:
     except ValueError:
         LOG.warning("invalid float env %s; using default=%s", name, default)
         return default
+
+
+def env_int(name: str, default: int, minimum: int = 0) -> int:
+    try:
+        value = int(float(os.getenv(name, str(default)) or default))
+    except ValueError:
+        LOG.warning("invalid int env %s; using default=%s", name, default)
+        value = default
+    return max(minimum, value)
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -360,55 +450,84 @@ def load_config() -> ObserverConfig:
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ValueError("DATABASE_URL is required.")
+    rpc_urls = avalanche_rpc_urls()
     rest_bases = env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")
-    symbols = [symbol for symbol in env_list("SYMBOLS", DEFAULT_SYMBOLS) if symbol in ASSETS]
-    if not symbols:
-        raise ValueError("No supported symbols selected.")
-    top_symbol_limit = int(env_float("BINANCE_TOP_SYMBOL_LIMIT", 100))
-    top_symbols = resolve_binance_top_symbols(rest_bases, top_symbol_limit)
-    price_history_raw = os.getenv("BINANCE_PRICE_HISTORY_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS).strip()
-    if price_history_raw.upper() in {"TOP", "TOP_SYMBOLS", "ALL_TOP"}:
-        price_history_symbols = top_symbols
+    pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+    reserve_symbol_limit = env_int("AAVE_RESERVE_SYMBOL_LIMIT", 1000)
+    reserve_assets = load_aave_reserve_assets(
+        rpc_urls,
+        pool_address,
+        limit=reserve_symbol_limit or None,
+        exclude_stables=True,
+    ) if pool_address else []
+    supported_symbols = fetch_binance_usdt_symbols(rest_bases)
+    asset_lookup = {
+        str(asset.get("binance_symbol", "")).upper(): AssetConfig(
+            str(asset.get("token_symbol", "")).upper(),
+            str(asset.get("token_address", "")).strip(),
+            str(asset.get("binance_symbol", "")).upper(),
+        )
+        for asset in reserve_assets
+        if asset.get("binance_symbol") and asset.get("token_address")
+    }
+    asset_lookup.setdefault("USDCUSDT", LEGACY_ASSETS["USDCUSDT"])
+    if not asset_lookup:
+        asset_lookup = dict(LEGACY_ASSETS)
+    reserve_symbols = list(dict.fromkeys(
+        [
+            str(asset.get("binance_symbol", "")).upper()
+            for asset in reserve_assets
+            if asset.get("binance_symbol")
+        ]
+    ))
+    if supported_symbols:
+        reserve_symbols = [symbol for symbol in reserve_symbols if symbol in supported_symbols]
+    if reserve_symbols:
+        symbols = [*reserve_symbols, "USDCUSDT"]
     else:
-        price_history_symbols = env_list("BINANCE_PRICE_HISTORY_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS)
+        raw_symbols = env_list("SYMBOLS", DEFAULT_SYMBOLS)
+        symbols = [symbol for symbol in raw_symbols if symbol in asset_lookup]
+        if not symbols:
+            symbols = list(dict.fromkeys([*asset_lookup.keys()]))[:100]
+    tracked_symbols = [symbol for symbol in symbols if symbol != "USDCUSDT"]
+    top_symbol_limit = int(env_float("BINANCE_TOP_SYMBOL_LIMIT", 100))
+    top_symbols = tracked_symbols if tracked_symbols else resolve_binance_top_symbols(rest_bases, top_symbol_limit)
     executable_raw = os.getenv("TRIGGER_EXECUTABLE_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS).strip()
     if executable_raw.upper() in {"AAVE", "AAVE_RESERVES", "AAVE_POOL"}:
-        executable_symbols = tuple(
-            sorted(
-                load_aave_reserve_symbols(
-                    os.getenv("AVALANCHE_RPC", DEFAULT_RPC).strip(),
-                    os.getenv("AAVE_POOL_ADDRESS", "").strip(),
-                    set(top_symbols),
-                )
-            )
-        )
+        executable_symbols = tuple(sorted(set(tracked_symbols or top_symbols)))
     else:
         executable_symbols = tuple(
             symbol
             for symbol in env_list("TRIGGER_EXECUTABLE_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS)
-            if symbol in ASSETS
+            if symbol in asset_lookup
         )
     return ObserverConfig(
-        rpc_url=os.getenv("AVALANCHE_RPC", DEFAULT_RPC).strip(),
+        rpc_url=rpc_urls[0],
+        rpc_urls=rpc_urls,
+        asset_lookup=asset_lookup,
         binance_ws_bases=env_urls("BINANCE_WS_BASES", DEFAULT_BINANCE_WS_BASES, "wss://"),
         binance_rest_bases=rest_bases,
         binance_rest_poll_seconds=max(1.0, env_float("BINANCE_REST_POLL_SECONDS", 3.0)),
         binance_top_symbols=top_symbols,
-        binance_change_window_seconds=max(0.2, env_float("BINANCE_CHANGE_WINDOW_SECONDS", 0.2)),
-        binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", 100))),
+        binance_change_window_seconds=max(1.0, env_float("BINANCE_CHANGE_WINDOW_SECONDS", 1.0)),
+        binance_velocity_min_change_percent=max(0.0, env_float("BINANCE_VELOCITY_MIN_CHANGE_PERCENT", 0.2)),
+        binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", 10))),
         binance_extreme_write_seconds=max(0.2, env_float("BINANCE_EXTREME_WRITE_SECONDS", 1.0)),
-        binance_price_history_symbols=price_history_symbols,
-        binance_price_history_write_seconds=max(0.2, env_float("BINANCE_PRICE_HISTORY_WRITE_SECONDS", 1.0)),
-        binance_price_history_flush_seconds=max(1.0, env_float("BINANCE_PRICE_HISTORY_FLUSH_SECONDS", 5.0)),
+        binance_candidate_db_side_limit=max(1, int(env_float("BINANCE_CANDIDATE_DB_SIDE_LIMIT", 10))),
+        binance_pair_price_write_seconds=max(0.2, env_float("BINANCE_PAIR_PRICE_WRITE_SECONDS", 1.0)),
+        binance_pair_price_flush_seconds=max(1.0, env_float("BINANCE_PAIR_PRICE_FLUSH_SECONDS", 5.0)),
+        binance_pair_history_writes=env_bool("BINANCE_PAIR_HISTORY_WRITES", True),
+        observation_db_writes=env_bool("OBSERVATION_DB_WRITES", False),
+        aave_verification_enabled=env_bool("AAVE_VERIFICATION_ENABLED", True),
         trigger=TriggerConfig(
             min_up_change_percent=max(0.0, env_float("TRIGGER_MIN_UP_CHANGE_PERCENT", 1.0)),
             min_down_change_percent=max(0.0, env_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", 1.0)),
             executable_symbols=executable_symbols,
         ),
         symbols=list(dict.fromkeys(symbols)),
-        sample_seconds=max(0.05, env_float("SAMPLE_SECONDS", 0.2)),
-        observation_write_seconds=max(0.2, env_float("OBSERVATION_WRITE_SECONDS", env_float("SAMPLE_SECONDS", 0.2))),
-        poll_seconds=max(0.2, env_float("AAVE_POLL_SECONDS", 5.0)),
+        sample_seconds=max(1.0, env_float("SAMPLE_SECONDS", 1.0)),
+        observation_write_seconds=max(1.0, env_float("OBSERVATION_WRITE_SECONDS", env_float("SAMPLE_SECONDS", 1.0))),
+        poll_seconds=max(1.0, env_float("AAVE_POLL_SECONDS", 1.0)),
         report_seconds=max(0.5, env_float("REPORT_SECONDS", 2.0)),
         alert_diff_percent=max(0.0, env_float("ALERT_DIFF_PERCENT", 0.30)),
         database_url=database_url,
@@ -429,6 +548,33 @@ def mask_url(url: str) -> str:
         return urlunsplit((parts.scheme, netloc, parts.path, "***" if parts.query else "", ""))
     except ValueError:
         return "***"
+
+
+def avalanche_rpc_urls() -> list[str]:
+    candidates: list[str] = []
+    for item in parse_rpc_urls(os.getenv("AVALANCHE_WSS", "")):
+        if item not in candidates:
+            candidates.append(item)
+    for item in parse_rpc_urls(os.getenv("AVALANCHE_WSSS", "")):
+        if item not in candidates:
+            candidates.append(item)
+    primary = os.getenv("AVALANCHE_RPC", "").strip()
+    for item in parse_rpc_urls(primary):
+        if item not in candidates:
+            candidates.append(item)
+    for item in parse_rpc_urls(os.getenv("AVALANCHE_RPCS", "")):
+        if item not in candidates:
+            candidates.append(item)
+    for item in parse_rpc_urls(DEFAULT_RPC_CANDIDATES):
+        if item not in candidates:
+            candidates.append(item)
+    return candidates or [DEFAULT_RPC]
+
+
+def web3_for_rpc_url(rpc_url: str, timeout: int = 10) -> Web3:
+    if rpc_url.lower().startswith(("ws://", "wss://")):
+        return Web3(Web3.WebsocketProvider(rpc_url, websocket_timeout=timeout))
+    return Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": timeout}))
 
 
 def now_iso() -> str:
@@ -508,33 +654,55 @@ async def binance_rest_poller(config: ObserverConfig, state: PriceState, stop: a
 
 
 async def aave_poller(config: ObserverConfig, state: PriceState, stop: asyncio.Event) -> None:
-    w3 = Web3(Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 10}))
-    oracle = w3.eth.contract(address=Web3.to_checksum_address(AAVE_ORACLE), abi=ORACLE_ABI)
-    base_unit = await wait_for_oracle_base_unit(oracle, stop)
+    tracked = [
+        (symbol, config.asset_lookup[symbol])
+        for symbol in config.symbols
+        if symbol in config.asset_lookup
+    ]
+    asset_symbols = [symbol for symbol, _ in tracked]
+    asset_addresses = [Web3.to_checksum_address(asset.asset_address) for _, asset in tracked]
+    rpc_urls = config.rpc_urls or [config.rpc_url]
+    rpc_index = 0
+    delay = 1.0
     while not stop.is_set():
         started = time.monotonic()
         try:
-            block = await asyncio.to_thread(lambda: w3.eth.block_number)
-            for symbol in config.symbols:
-                raw = await asyncio.to_thread(oracle.functions.getAssetPrice(Web3.to_checksum_address(ASSETS[symbol].asset_address)).call)
-                await state.update_aave(symbol, raw / base_unit, block)
+            base_unit = None
+            block = None
+            raw_prices = None
+            selected_rpc = None
+            for offset in range(len(rpc_urls)):
+                rpc_url = rpc_urls[(rpc_index + offset) % len(rpc_urls)]
+                try:
+                    w3 = web3_for_rpc_url(rpc_url, timeout=10)
+                    oracle = w3.eth.contract(address=Web3.to_checksum_address(AAVE_ORACLE), abi=ORACLE_ABI)
+                    base_unit = await asyncio.to_thread(oracle.functions.BASE_CURRENCY_UNIT().call)
+                    block = await asyncio.to_thread(lambda: w3.eth.block_number)
+                    try:
+                        raw_prices = await asyncio.to_thread(oracle.functions.getAssetsPrices(asset_addresses).call)
+                    except Exception:
+                        raw_prices = [
+                            await asyncio.to_thread(oracle.functions.getAssetPrice(address).call)
+                            for address in asset_addresses
+                        ]
+                    selected_rpc = rpc_url
+                    rpc_index = (rpc_index + offset) % len(rpc_urls)
+                    break
+                except Exception as exc:
+                    LOG.warning("aave rpc failed=%r rpc=%s", exc, mask_url(rpc_url))
+            if base_unit is None or block is None or raw_prices is None:
+                raise RuntimeError(f"all AAVE RPC candidates failed ({len(rpc_urls)})")
+            if selected_rpc:
+                LOG.info("aave rpc selected=%s", mask_url(selected_rpc))
+            for symbol, raw in zip(asset_symbols, raw_prices):
+                await state.update_aave(symbol, float(raw) / base_unit, block)
         except Exception as exc:
             LOG.warning("aave_poll error=%r", exc)
-        await sleep_until_next(stop, max(0.1, config.poll_seconds - (time.monotonic() - started)))
-
-
-async def wait_for_oracle_base_unit(oracle, stop: asyncio.Event) -> int:
-    delay = 1.0
-    while not stop.is_set():
-        try:
-            base_unit = await asyncio.to_thread(oracle.functions.BASE_CURRENCY_UNIT().call)
-            LOG.info("aave oracle ready base_unit=%s", base_unit)
-            return base_unit
-        except Exception as exc:
-            LOG.warning("aave oracle init failed=%r retry_in=%.1fs", exc, delay)
             await sleep_until_next(stop, delay)
             delay = min(delay * 2, 60)
-    raise asyncio.CancelledError
+        else:
+            delay = 1.0
+            await sleep_until_next(stop, max(0.1, config.poll_seconds - (time.monotonic() - started)))
 
 
 async def reporter(config: ObserverConfig, state: PriceState, stop: asyncio.Event) -> None:
@@ -556,7 +724,7 @@ async def reporter(config: ObserverConfig, state: PriceState, stop: asyncio.Even
             row = {
                 "observed_at": now_iso(),
                 "symbol": symbol,
-                "asset": ASSETS[symbol].symbol,
+                "asset": config.asset_lookup.get(symbol, LEGACY_ASSETS.get(symbol, AssetConfig(symbol, "", symbol))).symbol,
                 "binance_price": f"{b['price']:.10f}",
                 "binance_event_time": utc_from_ms(b["event_ms"]),
                 "aave_price": f"{a['price']:.10f}",
@@ -568,7 +736,7 @@ async def reporter(config: ObserverConfig, state: PriceState, stop: asyncio.Even
             rows.append(row)
             if report_due and not config.report_only_alerts:
                 LOG.info("OK %s binance=%.6f aave=%.6f diff=%+.4f%%", symbol, b["price"], a["price"], diff)
-        if rows and observation_write_due:
+        if rows and observation_write_due and config.observation_db_writes:
             try:
                 await asyncio.to_thread(append_observations, config.database_url, rows)
                 last_observation_write_at = now
@@ -582,13 +750,15 @@ async def reporter(config: ObserverConfig, state: PriceState, stop: asyncio.Even
 
 
 async def extreme_and_arbitrage_reporter(config: ObserverConfig, state: PriceState, stop: asyncio.Event) -> None:
-    last_write_at, last_price_sample_at, last_price_flush_at, last_log_at, last_db_error_at = 0.0, 0.0, 0.0, 0.0, 0.0
-    price_history_buffer: list[dict] = []
+    last_write_at, last_pair_sample_at, last_pair_flush_at, last_log_at, last_db_error_at = 0.0, 0.0, 0.0, 0.0, 0.0
+    candidate_price_buffer: list[dict] = []
+    pair_price_buffer: list[dict] = []
     while not stop.is_set():
         extremes = await state.window_extremes(
             config.binance_top_symbols,
             config.binance_change_window_seconds,
             config.binance_velocity_side_limit,
+            min_change_percent=config.binance_velocity_min_change_percent,
         )
         executable_symbols = config.trigger.executable_symbols or tuple(config.symbols)
         simulation_extremes = await state.window_extremes(
@@ -596,6 +766,7 @@ async def extreme_and_arbitrage_reporter(config: ObserverConfig, state: PriceSta
             config.binance_change_window_seconds,
             1,
             source="ws" if config.require_binance_ws_for_arbitrage else None,
+            min_change_percent=config.binance_velocity_min_change_percent,
         )
         simulation = build_trigger_signal(simulation_extremes, config.trigger)
         if extremes["top"] and extremes["bottom"]:
@@ -623,24 +794,33 @@ async def extreme_and_arbitrage_reporter(config: ObserverConfig, state: PriceSta
                     LOG.warning("arbitrage database write failed error=%r", exc)
                     last_db_error_at = now
             last_write_at = now
-        if now - last_price_sample_at >= config.binance_price_history_write_seconds:
-            price_rows = await state.binance_price_history_rows(
-                config.binance_price_history_symbols,
-                source="ws" if config.require_binance_ws_for_arbitrage else None,
+        if (
+            config.binance_pair_history_writes
+            and now - last_pair_sample_at >= config.binance_pair_price_write_seconds
+            and extremes["top"]
+            and extremes["bottom"]
+        ):
+            candidate_rows, pair_rows = await state.candidate_and_pair_price_rows(
+                extremes,
+                config.binance_candidate_db_side_limit,
             )
-            price_history_buffer.extend(price_rows)
-            last_price_sample_at = now
-        if price_history_buffer and now - last_price_flush_at >= config.binance_price_history_flush_seconds:
-            rows_to_write = price_history_buffer
-            price_history_buffer = []
+            candidate_price_buffer.extend(candidate_rows)
+            pair_price_buffer.extend(pair_rows)
+            last_pair_sample_at = now
+        if (candidate_price_buffer or pair_price_buffer) and now - last_pair_flush_at >= config.binance_pair_price_flush_seconds:
+            candidate_rows_to_write = candidate_price_buffer
+            pair_rows_to_write = pair_price_buffer
+            candidate_price_buffer, pair_price_buffer = [], []
             try:
-                await asyncio.to_thread(append_binance_price_history, config.database_url, rows_to_write)
+                await asyncio.to_thread(append_binance_candidate_price_history, config.database_url, candidate_rows_to_write)
+                await asyncio.to_thread(append_binance_pair_price_history, config.database_url, pair_rows_to_write)
             except Exception as exc:
-                price_history_buffer = rows_to_write + price_history_buffer
+                candidate_price_buffer = candidate_rows_to_write + candidate_price_buffer
+                pair_price_buffer = pair_rows_to_write + pair_price_buffer
                 if now - last_db_error_at >= config.report_seconds:
-                    LOG.warning("binance price history write failed error=%r", exc)
+                    LOG.warning("binance candidate pair price write failed error=%r", exc)
                     last_db_error_at = now
-            last_price_flush_at = now
+            last_pair_flush_at = now
         await sleep_until_next(stop, config.sample_seconds)
 
 
@@ -702,11 +882,20 @@ async def main() -> None:
             for chunk in binance_chunks
         ],
         asyncio.create_task(binance_rest_poller(config, state, stop)),
-        asyncio.create_task(aave_poller(config, state, stop)),
-        asyncio.create_task(reporter(config, state, stop)),
         asyncio.create_task(extreme_and_arbitrage_reporter(config, state, stop)),
         asyncio.create_task(auto_stop_after(config.run_seconds, stop)),
     ]
+    if config.aave_verification_enabled:
+        tasks.extend(
+            [
+                asyncio.create_task(aave_poller(config, state, stop)),
+                asyncio.create_task(reporter(config, state, stop)),
+            ]
+        )
+    else:
+        LOG.info("aave verification disabled")
+    if not config.binance_pair_history_writes:
+        LOG.info("candidate and pair history writes disabled")
     try:
         await stop.wait()
     finally:
