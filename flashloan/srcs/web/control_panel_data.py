@@ -542,22 +542,22 @@ def compact_basket_rows(items: list[dict]) -> list[dict]:
             continue
         try:
             symbol = str(item["symbol"]).upper()
-            change_percent = float(item["change_percent"])
-            start_price = float(item["start_price"])
+            raw_change_percent = item.get("change_percent")
+            raw_start_price = item.get("start_price")
             raw_current_price = item.get("current_price")
             if raw_current_price is None:
-                raw_current_price = item["end_price"]
-            end_price = float(raw_current_price)
+                raw_current_price = item.get("end_price")
         except (KeyError, TypeError, ValueError):
             continue
         rows.append(
             {
                 "symbol": symbol,
-                "change_percent": change_percent,
-                "start_price": start_price,
-                "current_price": end_price,
+                "change_percent": float(raw_change_percent) if raw_change_percent is not None else None,
+                "start_price": float(raw_start_price) if raw_start_price is not None else None,
+                "current_price": float(raw_current_price) if raw_current_price is not None else None,
                 "price_source": item.get("price_source"),
                 "end_ms": item.get("end_ms"),
+                "window_ready": bool(item.get("window_ready")),
             }
         )
     return rows

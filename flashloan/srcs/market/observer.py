@@ -179,42 +179,99 @@ class PriceState:
             for symbol in symbol_list:
                 history = self.binance_history.get(symbol)
                 if not history:
-                    continue
-                while history and history[0][0] < cutoff_ms:
-                    history.popleft()
-                source_history = [
-                    (event_ms, price, item_source)
-                    for event_ms, price, item_source in history
-                    if source is None or item_source == source
-                ]
-                if len(source_history) < 2 or source_history[0][1] <= 0:
-                    continue
-                start_ms, start_price, start_source = source_history[0]
-                end_ms, end_price, end_source = source_history[-1]
-                rows.append(
-                    {
-                        "symbol": symbol,
-                        "change_percent": (end_price - start_price) / start_price * 100,
-                        "start_price": start_price,
-                        "end_price": end_price,
-                        "current_price": end_price,
-                        "start_ms": start_ms,
-                        "end_ms": end_ms,
-                        "start_source": start_source,
-                        "price_source": end_source,
-                    }
-                )
+                    current = self.binance.get(symbol)
+                    if current and (source is None or current.get("source") == source):
+                        rows.append(
+                            {
+                                "symbol": symbol,
+                                "change_percent": 0.0,
+                                "start_price": float(current["price"]),
+                                "end_price": float(current["price"]),
+                                "current_price": float(current["price"]),
+                                "start_ms": current.get("event_ms"),
+                                "end_ms": current.get("event_ms"),
+                                "start_source": current.get("source"),
+                                "price_source": current.get("source"),
+                                "window_ready": False,
+                            }
+                        )
+                    else:
+                        rows.append(
+                            {
+                                "symbol": symbol,
+                                "change_percent": None,
+                                "start_price": None,
+                                "end_price": None,
+                                "current_price": None,
+                                "start_ms": None,
+                                "end_ms": None,
+                                "start_source": None,
+                                "price_source": source or "waiting",
+                                "window_ready": False,
+                            }
+                        )
+                else:
+                    while history and history[0][0] < cutoff_ms:
+                        history.popleft()
+                    source_history = [
+                        (event_ms, price, item_source)
+                        for event_ms, price, item_source in history
+                        if source is None or item_source == source
+                    ]
+                    if len(source_history) < 2 or source_history[0][1] <= 0:
+                        current = self.binance.get(symbol)
+                        if current and (source is None or current.get("source") == source):
+                            current_price = float(current["price"])
+                            current_ms = current.get("event_ms")
+                            current_source = current.get("source")
+                        elif source_history:
+                            current_ms, current_price, current_source = source_history[-1]
+                        else:
+                            current_ms, current_price, current_source = None, None, source or "waiting"
+                        rows.append(
+                            {
+                                "symbol": symbol,
+                                "change_percent": 0.0 if current_price is not None else None,
+                                "start_price": current_price,
+                                "end_price": current_price,
+                                "current_price": current_price,
+                                "start_ms": current_ms,
+                                "end_ms": current_ms,
+                                "start_source": current_source,
+                                "price_source": current_source,
+                                "window_ready": False,
+                            }
+                        )
+                    else:
+                        start_ms, start_price, start_source = source_history[0]
+                        end_ms, end_price, end_source = source_history[-1]
+                        rows.append(
+                            {
+                                "symbol": symbol,
+                                "change_percent": (end_price - start_price) / start_price * 100,
+                                "start_price": start_price,
+                                "end_price": end_price,
+                                "current_price": end_price,
+                                "start_ms": start_ms,
+                                "end_ms": end_ms,
+                                "start_source": start_source,
+                                "price_source": end_source,
+                                "window_ready": True,
+                            }
+                        )
         threshold = max(0.0, float(min_change_percent))
         gainers = [
             row
             for row in rows
-            if float(row.get("change_percent") or 0.0) > 0
+            if row.get("window_ready")
+            and float(row.get("change_percent") or 0.0) > 0
             and float(row.get("change_percent") or 0.0) >= threshold
         ]
         losers = [
             row
             for row in rows
-            if float(row.get("change_percent") or 0.0) < 0
+            if row.get("window_ready")
+            and float(row.get("change_percent") or 0.0) < 0
             and abs(float(row.get("change_percent") or 0.0)) >= threshold
         ]
         top, bottom = [], []
@@ -222,11 +279,12 @@ class PriceState:
             insert_extreme(top, row, limit, reverse=True)
         for row in losers:
             insert_extreme(bottom, row, limit, reverse=False)
+        priced_rows = [row for row in rows if row.get("current_price") is not None]
         basket = sorted(rows, key=lambda row: float(row.get("change_percent") or 0.0), reverse=True)
         return {
             "observed_at": now_iso(),
             "window_seconds": window_seconds,
-            "sample_count": len(rows),
+            "sample_count": len(priced_rows),
             "active_sample_count": len(gainers) + len(losers),
             "gainer_count": len(gainers),
             "loser_count": len(losers),
@@ -866,7 +924,7 @@ async def extreme_and_arbitrage_reporter(config: ObserverConfig, state: PriceSta
             if should_compute_conversion_profits(simulation_extremes, config.market_divergence_trigger_min)
             else None
         )
-        if extremes["top"] or extremes["bottom"]:
+        if extremes["top"] or extremes["bottom"] or extremes.get("basket"):
             write_json_atomic(LATEST_EXTREMES_PATH, extremes)
         if simulation:
             write_json_atomic(LATEST_ARBITRAGE_PATH, simulation)

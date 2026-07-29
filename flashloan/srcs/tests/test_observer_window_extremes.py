@@ -80,6 +80,50 @@ async def test_window_extremes_reports_market_divergence_index():
     assert extremes["basket"][0]["change_percent"] == pytest.approx(1.0)
 
 
+@pytest.mark.asyncio
+async def test_window_extremes_lists_full_basket_before_window_is_ready():
+    state = PriceState()
+    event_ms = int(time.time() * 1000)
+    await state.update_binance("AAAUSDT", 100.0, event_ms, "ws")
+
+    extremes = await state.window_extremes(
+        ["AAAUSDT", "BBBUSDT"],
+        window_seconds=999,
+        limit=5,
+    )
+
+    assert extremes["sample_count"] == 1
+    assert extremes["observation_universe_size"] == 2
+    assert extremes["gainer_count"] == 0
+    assert extremes["loser_count"] == 0
+    assert extremes["basket"] == [
+        {
+            "symbol": "AAAUSDT",
+            "change_percent": 0.0,
+            "start_price": 100.0,
+            "end_price": 100.0,
+            "current_price": 100.0,
+            "start_ms": event_ms,
+            "end_ms": event_ms,
+            "start_source": "ws",
+            "price_source": "ws",
+            "window_ready": False,
+        },
+        {
+            "symbol": "BBBUSDT",
+            "change_percent": None,
+            "start_price": None,
+            "end_price": None,
+            "current_price": None,
+            "start_ms": None,
+            "end_ms": None,
+            "start_source": None,
+            "price_source": "waiting",
+            "window_ready": False,
+        },
+    ]
+
+
 def test_market_divergence_gate_requires_index_above_one():
     assert should_compute_conversion_profits({"market_divergence_index": 1.125})
     assert not should_compute_conversion_profits({"market_divergence_index": 1.0})
