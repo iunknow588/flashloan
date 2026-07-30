@@ -10,6 +10,10 @@ def register_page_routes(app, panel) -> None:
     def liquidation_panel():
         return panel.LIQUIDATION_TEMPLATE_PATH.read_text(encoding="utf-8")
 
+    @app.get("/exchange-matrix")
+    def exchange_matrix_panel():
+        return panel.EXCHANGE_MATRIX_TEMPLATE_PATH.read_text(encoding="utf-8")
+
     @app.get("/healthz")
     def healthz():
         return jsonify({"status": "ok"})
