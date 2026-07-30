@@ -199,7 +199,7 @@ def configured_database_url() -> str:
 
 
 def aave_rpc_urls() -> list[str]:
-    raw_primary = os.getenv("AVALANCHE_RPC", "").strip()
+    raw_primary = os.getenv("AVALANCHE_RPC", os.getenv("AVALANCHE_RPC_URL", "")).strip()
     raw_fallbacks = os.getenv("AVALANCHE_RPCS", "").strip()
     candidates: list[str] = []
     for raw in [raw_primary, raw_fallbacks, ",".join(DEFAULT_AAVE_RPC_CANDIDATES)]:
