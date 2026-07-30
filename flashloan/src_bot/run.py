@@ -2,6 +2,7 @@
 import importlib
 import os
 import sys
+import threading
 
 from core.env_loader import load_env_files
 
@@ -51,14 +52,24 @@ def main() -> int:
 
         from web.control_panel import app, initialize_liquidation_runtime
 
-        initialize_liquidation_runtime()
-
     except Exception as exc:
         print(f"startup failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"opportunity console listening on 0.0.0.0:{port}")
-    print(f"control panel: http://127.0.0.1:{port}")
+    def initialize_runtime_background() -> None:
+        try:
+            initialize_liquidation_runtime()
+        except Exception as exc:
+            print(f"liquidation runtime initialization failed: {exc}", file=sys.stderr, flush=True)
+
+    threading.Thread(
+        target=initialize_runtime_background,
+        name="liquidation-runtime-init",
+        daemon=True,
+    ).start()
+
+    print(f"opportunity console listening on 0.0.0.0:{port}", flush=True)
+    print(f"control panel: http://127.0.0.1:{port}", flush=True)
     app.run(host="0.0.0.0", port=port, threaded=True, use_reloader=False)
     return 0
 
