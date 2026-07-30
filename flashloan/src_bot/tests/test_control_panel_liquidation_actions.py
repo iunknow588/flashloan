@@ -67,6 +67,38 @@ def test_liquidation_account_preflight_api_returns_static_call_status(monkeypatc
     assert data["preflight"]["static_call_passed"] is True
 
 
+def test_liquidation_preflight_path_api_returns_static_call_status(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_payload_for_account",
+        lambda account: {"account": account, "preflight": {"static_call_required": True}},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "simulate_liquidation_static_call",
+        lambda payload: {
+            **payload,
+            "state": "static_call_passed",
+            "preflight": {
+                **payload["preflight"],
+                "static_call_status": "passed",
+                "static_call_passed": True,
+            },
+        },
+    )
+
+    response = app.test_client().get(
+        "/api/liquidation/preflight/0x0000000000000000000000000000000000000001"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["account"] == "0x0000000000000000000000000000000000000001"
+    assert data["preflight"]["static_call_passed"] is True
+
+
 def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypatch):
     from web import control_panel
 

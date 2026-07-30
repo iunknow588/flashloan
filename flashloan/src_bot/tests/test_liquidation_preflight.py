@@ -96,3 +96,15 @@ def test_liquidation_submission_blocks_config_errors():
     assert "private_key_mismatch" in state["blocked_reasons"]
     assert state["checks"]["config_valid"] is False
     assert state["checks"]["chain_id"] == 1
+
+
+def test_liquidation_submission_blocks_expired_deadline():
+    current = datetime(2026, 7, 30, 10, 0, 0, tzinfo=timezone.utc)
+    payload = base_payload()
+    payload["request"]["deadline"] = str(int(current.timestamp()) - 1)
+
+    state = evaluate_liquidation_submission(payload, base_controls(), now=current)
+
+    assert state["submission_allowed"] is False
+    assert "payload_expired" in state["blocked_reasons"]
+    assert state["checks"]["deadline"] == int(current.timestamp()) - 1

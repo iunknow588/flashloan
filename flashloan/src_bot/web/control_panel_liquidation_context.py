@@ -1,3 +1,4 @@
+from web import control_panel_liquidation_audit as liquidation_audit_module
 from web import control_panel_liquidation_base as liquidation_base_module
 from web import control_panel_liquidation_execute as liquidation_execute_module
 from web import control_panel_liquidation_scan as liquidation_scan_module
@@ -7,8 +8,8 @@ _base_liquidation_account_registry_window = liquidation_base_module.liquidation_
 _base_schema_status_payload = liquidation_base_module.schema_status_payload
 _base_liquidation_discovery_progress = liquidation_base_module.liquidation_discovery_progress
 _base_liquidation_discovery_window = liquidation_base_module.liquidation_discovery_window
-_base_recent_liquidation_execution_attempts = liquidation_base_module.recent_liquidation_execution_attempts
-_base_record_liquidation_execution_attempt_safely = liquidation_base_module.record_liquidation_execution_attempt_safely
+_audit_recent_liquidation_execution_attempts = liquidation_audit_module.recent_liquidation_execution_attempts
+_audit_record_liquidation_execution_attempt_safely = liquidation_audit_module.record_liquidation_execution_attempt_safely
 _scan_discover_and_sync_liquidation_accounts = liquidation_scan_module.discover_and_sync_liquidation_accounts
 _scan_liquidation_health_payload = liquidation_scan_module.liquidation_health_payload
 _scan_liquidation_account_payload = liquidation_scan_module.liquidation_account_payload
@@ -64,7 +65,7 @@ CONTEXT_NAMES = [
 
 def install_liquidation_context(panel) -> None:
     def sync_liquidation_module_context() -> None:
-        for module in (liquidation_base_module, liquidation_scan_module, liquidation_execute_module):
+        for module in (liquidation_base_module, liquidation_audit_module, liquidation_scan_module, liquidation_execute_module):
             for name in CONTEXT_NAMES:
                 if hasattr(panel, name):
                     setattr(module, name, getattr(panel, name))
@@ -95,11 +96,11 @@ def install_liquidation_context(panel) -> None:
 
     def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
         sync_liquidation_module_context()
-        return _base_recent_liquidation_execution_attempts(limit=limit)
+        return _audit_recent_liquidation_execution_attempts(limit=limit)
 
     def record_liquidation_execution_attempt_safely(**kwargs):
         sync_liquidation_module_context()
-        return _base_record_liquidation_execution_attempt_safely(**kwargs)
+        return _audit_record_liquidation_execution_attempt_safely(**kwargs)
 
     def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
         sync_liquidation_module_context()

@@ -64,10 +64,12 @@ from web.control_panel_data import (
 )
 from web.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
 from web.control_panel_liquidation_base import *
+from web.control_panel_liquidation_audit import *
 from web.control_panel_liquidation_scan import *
 from web.control_panel_liquidation_execute import *
 from web.control_panel_market import *
 from web.control_panel_liquidation_context import install_liquidation_context
+from web.control_panel_liquidation_routes import register_liquidation_routes
 from web.control_panel_control_routes import register_control_routes
 from web.control_panel_data_routes import register_data_routes
 from web.control_panel_page_routes import register_page_routes
@@ -542,6 +544,7 @@ def render_control_panel() -> str:
 
 install_liquidation_context(sys.modules[__name__])
 register_page_routes(app, sys.modules[__name__])
+register_liquidation_routes(app, sys.modules[__name__])
 register_data_routes(app, sys.modules[__name__])
 register_control_routes(app, sys.modules[__name__])
 

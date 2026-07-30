@@ -105,6 +105,14 @@ def evaluate_liquidation_submission(
     if built_age is not None and built_age > max_payload_age:
         _append_once(blocked, "payload_expired")
 
+    try:
+        deadline = int(request.get("deadline") or 0)
+    except (TypeError, ValueError):
+        deadline = 0
+    current_timestamp = int((now or utc_now()).timestamp())
+    if deadline > 0 and deadline <= current_timestamp:
+        _append_once(blocked, "payload_expired")
+
     quote_age = age_seconds(dex_quote.get("quote_at"), now=now)
     max_quote_age = int(controls.get("max_quote_age_seconds") or DEFAULT_MAX_QUOTE_AGE_SECONDS)
     if dex_quote and quote_age is not None and quote_age > max_quote_age:
@@ -128,6 +136,8 @@ def evaluate_liquidation_submission(
             "min_profit_required": min_required_profit,
             "payload_age_seconds": built_age,
             "max_payload_age_seconds": max_payload_age,
+            "deadline": deadline,
+            "current_timestamp": current_timestamp,
             "quote_age_seconds": quote_age,
             "max_quote_age_seconds": max_quote_age,
             "config_valid": controls.get("config_valid"),
