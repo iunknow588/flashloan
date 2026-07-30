@@ -32,6 +32,10 @@ interface IJoeRouterLike {
     ) external returns (uint256[] memory amounts);
 }
 
+interface IERC20BalanceLike {
+    function balanceOf(address account) external view returns (uint256);
+}
+
 interface IFlashLoanSimpleReceiverLike {
     function executeOperation(
         address asset,
@@ -79,9 +83,13 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         uint256 premium,
         uint256 profit
     );
+    event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
+    event NativeWithdrawn(address indexed to, uint256 amount);
+    event TokenSweptToUSDC(address indexed token, uint256 amountIn, uint256 amountOut);
 
     address public immutable pool;
     address public immutable router;
+    address public immutable usdc;
     address public owner;
     bool public paused;
 
@@ -95,10 +103,11 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         _;
     }
 
-    constructor(address poolAddress, address routerAddress, address initialOwner) {
-        if (poolAddress == address(0) || routerAddress == address(0)) revert InvalidRequest();
+    constructor(address poolAddress, address routerAddress, address usdcAddress, address initialOwner) {
+        if (poolAddress == address(0) || routerAddress == address(0) || usdcAddress == address(0)) revert InvalidRequest();
         pool = poolAddress;
         router = routerAddress;
+        usdc = usdcAddress;
         owner = initialOwner == address(0) ? msg.sender : initialOwner;
         emit OwnershipTransferred(address(0), owner);
     }
@@ -177,8 +186,73 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
     }
 
     function withdrawToken(address token, address to, uint256 amount) external onlyOwner {
+        _withdrawToken(token, to, amount);
+    }
+
+    function withdrawUSDC(address to, uint256 amount) external onlyOwner {
+        _withdrawToken(usdc, to, amount);
+    }
+
+    function withdrawNative(address payable to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert InvalidRequest();
+        if (address(this).balance < amount) revert InvalidRequest();
+        (bool ok, ) = to.call{value: amount}("");
+        if (!ok) revert InvalidRequest();
+        emit NativeWithdrawn(to, amount);
+    }
+
+    function sweepTokenToUSDC(
+        address token,
+        uint256 amountIn,
+        uint256 minUsdcOut,
+        address[] calldata path
+    ) external onlyOwner returns (uint256 amountOut) {
+        return _sweepTokenToUSDC(token, amountIn, minUsdcOut, path);
+    }
+
+    function sweepAllTokenToUSDC(
+        address token,
+        uint256 minUsdcOut,
+        address[] calldata path
+    ) external onlyOwner returns (uint256 amountOut) {
+        if (token == address(0)) revert InvalidRequest();
+        uint256 amountIn = IERC20BalanceLike(token).balanceOf(address(this));
+        if (amountIn == 0) return 0;
+        return _sweepTokenToUSDC(token, amountIn, minUsdcOut, path);
+    }
+
+    receive() external payable {}
+
+    function _withdrawToken(address token, address to, uint256 amount) private {
         if (token == address(0) || to == address(0)) revert InvalidRequest();
         IERC20(token).safeTransfer(to, amount);
+        emit TokenWithdrawn(token, to, amount);
+    }
+
+    function _sweepTokenToUSDC(
+        address token,
+        uint256 amountIn,
+        uint256 minUsdcOut,
+        address[] calldata path
+    ) private returns (uint256 amountOut) {
+        if (token == address(0) || amountIn == 0) revert InvalidRequest();
+        if (token == usdc) {
+            if (amountIn < minUsdcOut) revert ProfitTooLow(amountIn, minUsdcOut);
+            emit TokenSweptToUSDC(token, amountIn, amountIn);
+            return amountIn;
+        }
+        if (path.length < 2 || path[0] != token || path[path.length - 1] != usdc) revert InvalidRequest();
+        _forceApprove(token, router, amountIn);
+        uint256[] memory amounts = IJoeRouterLike(router).swapExactTokensForTokens(
+            amountIn,
+            minUsdcOut,
+            path,
+            address(this),
+            block.timestamp
+        );
+        amountOut = amounts[amounts.length - 1];
+        emit TokenSweptToUSDC(token, amountIn, amountOut);
+        return amountOut;
     }
 
     function _validateRequest(LiquidationRequest memory request) private view {

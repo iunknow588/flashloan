@@ -405,6 +405,13 @@ def _debt_amount_to_base(debt_amount: int, debt_info: dict[str, Any]) -> float:
     return 0.0
 
 
+def _token_amount(raw_amount: int, decimals: int) -> float:
+    try:
+        return float(raw_amount) / float(10 ** int(decimals))
+    except Exception:
+        return 0.0
+
+
 def liquidation_repay_base_and_source(info: dict[str, Any], config: LiquidationScanConfig) -> tuple[float, str, float]:
     debt_info = info.get("debt_info") or {}
     amount_to_pass = int(info.get("amount_to_pass_to_liquidation_call") or 0)
@@ -464,14 +471,32 @@ def get_user_positions(
             ).call()
         except Exception:
             continue
+        decimals = int(asset.get("decimals") or 18)
+        current_a_token_balance = int(_tuple_value(raw, 0) or 0)
+        current_stable_debt = int(_tuple_value(raw, 1) or 0)
+        current_variable_debt = int(_tuple_value(raw, 2) or 0)
+        oracle_price = float(asset.get("oracle_price") or 0.0)
+        collateral_amount = _token_amount(current_a_token_balance, decimals)
+        stable_debt_amount = _token_amount(current_stable_debt, decimals)
+        variable_debt_amount = _token_amount(current_variable_debt, decimals)
+        total_debt_amount = stable_debt_amount + variable_debt_amount
         position = {
             "symbol": str(asset.get("binance_symbol") or asset.get("token_symbol") or "").upper(),
             "token_address": Web3.to_checksum_address(token_address),
             "token_symbol": str(asset.get("token_symbol") or "").upper(),
             "binance_symbol": str(asset.get("binance_symbol") or "").upper(),
-            "current_a_token_balance": int(_tuple_value(raw, 0) or 0),
-            "current_stable_debt": int(_tuple_value(raw, 1) or 0),
-            "current_variable_debt": int(_tuple_value(raw, 2) or 0),
+            "decimals": decimals,
+            "oracle_price": oracle_price,
+            "current_token_price": oracle_price,
+            "current_a_token_balance": current_a_token_balance,
+            "current_stable_debt": current_stable_debt,
+            "current_variable_debt": current_variable_debt,
+            "collateral_amount": collateral_amount,
+            "stable_debt_amount": stable_debt_amount,
+            "variable_debt_amount": variable_debt_amount,
+            "total_debt_amount": total_debt_amount,
+            "collateral_value_base": collateral_amount * oracle_price,
+            "debt_value_base": total_debt_amount * oracle_price,
             "principal_stable_debt": int(_tuple_value(raw, 3) or 0),
             "scaled_variable_debt": int(_tuple_value(raw, 4) or 0),
             "stable_borrow_rate": int(_tuple_value(raw, 5) or 0),
@@ -525,19 +550,37 @@ def build_liquidation_candidates(
                 repay_fraction=repay_fraction,
             )
             profit["repay_base_source"] = repay_base_source
+            collateral_decimals = int(collateral.get("decimals") or 18)
+            debt_decimals = int(debt.get("decimals") or 18)
+            max_collateral = int(info["max_collateral_to_liquidate"])
+            max_debt = int(info["max_debt_to_liquidate"])
+            amount_to_pass = int(info["amount_to_pass_to_liquidation_call"])
             candidates.append(
                 {
                     "collateral_asset": collateral["token_address"],
                     "collateral_symbol": collateral["symbol"],
+                    "collateral_token_symbol": collateral.get("token_symbol") or collateral["symbol"],
+                    "collateral_decimals": collateral_decimals,
+                    "collateral_price": float(collateral.get("oracle_price") or 0.0),
+                    "collateral_amount": float(collateral.get("collateral_amount") or 0.0),
+                    "collateral_value_base": float(collateral.get("collateral_value_base") or 0.0),
                     "debt_asset": debt["token_address"],
                     "debt_symbol": debt["symbol"],
+                    "debt_token_symbol": debt.get("token_symbol") or debt["symbol"],
+                    "debt_decimals": debt_decimals,
+                    "debt_price": float(debt.get("oracle_price") or 0.0),
+                    "debt_amount": float(debt.get("total_debt_amount") or 0.0),
+                    "debt_value_base": float(debt.get("debt_value_base") or 0.0),
                     "user_info": user_info,
                     "collateral_info": info["collateral_info"],
                     "debt_info": info["debt_info"],
-                    "max_collateral_to_liquidate": info["max_collateral_to_liquidate"],
-                    "max_debt_to_liquidate": info["max_debt_to_liquidate"],
+                    "max_collateral_to_liquidate": max_collateral,
+                    "max_collateral_to_liquidate_amount": _token_amount(max_collateral, collateral_decimals),
+                    "max_debt_to_liquidate": max_debt,
+                    "max_debt_to_liquidate_amount": _token_amount(max_debt, debt_decimals),
                     "liquidation_protocol_fee": info["liquidation_protocol_fee"],
-                    "amount_to_pass_to_liquidation_call": info["amount_to_pass_to_liquidation_call"],
+                    "amount_to_pass_to_liquidation_call": amount_to_pass,
+                    "amount_to_pass_to_liquidation_call_amount": _token_amount(amount_to_pass, debt_decimals),
                     "repay_base_source": repay_base_source,
                     "estimated_profit": profit,
                 }
@@ -642,12 +685,23 @@ def build_user_liquidation_report(
             {
                 "account": checksum_user,
                 "symbol": row["symbol"],
+                "token_symbol": row.get("token_symbol"),
+                "token_address": row.get("token_address"),
+                "decimals": row.get("decimals"),
+                "oracle_price": row.get("oracle_price"),
+                "current_token_price": row.get("current_token_price"),
                 "health_factor": health_factor,
                 "health_factor_band": health_factor_band(health_factor),
                 "status": "liquidatable" if health_factor < 1.0 else ("warning" if health_factor < config.warning_health_factor else "healthy"),
                 "collateral_balance": row["current_a_token_balance"],
+                "collateral_amount": row.get("collateral_amount"),
+                "collateral_value_base": row.get("collateral_value_base"),
                 "stable_debt": row["current_stable_debt"],
+                "stable_debt_amount": row.get("stable_debt_amount"),
                 "variable_debt": row["current_variable_debt"],
+                "variable_debt_amount": row.get("variable_debt_amount"),
+                "total_debt_amount": row.get("total_debt_amount"),
+                "debt_value_base": row.get("debt_value_base"),
                 "usage_as_collateral_enabled": row["usage_as_collateral_enabled"],
             }
             for row in positions

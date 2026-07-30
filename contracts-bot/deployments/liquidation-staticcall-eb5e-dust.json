@@ -1,0 +1,16 @@
+{
+  "executor": "0x92FFAaEdB8ce8bacd3b0d6699E3539f8709E98Da",
+  "request": {
+    "user": "0xEB5eAeB811896ac0bEf742e272A4c156D9D8A692",
+    "collateralAsset": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    "debtAsset": "0x152b9d0FdC40C096757F570A51E494bd4b943E50",
+    "debtToCover": "2",
+    "minCollateralSwapOut": "0",
+    "minProfitAmount": "0",
+    "deadline": "9999999999",
+    "swapPath": [
+      "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "0x152b9d0FdC40C096757F570A51E494bd4b943E50"
+    ]
+  }
+}

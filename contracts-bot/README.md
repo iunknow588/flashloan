@@ -25,7 +25,7 @@ Copy `.env.example` to `.env` and set `DEPLOYER_PRIVATE_KEY` before deploying.
 To simulate from a generated payload file:
 
 ```powershell
-npx hardhat run scripts/simulate-liquidation.js --network avalanche -- --payload payload.json
+npm run simulate:liquidation -- --payload payload.json
 ```
 
 ## Pre-Execution Rule
@@ -43,3 +43,5 @@ expected profit > premium + gas + slippage buffer + MEV buffer + rounding buffer
 ```
 
 `debtToCover` must come from Aave-aware liquidation math or a successful fork/static simulation. Do not hard-code a 50% close factor.
+
+The executor also expects the configured `USDC_ADDRESS`/`FUJI_USDC_ADDRESS` so it can sweep profits back into the base asset before withdrawal.
