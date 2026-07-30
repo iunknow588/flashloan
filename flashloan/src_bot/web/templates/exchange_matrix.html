@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>兑换矩阵复盘</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1280px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button, select { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; margin-bottom: 18px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.45; margin-bottom: 18px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .chip { border: 1px solid #d0d5dd; border-radius: 6px; padding: 4px 8px; background: #fff; font-size: 12px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>兑换矩阵复盘</h1>
+    <nav><a href="/">主控制台</a><a href="/exchange-matrix">兑换矩阵</a><a href="/liquidation">Aave 清算</a></nav>
+    <div id="message"></div>
+  </header>
+  <main>
+    <div class="notice">
+      本页用于观察器产生速度窗口后，复盘 top/bottom 候选之间的套利兑换路径。它不参与清算机器人提交判断；清算执行请以 Aave 清算页的 HF、quote、static call、blocked reasons 和 operator net profit 为准。
+    </div>
+    <section class="card">
+      <small>触发场景</small>
+      <div class="chips">
+        <span class="chip">观察器已运行</span>
+        <span class="chip">已有速度窗口 timepoint</span>
+        <span class="chip">用于套利候选复盘</span>
+        <span class="chip">不用于清算执行</span>
+      </div>
+      <div class="toolbar">
+        <select id="timepointSelect"></select>
+        <button class="primary" id="summaryRefreshBtn">刷新矩阵</button>
+      </div>
+      <div id="summaryMeta">未选择时间点。</div>
+      <div class="chips" id="topChips"></div>
+      <div class="chips" id="bottomChips"></div>
+    </section>
+    <section class="card">
+      <small>5×5 兑换路径矩阵</small>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>兑换对</th><th>路径编号</th><th>起始代币（100）</th>
+              <th>第一跳目标代币及数量</th><th>第二跳目标代币及数量</th><th>第三跳目标代币及数量</th><th>第四跳目标代币及数量</th>
+              <th>盈利比例</th>
+            </tr>
+          </thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const zhError = value => String(value || "请求失败")
+      .replace("initialize database and collect velocity windows first", "请先初始化数据库并采集速度窗口。")
+      .replace("no velocity timepoint found", "没有找到速度时间点。")
+      .replace("request failed", "请求失败");
+    const api = async (p,o={}) => { const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d=await r.json(); if(!r.ok) throw new Error(zhError(d.error||"请求失败")); return d; };
+    let refreshingSummary=false, summaryPinned=false;
+    const fmtTime = v => v ? new Date(v).toLocaleString([], {hour12:false}) : "-";
+    const displayAssetSymbol = s => {
+      const value=String(s||"").trim();
+      if(!value)return"-";
+      const stripped=value.replace(/(USDT|USDC)$/i,"");
+      return stripped||value;
+    };
+    const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "NULL";
+    const cellCls = v => Number.isFinite(v) ? (v >= 0 ? "positive" : "negative") : "";
+    function renderChips(id, label, rows){ $(id).innerHTML=`<span class="chip">${label}</span>` + rows.map(x=>`<span class="chip">${displayAssetSymbol(x.symbol)} ${pct(x.change_percent)}</span>`).join(""); }
+    function renderSummary(d){
+      const rows=d.rows||[];
+      const note=d.summary_note?` | ${d.summary_note}`:"";
+      const aaveCount=Number.isFinite(d.aave_row_count)?` | Aave可用组 ${d.aave_row_count}/${d.top?.length||0}*${d.bottom?.length||0}`:"";
+      $("summaryMeta").textContent=d.error||`时间 ${fmtTime(d.observed_at)} | 窗口 ${Number(d.window_seconds||0).toFixed(3)} 秒 | 样本 ${d.sample_count||0} | 行数 ${rows.length}/${d.expected_rows||100}${aaveCount}${note}`;
+      renderChips("topChips","上涨前 5",d.top||[]);
+      renderChips("bottomChips","下跌前 5",d.bottom||[]);
+      $("summaryBody").innerHTML=rows.map(r=>`<tr><td>${r.pair||`${displayAssetSymbol(r.x_symbol)} / ${displayAssetSymbol(r.y_symbol)}`}</td><td>${r.path_no||"-"}</td><td>${r.start_token||"NULL"} ${Number.isFinite(r.start_amount)?r.start_amount.toFixed(2):"NULL"}</td><td>${r.first_hop||"NULL"}</td><td>${r.second_hop||"NULL"}</td><td>${r.third_hop||"NULL"}</td><td>${r.fourth_hop||"NULL"}</td><td class="${cellCls(r.profit_percent)}">${pct(r.profit_percent)}</td></tr>`).join("") || '<tr><td colspan="8">暂无汇总行。</td></tr>';
+    }
+    async function refreshTimepoints(){
+      try{
+        const current=$("timepointSelect").value;
+        const d=await api("/api/velocity-timepoints?limit=200");
+        const timepoints=d.timepoints||[];
+        $("timepointSelect").innerHTML=timepoints.map(x=>`<option value="${x.id}">${fmtTime(x.observed_at)} | ${x.sample_count}</option>`).join("");
+        if(summaryPinned && current && [...$("timepointSelect").options].some(opt=>opt.value===current))$("timepointSelect").value=current;
+        else if(timepoints.length){ $("timepointSelect").value=timepoints[0].id; summaryPinned=false; }
+      }catch(e){ $("message").textContent=e.message; }
+    }
+    async function refreshSummary(){
+      if(refreshingSummary)return;
+      refreshingSummary=true;
+      try{ const id=$("timepointSelect").value; renderSummary(await api(`/api/velocity-summary${id?`?id=${id}`:""}`)); }
+      catch(e){ renderSummary({error:e.message, rows:[], top:[], bottom:[]}); }
+      finally{ refreshingSummary=false; }
+    }
+    $("summaryRefreshBtn").onclick=()=>refreshTimepoints().then(refreshSummary);
+    $("timepointSelect").onchange=()=>{ summaryPinned=true; refreshSummary(); };
+    refreshTimepoints().then(refreshSummary);
+    setInterval(()=>refreshTimepoints().then(refreshSummary),10000);
+  </script>
+</body>
+</html>
