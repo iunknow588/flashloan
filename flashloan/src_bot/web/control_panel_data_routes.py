@@ -1,3 +1,5 @@
+import os
+
 from flask import jsonify, request
 
 PANEL = None
@@ -5,6 +7,26 @@ PANEL = None
 
 def panel_call(name: str, *args, **kwargs):
     return getattr(PANEL, name)(*args, **kwargs)
+
+
+def liquidation_coverage_payload(pool_address: str) -> dict:
+    progress = panel_call("liquidation_discovery_progress", pool_address)
+    latest_to = progress.get("latest_recent_to_block")
+    earliest_from = progress.get("earliest_backfill_from_block")
+    latest_gap_from = None
+    latest_gap_to = None
+    if latest_to is not None and earliest_from is not None and int(earliest_from) > int(latest_to) + 1:
+        latest_gap_from = int(latest_to) + 1
+        latest_gap_to = int(earliest_from) - 1
+    return {
+        "pool_address": pool_address or None,
+        "covered_from_block": earliest_from,
+        "covered_to_block": latest_to,
+        "latest_gap_from_block": latest_gap_from,
+        "latest_gap_to_block": latest_gap_to,
+        "has_gap": latest_gap_from is not None,
+        "progress": progress,
+    }
 
 
 def register_data_routes(app, panel) -> None:
@@ -37,6 +59,25 @@ def register_data_routes(app, panel) -> None:
                 "raw": config,
             }
         )
+
+
+    @app.get("/api/liquidation/config-health")
+    def liquidation_config_health_api():
+        raw_chain_id = request.args.get("chain_id", "").strip()
+        chain_id = int(raw_chain_id) if raw_chain_id else None
+        return jsonify(panel_call("liquidation_config_health", chain_id=chain_id))
+
+
+    @app.get("/api/liquidation/execution-attempts")
+    def liquidation_execution_attempts_api():
+        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        return jsonify(panel_call("recent_liquidation_execution_attempts", limit=limit))
+
+
+    @app.get("/api/liquidation/discovery-coverage")
+    def liquidation_discovery_coverage_api():
+        pool_address = request.args.get("pool", os.getenv("AAVE_POOL_ADDRESS", "")).strip()
+        return jsonify(liquidation_coverage_payload(pool_address))
     
     
     @app.post("/api/liquidation-settings")
@@ -107,7 +148,20 @@ def register_data_routes(app, panel) -> None:
         payload: dict | None = None
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account, require_executor=False)
-            return jsonify(panel_call("execute_self_funded_liquidation_transaction", payload))
+            result = panel_call("execute_self_funded_liquidation_transaction", payload)
+            receipt = result.get("receipt") or {}
+            state = "confirmed_success" if int(receipt.get("status") or 0) == 1 else "confirmed_failed"
+            panel_call(
+                "record_liquidation_execution_attempt_safely",
+                account=account,
+                mode="self_funded",
+                state=state,
+                request_payload=result.get("request") or {},
+                preflight=result.get("preflight") or {},
+                tx_hash=result.get("tx_hash"),
+                receipt=receipt,
+            )
+            return jsonify(result)
         except Exception as exc:
             response = {"error": str(exc), "account": account}
             if isinstance(payload, dict):
@@ -117,11 +171,26 @@ def register_data_routes(app, panel) -> None:
                         "executor": payload.get("executor"),
                         "request": payload.get("request") or {},
                         "preflight": payload.get("preflight") or {},
+                        "state": payload.get("state"),
+                        "submission_allowed": payload.get("submission_allowed"),
+                        "blocked_reasons": payload.get("blocked_reasons") or [],
+                        "checks": payload.get("checks") or {},
                         "account_report": account_report,
                         "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
                         "execution_controls": payload.get("execution_controls") or panel_call("liquidation_execution_controls"),
                     }
                 )
+            panel_call(
+                "record_liquidation_execution_attempt_safely",
+                account=account,
+                mode="self_funded",
+                state=response.get("state") or "submission_failed",
+                blocked_reasons=response.get("blocked_reasons") or [],
+                request_payload=response.get("request") or {},
+                quote=response.get("dex_quote") or {},
+                preflight=response.get("preflight") or {},
+                error=str(exc),
+            )
             return jsonify(response), 400
     
     
@@ -133,7 +202,21 @@ def register_data_routes(app, panel) -> None:
         payload: dict | None = None
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account)
-            return jsonify(panel_call("execute_flashloan_liquidation_transaction", payload))
+            result = panel_call("execute_flashloan_liquidation_transaction", payload)
+            receipt = result.get("receipt") or {}
+            state = "confirmed_success" if int(receipt.get("status") or 0) == 1 else "confirmed_failed"
+            panel_call(
+                "record_liquidation_execution_attempt_safely",
+                account=account,
+                mode="flashloan",
+                state=state,
+                request_payload=result.get("request") or {},
+                quote=result.get("dex_quote") or {},
+                preflight=result.get("preflight") or {},
+                tx_hash=result.get("tx_hash"),
+                receipt=receipt,
+            )
+            return jsonify(result)
         except Exception as exc:
             response = {"error": str(exc), "account": account}
             if isinstance(payload, dict):
@@ -143,11 +226,26 @@ def register_data_routes(app, panel) -> None:
                         "executor": payload.get("executor"),
                         "request": payload.get("request") or {},
                         "preflight": payload.get("preflight") or {},
+                        "state": payload.get("state"),
+                        "submission_allowed": payload.get("submission_allowed"),
+                        "blocked_reasons": payload.get("blocked_reasons") or [],
+                        "checks": payload.get("checks") or {},
                         "account_report": account_report,
                         "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
                         "execution_controls": payload.get("execution_controls") or panel_call("liquidation_execution_controls"),
                     }
                 )
+            panel_call(
+                "record_liquidation_execution_attempt_safely",
+                account=account,
+                mode="flashloan",
+                state=response.get("state") or "submission_failed",
+                blocked_reasons=response.get("blocked_reasons") or [],
+                request_payload=response.get("request") or {},
+                quote=response.get("dex_quote") or {},
+                preflight=response.get("preflight") or {},
+                error=str(exc),
+            )
             return jsonify(response), 400
     
     
@@ -200,12 +298,25 @@ def register_data_routes(app, panel) -> None:
     
     @app.get("/api/db-summary")
     def db_summary():
+        schema = schema_status_payload()
+        pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+        coverage = liquidation_coverage_payload(pool_address)
+        attempts = panel_call("recent_liquidation_execution_attempts", limit=1)
         return jsonify(
             {
                 "rows": observation_count(),
                 "db_counts": database_table_counts(),
                 "trade_stats": safe_latest(lambda: read_trade_stats(configured_database_url())),
                 "testnet_trade_stats": safe_latest(lambda: read_testnet_trade_stats(REPO_ROOT)),
+                "liquidation": {
+                    "schema": {
+                        "configured": schema.get("configured"),
+                        "up_to_date": schema.get("up_to_date"),
+                        "missing_migrations": schema.get("missing_migrations", []),
+                    },
+                    "discovery_coverage": coverage,
+                    "execution_attempts": attempts.get("stats", {}),
+                },
             }
         )
     

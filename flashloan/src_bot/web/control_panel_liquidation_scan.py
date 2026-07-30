@@ -15,6 +15,10 @@ from execution.liquidation_scan import (
 )
 from db.storage import record_liquidation_account_scan
 from web.control_panel_liquidation_base import *
+
+AAVE_RESERVE_SYMBOL_LIMIT = 1000
+
+
 def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
     if not database_url_or_none():
         return {"saved": False, "count": 0, "error": "DATABASE_URL is required"}

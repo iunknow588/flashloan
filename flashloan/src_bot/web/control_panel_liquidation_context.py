@@ -7,6 +7,8 @@ _base_liquidation_account_registry_window = liquidation_base_module.liquidation_
 _base_schema_status_payload = liquidation_base_module.schema_status_payload
 _base_liquidation_discovery_progress = liquidation_base_module.liquidation_discovery_progress
 _base_liquidation_discovery_window = liquidation_base_module.liquidation_discovery_window
+_base_recent_liquidation_execution_attempts = liquidation_base_module.recent_liquidation_execution_attempts
+_base_record_liquidation_execution_attempt_safely = liquidation_base_module.record_liquidation_execution_attempt_safely
 _scan_discover_and_sync_liquidation_accounts = liquidation_scan_module.discover_and_sync_liquidation_accounts
 _scan_liquidation_health_payload = liquidation_scan_module.liquidation_health_payload
 _scan_liquidation_account_payload = liquidation_scan_module.liquidation_account_payload
@@ -37,6 +39,7 @@ CONTEXT_NAMES = [
     "ensure_database_schema",
     "liquidation_account_payload",
     "liquidation_account_registry_window",
+    "liquidation_config_health",
     "liquidation_data_provider_address",
     "liquidation_discovery_progress",
     "liquidation_discovery_window",
@@ -49,6 +52,8 @@ CONTEXT_NAMES = [
     "load_liquidation_account_registry",
     "load_reserve_assets_for_scan",
     "protocol_data_provider_address",
+    "recent_liquidation_execution_attempts",
+    "record_liquidation_execution_attempt_safely",
     "record_liquidation_discovery_window",
     "resolve_discovery_block_range",
     "scan_account_health",
@@ -84,6 +89,18 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _base_liquidation_discovery_window(force_full=force_full)
 
+    def liquidation_config_health(chain_id: int | None = None) -> dict:
+        sync_liquidation_module_context()
+        return liquidation_base_module.liquidation_config_health(chain_id=chain_id)
+
+    def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
+        sync_liquidation_module_context()
+        return _base_recent_liquidation_execution_attempts(limit=limit)
+
+    def record_liquidation_execution_attempt_safely(**kwargs):
+        sync_liquidation_module_context()
+        return _base_record_liquidation_execution_attempt_safely(**kwargs)
+
     def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
         sync_liquidation_module_context()
         return _scan_discover_and_sync_liquidation_accounts(force_full=force_full)
@@ -118,6 +135,9 @@ def install_liquidation_context(panel) -> None:
     panel.schema_status_payload = schema_status_payload
     panel.liquidation_discovery_progress = liquidation_discovery_progress
     panel.liquidation_discovery_window = liquidation_discovery_window
+    panel.liquidation_config_health = liquidation_config_health
+    panel.recent_liquidation_execution_attempts = recent_liquidation_execution_attempts
+    panel.record_liquidation_execution_attempt_safely = record_liquidation_execution_attempt_safely
     panel.discover_and_sync_liquidation_accounts = discover_and_sync_liquidation_accounts
     panel.liquidation_health_payload = liquidation_health_payload
     panel.liquidation_account_payload = liquidation_account_payload

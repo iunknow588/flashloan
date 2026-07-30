@@ -12,6 +12,7 @@ from web3 import Web3
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = SRC_ROOT
+from core.config_schema import liquidation_config_health as build_liquidation_config_health
 from core.env_loader import load_env_files, resolve_env_path
 from execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
 from market.observer import env_urls
@@ -22,8 +23,11 @@ from db.storage import (
     load_liquidation_accounts as db_load_liquidation_accounts,
     liquidation_account_registry_stats as db_liquidation_account_registry_stats,
     liquidation_discovery_scan_progress as db_liquidation_discovery_scan_progress,
+    liquidation_execution_attempt_stats as db_liquidation_execution_attempt_stats,
+    load_recent_liquidation_execution_attempts as db_load_recent_liquidation_execution_attempts,
     prune_liquidation_accounts as db_prune_liquidation_accounts,
     record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
+    record_liquidation_execution_attempt as db_record_liquidation_execution_attempt,
     require_psycopg,
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
@@ -222,12 +226,16 @@ def env_bool(name: str, default: bool) -> bool:
 def liquidation_execution_controls() -> dict:
     max_debt_raw = os.getenv("LIQUIDATION_MAX_DEBT_TO_COVER", "0").strip()
     min_profit_raw = os.getenv("LIQUIDATION_MIN_PROFIT_BASE", "0").strip()
+    config_health = build_liquidation_config_health()
+    config_blocked_reasons = liquidation_config_blocked_reasons(config_health)
     return {
         "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", False),
         "require_static_call": env_bool("LIQUIDATION_REQUIRE_STATIC_CALL", True),
         "self_funded_ready": bool(
             liquidation_self_funded_private_key() and os.getenv("AAVE_POOL_ADDRESS", "").strip()
         ),
+        "owner_configured": bool(liquidation_executor_owner_address()),
+        "private_key_configured": bool(liquidation_executor_private_key()),
         "flashloan_executor_configured": bool(
             liquidation_executor_private_key()
             and liquidation_executor_owner_address()
@@ -238,7 +246,43 @@ def liquidation_execution_controls() -> dict:
         "slippage_bps": int(os.getenv("LIQUIDATION_SWAP_SLIPPAGE_BPS", os.getenv("EXECUTION_SLIPPAGE_BPS", "50"))),
         "priority_fee_gwei": float(os.getenv("LIQUIDATION_EXECUTION_PRIORITY_FEE_GWEI", "1.5")),
         "tx_timeout_seconds": int(os.getenv("LIQUIDATION_EXECUTION_TIMEOUT_SECONDS", "180")),
+        "max_payload_age_seconds": int(os.getenv("LIQUIDATION_MAX_PAYLOAD_AGE_SECONDS", "30")),
+        "max_quote_age_seconds": int(os.getenv("LIQUIDATION_MAX_QUOTE_AGE_SECONDS", "15")),
+        "config_valid": bool(config_health.get("valid")),
+        "config_errors": list(config_health.get("errors") or []),
+        "config_warnings": list(config_health.get("warnings") or []),
+        "config_blocked_reasons": config_blocked_reasons,
+        "chain_id": config_health.get("chain_id"),
+        "expected_chain_id": config_health.get("expected_chain_id"),
     }
+
+
+def liquidation_config_health(chain_id: int | None = None) -> dict:
+    return build_liquidation_config_health(chain_id=chain_id)
+
+
+def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:
+    reasons: list[str] = []
+    for check in config_health.get("checks") or []:
+        if check.get("ok") or check.get("severity") != "error":
+            continue
+        name = str(check.get("name") or "")
+        message = str(check.get("message") or "")
+        if name == "LIQUIDATION_EXECUTOR_ADDRESS":
+            reason = "missing_executor" if "missing" in message else "invalid_executor"
+        elif name == "LIQUIDATION_EXECUTOR_OWNER_ADDRESS":
+            reason = "missing_owner" if "missing" in message else "invalid_owner"
+        elif name == "LIQUIDATION_EXECUTION_PRIVATE_KEY":
+            reason = "private_key_mismatch"
+        elif name == "CHAIN_ID":
+            reason = "chain_id_mismatch"
+        elif name == "AAVE_POOL_ADDRESS":
+            reason = "missing_pool" if "missing" in message else "invalid_pool"
+        else:
+            reason = "config_invalid"
+        if reason not in reasons:
+            reasons.append(reason)
+    return reasons
 
 
 def database_url_or_none() -> Optional[str]:
@@ -334,6 +378,68 @@ def liquidation_discovery_progress(pool_address: str) -> dict:
             "error_count": 0,
             "scanned_block_count": 0,
         }
+
+
+def record_liquidation_execution_attempt_safely(
+    *,
+    account: str | None,
+    mode: str,
+    state: str,
+    blocked_reasons: list[str] | None = None,
+    request_payload: dict | None = None,
+    quote: dict | None = None,
+    preflight: dict | None = None,
+    tx_hash: str | None = None,
+    receipt: dict | None = None,
+    error: str | None = None,
+) -> int | None:
+    database_url = database_url_or_none()
+    if not database_url:
+        return None
+    try:
+        ensure_database_schema(database_url)
+        return db_record_liquidation_execution_attempt(
+            database_url,
+            account=account,
+            mode=mode,
+            state=state,
+            blocked_reasons=blocked_reasons,
+            request_payload=request_payload,
+            quote=quote,
+            preflight=preflight,
+            tx_hash=tx_hash,
+            receipt=receipt,
+            error=error,
+        )
+    except Exception:
+        return None
+
+
+def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"configured": False, "attempts": [], "stats": _empty_execution_attempt_stats()}
+    try:
+        ensure_database_schema(database_url)
+        return {
+            "configured": True,
+            "attempts": db_load_recent_liquidation_execution_attempts(database_url, limit=limit),
+            "stats": db_liquidation_execution_attempt_stats(database_url),
+        }
+    except Exception as exc:
+        return {"configured": True, "error": str(exc), "attempts": [], "stats": _empty_execution_attempt_stats()}
+
+
+def _empty_execution_attempt_stats() -> dict[str, int]:
+    return {
+        "total": 0,
+        "blocked": 0,
+        "submitted": 0,
+        "confirmed_success": 0,
+        "confirmed_failed": 0,
+        "static_call_failed": 0,
+        "errors": 0,
+    }
 
 
 def resolve_discovery_block_range(rpc_url: str, from_block: int, to_block: Optional[int]) -> tuple[int, int, int]:

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from web3 import Web3
 
 from execution.dex_costs import ROUTER_ABI, USDC
+from execution.liquidation_amounts import build_liquidation_amounts
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ def quote_liquidation_collateral_swap(
         raise ValueError("collateral_amount must be positive")
     collateral = _checksum(collateral_asset)
     debt = _checksum(debt_asset)
+    quote_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     if collateral.lower() == debt.lower():
         return {
             "dex_name": "same-token",
@@ -42,6 +45,8 @@ def quote_liquidation_collateral_swap(
             "min_amount_out": str(collateral_amount),
             "path": [],
             "slippage_bps": 0,
+            "quote_block": None,
+            "quote_at": quote_at,
             "viable": True,
         }
 
@@ -62,6 +67,11 @@ def quote_liquidation_collateral_swap(
                 errors.append({"path": path, "error": "quoted output is zero"})
                 continue
             min_out = quoted_out * (10000 - slippage) // 10000
+            quote_block = None
+            try:
+                quote_block = int(w3.eth.block_number)
+            except Exception:
+                quote_block = None
             return {
                 "dex_name": "Trader Joe V2",
                 "router_address": _checksum(router_address),
@@ -70,6 +80,8 @@ def quote_liquidation_collateral_swap(
                 "min_amount_out": str(min_out),
                 "path": path,
                 "slippage_bps": slippage,
+                "quote_block": quote_block,
+                "quote_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "viable": min_out > 0,
             }
         except Exception as exc:
@@ -147,10 +159,17 @@ def build_liquidation_execution_payload(
         "deadline": str(int(deadline)),
         "swapPath": swap_path if collateral_asset.lower() != debt_asset.lower() else [],
     }
+    amounts = build_liquidation_amounts(
+        candidate,
+        debt_to_cover_units=debt_to_cover,
+        min_collateral_swap_out_units=min_collateral_swap_out,
+        min_profit_units=min_profit_amount,
+    )
     return {
         "executor": _checksum(executor_address),
         "router": _checksum(router_address),
         "method": "requestLiquidation",
+        "payload_built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "request": request,
         "preflight": {
             "static_call_required": True,
@@ -164,4 +183,5 @@ def build_liquidation_execution_payload(
             "slippage_bps": int(config.slippage_bps),
         },
         "dex_quote": dex_quote,
+        "amounts": amounts,
     }

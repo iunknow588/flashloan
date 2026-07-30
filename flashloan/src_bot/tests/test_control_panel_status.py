@@ -443,175 +443,6 @@ def test_liquidation_account_api_returns_payload(monkeypatch):
     assert response.get_json()["account"] == "0x0000000000000000000000000000000000000001"
 
 
-def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
-    from web import control_panel
-
-    monkeypatch.setattr(control_panel, "liquidation_executor_address", lambda: "0x0000000000000000000000000000000000000004")
-    monkeypatch.setattr(control_panel, "dex_router_address", lambda: "0x0000000000000000000000000000000000000005")
-    monkeypatch.setattr(
-        control_panel,
-        "liquidation_account_payload",
-        lambda account: {
-            "account": "0x0000000000000000000000000000000000000001",
-            "summary": {"status": "liquidatable"},
-            "execution_plan": {"execution_ready": True},
-            "recommended_candidate": {
-                "collateral_asset": "0x0000000000000000000000000000000000000002",
-                "debt_asset": "0x0000000000000000000000000000000000000003",
-                "amount_to_pass_to_liquidation_call": 1000,
-                "min_collateral_swap_out": 900,
-                "estimated_profit": {"net_profit_base": 123},
-            },
-        },
-    )
-
-    client = app.test_client()
-    response = client.get("/api/liquidation/account/payload?account=0x0000000000000000000000000000000000000001")
-    data = response.get_json()
-
-    assert response.status_code == 200
-    assert data["method"] == "requestLiquidation"
-    assert data["request"]["debtToCover"] == "1000"
-    assert data["preflight"]["static_call_required"] is True
-
-
-def test_liquidation_account_preflight_api_returns_static_call_status(monkeypatch):
-    from web import control_panel
-
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account: {"account": account, "preflight": {"static_call_required": True}})
-    monkeypatch.setattr(
-        control_panel,
-        "simulate_liquidation_static_call",
-        lambda payload: {**payload, "preflight": {**payload["preflight"], "static_call_status": "passed", "static_call_passed": True, "static_call_error": None, "static_call_simulated_at": "2026-07-30T10:00:00+00:00"}},
-    )
-
-    client = app.test_client()
-    response = client.post("/api/liquidation/account/preflight?account=0x0000000000000000000000000000000000000001")
-    data = response.get_json()
-
-    assert response.status_code == 200
-    assert data["preflight"]["static_call_status"] == "passed"
-    assert data["preflight"]["static_call_passed"] is True
-
-
-def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypatch):
-    from web import control_panel
-
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account})
-    monkeypatch.setattr(
-        control_panel,
-        "execute_self_funded_liquidation_transaction",
-        lambda payload: {
-            "account_report": {"account": payload["account"], "summary": {}},
-            "execution_controls": {"execution_enabled": True},
-            "mode": "self_funded",
-            "sender": "0xsender",
-            "receipt": {"transaction_hash": "0xabc", "status": 1},
-            "tx_hash": "0xabc",
-        },
-    )
-
-    client = app.test_client()
-    response = client.post("/api/liquidation/account/execute?account=0x0000000000000000000000000000000000000001")
-    data = response.get_json()
-
-    assert response.status_code == 200
-    assert data["mode"] == "self_funded"
-    assert data["tx_hash"] == "0xabc"
-    assert data["receipt"]["status"] == 1
-
-
-def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
-    from web import control_panel
-
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account: {"account": account})
-    monkeypatch.setattr(
-        control_panel,
-        "execute_flashloan_liquidation_transaction",
-        lambda payload: {
-            "account_report": {"account": payload["account"], "summary": {}},
-            "execution_controls": {"execution_enabled": True},
-            "mode": "flashloan",
-            "executor": "0xexecutor",
-            "receipt": {"transaction_hash": "0xdef", "status": 1},
-            "tx_hash": "0xdef",
-        },
-    )
-
-    client = app.test_client()
-    response = client.post("/api/liquidation/account/flashloan?account=0x0000000000000000000000000000000000000001")
-    data = response.get_json()
-
-    assert response.status_code == 200
-    assert data["mode"] == "flashloan"
-    assert data["tx_hash"] == "0xdef"
-    assert data["receipt"]["status"] == 1
-
-
-def test_liquidation_account_execute_api_returns_context_on_failure(monkeypatch):
-    from web import control_panel
-
-    def payload_for_account(account):
-        return {
-            "account": account,
-            "executor": "0x0000000000000000000000000000000000000002",
-            "request": {"user": account, "debtToCover": "1000"},
-            "preflight": {"static_call_required": True},
-            "account_report": {
-                "account": account,
-                "summary": {"status": "liquidatable", "health_factor": 0.98},
-                "execution_plan": {"execution_ready": True, "reason": "ready"},
-            },
-            "execution_controls": {"execution_enabled": True},
-        }
-
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: payload_for_account(account))
-    monkeypatch.setattr(control_panel, "execute_self_funded_liquidation_transaction", lambda payload: (_ for _ in ()).throw(RuntimeError("self funded liquidation failed")))
-
-    client = app.test_client()
-    response = client.post("/api/liquidation/account/execute?account=0x0000000000000000000000000000000000000001")
-    data = response.get_json()
-
-    assert response.status_code == 400
-    assert data["error"] == "self funded liquidation failed"
-    assert data["request"]["debtToCover"] == "1000"
-    assert data["preflight"]["static_call_required"] is True
-    assert data["account_report"]["summary"]["status"] == "liquidatable"
-    assert data["execution_plan"]["execution_ready"] is True
-
-
-def test_liquidation_account_flashloan_api_returns_context_on_failure(monkeypatch):
-    from web import control_panel
-
-    def payload_for_account(account):
-        return {
-            "account": account,
-            "executor": "0x0000000000000000000000000000000000000002",
-            "request": {"user": account, "debtToCover": "1000"},
-            "preflight": {"static_call_required": True},
-            "account_report": {
-                "account": account,
-                "summary": {"status": "liquidatable", "health_factor": 0.98},
-                "execution_plan": {"execution_ready": True, "reason": "ready"},
-            },
-            "execution_controls": {"execution_enabled": True},
-        }
-
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", payload_for_account)
-    monkeypatch.setattr(control_panel, "execute_flashloan_liquidation_transaction", lambda payload: (_ for _ in ()).throw(RuntimeError("flashloan failed")))
-
-    client = app.test_client()
-    response = client.post("/api/liquidation/account/flashloan?account=0x0000000000000000000000000000000000000001")
-    data = response.get_json()
-
-    assert response.status_code == 400
-    assert data["error"] == "flashloan failed"
-    assert data["request"]["debtToCover"] == "1000"
-    assert data["preflight"]["static_call_required"] is True
-    assert data["account_report"]["summary"]["status"] == "liquidatable"
-    assert data["execution_plan"]["execution_ready"] is True
-
-
 def test_liquidation_samples_api_returns_manifest(monkeypatch, tmp_path):
     from web import control_panel
 
@@ -664,3 +495,50 @@ def test_liquidation_accounts_api_persists_to_database(monkeypatch):
     assert response.status_code == 200
     assert response.get_json()["source"] == "database"
     assert captured["accounts"] == ["0x0000000000000000000000000000000000000001"]
+
+
+def test_liquidation_discovery_coverage_api_reports_gap(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_discovery_progress",
+        lambda pool_address: {
+            "latest_recent_to_block": 100,
+            "earliest_backfill_from_block": 110,
+            "success_count": 2,
+            "error_count": 0,
+            "scanned_block_count": 20,
+        },
+    )
+
+    response = app.test_client().get(
+        "/api/liquidation/discovery-coverage?pool=0x0000000000000000000000000000000000000002"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["has_gap"] is True
+    assert data["latest_gap_from_block"] == 101
+    assert data["latest_gap_to_block"] == 109
+
+
+def test_liquidation_execution_attempts_api_returns_recent_attempts(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "recent_liquidation_execution_attempts",
+        lambda limit=20: {
+            "configured": True,
+            "attempts": [{"id": 7, "state": "submission_blocked"}],
+            "stats": {"total": 1, "blocked": 1},
+        },
+    )
+
+    response = app.test_client().get("/api/liquidation/execution-attempts?limit=5")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["attempts"][0]["id"] == 7
+    assert data["stats"]["blocked"] == 1

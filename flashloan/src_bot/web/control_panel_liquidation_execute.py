@@ -6,8 +6,17 @@ from eth_account import Account
 from web3 import Web3
 
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
+from execution.liquidation_preflight import attach_liquidation_preflight_state
 from web.control_panel_liquidation_base import *
 from web.control_panel_liquidation_scan import liquidation_account_payload, scan_context_assets
+
+
+def apply_liquidation_submission_state(payload: dict, *, mode: str = "flashloan") -> dict:
+    controls = payload.get("execution_controls") or liquidation_execution_controls()
+    payload["execution_controls"] = controls
+    return attach_liquidation_preflight_state(payload, controls, mode=mode)
+
+
 def liquidation_execution_payload_for_account(
     account: str,
     deadline_seconds: int = 300,
@@ -47,7 +56,7 @@ def liquidation_execution_payload_for_account(
     payload["preflight"] = preflight
     payload["account_report"] = report
     payload["execution_controls"] = controls
-    return payload
+    return apply_liquidation_submission_state(payload, mode="flashloan")
 
 
 LIQUIDATION_EXECUTOR_ABI = [
@@ -152,7 +161,7 @@ def simulate_liquidation_static_call(payload: dict) -> dict:
         }
     )
     payload["preflight"] = preflight
-    return payload
+    return apply_liquidation_submission_state(payload, mode="flashloan")
 
 
 def _format_tx_receipt(receipt) -> dict:
@@ -167,6 +176,15 @@ def _format_tx_receipt(receipt) -> dict:
 
 def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
     controls = liquidation_execution_controls()
+    payload["execution_controls"] = controls
+    gated_payload = apply_liquidation_submission_state(dict(payload), mode="flashloan")
+    initial_blockers = [
+        reason
+        for reason in gated_payload.get("blocked_reasons", [])
+        if reason not in {"static_call_required", "static_call_failed"}
+    ]
+    if initial_blockers:
+        raise RuntimeError(f"submission blocked: {', '.join(initial_blockers)}")
     if not controls["execution_enabled"]:
         raise RuntimeError("LIQUIDATION_EXECUTION_ENABLED is false")
 
@@ -183,6 +201,9 @@ def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
         raise RuntimeError(asset_error or "unable to resolve rpc_url")
 
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
+    chain_health = liquidation_config_health(chain_id=int(w3.eth.chain_id))
+    if not chain_health.get("valid"):
+        raise RuntimeError(f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}")
     account = Account.from_key(private_key)
     checksum_sender = Web3.to_checksum_address(account.address)
     if checksum_sender.lower() != Web3.to_checksum_address(owner_address).lower():
@@ -190,6 +211,10 @@ def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
 
     preflight = simulate_liquidation_static_call(dict(payload))
     preflight_info = preflight.get("preflight") or {}
+    preflight = apply_liquidation_submission_state(preflight, mode="flashloan")
+    blockers = preflight.get("blocked_reasons", [])
+    if blockers:
+        raise RuntimeError(f"submission blocked: {', '.join(blockers)}")
     if controls["require_static_call"] and not preflight_info.get("static_call_passed"):
         raise RuntimeError(preflight_info.get("static_call_error") or "static call preflight failed")
 
@@ -255,6 +280,11 @@ def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
 
 def execute_self_funded_liquidation_transaction(payload: dict) -> dict:
     controls = liquidation_execution_controls()
+    payload["execution_controls"] = controls
+    gated_payload = apply_liquidation_submission_state(dict(payload), mode="self_funded")
+    blockers = gated_payload.get("blocked_reasons", [])
+    if blockers:
+        raise RuntimeError(f"submission blocked: {', '.join(blockers)}")
     if not controls["execution_enabled"]:
         raise RuntimeError("LIQUIDATION_EXECUTION_ENABLED is false")
 
@@ -281,6 +311,9 @@ def execute_self_funded_liquidation_transaction(payload: dict) -> dict:
         raise ValueError("debtToCover must be greater than zero")
 
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
+    chain_health = liquidation_config_health(chain_id=int(w3.eth.chain_id))
+    if not chain_health.get("valid"):
+        raise RuntimeError(f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}")
     debt_token = w3.eth.contract(address=debt_asset, abi=LIQUIDATION_ERC20_ABI)
     pool = w3.eth.contract(address=pool_address, abi=LIQUIDATION_POOL_ABI)
     nonce = w3.eth.get_transaction_count(sender)

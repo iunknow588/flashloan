@@ -68,6 +68,7 @@ from web.control_panel_liquidation_scan import *
 from web.control_panel_liquidation_execute import *
 from web.control_panel_market import *
 from web.control_panel_liquidation_context import install_liquidation_context
+from web.control_panel_control_routes import register_control_routes
 from web.control_panel_data_routes import register_data_routes
 from web.control_panel_page_routes import register_page_routes
 from db.storage import (
@@ -542,119 +543,7 @@ def render_control_panel() -> str:
 install_liquidation_context(sys.modules[__name__])
 register_page_routes(app, sys.modules[__name__])
 register_data_routes(app, sys.modules[__name__])
-
-
-@app.post("/api/start")
-def start():
-    global observer_starting, observer_start_error, selected_symbols
-    if quick_observer_running():
-        set_observer_progress("running", "观察器已在运行", 100)
-        set_control_status("success", "启动观察器", "启动观察器已经执行", 100)
-        return jsonify({"running": True, "starting": False, "pid": quick_observer_pid(), "symbols": velocity_start_symbols()})
-    with observer_start_lock:
-        if observer_starting:
-            return jsonify({"running": False, "starting": True, "symbols": velocity_start_symbols()}), 202
-        try:
-            configured_database_url()
-        except Exception as exc:
-            observer_start_error = str(exc)
-            set_observer_progress("error", str(exc), 0)
-            set_control_status("error", "启动观察器", f"启动观察器执行失败：{exc}", 0)
-            return jsonify({"error": str(exc)}), 400
-        _, symbols = build_observer_env()
-        observer_starting = True
-        observer_start_error = None
-        selected_symbols = symbols
-        observer_start_progress["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        set_control_status("initializing", "启动观察器", "启动观察器已经执行", 5)
-        set_observer_progress("initializing", "已提交启动请求", 5)
-    threading.Thread(
-        target=start_observer_background,
-        name="observer-starter",
-        daemon=True,
-    ).start()
-    return jsonify({"running": False, "starting": True, "symbols": selected_symbols}), 202
-
-
-@app.post("/api/init")
-def init_database():
-    set_control_status("initializing", "初始化数据库", "初始化数据库已经执行", 25)
-    try:
-        ensure_database_schema(configured_database_url())
-        counts = database_table_counts()
-    except Exception as exc:
-        message = database_lock_message("初始化数据库", exc)
-        set_control_status("error", "初始化数据库", message, 0)
-        return jsonify({"error": message}), 400
-    set_control_status("success", "初始化数据库", "初始化数据库已经执行", 100)
-    return jsonify({"initialized": True, "rows": observation_count(), "db_counts": counts})
-
-
-@app.post("/api/stop")
-def stop():
-    global observer_process, selected_symbols, observer_starting
-    with observer_start_lock:
-        observer_starting = False
-        set_observer_progress("stopped", "已提交停止请求", 0)
-    set_control_status("initializing", "停止观察器", "停止观察器已经执行", 25)
-    if is_observer_running():
-        if observer_process is not None and observer_process.poll() is None:
-            observer_process.terminate()
-            try:
-                observer_process.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                observer_process.kill()
-                observer_process.wait(timeout=3)
-        else:
-            pid = read_observer_pid()
-            if pid is not None:
-                os.kill(pid, signal.SIGTERM)
-    observer_process = None
-    selected_symbols = []
-    OBSERVER_PID_PATH.unlink(missing_ok=True)
-    set_control_status("success", "停止观察器", "停止观察器已经执行", 100)
-    return jsonify({"running": False})
-
-
-@app.post("/api/clear")
-def clear():
-    set_control_status("initializing", "清空数据库", "清空数据库已经执行", 25)
-    try:
-        ensure_database_schema(configured_database_url())
-        psycopg = require_psycopg()
-        with psycopg.connect(configured_database_url(), connect_timeout=8) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SET LOCAL lock_timeout = '3s'")
-                cursor.execute("SET LOCAL statement_timeout = '10s'")
-                cursor.execute(
-                    "TRUNCATE TABLE observations, binance_price_history, "
-                    "binance_candidate_price_history, binance_pair_price_history, "
-                    "binance_window_extremes, arbitrage_simulations RESTART IDENTITY"
-                )
-    except Exception as exc:
-        message = database_lock_message("清空数据库", exc)
-        set_control_status("error", "清空数据库", message, 0)
-        return jsonify({"error": message}), 400
-    set_control_status("success", "清空数据库", "清空数据库已经执行", 100)
-    return jsonify({"cleared": True, "rows": 0})
-
-
-@app.post("/api/clear-files")
-def clear_files():
-    set_control_status("initializing", "清空文件", "清空文件已经执行", 25)
-    deleted, errors = [], []
-    for path in [APP_DIR / "observations.csv", LATEST_ARBITRAGE_PATH, LATEST_EXTREMES_PATH, LATEST_EXECUTABLE_SIGNAL_PATH]:
-        if path.exists():
-            try:
-                path.unlink()
-                deleted.append(str(path))
-            except OSError as exc:
-                errors.append(f"{path}: {exc}")
-    if errors:
-        set_control_status("error", "清空文件", f"清空文件部分失败：{len(errors)} 个错误", 0)
-    else:
-        set_control_status("success", "清空文件", f"清空文件已经执行，删除 {len(deleted)} 个文件", 100)
-    return jsonify({"deleted": deleted, "errors": errors}), 400 if errors else 200
+register_control_routes(app, sys.modules[__name__])
 
 
 if __name__ == "__main__":

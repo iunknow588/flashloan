@@ -1,195 +1,22 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from web3 import Web3
 
-
-POOL_ACCOUNT_DATA_ABI = [
-    {
-        "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
-        "name": "getUserAccountData",
-        "outputs": [
-            {"internalType": "uint256", "name": "totalCollateralBase", "type": "uint256"},
-            {"internalType": "uint256", "name": "totalDebtBase", "type": "uint256"},
-            {"internalType": "uint256", "name": "availableBorrowsBase", "type": "uint256"},
-            {"internalType": "uint256", "name": "currentLiquidationThreshold", "type": "uint256"},
-            {"internalType": "uint256", "name": "ltv", "type": "uint256"},
-            {"internalType": "uint256", "name": "healthFactor", "type": "uint256"},
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    }
-]
-
-BORROW_EVENT_TOPIC = Web3.keccak(text="Borrow(address,address,address,uint256,uint8,uint256,uint16)").hex()
-
-AAVE_PROTOCOL_DATA_PROVIDER_ABI = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "asset", "type": "address"},
-            {"internalType": "address", "name": "user", "type": "address"},
-        ],
-        "name": "getUserReserveData",
-        "outputs": [
-            {"internalType": "uint256", "name": "currentATokenBalance", "type": "uint256"},
-            {"internalType": "uint256", "name": "currentStableDebt", "type": "uint256"},
-            {"internalType": "uint256", "name": "currentVariableDebt", "type": "uint256"},
-            {"internalType": "uint256", "name": "principalStableDebt", "type": "uint256"},
-            {"internalType": "uint256", "name": "scaledVariableDebt", "type": "uint256"},
-            {"internalType": "uint256", "name": "stableBorrowRate", "type": "uint256"},
-            {"internalType": "uint256", "name": "liquidityRate", "type": "uint256"},
-            {"internalType": "uint40", "name": "stableRateLastUpdated", "type": "uint40"},
-            {"internalType": "bool", "name": "usageAsCollateralEnabled", "type": "bool"},
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [{"internalType": "address", "name": "asset", "type": "address"}],
-        "name": "getReserveTokensAddresses",
-        "outputs": [
-            {"internalType": "address", "name": "aTokenAddress", "type": "address"},
-            {"internalType": "address", "name": "stableDebtTokenAddress", "type": "address"},
-            {"internalType": "address", "name": "variableDebtTokenAddress", "type": "address"},
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-]
-
-LIQUIDATION_DATA_PROVIDER_ABI = [
-    {
-        "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
-        "name": "getUserPositionFullInfo",
-        "outputs": [
-            {
-                "components": [
-                    {"internalType": "uint256", "name": "totalCollateralInBaseCurrency", "type": "uint256"},
-                    {"internalType": "uint256", "name": "totalDebtInBaseCurrency", "type": "uint256"},
-                    {"internalType": "uint256", "name": "availableBorrowsInBaseCurrency", "type": "uint256"},
-                    {"internalType": "uint256", "name": "currentLiquidationThreshold", "type": "uint256"},
-                    {"internalType": "uint256", "name": "ltv", "type": "uint256"},
-                    {"internalType": "uint256", "name": "healthFactor", "type": "uint256"},
-                ],
-                "internalType": "struct UserPositionFullInfo",
-                "name": "",
-                "type": "tuple",
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {"internalType": "address", "name": "user", "type": "address"},
-            {"internalType": "address", "name": "collateralAsset", "type": "address"},
-        ],
-        "name": "getCollateralFullInfo",
-        "outputs": [
-            {
-                "components": [
-                    {"internalType": "uint256", "name": "assetUnit", "type": "uint256"},
-                    {"internalType": "uint256", "name": "price", "type": "uint256"},
-                    {"internalType": "address", "name": "aToken", "type": "address"},
-                    {"internalType": "uint256", "name": "collateralBalance", "type": "uint256"},
-                    {"internalType": "uint256", "name": "collateralBalanceInBaseCurrency", "type": "uint256"},
-                ],
-                "internalType": "struct CollateralFullInfo",
-                "name": "",
-                "type": "tuple",
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {"internalType": "address", "name": "user", "type": "address"},
-            {"internalType": "address", "name": "debtAsset", "type": "address"},
-        ],
-        "name": "getDebtFullInfo",
-        "outputs": [
-            {
-                "components": [
-                    {"internalType": "uint256", "name": "assetUnit", "type": "uint256"},
-                    {"internalType": "uint256", "name": "price", "type": "uint256"},
-                    {"internalType": "address", "name": "variableDebtToken", "type": "address"},
-                    {"internalType": "uint256", "name": "debtBalance", "type": "uint256"},
-                    {"internalType": "uint256", "name": "debtBalanceInBaseCurrency", "type": "uint256"},
-                ],
-                "internalType": "struct DebtFullInfo",
-                "name": "",
-                "type": "tuple",
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {"internalType": "address", "name": "user", "type": "address"},
-            {"internalType": "address", "name": "collateralAsset", "type": "address"},
-            {"internalType": "address", "name": "debtAsset", "type": "address"},
-        ],
-        "name": "getLiquidationInfo",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "components": [
-                            {"internalType": "uint256", "name": "totalCollateralInBaseCurrency", "type": "uint256"},
-                            {"internalType": "uint256", "name": "totalDebtInBaseCurrency", "type": "uint256"},
-                            {"internalType": "uint256", "name": "availableBorrowsInBaseCurrency", "type": "uint256"},
-                            {"internalType": "uint256", "name": "currentLiquidationThreshold", "type": "uint256"},
-                            {"internalType": "uint256", "name": "ltv", "type": "uint256"},
-                            {"internalType": "uint256", "name": "healthFactor", "type": "uint256"},
-                        ],
-                        "internalType": "struct UserPositionFullInfo",
-                        "name": "userInfo",
-                        "type": "tuple",
-                    },
-                    {
-                        "components": [
-                            {"internalType": "uint256", "name": "assetUnit", "type": "uint256"},
-                            {"internalType": "uint256", "name": "price", "type": "uint256"},
-                            {"internalType": "address", "name": "aToken", "type": "address"},
-                            {"internalType": "uint256", "name": "collateralBalance", "type": "uint256"},
-                            {"internalType": "uint256", "name": "collateralBalanceInBaseCurrency", "type": "uint256"},
-                        ],
-                        "internalType": "struct CollateralFullInfo",
-                        "name": "collateralInfo",
-                        "type": "tuple",
-                    },
-                    {
-                        "components": [
-                            {"internalType": "uint256", "name": "assetUnit", "type": "uint256"},
-                            {"internalType": "uint256", "name": "price", "type": "uint256"},
-                            {"internalType": "address", "name": "variableDebtToken", "type": "address"},
-                            {"internalType": "uint256", "name": "debtBalance", "type": "uint256"},
-                            {"internalType": "uint256", "name": "debtBalanceInBaseCurrency", "type": "uint256"},
-                        ],
-                        "internalType": "struct DebtFullInfo",
-                        "name": "debtInfo",
-                        "type": "tuple",
-                    },
-                    {"internalType": "uint256", "name": "maxCollateralToLiquidate", "type": "uint256"},
-                    {"internalType": "uint256", "name": "maxDebtToLiquidate", "type": "uint256"},
-                    {"internalType": "uint256", "name": "liquidationProtocolFee", "type": "uint256"},
-                    {"internalType": "uint256", "name": "amountToPassToLiquidationCall", "type": "uint256"},
-                ],
-                "internalType": "struct LiquidationInfo",
-                "name": "",
-                "type": "tuple",
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-]
+from execution.liquidation_accounts import (
+    discover_borrower_addresses as _discover_borrower_addresses,
+    load_account_addresses,
+    topic_to_address,
+    write_account_addresses,
+)
+from execution.liquidation_abis import (
+    AAVE_PROTOCOL_DATA_PROVIDER_ABI,
+    BORROW_EVENT_TOPIC,
+    LIQUIDATION_DATA_PROVIDER_ABI,
+    POOL_ACCOUNT_DATA_ABI,
+)
 
 
 @dataclass(frozen=True)
@@ -207,92 +34,10 @@ class LiquidationScanConfig:
     close_factor: float = 0.5
 
 
-def load_account_addresses(path: str | Path) -> list[str]:
-    raw_path = Path(path)
-    if not raw_path.exists():
-        return []
-    if raw_path.suffix.lower() == ".json":
-        data = json.loads(raw_path.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            data = data.get("accounts") or data.get("addresses") or []
-        items = data if isinstance(data, list) else []
-    else:
-        items = [line.strip() for line in raw_path.read_text(encoding="utf-8").splitlines()]
-    addresses: list[str] = []
-    for item in items:
-        if not item:
-            continue
-        try:
-            checksum = Web3.to_checksum_address(str(item))
-        except ValueError:
-            continue
-        if checksum not in addresses:
-            addresses.append(checksum)
-    return addresses
-
-
-def write_account_addresses(path: str | Path, addresses: Iterable[str]) -> list[str]:
-    raw_path = Path(path)
-    unique_addresses = []
-    for item in addresses:
-        try:
-            checksum = Web3.to_checksum_address(str(item))
-        except ValueError:
-            continue
-        if checksum not in unique_addresses:
-            unique_addresses.append(checksum)
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_path.write_text("\n".join(unique_addresses) + ("\n" if unique_addresses else ""), encoding="utf-8")
-    return unique_addresses
-
-
-def topic_to_address(topic) -> str:
-    raw = topic.hex() if hasattr(topic, "hex") else str(topic)
-    raw = raw[2:] if raw.startswith("0x") else raw
-    if len(raw) < 40:
-        return ""
-    return Web3.to_checksum_address("0x" + raw[-40:])
-
-
-def discover_borrower_addresses(
-    rpc_url: str,
-    pool_address: str,
-    from_block: int,
-    to_block: Optional[int] = None,
-    chunk_size: int = 50_000,
-    limit: int = 5000,
-) -> list[str]:
-    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
-    latest_block = int(w3.eth.block_number)
-    raw_start_block = int(from_block)
-    start_block = max(0, latest_block + raw_start_block) if raw_start_block < 0 else max(0, raw_start_block)
-    raw_end_block = latest_block if to_block is None else int(to_block)
-    end_limit = max(0, latest_block + raw_end_block) if raw_end_block < 0 else min(latest_block, raw_end_block)
-    if start_block > end_limit:
-        return []
-    chunk = max(1, min(int(chunk_size), 50_000))
-    unique_addresses: list[str] = []
-    result_limit = max(1, int(limit))
-    current = start_block
-    while current <= end_limit:
-        end_block = min(end_limit, current + chunk - 1)
-        logs = w3.eth.get_logs(
-            {
-                "address": Web3.to_checksum_address(pool_address),
-                "fromBlock": current,
-                "toBlock": end_block,
-                "topics": [BORROW_EVENT_TOPIC],
-            }
-        )
-        for log in logs:
-            topics = log.get("topics") or []
-            if len(topics) < 3:
-                continue
-            borrower = topic_to_address(topics[2])
-            if borrower and borrower not in unique_addresses and len(unique_addresses) < result_limit:
-                unique_addresses.append(borrower)
-        current = end_block + 1
-    return unique_addresses
+def discover_borrower_addresses(*args, **kwargs) -> list[str]:
+    kwargs.setdefault("event_topic", BORROW_EVENT_TOPIC)
+    kwargs.setdefault("web3_class", Web3)
+    return _discover_borrower_addresses(*args, **kwargs)
 
 
 def classify_health_factor(health_factor: float, warning_threshold: float, liquidation_threshold: float) -> str:

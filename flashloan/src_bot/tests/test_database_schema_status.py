@@ -28,7 +28,8 @@ def test_database_table_counts_includes_liquidation_and_schema_status(monkeypatc
         captured["database_url"] = database_url
         captured["query"] = query
         captured["params"] = params
-        return (1, 2, 3, 4, 5, 6, 7, 8, 9, 1, "2026-07-30 00:00:00+00", 1)
+        migration_count = len(EXPECTED_SCHEMA_MIGRATION_IDS)
+        return (1, 2, 3, 4, 5, 6, 7, 8, 9, migration_count, "2026-07-30 00:00:00+00", migration_count)
 
     monkeypatch.setattr(control_panel_data, "fetch_one", fake_fetch_one)
 
@@ -38,5 +39,5 @@ def test_database_table_counts_includes_liquidation_and_schema_status(monkeypatc
     assert counts["liquidation_discovery_scans"] == 8
     assert counts["liquidation_account_health_scans"] == 9
     assert counts["schema"]["up_to_date"] is True
-    assert counts["total"] == 46
+    assert counts["total"] == 45 + len(EXPECTED_SCHEMA_MIGRATION_IDS)
     assert captured["params"] == (list(EXPECTED_SCHEMA_MIGRATION_IDS),)
