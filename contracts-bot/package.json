@@ -1,0 +1,21 @@
+{
+  "name": "flashloan-liquidation-bot-contracts",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:fork": "hardhat test test/fork/AaveV3LiquidationExecutor.fork.test.js --network hardhat",
+    "simulate:liquidation": "hardhat run scripts/simulate-liquidation.js --network avalanche",
+    "deploy:avalanche": "hardhat run scripts/deploy-liquidation-executor.js --network avalanche",
+    "deploy:fuji": "hardhat run scripts/deploy-liquidation-executor.js --network fuji"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "dotenv": "^17.2.1",
+    "hardhat": "^2.26.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1"
+  }
+}

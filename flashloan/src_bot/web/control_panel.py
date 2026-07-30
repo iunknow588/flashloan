@@ -24,10 +24,12 @@ from execution.liquidation_scan import (
     LiquidationScanConfig,
     build_user_liquidation_report,
     discover_borrower_addresses,
+    load_account_addresses,
     load_reserve_assets_for_scan,
     scan_account_health,
     watched_health_rows,
 )
+from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 from market.aave_reserve_cache import load_aave_reserve_assets
 from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES, env_urls, resolve_aave_binance_overlap_symbols
 from execution.plan_quotes import quote_execution_plan
@@ -63,7 +65,9 @@ from db.storage import (
     ensure_database_schema,
     load_liquidation_accounts as db_load_liquidation_accounts,
     liquidation_account_registry_stats as db_liquidation_account_registry_stats,
+    liquidation_discovery_scan_progress as db_liquidation_discovery_scan_progress,
     prune_liquidation_accounts as db_prune_liquidation_accounts,
+    record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
     record_liquidation_account_scan,
     require_psycopg,
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
@@ -86,6 +90,7 @@ LATEST_EXECUTABLE_SIGNAL_PATH = STATE_DIR / "latest_executable_signal.json"
 LATEST_EXTREMES_PATH = STATE_DIR / "latest_extremes.json"
 AAVE_RESERVE_CACHE_PATH = CACHE_DIR / "aave_reserve_assets.json"
 DEX_BORROW_TARGET_CACHE_PATH = CACHE_DIR / "dex_borrow_targets.json"
+LIQUIDATION_ACCOUNTS_PATH = resolve_env_path("LIQUIDATION_ACCOUNTS_FILE", "runtime/cache/liquidation_accounts.txt", APP_DIR)
 OBSERVER_PID_PATH = RUNTIME_DIR / "observer.pid"
 STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
 LIQUIDATION_CONFIG_PATH = CONFIG_DIR / "liquidation_config.json"
@@ -109,6 +114,9 @@ LIQUIDATION_DISCOVERY_CACHE: dict[str, object] = {
     "started_at": None,
     "finished_at": None,
     "last_result": None,
+    "last_backfill_at": None,
+    "last_backfill_monotonic": 0.0,
+    "historical_cursor_at": None,
 }
 LIQUIDATION_DISCOVERY_LOCK = threading.Lock()
 LIQUIDATION_REFRESH_THREAD: Optional[threading.Thread] = None
@@ -227,6 +235,21 @@ def liquidation_discovery_interval_seconds() -> float:
     )
 
 
+def liquidation_backfill_interval_seconds() -> float:
+    return max(
+        liquidation_discovery_interval_seconds(),
+        float(os.getenv("LIQUIDATION_BACKFILL_INTERVAL_SECONDS", "3600")),
+    )
+
+
+def liquidation_recent_discovery_days() -> float:
+    return max(1.0, float(os.getenv("LIQUIDATION_RECENT_DISCOVERY_DAYS", "7")))
+
+
+def liquidation_backfill_window_days() -> float:
+    return max(1.0, float(os.getenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")))
+
+
 def liquidation_block_seconds() -> float:
     return max(0.1, float(os.getenv("LIQUIDATION_BLOCK_SECONDS", "2.0")))
 
@@ -249,6 +272,14 @@ def protocol_data_provider_address() -> str:
 
 def liquidation_data_provider_address() -> str:
     return os.getenv("AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS", "").strip()
+
+
+def liquidation_executor_address() -> str:
+    return os.getenv("LIQUIDATION_EXECUTOR_ADDRESS", "").strip()
+
+
+def dex_router_address() -> str:
+    return os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
 
 
 def database_url_or_none() -> Optional[str]:
@@ -277,6 +308,11 @@ def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], s
         except Exception:
             accounts = []
             source = "database-error"
+    if not accounts:
+        file_accounts = load_account_addresses(LIQUIDATION_ACCOUNTS_PATH)
+        if file_accounts:
+            accounts = file_accounts
+            source = "file-fallback" if source != "none" else "file"
     LIQUIDATION_ACCOUNT_CACHE["updated_at"] = now
     LIQUIDATION_ACCOUNT_CACHE["accounts"] = list(accounts)
     LIQUIDATION_ACCOUNT_CACHE["source"] = source
@@ -294,11 +330,106 @@ def liquidation_account_registry_window() -> dict:
         return {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": liquidation_retention_days()}
 
 
+def liquidation_discovery_progress(pool_address: str) -> dict:
+    database_url = database_url_or_none()
+    if not database_url or not pool_address:
+        return {
+            "latest_recent_scan_end_at": None,
+            "earliest_backfill_scan_start_at": None,
+            "latest_recent_to_block": None,
+            "earliest_backfill_from_block": None,
+            "success_count": 0,
+            "error_count": 0,
+            "scanned_block_count": 0,
+        }
+    try:
+        ensure_database_schema(database_url)
+        return db_liquidation_discovery_scan_progress(database_url, pool_address)
+    except Exception:
+        return {
+            "latest_recent_scan_end_at": None,
+            "earliest_backfill_scan_start_at": None,
+            "latest_recent_to_block": None,
+            "earliest_backfill_from_block": None,
+            "success_count": 0,
+            "error_count": 0,
+            "scanned_block_count": 0,
+        }
+
+
+def resolve_discovery_block_range(rpc_url: str, from_block: int, to_block: Optional[int]) -> tuple[int, int, int]:
+    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
+    latest_block = int(w3.eth.block_number)
+    start_block = max(0, latest_block + int(from_block)) if int(from_block) < 0 else max(0, int(from_block))
+    if to_block is None:
+        end_block = latest_block
+    else:
+        raw_to_block = int(to_block)
+        end_block = max(0, latest_block + raw_to_block) if raw_to_block < 0 else min(latest_block, raw_to_block)
+    return latest_block, start_block, end_block
+
+
+def record_liquidation_discovery_window(
+    *,
+    mode: str,
+    status: str,
+    rpc_url: str,
+    pool_address: str,
+    from_block: int,
+    to_block: int,
+    scan_start_at: datetime,
+    scan_end_at: datetime,
+    discovered_count: int = 0,
+    error: Optional[str] = None,
+) -> None:
+    database_url = database_url_or_none()
+    if not database_url:
+        return
+    try:
+        ensure_database_schema(database_url)
+        db_record_liquidation_discovery_scan(
+            database_url,
+            mode=mode,
+            status=status,
+            rpc_url=rpc_url,
+            pool_address=pool_address,
+            from_block=from_block,
+            to_block=to_block,
+            scan_start_at=scan_start_at,
+            scan_end_at=scan_end_at,
+            discovered_count=discovered_count,
+            error=error,
+        )
+    except Exception:
+        pass
+
+
+def discovery_window_continuity_error(mode: str, from_block: int, to_block: int, progress: dict) -> Optional[str]:
+    if from_block > to_block:
+        return None
+    if mode == "recent":
+        latest_to = progress.get("latest_recent_to_block")
+        if latest_to is None:
+            return None
+        if int(from_block) <= int(latest_to) + 1:
+            return None
+        return f"recent scan gap: previous to_block {latest_to}, next from_block {from_block}"
+    if mode == "historical-backfill":
+        earliest_from = progress.get("earliest_backfill_from_block")
+        if earliest_from is None:
+            return None
+        if int(to_block) >= int(earliest_from) - 1:
+            return None
+        return f"historical backfill gap: next to_block {to_block}, previous from_block {earliest_from}"
+    return None
+
+
 def sync_liquidation_accounts_to_database(
     accounts: list[str],
     source: str = "manual",
     scan_start_at: Optional[datetime] = None,
     scan_end_at: Optional[datetime] = None,
+    update_existing: bool = True,
 ) -> None:
     database_url = database_url_or_none()
     if not database_url or not accounts:
@@ -311,6 +442,7 @@ def sync_liquidation_accounts_to_database(
         active=True,
         scan_start_at=scan_start_at,
         scan_end_at=scan_end_at,
+        update_existing=update_existing,
     )
     db_prune_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
 
@@ -327,20 +459,35 @@ def parse_iso_datetime(value: object) -> Optional[datetime]:
         return None
 
 
-def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, datetime, int, dict]:
+def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, datetime, int, Optional[int], int, dict, str]:
     now = datetime.now(timezone.utc)
     retained_days = liquidation_retention_days()
     registry = liquidation_account_registry_window()
-    latest_end = parse_iso_datetime(registry.get("latest_scan_end_at"))
+    pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+    progress = liquidation_discovery_progress(pool_address)
+    latest_end = parse_iso_datetime(progress.get("latest_recent_scan_end_at")) or parse_iso_datetime(registry.get("latest_scan_end_at"))
+    earliest_start = parse_iso_datetime(progress.get("earliest_backfill_scan_start_at")) or parse_iso_datetime(registry.get("earliest_scan_start_at"))
+    historical_cursor = parse_iso_datetime(LIQUIDATION_DISCOVERY_CACHE.get("historical_cursor_at")) or earliest_start
     retention_start = now - timedelta(days=retained_days)
-    if force_full or latest_end is None:
-        scan_start_at = retention_start
+    recent_start = now - timedelta(days=liquidation_recent_discovery_days())
+    if force_full:
+        anchor = historical_cursor or earliest_start or recent_start
+        scan_end_at = min(anchor, recent_start)
+        scan_start_at = max(retention_start, scan_end_at - timedelta(days=liquidation_backfill_window_days()))
+        mode = "historical-backfill"
     else:
-        scan_start_at = max(retention_start, latest_end)
-    scan_end_at = now
+        scan_start_at = max(recent_start, latest_end) if latest_end is not None else recent_start
+        scan_end_at = now
+        mode = "recent"
     seconds = max(0.0, (scan_end_at - scan_start_at).total_seconds())
-    lookback_blocks = max(1, int(seconds / liquidation_block_seconds()))
-    return scan_start_at, scan_end_at, lookback_blocks, registry
+    now_for_blocks = datetime.now(timezone.utc)
+    start_lookback_blocks = max(1, int(max(0.0, (now_for_blocks - scan_start_at).total_seconds()) / liquidation_block_seconds()))
+    end_lookback_blocks = int(max(0.0, (now_for_blocks - scan_end_at).total_seconds()) / liquidation_block_seconds())
+    from_block = -start_lookback_blocks
+    to_block = None if end_lookback_blocks <= 0 else -end_lookback_blocks
+    lookback_blocks = max(1, start_lookback_blocks - end_lookback_blocks)
+    registry["discovery_scan_progress"] = progress
+    return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
 
 
 def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
@@ -360,13 +507,27 @@ def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
         pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
         if not pool_address:
             return {"saved": False, "count": 0, "error": "missing AAVE_POOL_ADDRESS"}
-        scan_start_at, scan_end_at, lookback_blocks, registry = liquidation_discovery_window(force_full=force_full)
+        scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode = liquidation_discovery_window(force_full=force_full)
+        if force_full and scan_end_at <= scan_start_at:
+            result = {
+                "saved": False,
+                "count": 0,
+                "skipped": True,
+                "reason": "historical backfill complete",
+                "mode": mode,
+                "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
+                "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
+                "registry_window": registry,
+            }
+            LIQUIDATION_DISCOVERY_CACHE["last_result"] = result
+            return result
         if not force_full and (scan_end_at - scan_start_at).total_seconds() < liquidation_discovery_interval_seconds():
             result = {
                 "saved": False,
                 "count": 0,
                 "skipped": True,
                 "reason": "discovery interval not reached",
+                "mode": mode,
                 "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
                 "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
                 "registry_window": registry,
@@ -377,39 +538,104 @@ def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
         limit = min(liquidation_scan_config().max_candidates, int(os.getenv("LIQUIDATION_BORROW_DISCOVERY_LIMIT", "5000")))
         last_error = None
         for candidate in aave_rpc_urls():
+            actual_from_block = 0
+            actual_to_block = 0
             try:
-                discovered = discover_borrower_addresses(
-                    candidate,
-                    pool_address,
-                    -lookback_blocks,
-                    chunk_size=chunk_size,
-                    limit=limit,
-                )
+                _, actual_from_block, actual_to_block = resolve_discovery_block_range(candidate, from_block, to_block)
+                if actual_from_block > actual_to_block:
+                    discovered = []
+                else:
+                    discovered = discover_borrower_addresses(
+                        candidate,
+                        pool_address,
+                        actual_from_block,
+                        to_block=actual_to_block,
+                        chunk_size=chunk_size,
+                        limit=limit,
+                    )
                 sync_liquidation_accounts_to_database(
                     discovered,
                     source="auto-discovery",
                     scan_start_at=scan_start_at,
                     scan_end_at=scan_end_at,
+                    update_existing=False,
                 )
                 LIQUIDATION_ACCOUNT_CACHE["updated_at"] = 0.0
+                progress = dict((registry.get("discovery_scan_progress") or {}))
+                continuity_error = discovery_window_continuity_error(mode, actual_from_block, actual_to_block, progress)
+                if continuity_error:
+                    result = {
+                        "saved": False,
+                        "count": len(discovered),
+                        "skipped": True,
+                        "reason": continuity_error,
+                        "mode": mode,
+                        "rpc_url": candidate,
+                        "from_block": from_block,
+                        "to_block": to_block,
+                        "actual_from_block": actual_from_block,
+                        "actual_to_block": actual_to_block,
+                        "lookback_blocks": lookback_blocks,
+                        "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
+                        "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
+                        "registry_window": registry,
+                    }
+                    LIQUIDATION_DISCOVERY_CACHE["last_result"] = result
+                    return result
+                record_liquidation_discovery_window(
+                    mode=mode,
+                    status="success",
+                    rpc_url=candidate,
+                    pool_address=pool_address,
+                    from_block=actual_from_block,
+                    to_block=actual_to_block,
+                    scan_start_at=scan_start_at,
+                    scan_end_at=scan_end_at,
+                    discovered_count=len(discovered),
+                )
                 result = {
                     "saved": True,
                     "count": len(discovered),
                     "rpc_url": candidate,
+                    "mode": mode,
+                    "from_block": from_block,
+                    "to_block": to_block,
+                    "actual_from_block": actual_from_block,
+                    "actual_to_block": actual_to_block,
                     "lookback_blocks": lookback_blocks,
                     "retention_days": liquidation_retention_days(),
+                    "recent_discovery_days": liquidation_recent_discovery_days(),
+                    "backfill_window_days": liquidation_backfill_window_days(),
                     "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
                     "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
                     "registry_window": liquidation_account_registry_window(),
                 }
+                if force_full:
+                    LIQUIDATION_DISCOVERY_CACHE["last_backfill_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    LIQUIDATION_DISCOVERY_CACHE["last_backfill_monotonic"] = time.monotonic()
+                    LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = scan_start_at.isoformat(timespec="seconds")
                 LIQUIDATION_DISCOVERY_CACHE["last_result"] = result
                 return result
             except Exception as exc:
                 last_error = str(exc)
+                if actual_from_block <= actual_to_block:
+                    record_liquidation_discovery_window(
+                        mode=mode,
+                        status="error",
+                        rpc_url=candidate,
+                        pool_address=pool_address,
+                        from_block=actual_from_block,
+                        to_block=actual_to_block,
+                        scan_start_at=scan_start_at,
+                        scan_end_at=scan_end_at,
+                        discovered_count=0,
+                        error=last_error,
+                    )
         result = {
             "saved": False,
             "count": 0,
             "error": last_error or "unable to discover borrower addresses",
+            "mode": mode,
             "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
             "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
         }
@@ -451,6 +677,9 @@ def start_liquidation_refresh_loop() -> None:
             try:
                 discover_and_sync_liquidation_accounts(force_full=False)
                 liquidation_health_payload(force=True)
+                last_backfill_at = float(LIQUIDATION_DISCOVERY_CACHE.get("last_backfill_monotonic") or 0.0)
+                if time.monotonic() - last_backfill_at >= liquidation_backfill_interval_seconds():
+                    discover_and_sync_liquidation_accounts(force_full=True)
             except Exception:
                 pass
             LIQUIDATION_REFRESH_STOP.wait(liquidation_scan_interval_seconds())
@@ -518,6 +747,11 @@ def liquidation_health_summary(
         "discovery_finished_at": LIQUIDATION_DISCOVERY_CACHE.get("finished_at"),
         "discovery_last_result": LIQUIDATION_DISCOVERY_CACHE.get("last_result"),
         "discovery_interval_seconds": liquidation_discovery_interval_seconds(),
+        "backfill_interval_seconds": liquidation_backfill_interval_seconds(),
+        "last_backfill_at": LIQUIDATION_DISCOVERY_CACHE.get("last_backfill_at"),
+        "historical_cursor_at": LIQUIDATION_DISCOVERY_CACHE.get("historical_cursor_at"),
+        "recent_discovery_days": liquidation_recent_discovery_days(),
+        "backfill_window_days": liquidation_backfill_window_days(),
     }
 
 
@@ -697,6 +931,27 @@ def liquidation_account_payload(account: str) -> dict:
         "error": asset_error,
     }
     return report
+
+
+def liquidation_execution_payload_for_account(
+    account: str,
+    deadline_seconds: int = 300,
+    allow_zero_min_out: bool = False,
+) -> dict:
+    executor_address = liquidation_executor_address()
+    if not executor_address:
+        raise RuntimeError("missing LIQUIDATION_EXECUTOR_ADDRESS")
+    report = liquidation_account_payload(account)
+    deadline = int(time.time()) + max(30, int(deadline_seconds))
+    payload = build_liquidation_execution_payload(
+        report,
+        executor_address=executor_address,
+        router_address=dex_router_address(),
+        deadline=deadline,
+        config=LiquidationExecutionPayloadConfig(allow_zero_min_collateral_out=allow_zero_min_out),
+    )
+    payload["account_report"] = report
+    return payload
 
 
 def is_observer_running() -> bool:
@@ -1589,6 +1844,25 @@ def liquidation_account_api():
         return jsonify({"error": "account is required"}), 400
     try:
         return jsonify(liquidation_account_payload(account))
+    except Exception as exc:
+        return jsonify({"error": str(exc), "account": account}), 400
+
+
+@app.get("/api/liquidation/account/payload")
+def liquidation_account_payload_api():
+    account = request.args.get("account", "").strip()
+    if not account:
+        return jsonify({"error": "account is required"}), 400
+    try:
+        deadline_seconds = int(request.args.get("deadline_seconds", "300"))
+        allow_zero_min_out = request.args.get("allow_zero_min_out", "").strip().lower() in {"1", "true", "yes"}
+        return jsonify(
+            liquidation_execution_payload_for_account(
+                account,
+                deadline_seconds=deadline_seconds,
+                allow_zero_min_out=allow_zero_min_out,
+            )
+        )
     except Exception as exc:
         return jsonify({"error": str(exc), "account": account}), 400
 

@@ -266,7 +266,10 @@ def discover_borrower_addresses(
     latest_block = int(w3.eth.block_number)
     raw_start_block = int(from_block)
     start_block = max(0, latest_block + raw_start_block) if raw_start_block < 0 else max(0, raw_start_block)
-    end_limit = latest_block if to_block is None else min(latest_block, int(to_block))
+    raw_end_block = latest_block if to_block is None else int(to_block)
+    end_limit = max(0, latest_block + raw_end_block) if raw_end_block < 0 else min(latest_block, raw_end_block)
+    if start_block > end_limit:
+        return []
     chunk = max(1, min(int(chunk_size), 50_000))
     unique_addresses: list[str] = []
     current = start_block

@@ -13,6 +13,7 @@ from execution.liquidation_scan import (
     watched_health_rows,
     split_candidate_accounts,
 )
+from execution.liquidation_payload import build_liquidation_execution_payload
 
 
 def test_load_account_addresses_deduplicates_and_skips_invalid(tmp_path: Path):
@@ -139,3 +140,114 @@ def test_build_liquidation_execution_plan_marks_readiness():
     assert plan["execution_ready"]
     assert plan["profitable"]
     assert plan["reason"] == "ready for execution preflight"
+
+
+def test_near_threshold_healthy_account_is_not_liquidatable(monkeypatch):
+    from execution import liquidation_scan
+
+    account = "0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"
+
+    def fake_fetch(pool_address, account, rpc_url):
+        return {
+            "account": account,
+            "total_collateral_base": 347728081162567,
+            "total_debt_base": 312865305356406,
+            "available_borrows_base": 10521810124781,
+            "current_liquidation_threshold": 9500,
+            "ltv": 9300,
+            "health_factor": 1.0558590915925437,
+        }
+
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data", fake_fetch)
+
+    rows = scan_account_health(
+        [account],
+        "0x794a61358D6845594F94dc1db02a252b5b4814aD",
+        "https://rpc.example",
+        LiquidationScanConfig(warning_health_factor=1.05, liquidation_health_factor=1.0),
+    )
+    plan = build_liquidation_execution_plan(
+        account,
+        rows[0],
+        recommended_candidate=None,
+        config=LiquidationScanConfig(warning_health_factor=1.05, liquidation_health_factor=1.0),
+    )
+
+    assert rows[0]["status"] == "healthy"
+    assert rows[0]["health_factor"] == pytest.approx(1.0558590915925437)
+    assert rows[0]["health_factor"] > 1.0
+    assert plan["liquidation_ready"] is False
+    assert plan["execution_ready"] is False
+
+
+def test_build_liquidation_execution_payload_requires_static_preflight():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "execution_plan": {"execution_ready": True},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "amount_to_pass_to_liquidation_call": 1000,
+            "min_collateral_swap_out": 900,
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    payload = build_liquidation_execution_payload(
+        report,
+        executor_address="0x0000000000000000000000000000000000000004",
+        router_address="0x0000000000000000000000000000000000000005",
+        deadline=123456,
+    )
+
+    assert payload["method"] == "requestLiquidation"
+    assert payload["request"]["debtToCover"] == "1000"
+    assert payload["request"]["minCollateralSwapOut"] == "900"
+    assert payload["request"]["minProfitAmount"] == "113"
+    assert payload["preflight"]["static_call_required"] is True
+
+
+def test_build_liquidation_execution_payload_rejects_healthy_account():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "healthy"},
+        "execution_plan": {"execution_ready": False},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "amount_to_pass_to_liquidation_call": 1000,
+            "min_collateral_swap_out": 900,
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    with pytest.raises(ValueError, match="not liquidatable"):
+        build_liquidation_execution_payload(
+            report,
+            executor_address="0x0000000000000000000000000000000000000004",
+            router_address="0x0000000000000000000000000000000000000005",
+            deadline=123456,
+        )
+
+
+def test_build_liquidation_execution_payload_requires_min_swap_output():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "execution_plan": {"execution_ready": True},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "amount_to_pass_to_liquidation_call": 1000,
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    with pytest.raises(ValueError, match="min_collateral_swap_out"):
+        build_liquidation_execution_payload(
+            report,
+            executor_address="0x0000000000000000000000000000000000000004",
+            router_address="0x0000000000000000000000000000000000000005",
+            deadline=123456,
+        )

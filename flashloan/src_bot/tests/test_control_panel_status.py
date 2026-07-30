@@ -1,7 +1,10 @@
 from web.control_panel import (
     app,
     LIQUIDATION_SCAN_CACHE,
+    LIQUIDATION_DISCOVERY_CACHE,
+    discovery_window_continuity_error,
     liquidation_account_payload,
+    liquidation_discovery_window,
     liquidation_health_payload,
     opportunity_health_rows,
     opportunity_health_summary,
@@ -145,6 +148,171 @@ def test_liquidation_account_registry_prefers_database(monkeypatch):
     assert source == "database"
 
 
+def test_liquidation_account_registry_falls_back_to_file(monkeypatch, tmp_path):
+    from web import control_panel
+
+    account_path = tmp_path / "liquidation_accounts.txt"
+    account_path.write_text(
+        "0x0000000000000000000000000000000000000001\n"
+        "bad\n"
+        "0x0000000000000000000000000000000000000001\n",
+        encoding="utf-8",
+    )
+    control_panel.LIQUIDATION_ACCOUNT_CACHE["updated_at"] = 0.0
+    control_panel.LIQUIDATION_ACCOUNT_CACHE["accounts"] = None
+    control_panel.LIQUIDATION_ACCOUNT_CACHE["source"] = None
+    monkeypatch.setattr(control_panel, "LIQUIDATION_ACCOUNTS_PATH", account_path)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
+    monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
+    monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: [])
+
+    accounts, source = control_panel.load_liquidation_account_registry(force=True)
+
+    assert accounts == ["0x0000000000000000000000000000000000000001"]
+    assert source == "file-fallback"
+
+
+def test_liquidation_discovery_window_scans_recent_week_first(monkeypatch):
+    from web import control_panel
+
+    LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
+    monkeypatch.setenv("LIQUIDATION_RECENT_DISCOVERY_DAYS", "7")
+    monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_registry_window",
+        lambda: {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": 365},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_discovery_progress",
+        lambda pool_address: {"latest_recent_scan_end_at": None, "earliest_backfill_scan_start_at": None, "success_count": 0, "error_count": 0, "scanned_block_count": 0},
+    )
+
+    scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, _, mode = liquidation_discovery_window(force_full=False)
+
+    assert mode == "recent"
+    assert to_block is None
+    assert from_block < 0
+    assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
+    assert 300_000 <= lookback_blocks <= 305_000
+
+
+def test_liquidation_discovery_window_backfills_previous_week(monkeypatch):
+    from web import control_panel
+
+    LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
+    monkeypatch.setenv("LIQUIDATION_RECENT_DISCOVERY_DAYS", "7")
+    monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
+    monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_registry_window",
+        lambda: {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": 365},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_discovery_progress",
+        lambda pool_address: {"latest_recent_scan_end_at": None, "earliest_backfill_scan_start_at": None, "success_count": 0, "error_count": 0, "scanned_block_count": 0},
+    )
+
+    scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, _, mode = liquidation_discovery_window(force_full=True)
+
+    assert mode == "historical-backfill"
+    assert to_block is not None and to_block < 0
+    assert from_block < to_block
+    assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
+    assert 300_000 <= lookback_blocks <= 305_000
+
+
+def test_discovery_window_continuity_allows_connected_or_overlapped_ranges():
+    assert discovery_window_continuity_error(
+        "recent",
+        101,
+        200,
+        {"latest_recent_to_block": 100},
+    ) is None
+    assert discovery_window_continuity_error(
+        "recent",
+        95,
+        200,
+        {"latest_recent_to_block": 100},
+    ) is None
+    assert discovery_window_continuity_error(
+        "historical-backfill",
+        1,
+        99,
+        {"earliest_backfill_from_block": 100},
+    ) is None
+    assert discovery_window_continuity_error(
+        "historical-backfill",
+        1,
+        105,
+        {"earliest_backfill_from_block": 100},
+    ) is None
+
+
+def test_discovery_window_continuity_rejects_gaps():
+    assert discovery_window_continuity_error(
+        "recent",
+        102,
+        200,
+        {"latest_recent_to_block": 100},
+    ) == "recent scan gap: previous to_block 100, next from_block 102"
+    assert discovery_window_continuity_error(
+        "historical-backfill",
+        1,
+        98,
+        {"earliest_backfill_from_block": 100},
+    ) == "historical backfill gap: next to_block 98, previous from_block 100"
+
+
+def test_discovery_writes_accounts_before_rejecting_progress_gap(monkeypatch):
+    from web import control_panel
+
+    captured = {"accounts": None, "progress_records": []}
+    account = "0x0000000000000000000000000000000000000001"
+    control_panel.LIQUIDATION_DISCOVERY_CACHE["last_result"] = None
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000002")
+    monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
+    monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_discovery_window",
+        lambda force_full=False: (
+            __import__("datetime").datetime(2026, 1, 1, tzinfo=__import__("datetime").timezone.utc),
+            __import__("datetime").datetime(2026, 1, 2, tzinfo=__import__("datetime").timezone.utc),
+            -100,
+            None,
+            100,
+            {"discovery_scan_progress": {"latest_recent_to_block": 100}},
+            "recent",
+        ),
+    )
+    monkeypatch.setattr(control_panel, "resolve_discovery_block_range", lambda rpc_url, from_block, to_block: (200, 102, 200))
+    monkeypatch.setattr(control_panel, "discover_borrower_addresses", lambda *args, **kwargs: [account])
+    monkeypatch.setattr(
+        control_panel,
+        "sync_liquidation_accounts_to_database",
+        lambda accounts, source="manual", scan_start_at=None, scan_end_at=None, update_existing=True: captured.update({"accounts": accounts, "update_existing": update_existing}),
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "record_liquidation_discovery_window",
+        lambda **kwargs: captured["progress_records"].append(kwargs),
+    )
+
+    result = control_panel.discover_and_sync_liquidation_accounts(force_full=False)
+
+    assert captured["accounts"] == [account]
+    assert captured["update_existing"] is False
+    assert captured["progress_records"] == []
+    assert result["skipped"] is True
+    assert "gap" in result["reason"]
+
+
 def test_liquidation_account_payload_normalizes_address(monkeypatch):
     from web import control_panel
 
@@ -192,6 +360,50 @@ def test_liquidation_account_api_returns_payload(monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json()["account"] == "0x0000000000000000000000000000000000000001"
+
+
+def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "liquidation_executor_address", lambda: "0x0000000000000000000000000000000000000004")
+    monkeypatch.setattr(control_panel, "dex_router_address", lambda: "0x0000000000000000000000000000000000000005")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_payload",
+        lambda account: {
+            "account": "0x0000000000000000000000000000000000000001",
+            "summary": {"status": "liquidatable"},
+            "execution_plan": {"execution_ready": True},
+            "recommended_candidate": {
+                "collateral_asset": "0x0000000000000000000000000000000000000002",
+                "debt_asset": "0x0000000000000000000000000000000000000003",
+                "amount_to_pass_to_liquidation_call": 1000,
+                "min_collateral_swap_out": 900,
+                "estimated_profit": {"net_profit_base": 123},
+            },
+        },
+    )
+
+    client = app.test_client()
+    response = client.get("/api/liquidation/account/payload?account=0x0000000000000000000000000000000000000001")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["method"] == "requestLiquidation"
+    assert data["request"]["debtToCover"] == "1000"
+    assert data["preflight"]["static_call_required"] is True
+
+
+def test_liquidation_account_payload_api_requires_executor(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "liquidation_executor_address", lambda: "")
+
+    client = app.test_client()
+    response = client.get("/api/liquidation/account/payload?account=0x0000000000000000000000000000000000000001")
+
+    assert response.status_code == 400
+    assert "LIQUIDATION_EXECUTOR_ADDRESS" in response.get_json()["error"]
 
 
 def test_liquidation_accounts_api_persists_to_database(monkeypatch):

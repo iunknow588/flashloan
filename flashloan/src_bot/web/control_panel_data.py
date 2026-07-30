@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from db.storage import require_psycopg
+from db.storage import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
 
 
 def read_json(path: Path) -> Optional[dict]:
@@ -135,10 +135,23 @@ def database_table_counts(database_url: str) -> Optional[dict]:
             (SELECT COUNT(*) FROM binance_candidate_price_history) AS binance_candidate_price_history,
             (SELECT COUNT(*) FROM binance_pair_price_history) AS binance_pair_price_history,
             (SELECT COUNT(*) FROM binance_window_extremes) AS binance_window_extremes,
-            (SELECT COUNT(*) FROM arbitrage_simulations) AS arbitrage_simulations
+            (SELECT COUNT(*) FROM arbitrage_simulations) AS arbitrage_simulations,
+            (SELECT COUNT(*) FROM liquidation_accounts) AS liquidation_accounts,
+            (SELECT COUNT(*) FROM liquidation_discovery_scans) AS liquidation_discovery_scans,
+            (SELECT COUNT(*) FROM liquidation_account_health_scans) AS liquidation_account_health_scans,
+            (SELECT COUNT(*) FROM schema_migrations) AS schema_migrations,
+            (
+                SELECT COALESCE(MAX(applied_at)::TEXT, '')
+                FROM schema_migrations
+            ) AS latest_schema_migration_at,
+            (
+                SELECT COUNT(*)
+                FROM schema_migrations
+                WHERE migration_id = ANY(%s)
+            ) AS expected_schema_migrations_applied
     """
     try:
-        row = fetch_one(database_url, query)
+        row = fetch_one(database_url, query, (list(EXPECTED_SCHEMA_MIGRATION_IDS),))
         if not row:
             return None
         counts = {
@@ -148,8 +161,21 @@ def database_table_counts(database_url: str) -> Optional[dict]:
             "binance_pair_price_history": int(row[3] or 0),
             "binance_window_extremes": int(row[4] or 0),
             "arbitrage_simulations": int(row[5] or 0),
+            "liquidation_accounts": int(row[6] or 0),
+            "liquidation_discovery_scans": int(row[7] or 0),
+            "liquidation_account_health_scans": int(row[8] or 0),
+            "schema_migrations": int(row[9] or 0),
         }
-        counts["total"] = sum(counts.values())
+        table_total = sum(counts.values())
+        expected_count = len(EXPECTED_SCHEMA_MIGRATION_IDS)
+        applied_count = int(row[11] or 0)
+        counts["schema"] = {
+            "latest_migration_at": str(row[10] or ""),
+            "expected_migration_count": expected_count,
+            "expected_migration_applied_count": applied_count,
+            "up_to_date": applied_count == expected_count,
+        }
+        counts["total"] = table_total
         return counts
     except Exception:
         return None

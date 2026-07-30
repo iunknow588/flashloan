@@ -3,6 +3,13 @@ from datetime import datetime, timezone, timedelta
 from typing import Iterable, Any
 
 OBSERVER_ADVISORY_LOCK_ID = 2026072801
+SCHEMA_MIGRATIONS = (
+    (
+        "20260730_liquidation_runtime_schema",
+        "Split liquidation account registry, discovery progress, and health scan history.",
+    ),
+)
+EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 
 
 def require_psycopg():
@@ -23,6 +30,15 @@ def ensure_database_schema(database_url: str) -> None:
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    migration_id TEXT PRIMARY KEY,
+                    description TEXT NOT NULL,
+                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS observations (
@@ -200,6 +216,39 @@ def ensure_database_schema(database_url: str) -> None:
                 )
                 """
             )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS liquidation_discovery_scans (
+                    id BIGSERIAL PRIMARY KEY,
+                    mode TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    rpc_url TEXT,
+                    pool_address TEXT,
+                    from_block BIGINT NOT NULL,
+                    to_block BIGINT NOT NULL,
+                    scan_start_at TIMESTAMPTZ NOT NULL,
+                    scan_end_at TIMESTAMPTZ NOT NULL,
+                    discovered_count INTEGER NOT NULL DEFAULT 0,
+                    error TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS liquidation_account_health_scans (
+                    id BIGSERIAL PRIMARY KEY,
+                    account TEXT NOT NULL,
+                    scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    health_factor DOUBLE PRECISION,
+                    status TEXT,
+                    health_factor_band TEXT,
+                    candidate_count INTEGER,
+                    summary_json TEXT,
+                    report_json TEXT
+                )
+                """
+            )
             ensure_schema_columns(cursor)
             ensure_deduplication_constraints(cursor)
             cursor.execute(
@@ -210,6 +259,49 @@ def ensure_database_schema(database_url: str) -> None:
                 "CREATE INDEX IF NOT EXISTS idx_liquidation_accounts_active_updated "
                 "ON liquidation_accounts(active, updated_at DESC)"
             )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_liquidation_discovery_scans_mode_time "
+                "ON liquidation_discovery_scans(mode, scan_start_at, scan_end_at)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_liquidation_health_account_scanned "
+                "ON liquidation_account_health_scans(account, scanned_at DESC)"
+            )
+            record_schema_migrations(cursor)
+
+
+def record_schema_migrations(cursor) -> None:
+    for migration_id, description in SCHEMA_MIGRATIONS:
+        cursor.execute(
+            """
+            INSERT INTO schema_migrations (migration_id, description, applied_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (migration_id) DO NOTHING
+            """,
+            (migration_id, description),
+        )
+
+
+def load_schema_migrations(database_url: str) -> list[dict[str, Any]]:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT migration_id, description, applied_at
+                FROM schema_migrations
+                ORDER BY applied_at, migration_id
+                """
+            )
+            rows = cursor.fetchall()
+    return [
+        {
+            "migration_id": str(row[0]),
+            "description": str(row[1]),
+            "applied_at": row[2].isoformat() if hasattr(row[2], "isoformat") else str(row[2]),
+        }
+        for row in rows
+    ]
 
 
 def ensure_schema_columns(cursor) -> None:
@@ -353,6 +445,29 @@ def ensure_schema_columns(cursor) -> None:
             "last_summary_json": "TEXT",
             "last_report_json": "TEXT",
         },
+        "liquidation_discovery_scans": {
+            "mode": "TEXT",
+            "status": "TEXT",
+            "rpc_url": "TEXT",
+            "pool_address": "TEXT",
+            "from_block": "BIGINT",
+            "to_block": "BIGINT",
+            "scan_start_at": "TIMESTAMPTZ",
+            "scan_end_at": "TIMESTAMPTZ",
+            "discovered_count": "INTEGER",
+            "error": "TEXT",
+            "created_at": "TIMESTAMPTZ",
+        },
+        "liquidation_account_health_scans": {
+            "account": "TEXT",
+            "scanned_at": "TIMESTAMPTZ",
+            "health_factor": "DOUBLE PRECISION",
+            "status": "TEXT",
+            "health_factor_band": "TEXT",
+            "candidate_count": "INTEGER",
+            "summary_json": "TEXT",
+            "report_json": "TEXT",
+        },
     }
     for table, columns in migrations.items():
         for column, column_type in columns.items():
@@ -431,6 +546,92 @@ def ensure_deduplication_constraints(cursor) -> None:
         ON liquidation_accounts(account)
         """
     )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_liquidation_discovery_scan_window
+        ON liquidation_discovery_scans(mode, pool_address, from_block, to_block)
+        """
+    )
+
+
+def record_liquidation_discovery_scan(
+    database_url: str,
+    *,
+    mode: str,
+    status: str,
+    rpc_url: str,
+    pool_address: str,
+    from_block: int,
+    to_block: int,
+    scan_start_at: datetime,
+    scan_end_at: datetime,
+    discovered_count: int = 0,
+    error: str | None = None,
+) -> None:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO liquidation_discovery_scans (
+                    mode, status, rpc_url, pool_address,
+                    from_block, to_block, scan_start_at, scan_end_at,
+                    discovered_count, error, created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (mode, pool_address, from_block, to_block) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    rpc_url = EXCLUDED.rpc_url,
+                    scan_start_at = EXCLUDED.scan_start_at,
+                    scan_end_at = EXCLUDED.scan_end_at,
+                    discovered_count = EXCLUDED.discovered_count,
+                    error = EXCLUDED.error,
+                    created_at = NOW()
+                """,
+                (
+                    mode,
+                    status,
+                    rpc_url,
+                    pool_address,
+                    int(from_block),
+                    int(to_block),
+                    scan_start_at,
+                    scan_end_at,
+                    int(discovered_count),
+                    error,
+                ),
+            )
+
+
+def liquidation_discovery_scan_progress(database_url: str, pool_address: str) -> dict[str, Any]:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    MAX(scan_end_at) FILTER (WHERE mode = 'recent' AND status = 'success') AS latest_recent_scan_end_at,
+                    MIN(scan_start_at) FILTER (WHERE mode = 'historical-backfill' AND status = 'success') AS earliest_backfill_scan_start_at,
+                    MAX(to_block) FILTER (WHERE mode = 'recent' AND status = 'success') AS latest_recent_to_block,
+                    MIN(from_block) FILTER (WHERE mode = 'historical-backfill' AND status = 'success') AS earliest_backfill_from_block,
+                    COUNT(*) FILTER (WHERE status = 'success') AS success_count,
+                    COUNT(*) FILTER (WHERE status = 'error') AS error_count,
+                    COALESCE(SUM(GREATEST(0, to_block - from_block + 1)) FILTER (WHERE status = 'success'), 0) AS scanned_block_count
+                FROM liquidation_discovery_scans
+                WHERE pool_address = %s
+                """,
+                (pool_address,),
+            )
+            row = cursor.fetchone() or (None, None, 0, 0, 0)
+            return {
+                "latest_recent_scan_end_at": row[0].isoformat() if row[0] else None,
+                "earliest_backfill_scan_start_at": row[1].isoformat() if row[1] else None,
+                "latest_recent_to_block": int(row[2]) if row[2] is not None else None,
+                "earliest_backfill_from_block": int(row[3]) if row[3] is not None else None,
+                "success_count": int(row[4] or 0),
+                "error_count": int(row[5] or 0),
+                "scanned_block_count": int(row[6] or 0),
+            }
 
 
 def upsert_liquidation_accounts(
@@ -440,32 +641,42 @@ def upsert_liquidation_accounts(
     active: bool = True,
     scan_start_at: datetime | None = None,
     scan_end_at: datetime | None = None,
+    update_existing: bool = True,
 ) -> list[str]:
     unique_accounts: list[str] = []
     for account in accounts:
         if not account:
             continue
-        unique_accounts.append(str(account))
+        value = str(account)
+        if value not in unique_accounts:
+            unique_accounts.append(value)
     if not unique_accounts:
         return []
     psycopg = require_psycopg()
     now = scan_end_at or datetime.now(timezone.utc)
     started_at = scan_start_at or now
     values = [(account, source, active, started_at, now) for account in unique_accounts]
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO liquidation_accounts (
-                    account, source, active, scan_start_at, scan_end_at, added_at, updated_at
-                )
-                VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+    conflict_clause = (
+        """
                 ON CONFLICT (account) DO UPDATE SET
                     source = EXCLUDED.source,
                     active = EXCLUDED.active,
                     scan_start_at = COALESCE(liquidation_accounts.scan_start_at, EXCLUDED.scan_start_at),
                     scan_end_at = EXCLUDED.scan_end_at,
                     updated_at = NOW()
+                """
+        if update_existing
+        else "ON CONFLICT (account) DO NOTHING"
+    )
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                f"""
+                INSERT INTO liquidation_accounts (
+                    account, source, active, scan_start_at, scan_end_at, added_at, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                {conflict_clause}
                 """,
                 values,
             )
@@ -483,7 +694,7 @@ def load_liquidation_accounts(
     query = "SELECT account FROM liquidation_accounts WHERE 1=1"
     params: list[Any] = []
     if active_only:
-        query += " AND active = TRUE AND last_status IS DISTINCT FROM 'liquidatable'"
+        query += " AND active = TRUE"
     if retained_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=int(retained_days))
         query += " AND scan_end_at >= %s"
@@ -510,7 +721,7 @@ def liquidation_account_registry_stats(database_url: str, retained_days: int = 3
                 """
                 SELECT
                     COUNT(*) AS total_count,
-                    COUNT(*) FILTER (WHERE active = TRUE AND last_status IS DISTINCT FROM 'liquidatable' AND scan_end_at >= %s) AS active_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND scan_end_at >= %s) AS active_count,
                     MIN(scan_start_at) FILTER (WHERE scan_end_at >= %s) AS earliest_scan_start_at,
                     MAX(scan_end_at) FILTER (WHERE scan_end_at >= %s) AS latest_scan_end_at
                 FROM liquidation_accounts
@@ -536,7 +747,6 @@ def prune_liquidation_accounts(database_url: str, retained_days: int = 365) -> i
                 """
                 DELETE FROM liquidation_accounts
                 WHERE active = FALSE
-                   OR last_status = 'liquidatable'
                    OR scan_end_at < %s
                 """,
                 (cutoff,),
@@ -554,6 +764,24 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
         with connection.cursor() as cursor:
             cursor.execute(
                 """
+                INSERT INTO liquidation_account_health_scans (
+                    account, scanned_at, health_factor, status,
+                    health_factor_band, candidate_count, summary_json, report_json
+                )
+                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    account,
+                    summary.get("health_factor"),
+                    summary.get("status"),
+                    summary.get("health_factor_band"),
+                    int(summary.get("candidate_count") or 0),
+                    json.dumps(summary, ensure_ascii=True, separators=(",", ":")),
+                    json.dumps(report, ensure_ascii=True, separators=(",", ":")),
+                ),
+            )
+            cursor.execute(
+                """
                 INSERT INTO liquidation_accounts (
                     account, source, active, added_at, updated_at,
                     scan_start_at, scan_end_at,
@@ -562,7 +790,7 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                     last_summary_json, last_report_json
                 )
                 VALUES (
-                    %s, 'scan', CASE WHEN %s = 'liquidatable' THEN FALSE ELSE TRUE END, NOW(), NOW(),
+                    %s, 'scan', TRUE, NOW(), NOW(),
                     COALESCE(%s, NOW()), NOW(),
                     NOW(), %s, %s,
                     %s, %s,
@@ -570,7 +798,7 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                 )
                 ON CONFLICT (account) DO UPDATE SET
                     source = 'scan',
-                    active = CASE WHEN EXCLUDED.last_status = 'liquidatable' THEN FALSE ELSE liquidation_accounts.active END,
+                    active = liquidation_accounts.active,
                     updated_at = NOW(),
                     scan_start_at = COALESCE(liquidation_accounts.scan_start_at, EXCLUDED.scan_start_at),
                     scan_end_at = EXCLUDED.scan_end_at,
@@ -584,7 +812,6 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                 """,
                 (
                     account,
-                    summary.get("status"),
                     None,
                     summary.get("health_factor"),
                     summary.get("status"),
