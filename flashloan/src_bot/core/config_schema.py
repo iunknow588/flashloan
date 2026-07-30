@@ -116,6 +116,10 @@ def liquidation_config_health(chain_id: int | None = None) -> dict[str, Any]:
         _numeric_check("LIQUIDATION_SWAP_SLIPPAGE_BPS", "50", minimum=0),
         _numeric_check("LIQUIDATION_MIN_PROFIT_BASE", "0", minimum=0),
         _numeric_check("LIQUIDATION_MAX_DEBT_TO_COVER", "0", minimum=0),
+        _numeric_check("LIQUIDATION_MAX_GAS_COST_USD", "0", minimum=0),
+        _numeric_check("LIQUIDATION_MEV_BUFFER_USD", "0", minimum=0),
+        _numeric_check("LIQUIDATION_RETRY_BUFFER_USD", "0", minimum=0),
+        _numeric_check("LIQUIDATION_MIN_OPERATOR_NET_PROFIT_USD", "0", minimum=0),
         _private_key_owner_check(),
     ]
 

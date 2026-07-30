@@ -9,7 +9,10 @@ _base_schema_status_payload = liquidation_base_module.schema_status_payload
 _base_liquidation_discovery_progress = liquidation_base_module.liquidation_discovery_progress
 _base_liquidation_discovery_window = liquidation_base_module.liquidation_discovery_window
 _audit_recent_liquidation_execution_attempts = liquidation_audit_module.recent_liquidation_execution_attempts
+_audit_recent_liquidation_failure_samples = liquidation_audit_module.recent_liquidation_failure_samples
 _audit_record_liquidation_execution_attempt_safely = liquidation_audit_module.record_liquidation_execution_attempt_safely
+_audit_liquidation_pause_guard_status = liquidation_audit_module.liquidation_pause_guard_status
+_audit_clear_liquidation_pause_guard_status = liquidation_audit_module.clear_liquidation_pause_guard_status
 _scan_discover_and_sync_liquidation_accounts = liquidation_scan_module.discover_and_sync_liquidation_accounts
 _scan_liquidation_health_payload = liquidation_scan_module.liquidation_health_payload
 _scan_liquidation_account_payload = liquidation_scan_module.liquidation_account_payload
@@ -25,6 +28,7 @@ CONTEXT_NAMES = [
     "LIQUIDATION_CONFIG_PATH",
     "LIQUIDATION_DISCOVERY_CACHE",
     "LIQUIDATION_DISCOVERY_LOCK",
+    "LIQUIDATION_PAUSE_GUARD_PATH",
     "LIQUIDATION_SAMPLE_LIBRARY_PATH",
     "LIQUIDATION_SCAN_CACHE",
     "LIQUIDATION_SCAN_LOCK",
@@ -48,12 +52,15 @@ CONTEXT_NAMES = [
     "liquidation_executor_owner_address",
     "liquidation_executor_private_key",
     "liquidation_execution_controls",
+    "liquidation_pause_guard_status",
+    "clear_liquidation_pause_guard_status",
     "liquidation_scan_config",
     "liquidation_self_funded_private_key",
     "load_liquidation_account_registry",
     "load_reserve_assets_for_scan",
     "protocol_data_provider_address",
     "recent_liquidation_execution_attempts",
+    "recent_liquidation_failure_samples",
     "record_liquidation_execution_attempt_safely",
     "record_liquidation_discovery_window",
     "resolve_discovery_block_range",
@@ -98,9 +105,21 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _audit_recent_liquidation_execution_attempts(limit=limit)
 
+    def recent_liquidation_failure_samples(limit: int = 20) -> dict:
+        sync_liquidation_module_context()
+        return _audit_recent_liquidation_failure_samples(limit=limit)
+
     def record_liquidation_execution_attempt_safely(**kwargs):
         sync_liquidation_module_context()
         return _audit_record_liquidation_execution_attempt_safely(**kwargs)
+
+    def liquidation_pause_guard_status() -> dict:
+        sync_liquidation_module_context()
+        return _audit_liquidation_pause_guard_status()
+
+    def clear_liquidation_pause_guard_status() -> dict:
+        sync_liquidation_module_context()
+        return _audit_clear_liquidation_pause_guard_status()
 
     def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
         sync_liquidation_module_context()
@@ -138,7 +157,10 @@ def install_liquidation_context(panel) -> None:
     panel.liquidation_discovery_window = liquidation_discovery_window
     panel.liquidation_config_health = liquidation_config_health
     panel.recent_liquidation_execution_attempts = recent_liquidation_execution_attempts
+    panel.recent_liquidation_failure_samples = recent_liquidation_failure_samples
     panel.record_liquidation_execution_attempt_safely = record_liquidation_execution_attempt_safely
+    panel.liquidation_pause_guard_status = liquidation_pause_guard_status
+    panel.clear_liquidation_pause_guard_status = clear_liquidation_pause_guard_status
     panel.discover_and_sync_liquidation_accounts = discover_and_sync_liquidation_accounts
     panel.liquidation_health_payload = liquidation_health_payload
     panel.liquidation_account_payload = liquidation_account_payload

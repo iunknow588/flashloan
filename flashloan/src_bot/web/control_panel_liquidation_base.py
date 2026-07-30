@@ -16,6 +16,7 @@ from core.config_schema import liquidation_config_health as build_liquidation_co
 from core.env_loader import load_env_files, resolve_env_path
 from execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
 from market.observer import env_urls
+from web.control_panel_liquidation_pause import pause_guard_controls
 from db.storage import (
     EXPECTED_SCHEMA_MIGRATION_IDS,
     ensure_database_schema,
@@ -34,6 +35,7 @@ RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 CONFIG_DIR = RUNTIME_DIR / "config"
 CACHE_DIR = RUNTIME_DIR / "cache"
 LIQUIDATION_CONFIG_PATH = CONFIG_DIR / "liquidation_config.json"
+LIQUIDATION_PAUSE_GUARD_PATH = CACHE_DIR / "liquidation_pause_guard.json"
 LIQUIDATION_ACCOUNTS_PATH = resolve_env_path("LIQUIDATION_ACCOUNTS_FILE", "runtime/cache/liquidation_accounts.txt", APP_DIR)
 DEFAULT_AAVE_RPC_CANDIDATES = [
     "https://api.avax.network/ext/bc/C/rpc",
@@ -130,6 +132,8 @@ def liquidation_scan_config() -> LiquidationScanConfig:
         flashloan_fee_percent=float(os.getenv("LIQUIDATION_FLASHLOAN_FEE_PERCENT", "0.05")),
         dex_slippage_percent=float(os.getenv("LIQUIDATION_DEX_SLIPPAGE_PERCENT", "0.10")),
         gas_cost_usd=float(os.getenv("LIQUIDATION_GAS_COST_USD", "0")),
+        mev_buffer_usd=float(os.getenv("LIQUIDATION_MEV_BUFFER_USD", "0")),
+        retry_buffer_usd=float(os.getenv("LIQUIDATION_RETRY_BUFFER_USD", "0")),
         watch_health_factor=float(os.getenv("LIQUIDATION_WATCH_HEALTH_FACTOR", "1.5")),
         close_factor=float(os.getenv("LIQUIDATION_CLOSE_FACTOR", "0.5")),
     )
@@ -225,6 +229,11 @@ def liquidation_execution_controls() -> dict:
     min_profit_raw = os.getenv("LIQUIDATION_MIN_PROFIT_BASE", "0").strip()
     config_health = build_liquidation_config_health()
     config_blocked_reasons = liquidation_config_blocked_reasons(config_health)
+    pause_guard = pause_guard_controls(
+        LIQUIDATION_PAUSE_GUARD_PATH,
+        enabled=env_bool("LIQUIDATION_AUTO_PAUSE_ENABLED", True),
+        threshold=int(os.getenv("LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD", "3") or 3),
+    )
     return {
         "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", False),
         "require_static_call": env_bool("LIQUIDATION_REQUIRE_STATIC_CALL", True),
@@ -240,6 +249,12 @@ def liquidation_execution_controls() -> dict:
         ),
         "max_debt_to_cover": int(max_debt_raw or 0),
         "min_profit_base": int(min_profit_raw or 0),
+        "max_gas_cost_usd": float(os.getenv("LIQUIDATION_MAX_GAS_COST_USD", "0") or 0),
+        "mev_buffer_usd": float(os.getenv("LIQUIDATION_MEV_BUFFER_USD", "0") or 0),
+        "retry_buffer_usd": float(os.getenv("LIQUIDATION_RETRY_BUFFER_USD", "0") or 0),
+        "min_operator_net_profit_usd": float(os.getenv("LIQUIDATION_MIN_OPERATOR_NET_PROFIT_USD", "0") or 0),
+        "allow_fallback_close_factor": env_bool("LIQUIDATION_ALLOW_FALLBACK_CLOSE_FACTOR", False),
+        "allow_fallback_flashloan_premium": env_bool("LIQUIDATION_ALLOW_FALLBACK_FLASHLOAN_PREMIUM", False),
         "slippage_bps": int(os.getenv("LIQUIDATION_SWAP_SLIPPAGE_BPS", os.getenv("EXECUTION_SLIPPAGE_BPS", "50"))),
         "priority_fee_gwei": float(os.getenv("LIQUIDATION_EXECUTION_PRIORITY_FEE_GWEI", "1.5")),
         "tx_timeout_seconds": int(os.getenv("LIQUIDATION_EXECUTION_TIMEOUT_SECONDS", "180")),
@@ -251,6 +266,7 @@ def liquidation_execution_controls() -> dict:
         "config_blocked_reasons": config_blocked_reasons,
         "chain_id": config_health.get("chain_id"),
         "expected_chain_id": config_health.get("expected_chain_id"),
+        **pause_guard,
     }
 
 

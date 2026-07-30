@@ -39,6 +39,8 @@ def register_data_routes(app, panel) -> None:
         pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
         coverage = liquidation_coverage_payload(pool_address, panel=PANEL)
         attempts = panel_call("recent_liquidation_execution_attempts", limit=1)
+        failure_samples = panel_call("recent_liquidation_failure_samples", limit=20)
+        pause_guard = panel_call("liquidation_pause_guard_status")
         return jsonify(
             {
                 "rows": observation_count(),
@@ -53,6 +55,11 @@ def register_data_routes(app, panel) -> None:
                     },
                     "discovery_coverage": coverage,
                     "execution_attempts": attempts.get("stats", {}),
+                    "failure_samples": {
+                        "configured": failure_samples.get("configured"),
+                        "recent_count": len(failure_samples.get("samples") or []),
+                    },
+                    "pause_guard": pause_guard,
                 },
             }
         )

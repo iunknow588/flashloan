@@ -16,6 +16,10 @@ def clear_liquidation_env(monkeypatch):
         "LIQUIDATION_SWAP_SLIPPAGE_BPS",
         "LIQUIDATION_MIN_PROFIT_BASE",
         "LIQUIDATION_MAX_DEBT_TO_COVER",
+        "LIQUIDATION_MAX_GAS_COST_USD",
+        "LIQUIDATION_MEV_BUFFER_USD",
+        "LIQUIDATION_RETRY_BUFFER_USD",
+        "LIQUIDATION_MIN_OPERATOR_NET_PROFIT_USD",
         "CHAIN_ID",
     ]
     for name in names:

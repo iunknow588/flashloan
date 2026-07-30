@@ -365,6 +365,80 @@ def record_liquidation_execution_attempt(
             return int(row[0]) if row else 0
 
 
+def record_liquidation_failure_sample(
+    database_url: str,
+    *,
+    account: str | None = None,
+    block_number: int | None = None,
+    collateral_asset: str | None = None,
+    debt_asset: str | None = None,
+    failure_type: str,
+    failure_reason: str | None = None,
+    payload: dict[str, Any] | None = None,
+    source: str = "execution_attempt",
+) -> int:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO liquidation_failure_samples (
+                    account, block_number, collateral_asset, debt_asset,
+                    failure_type, failure_reason, payload_json, source, created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                RETURNING id
+                """,
+                (
+                    account,
+                    block_number,
+                    collateral_asset,
+                    debt_asset,
+                    failure_type,
+                    failure_reason,
+                    json.dumps(payload or {}, ensure_ascii=True, separators=(",", ":")),
+                    source,
+                ),
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row else 0
+
+
+def load_recent_liquidation_failure_samples(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id, account, block_number, collateral_asset, debt_asset,
+                    failure_type, failure_reason, payload_json, source, created_at
+                FROM liquidation_failure_samples
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (max(1, int(limit)),),
+            )
+            rows = cursor.fetchall()
+    samples: list[dict[str, Any]] = []
+    for row in rows:
+        samples.append(
+            {
+                "id": int(row[0]),
+                "account": str(row[1]) if row[1] else None,
+                "block_number": int(row[2]) if row[2] is not None else None,
+                "collateral_asset": str(row[3]) if row[3] else None,
+                "debt_asset": str(row[4]) if row[4] else None,
+                "failure_type": str(row[5]),
+                "failure_reason": str(row[6]) if row[6] else None,
+                "payload": _json_or_default(row[7], {}),
+                "source": str(row[8]),
+                "created_at": row[9].isoformat() if row[9] else None,
+            }
+        )
+    return samples
+
+
 def load_recent_liquidation_execution_attempts(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:

@@ -30,6 +30,8 @@ class LiquidationScanConfig:
     flashloan_fee_percent: float = 0.05
     dex_slippage_percent: float = 0.10
     gas_cost_usd: float = 0.0
+    mev_buffer_usd: float = 0.0
+    retry_buffer_usd: float = 0.0
     watch_health_factor: float = 1.5
     close_factor: float = 0.5
 
@@ -293,6 +295,8 @@ def build_liquidation_candidates(
                 config.dex_slippage_percent,
                 config.gas_cost_usd,
                 repay_fraction=repay_fraction,
+                mev_buffer_usd=config.mev_buffer_usd,
+                retry_buffer_usd=config.retry_buffer_usd,
             )
             profit["repay_base_source"] = repay_base_source
             collateral_decimals = int(collateral.get("decimals") or 18)
@@ -485,6 +489,9 @@ def estimate_liquidation_profit(
     dex_slippage_percent: float,
     gas_cost_usd: float,
     repay_fraction: float = 0.5,
+    mev_buffer_usd: float = 0.0,
+    retry_buffer_usd: float = 0.0,
+    flashloan_premium_source: str = "fallback_config",
 ) -> dict:
     repay_fraction = max(0.0, min(1.0, float(repay_fraction)))
     bonus_rate = max(0.0, float(liquidation_bonus_percent)) / 100.0
@@ -494,15 +501,26 @@ def estimate_liquidation_profit(
     seized_base = repay_base * (1 + bonus_rate)
     gross_profit_base = seized_base - repay_base
     fee_base = repay_base * (flashloan_rate + slippage_rate)
-    net_profit_base = gross_profit_base - fee_base - max(0.0, float(gas_cost_usd))
+    contract_surplus_base = gross_profit_base - fee_base
+    gas_cost = max(0.0, float(gas_cost_usd))
+    mev_buffer = max(0.0, float(mev_buffer_usd))
+    retry_buffer = max(0.0, float(retry_buffer_usd))
+    operator_net_profit_usd = contract_surplus_base - gas_cost - mev_buffer - retry_buffer
+    net_profit_base = operator_net_profit_usd
     return {
         "repay_base": repay_base,
         "seized_base": seized_base,
         "gross_profit_base": gross_profit_base,
         "fee_base": fee_base,
-        "gas_cost_usd": max(0.0, float(gas_cost_usd)),
+        "contract_surplus_base": contract_surplus_base,
+        "gas_cost_usd": gas_cost,
+        "mev_buffer_usd": mev_buffer,
+        "retry_buffer_usd": retry_buffer,
+        "operator_net_profit_usd": operator_net_profit_usd,
         "net_profit_base": net_profit_base,
         "profitable": net_profit_base > 0,
+        "flashloan_premium_source": flashloan_premium_source,
+        "flashloan_premium_verified": flashloan_premium_source != "fallback_config",
     }
 
 
@@ -544,6 +562,8 @@ def scan_account_health(
             config.flashloan_fee_percent,
             config.dex_slippage_percent,
             config.gas_cost_usd,
+            mev_buffer_usd=config.mev_buffer_usd,
+            retry_buffer_usd=config.retry_buffer_usd,
         )
         results.append(
             {

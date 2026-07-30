@@ -108,3 +108,56 @@ def test_liquidation_submission_blocks_expired_deadline():
     assert state["submission_allowed"] is False
     assert "payload_expired" in state["blocked_reasons"]
     assert state["checks"]["deadline"] == int(current.timestamp()) - 1
+
+
+def test_liquidation_submission_blocks_fallback_close_factor_and_premium():
+    payload = base_payload()
+    payload["account_report"]["recommended_candidate"] = {
+        "repay_base_source": "close_factor_fallback",
+        "estimated_profit": {"flashloan_premium_source": "fallback_config"},
+    }
+
+    state = evaluate_liquidation_submission(payload, base_controls())
+
+    assert state["submission_allowed"] is False
+    assert "fallback_close_factor" in state["blocked_reasons"]
+    assert "fallback_flashloan_premium" in state["blocked_reasons"]
+    assert state["checks"]["repay_base_source"] == "close_factor_fallback"
+
+
+def test_liquidation_submission_blocks_high_gas_and_operator_profit():
+    payload = base_payload()
+    payload["amounts"] = {
+        "profit": {
+            "gas_cost_usd": 12.5,
+            "operator_net_profit_estimate_usd": 0.75,
+        }
+    }
+    controls = {
+        **base_controls(),
+        "max_gas_cost_usd": 10,
+        "min_operator_net_profit_usd": 1,
+    }
+
+    state = evaluate_liquidation_submission(payload, controls)
+
+    assert state["submission_allowed"] is False
+    assert "gas_cost_too_high" in state["blocked_reasons"]
+    assert "profit_below_minimum" in state["blocked_reasons"]
+    assert state["checks"]["protected_operator_net_profit_usd"] == 0.75
+
+
+def test_liquidation_submission_blocks_auto_pause():
+    controls = {
+        **base_controls(),
+        "auto_pause_active": True,
+        "auto_pause_failure_count": 3,
+        "auto_pause_threshold": 3,
+        "auto_pause_reason": "static_call_failed",
+    }
+
+    state = evaluate_liquidation_submission(base_payload(), controls)
+
+    assert state["submission_allowed"] is False
+    assert "auto_pause_active" in state["blocked_reasons"]
+    assert state["checks"]["auto_pause_reason"] == "static_call_failed"

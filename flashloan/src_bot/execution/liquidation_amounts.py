@@ -52,9 +52,16 @@ def build_liquidation_amounts(
     min_out_amount = token_amount(min_collateral_swap_out_units, debt_decimals)
     min_profit_amount = token_amount(min_profit_units, debt_decimals)
     profit = candidate.get("estimated_profit") or {}
-    contract_surplus_base = _float_value(profit.get("net_profit_base"))
+    legacy_net_profit_base = _float_value(profit.get("net_profit_base"))
+    contract_surplus_base = _float_value(profit.get("contract_surplus_base") or legacy_net_profit_base)
     gas_cost_usd = _float_value(profit.get("gas_cost_usd"))
-    operator_net_profit_usd = contract_surplus_base - gas_cost_usd
+    mev_buffer_usd = _float_value(profit.get("mev_buffer_usd"))
+    retry_buffer_usd = _float_value(profit.get("retry_buffer_usd"))
+    operator_net_profit_usd = _float_value(
+        profit.get("operator_net_profit_usd")
+        or profit.get("estimated_operator_net_profit_usd")
+        or (contract_surplus_base - gas_cost_usd - mev_buffer_usd - retry_buffer_usd)
+    )
 
     return {
         "schema_version": 1,
@@ -89,8 +96,10 @@ def build_liquidation_amounts(
             "min_profit_amount": min_profit_amount,
             "contract_surplus_base": contract_surplus_base,
             "gas_cost_usd": gas_cost_usd,
+            "mev_buffer_usd": mev_buffer_usd,
+            "retry_buffer_usd": retry_buffer_usd,
             "operator_net_profit_estimate_usd": operator_net_profit_usd,
-            "legacy_net_profit_base": contract_surplus_base,
+            "legacy_net_profit_base": legacy_net_profit_base,
         },
         "legacy_fields": {
             "debtToCover": str(debt_to_cover_units),

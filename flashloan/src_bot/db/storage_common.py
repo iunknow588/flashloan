@@ -10,6 +10,10 @@ SCHEMA_MIGRATIONS = (
         "20260730_liquidation_execution_attempts",
         "Record liquidation execution attempts, blocking reasons, preflight data, and receipts.",
     ),
+    (
+        "20260730_liquidation_failure_samples",
+        "Archive failed or blocked liquidation payloads as reproducible review samples.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 

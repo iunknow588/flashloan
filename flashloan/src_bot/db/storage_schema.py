@@ -1,6 +1,10 @@
 ﻿from typing import Any
 
 from db.storage_common import SCHEMA_MIGRATIONS, require_psycopg
+from db.storage_liquidation_schema import (
+    LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
+    create_liquidation_failure_sample_schema,
+)
 def ensure_database_schema(database_url: str) -> None:
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:
@@ -243,6 +247,7 @@ def ensure_database_schema(database_url: str) -> None:
                 )
                 """
             )
+            create_liquidation_failure_sample_schema(cursor)
             ensure_schema_columns(cursor)
             ensure_deduplication_constraints(cursor)
             cursor.execute(
@@ -488,6 +493,7 @@ def ensure_schema_columns(cursor) -> None:
             "created_at": "TIMESTAMPTZ",
             "updated_at": "TIMESTAMPTZ",
         },
+        "liquidation_failure_samples": LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
     }
     for table, columns in migrations.items():
         for column, column_type in columns.items():

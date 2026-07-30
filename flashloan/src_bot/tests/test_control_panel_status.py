@@ -542,3 +542,45 @@ def test_liquidation_execution_attempts_api_returns_recent_attempts(monkeypatch)
     assert response.status_code == 200
     assert data["attempts"][0]["id"] == 7
     assert data["stats"]["blocked"] == 1
+
+
+def test_liquidation_failure_samples_api_returns_recent_samples(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "recent_liquidation_failure_samples",
+        lambda limit=20: {
+            "configured": True,
+            "samples": [{"id": 3, "failure_type": "quote_expired"}],
+        },
+    )
+
+    response = app.test_client().get("/api/liquidation/failure-samples?limit=5")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["samples"][0]["failure_type"] == "quote_expired"
+
+
+def test_liquidation_pause_guard_apis_return_and_clear_state(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_pause_guard_status",
+        lambda: {"configured": True, "paused": True, "pause_reason": "static_call_failed"},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "clear_liquidation_pause_guard_status",
+        lambda: {"configured": True, "paused": False, "pause_reason": None},
+    )
+
+    client = app.test_client()
+    status = client.get("/api/liquidation/pause-guard").get_json()
+    cleared = client.post("/api/liquidation/pause-guard/clear").get_json()
+
+    assert status["paused"] is True
+    assert status["pause_reason"] == "static_call_failed"
+    assert cleared["paused"] is False

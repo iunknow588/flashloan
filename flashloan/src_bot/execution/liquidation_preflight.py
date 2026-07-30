@@ -40,6 +40,22 @@ def _append_once(items: list[str], value: str) -> None:
         items.append(value)
 
 
+def _float_value(value: Any) -> float:
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _candidate_profit(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    amounts_profit = ((payload.get("amounts") or {}).get("profit") or {})
+    account_report = payload.get("account_report") or {}
+    candidate = account_report.get("recommended_candidate") if isinstance(account_report, dict) else {}
+    candidate = candidate or {}
+    candidate_profit = candidate.get("estimated_profit") or {}
+    return candidate, {**candidate_profit, **amounts_profit}
+
+
 def evaluate_liquidation_submission(
     payload: dict[str, Any],
     controls: dict[str, Any] | None = None,
@@ -54,10 +70,13 @@ def evaluate_liquidation_submission(
     summary = account_report.get("summary") if isinstance(account_report, dict) else {}
     summary = summary or {}
     dex_quote = payload.get("dex_quote") or {}
+    candidate, profit = _candidate_profit(payload)
     blocked: list[str] = []
 
     if not controls.get("execution_enabled"):
         _append_once(blocked, "execution_disabled")
+    if controls.get("auto_pause_active"):
+        _append_once(blocked, "auto_pause_active")
 
     for reason in controls.get("config_blocked_reasons") or []:
         _append_once(blocked, str(reason))
@@ -74,6 +93,16 @@ def evaluate_liquidation_submission(
 
     if summary and summary.get("status") != "liquidatable":
         _append_once(blocked, "account_not_liquidatable")
+    if isinstance(account_report, dict) and "recommended_candidate" in account_report and not candidate:
+        _append_once(blocked, "no_liquidation_candidate")
+
+    repay_base_source = str(candidate.get("repay_base_source") or profit.get("repay_base_source") or "")
+    if repay_base_source == "close_factor_fallback" and not controls.get("allow_fallback_close_factor"):
+        _append_once(blocked, "fallback_close_factor")
+
+    premium_source = str(profit.get("flashloan_premium_source") or candidate.get("flashloan_premium_source") or "")
+    if premium_source == "fallback_config" and not controls.get("allow_fallback_flashloan_premium"):
+        _append_once(blocked, "fallback_flashloan_premium")
 
     try:
         debt_to_cover = int(request.get("debtToCover") or 0)
@@ -92,6 +121,23 @@ def evaluate_liquidation_submission(
         min_profit = 0
     min_required_profit = int(controls.get("min_profit_base") or 0)
     if min_profit < min_required_profit:
+        _append_once(blocked, "profit_below_minimum")
+
+    gas_cost_usd = _float_value(profit.get("gas_cost_usd"))
+    max_gas_cost_usd = _float_value(controls.get("max_gas_cost_usd"))
+    if max_gas_cost_usd > 0 and gas_cost_usd > max_gas_cost_usd:
+        _append_once(blocked, "gas_cost_too_high")
+
+    operator_net_profit_usd = _float_value(
+        profit.get("operator_net_profit_estimate_usd")
+        or profit.get("operator_net_profit_usd")
+        or profit.get("estimated_operator_net_profit_usd")
+    )
+    mev_buffer_usd = _float_value(controls.get("mev_buffer_usd") or profit.get("mev_buffer_usd"))
+    retry_buffer_usd = _float_value(controls.get("retry_buffer_usd") or profit.get("retry_buffer_usd"))
+    min_operator_net_profit_usd = _float_value(controls.get("min_operator_net_profit_usd"))
+    protected_operator_profit_usd = operator_net_profit_usd - mev_buffer_usd - retry_buffer_usd
+    if min_operator_net_profit_usd > 0 and protected_operator_profit_usd < min_operator_net_profit_usd:
         _append_once(blocked, "profit_below_minimum")
 
     if controls.get("require_static_call", True) and not preflight.get("static_call_passed"):
@@ -128,12 +174,25 @@ def evaluate_liquidation_submission(
         "blocked_reasons": blocked,
         "checks": {
             "execution_enabled": bool(controls.get("execution_enabled")),
+            "auto_pause_active": bool(controls.get("auto_pause_active")),
+            "auto_pause_failure_count": controls.get("auto_pause_failure_count"),
+            "auto_pause_threshold": controls.get("auto_pause_threshold"),
+            "auto_pause_reason": controls.get("auto_pause_reason"),
             "require_static_call": bool(controls.get("require_static_call", True)),
             "static_call_passed": bool(preflight.get("static_call_passed")),
             "debt_to_cover": debt_to_cover,
             "max_debt_to_cover": max_debt,
             "min_profit_amount": min_profit,
             "min_profit_required": min_required_profit,
+            "repay_base_source": repay_base_source or None,
+            "flashloan_premium_source": premium_source or None,
+            "gas_cost_usd": gas_cost_usd,
+            "max_gas_cost_usd": max_gas_cost_usd,
+            "operator_net_profit_usd": operator_net_profit_usd,
+            "mev_buffer_usd": mev_buffer_usd,
+            "retry_buffer_usd": retry_buffer_usd,
+            "protected_operator_net_profit_usd": protected_operator_profit_usd,
+            "min_operator_net_profit_usd": min_operator_net_profit_usd,
             "payload_age_seconds": built_age,
             "max_payload_age_seconds": max_payload_age,
             "deadline": deadline,

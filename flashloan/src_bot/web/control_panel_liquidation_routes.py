@@ -139,6 +139,19 @@ def register_liquidation_routes(app, panel) -> None:
         limit = max(1, min(int(request.args.get("limit", "20")), 100))
         return jsonify(panel_call("recent_liquidation_execution_attempts", limit=limit))
 
+    @app.get("/api/liquidation/failure-samples")
+    def liquidation_failure_samples_api():
+        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        return jsonify(panel_call("recent_liquidation_failure_samples", limit=limit))
+
+    @app.get("/api/liquidation/pause-guard")
+    def liquidation_pause_guard_api():
+        return jsonify(panel_call("liquidation_pause_guard_status"))
+
+    @app.post("/api/liquidation/pause-guard/clear")
+    def liquidation_pause_guard_clear_api():
+        return jsonify(panel_call("clear_liquidation_pause_guard_status"))
+
     @app.get("/api/liquidation/discovery-coverage")
     def liquidation_discovery_coverage_api():
         pool_address = request.args.get("pool", os.getenv("AAVE_POOL_ADDRESS", "")).strip()
