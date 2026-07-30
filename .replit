@@ -1,5 +1,5 @@
 modules = ["python-3.11"]
-run = "cd flashloan/src_bot && python run.py"
+run = "cd flashloan/src_bot && unset PYTHONPATH PYTHONHOME && export PYTHONNOUSERSITE=1 && /home/runner/workspace/.venv/bin/python -u run.py"
 
 [[ports]]
 localPort = 5000
@@ -9,8 +9,8 @@ externalPort = 5000
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "pip install flask 'psycopg[binary]' web3 websockets matplotlib gunicorn python-dotenv"]
-run = ["sh", "-c", "cd flashloan/src_bot && python run.py"]
+build = ["sh", "-c", "rm -rf .venv && python -m venv --copies --without-pip .venv && unset PYTHONPATH PYTHONHOME PIP_CONFIG_FILE PIP_USER && export PYTHONNOUSERSITE=1 && curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && .venv/bin/python /tmp/get-pip.py --ignore-installed --force-reinstall pip setuptools wheel && .venv/bin/python -m pip install --no-user -r flashloan/src_bot/requirements.txt"]
+run = ["sh", "-c", "cd flashloan/src_bot && unset PYTHONPATH PYTHONHOME && export PYTHONNOUSERSITE=1 && /home/runner/workspace/.venv/bin/python -u run.py"]
 
 [workflows]
 runButton = "Project"
@@ -30,7 +30,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd flashloan/src_bot && python run.py"
+args = "cd flashloan/src_bot && unset PYTHONPATH PYTHONHOME && export PYTHONNOUSERSITE=1 && /home/runner/workspace/.venv/bin/python -u run.py"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
