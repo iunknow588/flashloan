@@ -5,16 +5,76 @@ from typing import Any
 
 from web3 import Web3
 
+from execution.dex_costs import ROUTER_ABI, USDC
+
 
 @dataclass(frozen=True)
 class LiquidationExecutionPayloadConfig:
     min_profit_buffer_base: int = 0
     rounding_buffer_units: int = 10
     allow_zero_min_collateral_out: bool = False
+    slippage_bps: int = 50
 
 
 def _checksum(value: str) -> str:
     return Web3.to_checksum_address(str(value))
+
+
+def quote_liquidation_collateral_swap(
+    *,
+    rpc_url: str,
+    router_address: str,
+    collateral_asset: str,
+    debt_asset: str,
+    collateral_amount: int,
+    slippage_bps: int = 50,
+) -> dict[str, Any]:
+    if collateral_amount <= 0:
+        raise ValueError("collateral_amount must be positive")
+    collateral = _checksum(collateral_asset)
+    debt = _checksum(debt_asset)
+    if collateral.lower() == debt.lower():
+        return {
+            "dex_name": "same-token",
+            "router_address": _checksum(router_address),
+            "amount_in": str(collateral_amount),
+            "quoted_amount_out": str(collateral_amount),
+            "min_amount_out": str(collateral_amount),
+            "path": [],
+            "slippage_bps": 0,
+            "viable": True,
+        }
+
+    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 10}))
+    router = w3.eth.contract(address=_checksum(router_address), abi=ROUTER_ABI)
+    slippage = max(0, min(int(slippage_bps), 5000))
+    paths = [[collateral, debt]]
+    usdc = _checksum(USDC)
+    if collateral.lower() != usdc.lower() and debt.lower() != usdc.lower():
+        paths.append([collateral, usdc, debt])
+
+    errors = []
+    for path in paths:
+        try:
+            amounts = [int(value) for value in router.functions.getAmountsOut(int(collateral_amount), path).call()]
+            quoted_out = int(amounts[-1])
+            if quoted_out <= 0:
+                errors.append({"path": path, "error": "quoted output is zero"})
+                continue
+            min_out = quoted_out * (10000 - slippage) // 10000
+            return {
+                "dex_name": "Trader Joe V2",
+                "router_address": _checksum(router_address),
+                "amount_in": str(collateral_amount),
+                "quoted_amount_out": str(quoted_out),
+                "min_amount_out": str(min_out),
+                "path": path,
+                "slippage_bps": slippage,
+                "viable": min_out > 0,
+            }
+        except Exception as exc:
+            errors.append({"path": path, "error": str(exc)})
+    raise ValueError(f"unable to quote collateral swap: {errors}")
 
 
 def build_liquidation_execution_payload(
@@ -42,14 +102,36 @@ def build_liquidation_execution_payload(
     debt_to_cover = int(candidate.get("amount_to_pass_to_liquidation_call") or candidate.get("max_debt_to_liquidate") or 0)
     if debt_to_cover <= 0:
         raise ValueError("debt_to_cover must be positive")
+    swap_path = [
+        _checksum(address)
+        for address in (candidate.get("swap_path") or [])
+        if str(address or "").strip()
+    ]
+    dex_quote = candidate.get("dex_quote") or None
     min_collateral_swap_out = int(
         candidate.get("min_collateral_swap_out")
         or candidate.get("min_amount_out")
         or candidate.get("min_debt_asset_out")
         or 0
     )
+    if collateral_asset.lower() != debt_asset.lower() and min_collateral_swap_out <= 0:
+        collateral_amount = int(candidate.get("max_collateral_to_liquidate") or 0)
+        rpc_url = str((report.get("context") or {}).get("rpc_url") or "").strip()
+        if rpc_url:
+            dex_quote = quote_liquidation_collateral_swap(
+                rpc_url=rpc_url,
+                router_address=router_address,
+                collateral_asset=collateral_asset,
+                debt_asset=debt_asset,
+                collateral_amount=collateral_amount,
+                slippage_bps=config.slippage_bps,
+            )
+            min_collateral_swap_out = int(dex_quote["min_amount_out"])
+            swap_path = list(dex_quote.get("path") or [])
     if collateral_asset.lower() != debt_asset.lower() and min_collateral_swap_out <= 0 and not config.allow_zero_min_collateral_out:
         raise ValueError("min_collateral_swap_out is required")
+    if collateral_asset.lower() != debt_asset.lower() and not swap_path:
+        swap_path = [collateral_asset, debt_asset]
 
     profit = candidate.get("estimated_profit") or {}
     estimated_net_profit = int(max(0, float(profit.get("net_profit_base") or 0)))
@@ -63,7 +145,7 @@ def build_liquidation_execution_payload(
         "minCollateralSwapOut": str(min_collateral_swap_out),
         "minProfitAmount": str(min_profit_amount),
         "deadline": str(int(deadline)),
-        "swapPath": [collateral_asset, debt_asset] if collateral_asset.lower() != debt_asset.lower() else [],
+        "swapPath": swap_path if collateral_asset.lower() != debt_asset.lower() else [],
     }
     return {
         "executor": _checksum(executor_address),
@@ -72,8 +154,14 @@ def build_liquidation_execution_payload(
         "request": request,
         "preflight": {
             "static_call_required": True,
+            "static_call_status": "pending",
+            "static_call_passed": False,
+            "static_call_error": None,
+            "static_call_simulated_at": None,
             "rounding_buffer_units": int(config.rounding_buffer_units),
             "min_profit_buffer_base": int(config.min_profit_buffer_base),
             "allow_zero_min_collateral_out": bool(config.allow_zero_min_collateral_out),
+            "slippage_bps": int(config.slippage_bps),
         },
+        "dex_quote": dex_quote,
     }

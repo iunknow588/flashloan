@@ -272,8 +272,9 @@ def discover_borrower_addresses(
         return []
     chunk = max(1, min(int(chunk_size), 50_000))
     unique_addresses: list[str] = []
+    result_limit = max(1, int(limit))
     current = start_block
-    while current <= end_limit and len(unique_addresses) < max(1, int(limit)):
+    while current <= end_limit:
         end_block = min(end_limit, current + chunk - 1)
         logs = w3.eth.get_logs(
             {
@@ -288,10 +289,8 @@ def discover_borrower_addresses(
             if len(topics) < 3:
                 continue
             borrower = topic_to_address(topics[2])
-            if borrower and borrower not in unique_addresses:
+            if borrower and borrower not in unique_addresses and len(unique_addresses) < result_limit:
                 unique_addresses.append(borrower)
-                if len(unique_addresses) >= max(1, int(limit)):
-                    break
         current = end_block + 1
     return unique_addresses
 
@@ -392,6 +391,44 @@ def _parse_liquidation_info(raw: Any) -> dict:
     }
 
 
+def _debt_amount_to_base(debt_amount: int, debt_info: dict[str, Any]) -> float:
+    debt_balance = int(debt_info.get("debt_balance") or 0)
+    debt_balance_base = int(debt_info.get("debt_balance_in_base_currency") or 0)
+    if debt_amount <= 0:
+        return 0.0
+    if debt_balance > 0 and debt_balance_base > 0:
+        return float(debt_balance_base) * float(debt_amount) / float(debt_balance)
+    asset_unit = int(debt_info.get("asset_unit") or 0)
+    price = int(debt_info.get("price") or 0)
+    if asset_unit > 0 and price > 0:
+        return float(debt_amount) * float(price) / float(asset_unit)
+    return 0.0
+
+
+def liquidation_repay_base_and_source(info: dict[str, Any], config: LiquidationScanConfig) -> tuple[float, str, float]:
+    debt_info = info.get("debt_info") or {}
+    amount_to_pass = int(info.get("amount_to_pass_to_liquidation_call") or 0)
+    max_debt = int(info.get("max_debt_to_liquidate") or 0)
+    debt_balance_base = float(debt_info.get("debt_balance_in_base_currency") or 0)
+    user_debt_base = float((info.get("user_info") or {}).get("total_debt_in_base_currency") or 0)
+    total_debt_base = debt_balance_base or user_debt_base
+    fallback_fraction = min(1.0, max(0.0, float(config.close_factor)))
+
+    if amount_to_pass > 0:
+        repay_base = _debt_amount_to_base(amount_to_pass, debt_info)
+        if repay_base <= 0 and max_debt > 0:
+            max_debt_base = _debt_amount_to_base(max_debt, debt_info)
+            repay_base = max_debt_base * min(1.0, float(amount_to_pass) / float(max_debt))
+        return repay_base, "amount_to_pass_to_liquidation_call", 1.0
+
+    if max_debt > 0:
+        repay_base = _debt_amount_to_base(max_debt, debt_info)
+        if repay_base > 0:
+            return repay_base, "max_debt_to_liquidate", 1.0
+
+    return total_debt_base, "close_factor_fallback", fallback_fraction
+
+
 def load_reserve_assets_for_scan(rpc_url: str, pool_address: str, limit: int = 1000) -> list[dict]:
     from market.aave_reserve_cache import load_aave_reserve_assets
 
@@ -478,15 +515,16 @@ def build_liquidation_candidates(
                 continue
             info = _parse_liquidation_info(raw)
             user_info = info["user_info"]
-            debt_base = float(info["debt_info"]["debt_balance_in_base_currency"] or 0)
+            repay_base, repay_base_source, repay_fraction = liquidation_repay_base_and_source(info, config)
             profit = estimate_liquidation_profit(
-                debt_base or float(user_info["total_debt_in_base_currency"] or 0),
+                repay_base,
                 config.liquidation_bonus_percent,
                 config.flashloan_fee_percent,
                 config.dex_slippage_percent,
                 config.gas_cost_usd,
-                repay_fraction=min(1.0, max(0.0, config.close_factor)),
+                repay_fraction=repay_fraction,
             )
+            profit["repay_base_source"] = repay_base_source
             candidates.append(
                 {
                     "collateral_asset": collateral["token_address"],
@@ -500,6 +538,7 @@ def build_liquidation_candidates(
                     "max_debt_to_liquidate": info["max_debt_to_liquidate"],
                     "liquidation_protocol_fee": info["liquidation_protocol_fee"],
                     "amount_to_pass_to_liquidation_call": info["amount_to_pass_to_liquidation_call"],
+                    "repay_base_source": repay_base_source,
                     "estimated_profit": profit,
                 }
             )

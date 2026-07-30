@@ -738,6 +738,55 @@ def liquidation_account_registry_stats(database_url: str, retained_days: int = 3
             }
 
 
+def load_latest_liquidation_account_reports(database_url: str, limit: int = 500) -> list[dict[str, Any]]:
+    psycopg = require_psycopg()
+    query = """
+        SELECT
+            account, source, active, scan_start_at, scan_end_at, last_scanned_at,
+            last_health_factor, last_status, last_health_factor_band, last_candidate_count,
+            last_summary_json, last_report_json
+        FROM liquidation_accounts
+        WHERE last_report_json IS NOT NULL OR last_summary_json IS NOT NULL
+        ORDER BY COALESCE(last_scanned_at, scan_end_at, updated_at) DESC, account ASC
+        LIMIT %s
+    """
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (int(limit),))
+            rows = cursor.fetchall()
+    reports: list[dict[str, Any]] = []
+    for row in rows:
+        summary = {}
+        report = {}
+        try:
+            if row[10]:
+                summary = json.loads(row[10]) if isinstance(row[10], str) else {}
+        except json.JSONDecodeError:
+            summary = {}
+        try:
+            if row[11]:
+                report = json.loads(row[11]) if isinstance(row[11], str) else {}
+        except json.JSONDecodeError:
+            report = {}
+        reports.append(
+            {
+                "account": str(row[0]),
+                "source": str(row[1]),
+                "active": bool(row[2]),
+                "scan_start_at": row[3].isoformat() if row[3] else None,
+                "scan_end_at": row[4].isoformat() if row[4] else None,
+                "last_scanned_at": row[5].isoformat() if row[5] else None,
+                "last_health_factor": float(row[6]) if row[6] is not None else None,
+                "last_status": str(row[7]) if row[7] else None,
+                "last_health_factor_band": str(row[8]) if row[8] else None,
+                "last_candidate_count": int(row[9]) if row[9] is not None else None,
+                "summary": summary,
+                "report": report,
+            }
+        )
+    return reports
+
+
 def prune_liquidation_accounts(database_url: str, retained_days: int = 365) -> int:
     psycopg = require_psycopg()
     cutoff = datetime.now(timezone.utc) - timedelta(days=int(retained_days))

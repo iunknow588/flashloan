@@ -5,6 +5,8 @@ import pytest
 from execution.liquidation_scan import (
     LiquidationScanConfig,
     build_liquidation_execution_plan,
+    build_liquidation_candidates,
+    discover_borrower_addresses,
     health_factor_band,
     classify_health_factor,
     estimate_liquidation_profit,
@@ -67,6 +69,66 @@ def test_estimate_liquidation_profit_subtracts_flashloan_slippage_and_gas():
     assert result["profitable"]
 
 
+def test_build_liquidation_candidates_uses_amount_to_pass_for_profit(monkeypatch):
+    from execution import liquidation_scan
+
+    class FakeProvider:
+        class functions:
+            @staticmethod
+            def getLiquidationInfo(user, collateral, debt):
+                class Call:
+                    @staticmethod
+                    def call():
+                        return (
+                            (0, 2000, 0, 0, 0, 0),
+                            (100, 200, collateral, 500, 500),
+                            (100, 400, debt, 300, 300),
+                            120,
+                            80,
+                            0,
+                            40,
+                        )
+
+                return Call()
+
+    class FakeContract:
+        functions = FakeProvider.functions
+
+    class FakeEth:
+        @staticmethod
+        def contract(address, abi):
+            return FakeContract()
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return value
+
+    monkeypatch.setattr(liquidation_scan, "Web3", FakeWeb3)
+
+    positions = [
+        {"token_address": "0x1", "symbol": "COLL", "usage_as_collateral_enabled": True, "current_a_token_balance": 500, "current_stable_debt": 0, "current_variable_debt": 0},
+        {"token_address": "0x2", "symbol": "DEBT", "usage_as_collateral_enabled": False, "current_a_token_balance": 0, "current_stable_debt": 300, "current_variable_debt": 0},
+    ]
+    candidates = build_liquidation_candidates(
+        "https://rpc.example",
+        "0xabc",
+        positions,
+        "0xdef",
+        LiquidationScanConfig(close_factor=0.5),
+    )
+
+    assert candidates[0]["estimated_profit"]["repay_base_source"] == "amount_to_pass_to_liquidation_call"
+    assert candidates[0]["estimated_profit"]["repay_base"] == pytest.approx(40)
+
+
 def test_split_candidate_accounts():
     groups = split_candidate_accounts(
         [
@@ -123,6 +185,58 @@ def test_scan_account_health_uses_fetcher(monkeypatch):
 
     assert rows[0]["status"] == "liquidatable"
     assert rows[0]["liquidation_profit"]["profitable"]
+
+
+def test_discover_borrower_addresses_scans_full_window_after_result_limit(monkeypatch):
+    from execution import liquidation_scan
+
+    calls = []
+
+    def topic(address: str) -> str:
+        return "0x" + "0" * 24 + address.removeprefix("0x").lower()
+
+    class FakeEth:
+        block_number = 30
+
+        @staticmethod
+        def get_logs(params):
+            calls.append((params["fromBlock"], params["toBlock"]))
+            return [
+                {
+                    "topics": [
+                        "0xborrow",
+                        "0xreserve",
+                        topic("0x0000000000000000000000000000000000000001"),
+                    ]
+                }
+            ]
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return str(value)
+
+    monkeypatch.setattr(liquidation_scan, "Web3", FakeWeb3)
+    monkeypatch.setattr(liquidation_scan, "BORROW_EVENT_TOPIC", "0xborrow")
+
+    addresses = discover_borrower_addresses(
+        "https://rpc.example",
+        "0xpool",
+        1,
+        to_block=30,
+        chunk_size=10,
+        limit=1,
+    )
+
+    assert addresses == ["0x0000000000000000000000000000000000000001"]
+    assert calls == [(1, 10), (11, 20), (21, 30)]
 
 
 def test_build_liquidation_execution_plan_marks_readiness():
@@ -251,3 +365,65 @@ def test_build_liquidation_execution_payload_requires_min_swap_output():
             router_address="0x0000000000000000000000000000000000000005",
             deadline=123456,
         )
+
+
+def test_build_liquidation_execution_payload_quotes_min_swap_output(monkeypatch):
+    from execution import liquidation_payload
+    from web3 import Web3 as RealWeb3
+
+    class FakeRouterFunctions:
+        @staticmethod
+        def getAmountsOut(amount_in, path):
+            class Call:
+                @staticmethod
+                def call():
+                    return [amount_in, 1000]
+
+            return Call()
+
+    class FakeRouter:
+        functions = FakeRouterFunctions()
+
+    class FakeEth:
+        @staticmethod
+        def contract(address, abi):
+            return FakeRouter()
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return RealWeb3.to_checksum_address(value)
+
+    monkeypatch.setattr(liquidation_payload, "Web3", FakeWeb3)
+
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "context": {"rpc_url": "https://rpc.example"},
+        "execution_plan": {"execution_ready": True},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "max_collateral_to_liquidate": 1000,
+            "amount_to_pass_to_liquidation_call": 100,
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    payload = build_liquidation_execution_payload(
+        report,
+        executor_address="0x0000000000000000000000000000000000000004",
+        router_address="0x0000000000000000000000000000000000000005",
+        deadline=123456,
+    )
+
+    assert payload["request"]["minCollateralSwapOut"] == "995"
+    assert payload["preflight"]["static_call_status"] == "pending"
+    assert payload["dex_quote"]["quoted_amount_out"] == "1000"

@@ -97,8 +97,8 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
-    monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001"])
-    monkeypatch.setattr(control_panel, "db_liquidation_account_registry_stats", lambda database_url, retained_days=365: {"total_count": 1, "active_count": 1, "earliest_scan_start_at": "2026-01-01T00:00:00+00:00", "latest_scan_end_at": "2026-01-02T00:00:00+00:00", "retained_days": retained_days})
+    monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000003"])
+    monkeypatch.setattr(control_panel, "db_liquidation_account_registry_stats", lambda database_url, retained_days=365: {"total_count": 2, "active_count": 2, "earliest_scan_start_at": "2026-01-01T00:00:00+00:00", "latest_scan_end_at": "2026-01-02T00:00:00+00:00", "retained_days": retained_days})
     monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
     monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
     monkeypatch.setattr(
@@ -113,20 +113,34 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
                 "current_liquidation_threshold": 8000,
                 "total_debt_base": 1000,
                 "liquidation_profit": {"net_profit_base": 23.25},
-            }
+            },
+            {
+                "account": accounts[1],
+                "health_factor": 2.4,
+                "status": "healthy",
+                "ltv": 7500,
+                "current_liquidation_threshold": 8000,
+                "total_debt_base": 500,
+                "liquidation_profit": {"net_profit_base": 0},
+            },
         ],
     )
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000002")
 
     payload = liquidation_health_payload(force=True)
 
-    assert payload["summary"]["account_count"] == 1
+    assert payload["summary"]["account_count"] == 2
     assert payload["summary"]["liquidatable_count"] == 1
+    assert payload["summary"]["healthy_count"] == 1
+    assert payload["summary"]["watch_count"] == 1
+    assert payload["summary"]["displayed_count"] == 2
     assert payload["rows"][0]["status"] == "liquidatable"
+    assert payload["rows"][1]["status"] == "healthy"
+    assert len(payload["watched_rows"]) == 1
     assert "scan_interval_seconds" in payload["summary"]
     assert payload["summary"]["account_source"] == "database"
     assert payload["summary"]["retention_days"] == 365
-    assert payload["summary"]["registry_window"]["total_count"] == 1
+    assert payload["summary"]["registry_window"]["total_count"] == 2
 
 
 def test_liquidation_account_registry_prefers_database(monkeypatch):
@@ -199,6 +213,38 @@ def test_liquidation_discovery_window_scans_recent_week_first(monkeypatch):
     assert 300_000 <= lookback_blocks <= 305_000
 
 
+def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setenv("LIQUIDATION_DISCOVERY_BLOCK_OVERLAP", "1")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_registry_window",
+        lambda: {"total_count": 1, "active_count": 1, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": 365},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_discovery_progress",
+        lambda pool_address: {
+            "latest_recent_scan_end_at": "2026-07-30T00:00:00+00:00",
+            "earliest_backfill_scan_start_at": None,
+            "latest_recent_to_block": 100,
+            "earliest_backfill_from_block": None,
+            "success_count": 1,
+            "error_count": 0,
+            "scanned_block_count": 100,
+        },
+    )
+
+    _, _, from_block, to_block, _, registry, mode = liquidation_discovery_window(force_full=False)
+
+    assert mode == "recent"
+    assert from_block == 100
+    assert to_block is None
+    assert registry["discovery_cursor"]["source"] == "block-ledger"
+    assert registry["discovery_cursor"]["previous_latest_to_block"] == 100
+
+
 def test_liquidation_discovery_window_backfills_previous_week(monkeypatch):
     from web import control_panel
 
@@ -224,6 +270,41 @@ def test_liquidation_discovery_window_backfills_previous_week(monkeypatch):
     assert from_block < to_block
     assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
     assert 300_000 <= lookback_blocks <= 305_000
+
+
+def test_liquidation_discovery_window_resumes_backfill_from_block_cursor(monkeypatch):
+    from web import control_panel
+
+    LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
+    monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
+    monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
+    monkeypatch.setenv("LIQUIDATION_DISCOVERY_BLOCK_OVERLAP", "1")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_registry_window",
+        lambda: {"total_count": 1, "active_count": 1, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": 365},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_discovery_progress",
+        lambda pool_address: {
+            "latest_recent_scan_end_at": None,
+            "earliest_backfill_scan_start_at": "2026-07-20T00:00:00+00:00",
+            "latest_recent_to_block": None,
+            "earliest_backfill_from_block": 1000,
+            "success_count": 1,
+            "error_count": 0,
+            "scanned_block_count": 100,
+        },
+    )
+
+    _, _, from_block, to_block, _, registry, mode = liquidation_discovery_window(force_full=True)
+
+    assert mode == "historical-backfill"
+    assert to_block == 1000
+    assert from_block == 0
+    assert registry["discovery_cursor"]["source"] == "block-ledger"
+    assert registry["discovery_cursor"]["previous_earliest_from_block"] == 1000
 
 
 def test_discovery_window_continuity_allows_connected_or_overlapped_ranges():
@@ -392,6 +473,43 @@ def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
     assert data["method"] == "requestLiquidation"
     assert data["request"]["debtToCover"] == "1000"
     assert data["preflight"]["static_call_required"] is True
+
+
+def test_liquidation_account_preflight_api_returns_static_call_status(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account: {"account": account, "preflight": {"static_call_required": True}})
+    monkeypatch.setattr(
+        control_panel,
+        "simulate_liquidation_static_call",
+        lambda payload: {**payload, "preflight": {**payload["preflight"], "static_call_status": "passed", "static_call_passed": True, "static_call_error": None, "static_call_simulated_at": "2026-07-30T10:00:00+00:00"}},
+    )
+
+    client = app.test_client()
+    response = client.post("/api/liquidation/account/preflight?account=0x0000000000000000000000000000000000000001")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["preflight"]["static_call_status"] == "passed"
+    assert data["preflight"]["static_call_passed"] is True
+
+
+def test_liquidation_samples_api_returns_manifest(monkeypatch, tmp_path):
+    from web import control_panel
+
+    sample_path = tmp_path / "index.json"
+    sample_path.write_text(
+        '{"schema_version":1,"generated_at":"2026-07-30T10:00:00+00:00","source_count":2,"samples":[{"label":"healthy","status":"ready","file":"healthy.json"}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(control_panel, "LIQUIDATION_SAMPLE_LIBRARY_PATH", sample_path)
+
+    client = app.test_client()
+    response = client.get("/api/liquidation/samples")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["samples"][0]["label"] == "healthy"
 
 
 def test_liquidation_account_payload_api_requires_executor(monkeypatch):

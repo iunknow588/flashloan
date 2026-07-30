@@ -24,6 +24,7 @@ from execution.liquidation_scan import (
     LiquidationScanConfig,
     build_user_liquidation_report,
     discover_borrower_addresses,
+    health_factor_band,
     load_account_addresses,
     load_reserve_assets_for_scan,
     scan_account_health,
@@ -62,7 +63,9 @@ from web.control_panel_data import (
 )
 from web.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
 from db.storage import (
+    EXPECTED_SCHEMA_MIGRATION_IDS,
     ensure_database_schema,
+    load_schema_migrations,
     load_liquidation_accounts as db_load_liquidation_accounts,
     liquidation_account_registry_stats as db_liquidation_account_registry_stats,
     liquidation_discovery_scan_progress as db_liquidation_discovery_scan_progress,
@@ -90,6 +93,7 @@ LATEST_EXECUTABLE_SIGNAL_PATH = STATE_DIR / "latest_executable_signal.json"
 LATEST_EXTREMES_PATH = STATE_DIR / "latest_extremes.json"
 AAVE_RESERVE_CACHE_PATH = CACHE_DIR / "aave_reserve_assets.json"
 DEX_BORROW_TARGET_CACHE_PATH = CACHE_DIR / "dex_borrow_targets.json"
+LIQUIDATION_SAMPLE_LIBRARY_PATH = RUNTIME_DIR / "samples" / "liquidation_candidates" / "index.json"
 LIQUIDATION_ACCOUNTS_PATH = resolve_env_path("LIQUIDATION_ACCOUNTS_FILE", "runtime/cache/liquidation_accounts.txt", APP_DIR)
 OBSERVER_PID_PATH = RUNTIME_DIR / "observer.pid"
 STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
@@ -254,6 +258,14 @@ def liquidation_block_seconds() -> float:
     return max(0.1, float(os.getenv("LIQUIDATION_BLOCK_SECONDS", "2.0")))
 
 
+def liquidation_discovery_block_overlap() -> int:
+    return max(0, int(os.getenv("LIQUIDATION_DISCOVERY_BLOCK_OVERLAP", "1")))
+
+
+def liquidation_health_display_limit() -> int:
+    return max(1, int(os.getenv("LIQUIDATION_HEALTH_DISPLAY_LIMIT", "200")))
+
+
 def liquidation_background_refresh_enabled() -> bool:
     return os.getenv("LIQUIDATION_BACKGROUND_REFRESH", "true").strip().lower() not in {"0", "false", "no"}
 
@@ -278,8 +290,29 @@ def liquidation_executor_address() -> str:
     return os.getenv("LIQUIDATION_EXECUTOR_ADDRESS", "").strip()
 
 
+def liquidation_executor_owner_address() -> str:
+    return os.getenv("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "").strip()
+
+
 def dex_router_address() -> str:
     return os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
+
+
+def env_bool(name: str, default: bool) -> bool:
+    fallback = "true" if default else "false"
+    return os.getenv(name, fallback).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def liquidation_execution_controls() -> dict:
+    max_debt_raw = os.getenv("LIQUIDATION_MAX_DEBT_TO_COVER", "0").strip()
+    min_profit_raw = os.getenv("LIQUIDATION_MIN_PROFIT_BASE", "0").strip()
+    return {
+        "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", False),
+        "require_static_call": env_bool("LIQUIDATION_REQUIRE_STATIC_CALL", True),
+        "max_debt_to_cover": int(max_debt_raw or 0),
+        "min_profit_base": int(min_profit_raw or 0),
+        "slippage_bps": int(os.getenv("LIQUIDATION_SWAP_SLIPPAGE_BPS", os.getenv("EXECUTION_SLIPPAGE_BPS", "50"))),
+    }
 
 
 def database_url_or_none() -> Optional[str]:
@@ -328,6 +361,26 @@ def liquidation_account_registry_window() -> dict:
         return db_liquidation_account_registry_stats(database_url, retained_days=liquidation_retention_days())
     except Exception:
         return {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": liquidation_retention_days()}
+
+
+def schema_status_payload() -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"configured": False, "up_to_date": False, "expected_migrations": list(EXPECTED_SCHEMA_MIGRATION_IDS), "applied_migrations": []}
+    try:
+        ensure_database_schema(database_url)
+        migrations = load_schema_migrations(database_url)
+        applied_ids = {str(row.get("migration_id")) for row in migrations}
+        missing = [migration_id for migration_id in EXPECTED_SCHEMA_MIGRATION_IDS if migration_id not in applied_ids]
+        return {
+            "configured": True,
+            "up_to_date": not missing,
+            "expected_migrations": list(EXPECTED_SCHEMA_MIGRATION_IDS),
+            "applied_migrations": migrations,
+            "missing_migrations": missing,
+        }
+    except Exception as exc:
+        return {"configured": True, "up_to_date": False, "error": str(exc), "expected_migrations": list(EXPECTED_SCHEMA_MIGRATION_IDS), "applied_migrations": []}
 
 
 def liquidation_discovery_progress(pool_address: str) -> dict:
@@ -465,6 +518,9 @@ def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, da
     registry = liquidation_account_registry_window()
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
     progress = liquidation_discovery_progress(pool_address)
+    overlap_blocks = liquidation_discovery_block_overlap()
+    latest_recent_to_block = progress.get("latest_recent_to_block")
+    earliest_backfill_from_block = progress.get("earliest_backfill_from_block")
     latest_end = parse_iso_datetime(progress.get("latest_recent_scan_end_at")) or parse_iso_datetime(registry.get("latest_scan_end_at"))
     earliest_start = parse_iso_datetime(progress.get("earliest_backfill_scan_start_at")) or parse_iso_datetime(registry.get("earliest_scan_start_at"))
     historical_cursor = parse_iso_datetime(LIQUIDATION_DISCOVERY_CACHE.get("historical_cursor_at")) or earliest_start
@@ -475,10 +531,40 @@ def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, da
         scan_end_at = min(anchor, recent_start)
         scan_start_at = max(retention_start, scan_end_at - timedelta(days=liquidation_backfill_window_days()))
         mode = "historical-backfill"
+        if earliest_backfill_from_block is not None:
+            lookback_blocks = max(1, int(timedelta(days=liquidation_backfill_window_days()).total_seconds() / liquidation_block_seconds()))
+            to_block = max(0, int(earliest_backfill_from_block) - 1 + overlap_blocks)
+            from_block = max(0, to_block - lookback_blocks + 1)
+            registry["discovery_scan_progress"] = progress
+            registry["discovery_cursor"] = {
+                "source": "block-ledger",
+                "mode": mode,
+                "overlap_blocks": overlap_blocks,
+                "previous_earliest_from_block": int(earliest_backfill_from_block),
+                "next_from_block": from_block,
+                "next_to_block": to_block,
+            }
+            if int(earliest_backfill_from_block) <= 0:
+                return scan_start_at, scan_start_at, 0, 0, 0, registry, mode
+            return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
     else:
         scan_start_at = max(recent_start, latest_end) if latest_end is not None else recent_start
         scan_end_at = now
         mode = "recent"
+        if latest_recent_to_block is not None:
+            from_block = max(0, int(latest_recent_to_block) + 1 - overlap_blocks)
+            to_block = None
+            lookback_blocks = 0
+            registry["discovery_scan_progress"] = progress
+            registry["discovery_cursor"] = {
+                "source": "block-ledger",
+                "mode": mode,
+                "overlap_blocks": overlap_blocks,
+                "previous_latest_to_block": int(latest_recent_to_block),
+                "next_from_block": from_block,
+                "next_to_block": None,
+            }
+            return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
     seconds = max(0.0, (scan_end_at - scan_start_at).total_seconds())
     now_for_blocks = datetime.now(timezone.utc)
     start_lookback_blocks = max(1, int(max(0.0, (now_for_blocks - scan_start_at).total_seconds()) / liquidation_block_seconds()))
@@ -487,6 +573,13 @@ def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, da
     to_block = None if end_lookback_blocks <= 0 else -end_lookback_blocks
     lookback_blocks = max(1, start_lookback_blocks - end_lookback_blocks)
     registry["discovery_scan_progress"] = progress
+    registry["discovery_cursor"] = {
+        "source": "time-bootstrap",
+        "mode": mode,
+        "overlap_blocks": overlap_blocks,
+        "next_from_block": from_block,
+        "next_to_block": to_block,
+    }
     return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
 
 
@@ -515,6 +608,7 @@ def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
                 "skipped": True,
                 "reason": "historical backfill complete",
                 "mode": mode,
+                "discovery_cursor": registry.get("discovery_cursor"),
                 "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
                 "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
                 "registry_window": registry,
@@ -528,6 +622,7 @@ def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
                 "skipped": True,
                 "reason": "discovery interval not reached",
                 "mode": mode,
+                "discovery_cursor": registry.get("discovery_cursor"),
                 "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
                 "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
                 "registry_window": registry,
@@ -576,6 +671,7 @@ def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
                         "actual_from_block": actual_from_block,
                         "actual_to_block": actual_to_block,
                         "lookback_blocks": lookback_blocks,
+                        "discovery_cursor": registry.get("discovery_cursor"),
                         "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
                         "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
                         "registry_window": registry,
@@ -603,6 +699,7 @@ def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:
                     "actual_from_block": actual_from_block,
                     "actual_to_block": actual_to_block,
                     "lookback_blocks": lookback_blocks,
+                    "discovery_cursor": registry.get("discovery_cursor"),
                     "retention_days": liquidation_retention_days(),
                     "recent_discovery_days": liquidation_recent_discovery_days(),
                     "backfill_window_days": liquidation_backfill_window_days(),
@@ -777,6 +874,25 @@ def liquidation_health_with_scan_state(
     return current
 
 
+def liquidation_health_display_rows(rows: list[dict], limit: int) -> list[dict]:
+    ranked = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["health_factor_band"] = item.get("health_factor_band") or health_factor_band(float(item.get("health_factor")))
+        except (TypeError, ValueError):
+            pass
+        ranked.append(item)
+    ranked.sort(
+        key=lambda row: (
+            1 if row.get("status") == "error" else 0,
+            float(row.get("health_factor", 10.0)) if isinstance(row.get("health_factor"), (int, float)) else 10.0,
+            str(row.get("account") or ""),
+        )
+    )
+    return ranked[:limit]
+
+
 def record_liquidation_health_scan_rows(rows: list[dict]) -> None:
     database_url = database_url_or_none()
     if not database_url or not rows:
@@ -870,13 +986,18 @@ def liquidation_health_payload(force: bool = False) -> dict:
                     error = str(exc)
         if not accounts and not error:
             error = "liquidation account registry is empty"
+        display_limit = liquidation_health_display_limit()
+        watched_rows = watched_health_rows(rows, config.watch_health_factor)
         payload = {
-            "rows": watched_health_rows(rows, config.watch_health_factor)[:50],
+            "rows": liquidation_health_display_rows(rows, display_limit),
+            "watched_rows": watched_rows[:display_limit],
             "summary": liquidation_health_summary(rows, len(accounts), account_source, config, rpc_url, error) | {
                 "auto_discovered": auto_discovered,
                 "watch_health_factor": config.watch_health_factor,
+                "display_limit": display_limit,
+                "displayed_count": min(len(rows), display_limit),
                 "scan_interval_seconds": ttl_seconds,
-                "watch_count": sum(1 for row in rows if isinstance(row.get("health_factor"), (int, float)) and float(row["health_factor"]) < config.watch_health_factor),
+                "watch_count": len(watched_rows),
             },
         }
         LIQUIDATION_SCAN_CACHE["running"] = False
@@ -943,14 +1064,109 @@ def liquidation_execution_payload_for_account(
         raise RuntimeError("missing LIQUIDATION_EXECUTOR_ADDRESS")
     report = liquidation_account_payload(account)
     deadline = int(time.time()) + max(30, int(deadline_seconds))
+    controls = liquidation_execution_controls()
     payload = build_liquidation_execution_payload(
         report,
         executor_address=executor_address,
         router_address=dex_router_address(),
         deadline=deadline,
-        config=LiquidationExecutionPayloadConfig(allow_zero_min_collateral_out=allow_zero_min_out),
+        config=LiquidationExecutionPayloadConfig(
+            allow_zero_min_collateral_out=allow_zero_min_out,
+            slippage_bps=controls["slippage_bps"],
+        ),
     )
+    candidate = payload.get("request") or {}
+    if controls["max_debt_to_cover"] > 0 and int(candidate.get("debtToCover") or 0) > controls["max_debt_to_cover"]:
+        raise ValueError("debtToCover exceeds LIQUIDATION_MAX_DEBT_TO_COVER")
+    profit_amount = int(candidate.get("minProfitAmount") or 0)
+    if profit_amount < controls["min_profit_base"]:
+        raise ValueError("minProfitAmount is below LIQUIDATION_MIN_PROFIT_BASE")
+    preflight = dict(payload.get("preflight") or {})
+    preflight["static_call_required"] = bool(controls["require_static_call"])
+    preflight["execution_enabled"] = bool(controls["execution_enabled"])
+    preflight["static_call_status"] = "pending"
+    preflight["static_call_passed"] = False
+    preflight["static_call_error"] = None
+    preflight["static_call_simulated_at"] = None
+    payload["preflight"] = preflight
     payload["account_report"] = report
+    payload["execution_controls"] = controls
+    return payload
+
+
+LIQUIDATION_EXECUTOR_ABI = [
+    {
+        "inputs": [
+            {
+                "components": [
+                    {"internalType": "address", "name": "user", "type": "address"},
+                    {"internalType": "address", "name": "collateralAsset", "type": "address"},
+                    {"internalType": "address", "name": "debtAsset", "type": "address"},
+                    {"internalType": "uint256", "name": "debtToCover", "type": "uint256"},
+                    {"internalType": "uint256", "name": "minCollateralSwapOut", "type": "uint256"},
+                    {"internalType": "uint256", "name": "minProfitAmount", "type": "uint256"},
+                    {"internalType": "uint256", "name": "deadline", "type": "uint256"},
+                    {"internalType": "address[]", "name": "swapPath", "type": "address[]"},
+                ],
+                "internalType": "struct AaveV3LiquidationExecutor.LiquidationRequest",
+                "name": "request",
+                "type": "tuple",
+            }
+        ],
+        "name": "requestLiquidation",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    }
+]
+
+
+def simulate_liquidation_static_call(payload: dict) -> dict:
+    executor_address = str(payload.get("executor") or "").strip()
+    owner_address = liquidation_executor_owner_address()
+    request = payload.get("request") or {}
+    if not executor_address:
+        raise ValueError("executor is required")
+    if not owner_address:
+        raise ValueError("missing LIQUIDATION_EXECUTOR_OWNER_ADDRESS")
+
+    rpc_url, _, asset_error = scan_context_assets()
+    if not rpc_url:
+        raise RuntimeError(asset_error or "unable to resolve rpc_url")
+
+    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 10}))
+    executor = w3.eth.contract(address=Web3.to_checksum_address(executor_address), abi=LIQUIDATION_EXECUTOR_ABI)
+    checksum_owner = Web3.to_checksum_address(owner_address)
+    try:
+        executor.functions.requestLiquidation(
+            (
+                Web3.to_checksum_address(str(request.get("user") or "")),
+                Web3.to_checksum_address(str(request.get("collateralAsset") or "")),
+                Web3.to_checksum_address(str(request.get("debtAsset") or "")),
+                int(request.get("debtToCover") or 0),
+                int(request.get("minCollateralSwapOut") or 0),
+                int(request.get("minProfitAmount") or 0),
+                int(request.get("deadline") or 0),
+                [Web3.to_checksum_address(str(item)) for item in (request.get("swapPath") or []) if str(item).strip()],
+            )
+        ).call({"from": checksum_owner})
+        status = "passed"
+        error = None
+    except Exception as exc:
+        status = "error"
+        error = str(exc)
+    simulated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    preflight = dict(payload.get("preflight") or {})
+    preflight.update(
+        {
+            "static_call_required": True,
+            "static_call_status": status,
+            "static_call_passed": status == "passed",
+            "static_call_error": error,
+            "static_call_simulated_at": simulated_at,
+        }
+    )
+    payload["preflight"] = preflight
     return payload
 
 
@@ -1492,6 +1708,16 @@ def latest_arbitrage_simulation_file() -> Optional[dict]:
     return read_latest_arbitrage_simulation_file(LATEST_ARBITRAGE_PATH)
 
 
+def liquidation_sample_manifest() -> Optional[dict]:
+    try:
+        if not LIQUIDATION_SAMPLE_LIBRARY_PATH.exists():
+            return None
+        data = json.loads(LIQUIDATION_SAMPLE_LIBRARY_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
 def latest_executable_signal() -> Optional[dict]:
     return read_latest_executable_signal(LATEST_EXECUTABLE_SIGNAL_PATH)
 
@@ -1788,6 +2014,9 @@ def status():
             "borrow_target_universe": safe_latest(borrow_target_universe),
             "strategy_config": config,
             "sampling_profile": unified_sampling_profile(config),
+            "schema_status": schema_status_payload(),
+            "liquidation_execution_controls": liquidation_execution_controls(),
+            "liquidation_sample_manifest": liquidation_sample_manifest(),
         }
     )
 
@@ -1865,6 +2094,26 @@ def liquidation_account_payload_api():
         )
     except Exception as exc:
         return jsonify({"error": str(exc), "account": account}), 400
+
+
+@app.post("/api/liquidation/account/preflight")
+def liquidation_account_preflight_api():
+    account = request.args.get("account", "").strip()
+    if not account:
+        return jsonify({"error": "account is required"}), 400
+    try:
+        payload = liquidation_execution_payload_for_account(account)
+        return jsonify(simulate_liquidation_static_call(payload))
+    except Exception as exc:
+        return jsonify({"error": str(exc), "account": account}), 400
+
+
+@app.get("/api/liquidation/samples")
+def liquidation_samples_api():
+    manifest = liquidation_sample_manifest()
+    if not manifest:
+        return jsonify({"error": "liquidation sample library not found", "samples": []}), 404
+    return jsonify(manifest)
 
 
 @app.post("/api/liquidation/accounts")
