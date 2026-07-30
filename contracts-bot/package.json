@@ -6,7 +6,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "test:fork": "hardhat test test/fork/AaveV3LiquidationExecutor.fork.test.js --network hardhat",
-    "simulate:liquidation": "hardhat run scripts/simulate-liquidation.js --network avalanche",
+    "simulate:liquidation": "hardhat run scripts/simulate-liquidation.js --network hardhat",
     "deploy:avalanche": "hardhat run scripts/deploy-liquidation-executor.js --network avalanche",
     "deploy:fuji": "hardhat run scripts/deploy-liquidation-executor.js --network fuji"
   },

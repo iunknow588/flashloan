@@ -41,8 +41,12 @@ async function main() {
   console.log(`debtAsset=${request.debtAsset}`);
   console.log(`debtToCover=${request.debtToCover}`);
 
-  await executor.requestLiquidation.staticCall(request);
-  console.log("fork static liquidation simulation passed");
+  const tx = await executor.requestLiquidation(request, { gasLimit: 3_000_000 });
+  const receipt = await tx.wait();
+  console.log(`tx=${receipt.hash}`);
+  console.log(`status=${receipt.status}`);
+  console.log(`gasUsed=${receipt.gasUsed}`);
+  console.log("fork liquidation transaction simulation passed");
 }
 
 main().catch((error) => {

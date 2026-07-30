@@ -71,10 +71,12 @@
     .metric span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
     .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0; }
     .detail-box { border: 1px solid #d9dee7; border-radius: 6px; padding: 10px 12px; background: #fafbfc; color: #344054; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
+    nav { display: flex; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
   </style>
 </head>
 <body>
-  <header><h1>机会发现控制台</h1><div id="message"></div></header>
+  <header><h1 id="pageTitle">机会发现控制台</h1><nav><a href="/">主控制台</a><a href="/liquidation">Aave 清算</a></nav><div id="message"></div></header>
   <main>
     <div class="toolbar">
       <button class="primary" id="startBtn">开始</button><button id="stopBtn">停止</button>
@@ -89,69 +91,6 @@
       <div class="card"><small>观察行</small><strong id="rows">-</strong><span>Aave 验证记录</span></div>
       <div class="card"><small>候选明细行</small><strong id="binanceRows">-</strong><span>轻量模式不再写入</span></div>
       <div class="card"><small>速度窗口</small><strong id="velocityRows">-</strong><span>顶部/底部快照</span></div>
-    </section>
-    <section class="card">
-      <small>Aave 单账户清算分析</small>
-      <div class="account-actions">
-        <input id="liquidationAccountInput" type="text" placeholder="输入账户地址，例如 0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29">
-        <button class="primary" id="liquidationAccountBtn">查询账户</button>
-        <button id="liquidationAccountSampleBtn">填入示例</button>
-      </div>
-      <div id="liquidationAccountMeta">等待输入账户地址。</div>
-      <div class="toolbar" style="margin-top:0;margin-bottom:10px">
-        <button id="liquidationAccountPreflightBtn">预演</button>
-        <button class="primary" id="liquidationAccountExecuteBtn">执行清算</button>
-        <button id="liquidationAccountFlashloanBtn">闪电贷清算</button>
-        <span id="liquidationAccountActionMeta">等待查询后对账户操作。</span>
-      </div>
-      <div id="liquidationAccountActionDetail" class="detail-box">等待预演或执行回执。</div>
-      <div class="liquidation-detail-grid">
-        <div class="metric"><small>健康度</small><strong id="liquidationAccountHF">-</strong><span id="liquidationAccountHFBand">-</span></div>
-        <div class="metric"><small>状态</small><strong id="liquidationAccountStatus">-</strong><span id="liquidationAccountSummary">-</span></div>
-        <div class="metric"><small>候选清算对</small><strong id="liquidationAccountCandidates">-</strong><span id="liquidationAccountHint">-</span></div>
-        <div class="metric"><small>推荐操作</small><strong id="liquidationAccountRecommendation">-</strong><span id="liquidationAccountProfit">-</span></div>
-      </div>
-      <div class="plan-grid">
-        <div class="metric"><small>执行准备</small><strong id="liquidationPlanReady">-</strong><span id="liquidationPlanReason">-</span></div>
-        <div class="metric"><small>偿还比例</small><strong id="liquidationPlanRepay">-</strong><span id="liquidationPlanMode">-</span></div>
-        <div class="metric"><small>预估净收益</small><strong id="liquidationPlanProfit">-</strong><span id="liquidationPlanGross">-</span></div>
-        <div class="metric"><small>下一步</small><strong id="liquidationPlanNext">-</strong><span id="liquidationPlanPair">-</span></div>
-      </div>
-      <div class="table-wrap" style="margin-bottom:12px;">
-        <table>
-          <thead>
-            <tr>
-              <th>抵押</th>
-              <th>抵押价格</th>
-              <th>可清算抵押 / 价值</th>
-              <th>债务</th>
-              <th>债务价格</th>
-              <th>借款金额 / 价值</th>
-              <th>可清偿债务 / 价值</th>
-              <th>协议费</th>
-              <th>预估净收益</th>
-            </tr>
-          </thead>
-          <tbody id="liquidationAccountCandidateBody"></tbody>
-        </table>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>资产</th>
-              <th>当前价格</th>
-              <th>抵押实物 / 价值</th>
-              <th>稳定借款 / 价值</th>
-              <th>变量借款 / 价值</th>
-              <th>借款合计 / 价值</th>
-              <th>抵押状态</th>
-              <th>健康色带</th>
-            </tr>
-          </thead>
-          <tbody id="liquidationAccountPositionBody"></tbody>
-        </table>
-      </div>
     </section>
     <section class="grid">
       <div class="card"><small>可借代币</small><strong id="borrowableCount">-</strong><span id="borrowableMeta">等待中</span></div>
@@ -194,11 +133,6 @@
       <div class="toolbar" style="margin-top:12px;margin-bottom:0"><button class="primary" id="saveConfigBtn">保存参数</button><span id="configNote">修改将在下次启动观察器时生效。</span></div>
     </section>
     <section class="grid">
-      <div class="card"><small>a：最高涨幅</small><strong id="extremeA">-</strong><span id="extremeAText">等待中</span></div>
-      <div class="card"><small>b：最大跌幅</small><strong id="extremeB">-</strong><span id="extremeBText">等待中</span></div>
-      <div class="card"><small>窗口</small><strong id="extremeWindow">-</strong><span id="extremeMeta">手动计算</span></div>
-    </section>
-    <section class="grid">
       <div class="card"><small>x：涨幅最高</small><strong id="triggerX">-</strong><span id="triggerXMeta">等待中</span></div>
       <div class="card"><small>y：跌幅最高</small><strong id="triggerY">-</strong><span id="triggerYMeta">等待中</span></div>
       <div class="card"><small>触发器</small><strong id="triggerSignal">-</strong><span id="triggerSignalMeta">等待中</span></div>
@@ -207,24 +141,6 @@
     <section class="grid">
       <div class="card"><small>a / b</small><strong id="divergenceCounts">-</strong><span id="divergenceCountsMeta">等待中</span></div>
       <div class="card"><small>分歧指数</small><strong id="divergenceIndex">-</strong><span id="divergenceIndexMeta">等待中</span></div>
-    </section>
-    <section class="card">
-      <small>观察篮子行情</small>
-      <span id="basketMeta">等待中</span>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>代币</th>
-              <th>现价</th>
-              <th>窗口涨跌</th>
-              <th>窗口起价</th>
-              <th>来源</th>
-            </tr>
-          </thead>
-          <tbody id="basketBody"></tbody>
-        </table>
-      </div>
     </section>
     <section class="grid">
       <div class="card"><small>循环监视时间</small><strong id="monitorWindow">-</strong><span id="monitorWindowMeta">等待中</span></div>
@@ -259,41 +175,6 @@
       <div class="card"><small>最弱 HF</small><strong id="liquidationWorstHF">-</strong><span id="liquidationWorstMeta">等待中</span></div>
       <div class="card"><small>扫描状态</small><strong id="liquidationScanState">-</strong><span id="liquidationScanMeta">等待中</span></div>
       <div class="card"><small>账户池窗口</small><strong id="liquidationScanWindow">-</strong><span id="liquidationScanWindowMeta">等待中</span></div>
-    </section>
-    <section class="card">
-      <small>Aave 清算健康扫描</small>
-      <div class="summary-tools" style="margin-top:10px;margin-bottom:10px">
-        <select id="liquidationRetentionSelect">
-          <option value="30">保留 1 个月</option>
-          <option value="365">保留 1 年</option>
-        </select>
-        <input id="liquidationScanIntervalInput" type="number" min="30" step="30" style="width:130px" title="健康度刷新间隔秒">
-        <input id="liquidationDiscoveryIntervalInput" type="number" min="30" step="300" style="width:140px" title="账户池补扫间隔秒">
-        <button id="liquidationSettingsSaveBtn">保存清算参数</button>
-        <button id="liquidationDiscoveryBtn">补扫账户池</button>
-        <button id="liquidationDiscoveryFullBtn">全量回补</button>
-        <button id="liquidationHealthRefreshBtn">刷新健康度</button>
-        <span id="liquidationHealthMeta">等待中</span>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>账户</th>
-              <th>HF</th>
-              <th>状态</th>
-              <th>LTV</th>
-              <th>清算阈值</th>
-              <th>抵押价值</th>
-              <th>债务价值</th>
-              <th>清算奖励</th>
-              <th>净收益</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="liquidationHealthBody"></tbody>
-        </table>
-      </div>
     </section>
     <section class="grid">
       <div class="card"><small>信号率</small><strong id="statSignalRate">-</strong><span id="statSignalCount">等待中</span></div>
@@ -337,7 +218,13 @@
     const $ = id => document.getElementById(id), api = async (p,o={}) => { const r = await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d = await r.json(); if(!r.ok) throw new Error(zhError(d.error || "请求失败")); return d; };
     const dialog=$("symbolDialog"); let configDirty=false, refreshing=false, refreshingDb=false, refreshingSummary=false, summaryPinned=false, refreshingLiquidationAccount=false, refreshingLiquidationPreflight=false, refreshingLiquidationExecute=false, refreshingLiquidationFlashloan=false, refreshingLiquidationHealth=false, refreshingLiquidationDiscovery=false;
     const fmtTime = v => v ? new Date(v).toLocaleString([], {hour12:false}) : "-";
-    const base = s => s ? s.replace(/USDT$/,"") : "";
+    const displayAssetSymbol = s => {
+      const value=String(s||"").trim();
+      if(!value) return "-";
+      const stripped=value.replace(/(USDT|USDC)$/i,"");
+      return stripped || value;
+    };
+    const base = s => displayAssetSymbol(s);
     const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "-";
     const nullPct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "NULL";
     const nullAmount = v => Number.isFinite(v) ? v.toFixed(6) : "NULL";
@@ -372,287 +259,18 @@
     function renderDivergence(x){ if(!x){ $("divergenceCounts").textContent="-"; $("divergenceIndex").textContent="-"; $("divergenceCountsMeta").textContent="等待中"; $("divergenceIndexMeta").textContent="等待中"; return; } const a=Number.isFinite(x.gainer_count)?x.gainer_count:0, b=Number.isFinite(x.loser_count)?x.loser_count:0, n=Number.isFinite(x.observation_universe_size)?x.observation_universe_size:0, d=Number.isFinite(x.market_divergence_index)?x.market_divergence_index:0; $("divergenceCounts").textContent=`${a} / ${b}`; $("divergenceCountsMeta").textContent=`${n} 个交集币`; $("divergenceIndex").textContent=d.toFixed(3); $("divergenceIndex").className=d>1?"positive":"negative"; $("divergenceIndexMeta").textContent=d>1?"已进入全币对利润计算门槛":"未达到计算阈值"; }
     function renderBasket(x){ const rows=x&&Array.isArray(x.basket)?x.basket:[]; $("basketMeta").textContent=x?`${rows.length}/${Number.isFinite(x.observation_universe_size)?x.observation_universe_size:0} 个篮子币 | 窗口 ${Number.isFinite(x.window_seconds)?x.window_seconds.toFixed(3):"-"} 秒 | ${x.observed_at?fmtTime(x.observed_at):"-"}`:"等待中"; $("basketBody").innerHTML=rows.map(row=>`<tr><td>${row.symbol||"-"}</td><td>${price(row.current_price)}</td><td class="${basketCls(row.change_percent)}">${pct(row.change_percent)}</td><td>${price(row.start_price)}</td><td>${row.window_ready?row.price_source||"-":"等待窗口"}</td></tr>`).join("") || '<tr><td colspan="5">暂无篮子行情</td></tr>'; }
     function renderOpportunityHealth(rows, summary){ const list=rows||[]; const currentSummary=summary||{}; const totalCount=Number.isFinite(currentSummary.total)?currentSummary.total:list.length; $("monitorWindow").textContent=Number.isFinite(currentSummary.monitor_window_seconds)?`${currentSummary.monitor_window_seconds.toFixed(1)} 秒`:"-"; $("monitorWindowMeta").textContent=Number.isFinite(currentSummary.trigger_up_percent)&&Number.isFinite(currentSummary.trigger_down_percent)?`阈值 ${currentSummary.trigger_up_percent.toFixed(2)}% / ${currentSummary.trigger_down_percent.toFixed(2)}%`:"等待中"; $("opportunityCount").textContent=totalCount; $("opportunityCountMeta").textContent=currentSummary.best_symbol?`最佳 ${base(currentSummary.best_symbol)}`:"等待中"; $("opportunityCandidateCount").textContent=Number.isFinite(currentSummary.candidate_count)?currentSummary.candidate_count:"-"; $("opportunityCandidateMeta").textContent=Number.isFinite(currentSummary.selected_count)?`已选 ${currentSummary.selected_count}`:"等待中"; $("opportunityTopScore").textContent=Number.isFinite(currentSummary.best_health_score)?Number(currentSummary.best_health_score).toFixed(2):"-"; $("opportunityTopMeta").textContent=currentSummary.best_symbol?`${base(currentSummary.best_symbol)} | ${currentSummary.best_status || "-"}`:"等待中"; $("opportunityHealthMeta").textContent=`${totalCount} 条机会 | ${currentSummary.watched_count ?? 0} 条观察中 | ${currentSummary.healthy_count ?? 0} 条健康`; $("opportunityHealthBody").innerHTML=list.map(row=>`<tr><td>${row.symbol||"-"}</td><td class="${cellCls(row.health_score)}">${Number.isFinite(row.health_score)?row.health_score.toFixed(2):"-"}</td><td class="${statusCls(row.status)}">${row.status||"-"}</td><td class="${cellCls(row.change_percent)}">${Number.isFinite(row.change_percent)?pct(row.change_percent):"-"}</td><td>${Number.isFinite(row.trigger_threshold_percent)?row.trigger_threshold_percent.toFixed(2)+"%":"-"}</td><td>${row.window_ready?"就绪":"监视中"}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="7">暂无机会健康度数据</td></tr>'; }
-    function renderLiquidationHealth(x){
-      const rows=Array.isArray(x&&x.rows)?x.rows:[];
-      const summary=x&&x.summary?x.summary:{};
-      const registry=summary.registry_window||{};
-      const running=Boolean(summary.scan_running)||refreshingLiquidationHealth;
-      const interval=Number.isFinite(summary.scan_interval_seconds)?summary.scan_interval_seconds:null;
-      const cooldown=Number.isFinite(summary.scan_cooldown_remaining_seconds)?summary.scan_cooldown_remaining_seconds:0;
-      const cooldownActive=!running && cooldown>0.5;
-      const refreshBtn=$("liquidationHealthRefreshBtn");
-      $("liquidationSourceCount").textContent=Number.isFinite(summary.account_count)?summary.account_count:"-";
-      $("liquidationSourceMeta").textContent=summary.source_ready?`来源 ${summary.account_source||"database"} | 已扫 ${Number.isFinite(summary.scanned_count)?summary.scanned_count:0}`:(summary.error||"未配置账户");
-      $("liquidationWarningCount").textContent=Number.isFinite(summary.watch_count)?summary.watch_count:"-";
-      $("liquidationWarningMeta").textContent=Number.isFinite(summary.watch_health_factor)?`阈值 ${summary.watch_health_factor.toFixed(2)} | 间隔 ${interval?interval.toFixed(0):"-"}s`:"等待中";
-      $("liquidationLiquidatableCount").textContent=Number.isFinite(summary.liquidatable_count)?summary.liquidatable_count:"-";
-      $("liquidationLiquidatableMeta").textContent=Number.isFinite(summary.liquidation_health_factor)?`阈值 ${summary.liquidation_health_factor.toFixed(2)}`:"等待中";
-      $("liquidationWorstHF").textContent=Number.isFinite(summary.worst_health_factor)?Number(summary.worst_health_factor).toFixed(3):"-";
-      $("liquidationWorstMeta").textContent=summary.worst_account?summary.worst_account:"等待中";
-      $("liquidationScanState").textContent=running?"扫描中":(cooldownActive?"冷却中":"可刷新");
-      $("liquidationScanState").className=running?"status-candidate":(cooldownActive?"status-watching":"positive");
-      const discovery=summary.discovery_last_result||{};
-      const discoveryText=summary.discovery_running?`账户补扫 ${fmtTime(summary.discovery_started_at)}`:(discovery.scan_end_at?`账户补扫至 ${fmtTime(discovery.scan_end_at)}`:"等待账户补扫");
-      $("liquidationScanMeta").textContent=running?`健康扫描 ${fmtTime(summary.scan_started_at)}`:(summary.scan_finished_at?`健康完成 ${fmtTime(summary.scan_finished_at)} | ${discoveryText}`:discoveryText);
-      $("liquidationScanWindow").textContent=registry.earliest_scan_start_at&&registry.latest_scan_end_at?"已记录":"-";
-      $("liquidationScanWindowMeta").textContent=`${fmtTime(registry.earliest_scan_start_at)} ~ ${fmtTime(registry.latest_scan_end_at)} | 保留 ${summary.retention_days||registry.retained_days||365} 天`;
-      $("liquidationHealthMeta").textContent=summary.rpc_url?`RPC ${summary.rpc_url} | 宽扫 ${Number.isFinite(summary.wide_scan_seconds)?summary.wide_scan_seconds.toFixed(0):"-"}s | 近扫 ${Number.isFinite(summary.near_scan_seconds)?summary.near_scan_seconds.toFixed(1):"-"}s`:(summary.error||"等待中");
-      if(refreshBtn){
-        refreshBtn.disabled=running||cooldownActive;
-        refreshBtn.textContent=running?"扫描中":(cooldownActive?`等待 ${Math.ceil(cooldown)}s`:"刷新健康度");
-      }
-      $("liquidationDiscoveryBtn").disabled=Boolean(summary.discovery_running)||refreshingLiquidationDiscovery;
-      $("liquidationDiscoveryFullBtn").disabled=Boolean(summary.discovery_running)||refreshingLiquidationDiscovery;
-      $("liquidationHealthBody").innerHTML=rows.map(row=>{
-        const profit=row.liquidation_profit||{};
-        const account=row.account||"";
-        const collateralBase=Number(row.total_collateral_base??row.total_collateral_in_base_currency);
-        const debtBase=Number(row.total_debt_base??row.total_debt_in_base_currency);
-        const repayBase=Number(profit.repay_base);
-        const grossBase=Number(profit.gross_profit_base);
-        const feeBase=Number(profit.fee_base);
-        const netBase=Number(profit.net_profit_base);
-        const rewardPct=Number.isFinite(repayBase)&&repayBase>0&&Number.isFinite(grossBase)?grossBase/repayBase*100:null;
-        const rewardText=Number.isFinite(grossBase)?`${moneyText(grossBase)}${Number.isFinite(rewardPct)?` / ${rewardPct.toFixed(2)}%`:""}`:"-";
-        const rewardTitle=`回收 ${Number.isFinite(repayBase)?moneyText(repayBase):"-"} | 清算奖励 ${Number.isFinite(grossBase)?moneyText(grossBase):"-"} | 预计费用 ${Number.isFinite(feeBase)?moneyText(feeBase):"-"}`;
-        const actions=`<div class="row-actions"><button type="button" class="compact primary" data-liquidation-action="inspect" data-account="${account}">详情</button></div>`;
-        return `<tr><td>${account||"-"}</td><td class="${hfCls(row.health_factor_band)}">${Number.isFinite(row.health_factor)?row.health_factor.toFixed(3):"-"}</td><td class="${statusCls(row.status)}">${row.status||"-"}</td><td>${Number.isFinite(row.ltv)?(row.ltv/100).toFixed(2)+"%":"-"}</td><td>${Number.isFinite(row.current_liquidation_threshold)?(row.current_liquidation_threshold/100).toFixed(2)+"%":"-"}</td><td title="Aave base value">${Number.isFinite(collateralBase)?moneyText(collateralBase):"-"}</td><td title="Aave base value">${Number.isFinite(debtBase)?moneyText(debtBase):"-"}</td><td title="${rewardTitle}">${rewardText}</td><td class="${cellCls(netBase)}" title="${rewardTitle}">${Number.isFinite(netBase)?moneyText(netBase):"-"}</td><td>${actions}</td></tr>`;
-      }).join("") || '<tr><td colspan="10">暂无清算健康数据</td></tr>';
-    }
-    function badgeForBand(band){ return {"green":"badge-green","beige":"badge-beige","yellow":"badge-yellow","orange":"badge-orange","red":"badge-red"}[band||""]||"badge-red"; }
-    const amountText = (value, digits=8) => Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined,{maximumFractionDigits:digits}) : "-";
-    const moneyText = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined,{maximumFractionDigits:4}) : "-";
-    const stableValueText = value => Number.isFinite(Number(value)) ? `≈ ${moneyText(Number(value))} USDC/USDT` : "≈ - USDC/USDT";
-    function tokenValueText(amount, symbol, value){
-      const amountLine = `${amountText(Number(amount))} ${symbol||""}`.trim();
-      return `${amountLine}<br><small>${stableValueText(value)}</small>`;
-    }
-    async function apiDetails(p,o={}){
-      const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o});
-      const d=await r.json().catch(()=>({}));
-      if(!r.ok){
-        const err=new Error(zhError(d.error||"request failed"));
-        err.details=d;
-        err.status=r.status;
-        throw err;
-      }
-      return d;
-    }
-    function renderLiquidationActionDetail(result, fallback="-"){
-      const data=result||{};
-      const receipt=data.receipt||{};
-      const preflight=data.preflight||{};
-      const requestData=data.request||{};
-      const report=data.account_report||data;
-      const summary=report&&report.summary?report.summary:{};
-      const plan=data.execution_plan||(report&&report.execution_plan)||{};
-      const lines=[];
-      if(data.error) lines.push(`error: ${data.error}`);
-      if(data.mode) lines.push(`mode: ${data.mode}`);
-      if(data.account||report.account) lines.push(`account: ${data.account||report.account}`);
-      if(data.executor) lines.push(`executor: ${data.executor}`);
-      if(data.pool) lines.push(`pool: ${data.pool}`);
-      if(data.sender) lines.push(`sender: ${data.sender}`);
-      if(data.tx_hash||receipt.transaction_hash) lines.push(`tx_hash: ${data.tx_hash||receipt.transaction_hash}`);
-      const approval=data.approval_receipt||{};
-      if(Object.keys(approval).length) lines.push(`approval: status=${approval.status??"-"} tx=${approval.transaction_hash||"-"} gas_used=${approval.gas_used??"-"}`);
-      if(Object.keys(receipt).length) lines.push(`receipt: status=${receipt.status??"-"} block=${receipt.block_number??"-"} gas_used=${receipt.gas_used??"-"} effective_gas_price=${receipt.effective_gas_price??"-"}`);
-      if(Object.keys(preflight).length) lines.push(`preflight: passed=${Boolean(preflight.static_call_passed)} status=${preflight.static_call_status||"-"} error=${preflight.static_call_error||"-"}`);
-      if(Object.keys(requestData).length) lines.push(`request: user=${requestData.user||"-"} collateral=${requestData.collateralAsset||"-"} debt=${requestData.debtAsset||"-"} debtToCover=${requestData.debtToCover||"-"} minOut=${requestData.minCollateralSwapOut||"-"} minProfit=${requestData.minProfitAmount||"-"} deadline=${requestData.deadline||"-"}`);
-      if(summary.status||Number.isFinite(summary.health_factor)) lines.push(`account_state: status=${summary.status||"-"} hf=${Number.isFinite(summary.health_factor)?Number(summary.health_factor).toFixed(6):"-"} collateral=${summary.total_collateral_in_base_currency??summary.total_collateral_base??"-"} debt=${summary.total_debt_in_base_currency??summary.total_debt_base??"-"}`);
-      if(plan.reason||plan.next_step) lines.push(`plan: ready=${Boolean(plan.execution_ready)} profitable=${Boolean(plan.profitable)} reason=${plan.reason||"-"} next=${plan.next_step||"-"}`);
-      $("liquidationAccountActionDetail").textContent=lines.join("\n")||fallback;
-    }
-    function renderLiquidationAccount(report){
-      const summary=report&&report.summary?report.summary:{};
-      const positions=Array.isArray(report&&report.positions)?report.positions:[];
-      const candidates=Array.isArray(report&&report.liquidation_candidates)?report.liquidation_candidates:[];
-      const recommended=report&&report.recommended_candidate?report.recommended_candidate:null;
-      const context=report&&report.context?report.context:{};
-      const error=report&&report.error?report.error:"";
-      $("liquidationAccountMeta").textContent=error||context.error||`账户 ${report&&report.account?report.account:"-"} | RPC ${context.rpc_url||"-"} | 资产缓存 ${Number.isFinite(context.reserve_asset_count)?context.reserve_asset_count:0}`;
-      $("liquidationAccountHF").textContent=Number.isFinite(summary.health_factor)?Number(summary.health_factor).toFixed(3):"-";
-      $("liquidationAccountHFBand").innerHTML=summary.health_factor_band?`<span class="badge ${badgeForBand(summary.health_factor_band)}">${summary.health_factor_band}</span>`:"-";
-      $("liquidationAccountStatus").textContent=summary.status||"-";
-      $("liquidationAccountSummary").textContent=`抵押 ${summary.total_collateral_in_base_currency??summary.total_collateral_base??0} | 债务 ${summary.total_debt_in_base_currency??summary.total_debt_base??0}`;
-      $("liquidationAccountCandidates").textContent=candidates.length;
-      $("liquidationAccountHint").textContent=summary.positions_count?`持仓 ${summary.positions_count} | 抵押 ${summary.collateral_positions_count} | 借款 ${summary.debt_positions_count}`:"-";
-      $("liquidationAccountRecommendation").textContent=recommended?`${recommended.collateral_symbol||"-"} / ${recommended.debt_symbol||"-"}`:"暂无";
-      $("liquidationAccountProfit").textContent=recommended&&recommended.estimated_profit&&Number.isFinite(recommended.estimated_profit.net_profit_base)?`预估净收益 ${Number(recommended.estimated_profit.net_profit_base).toFixed(2)}`:"等待更低 HF";
-      const controls=report&&report.execution_controls?report.execution_controls:{};
-      const preflight=report&&report.preflight?report.preflight:{};
-      const canExecute=Boolean(controls.execution_enabled)&&Boolean(controls.self_funded_ready)&&summary.status==="liquidatable";
-      const canFlashloan=Boolean(controls.execution_enabled)&&Boolean(controls.flashloan_executor_configured)&&Boolean(preflight.static_call_passed)&&summary.status==="liquidatable";
-      const actionMeta=`执行 ${controls.execution_enabled?"已启用":"未启用"} | 预演 ${preflight.static_call_passed?"通过":"未通过"}`;
-      $("liquidationAccountActionMeta").textContent=actionMeta;
-      $("liquidationAccountPreflightBtn").disabled=refreshingLiquidationAccount||refreshingLiquidationPreflight;
-      $("liquidationAccountExecuteBtn").disabled=refreshingLiquidationAccount||refreshingLiquidationExecute||!canExecute;
-      $("liquidationAccountFlashloanBtn").disabled=refreshingLiquidationAccount||refreshingLiquidationFlashloan||!canFlashloan;
-      $("liquidationAccountCandidateBody").innerHTML=candidates.map((row, idx)=>{
-        const profit=row.estimated_profit||{};
-        const focus=idx===0?"candidate-focus":"";
-        const collateralAmount = row.max_collateral_to_liquidate_amount ?? row.max_collateral_to_liquidate;
-        const debtAmount = row.amount_to_pass_to_liquidation_call_amount ?? row.max_debt_to_liquidate_amount ?? row.max_debt_to_liquidate;
-        const collateralValue = Number(collateralAmount) * Number(row.collateral_price);
-        const debtValue = Number(row.debt_amount) * Number(row.debt_price);
-        const repayValue = Number(debtAmount) * Number(row.debt_price);
-        return `<tr class="${focus}"><td>${row.collateral_symbol||"-"}</td><td>${price(Number(row.collateral_price))} USDC/USDT</td><td>${tokenValueText(collateralAmount,row.collateral_symbol,collateralValue)}</td><td>${row.debt_symbol||"-"}</td><td>${price(Number(row.debt_price))} USDC/USDT</td><td>${tokenValueText(row.debt_amount,row.debt_symbol,debtValue)}</td><td>${tokenValueText(debtAmount,row.debt_symbol,repayValue)}</td><td>${amountText(Number(row.liquidation_protocol_fee),4)}</td><td class="${cellCls(profit.net_profit_base)}">${Number.isFinite(profit.net_profit_base)?Number(profit.net_profit_base).toFixed(4):"-"}</td></tr>`;
-      }).join("") || '<tr><td colspan="9">暂无可执行候选</td></tr>';
-      $("liquidationAccountPositionBody").innerHTML=positions.map(row=>{
-        const symbol=row.symbol||row.token_symbol||"-";
-        const tokenPrice=Number(row.current_token_price ?? row.oracle_price);
-        const stableAmount=Number(row.stable_debt_amount);
-        const variableAmount=Number(row.variable_debt_amount);
-        const totalDebtAmount=stableAmount+variableAmount;
-        return `<tr><td>${symbol}</td><td>${price(tokenPrice)} USDC/USDT</td><td>${tokenValueText(row.collateral_amount,symbol,row.collateral_value_base)}</td><td>${tokenValueText(stableAmount,symbol,stableAmount*tokenPrice)}</td><td>${tokenValueText(variableAmount,symbol,variableAmount*tokenPrice)}</td><td>${tokenValueText(totalDebtAmount,symbol,row.debt_value_base)}</td><td>${row.usage_as_collateral_enabled?"是":"否"}</td><td class="${hfCls(row.health_factor_band)}">${row.health_factor_band||"-"}</td></tr>`;
-      }).join("") || '<tr><td colspan="8">暂无持仓数据</td></tr>';
-    }
-    function renderLiquidationPlan(plan){ const data=plan||{}; const ready=Boolean(data.execution_ready); const profitable=Boolean(data.profitable); const candidate=data.recommended_candidate||{}; const profit=data.profit_preview||{}; $("liquidationPlanReady").textContent=ready?"可执行":"待观察"; $("liquidationPlanReady").className=ready?"positive":"negative"; $("liquidationPlanReason").textContent=data.reason||"-"; $("liquidationPlanRepay").textContent=Number.isFinite(data.repay_fraction)?`${(data.repay_fraction*100).toFixed(1)}%`:"-"; $("liquidationPlanMode").textContent=profitable?"有利润":"无利润"; $("liquidationPlanProfit").textContent=Number.isFinite(profit.net_profit_base)?Number(profit.net_profit_base).toFixed(4):"-"; $("liquidationPlanGross").textContent=Number.isFinite(profit.gross_profit_base)?`毛利 ${Number(profit.gross_profit_base).toFixed(4)}`:"毛利 -"; $("liquidationPlanNext").textContent=data.next_step||"-"; $("liquidationPlanPair").textContent=candidate.collateral_symbol&&candidate.debt_symbol?`${candidate.collateral_symbol} / ${candidate.debt_symbol}`:"暂无推荐对"; }
     function renderTrigger(s){ if(!s){ ["triggerX","triggerY","triggerSignal","onchainDecision","divergenceCounts","divergenceIndex"].forEach(id=>$(id).textContent="-"); $("triggerXMeta").textContent="等待中"; $("triggerYMeta").textContent="等待中"; $("triggerSignalMeta").textContent="等待中"; $("onchainDecisionMeta").textContent="等待中"; $("divergenceCountsMeta").textContent="等待中"; $("divergenceIndexMeta").textContent="等待中"; return; } const xc=s.x_change_percent??s.a_change_percent??0, yc=s.y_change_percent??s.b_change_percent??0, xs=s.x_symbol??s.a_symbol, ys=s.y_symbol??s.b_symbol; $("triggerX").textContent=`${base(xs)} ${xc>=0?"+":""}${xc.toFixed(4)}%`; $("triggerX").className=xc>=0?"positive":"negative"; $("triggerXMeta").textContent=`${s.window_seconds.toFixed(3)} 秒窗口`; $("triggerY").textContent=`${base(ys)} ${yc>=0?"+":""}${yc.toFixed(4)}%`; $("triggerY").className=yc>=0?"positive":"negative"; $("triggerYMeta").textContent=`来源 ${s.price_source || "未知"}`; $("triggerSignal").textContent=s.trigger_signal?"已就绪":"等待中"; $("triggerSignal").className=s.trigger_signal?"positive":"negative"; $("triggerSignalMeta").textContent=s.trigger_signal?`价差 ${s.window_spread_percent.toFixed(4)}%`:(s.blocked_reasons||["低于阈值"]).join("，"); $("onchainDecision").textContent=s.onchain_decision_required?"合约":"-"; $("onchainDecisionMeta").textContent=s.execution_plan?"已有旧执行计划":"动态选择路径"; const a=Number.isFinite(s.gainer_count)?s.gainer_count:0, b=Number.isFinite(s.loser_count)?s.loser_count:0; $("divergenceCounts").textContent=`${a} / ${b}`; $("divergenceCountsMeta").textContent=`${Number.isFinite(s.observation_universe_size)?s.observation_universe_size:0} 个交集币`; $("divergenceIndex").textContent=Number.isFinite(s.market_divergence_index)?s.market_divergence_index.toFixed(3):"-"; $("divergenceIndex").className=Number.isFinite(s.market_divergence_index)&&s.market_divergence_index>1?"positive":"negative"; $("divergenceIndexMeta").textContent=Number.isFinite(s.market_divergence_index)&&s.market_divergence_index>1?"已进入全币对利润计算门槛":"未达到计算阈值"; }
     function renderSystemMonitor(m){ const state=m&&m.state?m.state:"stopped"; const text={running:"监测中",initializing:"启动中",stopped:"空闲",error:"错误"}[state]||state; const windowText=Number.isFinite(m&&m.window_seconds)?`${m.window_seconds.toFixed(3)}秒窗口/${m.sample_count||0}样本`:"暂无窗口"; const detail=m?`${m.action}，当前状态${m.observer_stage||"未知"} | 符号${m.symbol_count||0} | Aave${m.aave_reserve_count||0} | ${windowText}`:"等待中"; $("systemState").textContent=text; $("systemState").className=state==="running"?"positive":(state==="error"?"negative":""); $("systemDetail").textContent=detail; $("systemProgress").style.width=`${Number.isFinite(m&&m.percent)?m.percent:0}%`; }
     function renderProgress(p){ const state=p&&p.state?p.state:"stopped"; const text={running:"运行中",initializing:"初始化中",stopped:"已停止",error:"错误"}[state]||state; const percent=Number.isFinite(p&&p.percent)?p.percent:0; $("running").textContent=text; $("running").className=state==="running"?"positive":(state==="error"?"negative":""); $("statusDetail").textContent=p&&p.stage?p.stage:"等待中"; $("statusProgress").style.width=`${percent}%`; }
     function renderLocalSystemStatus(action, percent=25){ $("systemState").textContent="执行中"; $("systemState").className=""; $("systemDetail").textContent=`${action}已经执行，当前状态等待后端返回`; $("systemProgress").style.width=`${percent}%`; $("message").textContent=`${action}中...`; }
-    async function refresh(){ if(refreshing)return; refreshing=true; try{ const s=await api("/api/status"); renderSystemMonitor(s.system_monitor); renderProgress(s.observer_progress); $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; $("message").textContent=s.start_error?zhError(s.start_error):(s.control_status&&s.control_status.message?s.control_status.message:""); if(!configDirty) { setConfig(s.strategy_config); renderSamplingProfile(s.sampling_profile); } renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderDivergence(s.binance_extremes); renderBasket(s.binance_extremes); renderOpportunityHealth(s.opportunity_health, s.opportunity_health_summary); renderLiquidationHealth(s.liquidation_health); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); renderBorrowTargetUniverse(s.borrow_target_universe); $("startBtn").disabled=s.running||s.starting; $("stopBtn").disabled=!s.running&&!s.starting; }catch(e){ $("message").textContent=e.message; } finally { refreshing=false; } }
+    async function refresh(){ if(refreshing)return; refreshing=true; try{ const s=await api("/api/status"); renderSystemMonitor(s.system_monitor); renderProgress(s.observer_progress); $("pid").textContent=s.pid||"-"; $("symbols").textContent=s.symbols.length?s.symbols.join(", "):"-"; $("message").textContent=s.start_error?zhError(s.start_error):(s.control_status&&s.control_status.message?s.control_status.message:""); if(!configDirty) { setConfig(s.strategy_config); renderSamplingProfile(s.sampling_profile); } renderExtremes(s.binance_extremes); renderTrigger(s.arbitrage_simulation); renderDivergence(s.binance_extremes); renderBasket(s.binance_extremes); renderOpportunityHealth(s.opportunity_health, s.opportunity_health_summary); renderExecutableSignal(s.executable_signal,s.aave_reserve_cache); renderBorrowTargetUniverse(s.borrow_target_universe); $("startBtn").disabled=s.running||s.starting; $("stopBtn").disabled=!s.running&&!s.starting; }catch(e){ $("message").textContent=e.message; } finally { refreshing=false; } }
     async function refreshDbSummary(){ if(refreshingDb)return; refreshingDb=true; try{ const s=await api("/api/db-summary"); $("rows").textContent=s.rows??"-"; $("binanceRows").textContent=s.db_counts?s.db_counts.binance_candidate_price_history:"-"; $("velocityRows").textContent=s.db_counts?s.db_counts.binance_window_extremes:"-"; if(s.db_counts){ $("systemDetail").textContent=`${$("systemDetail").textContent} | DB ${s.db_counts.total}行`; } renderStats(s.trade_stats); const p=parseFloat($("statusProgress").style.width)||0; if($("running").textContent==="初始化中" && s.db_counts && s.db_counts.binance_candidate_price_history>0) $("statusProgress").style.width=`${Math.max(p,90)}%`; }catch(e){ $("message").textContent=e.message; } finally { refreshingDb=false; } }
     function renderChips(id, label, rows){ $(id).innerHTML=`<span class="chip">${label}</span>` + rows.map(x=>`<span class="chip">${base(x.symbol)} ${pct(x.change_percent)}</span>`).join(""); }
     function shortStrategy(s){ return (s||"-").replace("strategy_1_forward_x_to_usdc_to_y_to_x","x-USDC-y-x").replace("strategy_1_reverse_y_to_x_to_usdc_to_y","y-x-USDC-y").replace("strategy_2_forward_x_to_y_to_usdc_to_x","x-y-USDC-x").replace("strategy_2_reverse_y_to_usdc_to_x_to_y","y-USDC-x-y"); }
     function renderSummary(d){ const rows=d.rows||[]; const note=d.summary_note?` | ${d.summary_note}`:""; const aaveCount=Number.isFinite(d.aave_row_count)?` | Aave可用组 ${d.aave_row_count}/${d.top?.length||0}*${d.bottom?.length||0}`:""; $("summaryMeta").textContent=d.error||`时间 ${fmtTime(d.observed_at)} | 窗口 ${d.window_seconds.toFixed(3)} 秒 | 样本 ${d.sample_count} | 行数 ${rows.length}/${d.expected_rows||100}${aaveCount}${note}`; renderChips("topChips","上涨前 5",d.top||[]); renderChips("bottomChips","下跌前 5",d.bottom||[]); $("summaryBody").innerHTML=rows.map(r=>`<tr><td>${r.pair||`${base(r.x_symbol)} / ${base(r.y_symbol)}`}</td><td>${r.path_no||"-"}</td><td>${r.start_token||"NULL"} ${Number.isFinite(r.start_amount)?r.start_amount.toFixed(2):"NULL"}</td><td>${r.first_hop||"NULL"}</td><td>${r.second_hop||"NULL"}</td><td>${r.third_hop||"NULL"}</td><td>${r.fourth_hop||"NULL"}</td><td class="${cellCls(r.profit_percent)}">${nullPct(r.profit_percent)}</td></tr>`).join("") || '<tr><td colspan="8">暂无汇总行。</td></tr>'; }
     async function refreshTimepoints(){ try{ const current=$("timepointSelect").value; const d=await api("/api/velocity-timepoints?limit=200"); const timepoints=d.timepoints||[]; $("timepointSelect").innerHTML=timepoints.map(x=>`<option value="${x.id}">${fmtTime(x.observed_at)} | ${x.sample_count}</option>`).join(""); if(summaryPinned && current && [...$("timepointSelect").options].some(opt=>opt.value===current)) { $("timepointSelect").value=current; } else if(timepoints.length) { $("timepointSelect").value=timepoints[0].id; summaryPinned=false; } }catch(e){ $("message").textContent=e.message; } }
     async function refreshSummary(){ if(refreshingSummary)return; refreshingSummary=true; try{ const id=$("timepointSelect").value; const d=await api(`/api/velocity-summary${id?`?id=${id}`:""}`); renderSummary(d); }catch(e){ renderSummary({error:e.message, rows:[], top:[], bottom:[]}); } finally { refreshingSummary=false; } }
-    async function refreshLiquidationSettings(){ try{ const d=await api("/api/liquidation-settings"); $("liquidationRetentionSelect").value=String(d.retention_days||365); $("liquidationScanIntervalInput").value=Number.isFinite(d.scan_interval_seconds)?Math.round(d.scan_interval_seconds):300; $("liquidationDiscoveryIntervalInput").value=Number.isFinite(d.discovery_interval_seconds)?Math.round(d.discovery_interval_seconds):3600; }catch(e){ $("message").textContent=e.message; } }
-    async function saveLiquidationSettings(){ const b=$("liquidationSettingsSaveBtn"); b.disabled=true; const oldText=b.textContent; b.textContent="保存中"; try{ const d=await api("/api/liquidation-settings",{method:"POST",body:JSON.stringify({retention_days:$("liquidationRetentionSelect").value,scan_interval_seconds:$("liquidationScanIntervalInput").value,discovery_interval_seconds:$("liquidationDiscoveryIntervalInput").value})}); $("message").textContent=`清算参数已保存：保留 ${d.retention_days} 天`; refresh(); }catch(e){ $("message").textContent=e.message; } finally { b.disabled=false; b.textContent=oldText; } }
-    async function refreshLiquidationDiscovery(full=false){ if(refreshingLiquidationDiscovery)return; refreshingLiquidationDiscovery=true; const b=full?$("liquidationDiscoveryFullBtn"):$("liquidationDiscoveryBtn"); const oldText=b.textContent; b.disabled=true; b.textContent=full?"回补中":"补扫中"; try{ const d=await api(`/api/liquidation-discovery${full?"?full=1":""}`,{method:"POST",body:JSON.stringify({full})}); $("message").textContent=d.skipped?`账户池补扫跳过：${d.reason||"间隔未到"}`:`账户池已补扫 ${d.count||0} 个账户`; refresh(); }catch(e){ $("message").textContent=e.message; } finally { refreshingLiquidationDiscovery=false; b.disabled=false; b.textContent=oldText; } }
-    async function refreshLiquidationHealthManual(){ if(refreshingLiquidationHealth||$("liquidationHealthRefreshBtn").disabled)return; refreshingLiquidationHealth=true; $("liquidationHealthRefreshBtn").disabled=true; $("liquidationHealthRefreshBtn").textContent="扫描中"; try{ const d=await api("/api/liquidation-health?force=1"); renderLiquidationHealth(d); }catch(e){ $("message").textContent=e.message; } finally { refreshingLiquidationHealth=false; refresh(); } }
-    async function refreshLiquidationAccount(accountOverride=""){
-      if(refreshingLiquidationAccount)return;
-      const account=(accountOverride||$("liquidationAccountInput").value).trim();
-      if(!account){ $("liquidationAccountMeta").textContent="请输入账户地址。"; return; }
-      $("liquidationAccountInput").value=account;
-      refreshingLiquidationAccount=true;
-      $("liquidationAccountBtn").disabled=true;
-      $("liquidationAccountMeta").textContent="正在查询账户清算信息...";
-      try{
-        const d=await api(`/api/liquidation/account?account=${encodeURIComponent(account)}`);
-        renderLiquidationAccount(d);
-        renderLiquidationPlan(d.execution_plan);
-      }catch(e){
-        renderLiquidationAccount({error:e.message, positions:[], liquidation_candidates:[]});
-        renderLiquidationPlan({reason:e.message, execution_ready:false, profitable:false, profit_preview:{}});
-      }finally{
-        refreshingLiquidationAccount=false;
-        $("liquidationAccountBtn").disabled=false;
-      }
-    }
-    async function preflightLiquidationAccount(accountOverride=""){
-      if(refreshingLiquidationPreflight)return;
-      const account=(accountOverride||$("liquidationAccountInput").value).trim();
-      if(!account){ $("liquidationAccountMeta").textContent="请输入账户地址。"; return; }
-      $("liquidationAccountInput").value=account;
-      refreshingLiquidationPreflight=true;
-      $("liquidationAccountActionDetail").textContent="preflight: running";
-      $("liquidationAccountMeta").textContent="正在预演清算路径...";
-      try{
-        const d=await apiDetails(`/api/liquidation/account/preflight?account=${encodeURIComponent(account)}`,{method:"POST",body:"{}"});
-        const report=d.account_report||d;
-        renderLiquidationAccount(report);
-        renderLiquidationPlan(d.execution_plan||report.execution_plan||d);
-        renderLiquidationActionDetail(d,"preflight complete");
-        const preflight=d.preflight||{};
-        $("message").textContent=preflight.static_call_passed?"预演通过":(preflight.static_call_error||"预演完成");
-      }catch(e){
-        const detail=e.details||{error:e.message, account};
-        const report=detail.account_report||detail;
-        if(detail.account_report){ renderLiquidationAccount(report); }
-        renderLiquidationActionDetail(detail,e.message);
-        renderLiquidationPlan({reason:e.message, execution_ready:false, profitable:false, profit_preview:{}});
-        $("message").textContent=e.message;
-      }finally{
-        refreshingLiquidationPreflight=false;
-        $("liquidationAccountPreflightBtn").disabled=false;
-      }
-    }
-    async function executeLiquidationAccount(accountOverride=""){
-      if(refreshingLiquidationExecute)return;
-      const account=(accountOverride||$("liquidationAccountInput").value).trim();
-      if(!account){ $("liquidationAccountMeta").textContent="请输入账户地址。"; return; }
-      if(!confirm("确认发送清算交易吗？")) return;
-      $("liquidationAccountInput").value=account;
-      refreshingLiquidationExecute=true;
-      $("liquidationAccountExecuteBtn").disabled=true;
-      $("liquidationAccountActionDetail").textContent="self_funded: running";
-      $("liquidationAccountActionMeta").textContent="正在使用自有债务代币发送清算交易...";
-      try{
-        const d=await apiDetails(`/api/liquidation/account/execute?account=${encodeURIComponent(account)}`,{method:"POST",body:"{}"});
-        const report=d.account_report||d;
-        renderLiquidationAccount(report);
-        renderLiquidationPlan(d.execution_plan||report.execution_plan||d);
-        renderLiquidationActionDetail(d,"self funded execute complete");
-        const txHash=d.tx_hash||d.receipt&&d.receipt.transaction_hash;
-        $("liquidationAccountActionMeta").textContent=txHash?`已发送 ${txHash}`:"交易已发送";
-        $("message").textContent=txHash?`清算交易已发送：${txHash}`:"清算交易已发送";
-      }catch(e){
-        const detail=e.details||{error:e.message, account};
-        const report=detail.account_report||detail;
-        if(detail.account_report){ renderLiquidationAccount(report); }
-        renderLiquidationPlan(detail.execution_plan||report.execution_plan||{reason:e.message, execution_ready:false, profitable:false, profit_preview:{}});
-        renderLiquidationActionDetail(detail,e.message);
-        $("liquidationAccountActionMeta").textContent=e.message;
-        $("message").textContent=e.message;
-      }finally{
-        refreshingLiquidationExecute=false;
-        $("liquidationAccountExecuteBtn").disabled=false;
-      }
-    }
-    async function flashloanLiquidationAccount(accountOverride=""){
-      if(refreshingLiquidationFlashloan)return;
-      const account=(accountOverride||$("liquidationAccountInput").value).trim();
-      if(!account){ $("liquidationAccountMeta").textContent="请输入账户地址。"; return; }
-      if(!confirm("确认发送闪电贷清算交易吗？")) return;
-      $("liquidationAccountInput").value=account;
-      refreshingLiquidationFlashloan=true;
-      $("liquidationAccountFlashloanBtn").disabled=true;
-      $("liquidationAccountActionDetail").textContent="flashloan: running";
-      $("liquidationAccountActionMeta").textContent="正在预演并发送闪电贷清算交易...";
-      try{
-        const d=await apiDetails(`/api/liquidation/account/flashloan?account=${encodeURIComponent(account)}`,{method:"POST",body:"{}"});
-        const report=d.account_report||d;
-        renderLiquidationAccount(report);
-        renderLiquidationPlan(d.execution_plan||report.execution_plan||d);
-        renderLiquidationActionDetail(d,"flashloan execute complete");
-        const txHash=d.tx_hash||d.receipt&&d.receipt.transaction_hash;
-        $("liquidationAccountActionMeta").textContent=txHash?`已发送 ${txHash}`:"闪电贷交易已发送";
-        $("message").textContent=txHash?`闪电贷清算交易已发送：${txHash}`:"闪电贷清算交易已发送";
-      }catch(e){
-        const detail=e.details||{error:e.message, account};
-        const report=detail.account_report||detail;
-        if(detail.account_report){ renderLiquidationAccount(report); }
-        renderLiquidationPlan(detail.execution_plan||report.execution_plan||{reason:e.message, execution_ready:false, profitable:false, profit_preview:{}});
-        renderLiquidationActionDetail(detail,e.message);
-        $("liquidationAccountActionMeta").textContent=e.message;
-        $("message").textContent=e.message;
-      }finally{
-        refreshingLiquidationFlashloan=false;
-        $("liquidationAccountFlashloanBtn").disabled=false;
-      }
-    }
     $("startBtn").onclick=()=>dialog.showModal(); $("cancelDialog").onclick=()=>dialog.close(); $("refreshBtn").onclick=()=>{ refresh(); refreshDbSummary(); refreshTimepoints().then(refreshSummary); }; $("summaryRefreshBtn").onclick=()=>refreshTimepoints().then(refreshSummary); $("timepointSelect").onchange=()=>{ summaryPinned=true; refreshSummary(); };
-    $("liquidationAccountBtn").onclick=()=>refreshLiquidationAccount();
-    $("liquidationAccountPreflightBtn").onclick=()=>preflightLiquidationAccount();
-    $("liquidationAccountExecuteBtn").onclick=()=>executeLiquidationAccount();
-    $("liquidationAccountFlashloanBtn").onclick=()=>flashloanLiquidationAccount();
-    $("liquidationHealthRefreshBtn").onclick=()=>refreshLiquidationHealthManual();
-    $("liquidationSettingsSaveBtn").onclick=()=>saveLiquidationSettings();
-    $("liquidationDiscoveryBtn").onclick=()=>refreshLiquidationDiscovery(false);
-    $("liquidationDiscoveryFullBtn").onclick=()=>refreshLiquidationDiscovery(true);
-    $("liquidationAccountSampleBtn").onclick=()=>{ $("liquidationAccountInput").value="0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"; refreshLiquidationAccount(); };
-    $("liquidationAccountInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); refreshLiquidationAccount(); } });
-    $("liquidationHealthBody").addEventListener("click", e=>{
-      const button=e.target.closest("button[data-liquidation-action]");
-      if(!button)return;
-      const account=(button.dataset.account||"").trim();
-      if(!account)return;
-      refreshLiquidationAccount(account);
-    });
     $("initBtn").onclick=async()=>{
       const b=$("initBtn");
       const oldText=b.textContent;
