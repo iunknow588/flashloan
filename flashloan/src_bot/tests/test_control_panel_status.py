@@ -11,6 +11,7 @@ from web.control_panel import (
     restrict_extremes_to_symbols,
 )
 from execution.liquidation_scan import LiquidationScanConfig
+from datetime import datetime
 from web3 import Web3
 
 
@@ -187,11 +188,12 @@ def test_liquidation_account_registry_falls_back_to_file(monkeypatch, tmp_path):
     assert source == "file-fallback"
 
 
-def test_liquidation_discovery_window_scans_recent_week_first(monkeypatch):
+def test_liquidation_discovery_window_scans_from_one_year_start(monkeypatch):
     from web import control_panel
 
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
-    monkeypatch.setenv("LIQUIDATION_RECENT_DISCOVERY_DAYS", "7")
+    monkeypatch.setenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")
+    monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
     monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
     monkeypatch.setattr(
         control_panel,
@@ -207,9 +209,11 @@ def test_liquidation_discovery_window_scans_recent_week_first(monkeypatch):
     scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, _, mode = liquidation_discovery_window(force_full=False)
 
     assert mode == "recent"
-    assert to_block is None
+    assert to_block is not None and to_block < 0
+    assert from_block < to_block
     assert from_block < 0
     assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
+    assert 364.9 <= (datetime.now(scan_start_at.tzinfo) - scan_start_at).total_seconds() / 86400 <= 365.1
     assert 300_000 <= lookback_blocks <= 305_000
 
 
@@ -245,11 +249,11 @@ def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypat
     assert registry["discovery_cursor"]["previous_latest_to_block"] == 100
 
 
-def test_liquidation_discovery_window_backfills_previous_week(monkeypatch):
+def test_liquidation_discovery_window_force_full_restarts_from_one_year(monkeypatch):
     from web import control_panel
 
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
-    monkeypatch.setenv("LIQUIDATION_RECENT_DISCOVERY_DAYS", "7")
+    monkeypatch.setenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
     monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
     monkeypatch.setattr(
@@ -265,14 +269,15 @@ def test_liquidation_discovery_window_backfills_previous_week(monkeypatch):
 
     scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, _, mode = liquidation_discovery_window(force_full=True)
 
-    assert mode == "historical-backfill"
+    assert mode == "recent"
     assert to_block is not None and to_block < 0
     assert from_block < to_block
     assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
+    assert 364.9 <= (datetime.now(scan_start_at.tzinfo) - scan_start_at).total_seconds() / 86400 <= 365.1
     assert 300_000 <= lookback_blocks <= 305_000
 
 
-def test_liquidation_discovery_window_resumes_backfill_from_block_cursor(monkeypatch):
+def test_liquidation_discovery_window_force_full_ignores_old_backfill_cursor(monkeypatch):
     from web import control_panel
 
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
@@ -298,13 +303,14 @@ def test_liquidation_discovery_window_resumes_backfill_from_block_cursor(monkeyp
         },
     )
 
-    _, _, from_block, to_block, _, registry, mode = liquidation_discovery_window(force_full=True)
+    scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode = liquidation_discovery_window(force_full=True)
 
-    assert mode == "historical-backfill"
-    assert to_block == 1000
-    assert from_block == 0
-    assert registry["discovery_cursor"]["source"] == "block-ledger"
-    assert registry["discovery_cursor"]["previous_earliest_from_block"] == 1000
+    assert mode == "recent"
+    assert to_block is not None and to_block < 0
+    assert from_block < to_block
+    assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
+    assert 300_000 <= lookback_blocks <= 305_000
+    assert registry["discovery_cursor"]["source"] == "time-bootstrap"
 
 
 def test_discovery_window_continuity_allows_connected_or_overlapped_ranges():
@@ -441,6 +447,44 @@ def test_liquidation_account_api_returns_payload(monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json()["account"] == "0x0000000000000000000000000000000000000001"
+
+
+def test_liquidation_borrow_pool_api_reads_persisted_top_accounts(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_borrow_pool_payload",
+        lambda: {
+            "rows": [{"account": "0x1", "health_factor": 0.98}],
+            "summary": {"count": 1, "display_limit": 100, "watch_health_factor": 1.5},
+        },
+    )
+
+    response = app.test_client().get("/api/liquidation/borrow-pool")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["rows"][0]["account"] == "0x1"
+    assert data["summary"]["display_limit"] == 100
+
+
+def test_liquidation_borrow_pool_scan_api_triggers_dynamic_scan(monkeypatch):
+    from web import control_panel
+
+    captured = {}
+
+    def fake_scan(force=True):
+        captured["force"] = force
+        return {"rows": [], "summary": {"scanned": True, "display_limit": 100}}
+
+    monkeypatch.setattr(control_panel, "liquidation_borrow_pool_scan_payload", fake_scan)
+
+    response = app.test_client().post("/api/liquidation/borrow-pool/scan", json={})
+
+    assert response.status_code == 200
+    assert response.get_json()["summary"]["scanned"] is True
+    assert captured["force"] is True
 
 
 def test_liquidation_samples_api_returns_manifest(monkeypatch, tmp_path):

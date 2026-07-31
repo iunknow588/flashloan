@@ -167,6 +167,10 @@ def liquidation_backfill_window_days() -> float:
     return max(1.0, float(os.getenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")))
 
 
+def liquidation_account_scan_start_days() -> float:
+    return max(1.0, float(os.getenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")))
+
+
 def liquidation_block_seconds() -> float:
     return max(0.1, float(os.getenv("LIQUIDATION_BLOCK_SECONDS", "2.0")))
 
@@ -177,6 +181,10 @@ def liquidation_discovery_block_overlap() -> int:
 
 def liquidation_health_display_limit() -> int:
     return max(1, int(os.getenv("LIQUIDATION_HEALTH_DISPLAY_LIMIT", "200")))
+
+
+def liquidation_borrow_pool_display_limit() -> int:
+    return max(1, min(int(os.getenv("LIQUIDATION_BORROW_POOL_DISPLAY_LIMIT", "100")), 500))
 
 
 def liquidation_background_refresh_enabled() -> bool:
@@ -319,7 +327,7 @@ def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], s
         try:
             ensure_database_schema(database_url)
             db_prune_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
-            accounts = db_load_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
+            accounts = db_load_liquidation_accounts(database_url)
             source = "database"
         except Exception:
             accounts = []
@@ -497,57 +505,32 @@ def parse_iso_datetime(value: object) -> Optional[datetime]:
 
 def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, datetime, int, Optional[int], int, dict, str]:
     now = datetime.now(timezone.utc)
-    retained_days = liquidation_retention_days()
     registry = liquidation_account_registry_window()
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
     progress = liquidation_discovery_progress(pool_address)
     overlap_blocks = liquidation_discovery_block_overlap()
     latest_recent_to_block = progress.get("latest_recent_to_block")
-    earliest_backfill_from_block = progress.get("earliest_backfill_from_block")
     latest_end = parse_iso_datetime(progress.get("latest_recent_scan_end_at")) or parse_iso_datetime(registry.get("latest_scan_end_at"))
-    earliest_start = parse_iso_datetime(progress.get("earliest_backfill_scan_start_at")) or parse_iso_datetime(registry.get("earliest_scan_start_at"))
-    historical_cursor = parse_iso_datetime(LIQUIDATION_DISCOVERY_CACHE.get("historical_cursor_at")) or earliest_start
-    retention_start = now - timedelta(days=retained_days)
-    recent_start = now - timedelta(days=liquidation_recent_discovery_days())
-    if force_full:
-        anchor = historical_cursor or earliest_start or recent_start
-        scan_end_at = min(anchor, recent_start)
-        scan_start_at = max(retention_start, scan_end_at - timedelta(days=liquidation_backfill_window_days()))
-        mode = "historical-backfill"
-        if earliest_backfill_from_block is not None:
-            lookback_blocks = max(1, int(timedelta(days=liquidation_backfill_window_days()).total_seconds() / liquidation_block_seconds()))
-            to_block = max(0, int(earliest_backfill_from_block) - 1 + overlap_blocks)
-            from_block = max(0, to_block - lookback_blocks + 1)
-            registry["discovery_scan_progress"] = progress
-            registry["discovery_cursor"] = {
-                "source": "block-ledger",
-                "mode": mode,
-                "overlap_blocks": overlap_blocks,
-                "previous_earliest_from_block": int(earliest_backfill_from_block),
-                "next_from_block": from_block,
-                "next_to_block": to_block,
-            }
-            if int(earliest_backfill_from_block) <= 0:
-                return scan_start_at, scan_start_at, 0, 0, 0, registry, mode
-            return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
-    else:
-        scan_start_at = max(recent_start, latest_end) if latest_end is not None else recent_start
-        scan_end_at = now
-        mode = "recent"
-        if latest_recent_to_block is not None:
-            from_block = max(0, int(latest_recent_to_block) + 1 - overlap_blocks)
-            to_block = None
-            lookback_blocks = 0
-            registry["discovery_scan_progress"] = progress
-            registry["discovery_cursor"] = {
-                "source": "block-ledger",
-                "mode": mode,
-                "overlap_blocks": overlap_blocks,
-                "previous_latest_to_block": int(latest_recent_to_block),
-                "next_from_block": from_block,
-                "next_to_block": None,
-            }
-            return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
+    start_anchor = now - timedelta(days=liquidation_account_scan_start_days())
+    window = timedelta(days=liquidation_backfill_window_days())
+    scan_start_at = start_anchor if force_full or latest_end is None else max(start_anchor, latest_end)
+    scan_end_at = min(now, scan_start_at + window)
+    mode = "recent"
+    if latest_recent_to_block is not None and not force_full:
+        from_block = max(0, int(latest_recent_to_block) + 1 - overlap_blocks)
+        to_block = None
+        lookback_blocks = 0
+        registry["discovery_scan_progress"] = progress
+        registry["discovery_cursor"] = {
+            "source": "block-ledger",
+            "direction": "forward-from-start",
+            "mode": mode,
+            "overlap_blocks": overlap_blocks,
+            "previous_latest_to_block": int(latest_recent_to_block),
+            "next_from_block": from_block,
+            "next_to_block": None,
+        }
+        return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
     seconds = max(0.0, (scan_end_at - scan_start_at).total_seconds())
     now_for_blocks = datetime.now(timezone.utc)
     start_lookback_blocks = max(1, int(max(0.0, (now_for_blocks - scan_start_at).total_seconds()) / liquidation_block_seconds()))

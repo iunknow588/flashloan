@@ -135,7 +135,7 @@ def upsert_liquidation_accounts(
 def load_liquidation_accounts(
     database_url: str,
     active_only: bool = True,
-    retained_days: int = 365,
+    retained_days: int = 0,
     scan_start_after: datetime | None = None,
     scan_end_before: datetime | None = None,
 ) -> list[str]:
@@ -144,7 +144,7 @@ def load_liquidation_accounts(
     params: list[Any] = []
     if active_only:
         query += " AND active = TRUE"
-    if retained_days > 0:
+    if retained_days and retained_days > 0:
         cutoff = datetime.now(timezone.utc) - timedelta(days=int(retained_days))
         query += " AND scan_end_at >= %s"
         params.append(cutoff)
@@ -163,19 +163,17 @@ def load_liquidation_accounts(
 
 def liquidation_account_registry_stats(database_url: str, retained_days: int = 365) -> dict[str, Any]:
     psycopg = require_psycopg()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=int(retained_days))
     with psycopg.connect(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
                     COUNT(*) AS total_count,
-                    COUNT(*) FILTER (WHERE active = TRUE AND scan_end_at >= %s) AS active_count,
-                    MIN(scan_start_at) FILTER (WHERE scan_end_at >= %s) AS earliest_scan_start_at,
-                    MAX(scan_end_at) FILTER (WHERE scan_end_at >= %s) AS latest_scan_end_at
+                    COUNT(*) FILTER (WHERE active = TRUE) AS active_count,
+                    MIN(scan_start_at) AS earliest_scan_start_at,
+                    MAX(scan_end_at) AS latest_scan_end_at
                 FROM liquidation_accounts
-                """,
-                (cutoff, cutoff, cutoff),
+                """
             )
             row = cursor.fetchone() or (0, 0, None, None)
             return {
@@ -237,19 +235,7 @@ def load_latest_liquidation_account_reports(database_url: str, limit: int = 500)
 
 
 def prune_liquidation_accounts(database_url: str, retained_days: int = 365) -> int:
-    psycopg = require_psycopg()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=int(retained_days))
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                DELETE FROM liquidation_accounts
-                WHERE active = FALSE
-                   OR scan_end_at < %s
-                """,
-                (cutoff,),
-            )
-            return int(cursor.rowcount or 0)
+    return 0
 
 
 def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -> None:

@@ -21,6 +21,10 @@ from db.storage_liquidation import (
     try_acquire_observer_lock,
     upsert_liquidation_accounts,
 )
+from db.storage_liquidation_pool import (
+    load_liquidation_borrow_health_pool,
+    sync_liquidation_borrow_health_pool,
+)
 from db.storage_market import (
     append_arbitrage_simulation,
     append_binance_candidate_price_history,
@@ -56,6 +60,7 @@ __all__ = [
     "load_recent_liquidation_execution_attempts",
     "load_recent_liquidation_failure_samples",
     "load_latest_liquidation_account_reports",
+    "load_liquidation_borrow_health_pool",
     "load_liquidation_accounts",
     "load_schema_migrations",
     "prune_liquidation_accounts",
@@ -66,6 +71,7 @@ __all__ = [
     "record_schema_migrations",
     "require_psycopg",
     "try_acquire_observer_lock",
+    "sync_liquidation_borrow_health_pool",
     "upsert_liquidation_accounts",
     "utc_from_ms",
 ]

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aave 单账户清算分析</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1400px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button, input { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 14px; align-items: center; }
+    .toolbar input { flex: 1 1 420px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; margin-bottom: 18px; }
+    .metric { border: 1px solid #e4e7ec; border-radius: 6px; padding: 10px 12px; background: #fafbfc; min-height: 74px; }
+    .metric small, .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .metric span { display: block; margin-top: 4px; color: #475467; font-size: 13px; }
+    .detail-box { border: 1px solid #d9dee7; border-radius: 6px; padding: 10px 12px; background: #fafbfc; color: #344054; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+    .hf-green { color: #15803d; }
+    .hf-beige { color: #8a6d3b; }
+    .hf-yellow { color: #b7791f; }
+    .hf-orange { color: #c2410c; }
+    .hf-red { color: #b42318; }
+  </style>
+</head>
+<body>
+  <header><h1>Aave 单账户清算分析</h1><nav><a href="/">主控制台</a><a href="/liquidation">Aave 清算</a></nav><div id="message"></div></header>
+  <main>
+    <section class="card">
+      <small>账户查询</small>
+      <div class="toolbar">
+        <input id="accountInput" type="text" placeholder="输入账户地址">
+        <button class="primary" id="accountBtn">查询账户</button>
+        <button id="sampleBtn">填入示例</button>
+        <button id="preflightBtn">预演</button>
+        <button class="primary" id="executeBtn">执行清算</button>
+        <button id="flashloanBtn">闪电贷清算</button>
+      </div>
+      <div id="accountMeta">等待输入账户地址。</div>
+      <div id="actionDetail" class="detail-box">等待查询、预演或执行回执。</div>
+    </section>
+    <section class="grid">
+      <div class="metric"><small>健康度</small><strong id="accountHF">-</strong><span id="accountHFBand">-</span></div>
+      <div class="metric"><small>状态</small><strong id="accountStatus">-</strong><span id="accountSummary">-</span></div>
+      <div class="metric"><small>候选清算对</small><strong id="accountCandidates">-</strong><span id="accountHint">-</span></div>
+      <div class="metric"><small>推荐操作</small><strong id="accountRecommendation">-</strong><span id="accountProfit">-</span></div>
+    </section>
+    <section class="grid">
+      <div class="metric"><small>执行准备</small><strong id="planReady">-</strong><span id="planReason">-</span></div>
+      <div class="metric"><small>偿还比例</small><strong id="planRepay">-</strong><span id="planMode">-</span></div>
+      <div class="metric"><small>预估净收益</small><strong id="planProfit">-</strong><span id="planGross">-</span></div>
+      <div class="metric"><small>下一步</small><strong id="planNext">-</strong><span id="planPair">-</span></div>
+    </section>
+    <section class="card">
+      <small>候选清算对</small>
+      <div class="table-wrap"><table><thead><tr><th>抵押资产</th><th>抵押单价</th><th>可清算数量 / 折算价值</th><th>债务资产</th><th>债务单价</th><th>借款数量 / 折算价值</th><th>可清偿债务 / 折算价值</th><th>协议费</th><th>预估净收益</th></tr></thead><tbody id="candidateBody"></tbody></table></div>
+    </section>
+    <section class="card">
+      <small>当前持仓与借贷</small>
+      <div class="table-wrap"><table><thead><tr><th>资产</th><th>单价</th><th>抵押数量 / 折算价值</th><th>稳定利率借款 / 折算价值</th><th>浮动利率借款 / 折算价值</th><th>借款合计 / 折算价值</th><th>抵押状态</th><th>健康色带</th></tr></thead><tbody id="positionBody"></tbody></table></div>
+    </section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const api = async (p,o={}) => { const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d=await r.json().catch(()=>({})); if(!r.ok){ const e=new Error(d.error||"请求失败"); e.details=d; throw e; } return d; };
+    let loading=false, actionRunning=false;
+    const displayAssetSymbol=s=>String(s||"-").replace(/(USDT|USDC)$/i,"")||"-";
+    const amountText=(v,d=8)=>Number.isFinite(Number(v))?Number(v).toLocaleString(undefined,{maximumFractionDigits:d}):"-";
+    const moneyText=v=>Number.isFinite(Number(v))?Number(v).toLocaleString(undefined,{maximumFractionDigits:4}):"-";
+    const price=v=>Number.isFinite(Number(v))?Number(v).toPrecision(10).replace(/\.?0+$/,""):"-";
+    const cellCls=v=>Number.isFinite(v)?(v>=0?"positive":"negative"):"";
+    const hfCls=v=>({green:"hf-green",beige:"hf-beige",yellow:"hf-yellow",orange:"hf-orange",red:"hf-red"}[String(v||"").toLowerCase()]||"hf-red");
+    const stableValueText=v=>Number.isFinite(Number(v))?`≈ ${moneyText(Number(v))} USDC/USDT`:"≈ - USDC/USDT";
+    const stableUnitPriceText=(s,v)=>`1 ${displayAssetSymbol(s)} ≈ ${price(v)} USDC/USDT`;
+    const tokenValueText=(a,s,v)=>`${amountText(a)} ${displayAssetSymbol(s)}<br><small>${stableValueText(v)}</small>`;
+    function renderPlan(plan){ const p=plan||{}, c=p.recommended_candidate||{}, profit=p.profit_preview||{}; $("planReady").textContent=p.execution_ready?"可执行":"待观察"; $("planReady").className=p.execution_ready?"positive":"negative"; $("planReason").textContent=p.reason||"-"; $("planRepay").textContent=Number.isFinite(p.repay_fraction)?`${(p.repay_fraction*100).toFixed(1)}%`:"-"; $("planMode").textContent=p.profitable?"有利润":"无利润"; $("planProfit").textContent=Number.isFinite(profit.net_profit_base)?Number(profit.net_profit_base).toFixed(4):"-"; $("planGross").textContent=Number.isFinite(profit.gross_profit_base)?`毛利 ${Number(profit.gross_profit_base).toFixed(4)}`:"毛利 -"; $("planNext").textContent=p.next_step||"-"; $("planPair").textContent=c.collateral_symbol&&c.debt_symbol?`${displayAssetSymbol(c.collateral_symbol)} / ${displayAssetSymbol(c.debt_symbol)}`:"暂无推荐对"; }
+    function renderAccount(report){ const s=report&&report.summary?report.summary:{}, positions=Array.isArray(report&&report.positions)?report.positions:[], candidates=Array.isArray(report&&report.liquidation_candidates)?report.liquidation_candidates:[], rec=report&&report.recommended_candidate?report.recommended_candidate:null, ctx=report&&report.context?report.context:{}, err=report&&report.error?report.error:""; $("accountMeta").textContent=err||ctx.error||`账户 ${report&&report.account?report.account:"-"} | RPC ${ctx.rpc_url||"-"} | 资产缓存 ${Number.isFinite(ctx.reserve_asset_count)?ctx.reserve_asset_count:0}`; $("accountHF").textContent=Number.isFinite(s.health_factor)?Number(s.health_factor).toFixed(3):"-"; $("accountHFBand").textContent=s.health_factor_band||"-"; $("accountHFBand").className=hfCls(s.health_factor_band); $("accountStatus").textContent=s.status||"-"; $("accountSummary").textContent=`抵押 ${s.total_collateral_in_base_currency??s.total_collateral_base??0} | 债务 ${s.total_debt_in_base_currency??s.total_debt_base??0}`; $("accountCandidates").textContent=candidates.length; $("accountHint").textContent=s.positions_count?`持仓 ${s.positions_count} | 抵押 ${s.collateral_positions_count} | 借款 ${s.debt_positions_count}`:"-"; $("accountRecommendation").textContent=rec?`${displayAssetSymbol(rec.collateral_symbol)} / ${displayAssetSymbol(rec.debt_symbol)}`:"暂无"; $("accountProfit").textContent=rec&&rec.estimated_profit&&Number.isFinite(rec.estimated_profit.net_profit_base)?`预估净收益 ${Number(rec.estimated_profit.net_profit_base).toFixed(2)}`:"等待更低 HF"; $("candidateBody").innerHTML=candidates.map(row=>{ const p=row.estimated_profit||{}, ca=row.max_collateral_to_liquidate_amount??row.max_collateral_to_liquidate, da=row.amount_to_pass_to_liquidation_call_amount??row.max_debt_to_liquidate_amount??row.max_debt_to_liquidate; return `<tr><td>${displayAssetSymbol(row.collateral_symbol)}</td><td>${stableUnitPriceText(row.collateral_symbol,row.collateral_price)}</td><td>${tokenValueText(ca,row.collateral_symbol,Number(ca)*Number(row.collateral_price))}</td><td>${displayAssetSymbol(row.debt_symbol)}</td><td>${stableUnitPriceText(row.debt_symbol,row.debt_price)}</td><td>${tokenValueText(row.debt_amount,row.debt_symbol,Number(row.debt_amount)*Number(row.debt_price))}</td><td>${tokenValueText(da,row.debt_symbol,Number(da)*Number(row.debt_price))}</td><td>${amountText(Number(row.liquidation_protocol_fee),4)}</td><td class="${cellCls(p.net_profit_base)}">${Number.isFinite(p.net_profit_base)?Number(p.net_profit_base).toFixed(4):"-"}</td></tr>`; }).join("")||'<tr><td colspan="9">暂无可执行候选</td></tr>'; $("positionBody").innerHTML=positions.map(row=>{ const symbol=row.symbol||row.token_symbol||"-", tokenPrice=Number(row.current_token_price??row.oracle_price), stable=Number(row.stable_debt_amount), variable=Number(row.variable_debt_amount); return `<tr><td>${displayAssetSymbol(symbol)}</td><td>${stableUnitPriceText(symbol,tokenPrice)}</td><td>${tokenValueText(row.collateral_amount,symbol,row.collateral_value_base)}</td><td>${tokenValueText(stable,symbol,stable*tokenPrice)}</td><td>${tokenValueText(variable,symbol,variable*tokenPrice)}</td><td>${tokenValueText(stable+variable,symbol,row.debt_value_base)}</td><td>${row.usage_as_collateral_enabled?"是":"否"}</td><td class="${hfCls(row.health_factor_band)}">${row.health_factor_band||"-"}</td></tr>`; }).join("")||'<tr><td colspan="8">暂无持仓数据</td></tr>'; }
+    async function refreshAccount(accountOverride=""){ if(loading)return; const account=(accountOverride||$("accountInput").value).trim(); if(!account){ $("accountMeta").textContent="请输入账户地址。"; return; } $("accountInput").value=account; loading=true; $("accountBtn").disabled=true; $("accountMeta").textContent="正在查询账户清算信息..."; try{ const d=await api(`/api/liquidation/account?account=${encodeURIComponent(account)}`); renderAccount(d); renderPlan(d.execution_plan); }catch(e){ renderAccount({error:e.message, positions:[], liquidation_candidates:[]}); renderPlan({reason:e.message, execution_ready:false, profitable:false, profit_preview:{}}); } finally{ loading=false; $("accountBtn").disabled=false; } }
+    function renderActionDetail(d, fallback="-"){ $("actionDetail").textContent=JSON.stringify(d||fallback,null,2); }
+    async function action(mode){ if(actionRunning)return; const account=$("accountInput").value.trim(); if(!account){ $("accountMeta").textContent="请输入账户地址。"; return; } if(mode!=="preflight"&&!confirm("确认发送清算交易吗？"))return; actionRunning=true; try{ const endpoint=mode==="flashloan"?"flashloan":mode; const d=await api(`/api/liquidation/account/${endpoint}?account=${encodeURIComponent(account)}`,{method:"POST",body:"{}"}); renderActionDetail(d); refreshAccount(account); }catch(e){ renderActionDetail(e.details||{error:e.message}); } finally{ actionRunning=false; } }
+    $("accountBtn").onclick=()=>refreshAccount(); $("sampleBtn").onclick=()=>{ $("accountInput").value="0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"; refreshAccount(); }; $("preflightBtn").onclick=()=>action("preflight"); $("executeBtn").onclick=()=>action("execute"); $("flashloanBtn").onclick=()=>action("flashloan"); $("accountInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); refreshAccount(); } });
+    const accountParam=new URLSearchParams(location.search).get("account"); if(accountParam){ $("accountInput").value=accountParam; refreshAccount(accountParam); }
+  </script>
+</body>
+</html>

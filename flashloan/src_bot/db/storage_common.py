@@ -14,6 +14,10 @@ SCHEMA_MIGRATIONS = (
         "20260730_liquidation_failure_samples",
         "Archive failed or blocked liquidation payloads as reproducible review samples.",
     ),
+    (
+        "20260731_liquidation_borrow_health_pool",
+        "Store active borrower health records below the liquidation watch threshold.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 

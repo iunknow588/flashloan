@@ -209,7 +209,7 @@ def start_liquidation_refresh_loop() -> None:
         while not LIQUIDATION_REFRESH_STOP.is_set():
             try:
                 discover_and_sync_liquidation_accounts(force_full=False)
-                liquidation_health_payload(force=True)
+                liquidation_borrow_pool_scan_payload(force=True)
                 last_backfill_at = float(LIQUIDATION_DISCOVERY_CACHE.get("last_backfill_monotonic") or 0.0)
                 if time.monotonic() - last_backfill_at >= liquidation_backfill_interval_seconds():
                     discover_and_sync_liquidation_accounts(force_full=True)
@@ -224,6 +224,7 @@ def start_liquidation_refresh_loop() -> None:
 def initialize_liquidation_runtime() -> None:
     discover_and_sync_liquidation_accounts(force_full=False)
     load_liquidation_account_registry(force=True)
+    liquidation_borrow_pool_scan_payload(force=True)
     start_liquidation_refresh_loop()
 
 
@@ -334,6 +335,7 @@ def record_liquidation_health_scan_rows(rows: list[dict]) -> None:
     if not database_url or not rows:
         return
     try:
+        db_sync_liquidation_borrow_health_pool(database_url, rows, liquidation_scan_config().watch_health_factor)
         for row in rows:
             report = {
                 "account": row.get("account"),
@@ -349,6 +351,90 @@ def record_liquidation_health_scan_rows(rows: list[dict]) -> None:
         db_prune_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
     except Exception:
         pass
+
+
+def liquidation_borrow_pool_summary(rows: list[dict], *, scanned: bool = False, scan_payload: Optional[dict] = None) -> dict:
+    config = liquidation_scan_config()
+    scan_summary = dict((scan_payload or {}).get("summary") or {})
+    worst_row = rows[0] if rows else None
+    return {
+        "count": len(rows),
+        "display_limit": liquidation_borrow_pool_display_limit(),
+        "watch_health_factor": config.watch_health_factor,
+        "worst_account": worst_row.get("account") if worst_row else None,
+        "worst_health_factor": worst_row.get("health_factor") if worst_row else None,
+        "scanned": scanned,
+        "scan_running": bool(LIQUIDATION_SCAN_CACHE.get("running")),
+        "scan_started_at": LIQUIDATION_SCAN_CACHE.get("started_at"),
+        "scan_finished_at": LIQUIDATION_SCAN_CACHE.get("finished_at"),
+        "scan_interval_seconds": liquidation_scan_interval_seconds(),
+        "source_account_count": scan_summary.get("account_count"),
+        "scanned_account_count": scan_summary.get("scanned_count"),
+        "error": scan_summary.get("error"),
+    }
+
+
+def liquidation_borrow_pool_payload() -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"rows": [], "summary": {"configured": False, "error": "DATABASE_URL is required"}}
+    try:
+        ensure_database_schema(database_url)
+        rows = db_load_liquidation_borrow_health_pool(database_url, limit=liquidation_borrow_pool_display_limit())
+        return {"rows": rows, "summary": liquidation_borrow_pool_summary(rows)}
+    except Exception as exc:
+        return {"rows": [], "summary": {"configured": True, "error": str(exc)}}
+
+
+def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"rows": [], "summary": {"configured": False, "error": "DATABASE_URL is required"}}
+    if not LIQUIDATION_SCAN_LOCK.acquire(blocking=False):
+        payload = liquidation_borrow_pool_payload()
+        summary = dict(payload.get("summary") or {})
+        summary["scan_running"] = True
+        summary["scan_started_at"] = LIQUIDATION_SCAN_CACHE.get("started_at")
+        payload["summary"] = summary
+        return payload
+    config = liquidation_scan_config()
+    LIQUIDATION_SCAN_CACHE["running"] = True
+    LIQUIDATION_SCAN_CACHE["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    LIQUIDATION_SCAN_CACHE["finished_at"] = None
+    accounts: list[str] = []
+    rows: list[dict] = []
+    rpc_url = None
+    error = None
+    try:
+        ensure_database_schema(database_url)
+        accounts = db_load_liquidation_accounts(database_url)
+        if not accounts:
+            error = "database liquidation account table is empty"
+        for candidate in aave_rpc_urls() if accounts else []:
+            try:
+                rows = scan_account_health(accounts, os.getenv("AAVE_POOL_ADDRESS", "").strip(), candidate, config)
+                record_liquidation_health_scan_rows(rows)
+                rpc_url = candidate
+                error = None
+                break
+            except Exception as exc:
+                error = str(exc)
+        rows = db_load_liquidation_borrow_health_pool(database_url, limit=liquidation_borrow_pool_display_limit())
+        scan_payload = {
+            "summary": {
+                "account_count": len(accounts),
+                "scanned_count": len(accounts) if rpc_url else 0,
+                "rpc_url": rpc_url,
+                "error": error,
+            }
+        }
+        return {"rows": rows, "summary": liquidation_borrow_pool_summary(rows, scanned=True, scan_payload=scan_payload)}
+    except Exception as exc:
+        return {"rows": [], "summary": {"configured": True, "error": str(exc)}}
+    finally:
+        LIQUIDATION_SCAN_CACHE["running"] = False
+        LIQUIDATION_SCAN_CACHE["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        LIQUIDATION_SCAN_LOCK.release()
 
 
 def liquidation_health_payload(force: bool = False) -> dict:

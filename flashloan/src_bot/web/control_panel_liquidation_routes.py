@@ -92,6 +92,14 @@ def register_liquidation_routes(app, panel) -> None:
         force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
         return jsonify(panel_call("liquidation_health_payload", force=force))
 
+    @app.get("/api/liquidation/borrow-pool")
+    def liquidation_borrow_pool_api():
+        return jsonify(panel_call("liquidation_borrow_pool_payload"))
+
+    @app.post("/api/liquidation/borrow-pool/scan")
+    def liquidation_borrow_pool_scan_api():
+        return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=True))
+
     @app.post("/api/liquidation-discovery")
     def liquidation_discovery_api():
         payload = request.get_json(silent=True) or {}
@@ -246,6 +254,19 @@ def register_liquidation_routes(app, panel) -> None:
         if not manifest:
             return jsonify({"error": "liquidation sample library not found", "samples": []}), 404
         return jsonify(manifest)
+
+    @app.get("/api/liquidation/accounts")
+    def liquidation_accounts_list_api():
+        force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
+        accounts, source = panel_call("load_liquidation_account_registry", force=force)
+        return jsonify(
+            {
+                "accounts": [{"account": account} for account in accounts],
+                "count": len(accounts),
+                "source": source,
+                "registry_window": panel_call("liquidation_account_registry_window"),
+            }
+        )
 
     @app.post("/api/liquidation/accounts")
     def liquidation_accounts_api():

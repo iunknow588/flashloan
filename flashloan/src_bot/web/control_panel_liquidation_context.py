@@ -14,6 +14,8 @@ _audit_record_liquidation_execution_attempt_safely = liquidation_audit_module.re
 _audit_liquidation_pause_guard_status = liquidation_audit_module.liquidation_pause_guard_status
 _audit_clear_liquidation_pause_guard_status = liquidation_audit_module.clear_liquidation_pause_guard_status
 _scan_discover_and_sync_liquidation_accounts = liquidation_scan_module.discover_and_sync_liquidation_accounts
+_scan_liquidation_borrow_pool_payload = liquidation_scan_module.liquidation_borrow_pool_payload
+_scan_liquidation_borrow_pool_scan_payload = liquidation_scan_module.liquidation_borrow_pool_scan_payload
 _scan_liquidation_health_payload = liquidation_scan_module.liquidation_health_payload
 _scan_liquidation_account_payload = liquidation_scan_module.liquidation_account_payload
 _execute_liquidation_execution_payload_for_account = liquidation_execute_module.liquidation_execution_payload_for_account
@@ -37,13 +39,18 @@ CONTEXT_NAMES = [
     "database_url_or_none",
     "db_liquidation_account_registry_stats",
     "db_load_liquidation_accounts",
+    "db_load_liquidation_borrow_health_pool",
     "db_prune_liquidation_accounts",
+    "db_sync_liquidation_borrow_health_pool",
     "db_upsert_liquidation_accounts",
     "dex_router_address",
     "discover_borrower_addresses",
     "ensure_database_schema",
     "liquidation_account_payload",
     "liquidation_account_registry_window",
+    "liquidation_borrow_pool_display_limit",
+    "liquidation_borrow_pool_payload",
+    "liquidation_borrow_pool_scan_payload",
     "liquidation_config_health",
     "liquidation_data_provider_address",
     "liquidation_discovery_progress",
@@ -125,6 +132,14 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _scan_discover_and_sync_liquidation_accounts(force_full=force_full)
 
+    def liquidation_borrow_pool_payload() -> dict:
+        sync_liquidation_module_context()
+        return _scan_liquidation_borrow_pool_payload()
+
+    def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
+        sync_liquidation_module_context()
+        return _scan_liquidation_borrow_pool_scan_payload(force=force)
+
     def liquidation_health_payload(force: bool = False) -> dict:
         sync_liquidation_module_context()
         return _scan_liquidation_health_payload(force=force)
@@ -162,9 +177,12 @@ def install_liquidation_context(panel) -> None:
     panel.liquidation_pause_guard_status = liquidation_pause_guard_status
     panel.clear_liquidation_pause_guard_status = clear_liquidation_pause_guard_status
     panel.discover_and_sync_liquidation_accounts = discover_and_sync_liquidation_accounts
+    panel.liquidation_borrow_pool_payload = liquidation_borrow_pool_payload
+    panel.liquidation_borrow_pool_scan_payload = liquidation_borrow_pool_scan_payload
     panel.liquidation_health_payload = liquidation_health_payload
     panel.liquidation_account_payload = liquidation_account_payload
     panel.liquidation_execution_payload_for_account = liquidation_execution_payload_for_account
     panel.simulate_liquidation_static_call = simulate_liquidation_static_call
     panel.execute_flashloan_liquidation_transaction = execute_flashloan_liquidation_transaction
     panel.execute_self_funded_liquidation_transaction = execute_self_funded_liquidation_transaction
+    sync_liquidation_module_context()

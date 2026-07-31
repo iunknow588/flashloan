@@ -2,7 +2,9 @@
 
 from db.storage_common import SCHEMA_MIGRATIONS, require_psycopg
 from db.storage_liquidation_schema import (
+    LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
     LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
+    create_liquidation_borrow_health_pool_schema,
     create_liquidation_failure_sample_schema,
 )
 def ensure_database_schema(database_url: str) -> None:
@@ -228,6 +230,7 @@ def ensure_database_schema(database_url: str) -> None:
                 )
                 """
             )
+            create_liquidation_borrow_health_pool_schema(cursor)
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS liquidation_execution_attempts (
@@ -479,6 +482,7 @@ def ensure_schema_columns(cursor) -> None:
             "summary_json": "TEXT",
             "report_json": "TEXT",
         },
+        "liquidation_borrow_health_pool": LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
         "liquidation_execution_attempts": {
             "account": "TEXT",
             "mode": "TEXT",
