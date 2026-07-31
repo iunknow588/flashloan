@@ -45,7 +45,7 @@ def test_liquidation_account_preflight_api_returns_static_call_status(monkeypatc
     monkeypatch.setattr(
         control_panel,
         "simulate_liquidation_static_call",
-        lambda payload: {
+        lambda payload, force=False: {
             **payload,
             "preflight": {
                 **payload["preflight"],
@@ -78,7 +78,7 @@ def test_liquidation_preflight_path_api_returns_static_call_status(monkeypatch):
     monkeypatch.setattr(
         control_panel,
         "simulate_liquidation_static_call",
-        lambda payload: {
+        lambda payload, force=False: {
             **payload,
             "state": "static_call_passed",
             "preflight": {
@@ -107,7 +107,7 @@ def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypa
     monkeypatch.setattr(
         control_panel,
         "execute_self_funded_liquidation_transaction",
-        lambda payload: {
+        lambda payload, force=False: {
             "account_report": {"account": payload["account"], "summary": {}},
             "execution_controls": {"execution_enabled": True},
             "mode": "self_funded",
@@ -131,12 +131,12 @@ def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypa
 def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account: {"account": account})
+    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account})
     monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: None)
     monkeypatch.setattr(
         control_panel,
         "execute_flashloan_liquidation_transaction",
-        lambda payload: {
+        lambda payload, force=False: {
             "account_report": {"account": payload["account"], "summary": {}},
             "execution_controls": {"execution_enabled": True},
             "mode": "flashloan",
@@ -157,7 +157,71 @@ def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
     assert data["receipt"]["status"] == 1
 
 
-def _failing_payload(account):
+def test_liquidation_account_execute_api_passes_force_flag(monkeypatch):
+    from web import control_panel
+
+    captured = {}
+    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account, "payload_force": kwargs.get("force")})
+    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: captured.setdefault("attempt", kwargs))
+    monkeypatch.setattr(
+        control_panel,
+        "execute_self_funded_liquidation_transaction",
+        lambda payload, force=False: {
+            "account_report": {"account": payload["account"], "summary": {}},
+            "execution_controls": {"execution_enabled": False, "manual_force": force},
+            "mode": "self_funded",
+            "sender": "0xsender",
+            "request": {},
+            "receipt": {"transaction_hash": "0xabc", "status": 1},
+            "tx_hash": "0xabc",
+            "payload_force": payload["payload_force"],
+        },
+    )
+
+    response = app.test_client().post(
+        "/api/liquidation/account/execute?account=0x0000000000000000000000000000000000000001&force=1"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["payload_force"] is True
+    assert data["execution_controls"]["manual_force"] is True
+    assert captured["attempt"]["mode"] == "self_funded_force"
+
+
+def test_liquidation_account_flashloan_api_passes_force_flag(monkeypatch):
+    from web import control_panel
+
+    captured = {}
+    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account, "payload_force": kwargs.get("force")})
+    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: captured.setdefault("attempt", kwargs))
+    monkeypatch.setattr(
+        control_panel,
+        "execute_flashloan_liquidation_transaction",
+        lambda payload, force=False: {
+            "account_report": {"account": payload["account"], "summary": {}},
+            "execution_controls": {"execution_enabled": False, "manual_force": force},
+            "mode": "flashloan",
+            "executor": "0xexecutor",
+            "request": {},
+            "receipt": {"transaction_hash": "0xdef", "status": 1},
+            "tx_hash": "0xdef",
+            "payload_force": payload["payload_force"],
+        },
+    )
+
+    response = app.test_client().post(
+        "/api/liquidation/account/flashloan?account=0x0000000000000000000000000000000000000001&force=1"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["payload_force"] is True
+    assert data["execution_controls"]["manual_force"] is True
+    assert captured["attempt"]["mode"] == "flashloan_force"
+
+
+def _failing_payload(account, **kwargs):
     return {
         "account": account,
         "executor": "0x0000000000000000000000000000000000000002",
@@ -180,7 +244,7 @@ def test_liquidation_account_execute_api_returns_context_on_failure(monkeypatch)
     monkeypatch.setattr(
         control_panel,
         "execute_self_funded_liquidation_transaction",
-        lambda payload: (_ for _ in ()).throw(RuntimeError("self funded liquidation failed")),
+        lambda payload, force=False: (_ for _ in ()).throw(RuntimeError("self funded liquidation failed")),
     )
     monkeypatch.setattr(
         control_panel,
@@ -212,7 +276,7 @@ def test_liquidation_account_flashloan_api_returns_context_on_failure(monkeypatc
     monkeypatch.setattr(
         control_panel,
         "execute_flashloan_liquidation_transaction",
-        lambda payload: (_ for _ in ()).throw(RuntimeError("flashloan failed")),
+        lambda payload, force=False: (_ for _ in ()).throw(RuntimeError("flashloan failed")),
     )
     monkeypatch.setattr(
         control_panel,

@@ -400,12 +400,13 @@ def background_activity_payload(running: Optional[bool] = None, starting: Option
     observer_starting_current = bool(globals().get("observer_starting")) if starting is None else bool(starting)
     discovery = _liquidation_activity_payload("账户池发现扫描", LIQUIDATION_DISCOVERY_CACHE, LIQUIDATION_DISCOVERY_LOCK)
     health_scan = _liquidation_activity_payload("债务/健康池扫描", LIQUIDATION_SCAN_CACHE, LIQUIDATION_SCAN_LOCK)
+    account_backfill = _liquidation_activity_payload("账户池一年查漏补缺", LIQUIDATION_ACCOUNT_BACKFILL_CACHE, LIQUIDATION_ACCOUNT_BACKFILL_LOCK)
     tasks: list[dict] = []
     if observer_starting_current:
         tasks.append({"label": "机会观察启动", "running": True, "stage": "starting", "text": "机会观察：启动中"})
     if observer_running:
         tasks.append({"label": "机会观察", "running": True, "stage": "running", "text": "机会观察：运行中"})
-    for item in (discovery, health_scan):
+    for item in (discovery, health_scan, account_backfill):
         if item["running"]:
             tasks.append(item)
     return {
@@ -414,6 +415,7 @@ def background_activity_payload(running: Optional[bool] = None, starting: Option
         "observer_starting": observer_starting_current,
         "liquidation_discovery": discovery,
         "liquidation_health_scan": health_scan,
+        "liquidation_account_backfill": account_backfill,
         "tasks": tasks,
         "summary": "；".join(str(item.get("text") or item.get("label")) for item in tasks),
     }
@@ -457,7 +459,7 @@ def system_monitor_payload(
     background = background_activity or background_activity_payload(running, starting)
     liquidation_busy = any(
         bool((background.get(key) or {}).get("running"))
-        for key in ("liquidation_discovery", "liquidation_health_scan")
+        for key in ("liquidation_discovery", "liquidation_health_scan", "liquidation_account_backfill")
     )
     control_state = (control_status_current or {}).get("state")
     control_stage = (control_status_current or {}).get("stage")

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable, Optional
+import threading
+from typing import Callable, Iterable, Optional
 
 from web3 import Web3
 
@@ -65,6 +66,8 @@ def discover_borrower_addresses(
     limit: Optional[int] = 5000,
     event_topic: str | None = None,
     web3_class=Web3,
+    stop_event: threading.Event | None = None,
+    progress_callback: Callable[[dict], None] | None = None,
 ) -> list[str]:
     w3 = web3_class(web3_class.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
     latest_block = int(w3.eth.block_number)
@@ -79,6 +82,8 @@ def discover_borrower_addresses(
     result_limit = max(0, int(limit or 0))
     current = start_block
     while current <= end_limit:
+        if stop_event is not None and stop_event.is_set():
+            break
         end_block = min(end_limit, current + chunk - 1)
         logs = w3.eth.get_logs(
             {
@@ -95,5 +100,16 @@ def discover_borrower_addresses(
             borrower = topic_to_address(topics[2])
             if borrower and borrower not in unique_addresses and (result_limit <= 0 or len(unique_addresses) < result_limit):
                 unique_addresses.append(borrower)
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "from_block": start_block,
+                    "to_block": end_limit,
+                    "current_from_block": current,
+                    "current_to_block": end_block,
+                    "discovered_count": len(unique_addresses),
+                    "stopped": bool(stop_event is not None and stop_event.is_set()),
+                }
+            )
         current = end_block + 1
     return unique_addresses

@@ -158,6 +158,18 @@ def register_liquidation_routes(app, panel) -> None:
         LIQUIDATION_SCAN_CACHE["updated_at"] = 0.0
         return jsonify(result)
 
+    @app.get("/api/liquidation/account-backfill")
+    def liquidation_account_backfill_status_api():
+        return jsonify(panel_call("account_backfill_status_payload"))
+
+    @app.post("/api/liquidation/account-backfill/start")
+    def liquidation_account_backfill_start_api():
+        return jsonify(panel_call("start_account_backfill_background")), 202
+
+    @app.post("/api/liquidation/account-backfill/stop")
+    def liquidation_account_backfill_stop_api():
+        return jsonify(panel_call("request_stop_account_backfill"))
+
     @app.get("/api/liquidation-settings")
     def liquidation_settings_api():
         config = liquidation_runtime_config()
@@ -307,33 +319,35 @@ def register_liquidation_routes(app, panel) -> None:
     @app.post("/api/liquidation/account/execute")
     def liquidation_account_execute_api():
         account = request.args.get("account", "").strip()
+        force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
         if not account:
             return jsonify({"error": "account is required"}), 400
         payload: dict | None = None
         try:
-            payload = panel_call("liquidation_execution_payload_for_account", account, require_executor=False)
-            result = panel_call("execute_self_funded_liquidation_transaction", payload)
-            record_liquidation_route_success(account, "self_funded", result)
+            payload = panel_call("liquidation_execution_payload_for_account", account, require_executor=False, force=force)
+            result = panel_call("execute_self_funded_liquidation_transaction", payload, force=force)
+            record_liquidation_route_success(account, "self_funded_force" if force else "self_funded", result)
             return jsonify(result)
         except Exception as exc:
             response = liquidation_failure_response(account, payload, exc)
-            record_liquidation_route_failure(account, "self_funded", response, exc)
+            record_liquidation_route_failure(account, "self_funded_force" if force else "self_funded", response, exc)
             return jsonify(response), 400
 
     @app.post("/api/liquidation/account/flashloan")
     def liquidation_account_flashloan_api():
         account = request.args.get("account", "").strip()
+        force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
         if not account:
             return jsonify({"error": "account is required"}), 400
         payload: dict | None = None
         try:
-            payload = panel_call("liquidation_execution_payload_for_account", account)
-            result = panel_call("execute_flashloan_liquidation_transaction", payload)
-            record_liquidation_route_success(account, "flashloan", result)
+            payload = panel_call("liquidation_execution_payload_for_account", account, force=force)
+            result = panel_call("execute_flashloan_liquidation_transaction", payload, force=force)
+            record_liquidation_route_success(account, "flashloan_force" if force else "flashloan", result)
             return jsonify(result)
         except Exception as exc:
             response = liquidation_failure_response(account, payload, exc)
-            record_liquidation_route_failure(account, "flashloan", response, exc)
+            record_liquidation_route_failure(account, "flashloan_force" if force else "flashloan", response, exc)
             return jsonify(response), 400
 
     @app.get("/api/liquidation/samples")

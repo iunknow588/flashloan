@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any, Iterable
 
 from web3 import Web3
@@ -91,13 +92,34 @@ def _tuple_value(raw: Any, index: int, default: Any = None) -> Any:
         return default
 
 
+def aave_base_currency_unit() -> int:
+    raw = os.getenv("AAVE_BASE_CURRENCY_UNIT", "100000000").strip()
+    try:
+        unit = int(raw)
+    except ValueError:
+        unit = 100000000
+    return max(1, unit)
+
+
+def _base_currency_amount(raw_value: Any, base_unit: int | None = None) -> float:
+    return float(int(raw_value or 0)) / float(base_unit or aave_base_currency_unit())
+
+
 def _parse_position_info(raw: Any) -> dict:
     health_factor = _tuple_value(raw, 5)
     health_factor_float = float(health_factor) / 1e18 if isinstance(health_factor, int) and health_factor > 10**9 else float(health_factor or 0.0)
+    base_unit = aave_base_currency_unit()
+    total_collateral_raw = int(_tuple_value(raw, 0) or 0)
+    total_debt_raw = int(_tuple_value(raw, 1) or 0)
+    available_borrows_raw = int(_tuple_value(raw, 2) or 0)
     return {
-        "total_collateral_in_base_currency": int(_tuple_value(raw, 0) or 0),
-        "total_debt_in_base_currency": int(_tuple_value(raw, 1) or 0),
-        "available_borrows_in_base_currency": int(_tuple_value(raw, 2) or 0),
+        "total_collateral_in_base_currency": _base_currency_amount(total_collateral_raw, base_unit),
+        "total_debt_in_base_currency": _base_currency_amount(total_debt_raw, base_unit),
+        "available_borrows_in_base_currency": _base_currency_amount(available_borrows_raw, base_unit),
+        "total_collateral_in_base_currency_raw": total_collateral_raw,
+        "total_debt_in_base_currency_raw": total_debt_raw,
+        "available_borrows_in_base_currency_raw": available_borrows_raw,
+        "base_currency_unit": base_unit,
         "current_liquidation_threshold": int(_tuple_value(raw, 3) or 0),
         "ltv": int(_tuple_value(raw, 4) or 0),
         "health_factor": health_factor_float,
@@ -105,22 +127,30 @@ def _parse_position_info(raw: Any) -> dict:
 
 
 def _parse_collateral_info(raw: Any) -> dict:
+    base_unit = aave_base_currency_unit()
+    collateral_balance_base_raw = int(_tuple_value(raw, 4) or 0)
     return {
         "asset_unit": int(_tuple_value(raw, 0) or 0),
         "price": int(_tuple_value(raw, 1) or 0),
         "a_token": _tuple_value(raw, 2),
         "collateral_balance": int(_tuple_value(raw, 3) or 0),
-        "collateral_balance_in_base_currency": int(_tuple_value(raw, 4) or 0),
+        "collateral_balance_in_base_currency": _base_currency_amount(collateral_balance_base_raw, base_unit),
+        "collateral_balance_in_base_currency_raw": collateral_balance_base_raw,
+        "base_currency_unit": base_unit,
     }
 
 
 def _parse_debt_info(raw: Any) -> dict:
+    base_unit = aave_base_currency_unit()
+    debt_balance_base_raw = int(_tuple_value(raw, 4) or 0)
     return {
         "asset_unit": int(_tuple_value(raw, 0) or 0),
         "price": int(_tuple_value(raw, 1) or 0),
         "variable_debt_token": _tuple_value(raw, 2),
         "debt_balance": int(_tuple_value(raw, 3) or 0),
-        "debt_balance_in_base_currency": int(_tuple_value(raw, 4) or 0),
+        "debt_balance_in_base_currency": _base_currency_amount(debt_balance_base_raw, base_unit),
+        "debt_balance_in_base_currency_raw": debt_balance_base_raw,
+        "base_currency_unit": base_unit,
     }
 
 
@@ -149,7 +179,7 @@ def _debt_amount_to_base(debt_amount: int, debt_info: dict[str, Any]) -> float:
     asset_unit = int(debt_info.get("asset_unit") or 0)
     price = int(debt_info.get("price") or 0)
     if asset_unit > 0 and price > 0:
-        return float(debt_amount) * float(price) / float(asset_unit)
+        return float(debt_amount) * float(price) / float(asset_unit) / float(aave_base_currency_unit())
     return 0.0
 
 
@@ -503,11 +533,19 @@ def fetch_user_account_data(pool_address: str, account: str, rpc_url: str) -> di
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 12}))
     pool = w3.eth.contract(address=Web3.to_checksum_address(pool_address), abi=POOL_ACCOUNT_DATA_ABI)
     raw = pool.functions.getUserAccountData(Web3.to_checksum_address(account)).call()
+    base_unit = aave_base_currency_unit()
+    total_collateral_raw = int(raw[0])
+    total_debt_raw = int(raw[1])
+    available_borrows_raw = int(raw[2])
     return {
         "account": Web3.to_checksum_address(account),
-        "total_collateral_base": int(raw[0]),
-        "total_debt_base": int(raw[1]),
-        "available_borrows_base": int(raw[2]),
+        "total_collateral_base": _base_currency_amount(total_collateral_raw, base_unit),
+        "total_debt_base": _base_currency_amount(total_debt_raw, base_unit),
+        "available_borrows_base": _base_currency_amount(available_borrows_raw, base_unit),
+        "total_collateral_base_raw": total_collateral_raw,
+        "total_debt_base_raw": total_debt_raw,
+        "available_borrows_base_raw": available_borrows_raw,
+        "base_currency_unit": base_unit,
         "current_liquidation_threshold": int(raw[3]),
         "ltv": int(raw[4]),
         "health_factor": float(raw[5]) / 1e18 if int(raw[5]) > 10**9 else float(raw[5]),

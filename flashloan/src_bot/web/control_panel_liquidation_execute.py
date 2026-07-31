@@ -22,6 +22,7 @@ def liquidation_execution_payload_for_account(
     deadline_seconds: int = 300,
     allow_zero_min_out: bool = False,
     require_executor: bool = True,
+    force: bool = False,
 ) -> dict:
     executor_address = liquidation_executor_address()
     if require_executor and not executor_address:
@@ -41,10 +42,10 @@ def liquidation_execution_payload_for_account(
         ),
     )
     candidate = payload.get("request") or {}
-    if controls["max_debt_to_cover"] > 0 and int(candidate.get("debtToCover") or 0) > controls["max_debt_to_cover"]:
+    if not force and controls["max_debt_to_cover"] > 0 and int(candidate.get("debtToCover") or 0) > controls["max_debt_to_cover"]:
         raise ValueError("debtToCover exceeds LIQUIDATION_MAX_DEBT_TO_COVER")
     profit_amount = int(candidate.get("minProfitAmount") or 0)
-    if profit_amount < controls["min_profit_base"]:
+    if not force and profit_amount < controls["min_profit_base"]:
         raise ValueError("minProfitAmount is below LIQUIDATION_MIN_PROFIT_BASE")
     preflight = dict(payload.get("preflight") or {})
     preflight["static_call_required"] = bool(controls["require_static_call"])
@@ -57,6 +58,24 @@ def liquidation_execution_payload_for_account(
     payload["account_report"] = report
     payload["execution_controls"] = controls
     return apply_liquidation_submission_state(payload, mode="flashloan")
+
+
+FORCE_HARD_BLOCKERS = {
+    "account_not_liquidatable",
+    "no_liquidation_candidate",
+    "invalid_debt_to_cover",
+    "debt_exceeds_limit",
+    "chain_id_mismatch",
+    "private_key_mismatch",
+    "missing_executor",
+    "missing_owner",
+    "missing_self_funded_key",
+    "config_invalid",
+}
+
+
+def _force_remaining_blockers(blockers: list[str]) -> list[str]:
+    return [reason for reason in blockers if reason in FORCE_HARD_BLOCKERS]
 
 
 LIQUIDATION_EXECUTOR_ABI = [
@@ -174,7 +193,7 @@ def _format_tx_receipt(receipt) -> dict:
     }
 
 
-def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
+def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False) -> dict:
     controls = liquidation_execution_controls()
     payload["execution_controls"] = controls
     gated_payload = apply_liquidation_submission_state(dict(payload), mode="flashloan")
@@ -183,9 +202,11 @@ def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
         for reason in gated_payload.get("blocked_reasons", [])
         if reason not in {"static_call_required", "static_call_failed"}
     ]
+    if force:
+        initial_blockers = _force_remaining_blockers(initial_blockers)
     if initial_blockers:
         raise RuntimeError(f"submission blocked: {', '.join(initial_blockers)}")
-    if not controls["execution_enabled"]:
+    if not controls["execution_enabled"] and not force:
         raise RuntimeError("LIQUIDATION_EXECUTION_ENABLED is false")
 
     private_key = liquidation_executor_private_key()
@@ -213,9 +234,11 @@ def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
     preflight_info = preflight.get("preflight") or {}
     preflight = apply_liquidation_submission_state(preflight, mode="flashloan")
     blockers = preflight.get("blocked_reasons", [])
+    if force:
+        blockers = _force_remaining_blockers(blockers)
     if blockers:
         raise RuntimeError(f"submission blocked: {', '.join(blockers)}")
-    if controls["require_static_call"] and not preflight_info.get("static_call_passed"):
+    if controls["require_static_call"] and not preflight_info.get("static_call_passed") and not force:
         raise RuntimeError(preflight_info.get("static_call_error") or "static call preflight failed")
 
     request = preflight.get("request") or {}
@@ -274,18 +297,20 @@ def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
         "tx_hash": tx_hash.hex(),
         "account_report": account_report,
         "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
-        "execution_controls": preflight.get("execution_controls") or controls,
+        "execution_controls": (preflight.get("execution_controls") or controls) | {"manual_force": bool(force)},
     }
 
 
-def execute_self_funded_liquidation_transaction(payload: dict) -> dict:
+def execute_self_funded_liquidation_transaction(payload: dict, force: bool = False) -> dict:
     controls = liquidation_execution_controls()
     payload["execution_controls"] = controls
     gated_payload = apply_liquidation_submission_state(dict(payload), mode="self_funded")
     blockers = gated_payload.get("blocked_reasons", [])
+    if force:
+        blockers = _force_remaining_blockers(blockers)
     if blockers:
         raise RuntimeError(f"submission blocked: {', '.join(blockers)}")
-    if not controls["execution_enabled"]:
+    if not controls["execution_enabled"] and not force:
         raise RuntimeError("LIQUIDATION_EXECUTION_ENABLED is false")
 
     private_key = liquidation_self_funded_private_key()
@@ -375,5 +400,5 @@ def execute_self_funded_liquidation_transaction(payload: dict) -> dict:
         "tx_hash": tx_hash.hex(),
         "account_report": account_report,
         "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
-        "execution_controls": payload.get("execution_controls") or controls,
+        "execution_controls": (payload.get("execution_controls") or controls) | {"manual_force": bool(force)},
     }

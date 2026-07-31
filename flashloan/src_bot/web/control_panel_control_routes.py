@@ -34,6 +34,7 @@ def clear_database_blockers(panel) -> list[str]:
     for label, cache_name, lock_name in (
         ("账户池发现扫描", "LIQUIDATION_DISCOVERY_CACHE", "LIQUIDATION_DISCOVERY_LOCK"),
         ("债务/健康池扫描", "LIQUIDATION_SCAN_CACHE", "LIQUIDATION_SCAN_LOCK"),
+        ("账户池一年查漏补缺", "LIQUIDATION_ACCOUNT_BACKFILL_CACHE", "LIQUIDATION_ACCOUNT_BACKFILL_LOCK"),
     ):
         blocker = _cache_running_blocker(panel, label=label, cache_name=cache_name, lock_name=lock_name)
         if blocker:

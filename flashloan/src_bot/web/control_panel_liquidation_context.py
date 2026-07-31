@@ -184,13 +184,13 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _execute_simulate_liquidation_static_call(payload)
 
-    def execute_flashloan_liquidation_transaction(payload: dict) -> dict:
+    def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False) -> dict:
         sync_liquidation_module_context()
-        return _execute_flashloan_liquidation_transaction(payload)
+        return _execute_flashloan_liquidation_transaction(payload, force=force)
 
-    def execute_self_funded_liquidation_transaction(payload: dict) -> dict:
+    def execute_self_funded_liquidation_transaction(payload: dict, force: bool = False) -> dict:
         sync_liquidation_module_context()
-        return _execute_self_funded_liquidation_transaction(payload)
+        return _execute_self_funded_liquidation_transaction(payload, force=force)
 
     panel.sync_liquidation_module_context = sync_liquidation_module_context
     panel.load_liquidation_account_registry = load_liquidation_account_registry

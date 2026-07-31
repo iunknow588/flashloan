@@ -349,6 +349,68 @@ def test_discover_borrower_addresses_allows_unlimited_results(monkeypatch):
     ]
 
 
+def test_discover_borrower_addresses_can_stop_between_chunks(monkeypatch):
+    from execution import liquidation_scan
+    import threading
+
+    calls = []
+    progress = []
+    stop_event = threading.Event()
+
+    def topic(address: str) -> str:
+        return "0x" + "0" * 24 + address.removeprefix("0x").lower()
+
+    class FakeEth:
+        block_number = 30
+
+        @staticmethod
+        def get_logs(params):
+            calls.append((params["fromBlock"], params["toBlock"]))
+            return [
+                {
+                    "topics": [
+                        "0xborrow",
+                        "0xreserve",
+                        topic("0x0000000000000000000000000000000000000001"),
+                    ]
+                }
+            ]
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return str(value)
+
+    def on_progress(item):
+        progress.append(item)
+        stop_event.set()
+
+    monkeypatch.setattr(liquidation_scan, "Web3", FakeWeb3)
+    monkeypatch.setattr(liquidation_scan, "BORROW_EVENT_TOPIC", "0xborrow")
+
+    addresses = discover_borrower_addresses(
+        "https://rpc.example",
+        "0xpool",
+        1,
+        to_block=30,
+        chunk_size=10,
+        limit=0,
+        stop_event=stop_event,
+        progress_callback=on_progress,
+    )
+
+    assert addresses == ["0x0000000000000000000000000000000000000001"]
+    assert calls == [(1, 10)]
+    assert progress[0]["discovered_count"] == 1
+
+
 def test_build_liquidation_execution_plan_marks_readiness():
     plan = build_liquidation_execution_plan(
         "0x0000000000000000000000000000000000000001",
@@ -402,6 +464,31 @@ def test_near_threshold_healthy_account_is_not_liquidatable(monkeypatch):
     assert rows[0]["health_factor"] > 1.0
     assert plan["liquidation_ready"] is False
     assert plan["execution_ready"] is False
+
+
+def test_aave_base_currency_values_are_normalized(monkeypatch):
+    from execution import liquidation_scan
+
+    monkeypatch.setenv("AAVE_BASE_CURRENCY_UNIT", "100000000")
+
+    summary = liquidation_scan._parse_position_info(
+        (
+            4598,
+            4748,
+            0,
+            7950,
+            7500,
+            769884161752316800,
+        )
+    )
+    debt = liquidation_scan._parse_debt_info((10**18, 99000000, "0xToken", 47920255303018, 4748))
+
+    assert summary["total_collateral_in_base_currency"] == pytest.approx(0.00004598)
+    assert summary["total_debt_in_base_currency"] == pytest.approx(0.00004748)
+    assert summary["total_debt_in_base_currency_raw"] == 4748
+    assert summary["base_currency_unit"] == 100000000
+    assert debt["debt_balance_in_base_currency"] == pytest.approx(0.00004748)
+    assert debt["debt_balance_in_base_currency_raw"] == 4748
 
 
 def test_build_liquidation_execution_payload_requires_static_preflight():

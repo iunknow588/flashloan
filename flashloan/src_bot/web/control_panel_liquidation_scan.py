@@ -24,6 +24,168 @@ from db.storage import (
 from web.control_panel_liquidation_base import *
 
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
+LIQUIDATION_ACCOUNT_BACKFILL_CACHE: dict[str, object] = {
+    "running": False,
+    "stop_requested": False,
+    "started_at": None,
+    "finished_at": None,
+    "stage": "idle",
+    "last_result": None,
+    "progress": {},
+    "error": None,
+}
+LIQUIDATION_ACCOUNT_BACKFILL_LOCK = threading.Lock()
+LIQUIDATION_ACCOUNT_BACKFILL_STOP = threading.Event()
+LIQUIDATION_ACCOUNT_BACKFILL_THREAD: Optional[threading.Thread] = None
+
+
+def account_backfill_status_payload() -> dict:
+    payload = dict(LIQUIDATION_ACCOUNT_BACKFILL_CACHE)
+    payload["running"] = bool(payload.get("running"))
+    payload["stop_requested"] = bool(payload.get("stop_requested"))
+    return payload
+
+
+def request_stop_account_backfill() -> dict:
+    LIQUIDATION_ACCOUNT_BACKFILL_STOP.set()
+    LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stop_requested"] = True
+    if not LIQUIDATION_ACCOUNT_BACKFILL_CACHE.get("running"):
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stage"] = "idle"
+    return account_backfill_status_payload()
+
+
+def _set_account_backfill_progress(progress: dict) -> None:
+    current_from = int(progress.get("current_from_block") or 0)
+    current_to = int(progress.get("current_to_block") or 0)
+    start = int(progress.get("from_block") or 0)
+    end = int(progress.get("to_block") or 0)
+    total = max(1, end - start + 1)
+    scanned = max(0, current_to - start + 1)
+    percent = max(0.0, min(100.0, scanned / total * 100.0))
+    LIQUIDATION_ACCOUNT_BACKFILL_CACHE["progress"] = {
+        **progress,
+        "percent": round(percent, 2),
+        "scanned_blocks": scanned,
+        "total_blocks": total,
+    }
+
+
+def run_account_backfill_once() -> dict:
+    if not database_url_or_none():
+        return {"started": False, "saved": False, "count": 0, "error": "DATABASE_URL is required"}
+    if os.getenv("LIQUIDATION_AUTO_DISCOVER_ACCOUNTS", "true").strip().lower() in {"0", "false", "no"}:
+        return {"started": False, "saved": False, "count": 0, "error": "auto discovery disabled"}
+    if not LIQUIDATION_ACCOUNT_BACKFILL_LOCK.acquire(blocking=False):
+        return {"started": False, "running": True, **account_backfill_status_payload()}
+
+    LIQUIDATION_ACCOUNT_BACKFILL_STOP.clear()
+    started_at = datetime.now(timezone.utc)
+    LIQUIDATION_ACCOUNT_BACKFILL_CACHE.update(
+        {
+            "running": True,
+            "stop_requested": False,
+            "started_at": started_at.isoformat(timespec="seconds"),
+            "finished_at": None,
+            "stage": "window",
+            "progress": {},
+            "error": None,
+        }
+    )
+    try:
+        pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+        if not pool_address:
+            raise RuntimeError("missing AAVE_POOL_ADDRESS")
+        scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode = liquidation_discovery_window(force_full=True)
+        chunk_size = int(os.getenv("LIQUIDATION_BORROW_SCAN_CHUNK_SIZE", "1000"))
+        last_error = None
+        for rpc_url in aave_rpc_urls():
+            if LIQUIDATION_ACCOUNT_BACKFILL_STOP.is_set():
+                break
+            actual_from_block = 0
+            actual_to_block = 0
+            try:
+                LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stage"] = "resolving-blocks"
+                _, actual_from_block, actual_to_block = resolve_discovery_block_range(rpc_url, from_block, to_block)
+                LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stage"] = "borrowers"
+                discovered = discover_borrower_addresses(
+                    rpc_url,
+                    pool_address,
+                    actual_from_block,
+                    to_block=actual_to_block,
+                    chunk_size=chunk_size,
+                    limit=0,
+                    stop_event=LIQUIDATION_ACCOUNT_BACKFILL_STOP,
+                    progress_callback=_set_account_backfill_progress,
+                ) if actual_from_block <= actual_to_block else []
+                LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stage"] = "saving"
+                if discovered:
+                    db_upsert_liquidation_accounts(
+                        configured_database_url(),
+                        discovered,
+                        source="one-year-gap-fill",
+                        active=True,
+                        scan_start_at=scan_start_at,
+                        scan_end_at=scan_end_at,
+                        update_existing=True,
+                    )
+                LIQUIDATION_ACCOUNT_CACHE["updated_at"] = 0.0
+                status = "stopped" if LIQUIDATION_ACCOUNT_BACKFILL_STOP.is_set() else "success"
+                result = {
+                    "started": True,
+                    "saved": True,
+                    "status": status,
+                    "stopped": status == "stopped",
+                    "count": len(discovered),
+                    "rpc_url": rpc_url,
+                    "mode": "one-year-gap-fill",
+                    "from_block": from_block,
+                    "to_block": to_block,
+                    "actual_from_block": actual_from_block,
+                    "actual_to_block": actual_to_block,
+                    "lookback_blocks": lookback_blocks,
+                    "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
+                    "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
+                    "registry_window": liquidation_account_registry_window(),
+                    "progress": dict(LIQUIDATION_ACCOUNT_BACKFILL_CACHE.get("progress") or {}),
+                }
+                LIQUIDATION_ACCOUNT_BACKFILL_CACHE["last_result"] = result
+                return result
+            except Exception as exc:
+                last_error = str(exc)
+        result = {
+            "started": True,
+            "saved": False,
+            "stopped": bool(LIQUIDATION_ACCOUNT_BACKFILL_STOP.is_set()),
+            "count": 0,
+            "error": None if LIQUIDATION_ACCOUNT_BACKFILL_STOP.is_set() else (last_error or "unable to backfill borrower addresses"),
+            "mode": "one-year-gap-fill",
+        }
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["last_result"] = result
+        return result
+    except Exception as exc:
+        result = {"started": True, "saved": False, "count": 0, "error": str(exc), "mode": "one-year-gap-fill"}
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["last_result"] = result
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["error"] = str(exc)
+        return result
+    finally:
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["running"] = False
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stop_requested"] = bool(LIQUIDATION_ACCOUNT_BACKFILL_STOP.is_set())
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["stage"] = "idle"
+        LIQUIDATION_ACCOUNT_BACKFILL_LOCK.release()
+
+
+def start_account_backfill_background() -> dict:
+    global LIQUIDATION_ACCOUNT_BACKFILL_THREAD
+    if LIQUIDATION_ACCOUNT_BACKFILL_THREAD is not None and LIQUIDATION_ACCOUNT_BACKFILL_THREAD.is_alive():
+        return {"started": False, "running": True, **account_backfill_status_payload()}
+    LIQUIDATION_ACCOUNT_BACKFILL_THREAD = threading.Thread(
+        target=run_account_backfill_once,
+        name="liquidation-account-backfill",
+        daemon=True,
+    )
+    LIQUIDATION_ACCOUNT_BACKFILL_THREAD.start()
+    return {"started": True, "running": True, **account_backfill_status_payload()}
 
 
 def discover_and_sync_liquidation_accounts(force_full: bool = False) -> dict:

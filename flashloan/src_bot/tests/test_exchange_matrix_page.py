@@ -66,7 +66,8 @@ def test_control_page_keeps_liquidation_account_health_as_primary_table():
 def test_liquidation_page_accepts_account_query_from_overview():
     body = app.test_client().get("/liquidation/account").get_data(as_text=True)
 
-    assert 'new URLSearchParams(location.search).get("account")' in body
+    assert "new URLSearchParams(location.search)" in body
+    assert 'params.get("account")' in body
     assert "refreshAccount(accountParam)" in body
 
 
@@ -75,6 +76,9 @@ def test_liquidation_monitor_separates_account_pool_from_dynamic_health():
 
     assert "账户池" in body
     assert "动态借贷健康度" in body
+    assert "一年查漏补缺" in body
+    assert "/api/liquidation/account-backfill/start" in body
+    assert "/api/liquidation/account-backfill/stop" in body
     assert "/api/liquidation/accounts" in body
     assert "Aave 单账户清算分析" not in body
 
