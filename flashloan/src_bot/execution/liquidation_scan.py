@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import os
 from typing import Any, Iterable
@@ -26,6 +25,7 @@ from execution.prioritizer import (
     split_candidate_accounts as _split_candidate_accounts,
     watched_health_rows as _watched_health_rows,
 )
+from execution.health_scanner import scan_account_health as _scan_account_health
 from execution.scanner import discover_borrower_addresses as _discover_borrower_addresses
 
 
@@ -647,73 +647,14 @@ def scan_account_health(
     rpc_url: str,
     config: LiquidationScanConfig = LiquidationScanConfig(),
 ) -> list[dict]:
-    unique_accounts = []
-    for account in accounts:
-        try:
-            checksum = Web3.to_checksum_address(str(account))
-        except ValueError:
-            continue
-        if checksum not in unique_accounts:
-            unique_accounts.append(checksum)
-    scan_accounts = unique_accounts[: max(1, int(config.max_candidates))]
-    batch_data: dict[str, dict] = {}
-    if len(scan_accounts) > 1 and int(config.batch_size or 0) > 1 and str(config.multicall3_address or "").strip():
-        try:
-            batch_data = fetch_user_account_data_batch(
-                pool_address,
-                scan_accounts,
-                rpc_url,
-                multicall3_address=config.multicall3_address,
-                batch_size=config.batch_size,
-            )
-        except Exception:
-            batch_data = {}
-
-    def scan_one(account: str) -> dict:
-        try:
-            account_data = batch_data.get(account) or fetch_user_account_data(pool_address, account, rpc_url)
-        except Exception as exc:
-            return {
-                "account": account,
-                "status": "error",
-                "error": str(exc),
-            }
-        status = classify_health_factor(
-            account_data["health_factor"],
-            config.warning_health_factor,
-            config.liquidation_health_factor,
-        )
-        liquidation = estimate_liquidation_profit(
-            account_data["total_debt_base"],
-            config.liquidation_bonus_percent,
-            config.flashloan_fee_percent,
-            config.dex_slippage_percent,
-            config.gas_cost_usd,
-            mev_buffer_usd=config.mev_buffer_usd,
-            retry_buffer_usd=config.retry_buffer_usd,
-        )
-        return {
-            **account_data,
-            "status": status,
-            "health_factor_band": health_factor_band(account_data["health_factor"]),
-            "alert_score": max(0.0, config.warning_health_factor - account_data["health_factor"]),
-            "liquidation_profit": liquidation,
-        }
-
-    workers = max(1, int(config.parallel_workers or 1))
-    results: list[dict] = []
-    if workers == 1 or len(scan_accounts) <= 1:
-        results = [scan_one(account) for account in scan_accounts]
-    else:
-        with ThreadPoolExecutor(max_workers=min(workers, len(scan_accounts))) as executor:
-            future_map = {executor.submit(scan_one, account): account for account in scan_accounts}
-            for future in as_completed(future_map):
-                try:
-                    results.append(future.result())
-                except Exception as exc:
-                    results.append({"account": future_map[future], "status": "error", "error": str(exc)})
-    results.sort(key=lambda row: (row.get("health_factor", 10.0), -float(row.get("liquidation_profit", {}).get("net_profit_base", 0.0))), reverse=False)
-    return results
+    return _scan_account_health(
+        accounts,
+        pool_address,
+        rpc_url,
+        config,
+        fetch_single=fetch_user_account_data,
+        fetch_batch=fetch_user_account_data_batch,
+    )
 
 
 def split_candidate_accounts(accounts: Iterable[dict], warning_threshold: float, liquidation_threshold: float) -> dict:
