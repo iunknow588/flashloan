@@ -7,6 +7,40 @@ from datetime import datetime, timezone
 from flask import jsonify
 
 
+def _cache_running_blocker(panel, *, label: str, cache_name: str, lock_name: str) -> str | None:
+    cache = getattr(panel, cache_name)
+    lock = getattr(panel, lock_name)
+    if not bool(cache.get("running")):
+        return None
+    if hasattr(lock, "locked") and not lock.locked():
+        cache["running"] = False
+        cache["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        cache["stage"] = "idle"
+        return None
+    stage = cache.get("stage") or "unknown"
+    started_at = cache.get("started_at") or "unknown"
+    return f"{label} still running, stage={stage}, started_at={started_at}"
+
+
+def clear_database_blockers(panel) -> list[str]:
+    with panel.observer_start_lock:
+        panel.clear_stale_observer_start()
+        observer_starting = bool(panel.observer_starting)
+    blockers: list[str] = []
+    if observer_starting:
+        blockers.append("opportunity observer is starting")
+    if panel.is_observer_running():
+        blockers.append("opportunity observer is running")
+    for label, cache_name, lock_name in (
+        ("liquidation discovery", "LIQUIDATION_DISCOVERY_CACHE", "LIQUIDATION_DISCOVERY_LOCK"),
+        ("liquidation health scan", "LIQUIDATION_SCAN_CACHE", "LIQUIDATION_SCAN_LOCK"),
+    ):
+        blocker = _cache_running_blocker(panel, label=label, cache_name=cache_name, lock_name=lock_name)
+        if blocker:
+            blockers.append(blocker)
+    return blockers
+
+
 def register_control_routes(app, panel) -> None:
     @app.post("/api/start")
     def start():
@@ -43,7 +77,7 @@ def register_control_routes(app, panel) -> None:
             panel.observer_start_error = None
             panel.selected_symbols = panel.velocity_start_symbols()
             panel.observer_start_progress["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-            panel.set_control_status("initializing", "启动机会观察", "启动请求已提交，正在后台加载市场与 Aave 上下文", 5)
+            panel.set_control_status("initializing", "启动机会观察", "启动请求已提交，正在后台加载市场与 Aave 上下文", 5, ttl_seconds=panel.OBSERVER_START_TIMEOUT_SECONDS + 30)
             panel.set_observer_progress("initializing", "已提交启动请求", 5)
         threading.Thread(
             target=panel.start_observer_background,
@@ -85,15 +119,11 @@ def register_control_routes(app, panel) -> None:
 
     @app.post("/api/clear")
     def clear():
-        if (
-            panel.observer_starting
-            or panel.is_observer_running()
-            or bool(panel.LIQUIDATION_DISCOVERY_CACHE.get("running"))
-            or bool(panel.LIQUIDATION_SCAN_CACHE.get("running"))
-        ):
+        blockers = clear_database_blockers(panel)
+        if blockers:
             message = "清空数据库前请先停止机会观察，并等待后台发现/扫描完成"
             panel.set_control_status("error", "清空数据库", message, 0)
-            return jsonify({"error": message}), 400
+            return jsonify({"error": message, "blockers": blockers}), 400
         panel.set_control_status("initializing", "清空数据库", "正在清空行情与观察数据", 25)
         try:
             psycopg = panel.require_psycopg()

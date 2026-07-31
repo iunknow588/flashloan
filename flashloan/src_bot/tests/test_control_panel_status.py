@@ -650,10 +650,15 @@ def test_clear_database_api_rejects_when_background_scan_is_running(monkeypatch)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
     monkeypatch.setattr(control_panel, "observer_starting", False)
 
-    response = app.test_client().post("/api/clear", json={})
-    data = response.get_json()
+    assert control_panel.LIQUIDATION_DISCOVERY_LOCK.acquire(blocking=False)
+    try:
+        response = app.test_client().post("/api/clear", json={})
+        data = response.get_json()
+    finally:
+        control_panel.LIQUIDATION_DISCOVERY_LOCK.release()
 
     assert response.status_code == 400
+    assert data["blockers"]
     assert "后台发现/扫描完成" in data["error"]
 
 
@@ -705,6 +710,56 @@ def test_clear_database_api_truncates_without_schema_init(monkeypatch):
     assert data["cleared"] is True
     assert any("TRUNCATE TABLE observations" in sql for sql in executed)
     assert all("CREATE TABLE" not in sql for sql in executed)
+
+
+def test_clear_database_api_resets_stale_scan_running_flag(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", True)
+    monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "stage", "borrowers")
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
+    monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "observer_starting", False)
+
+    executed = []
+
+    class FakeCursor:
+        def execute(self, sql):
+            executed.append(sql)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def cursor(self):
+            class CursorContext:
+                def __enter__(self_inner):
+                    return FakeCursor()
+
+                def __exit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return CursorContext()
+
+    class FakePsycopg:
+        def connect(self, database_url, connect_timeout=8):
+            assert database_url == "postgresql://example"
+            return FakeConnection()
+
+    monkeypatch.setattr(control_panel, "require_psycopg", lambda: FakePsycopg())
+
+    response = app.test_client().post("/api/clear", json={})
+
+    assert response.status_code == 200
+    assert control_panel.LIQUIDATION_DISCOVERY_CACHE["running"] is False
+    assert control_panel.LIQUIDATION_DISCOVERY_CACHE["stage"] == "idle"
+    assert any("TRUNCATE TABLE observations" in sql for sql in executed)
 
 
 def test_liquidation_discovery_coverage_api_reports_gap(monkeypatch):

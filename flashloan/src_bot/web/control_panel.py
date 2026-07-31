@@ -411,7 +411,18 @@ def system_monitor_payload(
     reserve_cache: Optional[dict],
 ) -> dict:
     observer = observer_progress_payload(running, starting, latest_extremes)
-    action = (control_status_current or {}).get("message") or "暂无控制操作记录"
+    control_state = (control_status_current or {}).get("state")
+    control_stage = (control_status_current or {}).get("stage")
+    stale_start_status = (
+        control_state == "initializing"
+        and control_stage == "启动机会观察"
+        and not starting
+        and not running
+    )
+    if stale_start_status:
+        action = "机会观察未运行；最近一次启动未保持运行，请检查 runtime/logs/observer_stderr.log"
+    else:
+        action = (control_status_current or {}).get("message") or "暂无控制操作记录"
     observer_stage = observer.get("stage") or "未知"
     symbols = displayed_symbols(running or starting)
     reserve_count = int((reserve_cache or {}).get("asset_count") or 0)
@@ -422,8 +433,9 @@ def system_monitor_payload(
         window_seconds = latest_extremes.get("window_seconds")
         sample_count = latest_extremes.get("sample_count")
         observed_at = latest_extremes.get("observed_at")
-    control_state = (control_status_current or {}).get("state")
-    if control_state == "error" or observer.get("state") == "error":
+    if stale_start_status:
+        state = "stopped"
+    elif control_state == "error" or observer.get("state") == "error":
         state = "error"
     elif control_state == "initializing":
         state = "initializing"
@@ -563,9 +575,11 @@ def start_observer_background() -> None:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         stdout = open(LOG_DIR / "observer_stdout.log", "ab", buffering=0)
         stderr = open(LOG_DIR / "observer_stderr.log", "ab", buffering=0)
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(APP_DIR) if not existing_pythonpath else f"{APP_DIR}{os.pathsep}{existing_pythonpath}"
         set_observer_progress("initializing", "启动机会观察进程", 60)
         process = subprocess.Popen(
-            [sys.executable, str(OBSERVER_PATH)],
+            [sys.executable, "-m", "market.observer"],
             cwd=str(APP_DIR),
             env=env,
             stdout=stdout,
@@ -576,6 +590,18 @@ def start_observer_background() -> None:
             selected_symbols = symbols
             observer_start_error = None
         write_observer_pid(process.pid)
+        time.sleep(0.5)
+        if process.poll() is not None:
+            OBSERVER_PID_PATH.unlink(missing_ok=True)
+            message = f"机会观察进程启动后立即退出，退出码 {process.returncode}；请检查 runtime/logs/observer_stderr.log"
+            with observer_start_lock:
+                observer_process = None
+                observer_start_error = message
+                selected_symbols = []
+            set_observer_progress("error", message, 0)
+            set_control_status("error", "启动机会观察", message, 0)
+            return
+        set_control_status("initializing", "启动机会观察", "观察进程已启动，等待第一个市场窗口", 80, ttl_seconds=OBSERVER_START_TIMEOUT_SECONDS + 30)
         set_observer_progress("initializing", "等待第一个市场窗口", 80)
     except Exception as exc:
         with observer_start_lock:
