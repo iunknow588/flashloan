@@ -1,8 +1,8 @@
-﻿import json
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
-from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, require_psycopg
+from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, db_connection, dedicated_db_connection, require_psycopg
 from execution.liquidation_priority import liquidation_account_activity_tier
 
 
@@ -60,7 +60,7 @@ def record_liquidation_discovery_scan(
     error: str | None = None,
 ) -> None:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -96,7 +96,7 @@ def record_liquidation_discovery_scan(
 
 def liquidation_discovery_scan_progress(database_url: str, pool_address: str) -> dict[str, Any]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -143,7 +143,7 @@ def record_liquidation_scan_config_snapshot(
     item.setdefault("config_key", key)
     item.setdefault("source_table", table)
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -193,7 +193,7 @@ def load_liquidation_scan_config_library(
         query += " AND active = TRUE"
     query += " ORDER BY updated_at DESC, config_key ASC LIMIT %s"
     params.append(max(1, int(limit)))
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
@@ -216,7 +216,7 @@ def load_liquidation_scan_config_library(
 def rebuild_liquidation_scan_config_library(database_url: str) -> dict[str, Any]:
     psycopg = require_psycopg()
     rebuilt: list[str] = []
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -418,7 +418,7 @@ def upsert_liquidation_accounts(
         if update_existing
         else "ON CONFLICT (account) DO NOTHING"
     )
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.executemany(
                 f"""
@@ -480,7 +480,7 @@ def load_liquidation_accounts(
             COALESCE(last_scanned_at, scan_end_at, updated_at) DESC,
             account ASC
     """
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             return [str(row[0]) for row in cursor.fetchall() if row and row[0]]
@@ -488,7 +488,7 @@ def load_liquidation_accounts(
 
 def liquidation_account_registry_stats(database_url: str, retained_days: int = 365) -> dict[str, Any]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -529,7 +529,7 @@ def load_latest_liquidation_account_reports(database_url: str, limit: int = 500)
         ORDER BY COALESCE(last_scanned_at, scan_end_at, updated_at) DESC, account ASC
         LIMIT %s
     """
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (int(limit),))
             rows = cursor.fetchall()
@@ -586,7 +586,7 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
         }
     )
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -672,7 +672,7 @@ def record_liquidation_execution_attempt(
     error: str | None = None,
 ) -> int:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -714,7 +714,7 @@ def record_liquidation_failure_sample(
     source: str = "execution_attempt",
 ) -> int:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -742,7 +742,7 @@ def record_liquidation_failure_sample(
 
 def load_recent_liquidation_failure_samples(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -781,7 +781,7 @@ def load_liquidation_failure_samples_for_account(
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -815,7 +815,7 @@ def load_liquidation_failure_samples_for_account(
 
 def load_recent_liquidation_execution_attempts(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -858,7 +858,7 @@ def load_liquidation_execution_attempts_for_account(
     limit: int = 20,
 ) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -896,7 +896,7 @@ def load_liquidation_execution_attempts_for_account(
 
 def liquidation_execution_attempt_stats(database_url: str) -> dict[str, int]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -934,7 +934,7 @@ def _json_or_default(value: Any, default: Any) -> Any:
 
 def try_acquire_observer_lock(database_url: str, lock_id: int = OBSERVER_ADVISORY_LOCK_ID):
     psycopg = require_psycopg()
-    connection = psycopg.connect(database_url, connect_timeout=8)
+    connection = dedicated_db_connection(database_url, connect_timeout=8)
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))

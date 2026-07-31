@@ -130,6 +130,18 @@ discovered_observer_checked_at = 0.0
 observer_starting = False
 observer_start_error: Optional[str] = None
 observer_start_lock = threading.Lock()
+observer_supervisor_thread: Optional[threading.Thread] = None
+observer_supervisor_stop = threading.Event()
+observer_supervisor_lock = threading.Lock()
+observer_supervisor_state = {
+    "enabled": False,
+    "heartbeat_at": 0.0,
+    "restart_count": 0,
+    "last_restart_at": 0.0,
+    "next_restart_at": 0.0,
+    "last_exit_code": None,
+    "last_error": None,
+}
 observer_start_progress = {
     "state": "stopped",
     "stage": "未启动",
@@ -150,6 +162,9 @@ SUMMARY_SIDE_LIMIT = 5
 SUMMARY_INITIAL_AMOUNT = 100.0
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
 OBSERVER_START_TIMEOUT_SECONDS = int(os.getenv("OBSERVER_START_TIMEOUT_SECONDS", "60"))
+OBSERVER_SUPERVISOR_INTERVAL_SECONDS = float(os.getenv("OBSERVER_SUPERVISOR_INTERVAL_SECONDS", "5"))
+OBSERVER_RESTART_BASE_DELAY_SECONDS = float(os.getenv("OBSERVER_RESTART_BASE_DELAY_SECONDS", "1"))
+OBSERVER_RESTART_MAX_DELAY_SECONDS = float(os.getenv("OBSERVER_RESTART_MAX_DELAY_SECONDS", "30"))
 
 def is_observer_running() -> bool:
     if observer_process is not None and observer_process.poll() is None:
@@ -556,6 +571,119 @@ def write_observer_pid(pid: int) -> None:
     OBSERVER_PID_PATH.write_text(str(pid), encoding="utf-8")
 
 
+def observer_supervisor_delay(restart_count: int) -> float:
+    base = max(0.1, float(OBSERVER_RESTART_BASE_DELAY_SECONDS))
+    cap = max(base, float(OBSERVER_RESTART_MAX_DELAY_SECONDS))
+    return min(cap, base * (2 ** max(0, int(restart_count) - 1)))
+
+
+def observer_supervisor_payload() -> dict:
+    with observer_supervisor_lock:
+        state = dict(observer_supervisor_state)
+    heartbeat_at = float(state.get("heartbeat_at") or 0.0)
+    return {
+        **state,
+        "healthy": bool(state.get("enabled")) and quick_observer_running(),
+        "heartbeat_age_seconds": round(time.monotonic() - heartbeat_at, 1) if heartbeat_at else None,
+    }
+
+
+def launch_observer_process(env: dict, symbols: list[str]) -> subprocess.Popen:
+    global observer_process, selected_symbols, observer_start_error
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    stdout = open(LOG_DIR / "observer_stdout.log", "ab", buffering=0)
+    stderr = open(LOG_DIR / "observer_stderr.log", "ab", buffering=0)
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(APP_DIR) if not existing_pythonpath else f"{APP_DIR}{os.pathsep}{existing_pythonpath}"
+    process = subprocess.Popen(
+        [sys.executable, "-m", "market.observer"],
+        cwd=str(APP_DIR),
+        env=env,
+        stdout=stdout,
+        stderr=stderr,
+    )
+    with observer_start_lock:
+        observer_process = process
+        selected_symbols = symbols
+        observer_start_error = None
+    write_observer_pid(process.pid)
+    return process
+
+
+def start_observer_supervisor() -> None:
+    global observer_supervisor_thread
+    with observer_supervisor_lock:
+        observer_supervisor_state["enabled"] = True
+        observer_supervisor_state["heartbeat_at"] = time.monotonic()
+    observer_supervisor_stop.clear()
+    if observer_supervisor_thread is not None and observer_supervisor_thread.is_alive():
+        return
+    observer_supervisor_thread = threading.Thread(
+        target=observer_supervisor_loop,
+        name="observer-supervisor",
+        daemon=True,
+    )
+    observer_supervisor_thread.start()
+
+
+def stop_observer_supervisor() -> None:
+    observer_supervisor_stop.set()
+    with observer_supervisor_lock:
+        observer_supervisor_state["enabled"] = False
+        observer_supervisor_state["next_restart_at"] = 0.0
+
+
+def observer_supervisor_once(now: float | None = None) -> dict:
+    now = time.monotonic() if now is None else float(now)
+    with observer_supervisor_lock:
+        enabled = bool(observer_supervisor_state.get("enabled"))
+    if not enabled:
+        return {"action": "disabled"}
+    if observer_starting:
+        with observer_supervisor_lock:
+            observer_supervisor_state["heartbeat_at"] = now
+        return {"action": "starting"}
+    if quick_observer_running():
+        with observer_supervisor_lock:
+            observer_supervisor_state["heartbeat_at"] = now
+            observer_supervisor_state["last_error"] = None
+        return {"action": "healthy"}
+
+    exit_code = observer_process.poll() if observer_process is not None else None
+    with observer_supervisor_lock:
+        restart_count = int(observer_supervisor_state.get("restart_count") or 0) + 1
+        next_restart_at = float(observer_supervisor_state.get("next_restart_at") or 0.0)
+        if next_restart_at and now < next_restart_at:
+            return {"action": "backoff", "next_restart_at": next_restart_at}
+        observer_supervisor_state["restart_count"] = restart_count
+        observer_supervisor_state["last_exit_code"] = exit_code
+        observer_supervisor_state["last_error"] = f"observer exited code={exit_code}"
+
+    delay = observer_supervisor_delay(restart_count)
+    try:
+        env, symbols = build_observer_env()
+        process = launch_observer_process(env, symbols)
+        with observer_supervisor_lock:
+            observer_supervisor_state["heartbeat_at"] = now
+            observer_supervisor_state["last_restart_at"] = now
+            observer_supervisor_state["next_restart_at"] = now + delay
+            observer_supervisor_state["last_error"] = None
+        set_observer_progress("initializing", f"机会观察已自动重启 pid={process.pid}", 85)
+        set_control_status("initializing", "自动恢复机会观察", f"观察进程崩溃后已自动重启，pid={process.pid}", 85, ttl_seconds=60)
+        return {"action": "restarted", "pid": process.pid, "delay": delay}
+    except Exception as exc:
+        with observer_supervisor_lock:
+            observer_supervisor_state["next_restart_at"] = now + delay
+            observer_supervisor_state["last_error"] = str(exc)
+        set_observer_progress("error", f"机会观察自动重启失败：{exc}", 0)
+        return {"action": "restart_failed", "error": str(exc), "delay": delay}
+
+
+def observer_supervisor_loop() -> None:
+    while not observer_supervisor_stop.wait(max(0.5, float(OBSERVER_SUPERVISOR_INTERVAL_SECONDS))):
+        observer_supervisor_once()
+
+
 def build_observer_env() -> tuple[dict, list[str]]:
     env = os.environ.copy()
     config = strategy_config()
@@ -627,24 +755,8 @@ def start_observer_background() -> None:
         set_observer_progress("initializing", "加载 Aave 储备与市场交集", 25)
         env, symbols = build_observer_env()
         set_observer_progress("initializing", "准备机会观察进程", 45)
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        stdout = open(LOG_DIR / "observer_stdout.log", "ab", buffering=0)
-        stderr = open(LOG_DIR / "observer_stderr.log", "ab", buffering=0)
-        existing_pythonpath = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = str(APP_DIR) if not existing_pythonpath else f"{APP_DIR}{os.pathsep}{existing_pythonpath}"
         set_observer_progress("initializing", "启动机会观察进程", 60)
-        process = subprocess.Popen(
-            [sys.executable, "-m", "market.observer"],
-            cwd=str(APP_DIR),
-            env=env,
-            stdout=stdout,
-            stderr=stderr,
-        )
-        with observer_start_lock:
-            observer_process = process
-            selected_symbols = symbols
-            observer_start_error = None
-        write_observer_pid(process.pid)
+        process = launch_observer_process(env, symbols)
         time.sleep(0.5)
         if process.poll() is not None:
             OBSERVER_PID_PATH.unlink(missing_ok=True)
@@ -656,6 +768,7 @@ def start_observer_background() -> None:
             set_observer_progress("error", message, 0)
             set_control_status("error", "启动机会观察", message, 0)
             return
+        start_observer_supervisor()
         set_control_status("initializing", "启动机会观察", "观察进程已启动，等待第一个市场窗口", 80, ttl_seconds=OBSERVER_START_TIMEOUT_SECONDS + 30)
         set_observer_progress("initializing", "等待第一个市场窗口", 80)
     except Exception as exc:

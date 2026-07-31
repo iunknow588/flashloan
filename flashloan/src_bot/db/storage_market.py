@@ -1,6 +1,6 @@
-﻿import json
+import json
 
-from db.storage_common import require_psycopg, utc_from_ms
+from db.storage_common import db_connection, require_psycopg, utc_from_ms
 def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
     if not rows:
         return
@@ -16,7 +16,7 @@ def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
         for row in rows
     ]
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.executemany(
                 """
@@ -50,7 +50,7 @@ def append_binance_candidate_price_history(database_url: str, rows: list[dict]) 
         for row in rows
     ]
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.executemany(
                 """
@@ -84,7 +84,7 @@ def append_binance_pair_price_history(database_url: str, rows: list[dict]) -> No
         for row in rows
     ]
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.executemany(
                 """
@@ -119,7 +119,7 @@ def append_observations(database_url: str, rows: list[dict]) -> None:
         for row in rows
     ]
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.executemany(
                 """
@@ -178,7 +178,7 @@ def append_binance_extremes(database_url: str, extremes: dict) -> None:
         json.dumps(bottom, ensure_ascii=True, separators=(",", ":")),
     )
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -262,7 +262,7 @@ def append_arbitrage_simulation(database_url: str, simulation: dict) -> None:
         else None,
     )
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """

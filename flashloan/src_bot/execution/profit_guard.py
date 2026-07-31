@@ -57,3 +57,54 @@ def evaluate_profit_guard(best_quote: dict | None, config: ProfitGuardConfig) ->
         "net_profit_verified": not blocked_reasons,
         "blocked_reasons": blocked_reasons,
     }
+
+
+
+def calculate_liquidation_profit(
+    *,
+    repay_base: float,
+    bonus_rate: float,
+    flashloan_rate: float,
+    slippage_rate: float,
+    gas_cost_usd: float = 0.0,
+    mev_buffer_usd: float = 0.0,
+    retry_buffer_usd: float = 0.0,
+    repay_fraction: float = 1.0,
+) -> dict[str, float]:
+    """Unified profit calculation used across scan, guard, and amounts modules.
+
+    Formula: net_profit = (seized - repay) - fees - buffers
+    where seized = repay * (1 + bonus_rate)
+          fees   = repay * (flashloan_rate + slippage_rate)
+
+    Returns dict with: repay_base, seized_base, gross_profit_base,
+    fee_base, contract_surplus_base, gas_cost_usd, mev_buffer_usd,
+    retry_buffer_usd, operator_net_profit_usd, net_profit_base, profitable
+    """
+    repay_base = max(0.0, float(repay_base)) * max(0.0, min(1.0, float(repay_fraction)))
+    seized_base = repay_base * (1.0 + max(0.0, float(bonus_rate)))
+    gross_profit_base = seized_base - repay_base
+    fee_base = repay_base * (max(0.0, float(flashloan_rate)) + max(0.0, float(slippage_rate)))
+    contract_surplus_base = gross_profit_base - fee_base
+    gas_cost = max(0.0, float(gas_cost_usd))
+    mev_buffer = max(0.0, float(mev_buffer_usd))
+    retry_buffer = max(0.0, float(retry_buffer_usd))
+    operator_net_profit_usd = contract_surplus_base - gas_cost - mev_buffer - retry_buffer
+    net_profit_base = operator_net_profit_usd
+    return {
+        "repay_base": repay_base,
+        "bonus_rate": max(0.0, float(bonus_rate)),
+        "flashloan_rate": max(0.0, float(flashloan_rate)),
+        "slippage_rate": max(0.0, float(slippage_rate)),
+        "seized_base": seized_base,
+        "gross_profit_base": gross_profit_base,
+        "fee_base": fee_base,
+        "contract_surplus_base": contract_surplus_base,
+        "gas_cost_usd": gas_cost,
+        "mev_buffer_usd": mev_buffer,
+        "retry_buffer_usd": retry_buffer,
+        "operator_net_profit_usd": operator_net_profit_usd,
+        "net_profit_base": net_profit_base,
+        "profitable": net_profit_base > 0,
+    }
+

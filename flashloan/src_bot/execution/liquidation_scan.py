@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import os
 from typing import Any, Iterable
@@ -16,9 +17,15 @@ from execution.liquidation_abis import (
     AAVE_PROTOCOL_DATA_PROVIDER_ABI,
     BORROW_EVENT_TOPIC,
     LIQUIDATION_DATA_PROVIDER_ABI,
+    MULTICALL3_ABI,
     POOL_ACCOUNT_DATA_ABI,
 )
 from execution.liquidation_realtime_params import read_aave_flashloan_premium
+from execution.profit_guard import calculate_liquidation_profit
+
+
+AVALANCHE_MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11"
+ACCOUNT_DATA_OUTPUT_TYPES = ["uint256", "uint256", "uint256", "uint256", "uint256", "uint256"]
 
 
 @dataclass(frozen=True)
@@ -36,6 +43,9 @@ class LiquidationScanConfig:
     retry_buffer_usd: float = 0.0
     watch_health_factor: float = 1.5
     close_factor: float = 0.5
+    parallel_workers: int = 8
+    batch_size: int = 100
+    multicall3_address: str = ""
 
 
 def discover_borrower_addresses(*args, **kwargs) -> list[str]:
@@ -79,6 +89,47 @@ def watched_health_rows(rows: Iterable[dict], max_health_factor: float = 1.5) ->
         watched.append(item)
     watched.sort(key=lambda row: float(row.get("health_factor", 10.0)))
     return watched
+
+
+def incremental_scan_account_groups(
+    accounts: Iterable[str],
+    previous_rows: Iterable[dict],
+    *,
+    watch_health_factor: float = 1.5,
+    full_scan_due: bool = False,
+    max_accounts: int = 5000,
+) -> dict[str, list[str]]:
+    unique_accounts: list[str] = []
+    for account in accounts:
+        try:
+            checksum = Web3.to_checksum_address(str(account))
+        except ValueError:
+            continue
+        if checksum not in unique_accounts:
+            unique_accounts.append(checksum)
+
+    watch_accounts: list[str] = []
+    for row in watched_health_rows(previous_rows, watch_health_factor):
+        account = row.get("account")
+        try:
+            checksum = Web3.to_checksum_address(str(account))
+        except ValueError:
+            continue
+        if checksum in unique_accounts and checksum not in watch_accounts:
+            watch_accounts.append(checksum)
+
+    if full_scan_due:
+        scan_accounts = unique_accounts
+    else:
+        scan_accounts = watch_accounts
+
+    limit = max(1, int(max_accounts))
+    return {
+        "high_frequency_accounts": watch_accounts[:limit],
+        "full_scan_accounts": unique_accounts[:limit],
+        "scan_accounts": scan_accounts[:limit],
+        "strategy": ["watch_high_frequency"] + (["full_low_frequency"] if full_scan_due else []),
+    }
 
 
 def _safe_contract(w3: Web3, address: str, abi: list[dict]):
@@ -171,11 +222,15 @@ def _parse_liquidation_info(raw: Any) -> dict:
 
 def _debt_amount_to_base(debt_amount: int, debt_info: dict[str, Any]) -> float:
     debt_balance = int(debt_info.get("debt_balance") or 0)
-    debt_balance_base = int(debt_info.get("debt_balance_in_base_currency") or 0)
+    debt_balance_base_raw = int(debt_info.get("debt_balance_in_base_currency_raw") or 0)
     if debt_amount <= 0:
         return 0.0
-    if debt_balance > 0 and debt_balance_base > 0:
-        return float(debt_balance_base) * float(debt_amount) / float(debt_balance)
+    if debt_balance > 0 and debt_balance_base_raw > 0:
+        base_unit = int(debt_info.get("base_currency_unit") or aave_base_currency_unit())
+        debt_balance_base = float(debt_balance_base_raw)
+        if debt_balance_base_raw > debt_balance * 1000:
+            debt_balance_base = debt_balance_base / float(max(1, base_unit))
+        return debt_balance_base * float(debt_amount) / float(debt_balance)
     asset_unit = int(debt_info.get("asset_unit") or 0)
     price = int(debt_info.get("price") or 0)
     if asset_unit > 0 and price > 0:
@@ -552,6 +607,60 @@ def fetch_user_account_data(pool_address: str, account: str, rpc_url: str) -> di
     }
 
 
+def _encode_user_account_data_call(pool: Any, account: str) -> str:
+    function = pool.functions.getUserAccountData(Web3.to_checksum_address(account))
+    if hasattr(function, "_encode_transaction_data"):
+        return function._encode_transaction_data()
+    return pool.encodeABI(fn_name="getUserAccountData", args=[Web3.to_checksum_address(account)])
+
+
+def fetch_user_account_data_batch(
+    pool_address: str,
+    accounts: Iterable[str],
+    rpc_url: str,
+    multicall3_address: str = AVALANCHE_MULTICALL3_ADDRESS,
+    batch_size: int = 100,
+) -> dict[str, dict]:
+    checksum_accounts = [Web3.to_checksum_address(str(account)) for account in accounts]
+    if not checksum_accounts:
+        return {}
+    if not str(multicall3_address or "").strip():
+        raise ValueError("missing Multicall3 address")
+
+    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
+    checksum_pool = Web3.to_checksum_address(pool_address)
+    pool = w3.eth.contract(address=checksum_pool, abi=POOL_ACCOUNT_DATA_ABI)
+    multicall = w3.eth.contract(address=Web3.to_checksum_address(multicall3_address), abi=MULTICALL3_ABI)
+    size = max(1, int(batch_size or 100))
+    results: dict[str, dict] = {}
+    for offset in range(0, len(checksum_accounts), size):
+        chunk = checksum_accounts[offset : offset + size]
+        calls = [(checksum_pool, True, _encode_user_account_data_call(pool, account)) for account in chunk]
+        raw_results = multicall.functions.aggregate3(calls).call()
+        for account, raw_result in zip(chunk, raw_results):
+            success = bool(_tuple_value(raw_result, 0))
+            return_data = _tuple_value(raw_result, 1, b"")
+            if not success or not return_data:
+                continue
+            decoded = w3.codec.decode(ACCOUNT_DATA_OUTPUT_TYPES, return_data)
+            account_data = _parse_position_info(decoded)
+            results[account] = {
+                "account": account,
+                "total_collateral_base": account_data["total_collateral_in_base_currency"],
+                "total_debt_base": account_data["total_debt_in_base_currency"],
+                "available_borrows_base": account_data["available_borrows_in_base_currency"],
+                "total_collateral_base_raw": account_data["total_collateral_in_base_currency_raw"],
+                "total_debt_base_raw": account_data["total_debt_in_base_currency_raw"],
+                "available_borrows_base_raw": account_data["available_borrows_in_base_currency_raw"],
+                "base_currency_unit": account_data["base_currency_unit"],
+                "current_liquidation_threshold": account_data["current_liquidation_threshold"],
+                "ltv": account_data["ltv"],
+                "health_factor": account_data["health_factor"],
+                "account_data_source": "multicall3",
+            }
+    return results
+
+
 def estimate_liquidation_profit(
     total_debt_base: float,
     liquidation_bonus_percent: float,
@@ -563,35 +672,22 @@ def estimate_liquidation_profit(
     retry_buffer_usd: float = 0.0,
     flashloan_premium_source: str = "fallback_config",
 ) -> dict:
-    repay_fraction = max(0.0, min(1.0, float(repay_fraction)))
     bonus_rate = max(0.0, float(liquidation_bonus_percent)) / 100.0
     flashloan_rate = max(0.0, float(flashloan_fee_percent)) / 100.0
     slippage_rate = max(0.0, float(dex_slippage_percent)) / 100.0
-    repay_base = max(0.0, float(total_debt_base)) * repay_fraction
-    seized_base = repay_base * (1 + bonus_rate)
-    gross_profit_base = seized_base - repay_base
-    fee_base = repay_base * (flashloan_rate + slippage_rate)
-    contract_surplus_base = gross_profit_base - fee_base
-    gas_cost = max(0.0, float(gas_cost_usd))
-    mev_buffer = max(0.0, float(mev_buffer_usd))
-    retry_buffer = max(0.0, float(retry_buffer_usd))
-    operator_net_profit_usd = contract_surplus_base - gas_cost - mev_buffer - retry_buffer
-    net_profit_base = operator_net_profit_usd
-    return {
-        "repay_base": repay_base,
-        "seized_base": seized_base,
-        "gross_profit_base": gross_profit_base,
-        "fee_base": fee_base,
-        "contract_surplus_base": contract_surplus_base,
-        "gas_cost_usd": gas_cost,
-        "mev_buffer_usd": mev_buffer,
-        "retry_buffer_usd": retry_buffer,
-        "operator_net_profit_usd": operator_net_profit_usd,
-        "net_profit_base": net_profit_base,
-        "profitable": net_profit_base > 0,
-        "flashloan_premium_source": flashloan_premium_source,
-        "flashloan_premium_verified": flashloan_premium_source != "fallback_config",
-    }
+    result = calculate_liquidation_profit(
+        repay_base=max(0.0, float(total_debt_base)) * max(0.0, min(1.0, float(repay_fraction))),
+        bonus_rate=bonus_rate,
+        flashloan_rate=flashloan_rate,
+        slippage_rate=slippage_rate,
+        gas_cost_usd=gas_cost_usd,
+        mev_buffer_usd=mev_buffer_usd,
+        retry_buffer_usd=retry_buffer_usd,
+        repay_fraction=1.0,
+    )
+    result["flashloan_premium_source"] = flashloan_premium_source
+    result["flashloan_premium_verified"] = flashloan_premium_source != "fallback_config"
+    return result
 
 
 def scan_account_health(
@@ -600,7 +696,6 @@ def scan_account_health(
     rpc_url: str,
     config: LiquidationScanConfig = LiquidationScanConfig(),
 ) -> list[dict]:
-    results: list[dict] = []
     unique_accounts = []
     for account in accounts:
         try:
@@ -609,18 +704,29 @@ def scan_account_health(
             continue
         if checksum not in unique_accounts:
             unique_accounts.append(checksum)
-    for account in unique_accounts[: max(1, int(config.max_candidates))]:
+    scan_accounts = unique_accounts[: max(1, int(config.max_candidates))]
+    batch_data: dict[str, dict] = {}
+    if len(scan_accounts) > 1 and int(config.batch_size or 0) > 1 and str(config.multicall3_address or "").strip():
         try:
-            account_data = fetch_user_account_data(pool_address, account, rpc_url)
-        except Exception as exc:
-            results.append(
-                {
-                    "account": account,
-                    "status": "error",
-                    "error": str(exc),
-                }
+            batch_data = fetch_user_account_data_batch(
+                pool_address,
+                scan_accounts,
+                rpc_url,
+                multicall3_address=config.multicall3_address,
+                batch_size=config.batch_size,
             )
-            continue
+        except Exception:
+            batch_data = {}
+
+    def scan_one(account: str) -> dict:
+        try:
+            account_data = batch_data.get(account) or fetch_user_account_data(pool_address, account, rpc_url)
+        except Exception as exc:
+            return {
+                "account": account,
+                "status": "error",
+                "error": str(exc),
+            }
         status = classify_health_factor(
             account_data["health_factor"],
             config.warning_health_factor,
@@ -635,15 +741,26 @@ def scan_account_health(
             mev_buffer_usd=config.mev_buffer_usd,
             retry_buffer_usd=config.retry_buffer_usd,
         )
-        results.append(
-            {
-                **account_data,
-                "status": status,
-                "health_factor_band": health_factor_band(account_data["health_factor"]),
-                "alert_score": max(0.0, config.warning_health_factor - account_data["health_factor"]),
-                "liquidation_profit": liquidation,
-            }
-        )
+        return {
+            **account_data,
+            "status": status,
+            "health_factor_band": health_factor_band(account_data["health_factor"]),
+            "alert_score": max(0.0, config.warning_health_factor - account_data["health_factor"]),
+            "liquidation_profit": liquidation,
+        }
+
+    workers = max(1, int(config.parallel_workers or 1))
+    results: list[dict] = []
+    if workers == 1 or len(scan_accounts) <= 1:
+        results = [scan_one(account) for account in scan_accounts]
+    else:
+        with ThreadPoolExecutor(max_workers=min(workers, len(scan_accounts))) as executor:
+            future_map = {executor.submit(scan_one, account): account for account in scan_accounts}
+            for future in as_completed(future_map):
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    results.append({"account": future_map[future], "status": "error", "error": str(exc)})
     results.sort(key=lambda row: (row.get("health_factor", 10.0), -float(row.get("liquidation_profit", {}).get("net_profit_base", 0.0))), reverse=False)
     return results
 

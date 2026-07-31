@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from db.storage_common import require_psycopg
+from db.storage_common import db_connection, require_psycopg
 from execution.liquidation_priority import enrich_liquidation_tier, liquidation_pool_tier
 
 
@@ -87,7 +87,7 @@ def sync_liquidation_borrow_health_pool(
     active_accounts: list[str] = []
     high_frequency_accounts: list[str] = []
     core_accounts: list[str] = []
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT account FROM liquidation_borrow_health_pool WHERE active = TRUE")
             previous_active = {str(row[0]) for row in cursor.fetchall()}
@@ -297,7 +297,7 @@ def sync_liquidation_borrow_health_pool(
 
 def load_liquidation_borrow_health_pool(database_url: str, limit: int = 500) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -346,7 +346,7 @@ def load_liquidation_high_frequency_pool(database_url: str, limit: int = 100) ->
 
 def load_liquidation_core_opportunity_pool(database_url: str, limit: int = 100) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -389,7 +389,7 @@ def load_liquidation_core_opportunity_pool(database_url: str, limit: int = 100) 
 
 def _load_pool_rows(database_url: str, table: str, order_by: str, limit: int) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
@@ -439,7 +439,7 @@ def record_liquidation_borrow_health_scan_batch(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -516,7 +516,7 @@ def record_liquidation_borrow_health_scan_batch(
 
 def load_liquidation_borrow_health_scan_batches(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """

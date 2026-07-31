@@ -1,6 +1,6 @@
-﻿from typing import Any
+from typing import Any
 
-from db.storage_common import SCHEMA_ADVISORY_LOCK_ID, SCHEMA_MIGRATIONS, require_psycopg
+from db.storage_common import SCHEMA_ADVISORY_LOCK_ID, SCHEMA_MIGRATIONS, db_connection, require_psycopg
 from db.storage_liquidation_schema import (
     LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
     LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS,
@@ -17,7 +17,7 @@ from db.storage_liquidation_schema import (
 )
 def ensure_database_schema(database_url: str) -> None:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_lock(%s)", (SCHEMA_ADVISORY_LOCK_ID,))
             try:
@@ -317,7 +317,7 @@ def record_schema_migrations(cursor) -> None:
 
 def load_schema_migrations(database_url: str) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """

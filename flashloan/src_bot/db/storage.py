@@ -2,6 +2,8 @@
     EXPECTED_SCHEMA_MIGRATION_IDS,
     OBSERVER_ADVISORY_LOCK_ID,
     SCHEMA_MIGRATIONS,
+    close_connection_pools,
+    db_connection,
     require_psycopg,
     utc_from_ms,
 )
@@ -60,6 +62,8 @@ __all__ = [
     "append_binance_pair_price_history",
     "append_binance_price_history",
     "append_observations",
+    "close_connection_pools",
+    "db_connection",
     "ensure_database_schema",
     "ensure_deduplication_constraints",
     "ensure_schema_columns",

@@ -19,14 +19,12 @@ def test_exchange_matrix_page_is_standalone():
     assert "/api/velocity-summary" in body
 
 
-def test_control_and_liquidation_pages_link_exchange_matrix_without_inline_matrix():
+def test_control_page_links_exchange_matrix_without_inline_matrix():
     client = app.test_client()
 
     control_body = client.get("/").get_data(as_text=True)
-    liquidation_body = client.get("/liquidation").get_data(as_text=True)
 
     assert "/exchange-matrix" in control_body
-    assert "/exchange-matrix" in liquidation_body
     assert "5×5 兑换胜率汇总" not in control_body
     assert "5×5 兑换路径矩阵" not in control_body
     assert "refreshLiquidationSettings(" not in control_body
@@ -112,3 +110,37 @@ def test_liquidation_panel_script_references_existing_dom_ids():
     referenced_ids = set(re.findall(r'\$\("([^"]+)"\)', template))
 
     assert referenced_ids <= declared_ids
+
+
+def test_liquidation_monitor_shows_circuit_breaker_panel():
+    body = app.test_client().get("/liquidation").get_data(as_text=True)
+
+    assert "Circuit breaker" in body
+    assert "circuitBreakerLevel" in body
+    assert "circuitBreakerHistoryBody" in body
+    assert "/api/liquidation/pause-guard" in body
+    assert "/api/liquidation/pause-guard/clear" in body
+
+
+def test_liquidation_monitor_shows_candidate_queue_and_static_simulation_panel():
+    body = app.test_client().get("/liquidation").get_data(as_text=True)
+
+    assert "Liquidation candidate queue" in body
+    assert "Static simulation" in body
+    assert "staticCallPassedCount" in body
+    assert "staticCallFailedCount" in body
+    assert "staticCallBody" in body
+    assert "renderStaticCallPanel" in body
+
+
+def test_liquidation_monitor_shows_statistics_and_removes_arbitrage_navigation():
+    body = app.test_client().get("/liquidation").get_data(as_text=True)
+
+    assert "清算统计" in body
+    assert "liquidationStatsDailyCount" in body
+    assert "liquidationStatsSuccessRate" in body
+    assert "liquidationStatsAvgProfit" in body
+    assert "liquidationStatsFailureBody" in body
+    assert "renderLiquidationStats" in body
+    assert "/exchange-matrix" not in body
+    assert "/opportunity-health" not in body

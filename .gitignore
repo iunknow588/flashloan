@@ -16,7 +16,8 @@ __pycache__/
 charts/
 observations.csv
 flashloan/srcs_dex/runtime/
-flashloan/src_bot/runtime/
+flashloan/src_bot/runtime/*
+!flashloan/src_bot/runtime/*.py
 docs/
 back/
 .agents/

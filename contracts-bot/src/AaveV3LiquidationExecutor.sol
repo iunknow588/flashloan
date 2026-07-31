@@ -64,10 +64,12 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         uint256 minCollateralSwapOut;
         uint256 minProfitAmount;
         uint256 deadline;
+        uint256 gasLimit;
         address[] swapPath;
     }
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event PausedSet(bool paused);
     event LiquidationRequested(
         address indexed user,
@@ -81,7 +83,8 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         address indexed debtAsset,
         uint256 debtCovered,
         uint256 premium,
-        uint256 profit
+        uint256 profit,
+        uint256 gasCostWei
     );
     event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
     event NativeWithdrawn(address indexed to, uint256 amount);
@@ -91,7 +94,9 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
     address public immutable router;
     address public immutable usdc;
     address public owner;
+    address public pendingOwner;
     bool public paused;
+    uint256 public minReserve;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -114,13 +119,25 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
 
     function transferOwnership(address newOwner) external onlyOwner {
         if (newOwner == address(0)) revert InvalidRequest();
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) revert InvalidRequest();
+        address previousOwner = owner;
+        owner = pendingOwner;
+        pendingOwner = address(0);
+        emit OwnershipTransferred(previousOwner, owner);
     }
 
     function setPaused(bool value) external onlyOwner {
         paused = value;
         emit PausedSet(value);
+    }
+
+    function setMinReserve(uint256 value) external onlyOwner {
+        minReserve = value;
     }
 
     function requestLiquidation(LiquidationRequest calldata request) external onlyOwner whenNotPaused {
@@ -142,6 +159,7 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         address initiator,
         bytes calldata params
     ) external override whenNotPaused returns (bool) {
+        uint256 gasStart = gasleft();
         if (msg.sender != pool) revert NotPool();
         if (initiator != address(this)) revert BadInitiator();
 
@@ -154,7 +172,7 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
             request.collateralAsset,
             request.debtAsset,
             request.user,
-            amount,
+            request.debtToCover,
             false
         );
 
@@ -169,18 +187,20 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         }
 
         if (debtBalance < repayAmount + request.minProfitAmount) {
-            uint256 profit = debtBalance > repayAmount ? debtBalance - repayAmount : 0;
-            revert ProfitTooLow(profit, request.minProfitAmount);
+            revert ProfitTooLow(debtBalance > repayAmount ? debtBalance - repayAmount : 0, request.minProfitAmount);
         }
 
         _forceApprove(request.debtAsset, pool, repayAmount);
+        uint256 profit = debtBalance - repayAmount;
+        uint256 gasCostWei = (gasStart - gasleft()) * tx.gasprice;
         emit LiquidationExecuted(
             request.user,
             request.collateralAsset,
             request.debtAsset,
             amount,
             premium,
-            debtBalance - repayAmount
+            profit,
+            gasCostWei
         );
         return true;
     }
@@ -225,6 +245,10 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
 
     function _withdrawToken(address token, address to, uint256 amount) private {
         if (token == address(0) || to == address(0)) revert InvalidRequest();
+        if (token == usdc) {
+            uint256 bal = IERC20(usdc).balanceOf(address(this));
+            if (bal - amount < minReserve) revert InvalidRequest();
+        }
         IERC20(token).safeTransfer(to, amount);
         emit TokenWithdrawn(token, to, amount);
     }
@@ -265,6 +289,7 @@ contract AaveV3LiquidationExecutor is IFlashLoanSimpleReceiverLike {
         ) {
             revert InvalidRequest();
         }
+        if (request.gasLimit > 0 && gasleft() < request.gasLimit) revert InvalidRequest();
         if (request.collateralAsset != request.debtAsset) {
             if (
                 request.swapPath.length < 2 ||

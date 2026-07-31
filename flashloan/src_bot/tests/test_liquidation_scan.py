@@ -10,12 +10,14 @@ from execution.liquidation_scan import (
     health_factor_band,
     classify_health_factor,
     estimate_liquidation_profit,
+    incremental_scan_account_groups,
     load_account_addresses,
     scan_account_health,
     watched_health_rows,
     split_candidate_accounts,
 )
 from execution.liquidation_payload import build_liquidation_execution_payload
+from tools.benchmark_liquidation_scan import run_synthetic_benchmark
 
 
 def test_load_account_addresses_deduplicates_and_skips_invalid(tmp_path: Path):
@@ -249,6 +251,201 @@ def test_scan_account_health_uses_fetcher(monkeypatch):
 
     assert rows[0]["status"] == "liquidatable"
     assert rows[0]["liquidation_profit"]["profitable"]
+
+
+def test_scan_account_health_uses_parallel_workers(monkeypatch):
+    from execution import liquidation_scan
+
+    calls = []
+
+    def fake_fetch(pool_address, account, rpc_url):
+        calls.append(account)
+        return {
+            "account": account,
+            "total_collateral_base": 1200,
+            "total_debt_base": 1000,
+            "available_borrows_base": 0,
+            "current_liquidation_threshold": 8000,
+            "ltv": 7500,
+            "health_factor": 0.98 if account.endswith("1") else 1.02,
+        }
+
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data", fake_fetch)
+    accounts = [
+        "0x0000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002",
+    ]
+
+    rows = scan_account_health(
+        accounts,
+        "0x0000000000000000000000000000000000000003",
+        "https://rpc.example",
+        LiquidationScanConfig(parallel_workers=2, max_candidates=10),
+    )
+
+    assert calls == accounts
+    assert [row["status"] for row in rows] == ["liquidatable", "warning"]
+
+
+def test_scan_account_health_uses_multicall_batch(monkeypatch):
+    from execution import liquidation_scan
+
+    accounts = [
+        "0x0000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002",
+    ]
+    calls = []
+
+    def fake_batch(pool_address, batch_accounts, rpc_url, multicall3_address, batch_size):
+        calls.append((list(batch_accounts), multicall3_address, batch_size))
+        return {
+            accounts[0]: {
+                "account": accounts[0],
+                "total_collateral_base": 1200,
+                "total_debt_base": 1000,
+                "available_borrows_base": 0,
+                "current_liquidation_threshold": 8000,
+                "ltv": 7500,
+                "health_factor": 0.98,
+                "account_data_source": "multicall3",
+            },
+            accounts[1]: {
+                "account": accounts[1],
+                "total_collateral_base": 1500,
+                "total_debt_base": 900,
+                "available_borrows_base": 0,
+                "current_liquidation_threshold": 8000,
+                "ltv": 7500,
+                "health_factor": 1.02,
+                "account_data_source": "multicall3",
+            },
+        }
+
+    def fail_fetch(pool_address, account, rpc_url):
+        raise AssertionError("single-account fetch should not be used when multicall has data")
+
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data_batch", fake_batch)
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data", fail_fetch)
+
+    rows = scan_account_health(
+        accounts,
+        "0x0000000000000000000000000000000000000003",
+        "https://rpc.example",
+        LiquidationScanConfig(
+            parallel_workers=1,
+            batch_size=100,
+            multicall3_address="0xcA11bde05977b3631167028862bE2a173976CA11",
+        ),
+    )
+
+    assert calls == [(accounts, "0xcA11bde05977b3631167028862bE2a173976CA11", 100)]
+    assert [row["account_data_source"] for row in rows] == ["multicall3", "multicall3"]
+    assert [row["status"] for row in rows] == ["liquidatable", "warning"]
+
+
+def test_scan_account_health_falls_back_when_multicall_fails(monkeypatch):
+    from execution import liquidation_scan
+
+    calls = []
+
+    def fake_batch(*args, **kwargs):
+        raise RuntimeError("multicall unavailable")
+
+    def fake_fetch(pool_address, account, rpc_url):
+        calls.append(account)
+        return {
+            "account": account,
+            "total_collateral_base": 1200,
+            "total_debt_base": 1000,
+            "available_borrows_base": 0,
+            "current_liquidation_threshold": 8000,
+            "ltv": 7500,
+            "health_factor": 0.98,
+        }
+
+    accounts = [
+        "0x0000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002",
+    ]
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data_batch", fake_batch)
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data", fake_fetch)
+
+    rows = scan_account_health(
+        accounts,
+        "0x0000000000000000000000000000000000000003",
+        "https://rpc.example",
+        LiquidationScanConfig(
+            parallel_workers=1,
+            batch_size=100,
+            multicall3_address="0xcA11bde05977b3631167028862bE2a173976CA11",
+        ),
+    )
+
+    assert calls == accounts
+    assert [row["status"] for row in rows] == ["liquidatable", "liquidatable"]
+
+
+def test_scan_account_health_5000_account_benchmark_stays_under_30_seconds():
+    result = run_synthetic_benchmark(account_count=5000, batch_size=100)
+
+    assert result["account_count"] == 5000
+    assert result["batch_count"] == 50
+    assert result["elapsed_seconds"] < 30.0
+    assert result["liquidatable_count"] > 0
+    assert result["warning_count"] > 0
+
+
+def test_scan_account_health_keeps_one_account_failure_isolated(monkeypatch):
+    from execution import liquidation_scan
+
+    def fake_fetch(pool_address, account, rpc_url):
+        if account.endswith("2"):
+            raise RuntimeError("rpc failure")
+        return {
+            "account": account,
+            "total_collateral_base": 1200,
+            "total_debt_base": 1000,
+            "available_borrows_base": 0,
+            "current_liquidation_threshold": 8000,
+            "ltv": 7500,
+            "health_factor": 0.98,
+        }
+
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data", fake_fetch)
+    rows = scan_account_health(
+        [
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000002",
+        ],
+        "0x0000000000000000000000000000000000000003",
+        "https://rpc.example",
+        LiquidationScanConfig(parallel_workers=2),
+    )
+
+    assert rows[0]["status"] == "liquidatable"
+    assert rows[1]["status"] == "error"
+    assert rows[1]["error"] == "rpc failure"
+
+
+def test_incremental_scan_keeps_watch_accounts_and_full_scan_fallback():
+    accounts = [
+        "0x0000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002",
+        "0x0000000000000000000000000000000000000003",
+    ]
+    previous_rows = [
+        {"account": accounts[0], "health_factor": 1.2},
+        {"account": accounts[1], "health_factor": 2.1},
+    ]
+
+    watch_only = incremental_scan_account_groups(accounts, previous_rows, full_scan_due=False)
+    full_scan = incremental_scan_account_groups(accounts, previous_rows, full_scan_due=True)
+
+    assert watch_only["scan_accounts"] == [accounts[0]]
+    assert watch_only["strategy"] == ["watch_high_frequency"]
+    assert full_scan["scan_accounts"] == accounts
+    assert accounts[2] in full_scan["full_scan_accounts"]
+    assert "full_low_frequency" in full_scan["strategy"]
 
 
 def test_discover_borrower_addresses_scans_full_window_after_result_limit(monkeypatch):
@@ -516,6 +713,8 @@ def test_build_liquidation_execution_payload_requires_static_preflight():
     assert payload["request"]["debtToCover"] == "1000"
     assert payload["request"]["minCollateralSwapOut"] == "900"
     assert payload["request"]["minProfitAmount"] == "113"
+    assert payload["request"]["gasLimit"] == "0"
+    assert payload["preflight"]["min_profit_consistency"]["consistent"] is True
     assert payload["preflight"]["static_call_required"] is True
 
 

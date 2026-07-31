@@ -139,6 +139,9 @@ def liquidation_scan_config() -> LiquidationScanConfig:
         retry_buffer_usd=float(os.getenv("LIQUIDATION_RETRY_BUFFER_USD", "0")),
         watch_health_factor=float(os.getenv("LIQUIDATION_WATCH_HEALTH_FACTOR", "1.5")),
         close_factor=float(os.getenv("LIQUIDATION_CLOSE_FACTOR", "0.5")),
+        parallel_workers=int(os.getenv("LIQUIDATION_SCAN_PARALLEL_WORKERS", "8") or 8),
+        batch_size=int(os.getenv("LIQUIDATION_SCAN_BATCH_SIZE", "100") or 100),
+        multicall3_address=os.getenv("LIQUIDATION_MULTICALL3_ADDRESS", "0xcA11bde05977b3631167028862bE2a173976CA11").strip(),
     )
 
 

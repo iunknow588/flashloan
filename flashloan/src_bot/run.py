@@ -13,6 +13,7 @@ load_env_files(__file__)
 REQUIRED_MODULES = {
     "flask": "flask",
     "psycopg": "psycopg[binary]",
+    "psycopg_pool": "psycopg_pool",
     "web3": "web3",
     "websockets": "websockets",
 }

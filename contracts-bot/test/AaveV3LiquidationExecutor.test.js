@@ -6,6 +6,9 @@ async function latestDeadline(seconds = 3600) {
   return BigInt(block.timestamp + seconds);
 }
 
+const REQUEST_TUPLE =
+  "tuple(address user,address collateralAsset,address debtAsset,uint256 debtToCover,uint256 minCollateralSwapOut,uint256 minProfitAmount,uint256 deadline,uint256 gasLimit,address[] swapPath)";
+
 describe("AaveV3LiquidationExecutor", function () {
   this.timeout(120000);
 
@@ -52,6 +55,7 @@ describe("AaveV3LiquidationExecutor", function () {
       minCollateralSwapOut: ethers.parseUnits("1100", 6),
       minProfitAmount: ethers.parseUnits("50", 6),
       deadline: await latestDeadline(),
+      gasLimit: 0n,
       swapPath: [await collateral.getAddress(), await debt.getAddress()],
     };
 
@@ -114,9 +118,10 @@ describe("AaveV3LiquidationExecutor", function () {
       collateralAsset: await debt.getAddress(),
       debtAsset: await debt.getAddress(),
       debtToCover: ethers.parseUnits("1000", 6),
-      minCollateralSwapOut: 0,
+      minCollateralSwapOut: 0n,
       minProfitAmount: ethers.parseUnits("50", 6),
       deadline: await latestDeadline(),
+      gasLimit: 0n,
       swapPath: [],
     };
 
@@ -130,9 +135,10 @@ describe("AaveV3LiquidationExecutor", function () {
       collateralAsset: await collateral.getAddress(),
       debtAsset: await debt.getAddress(),
       debtToCover: ethers.parseUnits("1000", 6),
-      minCollateralSwapOut: 0,
-      minProfitAmount: 0,
+      minCollateralSwapOut: 0n,
+      minProfitAmount: 0n,
       deadline: await latestDeadline(),
+      gasLimit: 0n,
       swapPath: [await collateral.getAddress(), await debt.getAddress()],
     };
 
@@ -146,9 +152,7 @@ describe("AaveV3LiquidationExecutor", function () {
         0,
         await executor.getAddress(),
         ethers.AbiCoder.defaultAbiCoder().encode(
-          [
-            "tuple(address user,address collateralAsset,address debtAsset,uint256 debtToCover,uint256 minCollateralSwapOut,uint256 minProfitAmount,uint256 deadline,address[] swapPath)",
-          ],
+          [REQUEST_TUPLE],
           [request]
         )
       )
@@ -162,9 +166,10 @@ describe("AaveV3LiquidationExecutor", function () {
       collateralAsset: await collateral.getAddress(),
       debtAsset: await debt.getAddress(),
       debtToCover: ethers.parseUnits("1000", 6),
-      minCollateralSwapOut: 0,
-      minProfitAmount: 0,
+      minCollateralSwapOut: 0n,
+      minProfitAmount: 0n,
       deadline: await latestDeadline(),
+      gasLimit: 0n,
       swapPath: [await collateral.getAddress(), await debt.getAddress()],
     };
 
@@ -182,9 +187,166 @@ describe("AaveV3LiquidationExecutor", function () {
       minCollateralSwapOut: ethers.parseUnits("1100", 6),
       minProfitAmount: ethers.parseUnits("1300", 6),
       deadline: await latestDeadline(),
+      gasLimit: 0n,
       swapPath: [await collateral.getAddress(), await debt.getAddress()],
     };
 
     await expect(executor.requestLiquidation(request)).to.be.revertedWithCustomError(executor, "ProfitTooLow");
+  });
+
+  it("reverts BadInitiator when initiator is not the executor", async function () {
+    const { owner, other, user, debt, collateral, pool, executor } = await deployFixture();
+    const request = {
+      user: user.address,
+      collateralAsset: await collateral.getAddress(),
+      debtAsset: await debt.getAddress(),
+      debtToCover: ethers.parseUnits("1000", 6),
+      minCollateralSwapOut: ethers.parseUnits("1100", 6),
+      minProfitAmount: ethers.parseUnits("50", 6),
+      deadline: await latestDeadline(),
+      gasLimit: 0n,
+      swapPath: [await collateral.getAddress(), await debt.getAddress()],
+    };
+
+    const poolAddress = await pool.getAddress();
+    await ethers.provider.send("hardhat_impersonateAccount", [poolAddress]);
+    await ethers.provider.send("hardhat_setBalance", [poolAddress, "0xDE0B6B3A7640000"]);
+    const poolSigner = await ethers.getSigner(poolAddress);
+
+    await expect(
+      executor.connect(poolSigner).executeOperation(
+        await debt.getAddress(),
+        ethers.parseUnits("1000", 6),
+        0,
+        other.address,
+        ethers.AbiCoder.defaultAbiCoder().encode([REQUEST_TUPLE], [request])
+      )
+    ).to.be.revertedWithCustomError(executor, "BadInitiator");
+
+    await ethers.provider.send("hardhat_stopImpersonatingAccount", [poolAddress]);
+  });
+
+  it("reverts NotPool when caller is not the pool", async function () {
+    const { other, user, debt, collateral, executor } = await deployFixture();
+    const request = {
+      user: user.address,
+      collateralAsset: await collateral.getAddress(),
+      debtAsset: await debt.getAddress(),
+      debtToCover: ethers.parseUnits("1000", 6),
+      minCollateralSwapOut: ethers.parseUnits("1100", 6),
+      minProfitAmount: ethers.parseUnits("50", 6),
+      deadline: await latestDeadline(),
+      gasLimit: 0n,
+      swapPath: [await collateral.getAddress(), await debt.getAddress()],
+    };
+
+    await expect(
+      executor.connect(other).executeOperation(
+        await debt.getAddress(),
+        ethers.parseUnits("1000", 6),
+        0,
+        await executor.getAddress(),
+        ethers.AbiCoder.defaultAbiCoder().encode([REQUEST_TUPLE], [request])
+      )
+    ).to.be.revertedWithCustomError(executor, "NotPool");
+  });
+
+  it("reverts when deadline has expired", async function () {
+    const { user, debt, collateral, executor } = await deployFixture();
+    const request = {
+      user: user.address,
+      collateralAsset: await collateral.getAddress(),
+      debtAsset: await debt.getAddress(),
+      debtToCover: ethers.parseUnits("1000", 6),
+      minCollateralSwapOut: 0n,
+      minProfitAmount: 0n,
+      deadline: 1n,
+      gasLimit: 0n,
+      swapPath: [await collateral.getAddress(), await debt.getAddress()],
+    };
+
+    await expect(executor.requestLiquidation(request)).to.be.revertedWithCustomError(executor, "InvalidRequest");
+  });
+
+  it("supports two-step ownership transfer", async function () {
+    const { owner, other, executor } = await deployFixture();
+
+    await executor.transferOwnership(other.address);
+    expect(await executor.owner()).to.equal(owner.address);
+    expect(await executor.pendingOwner()).to.equal(other.address);
+
+    await expect(executor.acceptOwnership()).to.be.revertedWithCustomError(executor, "InvalidRequest");
+
+    await expect(executor.connect(other).acceptOwnership())
+      .to.emit(executor, "OwnershipTransferred")
+      .withArgs(owner.address, other.address);
+
+    expect(await executor.owner()).to.equal(other.address);
+    expect(await executor.pendingOwner()).to.equal(ethers.ZeroAddress);
+  });
+
+  it("enforces minReserve on USDC withdrawals", async function () {
+    const { owner, other, debt, executor } = await deployFixture();
+    const reserveAmount = ethers.parseUnits("100", 6);
+    await executor.setMinReserve(reserveAmount);
+
+    const mintAmount = ethers.parseUnits("200", 6);
+    await debt.mint(await executor.getAddress(), mintAmount);
+
+    await expect(
+      executor.withdrawUSDC(other.address, ethers.parseUnits("150", 6))
+    ).to.be.revertedWithCustomError(executor, "InvalidRequest");
+
+    await expect(
+      executor.withdrawUSDC(other.address, ethers.parseUnits("100", 6))
+    ).to.emit(executor, "TokenWithdrawn");
+
+    expect(await debt.balanceOf(await executor.getAddress())).to.equal(ethers.parseUnits("100", 6));
+  });
+
+  it("returns 0 from sweepAllTokenToUSDC when balance is zero", async function () {
+    const { collateral, debt, executor } = await deployFixture();
+    const result = await executor.sweepAllTokenToUSDC.staticCall(
+      await collateral.getAddress(),
+      0,
+      [await collateral.getAddress(), await debt.getAddress()]
+    );
+    expect(result).to.equal(0n);
+  });
+
+  it("reverts when gasLimit exceeds available gas", async function () {
+    const { user, debt, collateral, executor } = await deployFixture();
+    const request = {
+      user: user.address,
+      collateralAsset: await collateral.getAddress(),
+      debtAsset: await debt.getAddress(),
+      debtToCover: ethers.parseUnits("1000", 6),
+      minCollateralSwapOut: 0n,
+      minProfitAmount: 0n,
+      deadline: await latestDeadline(),
+      gasLimit: ethers.MaxUint256,
+      swapPath: [await collateral.getAddress(), await debt.getAddress()],
+    };
+
+    await expect(executor.requestLiquidation(request)).to.be.revertedWithCustomError(executor, "InvalidRequest");
+  });
+
+  it("skips gasLimit check when gasLimit is zero", async function () {
+    const { user, debt, collateral, pool, executor } = await deployFixture();
+    const request = {
+      user: user.address,
+      collateralAsset: await collateral.getAddress(),
+      debtAsset: await debt.getAddress(),
+      debtToCover: ethers.parseUnits("1000", 6),
+      minCollateralSwapOut: ethers.parseUnits("1100", 6),
+      minProfitAmount: ethers.parseUnits("50", 6),
+      deadline: await latestDeadline(),
+      gasLimit: 0n,
+      swapPath: [await collateral.getAddress(), await debt.getAddress()],
+    };
+
+    await expect(executor.requestLiquidation(request))
+      .to.emit(executor, "LiquidationExecuted")
+      .and.to.emit(pool, "LiquidationCall");
   });
 });

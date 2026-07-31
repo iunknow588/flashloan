@@ -106,6 +106,8 @@ def register_control_routes(app, panel) -> None:
         with panel.observer_start_lock:
             panel.observer_starting = False
             panel.set_observer_progress("stopped", "已提交停止请求", 0)
+        if hasattr(panel, "stop_observer_supervisor"):
+            panel.stop_observer_supervisor()
         panel.set_control_status("initializing", "停止机会观察", "停止请求已经提交", 25)
         if panel.is_observer_running():
             if panel.observer_process is not None and panel.observer_process.poll() is None:

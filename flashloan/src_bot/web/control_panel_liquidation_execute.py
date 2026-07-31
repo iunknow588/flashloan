@@ -7,8 +7,24 @@ from web3 import Web3
 
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 from execution.liquidation_preflight import attach_liquidation_preflight_state
+from execution.nonce_manager import NonceManager
+from execution.revert_parser import parse_revert_reason, build_failure_record
 from web.control_panel_liquidation_base import *
 from web.control_panel_liquidation_scan import liquidation_account_payload, scan_context_assets
+
+
+_NONCE_MANAGERS: dict[tuple[int, str], NonceManager] = {}
+
+
+def _nonce_manager(w3: Web3, sender: str) -> NonceManager:
+    checksum_sender = Web3.to_checksum_address(sender)
+    key = (int(w3.eth.chain_id), checksum_sender.lower())
+    manager = _NONCE_MANAGERS.get(key)
+    if manager is None:
+        manager = NonceManager(w3, checksum_sender)
+        manager.initialize()
+        _NONCE_MANAGERS[key] = manager
+    return manager
 
 
 def apply_liquidation_submission_state(payload: dict, *, mode: str = "flashloan") -> dict:
@@ -90,6 +106,7 @@ LIQUIDATION_EXECUTOR_ABI = [
                     {"internalType": "uint256", "name": "minCollateralSwapOut", "type": "uint256"},
                     {"internalType": "uint256", "name": "minProfitAmount", "type": "uint256"},
                     {"internalType": "uint256", "name": "deadline", "type": "uint256"},
+                    {"internalType": "uint256", "name": "gasLimit", "type": "uint256"},
                     {"internalType": "address[]", "name": "swapPath", "type": "address[]"},
                 ],
                 "internalType": "struct AaveV3LiquidationExecutor.LiquidationRequest",
@@ -134,6 +151,29 @@ LIQUIDATION_ERC20_ABI = [
 ]
 
 
+
+
+def _archive_static_call_failure(payload: dict, parsed: dict) -> None:
+    """Archive a staticCall failure to the liquidation_failure_samples table."""
+    try:
+        from db.storage import record_liquidation_failure_sample
+        database_url = os.getenv("DATABASE_URL", "").strip()
+        if not database_url:
+            return
+        record = build_failure_record(parsed, payload=payload)
+        record_liquidation_failure_sample(
+            database_url,
+            account=record.get("account"),
+            collateral_asset=record.get("collateral_asset"),
+            debt_asset=record.get("debt_asset"),
+            failure_type=record["failure_type"],
+            failure_reason=record.get("failure_reason"),
+            payload=record.get("payload"),
+            source=record["source"],
+        )
+    except Exception:
+        pass
+
 def simulate_liquidation_static_call(payload: dict) -> dict:
     executor_address = str(payload.get("executor") or "").strip()
     owner_address = liquidation_executor_owner_address()
@@ -160,6 +200,7 @@ def simulate_liquidation_static_call(payload: dict) -> dict:
                 int(request.get("minCollateralSwapOut") or 0),
                 int(request.get("minProfitAmount") or 0),
                 int(request.get("deadline") or 0),
+                int(request.get("gasLimit") or 0),
                 [Web3.to_checksum_address(str(item)) for item in (request.get("swapPath") or []) if str(item).strip()],
             )
         ).call({"from": checksum_owner})
@@ -168,6 +209,9 @@ def simulate_liquidation_static_call(payload: dict) -> dict:
     except Exception as exc:
         status = "error"
         error = str(exc)
+        parsed = parse_revert_reason(error)
+    else:
+        parsed = {"category": "success", "label": "staticCall passed", "raw": "", "confidence": "high"}
     simulated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     preflight = dict(payload.get("preflight") or {})
     preflight.update(
@@ -176,10 +220,14 @@ def simulate_liquidation_static_call(payload: dict) -> dict:
             "static_call_status": status,
             "static_call_passed": status == "passed",
             "static_call_error": error,
+            "static_call_error_category": parsed.get("category"),
+            "static_call_error_label": parsed.get("label"),
             "static_call_simulated_at": simulated_at,
         }
     )
     payload["preflight"] = preflight
+    if status == "error":
+        _archive_static_call_failure(payload, parsed)
     return apply_liquidation_submission_state(payload, mode="flashloan")
 
 
@@ -253,10 +301,12 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
             int(request.get("minCollateralSwapOut") or 0),
             int(request.get("minProfitAmount") or 0),
             int(request.get("deadline") or 0),
+            int(request.get("gasLimit") or 0),
             [Web3.to_checksum_address(str(item)) for item in (request.get("swapPath") or []) if str(item).strip()],
         )
     )
-    nonce = w3.eth.get_transaction_count(checksum_sender)
+    nonce_manager = _nonce_manager(w3, checksum_sender)
+    nonce = nonce_manager.acquire()
     tx_params = {
         "from": checksum_sender,
         "nonce": nonce,
@@ -277,10 +327,14 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
     else:
         tx_params["gasPrice"] = int(w3.eth.gas_price)
 
-    built_tx = tx_builder.build_transaction(tx_params)
-    signed = w3.eth.account.sign_transaction(built_tx, private_key=private_key)
-    raw_tx = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
-    tx_hash = w3.eth.send_raw_transaction(raw_tx)
+    try:
+        built_tx = tx_builder.build_transaction(tx_params)
+        signed = w3.eth.account.sign_transaction(built_tx, private_key=private_key)
+        raw_tx = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+        tx_hash = w3.eth.send_raw_transaction(raw_tx)
+    except Exception:
+        nonce_manager.release(nonce)
+        raise
     timeout_seconds = max(30, int(controls["tx_timeout_seconds"]))
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=timeout_seconds)
     receipt_data = _format_tx_receipt(receipt)
@@ -341,7 +395,8 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
         raise RuntimeError(f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}")
     debt_token = w3.eth.contract(address=debt_asset, abi=LIQUIDATION_ERC20_ABI)
     pool = w3.eth.contract(address=pool_address, abi=LIQUIDATION_POOL_ABI)
-    nonce = w3.eth.get_transaction_count(sender)
+    nonce_manager = _nonce_manager(w3, sender)
+    nonce = nonce_manager.acquire()
     approval_builder = debt_token.functions.approve(pool_address, debt_to_cover)
     approval_params = {"from": sender, "nonce": nonce, "chainId": int(w3.eth.chain_id)}
     try:
@@ -357,10 +412,14 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
         approval_params["maxFeePerGas"] = int(base_fee * 2 + priority_fee)
     else:
         approval_params["gasPrice"] = int(w3.eth.gas_price)
-    approval_tx = approval_builder.build_transaction(approval_params)
-    signed_approval = w3.eth.account.sign_transaction(approval_tx, private_key=private_key)
-    raw_approval = getattr(signed_approval, "raw_transaction", None) or getattr(signed_approval, "rawTransaction")
-    approval_hash = w3.eth.send_raw_transaction(raw_approval)
+    try:
+        approval_tx = approval_builder.build_transaction(approval_params)
+        signed_approval = w3.eth.account.sign_transaction(approval_tx, private_key=private_key)
+        raw_approval = getattr(signed_approval, "raw_transaction", None) or getattr(signed_approval, "rawTransaction")
+        approval_hash = w3.eth.send_raw_transaction(raw_approval)
+    except Exception:
+        nonce_manager.release(nonce)
+        raise
     timeout_seconds = max(30, int(controls["tx_timeout_seconds"]))
     approval_receipt = w3.eth.wait_for_transaction_receipt(approval_hash, timeout=timeout_seconds)
     approval_data = _format_tx_receipt(approval_receipt)
@@ -372,7 +431,7 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
         debt_to_cover,
         False,
     )
-    liquidation_nonce = nonce + 1
+    liquidation_nonce = nonce_manager.acquire()
     tx_params = {"from": sender, "nonce": liquidation_nonce, "chainId": int(w3.eth.chain_id)}
     try:
         estimated_gas = liquidation_builder.estimate_gas({"from": sender})
@@ -384,10 +443,14 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
         tx_params["maxFeePerGas"] = int(base_fee * 2 + priority_fee)
     else:
         tx_params["gasPrice"] = int(w3.eth.gas_price)
-    liquidation_tx = liquidation_builder.build_transaction(tx_params)
-    signed_liquidation = w3.eth.account.sign_transaction(liquidation_tx, private_key=private_key)
-    raw_liquidation = getattr(signed_liquidation, "raw_transaction", None) or getattr(signed_liquidation, "rawTransaction")
-    tx_hash = w3.eth.send_raw_transaction(raw_liquidation)
+    try:
+        liquidation_tx = liquidation_builder.build_transaction(tx_params)
+        signed_liquidation = w3.eth.account.sign_transaction(liquidation_tx, private_key=private_key)
+        raw_liquidation = getattr(signed_liquidation, "raw_transaction", None) or getattr(signed_liquidation, "rawTransaction")
+        tx_hash = w3.eth.send_raw_transaction(raw_liquidation)
+    except Exception:
+        nonce_manager.release(liquidation_nonce)
+        raise
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=timeout_seconds)
     account_report = payload.get("account_report") or {}
     return {
@@ -402,3 +465,5 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
         "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
         "execution_controls": (payload.get("execution_controls") or controls) | {"manual_force": bool(force)},
     }
+
+

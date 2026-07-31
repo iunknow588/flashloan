@@ -16,6 +16,7 @@ class LiquidationExecutionPayloadConfig:
     rounding_buffer_units: int = 10
     allow_zero_min_collateral_out: bool = False
     slippage_bps: int = 50
+    gas_limit: int = 0
 
 
 def _checksum(value: str) -> str:
@@ -148,6 +149,7 @@ def build_liquidation_execution_payload(
     profit = candidate.get("estimated_profit") or {}
     estimated_net_profit = int(max(0, float(profit.get("net_profit_base") or 0)))
     min_profit_amount = max(0, estimated_net_profit - int(config.min_profit_buffer_base) - int(config.rounding_buffer_units))
+    gas_limit = max(0, int(config.gas_limit))
 
     request = {
         "user": account,
@@ -157,6 +159,7 @@ def build_liquidation_execution_payload(
         "minCollateralSwapOut": str(min_collateral_swap_out),
         "minProfitAmount": str(min_profit_amount),
         "deadline": str(int(deadline)),
+        "gasLimit": str(gas_limit),
         "swapPath": swap_path if collateral_asset.lower() != debt_asset.lower() else [],
     }
     amounts = build_liquidation_amounts(
@@ -179,9 +182,51 @@ def build_liquidation_execution_payload(
             "static_call_simulated_at": None,
             "rounding_buffer_units": int(config.rounding_buffer_units),
             "min_profit_buffer_base": int(config.min_profit_buffer_base),
+            "gas_limit": gas_limit,
+            "min_profit_consistency": validate_min_profit_consistency(
+                request,
+                profit,
+                min_profit_buffer_base=int(config.min_profit_buffer_base),
+                rounding_buffer_units=int(config.rounding_buffer_units),
+            ),
             "allow_zero_min_collateral_out": bool(config.allow_zero_min_collateral_out),
             "slippage_bps": int(config.slippage_bps),
         },
         "dex_quote": dex_quote,
         "amounts": amounts,
+    }
+
+
+def expected_min_profit_amount(
+    profit: dict[str, Any],
+    *,
+    min_profit_buffer_base: int = 0,
+    rounding_buffer_units: int = 10,
+) -> int:
+    net_profit = int(max(0, float(profit.get("net_profit_base") or 0)))
+    return max(0, net_profit - int(min_profit_buffer_base) - int(rounding_buffer_units))
+
+
+def validate_min_profit_consistency(
+    request: dict[str, Any],
+    profit: dict[str, Any],
+    *,
+    min_profit_buffer_base: int = 0,
+    rounding_buffer_units: int = 10,
+) -> dict[str, Any]:
+    expected = expected_min_profit_amount(
+        profit,
+        min_profit_buffer_base=min_profit_buffer_base,
+        rounding_buffer_units=rounding_buffer_units,
+    )
+    try:
+        actual = int(request.get("minProfitAmount") or 0)
+    except (TypeError, ValueError):
+        actual = -1
+    return {
+        "consistent": actual == expected,
+        "actual_min_profit_amount": actual,
+        "expected_min_profit_amount": expected,
+        "min_profit_buffer_base": int(min_profit_buffer_base),
+        "rounding_buffer_units": int(rounding_buffer_units),
     }
