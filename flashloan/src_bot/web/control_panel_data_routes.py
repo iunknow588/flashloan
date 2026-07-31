@@ -73,7 +73,10 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/liquidation/control-summary")
     def liquidation_control_summary():
         database_url = panel_call("database_url_or_none")
+        pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
         schema = panel_call("schema_status_payload")
+        discovery_progress = panel_call("liquidation_discovery_progress", pool_address) if database_url and pool_address else {}
+        registry_window = panel_call("liquidation_account_registry_window") if database_url else {}
         pause_guard = panel_call("liquidation_pause_guard_status")
         attempts = panel_call("recent_liquidation_execution_attempts", limit=5)
         failure_samples = panel_call("recent_liquidation_failure_samples", limit=5)
@@ -101,6 +104,29 @@ def register_data_routes(app, panel) -> None:
                     "error": schema.get("error"),
                 },
                 "pause_guard": pause_guard,
+                "integrity": {
+                    "schema_up_to_date": bool(schema.get("up_to_date")),
+                    "discovery_has_gap": bool(discovery_progress.get("has_gap")),
+                    "discovery_covered_from_block": discovery_progress.get("earliest_backfill_from_block"),
+                    "discovery_covered_to_block": discovery_progress.get("latest_recent_to_block"),
+                    "registry_total_count": int(registry_window.get("total_count") or 0),
+                    "registry_active_count": int(registry_window.get("active_count") or 0),
+                    "latest_batch_status": (latest_batch or {}).get("status") if latest_batch else None,
+                    "latest_batch_account_count": int((latest_batch or {}).get("account_count") or 0),
+                    "latest_batch_scanned_count": int((latest_batch or {}).get("scanned_count") or 0),
+                    "latest_batch_matches_account_count": bool(
+                        latest_batch
+                        and str((latest_batch or {}).get("status") or "").lower() == "success"
+                        and int((latest_batch or {}).get("account_count") or 0) == int((latest_batch or {}).get("scanned_count") or 0)
+                    ),
+                    "complete": bool(
+                        schema.get("up_to_date")
+                        and not discovery_progress.get("has_gap")
+                        and latest_batch
+                        and str((latest_batch or {}).get("status") or "").lower() == "success"
+                        and int((latest_batch or {}).get("account_count") or 0) == int((latest_batch or {}).get("scanned_count") or 0)
+                    ),
+                },
                 "execution_attempts": attempts.get("stats", {}),
                 "failure_samples": {"recent_count": len(failure_samples.get("samples") or [])},
                 "latest_batch": latest_batch,
