@@ -42,11 +42,13 @@ def register_page_routes(app, panel) -> None:
         symbols = panel.displayed_symbols(running or panel.observer_starting)
         binance_extremes = panel.restrict_extremes_to_symbols(binance_extremes, symbols)
         opportunity_rows = panel.opportunity_health_rows(binance_extremes, config)
+        background_activity = panel.background_activity_payload(running, panel.observer_starting)
         return jsonify(
             {
                 "running": running,
                 "starting": panel.observer_starting,
                 "start_error": panel.observer_start_error,
+                "background_activity": background_activity,
                 "observer_progress": panel.observer_progress_payload(running, panel.observer_starting, binance_extremes),
                 "control_status": control_status_current,
                 "system_monitor": panel.system_monitor_payload(
@@ -55,6 +57,7 @@ def register_page_routes(app, panel) -> None:
                     binance_extremes,
                     control_status_current,
                     reserve_cache,
+                    background_activity,
                 ),
                 "pid": panel.quick_observer_pid() if running else None,
                 "symbols": symbols,

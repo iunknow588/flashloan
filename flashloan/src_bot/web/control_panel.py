@@ -377,6 +377,48 @@ def control_status_payload() -> Optional[dict]:
     }
 
 
+def _liquidation_activity_payload(label: str, cache: dict, lock: threading.Lock) -> dict:
+    running = bool(cache.get("running"))
+    if running and hasattr(lock, "locked") and not lock.locked():
+        cache["running"] = False
+        cache["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        cache["stage"] = "idle"
+        running = False
+    stage = str(cache.get("stage") or "idle")
+    return {
+        "label": label,
+        "running": running,
+        "stage": stage,
+        "started_at": cache.get("started_at"),
+        "finished_at": cache.get("finished_at"),
+        "text": f"{label}：{stage}" if running else f"{label}：空闲",
+    }
+
+
+def background_activity_payload(running: Optional[bool] = None, starting: Optional[bool] = None) -> dict:
+    observer_running = quick_observer_running() if running is None else bool(running)
+    observer_starting_current = bool(globals().get("observer_starting")) if starting is None else bool(starting)
+    discovery = _liquidation_activity_payload("账户池发现扫描", LIQUIDATION_DISCOVERY_CACHE, LIQUIDATION_DISCOVERY_LOCK)
+    health_scan = _liquidation_activity_payload("债务/健康池扫描", LIQUIDATION_SCAN_CACHE, LIQUIDATION_SCAN_LOCK)
+    tasks: list[dict] = []
+    if observer_starting_current:
+        tasks.append({"label": "机会观察启动", "running": True, "stage": "starting", "text": "机会观察：启动中"})
+    if observer_running:
+        tasks.append({"label": "机会观察", "running": True, "stage": "running", "text": "机会观察：运行中"})
+    for item in (discovery, health_scan):
+        if item["running"]:
+            tasks.append(item)
+    return {
+        "active": bool(tasks),
+        "observer_running": observer_running,
+        "observer_starting": observer_starting_current,
+        "liquidation_discovery": discovery,
+        "liquidation_health_scan": health_scan,
+        "tasks": tasks,
+        "summary": "；".join(str(item.get("text") or item.get("label")) for item in tasks),
+    }
+
+
 def observer_progress_payload(running: bool, starting: bool, latest_extremes: Optional[dict]) -> dict:
     progress = dict(observer_start_progress)
     elapsed = observer_start_elapsed_seconds()
@@ -409,8 +451,14 @@ def system_monitor_payload(
     latest_extremes: Optional[dict],
     control_status_current: Optional[dict],
     reserve_cache: Optional[dict],
+    background_activity: Optional[dict] = None,
 ) -> dict:
     observer = observer_progress_payload(running, starting, latest_extremes)
+    background = background_activity or background_activity_payload(running, starting)
+    liquidation_busy = any(
+        bool((background.get(key) or {}).get("running"))
+        for key in ("liquidation_discovery", "liquidation_health_scan")
+    )
     control_state = (control_status_current or {}).get("state")
     control_stage = (control_status_current or {}).get("stage")
     stale_start_status = (
@@ -419,7 +467,9 @@ def system_monitor_payload(
         and not starting
         and not running
     )
-    if stale_start_status:
+    if liquidation_busy:
+        action = f"后台清算扫描中：{background.get('summary') or '等待扫描完成'}"
+    elif stale_start_status:
         action = "机会观察未运行；最近一次启动未保持运行，请检查 runtime/logs/observer_stderr.log"
     else:
         action = (control_status_current or {}).get("message") or "暂无控制操作记录"
@@ -437,6 +487,8 @@ def system_monitor_payload(
         state = "stopped"
     elif control_state == "error" or observer.get("state") == "error":
         state = "error"
+    elif liquidation_busy:
+        state = "initializing"
     elif control_state == "initializing":
         state = "initializing"
     else:
@@ -451,6 +503,7 @@ def system_monitor_payload(
         "sample_count": sample_count,
         "observed_at": observed_at,
         "percent": int((control_status_current or {}).get("percent") or observer.get("percent") or 0),
+        "background_activity": background,
     }
 
 

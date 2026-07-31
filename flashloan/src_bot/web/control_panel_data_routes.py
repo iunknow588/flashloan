@@ -78,6 +78,7 @@ def register_data_routes(app, panel) -> None:
         discovery_progress = panel_call("liquidation_discovery_progress", pool_address) if database_url and pool_address else {}
         registry_window = panel_call("liquidation_account_registry_window") if database_url else {}
         pause_guard = panel_call("liquidation_pause_guard_status")
+        background_activity = panel_call("background_activity_payload")
         attempts = panel_call("recent_liquidation_execution_attempts", limit=5)
         failure_samples = panel_call("recent_liquidation_failure_samples", limit=5)
         latest_batch = None
@@ -104,6 +105,11 @@ def register_data_routes(app, panel) -> None:
                     "error": schema.get("error"),
                 },
                 "pause_guard": pause_guard,
+                "background_activity": background_activity,
+                "discovery_running": bool((background_activity.get("liquidation_discovery") or {}).get("running")),
+                "discovery_stage": (background_activity.get("liquidation_discovery") or {}).get("stage"),
+                "scan_running": bool((background_activity.get("liquidation_health_scan") or {}).get("running")),
+                "scan_stage": (background_activity.get("liquidation_health_scan") or {}).get("stage"),
                 "integrity": {
                     "schema_up_to_date": bool(schema.get("up_to_date")),
                     "discovery_has_gap": bool(discovery_progress.get("has_gap")),

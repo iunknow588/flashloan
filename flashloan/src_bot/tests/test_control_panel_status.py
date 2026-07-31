@@ -659,7 +659,38 @@ def test_clear_database_api_rejects_when_background_scan_is_running(monkeypatch)
 
     assert response.status_code == 400
     assert data["blockers"]
-    assert "后台发现/扫描完成" in data["error"]
+    assert "后台任务结束" in data["error"]
+
+
+def test_status_reports_liquidation_background_scan(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", False)
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", True)
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "stage", "debt_pool")
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "quick_observer_pid", lambda: None)
+    monkeypatch.setattr(control_panel, "observer_starting", False)
+    monkeypatch.setattr(control_panel, "safe_latest", lambda source: None)
+    monkeypatch.setattr(control_panel, "strategy_config", lambda: {})
+    monkeypatch.setattr(control_panel, "displayed_symbols", lambda running: [])
+    monkeypatch.setattr(control_panel, "restrict_extremes_to_symbols", lambda data, symbols: data)
+    monkeypatch.setattr(control_panel, "opportunity_health_rows", lambda data, config: [])
+    monkeypatch.setattr(control_panel, "opportunity_health_summary", lambda rows, config: {})
+    monkeypatch.setattr(control_panel, "unified_sampling_profile", lambda config: {})
+
+    assert control_panel.LIQUIDATION_SCAN_LOCK.acquire(blocking=False)
+    try:
+        response = app.test_client().get("/api/status")
+        data = response.get_json()
+    finally:
+        control_panel.LIQUIDATION_SCAN_LOCK.release()
+
+    assert response.status_code == 200
+    assert data["running"] is False
+    assert data["background_activity"]["liquidation_health_scan"]["running"] is True
+    assert data["system_monitor"]["state"] == "initializing"
+    assert "后台清算扫描中" in data["system_monitor"]["action"]
 
 
 def test_clear_database_api_truncates_without_schema_init(monkeypatch):

@@ -19,7 +19,7 @@ def _cache_running_blocker(panel, *, label: str, cache_name: str, lock_name: str
         return None
     stage = cache.get("stage") or "unknown"
     started_at = cache.get("started_at") or "unknown"
-    return f"{label} still running, stage={stage}, started_at={started_at}"
+    return f"{label}正在运行，阶段={stage}，开始={started_at}"
 
 
 def clear_database_blockers(panel) -> list[str]:
@@ -28,17 +28,24 @@ def clear_database_blockers(panel) -> list[str]:
         observer_starting = bool(panel.observer_starting)
     blockers: list[str] = []
     if observer_starting:
-        blockers.append("opportunity observer is starting")
+        blockers.append("机会观察正在启动")
     if panel.is_observer_running():
-        blockers.append("opportunity observer is running")
+        blockers.append("机会观察正在运行")
     for label, cache_name, lock_name in (
-        ("liquidation discovery", "LIQUIDATION_DISCOVERY_CACHE", "LIQUIDATION_DISCOVERY_LOCK"),
-        ("liquidation health scan", "LIQUIDATION_SCAN_CACHE", "LIQUIDATION_SCAN_LOCK"),
+        ("账户池发现扫描", "LIQUIDATION_DISCOVERY_CACHE", "LIQUIDATION_DISCOVERY_LOCK"),
+        ("债务/健康池扫描", "LIQUIDATION_SCAN_CACHE", "LIQUIDATION_SCAN_LOCK"),
     ):
         blocker = _cache_running_blocker(panel, label=label, cache_name=cache_name, lock_name=lock_name)
         if blocker:
             blockers.append(blocker)
     return blockers
+
+
+def clear_database_blocker_message(blockers: list[str]) -> str:
+    if not blockers:
+        return ""
+    details = "；".join(blockers)
+    return f"清空数据库前需要等待当前后台任务结束：{details}"
 
 
 def register_control_routes(app, panel) -> None:
@@ -121,7 +128,7 @@ def register_control_routes(app, panel) -> None:
     def clear():
         blockers = clear_database_blockers(panel)
         if blockers:
-            message = "清空数据库前请先停止机会观察，并等待后台发现/扫描完成"
+            message = clear_database_blocker_message(blockers)
             panel.set_control_status("error", "清空数据库", message, 0)
             return jsonify({"error": message, "blockers": blockers}), 400
         panel.set_control_status("initializing", "清空数据库", "正在清空行情与观察数据", 25)
