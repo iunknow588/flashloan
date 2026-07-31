@@ -7,12 +7,7 @@ from typing import Any, Iterable
 
 from web3 import Web3
 
-from execution.liquidation_accounts import (
-    discover_borrower_addresses as _discover_borrower_addresses,
-    load_account_addresses,
-    topic_to_address,
-    write_account_addresses,
-)
+from execution.liquidation_accounts import load_account_addresses, topic_to_address, write_account_addresses
 from execution.liquidation_abis import (
     AAVE_PROTOCOL_DATA_PROVIDER_ABI,
     BORROW_EVENT_TOPIC,
@@ -21,7 +16,17 @@ from execution.liquidation_abis import (
     POOL_ACCOUNT_DATA_ABI,
 )
 from execution.liquidation_realtime_params import read_aave_flashloan_premium
-from execution.profit_guard import calculate_liquidation_profit
+from execution.health_checker import (
+    classify_health_factor as _classify_health_factor,
+    estimate_liquidation_profit as _estimate_liquidation_profit,
+    health_factor_band as _health_factor_band,
+)
+from execution.prioritizer import (
+    incremental_scan_account_groups as _incremental_scan_account_groups,
+    split_candidate_accounts as _split_candidate_accounts,
+    watched_health_rows as _watched_health_rows,
+)
+from execution.scanner import discover_borrower_addresses as _discover_borrower_addresses
 
 
 AVALANCHE_MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11"
@@ -55,40 +60,15 @@ def discover_borrower_addresses(*args, **kwargs) -> list[str]:
 
 
 def classify_health_factor(health_factor: float, warning_threshold: float, liquidation_threshold: float) -> str:
-    if health_factor < liquidation_threshold:
-        return "liquidatable"
-    if health_factor < warning_threshold:
-        return "warning"
-    return "healthy"
+    return _classify_health_factor(health_factor, warning_threshold, liquidation_threshold)
 
 
 def health_factor_band(health_factor: float) -> str:
-    value = float(health_factor)
-    if value < 1.0:
-        return "red"
-    if value < 1.1:
-        return "orange"
-    if value < 1.2:
-        return "yellow"
-    if value < 1.3:
-        return "beige"
-    return "green"
+    return _health_factor_band(health_factor)
 
 
 def watched_health_rows(rows: Iterable[dict], max_health_factor: float = 1.5) -> list[dict]:
-    watched = []
-    for row in rows:
-        try:
-            health_factor = float(row.get("health_factor"))
-        except (TypeError, ValueError):
-            continue
-        if health_factor >= float(max_health_factor):
-            continue
-        item = dict(row)
-        item["health_factor_band"] = health_factor_band(health_factor)
-        watched.append(item)
-    watched.sort(key=lambda row: float(row.get("health_factor", 10.0)))
-    return watched
+    return _watched_health_rows(rows, max_health_factor)
 
 
 def incremental_scan_account_groups(
@@ -99,37 +79,13 @@ def incremental_scan_account_groups(
     full_scan_due: bool = False,
     max_accounts: int = 5000,
 ) -> dict[str, list[str]]:
-    unique_accounts: list[str] = []
-    for account in accounts:
-        try:
-            checksum = Web3.to_checksum_address(str(account))
-        except ValueError:
-            continue
-        if checksum not in unique_accounts:
-            unique_accounts.append(checksum)
-
-    watch_accounts: list[str] = []
-    for row in watched_health_rows(previous_rows, watch_health_factor):
-        account = row.get("account")
-        try:
-            checksum = Web3.to_checksum_address(str(account))
-        except ValueError:
-            continue
-        if checksum in unique_accounts and checksum not in watch_accounts:
-            watch_accounts.append(checksum)
-
-    if full_scan_due:
-        scan_accounts = unique_accounts
-    else:
-        scan_accounts = watch_accounts
-
-    limit = max(1, int(max_accounts))
-    return {
-        "high_frequency_accounts": watch_accounts[:limit],
-        "full_scan_accounts": unique_accounts[:limit],
-        "scan_accounts": scan_accounts[:limit],
-        "strategy": ["watch_high_frequency"] + (["full_low_frequency"] if full_scan_due else []),
-    }
+    return _incremental_scan_account_groups(
+        accounts,
+        previous_rows,
+        watch_health_factor=watch_health_factor,
+        full_scan_due=full_scan_due,
+        max_accounts=max_accounts,
+    )
 
 
 def _safe_contract(w3: Web3, address: str, abi: list[dict]):
@@ -672,22 +628,17 @@ def estimate_liquidation_profit(
     retry_buffer_usd: float = 0.0,
     flashloan_premium_source: str = "fallback_config",
 ) -> dict:
-    bonus_rate = max(0.0, float(liquidation_bonus_percent)) / 100.0
-    flashloan_rate = max(0.0, float(flashloan_fee_percent)) / 100.0
-    slippage_rate = max(0.0, float(dex_slippage_percent)) / 100.0
-    result = calculate_liquidation_profit(
-        repay_base=max(0.0, float(total_debt_base)) * max(0.0, min(1.0, float(repay_fraction))),
-        bonus_rate=bonus_rate,
-        flashloan_rate=flashloan_rate,
-        slippage_rate=slippage_rate,
+    return _estimate_liquidation_profit(
+        total_debt_base=total_debt_base,
+        liquidation_bonus_percent=liquidation_bonus_percent,
+        flashloan_fee_percent=flashloan_fee_percent,
+        dex_slippage_percent=dex_slippage_percent,
         gas_cost_usd=gas_cost_usd,
+        repay_fraction=repay_fraction,
         mev_buffer_usd=mev_buffer_usd,
         retry_buffer_usd=retry_buffer_usd,
-        repay_fraction=1.0,
+        flashloan_premium_source=flashloan_premium_source,
     )
-    result["flashloan_premium_source"] = flashloan_premium_source
-    result["flashloan_premium_verified"] = flashloan_premium_source != "fallback_config"
-    return result
 
 
 def scan_account_health(
@@ -766,22 +717,4 @@ def scan_account_health(
 
 
 def split_candidate_accounts(accounts: Iterable[dict], warning_threshold: float, liquidation_threshold: float) -> dict:
-    warning_accounts = []
-    liquidation_accounts = []
-    healthy_accounts = []
-    for item in accounts:
-        try:
-            health_factor = float(item.get("health_factor"))
-        except (TypeError, ValueError):
-            continue
-        if health_factor < liquidation_threshold:
-            liquidation_accounts.append(item)
-        elif health_factor < warning_threshold:
-            warning_accounts.append(item)
-        else:
-            healthy_accounts.append(item)
-    return {
-        "warning_accounts": warning_accounts,
-        "liquidation_accounts": liquidation_accounts,
-        "healthy_accounts": healthy_accounts,
-    }
+    return _split_candidate_accounts(accounts, warning_threshold, liquidation_threshold)

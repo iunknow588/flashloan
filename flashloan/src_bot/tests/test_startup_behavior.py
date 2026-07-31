@@ -19,9 +19,22 @@ class DummyThread:
 def reset_start_state():
     control_panel.observer_starting = False
     control_panel.observer_start_error = None
+    control_panel.observer_process = None
     control_panel.selected_symbols = []
     control_panel.observer_start_progress.update(
         {"state": "stopped", "stage": "未启动", "percent": 0, "started_at": None}
+    )
+    control_panel.observer_supervisor_stop.set()
+    control_panel.observer_supervisor_state.update(
+        {
+            "enabled": False,
+            "heartbeat_at": 0.0,
+            "restart_count": 0,
+            "last_restart_at": 0.0,
+            "next_restart_at": 0.0,
+            "last_exit_code": None,
+            "last_error": None,
+        }
     )
 
 
@@ -63,4 +76,58 @@ def test_stale_starting_state_is_cleared(monkeypatch):
     assert control_panel.observer_starting is False
     assert "机会观察启动超过 1 秒" in control_panel.observer_start_error
     assert control_panel.observer_start_progress["state"] == "error"
+    reset_start_state()
+
+
+def test_observer_supervisor_restarts_crashed_process(monkeypatch):
+    reset_start_state()
+    events = []
+
+    class CrashedProcess:
+        pid = 11
+
+        @staticmethod
+        def poll():
+            return 1
+
+    class RestartedProcess:
+        pid = 22
+
+        @staticmethod
+        def poll():
+            return None
+
+    control_panel.observer_process = CrashedProcess()
+    control_panel.observer_supervisor_state["enabled"] = True
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "build_observer_env", lambda: ({"DATABASE_URL": "postgresql://example"}, ["AVAXUSDT"]))
+    monkeypatch.setattr(control_panel, "launch_observer_process", lambda env, symbols: events.append((env, symbols)) or RestartedProcess())
+    monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
+
+    result = control_panel.observer_supervisor_once(now=100.0)
+
+    assert result["action"] == "restarted"
+    assert result["pid"] == 22
+    assert events == [({"DATABASE_URL": "postgresql://example"}, ["AVAXUSDT"])]
+    assert control_panel.observer_supervisor_state["restart_count"] == 1
+    assert control_panel.observer_supervisor_state["last_restart_at"] == 100.0
+    assert control_panel.observer_supervisor_state["next_restart_at"] <= 130.0
+    reset_start_state()
+
+
+def test_observer_supervisor_honors_backoff(monkeypatch):
+    reset_start_state()
+    control_panel.observer_supervisor_state.update(
+        {
+            "enabled": True,
+            "restart_count": 1,
+            "next_restart_at": 120.0,
+        }
+    )
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+
+    result = control_panel.observer_supervisor_once(now=110.0)
+
+    assert result["action"] == "backoff"
+    assert result["next_restart_at"] == 120.0
     reset_start_state()

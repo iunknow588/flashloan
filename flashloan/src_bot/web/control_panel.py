@@ -63,16 +63,25 @@ from web.control_panel_data import (
     velocity_timepoint_snapshot as read_velocity_timepoint_snapshot,
 )
 from web.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
-from web.control_panel_liquidation_base import *
-from web.control_panel_liquidation_audit import *
-from web.control_panel_liquidation_scan import *
-from web.control_panel_liquidation_execute import *
-from web.control_panel_market import *
+import web.control_panel_liquidation_base as liquidation_base
+import web.control_panel_liquidation_audit as liquidation_audit
+import web.control_panel_liquidation_scan as liquidation_scan_module
+import web.control_panel_liquidation_execute as liquidation_execute
+import web.control_panel_market as market_panel
 from web.control_panel_liquidation_context import install_liquidation_context
 from web.control_panel_liquidation_routes import register_liquidation_routes
 from web.control_panel_control_routes import register_control_routes
 from web.control_panel_data_routes import register_data_routes
 from web.control_panel_page_routes import register_page_routes
+
+for _module in (
+    liquidation_base,
+    liquidation_audit,
+    liquidation_scan_module,
+    liquidation_execute,
+    market_panel,
+):
+    globals().update({name: value for name, value in vars(_module).items() if not name.startswith("_")})
 from db.storage import (
     EXPECTED_SCHEMA_MIGRATION_IDS,
     ensure_database_schema,
@@ -428,6 +437,7 @@ def background_activity_payload(running: Optional[bool] = None, starting: Option
         "active": bool(tasks),
         "observer_running": observer_running,
         "observer_starting": observer_starting_current,
+        "observer_supervisor": observer_supervisor_payload(),
         "liquidation_discovery": discovery,
         "liquidation_health_scan": health_scan,
         "liquidation_account_backfill": account_backfill,

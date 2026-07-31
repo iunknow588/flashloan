@@ -31,6 +31,7 @@ from db.storage_liquidation import (
 from db.storage_liquidation_pool import (
     load_liquidation_borrow_health_scan_batches,
     load_liquidation_borrow_health_pool,
+    load_liquidation_accounts_for_assets,
     load_liquidation_core_opportunity_pool,
     load_liquidation_high_frequency_pool,
     record_liquidation_borrow_health_scan_batch,
@@ -78,6 +79,7 @@ __all__ = [
     "load_latest_liquidation_account_reports",
     "load_liquidation_borrow_health_pool",
     "load_liquidation_borrow_health_scan_batches",
+    "load_liquidation_accounts_for_assets",
     "load_liquidation_core_opportunity_pool",
     "load_liquidation_high_frequency_pool",
     "load_liquidation_accounts",

@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 
@@ -18,6 +18,13 @@ SAMPLE_LABELS = (
     "low_profit",
     "high_slippage_failure",
 )
+FAILURE_SAMPLE_LABELS = (
+    "close_factor_failure",
+    "dust_leftover",
+    "low_profit",
+    "high_slippage_failure",
+)
+FailureSampleRecorder = Callable[..., int]
 
 
 @dataclass(frozen=True)
@@ -165,6 +172,86 @@ def build_liquidation_sample_record(
         except Exception as exc:
             record["payload_error"] = str(exc)
     return record
+
+
+def build_liquidation_failure_sample_record(
+    report: dict[str, Any],
+    *,
+    label: str,
+    executor_address: str = "",
+    router_address: str = "",
+    deadline_seconds: int = 300,
+) -> dict[str, Any]:
+    candidate = _recommended_candidate(report)
+    payload = build_liquidation_sample_record(
+        report,
+        label=label,
+        executor_address=executor_address,
+        router_address=router_address,
+        deadline_seconds=deadline_seconds,
+    )
+    preflight = payload.get("preflight") or report.get("preflight") or {}
+    execution_plan = report.get("execution_plan") or {}
+    reason = (
+        preflight.get("static_call_error")
+        or execution_plan.get("reason")
+        or payload.get("payload_error")
+        or f"sample classified as {label}"
+    )
+    return {
+        "account": report.get("account"),
+        "block_number": report.get("block_number") or (report.get("context") or {}).get("block_number"),
+        "collateral_asset": candidate.get("collateral_asset") or candidate.get("collateral_symbol"),
+        "debt_asset": candidate.get("debt_asset") or candidate.get("debt_symbol"),
+        "failure_type": label,
+        "failure_reason": str(reason),
+        "payload": payload,
+        "source": "liquidation_sample_library",
+    }
+
+
+def serialize_liquidation_failure_samples(
+    database_url: str,
+    reports: list[dict[str, Any]],
+    *,
+    recorder: FailureSampleRecorder | None = None,
+    executor_address: str = "",
+    router_address: str = "",
+    deadline_seconds: int = 300,
+) -> dict[str, Any]:
+    if recorder is None:
+        from db.storage import record_liquidation_failure_sample as recorder
+
+    selected = select_liquidation_sample_reports(reports)
+    inserted: list[dict[str, Any]] = []
+    pending: list[str] = []
+    for label in FAILURE_SAMPLE_LABELS:
+        report = selected.get(label)
+        if not report:
+            pending.append(label)
+            continue
+        record = build_liquidation_failure_sample_record(
+            report,
+            label=label,
+            executor_address=executor_address,
+            router_address=router_address,
+            deadline_seconds=deadline_seconds,
+        )
+        sample_id = recorder(database_url, **record)
+        inserted.append(
+            {
+                "id": int(sample_id or 0),
+                "label": label,
+                "account": record.get("account"),
+                "failure_reason": record.get("failure_reason"),
+            }
+        )
+    return {
+        "database_url_configured": bool(database_url),
+        "inserted_count": len(inserted),
+        "inserted": inserted,
+        "pending_labels": pending,
+    }
 
 
 def build_liquidation_sample_manifest(

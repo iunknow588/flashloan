@@ -1,4 +1,5 @@
 from db import storage_common
+from db.storage_liquidation_pool import load_liquidation_accounts_for_assets
 from tools.benchmark_db_pool import run_benchmark
 
 
@@ -84,3 +85,45 @@ def test_synthetic_pool_benchmark_improves_connection_latency():
     result = run_benchmark(operations=50, connect_delay_ms=1.0)
 
     assert result["improvement_percent"] > 50.0
+
+
+def test_load_liquidation_accounts_for_assets_queries_core_pool(monkeypatch):
+    captured = {}
+
+    class FakeCursor:
+        def execute(self, sql, params):
+            captured["sql"] = sql
+            captured["params"] = params
+
+        @staticmethod
+        def fetchall():
+            return [("0x1",), ("0x2",)]
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        @staticmethod
+        def cursor():
+            class CursorContext:
+                def __enter__(self):
+                    return FakeCursor()
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+            return CursorContext()
+
+    monkeypatch.setattr(storage_common, "db_connection", lambda *args, **kwargs: FakeConnection())
+    import db.storage_liquidation_pool as pool_storage
+
+    monkeypatch.setattr(pool_storage, "db_connection", lambda *args, **kwargs: FakeConnection())
+
+    accounts = load_liquidation_accounts_for_assets("postgresql://example", ["WAVAX", "USDC"], limit=10)
+
+    assert accounts == ["0x1", "0x2"]
+    assert "liquidation_core_opportunity_pool" in captured["sql"]
+    assert captured["params"] == (["WAVAX", "USDC"], ["WAVAX", "USDC"], 10)

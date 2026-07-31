@@ -12,7 +12,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.env_loader import load_env_files
 from db.storage import ensure_database_schema, load_latest_liquidation_account_reports
-from execution.liquidation_samples import write_liquidation_sample_library
+from execution.liquidation_samples import serialize_liquidation_failure_samples, write_liquidation_sample_library
 
 
 load_env_files(__file__)
@@ -29,6 +29,7 @@ def main() -> int:
     parser.add_argument("--deadline-seconds", type=int, default=300, help="Deadline offset used when building payload samples.")
     parser.add_argument("--executor", default=os.getenv("LIQUIDATION_EXECUTOR_ADDRESS", "").strip(), help="Optional executor address for payload samples.")
     parser.add_argument("--router", default=os.getenv("DEX_ROUTER_ADDRESS", "").strip(), help="Optional router address for payload samples.")
+    parser.add_argument("--write-failure-samples", action="store_true", help="Also serialize selected failure samples into liquidation_failure_samples.")
     args = parser.parse_args()
 
     database_url = os.getenv("DATABASE_URL", "").strip()
@@ -62,12 +63,22 @@ def main() -> int:
         router_address=args.router,
         deadline_seconds=args.deadline_seconds,
     )
+    db_result = None
+    if args.write_failure_samples:
+        db_result = serialize_liquidation_failure_samples(
+            database_url,
+            normalized_reports,
+            executor_address=args.executor,
+            router_address=args.router,
+            deadline_seconds=args.deadline_seconds,
+        )
     print(
         json.dumps(
             {
                 "output": args.output,
                 "source_count": manifest.get("source_count"),
                 "ready_labels": [item["label"] for item in manifest.get("samples", []) if item.get("status") == "ready"],
+                "failure_sample_db_result": db_result,
             },
             ensure_ascii=False,
             indent=2,

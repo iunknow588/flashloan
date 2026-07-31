@@ -21,7 +21,9 @@ from db.storage import (
     record_liquidation_account_scan,
     record_liquidation_borrow_health_scan_batch as db_record_liquidation_borrow_health_scan_batch,
 )
-from web.control_panel_liquidation_base import *
+import web.control_panel_liquidation_base as liquidation_base
+
+globals().update({name: value for name, value in vars(liquidation_base).items() if not name.startswith("_")})
 
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
 LIQUIDATION_ACCOUNT_BACKFILL_CACHE: dict[str, object] = {

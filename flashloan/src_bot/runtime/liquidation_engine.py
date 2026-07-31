@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -14,12 +15,14 @@ Submitter = Callable[[dict[str, Any]], dict[str, Any]]
 AttemptRecorder = Callable[..., Any]
 ControlsLoader = Callable[[], dict[str, Any]]
 PriceSnapshotLoader = Callable[[], dict[str, float]]
+PriceEventLoader = Callable[[], list[dict[str, Any]]]
 AffectedAccountLoader = Callable[[list[str]], list[str]]
 
 
 @dataclass(frozen=True)
 class LiquidationEngineConfig:
     poll_interval_seconds: float = 30.0
+    event_poll_interval_seconds: float = 5.0
     auto_execute: bool = False
     price_change_threshold_bps: int = 100
     max_accounts_per_tick: int = 100
@@ -32,6 +35,7 @@ class LiquidationEngineConfig:
     def from_env(cls) -> "LiquidationEngineConfig":
         return cls(
             poll_interval_seconds=max(1.0, float(os.getenv("LIQUIDATION_ENGINE_POLL_SECONDS", "30"))),
+            event_poll_interval_seconds=max(1.0, float(os.getenv("LIQUIDATION_EVENT_POLL_SECONDS", "5"))),
             auto_execute=os.getenv("LIQUIDATION_AUTO_EXECUTE", "false").strip().lower() in {"1", "true", "yes", "on"},
             price_change_threshold_bps=max(1, int(os.getenv("LIQUIDATION_PRICE_TRIGGER_BPS", "100") or 100)),
             max_accounts_per_tick=max(1, int(os.getenv("LIQUIDATION_ENGINE_MAX_ACCOUNTS", "100") or 100)),
@@ -47,6 +51,7 @@ class LiquidationEngineDependencies:
     record_attempt: AttemptRecorder
     load_controls: ControlsLoader
     load_price_snapshot: PriceSnapshotLoader | None = None
+    load_price_events: PriceEventLoader | None = None
     load_affected_accounts: AffectedAccountLoader | None = None
 
 
@@ -60,41 +65,54 @@ class LiquidationEngine:
         self.config = config or LiquidationEngineConfig.from_env()
         self._stop = threading.Event()
         self._last_prices: dict[str, float] = {}
+        self._last_full_poll_at = 0.0
 
     def stop(self) -> None:
         self._stop.set()
 
     async def run_forever(self) -> None:
         while not self._stop.is_set():
-            self.run_once()
-            await asyncio.sleep(self.config.poll_interval_seconds)
+            now = time.monotonic()
+            full_poll_due = now - self._last_full_poll_at >= self.config.poll_interval_seconds
+            self.run_once(allow_poll=full_poll_due)
+            if full_poll_due:
+                self._last_full_poll_at = now
+            sleep_seconds = self.config.event_poll_interval_seconds if self.dependencies.load_price_events else self.config.poll_interval_seconds
+            await asyncio.sleep(max(1.0, min(self.config.poll_interval_seconds, sleep_seconds)))
 
     def run_in_thread(self, *, name: str = "liquidation-engine") -> threading.Thread:
         thread = threading.Thread(target=lambda: asyncio.run(self.run_forever()), name=name, daemon=True)
         thread.start()
         return thread
 
-    def price_triggered_accounts(self) -> tuple[list[str], list[str]]:
+    def price_triggered_accounts(self) -> tuple[list[str], list[str], list[dict[str, Any]]]:
         loader = self.dependencies.load_price_snapshot
+        event_loader = self.dependencies.load_price_events
         affected_loader = self.dependencies.load_affected_accounts
-        if loader is None or affected_loader is None:
-            return [], []
+        if affected_loader is None:
+            return [], [], []
 
-        current = loader() or {}
+        current = loader() if loader is not None else {}
+        current = current or {}
         changed_assets: list[str] = []
+        oracle_events = event_loader() if event_loader is not None else []
+        for event in oracle_events or []:
+            asset = str(event.get("asset") or "").strip()
+            if asset and asset not in changed_assets:
+                changed_assets.append(asset)
         for asset, price in current.items():
             previous = self._last_prices.get(asset)
             self._last_prices[asset] = float(price)
             if previous is None or previous <= 0:
                 continue
             change_bps = abs(float(price) - previous) / previous * 10000
-            if change_bps >= self.config.price_change_threshold_bps:
+            if change_bps >= self.config.price_change_threshold_bps and asset not in changed_assets:
                 changed_assets.append(asset)
         if not changed_assets:
-            return [], []
-        return changed_assets, affected_loader(changed_assets)
+            return [], [], oracle_events
+        return changed_assets, affected_loader(changed_assets), oracle_events
 
-    def run_once(self, accounts: list[str] | None = None) -> dict[str, Any]:
+    def run_once(self, accounts: list[str] | None = None, *, allow_poll: bool = True) -> dict[str, Any]:
         controls = self.dependencies.load_controls()
         if controls.get("auto_pause_active") or int(controls.get("circuit_breaker_level") or 0) >= 3:
             return {
@@ -105,15 +123,17 @@ class LiquidationEngine:
                 "controls": controls,
             }
 
-        changed_assets, event_accounts = self.price_triggered_accounts()
-        candidate_accounts = accounts or event_accounts or self.dependencies.load_accounts()
+        changed_assets, event_accounts, oracle_events = self.price_triggered_accounts()
+        candidate_accounts = accounts or event_accounts or (self.dependencies.load_accounts() if allow_poll else [])
         candidate_accounts = list(dict.fromkeys(candidate_accounts))[: self.config.max_accounts_per_tick]
         processed = [self.process_account(account) for account in candidate_accounts]
+        trigger = "oracle_event" if oracle_events else ("price_event" if event_accounts else ("poll" if allow_poll else "idle"))
         return {
             "mode": self.config.mode,
             "state": "completed",
-            "trigger": "price_event" if event_accounts else "poll",
+            "trigger": trigger,
             "changed_assets": changed_assets,
+            "oracle_events": oracle_events,
             "processed": processed,
             "controls": controls,
         }

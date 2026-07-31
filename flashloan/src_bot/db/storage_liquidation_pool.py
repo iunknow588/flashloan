@@ -387,6 +387,33 @@ def load_liquidation_core_opportunity_pool(database_url: str, limit: int = 100) 
     ]
 
 
+def load_liquidation_accounts_for_assets(
+    database_url: str,
+    assets: list[str],
+    limit: int = 500,
+) -> list[str]:
+    normalized_assets = [str(asset).strip() for asset in assets if str(asset or "").strip()]
+    if not normalized_assets:
+        return []
+    with db_connection(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT account
+                FROM liquidation_core_opportunity_pool
+                WHERE active = TRUE
+                  AND (
+                    best_debt_asset = ANY(%s)
+                    OR best_collateral_asset = ANY(%s)
+                  )
+                ORDER BY account
+                LIMIT %s
+                """,
+                (normalized_assets, normalized_assets, int(limit)),
+            )
+            return [str(row[0]) for row in cursor.fetchall()]
+
+
 def _load_pool_rows(database_url: str, table: str, order_by: str, limit: int) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
