@@ -17,6 +17,7 @@ from execution.liquidation_abis import (
     LIQUIDATION_DATA_PROVIDER_ABI,
     POOL_ACCOUNT_DATA_ABI,
 )
+from execution.liquidation_realtime_params import read_aave_flashloan_premium
 
 
 @dataclass(frozen=True)
@@ -263,6 +264,7 @@ def build_liquidation_candidates(
     positions: list[dict],
     liquidation_data_provider_address: str,
     config: LiquidationScanConfig,
+    realtime_params: dict[str, Any] | None = None,
 ) -> list[dict]:
     if not liquidation_data_provider_address:
         return []
@@ -272,6 +274,9 @@ def build_liquidation_candidates(
         return []
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
     provider = _safe_contract(w3, liquidation_data_provider_address, LIQUIDATION_DATA_PROVIDER_ABI)
+    flashloan_premium = (realtime_params or {}).get("flashloan_premium") or {}
+    flashloan_fee_percent = float(flashloan_premium.get("premium_percent") or config.flashloan_fee_percent)
+    flashloan_premium_source = str(flashloan_premium.get("source") or "fallback_config")
     candidates: list[dict] = []
     for collateral in active_collateral:
         for debt in active_debts:
@@ -291,14 +296,18 @@ def build_liquidation_candidates(
             profit = estimate_liquidation_profit(
                 repay_base,
                 config.liquidation_bonus_percent,
-                config.flashloan_fee_percent,
+                flashloan_fee_percent,
                 config.dex_slippage_percent,
                 config.gas_cost_usd,
                 repay_fraction=repay_fraction,
                 mev_buffer_usd=config.mev_buffer_usd,
                 retry_buffer_usd=config.retry_buffer_usd,
+                flashloan_premium_source=flashloan_premium_source,
             )
             profit["repay_base_source"] = repay_base_source
+            profit["flashloan_premium_bps"] = flashloan_premium.get("premium_bps")
+            profit["flashloan_premium_block_number"] = flashloan_premium.get("block_number")
+            profit["flashloan_premium_read_at"] = flashloan_premium.get("read_at")
             collateral_decimals = int(collateral.get("decimals") or 18)
             debt_decimals = int(debt.get("decimals") or 18)
             max_collateral = int(info["max_collateral_to_liquidate"])
@@ -332,6 +341,14 @@ def build_liquidation_candidates(
                     "amount_to_pass_to_liquidation_call_amount": _token_amount(amount_to_pass, debt_decimals),
                     "repay_base_source": repay_base_source,
                     "estimated_profit": profit,
+                    "parameter_sources": {
+                        "amount_to_pass_source": repay_base_source,
+                        "close_factor_source": "fallback_config" if repay_base_source == "close_factor_fallback" else "liquidation_data_provider",
+                        "liquidation_bonus_source": "fallback_config",
+                        "protocol_fee_source": "liquidation_data_provider",
+                        "flashloan_premium_source": flashloan_premium_source,
+                        "flashloan_premium_block_number": flashloan_premium.get("block_number"),
+                    },
                 }
             )
     candidates.sort(
@@ -411,8 +428,22 @@ def build_user_liquidation_report(
             positions = []
     if not summary:
         summary = fetch_user_account_data(pool_address, checksum_user, rpc_url)
+    realtime_params = {
+        "flashloan_premium": read_aave_flashloan_premium(
+            rpc_url,
+            pool_address,
+            fallback_percent=config.flashloan_fee_percent,
+        )
+    }
     if liquidation_data_provider_address and positions:
-        candidates = build_liquidation_candidates(rpc_url, checksum_user, positions, liquidation_data_provider_address, config)
+        candidates = build_liquidation_candidates(
+            rpc_url,
+            checksum_user,
+            positions,
+            liquidation_data_provider_address,
+            config,
+            realtime_params=realtime_params,
+        )
     liquidation_state = "healthy"
     health_factor = float(summary.get("health_factor") or 0.0)
     if health_factor < config.liquidation_health_factor:
@@ -457,6 +488,7 @@ def build_user_liquidation_report(
         ],
         "liquidation_candidates": candidates,
         "recommended_candidate": candidates[0] if candidates else None,
+        "realtime_params": realtime_params,
     }
     report["execution_plan"] = build_liquidation_execution_plan(
         checksum_user,

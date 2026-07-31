@@ -100,6 +100,56 @@ def register_liquidation_routes(app, panel) -> None:
     def liquidation_borrow_pool_scan_api():
         return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=True))
 
+    @app.get("/api/liquidation/borrow-pool/batches")
+    def liquidation_borrow_pool_batches_api():
+        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "batches": [], "error": "DATABASE_URL is required"})
+        try:
+            panel_call("ensure_database_schema", database_url)
+            return jsonify({"configured": True, "batches": panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=limit)})
+        except Exception as exc:
+            return jsonify({"configured": True, "batches": [], "error": str(exc)}), 400
+
+    @app.get("/api/liquidation/borrow-pool/latest-batch")
+    def liquidation_borrow_pool_latest_batch_api():
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "batch": None, "error": "DATABASE_URL is required"})
+        try:
+            panel_call("ensure_database_schema", database_url)
+            batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1)
+            return jsonify({"configured": True, "batch": batches[0] if batches else None})
+        except Exception as exc:
+            return jsonify({"configured": True, "batch": None, "error": str(exc)}), 400
+
+    @app.get("/api/liquidation/high-frequency-pool")
+    def liquidation_high_frequency_pool_api():
+        limit = max(1, min(int(request.args.get("limit", "100")), 500))
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
+        try:
+            panel_call("ensure_database_schema", database_url)
+            rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=limit)
+            return jsonify({"configured": True, "count": len(rows), "rows": rows})
+        except Exception as exc:
+            return jsonify({"configured": True, "rows": [], "error": str(exc)}), 400
+
+    @app.get("/api/liquidation/core-opportunities")
+    def liquidation_core_opportunities_api():
+        limit = max(1, min(int(request.args.get("limit", "100")), 500))
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
+        try:
+            panel_call("ensure_database_schema", database_url)
+            rows = panel_call("db_load_liquidation_core_opportunity_pool", database_url, limit=limit)
+            return jsonify({"configured": True, "count": len(rows), "rows": rows})
+        except Exception as exc:
+            return jsonify({"configured": True, "rows": [], "error": str(exc)}), 400
+
     @app.post("/api/liquidation-discovery")
     def liquidation_discovery_api():
         payload = request.get_json(silent=True) or {}
@@ -151,6 +201,16 @@ def register_liquidation_routes(app, panel) -> None:
     def liquidation_failure_samples_api():
         limit = max(1, min(int(request.args.get("limit", "20")), 100))
         return jsonify(panel_call("recent_liquidation_failure_samples", limit=limit))
+
+    @app.get("/api/liquidation/account/<account>/attempts")
+    def liquidation_account_attempts_api(account: str):
+        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        return jsonify(panel_call("liquidation_execution_attempts_for_account", account, limit=limit))
+
+    @app.get("/api/liquidation/account/<account>/samples")
+    def liquidation_account_samples_api(account: str):
+        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        return jsonify(panel_call("liquidation_failure_samples_for_account", account, limit=limit))
 
     @app.get("/api/liquidation/pause-guard")
     def liquidation_pause_guard_api():
@@ -204,6 +264,34 @@ def register_liquidation_routes(app, panel) -> None:
             return jsonify(panel_call("simulate_liquidation_static_call", payload))
         except Exception as exc:
             return jsonify({"error": str(exc), "account": account}), 400
+
+    @app.post("/api/liquidation/account/<account>/static-call-and-save")
+    def liquidation_account_static_call_and_save_api(account: str):
+        account = str(account or "").strip()
+        if not account:
+            return jsonify({"error": "account is required"}), 400
+        payload: dict | None = None
+        try:
+            payload = panel_call("liquidation_execution_payload_for_account", account)
+            result = panel_call("simulate_liquidation_static_call", payload)
+            preflight = result.get("preflight") or {}
+            state = "static_call_passed" if preflight.get("static_call_passed") else "static_call_failed"
+            panel_call(
+                "record_liquidation_execution_attempt_safely",
+                account=account,
+                mode="static_call",
+                state=state,
+                blocked_reasons=result.get("blocked_reasons") or [],
+                request_payload=result.get("request") or {},
+                quote=result.get("dex_quote") or {},
+                preflight=preflight,
+                error=preflight.get("static_call_error"),
+            )
+            return jsonify(result)
+        except Exception as exc:
+            response = liquidation_failure_response(account, payload, exc)
+            record_liquidation_route_failure(account, "static_call", response, exc)
+            return jsonify(response), 400
 
     @app.get("/api/liquidation/preflight/<account>")
     def liquidation_account_preflight_by_path_api(account: str):

@@ -3,6 +3,48 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, require_psycopg
+from execution.liquidation_priority import liquidation_account_activity_tier
+
+
+def _upsert_scan_config_snapshot_cursor(
+    cursor,
+    *,
+    config_key: str,
+    source_table: str,
+    payload: dict[str, Any],
+    category: str = "scan",
+    source_key: str | None = None,
+    active: bool = True,
+) -> None:
+    item = dict(payload or {})
+    item.setdefault("config_key", config_key)
+    item.setdefault("source_table", source_table)
+    cursor.execute(
+        """
+        INSERT INTO liquidation_scan_config_library (
+            config_key, category, source_table, source_key,
+            active, payload_json, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        ON CONFLICT (config_key) DO UPDATE SET
+            category = EXCLUDED.category,
+            source_table = EXCLUDED.source_table,
+            source_key = EXCLUDED.source_key,
+            active = EXCLUDED.active,
+            payload_json = EXCLUDED.payload_json,
+            updated_at = NOW()
+        """,
+        (
+            config_key,
+            str(category or "scan"),
+            source_table,
+            str(source_key) if source_key is not None else None,
+            bool(active),
+            json.dumps(item, ensure_ascii=True, separators=(",", ":")),
+        ),
+    )
+
+
 def record_liquidation_discovery_scan(
     database_url: str,
     *,
@@ -83,6 +125,265 @@ def liquidation_discovery_scan_progress(database_url: str, pool_address: str) ->
             }
 
 
+def record_liquidation_scan_config_snapshot(
+    database_url: str,
+    *,
+    config_key: str,
+    source_table: str,
+    payload: dict[str, Any],
+    category: str = "scan",
+    source_key: str | None = None,
+    active: bool = True,
+) -> dict[str, Any]:
+    key = str(config_key or "").strip()
+    table = str(source_table or "").strip()
+    if not key or not table:
+        return {}
+    item = dict(payload or {})
+    item.setdefault("config_key", key)
+    item.setdefault("source_table", table)
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO liquidation_scan_config_library (
+                    config_key, category, source_table, source_key,
+                    active, payload_json, updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (config_key) DO UPDATE SET
+                    category = EXCLUDED.category,
+                    source_table = EXCLUDED.source_table,
+                    source_key = EXCLUDED.source_key,
+                    active = EXCLUDED.active,
+                    payload_json = EXCLUDED.payload_json,
+                    updated_at = NOW()
+                """,
+                (
+                    key,
+                    str(category or "scan"),
+                    table,
+                    str(source_key) if source_key is not None else None,
+                    bool(active),
+                    json.dumps(item, ensure_ascii=True, separators=(",", ":")),
+                ),
+            )
+    return item
+
+
+def load_liquidation_scan_config_library(
+    database_url: str,
+    *,
+    category: str | None = None,
+    active_only: bool = True,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    psycopg = require_psycopg()
+    query = """
+        SELECT config_key, category, source_table, source_key, active, payload_json, updated_at
+        FROM liquidation_scan_config_library
+        WHERE 1=1
+    """
+    params: list[Any] = []
+    if category:
+        query += " AND category = %s"
+        params.append(str(category))
+    if active_only:
+        query += " AND active = TRUE"
+    query += " ORDER BY updated_at DESC, config_key ASC LIMIT %s"
+    params.append(max(1, int(limit)))
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        result.append(
+            {
+                "config_key": str(row[0]),
+                "category": str(row[1]),
+                "source_table": str(row[2]),
+                "source_key": str(row[3]) if row[3] else None,
+                "active": bool(row[4]),
+                "payload": _json_or_default(row[5], {}),
+                "updated_at": row[6].isoformat() if row[6] else None,
+            }
+        )
+    return result
+
+
+def rebuild_liquidation_scan_config_library(database_url: str) -> dict[str, Any]:
+    psycopg = require_psycopg()
+    rebuilt: list[str] = []
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_count,
+                    COUNT(*) FILTER (WHERE active = TRUE) AS active_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'hot') AS hot_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'warm') AS warm_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND (activity_tier = 'cold' OR activity_tier IS NULL)) AS cold_count,
+                    MIN(scan_start_at) AS earliest_scan_start_at,
+                    MAX(scan_end_at) AS latest_scan_end_at
+                FROM liquidation_accounts
+                """
+            )
+            row = cursor.fetchone() or (0, 0, 0, 0, 0, None, None)
+            cursor.execute(
+                """
+                SELECT account
+                FROM liquidation_accounts
+                WHERE active = TRUE
+                ORDER BY
+                    CASE
+                        WHEN activity_tier = 'hot' THEN 0
+                        WHEN activity_tier = 'warm' THEN 1
+                        WHEN activity_tier = 'cold' THEN 2
+                        ELSE 1
+                    END,
+                    COALESCE(last_scanned_at, scan_end_at, updated_at) DESC,
+                    account ASC
+                LIMIT 100
+                """
+            )
+            sample_accounts = [str(item[0]) for item in cursor.fetchall() if item and item[0]]
+            _upsert_scan_config_snapshot_cursor(
+                cursor,
+                config_key="liquidation_accounts.latest",
+                source_table="liquidation_accounts",
+                payload={
+                    "total_count": int(row[0] or 0),
+                    "active_count": int(row[1] or 0),
+                    "hot_count": int(row[2] or 0),
+                    "warm_count": int(row[3] or 0),
+                    "cold_count": int(row[4] or 0),
+                    "earliest_scan_start_at": row[5].isoformat() if row[5] else None,
+                    "latest_scan_end_at": row[6].isoformat() if row[6] else None,
+                    "sample_accounts": sample_accounts,
+                    "rebuilt_from_existing_tables": True,
+                },
+            )
+            rebuilt.append("liquidation_accounts.latest")
+
+            cursor.execute(
+                """
+                SELECT mode, status, rpc_url, pool_address, from_block, to_block,
+                       scan_start_at, scan_end_at, discovered_count, error
+                FROM liquidation_discovery_scans
+                WHERE status = 'success'
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            if row:
+                payload = {
+                    "mode": row[0],
+                    "status": row[1],
+                    "rpc_url": row[2],
+                    "pool_address": row[3],
+                    "from_block": int(row[4]),
+                    "to_block": int(row[5]),
+                    "scan_start_at": row[6].isoformat() if row[6] else None,
+                    "scan_end_at": row[7].isoformat() if row[7] else None,
+                    "discovered_count": int(row[8] or 0),
+                    "error": row[9],
+                    "rebuilt_from_existing_tables": True,
+                }
+                _upsert_scan_config_snapshot_cursor(
+                    cursor,
+                    config_key="liquidation_discovery_scans.latest_success",
+                    source_table="liquidation_discovery_scans",
+                    payload=payload,
+                    active=True,
+                )
+                rebuilt.append("liquidation_discovery_scans.latest_success")
+
+            pool_specs = [
+                ("liquidation_borrow_health_pool.latest", "liquidation_borrow_health_pool", "health_factor ASC, updated_at DESC"),
+                ("liquidation_high_frequency_pool.latest", "liquidation_high_frequency_pool", "priority_score DESC, health_factor ASC, updated_at DESC"),
+                ("liquidation_core_opportunity_pool.latest", "liquidation_core_opportunity_pool", "priority_score DESC, health_factor ASC, updated_at DESC"),
+            ]
+            for config_key, table, order_by in pool_specs:
+                cursor.execute(
+                    f"""
+                    SELECT COUNT(*) AS active_count,
+                           MIN(health_factor) AS min_health_factor,
+                           MAX(updated_at) AS latest_updated_at
+                    FROM {table}
+                    WHERE active = TRUE
+                    """
+                )
+                row = cursor.fetchone() or (0, None, None)
+                cursor.execute(
+                    f"""
+                    SELECT account
+                    FROM {table}
+                    WHERE active = TRUE
+                    ORDER BY {order_by}
+                    LIMIT 100
+                    """
+                )
+                active_accounts = [str(item[0]) for item in cursor.fetchall() if item and item[0]]
+                _upsert_scan_config_snapshot_cursor(
+                    cursor,
+                    config_key=config_key,
+                    source_table=table,
+                    payload={
+                        "active_count": int(row[0] or 0),
+                        "min_health_factor": float(row[1]) if row[1] is not None else None,
+                        "latest_updated_at": row[2].isoformat() if row[2] else None,
+                        "active_accounts": active_accounts,
+                        "rebuilt_from_existing_tables": True,
+                    },
+                    active=bool(active_accounts),
+                )
+                rebuilt.append(config_key)
+
+            cursor.execute(
+                """
+                SELECT id, started_at, finished_at, status, account_count, scanned_count,
+                       risk_count, error_count, entered_count, exited_count, rpc_url,
+                       block_number, watch_health_factor, error, metadata_json
+                FROM liquidation_borrow_health_scan_batches
+                ORDER BY started_at DESC, id DESC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            if row:
+                _upsert_scan_config_snapshot_cursor(
+                    cursor,
+                    config_key="liquidation_borrow_health_scan_batches.latest",
+                    source_table="liquidation_borrow_health_scan_batches",
+                    source_key=str(row[0]),
+                    payload={
+                        "batch_id": int(row[0]),
+                        "started_at": row[1].isoformat() if row[1] else None,
+                        "finished_at": row[2].isoformat() if row[2] else None,
+                        "status": row[3],
+                        "account_count": int(row[4] or 0),
+                        "scanned_count": int(row[5] or 0),
+                        "risk_count": int(row[6] or 0),
+                        "error_count": int(row[7] or 0),
+                        "entered_count": int(row[8] or 0),
+                        "exited_count": int(row[9] or 0),
+                        "rpc_url": row[10],
+                        "block_number": int(row[11]) if row[11] is not None else None,
+                        "watch_health_factor": float(row[12]) if row[12] is not None else None,
+                        "error": row[13],
+                        "metadata": _json_or_default(row[14], {}),
+                        "rebuilt_from_existing_tables": True,
+                    },
+                    active=True,
+                )
+                rebuilt.append("liquidation_borrow_health_scan_batches.latest")
+    return {"rebuilt_count": len(rebuilt), "config_keys": rebuilt}
+
+
 def upsert_liquidation_accounts(
     database_url: str,
     accounts: Iterable[str],
@@ -129,6 +430,20 @@ def upsert_liquidation_accounts(
                 """,
                 values,
             )
+            _upsert_scan_config_snapshot_cursor(
+                cursor,
+                config_key="liquidation_accounts.latest",
+                source_table="liquidation_accounts",
+                payload={
+                    "source": source,
+                    "active": bool(active),
+                    "update_existing": bool(update_existing),
+                    "account_count": len(unique_accounts),
+                    "scan_start_at": started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at),
+                    "scan_end_at": now.isoformat() if hasattr(now, "isoformat") else str(now),
+                    "sample_accounts": unique_accounts[:100],
+                },
+            )
     return unique_accounts
 
 
@@ -154,7 +469,17 @@ def load_liquidation_accounts(
     if scan_end_before is not None:
         query += " AND scan_end_at <= %s"
         params.append(scan_end_before)
-    query += " ORDER BY scan_end_at DESC, account ASC"
+    query += """
+        ORDER BY
+            CASE
+                WHEN activity_tier = 'hot' THEN 0
+                WHEN activity_tier = 'warm' THEN 1
+                WHEN activity_tier = 'cold' THEN 2
+                ELSE 1
+            END,
+            COALESCE(last_scanned_at, scan_end_at, updated_at) DESC,
+            account ASC
+    """
     with psycopg.connect(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
@@ -170,6 +495,9 @@ def liquidation_account_registry_stats(database_url: str, retained_days: int = 3
                 SELECT
                     COUNT(*) AS total_count,
                     COUNT(*) FILTER (WHERE active = TRUE) AS active_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'hot') AS hot_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'warm') AS warm_count,
+                    COUNT(*) FILTER (WHERE active = TRUE AND (activity_tier = 'cold' OR activity_tier IS NULL)) AS cold_count,
                     MIN(scan_start_at) AS earliest_scan_start_at,
                     MAX(scan_end_at) AS latest_scan_end_at
                 FROM liquidation_accounts
@@ -179,8 +507,11 @@ def liquidation_account_registry_stats(database_url: str, retained_days: int = 3
             return {
                 "total_count": int(row[0] or 0),
                 "active_count": int(row[1] or 0),
-                "earliest_scan_start_at": row[2].isoformat() if row[2] else None,
-                "latest_scan_end_at": row[3].isoformat() if row[3] else None,
+                "hot_count": int(row[2] or 0),
+                "warm_count": int(row[3] or 0),
+                "cold_count": int(row[4] or 0),
+                "earliest_scan_start_at": row[5].isoformat() if row[5] else None,
+                "latest_scan_end_at": row[6].isoformat() if row[6] else None,
                 "retained_days": int(retained_days),
             }
 
@@ -191,6 +522,7 @@ def load_latest_liquidation_account_reports(database_url: str, limit: int = 500)
         SELECT
             account, source, active, scan_start_at, scan_end_at, last_scanned_at,
             last_health_factor, last_status, last_health_factor_band, last_candidate_count,
+            last_total_collateral_base, last_total_debt_base, activity_tier,
             last_summary_json, last_report_json
         FROM liquidation_accounts
         WHERE last_report_json IS NOT NULL OR last_summary_json IS NOT NULL
@@ -206,13 +538,13 @@ def load_latest_liquidation_account_reports(database_url: str, limit: int = 500)
         summary = {}
         report = {}
         try:
-            if row[10]:
-                summary = json.loads(row[10]) if isinstance(row[10], str) else {}
+            if row[13]:
+                summary = json.loads(row[13]) if isinstance(row[13], str) else {}
         except json.JSONDecodeError:
             summary = {}
         try:
-            if row[11]:
-                report = json.loads(row[11]) if isinstance(row[11], str) else {}
+            if row[14]:
+                report = json.loads(row[14]) if isinstance(row[14], str) else {}
         except json.JSONDecodeError:
             report = {}
         reports.append(
@@ -227,6 +559,9 @@ def load_latest_liquidation_account_reports(database_url: str, limit: int = 500)
                 "last_status": str(row[7]) if row[7] else None,
                 "last_health_factor_band": str(row[8]) if row[8] else None,
                 "last_candidate_count": int(row[9]) if row[9] is not None else None,
+                "last_total_collateral_base": float(row[10]) if row[10] is not None else None,
+                "last_total_debt_base": float(row[11]) if row[11] is not None else None,
+                "activity_tier": str(row[12]) if row[12] else None,
                 "summary": summary,
                 "report": report,
             }
@@ -243,6 +578,13 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
     if not account:
         return
     summary = report.get("summary") or {}
+    account_tier = liquidation_account_activity_tier(
+        {
+            "last_status": summary.get("status"),
+            "last_health_factor": summary.get("health_factor"),
+            "last_total_debt_base": summary.get("total_debt_base") or report.get("total_debt_base"),
+        }
+    )
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
@@ -271,6 +613,7 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                     scan_start_at, scan_end_at,
                     last_scanned_at, last_health_factor, last_status,
                     last_health_factor_band, last_candidate_count,
+                    last_total_collateral_base, last_total_debt_base, activity_tier,
                     last_summary_json, last_report_json
                 )
                 VALUES (
@@ -278,6 +621,7 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                     COALESCE(%s, NOW()), NOW(),
                     NOW(), %s, %s,
                     %s, %s,
+                    %s, %s, %s,
                     %s, %s
                 )
                 ON CONFLICT (account) DO UPDATE SET
@@ -291,6 +635,9 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                     last_status = EXCLUDED.last_status,
                     last_health_factor_band = EXCLUDED.last_health_factor_band,
                     last_candidate_count = EXCLUDED.last_candidate_count,
+                    last_total_collateral_base = EXCLUDED.last_total_collateral_base,
+                    last_total_debt_base = EXCLUDED.last_total_debt_base,
+                    activity_tier = EXCLUDED.activity_tier,
                     last_summary_json = EXCLUDED.last_summary_json,
                     last_report_json = EXCLUDED.last_report_json
                 """,
@@ -301,6 +648,9 @@ def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -
                     summary.get("status"),
                     summary.get("health_factor_band"),
                     summary.get("candidate_count"),
+                    summary.get("total_collateral_base") or report.get("total_collateral_base") or report.get("total_collateral_in_base_currency"),
+                    summary.get("total_debt_base") or report.get("total_debt_base") or report.get("total_debt_in_base_currency"),
+                    account_tier,
                     json.dumps(summary, ensure_ascii=True, separators=(",", ":")),
                     json.dumps(report, ensure_ascii=True, separators=(",", ":")),
                 ),
@@ -425,6 +775,44 @@ def load_recent_liquidation_failure_samples(database_url: str, limit: int = 20) 
     return samples
 
 
+def load_liquidation_failure_samples_for_account(
+    database_url: str,
+    account: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id, account, block_number, collateral_asset, debt_asset,
+                    failure_type, failure_reason, payload_json, source, created_at
+                FROM liquidation_failure_samples
+                WHERE lower(account) = lower(%s)
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (account, max(1, int(limit))),
+            )
+            rows = cursor.fetchall()
+    return [
+        {
+            "id": int(row[0]),
+            "account": str(row[1]) if row[1] else None,
+            "block_number": int(row[2]) if row[2] is not None else None,
+            "collateral_asset": str(row[3]) if row[3] else None,
+            "debt_asset": str(row[4]) if row[4] else None,
+            "failure_type": str(row[5]),
+            "failure_reason": str(row[6]) if row[6] else None,
+            "payload": _json_or_default(row[7], {}),
+            "source": str(row[8]),
+            "created_at": row[9].isoformat() if row[9] else None,
+        }
+        for row in rows
+    ]
+
+
 def load_recent_liquidation_execution_attempts(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:
@@ -462,6 +850,48 @@ def load_recent_liquidation_execution_attempts(database_url: str, limit: int = 2
             }
         )
     return attempts
+
+
+def load_liquidation_execution_attempts_for_account(
+    database_url: str,
+    account: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    psycopg = require_psycopg()
+    with psycopg.connect(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id, account, mode, state, blocked_reasons_json,
+                    request_json, quote_json, preflight_json,
+                    tx_hash, receipt_json, error, created_at, updated_at
+                FROM liquidation_execution_attempts
+                WHERE lower(account) = lower(%s)
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (account, max(1, int(limit))),
+            )
+            rows = cursor.fetchall()
+    return [
+        {
+            "id": int(row[0]),
+            "account": str(row[1]) if row[1] else None,
+            "mode": str(row[2]),
+            "state": str(row[3]),
+            "blocked_reasons": _json_or_default(row[4], []),
+            "request": _json_or_default(row[5], {}),
+            "quote": _json_or_default(row[6], {}),
+            "preflight": _json_or_default(row[7], {}),
+            "tx_hash": str(row[8]) if row[8] else None,
+            "receipt": _json_or_default(row[9], {}),
+            "error": str(row[10]) if row[10] else None,
+            "created_at": row[11].isoformat() if row[11] else None,
+            "updated_at": row[12].isoformat() if row[12] else None,
+        }
+        for row in rows
+    ]
 
 
 def liquidation_execution_attempt_stats(database_url: str) -> dict[str, int]:

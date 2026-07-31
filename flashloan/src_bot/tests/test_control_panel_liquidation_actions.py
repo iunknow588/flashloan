@@ -234,3 +234,45 @@ def test_liquidation_account_flashloan_api_returns_context_on_failure(monkeypatc
     assert captured["mode"] == "flashloan"
     assert captured["state"] == "submission_failed"
     assert captured["error"] == "flashloan failed"
+
+
+def test_liquidation_account_static_call_and_save_api_records_attempt(monkeypatch):
+    from web import control_panel
+
+    captured = {}
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_payload_for_account",
+        lambda account, **kwargs: _failing_payload(account) | {"executor": "0x0000000000000000000000000000000000000002"},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "simulate_liquidation_static_call",
+        lambda payload: {
+            **payload,
+            "preflight": {
+                "static_call_required": True,
+                "static_call_status": "passed",
+                "static_call_passed": True,
+                "static_call_error": None,
+            },
+            "blocked_reasons": [],
+            "checks": {},
+        },
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "record_liquidation_execution_attempt_safely",
+        lambda **kwargs: captured.update(kwargs),
+    )
+
+    response = app.test_client().post(
+        "/api/liquidation/account/0x0000000000000000000000000000000000000001/static-call-and-save",
+        json={},
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["preflight"]["static_call_passed"] is True
+    assert captured["mode"] == "static_call"
+    assert captured["state"] == "static_call_passed"

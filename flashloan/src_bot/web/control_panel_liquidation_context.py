@@ -8,8 +8,11 @@ _base_liquidation_account_registry_window = liquidation_base_module.liquidation_
 _base_schema_status_payload = liquidation_base_module.schema_status_payload
 _base_liquidation_discovery_progress = liquidation_base_module.liquidation_discovery_progress
 _base_liquidation_discovery_window = liquidation_base_module.liquidation_discovery_window
+_base_liquidation_scan_config_library = liquidation_base_module.liquidation_scan_config_library
 _audit_recent_liquidation_execution_attempts = liquidation_audit_module.recent_liquidation_execution_attempts
 _audit_recent_liquidation_failure_samples = liquidation_audit_module.recent_liquidation_failure_samples
+_audit_liquidation_execution_attempts_for_account = liquidation_audit_module.liquidation_execution_attempts_for_account
+_audit_liquidation_failure_samples_for_account = liquidation_audit_module.liquidation_failure_samples_for_account
 _audit_record_liquidation_execution_attempt_safely = liquidation_audit_module.record_liquidation_execution_attempt_safely
 _audit_liquidation_pause_guard_status = liquidation_audit_module.liquidation_pause_guard_status
 _audit_clear_liquidation_pause_guard_status = liquidation_audit_module.clear_liquidation_pause_guard_status
@@ -38,20 +41,27 @@ CONTEXT_NAMES = [
     "build_user_liquidation_report",
     "database_url_or_none",
     "db_liquidation_account_registry_stats",
+    "db_load_liquidation_borrow_health_scan_batches",
     "db_load_liquidation_accounts",
     "db_load_liquidation_borrow_health_pool",
+    "db_load_liquidation_core_opportunity_pool",
+    "db_load_liquidation_high_frequency_pool",
+    "db_load_liquidation_scan_config_library",
     "db_prune_liquidation_accounts",
+    "db_record_liquidation_borrow_health_scan_batch",
     "db_sync_liquidation_borrow_health_pool",
     "db_upsert_liquidation_accounts",
     "dex_router_address",
     "discover_borrower_addresses",
     "ensure_database_schema",
     "liquidation_account_payload",
+    "liquidation_account_tier_summary",
     "liquidation_account_registry_window",
     "liquidation_borrow_pool_display_limit",
     "liquidation_borrow_pool_payload",
     "liquidation_borrow_pool_scan_payload",
     "liquidation_config_health",
+    "liquidation_scan_config_library",
     "liquidation_data_provider_address",
     "liquidation_discovery_progress",
     "liquidation_discovery_window",
@@ -68,6 +78,8 @@ CONTEXT_NAMES = [
     "protocol_data_provider_address",
     "recent_liquidation_execution_attempts",
     "recent_liquidation_failure_samples",
+    "liquidation_execution_attempts_for_account",
+    "liquidation_failure_samples_for_account",
     "record_liquidation_execution_attempt_safely",
     "record_liquidation_discovery_window",
     "resolve_discovery_block_range",
@@ -108,6 +120,10 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return liquidation_base_module.liquidation_config_health(chain_id=chain_id)
 
+    def liquidation_scan_config_library(limit: int = 100) -> dict:
+        sync_liquidation_module_context()
+        return _base_liquidation_scan_config_library(limit=limit)
+
     def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
         sync_liquidation_module_context()
         return _audit_recent_liquidation_execution_attempts(limit=limit)
@@ -115,6 +131,18 @@ def install_liquidation_context(panel) -> None:
     def recent_liquidation_failure_samples(limit: int = 20) -> dict:
         sync_liquidation_module_context()
         return _audit_recent_liquidation_failure_samples(limit=limit)
+
+    def liquidation_account_tier_summary() -> dict:
+        sync_liquidation_module_context()
+        return liquidation_scan_module.liquidation_account_tier_summary()
+
+    def liquidation_execution_attempts_for_account(account: str, limit: int = 20) -> dict:
+        sync_liquidation_module_context()
+        return _audit_liquidation_execution_attempts_for_account(account, limit=limit)
+
+    def liquidation_failure_samples_for_account(account: str, limit: int = 20) -> dict:
+        sync_liquidation_module_context()
+        return _audit_liquidation_failure_samples_for_account(account, limit=limit)
 
     def record_liquidation_execution_attempt_safely(**kwargs):
         sync_liquidation_module_context()
@@ -171,8 +199,12 @@ def install_liquidation_context(panel) -> None:
     panel.liquidation_discovery_progress = liquidation_discovery_progress
     panel.liquidation_discovery_window = liquidation_discovery_window
     panel.liquidation_config_health = liquidation_config_health
+    panel.liquidation_scan_config_library = liquidation_scan_config_library
     panel.recent_liquidation_execution_attempts = recent_liquidation_execution_attempts
     panel.recent_liquidation_failure_samples = recent_liquidation_failure_samples
+    panel.liquidation_account_tier_summary = liquidation_account_tier_summary
+    panel.liquidation_execution_attempts_for_account = liquidation_execution_attempts_for_account
+    panel.liquidation_failure_samples_for_account = liquidation_failure_samples_for_account
     panel.record_liquidation_execution_attempt_safely = record_liquidation_execution_attempt_safely
     panel.liquidation_pause_guard_status = liquidation_pause_guard_status
     panel.clear_liquidation_pause_guard_status = clear_liquidation_pause_guard_status

@@ -24,6 +24,7 @@ from db.storage import (
     load_liquidation_accounts as db_load_liquidation_accounts,
     liquidation_account_registry_stats as db_liquidation_account_registry_stats,
     liquidation_discovery_scan_progress as db_liquidation_discovery_scan_progress,
+    load_liquidation_scan_config_library as db_load_liquidation_scan_config_library,
     prune_liquidation_accounts as db_prune_liquidation_accounts,
     record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
     require_psycopg,
@@ -401,6 +402,26 @@ def liquidation_discovery_progress(pool_address: str) -> dict:
         }
 
 
+def liquidation_scan_config_library(limit: int = 100) -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"configured": False, "configs": []}
+    try:
+        ensure_database_schema(database_url)
+        return {"configured": True, "configs": db_load_liquidation_scan_config_library(database_url, limit=limit)}
+    except Exception as exc:
+        return {"configured": True, "configs": [], "error": str(exc)}
+
+
+def liquidation_scan_config_payload(config_key: str) -> dict:
+    configs = liquidation_scan_config_library(limit=100).get("configs") or []
+    for item in configs:
+        if item.get("config_key") == config_key:
+            payload = item.get("payload")
+            return payload if isinstance(payload, dict) else {}
+    return {}
+
+
 def resolve_discovery_block_range(rpc_url: str, from_block: int, to_block: Optional[int]) -> tuple[int, int, int]:
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
     latest_block = int(w3.eth.block_number)
@@ -508,6 +529,15 @@ def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, da
     registry = liquidation_account_registry_window()
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
     progress = liquidation_discovery_progress(pool_address)
+    config_cursor = liquidation_scan_config_payload("liquidation_discovery_scans.latest_success")
+    if not config_cursor:
+        config_cursor = liquidation_scan_config_payload("liquidation_discovery_scans.latest")
+    if progress.get("latest_recent_to_block") is None and config_cursor.get("status") == "success":
+        try:
+            progress["latest_recent_to_block"] = int(config_cursor.get("to_block"))
+            progress["latest_recent_scan_end_at"] = config_cursor.get("scan_end_at")
+        except (TypeError, ValueError):
+            pass
     overlap_blocks = liquidation_discovery_block_overlap()
     latest_recent_to_block = progress.get("latest_recent_to_block")
     latest_end = parse_iso_datetime(progress.get("latest_recent_scan_end_at")) or parse_iso_datetime(registry.get("latest_scan_end_at"))

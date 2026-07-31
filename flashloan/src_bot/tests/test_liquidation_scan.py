@@ -129,6 +129,70 @@ def test_build_liquidation_candidates_uses_amount_to_pass_for_profit(monkeypatch
     assert candidates[0]["estimated_profit"]["repay_base"] == pytest.approx(40)
 
 
+def test_build_liquidation_candidates_uses_realtime_flashloan_premium(monkeypatch):
+    from execution import liquidation_scan
+
+    class FakeProvider:
+        class functions:
+            @staticmethod
+            def getLiquidationInfo(user, collateral, debt):
+                class Call:
+                    @staticmethod
+                    def call():
+                        return (
+                            (0, 2000, 0, 0, 0, 0),
+                            (100, 200, collateral, 500, 500),
+                            (100, 400, debt, 300, 300),
+                            120,
+                            80,
+                            0,
+                            40,
+                        )
+
+                return Call()
+
+    class FakeContract:
+        functions = FakeProvider.functions
+
+    class FakeEth:
+        @staticmethod
+        def contract(address, abi):
+            return FakeContract()
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return value
+
+    monkeypatch.setattr(liquidation_scan, "Web3", FakeWeb3)
+    positions = [
+        {"token_address": "0x1", "symbol": "COLL", "usage_as_collateral_enabled": True, "current_a_token_balance": 500, "current_stable_debt": 0, "current_variable_debt": 0},
+        {"token_address": "0x2", "symbol": "DEBT", "usage_as_collateral_enabled": False, "current_a_token_balance": 0, "current_stable_debt": 300, "current_variable_debt": 0},
+    ]
+
+    candidates = build_liquidation_candidates(
+        "https://rpc.example",
+        "0xabc",
+        positions,
+        "0xdef",
+        LiquidationScanConfig(close_factor=0.5, flashloan_fee_percent=1.0),
+        realtime_params={"flashloan_premium": {"premium_percent": 0.05, "premium_bps": 5, "source": "aave_pool", "block_number": 456}},
+    )
+
+    profit = candidates[0]["estimated_profit"]
+    assert profit["flashloan_premium_source"] == "aave_pool"
+    assert profit["flashloan_premium_bps"] == 5
+    assert profit["flashloan_premium_block_number"] == 456
+    assert candidates[0]["parameter_sources"]["flashloan_premium_source"] == "aave_pool"
+
+
 def test_split_candidate_accounts():
     groups = split_candidate_accounts(
         [

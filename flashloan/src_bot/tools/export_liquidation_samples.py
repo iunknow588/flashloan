@@ -11,7 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
-from db.storage import load_latest_liquidation_account_reports
+from db.storage import ensure_database_schema, load_latest_liquidation_account_reports
 from execution.liquidation_samples import write_liquidation_sample_library
 
 
@@ -35,6 +35,7 @@ def main() -> int:
     if not database_url:
         raise SystemExit("DATABASE_URL is required")
 
+    ensure_database_schema(database_url)
     reports = load_latest_liquidation_account_reports(database_url, limit=args.limit)
     normalized_reports = []
     for item in reports:

@@ -146,6 +146,11 @@ def database_table_counts(database_url: str) -> Optional[dict]:
             (SELECT COUNT(*) FROM liquidation_accounts) AS liquidation_accounts,
             (SELECT COUNT(*) FROM liquidation_discovery_scans) AS liquidation_discovery_scans,
             (SELECT COUNT(*) FROM liquidation_account_health_scans) AS liquidation_account_health_scans,
+            (SELECT COUNT(*) FROM liquidation_borrow_health_pool) AS liquidation_borrow_health_pool,
+            (SELECT COUNT(*) FROM liquidation_high_frequency_pool) AS liquidation_high_frequency_pool,
+            (SELECT COUNT(*) FROM liquidation_core_opportunity_pool) AS liquidation_core_opportunity_pool,
+            (SELECT COUNT(*) FROM liquidation_borrow_health_scan_batches) AS liquidation_borrow_health_scan_batches,
+            (SELECT COUNT(*) FROM liquidation_scan_config_library) AS liquidation_scan_config_library,
             (SELECT COUNT(*) FROM liquidation_failure_samples) AS liquidation_failure_samples,
             (SELECT COUNT(*) FROM schema_migrations) AS schema_migrations,
             (
@@ -172,14 +177,19 @@ def database_table_counts(database_url: str) -> Optional[dict]:
             "liquidation_accounts": int(row[6] or 0),
             "liquidation_discovery_scans": int(row[7] or 0),
             "liquidation_account_health_scans": int(row[8] or 0),
-            "liquidation_failure_samples": int(row[9] or 0),
-            "schema_migrations": int(row[10] or 0),
+            "liquidation_borrow_health_pool": int(row[9] or 0),
+            "liquidation_high_frequency_pool": int(row[10] or 0),
+            "liquidation_core_opportunity_pool": int(row[11] or 0),
+            "liquidation_borrow_health_scan_batches": int(row[12] or 0),
+            "liquidation_scan_config_library": int(row[13] or 0),
+            "liquidation_failure_samples": int(row[14] or 0),
+            "schema_migrations": int(row[15] or 0),
         }
         table_total = sum(counts.values())
         expected_count = len(EXPECTED_SCHEMA_MIGRATION_IDS)
-        applied_count = int(row[12] or 0)
+        applied_count = int(row[17] or 0)
         counts["schema"] = {
-            "latest_migration_at": str(row[11] or ""),
+            "latest_migration_at": str(row[16] or ""),
             "expected_migration_count": expected_count,
             "expected_migration_applied_count": applied_count,
             "up_to_date": applied_count == expected_count,

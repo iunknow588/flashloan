@@ -18,6 +18,14 @@ SCHEMA_MIGRATIONS = (
         "20260731_liquidation_borrow_health_pool",
         "Store active borrower health records below the liquidation watch threshold.",
     ),
+    (
+        "20260731_liquidation_profit_oriented_pools",
+        "Track liquidation scan batches, high-frequency borrower pool, and core opportunity pool.",
+    ),
+    (
+        "20260731_liquidation_scan_config_library",
+        "Persist reusable liquidation scan configuration snapshots for account, borrow, and opportunity pools.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 

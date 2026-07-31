@@ -487,6 +487,108 @@ def test_liquidation_borrow_pool_scan_api_triggers_dynamic_scan(monkeypatch):
     assert captured["force"] is True
 
 
+def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
+    monkeypatch.setattr(
+        control_panel,
+        "db_load_liquidation_borrow_health_scan_batches",
+        lambda database_url, limit=1: [{"id": 9, "status": "success", "scanned_count": 2}],
+    )
+
+    response = app.test_client().get("/api/liquidation/borrow-pool/latest-batch")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["batch"]["id"] == 9
+    assert data["batch"]["scanned_count"] == 2
+
+
+def test_liquidation_core_opportunities_api_returns_priority_rows(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
+    monkeypatch.setattr(
+        control_panel,
+        "db_load_liquidation_core_opportunity_pool",
+        lambda database_url, limit=100: [{"account": "0x1", "priority_score": 500.0}],
+    )
+
+    response = app.test_client().get("/api/liquidation/core-opportunities")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["count"] == 1
+    assert data["rows"][0]["priority_score"] == 500.0
+
+
+def test_liquidation_account_attempts_and_samples_api(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_attempts_for_account",
+        lambda account, limit=20: {"configured": True, "account": account, "attempts": [{"id": 1, "mode": "static_call"}]},
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_failure_samples_for_account",
+        lambda account, limit=20: {"configured": True, "account": account, "samples": [{"id": 2, "failure_type": "static_call_failed"}]},
+    )
+
+    client = app.test_client()
+    attempts = client.get("/api/liquidation/account/0x0000000000000000000000000000000000000001/attempts?limit=5").get_json()
+    samples = client.get("/api/liquidation/account/0x0000000000000000000000000000000000000001/samples?limit=5").get_json()
+
+    assert attempts["attempts"][0]["mode"] == "static_call"
+    assert samples["samples"][0]["failure_type"] == "static_call_failed"
+
+
+def test_liquidation_control_summary_api(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
+    monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": True, "missing_migrations": []})
+    monkeypatch.setattr(control_panel, "liquidation_pause_guard_status", lambda: {"configured": True, "paused": False})
+    monkeypatch.setattr(control_panel, "recent_liquidation_execution_attempts", lambda limit=5: {"stats": {"total": 2, "blocked": 1, "confirmed_success": 1}})
+    monkeypatch.setattr(control_panel, "recent_liquidation_failure_samples", lambda limit=5: {"samples": [{"id": 1}]})
+    monkeypatch.setattr(control_panel, "db_load_liquidation_borrow_health_scan_batches", lambda database_url, limit=1: [{"id": 5, "status": "success", "scanned_count": 7, "account_count": 10}])
+    monkeypatch.setattr(control_panel, "db_load_liquidation_core_opportunity_pool", lambda database_url, limit=5: [{"account": "0xcore"}])
+    monkeypatch.setattr(control_panel, "db_load_liquidation_high_frequency_pool", lambda database_url, limit=5: [{"account": "0xhigh"}])
+    monkeypatch.setattr(control_panel, "liquidation_account_tier_summary", lambda: {"hot_count": 1, "warm_count": 2, "cold_count": 3})
+    monkeypatch.setattr(control_panel, "control_status_payload", lambda: {"state": "running"})
+
+    response = app.test_client().get("/api/liquidation/control-summary")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["schema"]["up_to_date"] is True
+    assert data["latest_batch"]["id"] == 5
+    assert data["core_opportunities"][0]["account"] == "0xcore"
+    assert data["account_tiers"]["hot_count"] == 1
+
+
+def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_path):
+    from web import control_panel_data_routes
+
+    report_path = tmp_path / "daily.json"
+    monkeypatch.setattr(control_panel_data_routes, "liquidation_observation_report_path", lambda: report_path)
+    monkeypatch.setattr(control_panel_data_routes, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel_data_routes, "build_liquidation_observation_report", lambda database_url: {"generated_at": "2026-07-31T00:00:00+00:00", "borrow_pool": {"count": 1}, "core_opportunities": {"count": 2}, "execution": {"stats": {"total": 3}}})
+    monkeypatch.setattr(control_panel_data_routes, "write_liquidation_observation_report", lambda report, path: path.write_text(__import__("json").dumps(report), encoding="utf-8") or path)
+
+    response = app.test_client().post("/api/liquidation/reports/daily")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["report"]["core_opportunities"]["count"] == 2
+    assert report_path.exists()
+
+
 def test_liquidation_samples_api_returns_manifest(monkeypatch, tmp_path):
     from web import control_panel
 

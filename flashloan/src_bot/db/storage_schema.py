@@ -3,9 +3,17 @@
 from db.storage_common import SCHEMA_MIGRATIONS, require_psycopg
 from db.storage_liquidation_schema import (
     LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
+    LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS,
+    LIQUIDATION_CORE_OPPORTUNITY_POOL_COLUMNS,
     LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
+    LIQUIDATION_HIGH_FREQUENCY_POOL_COLUMNS,
+    LIQUIDATION_SCAN_CONFIG_LIBRARY_COLUMNS,
+    create_liquidation_borrow_health_scan_batch_schema,
     create_liquidation_borrow_health_pool_schema,
+    create_liquidation_core_opportunity_pool_schema,
     create_liquidation_failure_sample_schema,
+    create_liquidation_high_frequency_pool_schema,
+    create_liquidation_scan_config_library_schema,
 )
 def ensure_database_schema(database_url: str) -> None:
     psycopg = require_psycopg()
@@ -192,6 +200,9 @@ def ensure_database_schema(database_url: str) -> None:
                     last_status TEXT,
                     last_health_factor_band TEXT,
                     last_candidate_count INTEGER,
+                    last_total_collateral_base DOUBLE PRECISION,
+                    last_total_debt_base DOUBLE PRECISION,
+                    activity_tier TEXT,
                     last_summary_json TEXT,
                     last_report_json TEXT
                 )
@@ -231,6 +242,10 @@ def ensure_database_schema(database_url: str) -> None:
                 """
             )
             create_liquidation_borrow_health_pool_schema(cursor)
+            create_liquidation_high_frequency_pool_schema(cursor)
+            create_liquidation_core_opportunity_pool_schema(cursor)
+            create_liquidation_borrow_health_scan_batch_schema(cursor)
+            create_liquidation_scan_config_library_schema(cursor)
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS liquidation_execution_attempts (
@@ -456,6 +471,9 @@ def ensure_schema_columns(cursor) -> None:
             "last_status": "TEXT",
             "last_health_factor_band": "TEXT",
             "last_candidate_count": "INTEGER",
+            "last_total_collateral_base": "DOUBLE PRECISION",
+            "last_total_debt_base": "DOUBLE PRECISION",
+            "activity_tier": "TEXT",
             "last_summary_json": "TEXT",
             "last_report_json": "TEXT",
         },
@@ -483,6 +501,10 @@ def ensure_schema_columns(cursor) -> None:
             "report_json": "TEXT",
         },
         "liquidation_borrow_health_pool": LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
+        "liquidation_high_frequency_pool": LIQUIDATION_HIGH_FREQUENCY_POOL_COLUMNS,
+        "liquidation_core_opportunity_pool": LIQUIDATION_CORE_OPPORTUNITY_POOL_COLUMNS,
+        "liquidation_borrow_health_scan_batches": LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS,
+        "liquidation_scan_config_library": LIQUIDATION_SCAN_CONFIG_LIBRARY_COLUMNS,
         "liquidation_execution_attempts": {
             "account": "TEXT",
             "mode": "TEXT",

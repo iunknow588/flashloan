@@ -29,7 +29,7 @@ def test_database_table_counts_includes_liquidation_and_schema_status(monkeypatc
         captured["query"] = query
         captured["params"] = params
         migration_count = len(EXPECTED_SCHEMA_MIGRATION_IDS)
-        return (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, migration_count, "2026-07-30 00:00:00+00", migration_count)
+        return (1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 10, migration_count, "2026-07-30 00:00:00+00", migration_count)
 
     monkeypatch.setattr(control_panel_data, "fetch_one", fake_fetch_one)
 
@@ -38,7 +38,12 @@ def test_database_table_counts_includes_liquidation_and_schema_status(monkeypatc
     assert counts["liquidation_accounts"] == 7
     assert counts["liquidation_discovery_scans"] == 8
     assert counts["liquidation_account_health_scans"] == 9
+    assert counts["liquidation_borrow_health_pool"] == 11
+    assert counts["liquidation_high_frequency_pool"] == 12
+    assert counts["liquidation_core_opportunity_pool"] == 13
+    assert counts["liquidation_borrow_health_scan_batches"] == 14
+    assert counts["liquidation_scan_config_library"] == 15
     assert counts["liquidation_failure_samples"] == 10
     assert counts["schema"]["up_to_date"] is True
-    assert counts["total"] == 55 + len(EXPECTED_SCHEMA_MIGRATION_IDS)
+    assert counts["total"] == 120 + len(EXPECTED_SCHEMA_MIGRATION_IDS)
     assert captured["params"] == (list(EXPECTED_SCHEMA_MIGRATION_IDS),)

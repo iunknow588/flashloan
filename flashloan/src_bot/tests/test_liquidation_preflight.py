@@ -125,6 +125,29 @@ def test_liquidation_submission_blocks_fallback_close_factor_and_premium():
     assert state["checks"]["repay_base_source"] == "close_factor_fallback"
 
 
+def test_liquidation_submission_allows_verified_parameter_sources():
+    payload = base_payload()
+    payload["account_report"]["recommended_candidate"] = {
+        "repay_base_source": "amount_to_pass_to_liquidation_call",
+        "parameter_sources": {
+            "amount_to_pass_source": "amount_to_pass_to_liquidation_call",
+            "close_factor_source": "liquidation_data_provider",
+            "liquidation_bonus_source": "fallback_config",
+            "protocol_fee_source": "liquidation_data_provider",
+            "flashloan_premium_source": "aave_pool",
+            "flashloan_premium_block_number": 123,
+        },
+        "estimated_profit": {"flashloan_premium_source": "aave_pool"},
+    }
+
+    state = evaluate_liquidation_submission(payload, base_controls())
+
+    assert state["submission_allowed"] is True
+    assert state["checks"]["flashloan_premium_source"] == "aave_pool"
+    assert state["checks"]["flashloan_premium_block_number"] == 123
+    assert state["checks"]["close_factor_source"] == "liquidation_data_provider"
+
+
 def test_liquidation_submission_blocks_high_gas_and_operator_profit():
     payload = base_payload()
     payload["amounts"] = {

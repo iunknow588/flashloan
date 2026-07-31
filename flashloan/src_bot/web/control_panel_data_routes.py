@@ -1,8 +1,14 @@
+import json
 import os
 
 from flask import jsonify, request
 
 from web.control_panel_liquidation_routes import liquidation_coverage_payload
+from tools.liquidation_observation_report import (
+    build_liquidation_observation_report,
+    default_output_path as liquidation_observation_report_path,
+    write_liquidation_observation_report,
+)
 
 PANEL = None
 
@@ -63,6 +69,76 @@ def register_data_routes(app, panel) -> None:
                 },
             }
         )
+
+    @app.get("/api/liquidation/control-summary")
+    def liquidation_control_summary():
+        database_url = panel_call("database_url_or_none")
+        schema = panel_call("schema_status_payload")
+        pause_guard = panel_call("liquidation_pause_guard_status")
+        attempts = panel_call("recent_liquidation_execution_attempts", limit=5)
+        failure_samples = panel_call("recent_liquidation_failure_samples", limit=5)
+        latest_batch = None
+        core_opportunities = []
+        high_frequency_rows = []
+        account_tiers = {}
+        if database_url:
+            try:
+                panel_call("ensure_database_schema", database_url)
+                latest_batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1)
+                latest_batch = latest_batches[0] if latest_batches else None
+                core_opportunities = panel_call("db_load_liquidation_core_opportunity_pool", database_url, limit=5)
+                high_frequency_rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=5)
+                account_tiers = panel_call("liquidation_account_tier_summary")
+            except Exception as exc:
+                return jsonify({"configured": True, "error": str(exc), "schema": schema}), 400
+        return jsonify(
+            {
+                "configured": bool(database_url),
+                "schema": {
+                    "configured": schema.get("configured"),
+                    "up_to_date": schema.get("up_to_date"),
+                    "missing_migrations": schema.get("missing_migrations", []),
+                    "error": schema.get("error"),
+                },
+                "pause_guard": pause_guard,
+                "execution_attempts": attempts.get("stats", {}),
+                "failure_samples": {"recent_count": len(failure_samples.get("samples") or [])},
+                "latest_batch": latest_batch,
+                "core_opportunities": core_opportunities,
+                "high_frequency_rows": high_frequency_rows,
+                "account_tiers": account_tiers,
+                "control_status": panel_call("control_status_payload"),
+            }
+        )
+
+    @app.get("/api/liquidation/reports/daily")
+    def liquidation_daily_report_api():
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "error": "DATABASE_URL is required", "report": None})
+        try:
+            path = liquidation_observation_report_path()
+            if path.exists():
+                report = json.loads(path.read_text(encoding="utf-8"))
+                return jsonify({"configured": True, "path": str(path), "reused": True, "report": report})
+            report = build_liquidation_observation_report(database_url)
+            write_liquidation_observation_report(report, path)
+            return jsonify({"configured": True, "path": str(path), "reused": False, "report": report})
+        except Exception as exc:
+            return jsonify({"configured": True, "error": str(exc), "report": None}), 400
+
+    @app.post("/api/liquidation/reports/daily")
+    def liquidation_daily_report_refresh_api():
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "error": "DATABASE_URL is required", "report": None})
+        try:
+            path = liquidation_observation_report_path()
+            report = build_liquidation_observation_report(database_url)
+            write_liquidation_observation_report(report, path)
+            return jsonify({"configured": True, "path": str(path), "reused": False, "report": report})
+        except Exception as exc:
+            return jsonify({"configured": True, "error": str(exc), "report": None}), 400
     
     
     @app.get("/api/velocity-timepoints")

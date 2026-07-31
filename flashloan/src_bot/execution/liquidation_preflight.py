@@ -101,6 +101,9 @@ def evaluate_liquidation_submission(
         _append_once(blocked, "fallback_close_factor")
 
     premium_source = str(profit.get("flashloan_premium_source") or candidate.get("flashloan_premium_source") or "")
+    parameter_sources = candidate.get("parameter_sources") or {}
+    if not premium_source:
+        premium_source = str(parameter_sources.get("flashloan_premium_source") or "")
     if premium_source == "fallback_config" and not controls.get("allow_fallback_flashloan_premium"):
         _append_once(blocked, "fallback_flashloan_premium")
 
@@ -186,6 +189,12 @@ def evaluate_liquidation_submission(
             "min_profit_required": min_required_profit,
             "repay_base_source": repay_base_source or None,
             "flashloan_premium_source": premium_source or None,
+            "amount_to_pass_source": parameter_sources.get("amount_to_pass_source") or repay_base_source or None,
+            "close_factor_source": parameter_sources.get("close_factor_source"),
+            "liquidation_bonus_source": parameter_sources.get("liquidation_bonus_source"),
+            "protocol_fee_source": parameter_sources.get("protocol_fee_source"),
+            "flashloan_premium_block_number": parameter_sources.get("flashloan_premium_block_number")
+            or profit.get("flashloan_premium_block_number"),
             "gas_cost_usd": gas_cost_usd,
             "max_gas_cost_usd": max_gas_cost_usd,
             "operator_net_profit_usd": operator_net_profit_usd,

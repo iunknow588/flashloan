@@ -13,7 +13,14 @@ from execution.liquidation_scan import (
     scan_account_health,
     watched_health_rows,
 )
-from db.storage import record_liquidation_account_scan
+from db.storage import (
+    load_liquidation_borrow_health_scan_batches as db_load_liquidation_borrow_health_scan_batches,
+    load_liquidation_core_opportunity_pool as db_load_liquidation_core_opportunity_pool,
+    load_liquidation_high_frequency_pool as db_load_liquidation_high_frequency_pool,
+    load_liquidation_scan_config_library as db_load_liquidation_scan_config_library,
+    record_liquidation_account_scan,
+    record_liquidation_borrow_health_scan_batch as db_record_liquidation_borrow_health_scan_batch,
+)
 from web.control_panel_liquidation_base import *
 
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
@@ -353,10 +360,43 @@ def record_liquidation_health_scan_rows(rows: list[dict]) -> None:
         pass
 
 
+def liquidation_account_tier_summary() -> dict:
+    window = liquidation_account_registry_window()
+    active = int(window.get("active_count") or 0)
+    hot = int(window.get("hot_count") or 0)
+    warm = int(window.get("warm_count") or 0)
+    cold = int(window.get("cold_count") or 0)
+    return {
+        "hot_count": hot,
+        "warm_count": warm,
+        "cold_count": cold,
+        "classified_count": hot + warm + cold,
+        "active_count": active,
+    }
+
+
+def liquidation_pool_tier_payload(database_url: str, limit: int) -> dict:
+    high_frequency = db_load_liquidation_high_frequency_pool(database_url, limit=limit)
+    core = db_load_liquidation_core_opportunity_pool(database_url, limit=limit)
+    return {
+        "high_frequency_rows": high_frequency,
+        "core_opportunity_rows": core,
+        "high_frequency_count": len(high_frequency),
+        "core_opportunity_count": len(core),
+    }
+
+
+def latest_liquidation_borrow_pool_batch(database_url: str) -> Optional[dict]:
+    batches = db_load_liquidation_borrow_health_scan_batches(database_url, limit=1)
+    return batches[0] if batches else None
+
+
 def liquidation_borrow_pool_summary(rows: list[dict], *, scanned: bool = False, scan_payload: Optional[dict] = None) -> dict:
     config = liquidation_scan_config()
     scan_summary = dict((scan_payload or {}).get("summary") or {})
     worst_row = rows[0] if rows else None
+    account_tiers = scan_summary.get("account_tiers") or liquidation_account_tier_summary()
+    latest_batch = scan_summary.get("latest_batch")
     return {
         "count": len(rows),
         "display_limit": liquidation_borrow_pool_display_limit(),
@@ -370,6 +410,13 @@ def liquidation_borrow_pool_summary(rows: list[dict], *, scanned: bool = False, 
         "scan_interval_seconds": liquidation_scan_interval_seconds(),
         "source_account_count": scan_summary.get("account_count"),
         "scanned_account_count": scan_summary.get("scanned_count"),
+        "risk_count": scan_summary.get("risk_count", len(rows)),
+        "entered_count": scan_summary.get("entered_count"),
+        "exited_count": scan_summary.get("exited_count"),
+        "block_number": scan_summary.get("block_number"),
+        "latest_batch": latest_batch,
+        "account_tiers": account_tiers,
+        "risk_pool_conversion_rate": (float(len(rows)) / float(account_tiers.get("active_count") or scan_summary.get("account_count") or 1)),
         "error": scan_summary.get("error"),
     }
 
@@ -381,7 +428,11 @@ def liquidation_borrow_pool_payload() -> dict:
     try:
         ensure_database_schema(database_url)
         rows = db_load_liquidation_borrow_health_pool(database_url, limit=liquidation_borrow_pool_display_limit())
-        return {"rows": rows, "summary": liquidation_borrow_pool_summary(rows)}
+        tiers = liquidation_pool_tier_payload(database_url, liquidation_borrow_pool_display_limit())
+        latest_batch = latest_liquidation_borrow_pool_batch(database_url)
+        scan_configs = db_load_liquidation_scan_config_library(database_url, limit=20)
+        summary = liquidation_borrow_pool_summary(rows, scan_payload={"summary": {"latest_batch": latest_batch}})
+        return {"rows": rows, "tiers": tiers, "latest_batch": latest_batch, "scan_configs": scan_configs, "summary": summary}
     except Exception as exc:
         return {"rows": [], "summary": {"configured": True, "error": str(exc)}}
 
@@ -405,6 +456,9 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
     rows: list[dict] = []
     rpc_url = None
     error = None
+    sync_result: dict[str, int] = {}
+    block_number = None
+    started_at = datetime.now(timezone.utc)
     try:
         ensure_database_schema(database_url)
         accounts = db_load_liquidation_accounts(database_url)
@@ -413,24 +467,93 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
         for candidate in aave_rpc_urls() if accounts else []:
             try:
                 rows = scan_account_health(accounts, os.getenv("AAVE_POOL_ADDRESS", "").strip(), candidate, config)
-                record_liquidation_health_scan_rows(rows)
+                try:
+                    block_number = int(Web3(Web3.HTTPProvider(candidate, request_kwargs={"timeout": 8})).eth.block_number)
+                except Exception:
+                    block_number = None
+                sync_result = db_sync_liquidation_borrow_health_pool(database_url, rows, config.watch_health_factor)
+                for row in rows:
+                    report = {
+                        "account": row.get("account"),
+                        "summary": {
+                            "health_factor": row.get("health_factor"),
+                            "status": row.get("status"),
+                            "health_factor_band": row.get("health_factor_band"),
+                            "candidate_count": len(row.get("liquidation_candidates") or []),
+                            "total_collateral_base": row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
+                            "total_debt_base": row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
+                        },
+                        "liquidation_profit": row.get("liquidation_profit"),
+                    }
+                    record_liquidation_account_scan(database_url, report)
+                db_prune_liquidation_accounts(database_url, retained_days=liquidation_retention_days())
                 rpc_url = candidate
                 error = None
                 break
             except Exception as exc:
                 error = str(exc)
         rows = db_load_liquidation_borrow_health_pool(database_url, limit=liquidation_borrow_pool_display_limit())
+        tiers = liquidation_pool_tier_payload(database_url, liquidation_borrow_pool_display_limit())
+        finished_at = datetime.now(timezone.utc)
+        latest_batch = db_record_liquidation_borrow_health_scan_batch(
+            database_url,
+            started_at=started_at,
+            finished_at=finished_at,
+            status="success" if rpc_url and not error else "error",
+            account_count=len(accounts),
+            scanned_count=len(accounts) if rpc_url else 0,
+            risk_count=len(rows),
+            error_count=0 if rpc_url and not error else (1 if error else 0),
+            entered_count=sync_result.get("entered_count", 0),
+            exited_count=sync_result.get("exited_count", 0),
+            rpc_url=rpc_url,
+            block_number=block_number,
+            watch_health_factor=config.watch_health_factor,
+            error=error,
+            metadata={"tiers": tiers, "account_tiers": liquidation_account_tier_summary()},
+        )
         scan_payload = {
             "summary": {
                 "account_count": len(accounts),
                 "scanned_count": len(accounts) if rpc_url else 0,
+                "risk_count": len(rows),
+                "entered_count": sync_result.get("entered_count", 0),
+                "exited_count": sync_result.get("exited_count", 0),
                 "rpc_url": rpc_url,
+                "block_number": block_number,
+                "latest_batch": latest_batch,
+                "account_tiers": liquidation_account_tier_summary(),
                 "error": error,
             }
         }
-        return {"rows": rows, "summary": liquidation_borrow_pool_summary(rows, scanned=True, scan_payload=scan_payload)}
+        scan_configs = db_load_liquidation_scan_config_library(database_url, limit=20)
+        return {
+            "rows": rows,
+            "tiers": tiers,
+            "latest_batch": latest_batch,
+            "scan_configs": scan_configs,
+            "summary": liquidation_borrow_pool_summary(rows, scanned=True, scan_payload=scan_payload),
+        }
     except Exception as exc:
-        return {"rows": [], "summary": {"configured": True, "error": str(exc)}}
+        try:
+            latest_batch = db_record_liquidation_borrow_health_scan_batch(
+                database_url,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+                status="error",
+                account_count=len(accounts),
+                scanned_count=0,
+                risk_count=0,
+                error_count=1,
+                rpc_url=rpc_url,
+                block_number=block_number,
+                watch_health_factor=config.watch_health_factor,
+                error=str(exc),
+                metadata={"account_tiers": liquidation_account_tier_summary()},
+            )
+        except Exception:
+            latest_batch = None
+        return {"rows": [], "latest_batch": latest_batch, "summary": {"configured": True, "error": str(exc), "latest_batch": latest_batch}}
     finally:
         LIQUIDATION_SCAN_CACHE["running"] = False
         LIQUIDATION_SCAN_CACHE["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")

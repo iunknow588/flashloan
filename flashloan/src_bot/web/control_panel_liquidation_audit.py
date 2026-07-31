@@ -3,6 +3,8 @@ from db.storage import (
     liquidation_execution_attempt_stats as db_liquidation_execution_attempt_stats,
     load_recent_liquidation_execution_attempts as db_load_recent_liquidation_execution_attempts,
     load_recent_liquidation_failure_samples as db_load_recent_liquidation_failure_samples,
+    load_liquidation_execution_attempts_for_account as db_load_liquidation_execution_attempts_for_account,
+    load_liquidation_failure_samples_for_account as db_load_liquidation_failure_samples_for_account,
     record_liquidation_execution_attempt as db_record_liquidation_execution_attempt,
     record_liquidation_failure_sample as db_record_liquidation_failure_sample,
 )
@@ -99,6 +101,36 @@ def recent_liquidation_failure_samples(limit: int = 20) -> dict:
         }
     except Exception as exc:
         return {"configured": True, "error": str(exc), "samples": []}
+
+
+def liquidation_execution_attempts_for_account(account: str, limit: int = 20) -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"configured": False, "attempts": []}
+    try:
+        ensure_database_schema(database_url)
+        return {
+            "configured": True,
+            "account": account,
+            "attempts": db_load_liquidation_execution_attempts_for_account(database_url, account, limit=limit),
+        }
+    except Exception as exc:
+        return {"configured": True, "account": account, "error": str(exc), "attempts": []}
+
+
+def liquidation_failure_samples_for_account(account: str, limit: int = 20) -> dict:
+    database_url = database_url_or_none()
+    if not database_url:
+        return {"configured": False, "samples": []}
+    try:
+        ensure_database_schema(database_url)
+        return {
+            "configured": True,
+            "account": account,
+            "samples": db_load_liquidation_failure_samples_for_account(database_url, account, limit=limit),
+        }
+    except Exception as exc:
+        return {"configured": True, "account": account, "error": str(exc), "samples": []}
 
 
 def liquidation_pause_guard_status() -> dict:
