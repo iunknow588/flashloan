@@ -11,8 +11,8 @@ def register_control_routes(app, panel) -> None:
     @app.post("/api/start")
     def start():
         if panel.quick_observer_running():
-            panel.set_observer_progress("running", "观察器已在运行", 100)
-            panel.set_control_status("success", "启动观察器", "启动观察器已经执行", 100)
+            panel.set_observer_progress("running", "机会观察已在运行", 100)
+            panel.set_control_status("success", "启动机会观察", "机会观察进程已经在运行", 100)
             return jsonify(
                 {
                     "running": True,
@@ -22,28 +22,42 @@ def register_control_routes(app, panel) -> None:
                 }
             )
         with panel.observer_start_lock:
+            panel.clear_stale_observer_start()
             if panel.observer_starting:
-                return jsonify({"running": False, "starting": True, "symbols": panel.velocity_start_symbols()}), 202
+                return jsonify(
+                    {
+                        "running": False,
+                        "starting": True,
+                        "message": "机会观察正在启动，请等待状态面板更新；如长时间无进展可点击停止后重试。",
+                        "symbols": panel.velocity_start_symbols(),
+                    }
+                ), 202
             try:
                 panel.configured_database_url()
             except Exception as exc:
                 panel.observer_start_error = str(exc)
                 panel.set_observer_progress("error", str(exc), 0)
-                panel.set_control_status("error", "启动观察器", f"启动观察器执行失败：{exc}", 0)
+                panel.set_control_status("error", "启动机会观察", f"启动机会观察失败：{exc}", 0)
                 return jsonify({"error": str(exc)}), 400
-            _, symbols = panel.build_observer_env()
             panel.observer_starting = True
             panel.observer_start_error = None
-            panel.selected_symbols = symbols
+            panel.selected_symbols = panel.velocity_start_symbols()
             panel.observer_start_progress["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-            panel.set_control_status("initializing", "启动观察器", "启动观察器已经执行", 5)
+            panel.set_control_status("initializing", "启动机会观察", "启动请求已提交，正在后台加载市场与 Aave 上下文", 5)
             panel.set_observer_progress("initializing", "已提交启动请求", 5)
         threading.Thread(
             target=panel.start_observer_background,
             name="observer-starter",
             daemon=True,
         ).start()
-        return jsonify({"running": False, "starting": True, "symbols": panel.selected_symbols}), 202
+        return jsonify(
+            {
+                "running": False,
+                "starting": True,
+                "message": "启动请求已提交，状态面板会显示加载进度。",
+                "symbols": panel.selected_symbols,
+            }
+        ), 202
 
     @app.post("/api/init")
     def init_database():
@@ -63,7 +77,7 @@ def register_control_routes(app, panel) -> None:
         with panel.observer_start_lock:
             panel.observer_starting = False
             panel.set_observer_progress("stopped", "已提交停止请求", 0)
-        panel.set_control_status("initializing", "停止观察器", "停止观察器已经执行", 25)
+        panel.set_control_status("initializing", "停止机会观察", "停止请求已经提交", 25)
         if panel.is_observer_running():
             if panel.observer_process is not None and panel.observer_process.poll() is None:
                 panel.observer_process.terminate()
@@ -79,7 +93,7 @@ def register_control_routes(app, panel) -> None:
         panel.observer_process = None
         panel.selected_symbols = []
         panel.OBSERVER_PID_PATH.unlink(missing_ok=True)
-        panel.set_control_status("success", "停止观察器", "停止观察器已经执行", 100)
+        panel.set_control_status("success", "停止机会观察", "机会观察已经停止", 100)
         return jsonify({"running": False})
 
     @app.post("/api/clear")

@@ -101,6 +101,7 @@ OBSERVER_PATH = APP_DIR / "market" / "observer.py"
 TEMPLATE_PATH = WEB_DIR / "templates" / "control_panel.html"
 LIQUIDATION_TEMPLATE_PATH = WEB_DIR / "templates" / "liquidation_panel.html"
 EXCHANGE_MATRIX_TEMPLATE_PATH = WEB_DIR / "templates" / "exchange_matrix.html"
+OPPORTUNITY_HEALTH_TEMPLATE_PATH = WEB_DIR / "templates" / "opportunity_health.html"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
 LATEST_EXECUTABLE_SIGNAL_PATH = STATE_DIR / "latest_executable_signal.json"
 LATEST_EXTREMES_PATH = STATE_DIR / "latest_extremes.json"
@@ -140,6 +141,7 @@ VELOCITY_SIDE_LIMIT = 100
 SUMMARY_SIDE_LIMIT = 5
 SUMMARY_INITIAL_AMOUNT = 100.0
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
+OBSERVER_START_TIMEOUT_SECONDS = int(os.getenv("OBSERVER_START_TIMEOUT_SECONDS", "60"))
 
 def is_observer_running() -> bool:
     if observer_process is not None and observer_process.poll() is None:
@@ -277,12 +279,39 @@ def quick_observer_running() -> bool:
 def set_observer_progress(state: str, stage: str, percent: int) -> None:
     observer_start_progress.update(
         {
-            "state": state,
-            "stage": stage,
+            "state": state, "stage": stage,
             "percent": max(0, min(int(percent), 100)),
             "started_at": observer_start_progress.get("started_at"),
         }
     )
+
+
+def observer_start_elapsed_seconds() -> Optional[float]:
+    started_at = observer_start_progress.get("started_at")
+    if not started_at:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(started_at))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return max(0.0, (datetime.now(timezone.utc) - parsed).total_seconds())
+
+
+def clear_stale_observer_start() -> bool:
+    global observer_starting, observer_start_error
+    elapsed = observer_start_elapsed_seconds()
+    if not observer_starting or elapsed is None or elapsed <= OBSERVER_START_TIMEOUT_SECONDS:
+        return False
+    observer_starting = False
+    if not quick_observer_running():
+        observer_start_error = (
+            f"机会观察启动超过 {OBSERVER_START_TIMEOUT_SECONDS} 秒仍未完成；请检查 logs/observer_stderr.log 后重试。"
+        )
+        set_observer_progress("error", observer_start_error, 0)
+        set_control_status("error", "启动机会观察", observer_start_error, 0)
+    return True
 
 
 def set_control_status(
@@ -341,16 +370,27 @@ def control_status_payload() -> Optional[dict]:
 
 def observer_progress_payload(running: bool, starting: bool, latest_extremes: Optional[dict]) -> dict:
     progress = dict(observer_start_progress)
+    elapsed = observer_start_elapsed_seconds()
     if observer_start_error:
         progress.update({"state": "error", "stage": observer_start_error, "percent": 0})
     elif starting:
-        progress["state"] = "initializing"
+        if elapsed is not None and elapsed > OBSERVER_START_TIMEOUT_SECONDS:
+            progress.update({"state": "error", "stage": f"启动超过 {OBSERVER_START_TIMEOUT_SECONDS} 秒，请检查观察器日志或停止后重试", "percent": 0})
+        else:
+            progress["stage"] = progress.get("stage") or "正在启动机会观察进程"
+            progress["percent"] = max(progress.get("percent", 0), 5)
+            progress["state"] = "initializing"
     elif running and latest_extremes:
-        progress.update({"state": "running", "stage": "轻量模式：正在采集速度窗口", "percent": 100})
+        progress.update({"state": "running", "stage": "机会观察运行中：正在采集市场窗口", "percent": 100})
     elif running:
-        progress.update({"state": "initializing", "stage": "等待第一个速度窗口", "percent": max(progress.get("percent", 0), 85)})
+        stage = "观察进程已启动，等待第一个市场窗口"
+        if elapsed is not None and elapsed > OBSERVER_START_TIMEOUT_SECONDS:
+            stage = f"观察进程已启动，但 {OBSERVER_START_TIMEOUT_SECONDS} 秒内未产出市场窗口；通常是外部行情源、数据库写入或网络连接阻塞"
+        progress.update({"state": "initializing", "stage": stage, "percent": max(progress.get("percent", 0), 85)})
     else:
-        progress.update({"state": "stopped", "stage": "观察器未运行", "percent": 0})
+        progress.update({"state": "stopped", "stage": "机会观察未运行", "percent": 0})
+    if elapsed is not None:
+        progress["elapsed_seconds"] = round(elapsed, 1)
     return progress
 
 
@@ -374,7 +414,7 @@ def system_monitor_payload(
         sample_count = latest_extremes.get("sample_count")
         observed_at = latest_extremes.get("observed_at")
     control_state = (control_status_current or {}).get("state")
-    if control_state == "error":
+    if control_state == "error" or observer.get("state") == "error":
         state = "error"
     elif control_state == "initializing":
         state = "initializing"
@@ -501,19 +541,20 @@ def start_observer_background() -> None:
     global observer_process, selected_symbols, observer_start_error, observer_starting
     try:
         if quick_observer_running():
-            set_observer_progress("running", "观察器已在运行", 100)
+            set_observer_progress("running", "机会观察已在运行", 100)
             return
-        env, symbols = build_observer_env()
         set_observer_progress("initializing", "检查数据库配置", 10)
-        database_url = configured_database_url()
+        configured_database_url()
         with observer_start_lock:
             if not observer_starting:
                 return
-        set_observer_progress("initializing", "准备币安速度监控", 35)
+        set_observer_progress("initializing", "加载 Aave 储备与市场交集", 25)
+        env, symbols = build_observer_env()
+        set_observer_progress("initializing", "准备机会观察进程", 45)
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         stdout = open(LOG_DIR / "observer_stdout.log", "ab", buffering=0)
         stderr = open(LOG_DIR / "observer_stderr.log", "ab", buffering=0)
-        set_observer_progress("initializing", "启动观察器进程", 60)
+        set_observer_progress("initializing", "启动机会观察进程", 60)
         process = subprocess.Popen(
             [sys.executable, str(OBSERVER_PATH)],
             cwd=str(APP_DIR),
@@ -526,7 +567,7 @@ def start_observer_background() -> None:
             selected_symbols = symbols
             observer_start_error = None
         write_observer_pid(process.pid)
-        set_observer_progress("initializing", "等待第一个速度窗口", 80)
+        set_observer_progress("initializing", "等待第一个市场窗口", 80)
     except Exception as exc:
         with observer_start_lock:
             observer_start_error = str(exc)

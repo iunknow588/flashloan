@@ -57,7 +57,7 @@
   </style>
 </head>
 <body>
-  <header><h1>Aave 清算控制台</h1><nav><a href="/">主控制台</a><a href="/exchange-matrix">兑换矩阵</a><a href="/liquidation">Aave 清算</a></nav><div id="message"></div></header>
+  <header><h1>Aave 清算控制台</h1><nav><a href="/">主控制台</a><a href="/opportunity-health">机会诊断</a><a href="/exchange-matrix">兑换矩阵</a><a href="/liquidation">Aave 清算</a></nav><div id="message"></div></header>
   <main>
     <section class="card">
       <small>Aave 单账户清算分析</small>
@@ -333,7 +333,8 @@
     $("liquidationAccountSampleBtn").onclick=()=>{ $("liquidationAccountInput").value="0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"; refreshLiquidationAccount(); };
     $("liquidationAccountInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); refreshLiquidationAccount(); } });
     $("liquidationHealthBody").addEventListener("click", e=>{ const button=e.target.closest("button[data-liquidation-action]"); if(!button)return; e.preventDefault(); const account=(button.dataset.account||"").trim(); if(account)refreshLiquidationAccount(account); });
-    refreshLiquidationSettings(); refreshLiquidationHealth(); setInterval(()=>refreshLiquidationHealth(),1000);
+    const accountParam=new URLSearchParams(location.search).get("account");
+    refreshLiquidationSettings(); refreshLiquidationHealth(); if(accountParam){ $("liquidationAccountInput").value=accountParam; refreshLiquidationAccount(accountParam); } setInterval(()=>refreshLiquidationHealth(),1000);
   </script>
 </body>
 </html>

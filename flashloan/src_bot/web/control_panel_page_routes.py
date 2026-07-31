@@ -14,6 +14,10 @@ def register_page_routes(app, panel) -> None:
     def exchange_matrix_panel():
         return panel.EXCHANGE_MATRIX_TEMPLATE_PATH.read_text(encoding="utf-8")
 
+    @app.get("/opportunity-health")
+    def opportunity_health_panel():
+        return panel.OPPORTUNITY_HEALTH_TEMPLATE_PATH.read_text(encoding="utf-8")
+
     @app.get("/healthz")
     def healthz():
         return jsonify({"status": "ok"})
@@ -24,6 +28,8 @@ def register_page_routes(app, panel) -> None:
 
     @app.get("/api/status")
     def status():
+        with panel.observer_start_lock:
+            panel.clear_stale_observer_start()
         running = panel.quick_observer_running()
         binance_extremes = panel.safe_latest(panel.latest_binance_extremes_file)
         control_status_current = panel.control_status_payload()
@@ -49,7 +55,6 @@ def register_page_routes(app, panel) -> None:
                 "pid": panel.quick_observer_pid() if running else None,
                 "symbols": symbols,
                 "binance_extremes": binance_extremes,
-                "opportunity_health": opportunity_rows,
                 "opportunity_health_summary": panel.opportunity_health_summary(opportunity_rows, config),
                 "arbitrage_simulation": panel.safe_latest(panel.latest_arbitrage_simulation_file),
                 "executable_signal": panel.safe_latest(panel.latest_executable_signal),
