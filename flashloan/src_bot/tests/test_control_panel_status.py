@@ -209,12 +209,10 @@ def test_liquidation_discovery_window_scans_from_one_year_start(monkeypatch):
     scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, _, mode = liquidation_discovery_window(force_full=False)
 
     assert mode == "recent"
-    assert to_block is not None and to_block < 0
-    assert from_block < to_block
+    assert to_block is None
     assert from_block < 0
-    assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
     assert 364.9 <= (datetime.now(scan_start_at.tzinfo) - scan_start_at).total_seconds() / 86400 <= 365.1
-    assert 300_000 <= lookback_blocks <= 305_000
+    assert 15_700_000 <= lookback_blocks <= 15_800_000
 
 
 def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypatch):
@@ -270,11 +268,10 @@ def test_liquidation_discovery_window_force_full_restarts_from_one_year(monkeypa
     scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, _, mode = liquidation_discovery_window(force_full=True)
 
     assert mode == "recent"
-    assert to_block is not None and to_block < 0
-    assert from_block < to_block
-    assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
+    assert to_block is None
+    assert from_block < 0
     assert 364.9 <= (datetime.now(scan_start_at.tzinfo) - scan_start_at).total_seconds() / 86400 <= 365.1
-    assert 300_000 <= lookback_blocks <= 305_000
+    assert 15_700_000 <= lookback_blocks <= 15_800_000
 
 
 def test_liquidation_discovery_window_force_full_ignores_old_backfill_cursor(monkeypatch):
@@ -306,11 +303,10 @@ def test_liquidation_discovery_window_force_full_ignores_old_backfill_cursor(mon
     scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode = liquidation_discovery_window(force_full=True)
 
     assert mode == "recent"
-    assert to_block is not None and to_block < 0
-    assert from_block < to_block
-    assert 6.9 <= (scan_end_at - scan_start_at).total_seconds() / 86400 <= 7.1
-    assert 300_000 <= lookback_blocks <= 305_000
-    assert registry["discovery_cursor"]["source"] == "time-bootstrap"
+    assert to_block is None
+    assert from_block < 0
+    assert 15_700_000 <= lookback_blocks <= 15_800_000
+    assert registry["discovery_cursor"]["source"] == "full-year-bootstrap"
 
 
 def test_discovery_window_continuity_allows_connected_or_overlapped_ranges():
@@ -394,7 +390,7 @@ def test_discovery_writes_accounts_before_rejecting_progress_gap(monkeypatch):
     result = control_panel.discover_and_sync_liquidation_accounts(force_full=False)
 
     assert captured["accounts"] == [account]
-    assert captured["update_existing"] is False
+    assert captured["update_existing"] is True
     assert captured["progress_records"] == []
     assert result["skipped"] is True
     assert "gap" in result["reason"]
@@ -641,6 +637,74 @@ def test_liquidation_accounts_api_persists_to_database(monkeypatch):
     assert response.status_code == 200
     assert response.get_json()["source"] == "database"
     assert captured["accounts"] == ["0x0000000000000000000000000000000000000001"]
+
+
+def test_clear_database_api_rejects_when_background_scan_is_running(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", True)
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
+    monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "observer_starting", False)
+
+    response = app.test_client().post("/api/clear", json={})
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert "后台发现/扫描完成" in data["error"]
+
+
+def test_clear_database_api_truncates_without_schema_init(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", False)
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
+    monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "observer_starting", False)
+
+    executed = []
+
+    class FakeCursor:
+        def execute(self, sql):
+            executed.append(sql)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def cursor(self):
+            class CursorContext:
+                def __enter__(self_inner):
+                    return FakeCursor()
+
+                def __exit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return CursorContext()
+
+    class FakePsycopg:
+        def connect(self, database_url, connect_timeout=8):
+            assert database_url == "postgresql://example"
+            return FakeConnection()
+
+    monkeypatch.setattr(control_panel, "require_psycopg", lambda: FakePsycopg())
+
+    response = app.test_client().post("/api/clear", json={})
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["cleared"] is True
+    assert any("TRUNCATE TABLE observations" in sql for sql in executed)
+    assert all("CREATE TABLE" not in sql for sql in executed)
 
 
 def test_liquidation_discovery_coverage_api_reports_gap(monkeypatch):

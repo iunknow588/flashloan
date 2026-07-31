@@ -62,7 +62,7 @@ def discover_borrower_addresses(
     from_block: int,
     to_block: Optional[int] = None,
     chunk_size: int = 50_000,
-    limit: int = 5000,
+    limit: Optional[int] = 5000,
     event_topic: str | None = None,
     web3_class=Web3,
 ) -> list[str]:
@@ -76,7 +76,7 @@ def discover_borrower_addresses(
         return []
     chunk = max(1, min(int(chunk_size), 50_000))
     unique_addresses: list[str] = []
-    result_limit = max(1, int(limit))
+    result_limit = max(0, int(limit or 0))
     current = start_block
     while current <= end_limit:
         end_block = min(end_limit, current + chunk - 1)
@@ -93,7 +93,7 @@ def discover_borrower_addresses(
             if len(topics) < 3:
                 continue
             borrower = topic_to_address(topics[2])
-            if borrower and borrower not in unique_addresses and len(unique_addresses) < result_limit:
+            if borrower and borrower not in unique_addresses and (result_limit <= 0 or len(unique_addresses) < result_limit):
                 unique_addresses.append(borrower)
         current = end_block + 1
     return unique_addresses

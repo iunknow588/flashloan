@@ -59,19 +59,6 @@ def register_control_routes(app, panel) -> None:
             }
         ), 202
 
-    @app.post("/api/init")
-    def init_database():
-        panel.set_control_status("initializing", "初始化数据库", "初始化数据库已经执行", 25)
-        try:
-            panel.ensure_database_schema(panel.configured_database_url())
-            counts = panel.database_table_counts()
-        except Exception as exc:
-            message = panel.database_lock_message("初始化数据库", exc)
-            panel.set_control_status("error", "初始化数据库", message, 0)
-            return jsonify({"error": message}), 400
-        panel.set_control_status("success", "初始化数据库", "初始化数据库已经执行", 100)
-        return jsonify({"initialized": True, "rows": panel.observation_count(), "db_counts": counts})
-
     @app.post("/api/stop")
     def stop():
         with panel.observer_start_lock:
@@ -98,9 +85,17 @@ def register_control_routes(app, panel) -> None:
 
     @app.post("/api/clear")
     def clear():
-        panel.set_control_status("initializing", "清空数据库", "清空数据库已经执行", 25)
+        if (
+            panel.observer_starting
+            or panel.is_observer_running()
+            or bool(panel.LIQUIDATION_DISCOVERY_CACHE.get("running"))
+            or bool(panel.LIQUIDATION_SCAN_CACHE.get("running"))
+        ):
+            message = "清空数据库前请先停止机会观察，并等待后台发现/扫描完成"
+            panel.set_control_status("error", "清空数据库", message, 0)
+            return jsonify({"error": message}), 400
+        panel.set_control_status("initializing", "清空数据库", "正在清空行情与观察数据", 25)
         try:
-            panel.ensure_database_schema(panel.configured_database_url())
             psycopg = panel.require_psycopg()
             with psycopg.connect(panel.configured_database_url(), connect_timeout=8) as connection:
                 with connection.cursor() as cursor:
@@ -115,7 +110,7 @@ def register_control_routes(app, panel) -> None:
             message = panel.database_lock_message("清空数据库", exc)
             panel.set_control_status("error", "清空数据库", message, 0)
             return jsonify({"error": message}), 400
-        panel.set_control_status("success", "清空数据库", "清空数据库已经执行", 100)
+        panel.set_control_status("success", "清空数据库", "清空数据库已经完成", 100)
         return jsonify({"cleared": True, "rows": 0})
 
     @app.post("/api/clear-files")

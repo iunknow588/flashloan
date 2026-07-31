@@ -109,6 +109,10 @@ def register_data_routes(app, panel) -> None:
                     "discovery_has_gap": bool(discovery_progress.get("has_gap")),
                     "discovery_covered_from_block": discovery_progress.get("earliest_backfill_from_block"),
                     "discovery_covered_to_block": discovery_progress.get("latest_recent_to_block"),
+                    "discovery_stage": str(
+                        discovery_progress.get("stage")
+                        or ("borrowers" if discovery_progress.get("latest_recent_to_block") is not None else "idle")
+                    ),
                     "registry_total_count": int(registry_window.get("total_count") or 0),
                     "registry_active_count": int(registry_window.get("active_count") or 0),
                     "latest_batch_status": (latest_batch or {}).get("status") if latest_batch else None,

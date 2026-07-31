@@ -354,8 +354,9 @@ def database_lock_message(action: str, exc: Exception) -> str:
     )
     if any(marker in lowered for marker in lock_markers):
         return (
-            f"{action}执行失败：数据库可能被远程应用或其他连接锁定。"
-            "请先关闭远程数据库访问链接、控制台查询窗口或其他写入进程后重试。"
+            f"{action}执行失败：数据库正在被其他会话锁定。"
+            "这可能是远程应用、数据库控制台查询窗口，也可能是本应用启动后的后台初始化、账户发现、健康扫描或机会观察写入。"
+            "请先停止机会观察，等待后台扫描结束，关闭数据库控制台查询窗口后重试。"
             f" 原始错误：{detail}"
         )
     return f"{action}执行失败：{detail}"

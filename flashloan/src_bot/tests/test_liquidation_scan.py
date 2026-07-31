@@ -303,6 +303,52 @@ def test_discover_borrower_addresses_scans_full_window_after_result_limit(monkey
     assert calls == [(1, 10), (11, 20), (21, 30)]
 
 
+def test_discover_borrower_addresses_allows_unlimited_results(monkeypatch):
+    from execution import liquidation_scan
+
+    def topic(address: str) -> str:
+        return "0x" + "0" * 24 + address.removeprefix("0x").lower()
+
+    class FakeEth:
+        block_number = 10
+
+        @staticmethod
+        def get_logs(params):
+            return [
+                {"topics": ["0xborrow", "0xreserve", topic("0x0000000000000000000000000000000000000001")]},
+                {"topics": ["0xborrow", "0xreserve", topic("0x0000000000000000000000000000000000000002")]},
+            ]
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return str(value)
+
+    monkeypatch.setattr(liquidation_scan, "Web3", FakeWeb3)
+    monkeypatch.setattr(liquidation_scan, "BORROW_EVENT_TOPIC", "0xborrow")
+
+    addresses = discover_borrower_addresses(
+        "https://rpc.example",
+        "0xpool",
+        1,
+        to_block=10,
+        chunk_size=10,
+        limit=0,
+    )
+
+    assert addresses == [
+        "0x0000000000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002",
+    ]
+
+
 def test_build_liquidation_execution_plan_marks_readiness():
     plan = build_liquidation_execution_plan(
         "0x0000000000000000000000000000000000000001",

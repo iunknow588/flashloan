@@ -60,7 +60,6 @@
     <section class="card">
       <small>账户池</small>
       <div class="toolbar">
-        <button id="dbInitBtn">初始化数据库</button>
         <button id="accountPoolRefreshBtn">刷新账户池</button>
         <button id="accountPoolScanBtn" class="primary">继续扫描账户池</button>
         <button id="accountPoolRestartBtn">从一年前重扫</button>
@@ -68,6 +67,24 @@
       </div>
       <div class="table-wrap">
         <table><thead><tr><th>账户</th><th>来源</th><th>账户详情</th></tr></thead><tbody id="accountPoolBody"></tbody></table>
+      </div>
+    </section>
+    <section class="card">
+      <small>核心机会池（HF &lt;= 1.01，按 priority score 排序）</small>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>账户</th><th>HF</th><th>Priority</th><th>债务资产</th><th>抵押资产</th><th>可偿还</th><th>净利润</th><th>Quote</th><th>Static call</th><th>账户详情</th></tr></thead>
+          <tbody id="coreOpportunityBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <small>高频更新池（1.0 &lt; HF &lt; 1.1，按 priority score 排序）</small>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>账户</th><th>HF</th><th>Priority</th><th>债务价值</th><th>候选数</th><th>更新时间</th><th>账户详情</th></tr></thead>
+          <tbody id="highFrequencyPoolBody"></tbody>
+        </table>
       </div>
     </section>
     <section class="card">
@@ -84,24 +101,6 @@
         <table>
           <thead><tr><th>账户</th><th>HF</th><th>状态</th><th>抵押价值</th><th>债务价值</th><th>候选数</th><th>更新时间</th><th>账户详情</th></tr></thead>
           <tbody id="borrowPoolBody"></tbody>
-        </table>
-      </div>
-    </section>
-    <section class="card">
-      <small>高频更新池（1.0 &lt; HF &lt; 1.1，按 priority score 排序）</small>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>账户</th><th>HF</th><th>Priority</th><th>债务价值</th><th>候选数</th><th>更新时间</th><th>账户详情</th></tr></thead>
-          <tbody id="highFrequencyPoolBody"></tbody>
-        </table>
-      </div>
-    </section>
-    <section class="card">
-      <small>核心机会池（HF &lt;= 1.01，按 priority score 排序）</small>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>账户</th><th>HF</th><th>Priority</th><th>债务资产</th><th>抵押资产</th><th>可偿还</th><th>净利润</th><th>Quote</th><th>Static call</th><th>账户详情</th></tr></thead>
-          <tbody id="coreOpportunityBody"></tbody>
         </table>
       </div>
     </section>
@@ -134,7 +133,7 @@
     const hfCls = v => ({green:"hf-green",beige:"hf-beige",yellow:"hf-yellow",orange:"hf-orange",red:"hf-red"}[String(v||"").toLowerCase()]||"hf-red");
     const detailLink = account => account ? `/liquidation/account?account=${encodeURIComponent(account)}` : "/liquidation/account";
     function renderAccounts(d){ const rows=d.accounts||[], w=d.registry_window||{}; $("accountPoolCount").textContent=d.count??rows.length; $("accountPoolMeta").textContent=`来源 ${d.source||"-"}`; $("accountPoolWindow").textContent=`窗口 ${fmtTime(w.earliest_scan_start_at)} ~ ${fmtTime(w.latest_scan_end_at)} | 长期保留`; $("accountPoolBody").innerHTML=rows.map(row=>`<tr><td>${row.account||"-"}</td><td>${d.source||"-"}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="3">暂无账户池记录</td></tr>'; }
-    function renderBorrowPool(d){ const rows=Array.isArray(d&&d.rows)?d.rows:[], s=d&&d.summary?d.summary:{}, tiers=d&&d.tiers?d.tiers:{}, accountTiers=s.account_tiers||{}, batch=d.latest_batch||s.latest_batch||{}, running=Boolean(s.scan_running)||scanningBorrow; $("borrowPoolCount").textContent=Number.isFinite(s.count)?s.count:rows.length; $("borrowPoolMeta").textContent=Number.isFinite(s.watch_health_factor)?`HF < ${Number(s.watch_health_factor).toFixed(2)} | 前 ${s.display_limit||100}`:"等待中"; $("borrowPoolWorstHF").textContent=Number.isFinite(s.worst_health_factor)?Number(s.worst_health_factor).toFixed(3):"-"; $("borrowPoolWorstMeta").textContent=s.worst_account||"暂无风险账户"; $("borrowPoolScanState").textContent=running?"扫描中":"已就绪"; $("borrowPoolScanState").className=running?"status-candidate":"positive"; $("borrowPoolScanMeta").textContent=s.scan_finished_at?`完成 ${fmtTime(s.scan_finished_at)}`:(s.error||"等待扫描"); $("borrowPoolHealthMeta").textContent=s.error||`来源账户 ${s.source_account_count??"-"} | 已扫 ${s.scanned_account_count??"-"} | block ${s.block_number??"-"} | 进入 ${s.entered_count??"-"} 退出 ${s.exited_count??"-"}`; $("accountTierCounts").textContent=`${accountTiers.hot_count??0}/${accountTiers.warm_count??0}/${accountTiers.cold_count??0}`; $("accountTierMeta").textContent=`热/温/冷 | 转化率 ${Number.isFinite(s.risk_pool_conversion_rate)?(s.risk_pool_conversion_rate*100).toFixed(2)+"%":"-"}`; $("corePoolCount").textContent=tiers.core_opportunity_count??0; $("corePoolMeta").textContent=`高频 ${tiers.high_frequency_count??0}`; $("latestBatchState").textContent=batch.status||"-"; $("latestBatchMeta").textContent=batch.id?`#${batch.id} | ${batch.scanned_count||0}/${batch.account_count||0} | 错误 ${batch.error_count||0}`:(s.error||"暂无批次"); $("borrowPoolScanBtn").disabled=running; $("borrowPoolScanBtn").textContent=running?"扫描中":"实时扫描借贷池"; $("borrowPoolBody").innerHTML=rows.map(row=>`<tr><td>${row.account||"-"}</td><td class="${hfCls(row.health_factor_band)}">${Number.isFinite(row.health_factor)?Number(row.health_factor).toFixed(3):"-"}</td><td class="${statusCls(row.status)}">${row.status||"-"}</td><td>${moneyText(row.total_collateral_base)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count)?row.candidate_count:"-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="8">暂无 HF 低于阈值的借贷账户</td></tr>'; $("highFrequencyPoolBody").innerHTML=(tiers.high_frequency_rows||[]).map(row=>`<tr><td>${row.account||"-"}</td><td>${Number.isFinite(row.health_factor)?Number(row.health_factor).toFixed(3):"-"}</td><td>${moneyText(row.priority_score)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count)?row.candidate_count:"-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="7">暂无高频更新账户</td></tr>'; $("coreOpportunityBody").innerHTML=(tiers.core_opportunity_rows||[]).map(row=>`<tr><td>${row.account||"-"}</td><td>${Number.isFinite(row.health_factor)?Number(row.health_factor).toFixed(3):"-"}</td><td>${moneyText(row.priority_score)}</td><td>${row.best_debt_asset||"-"}</td><td>${row.best_collateral_asset||"-"}</td><td>${row.debt_to_cover_units||"-"}</td><td>${moneyText(row.estimated_operator_net_profit_usd)}</td><td>${row.quote_viable?"viable":"pending"}</td><td>${row.static_call_status||"-"}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="10">暂无核心机会</td></tr>'; }
+    function renderBorrowPool(d){ const rows=Array.isArray(d&&d.rows)?d.rows:[], s=d&&d.summary?d.summary:{}, tiers=d&&d.tiers?d.tiers:{}, accountTiers=s.account_tiers||{}, batch=d.latest_batch||s.latest_batch||{}, running=Boolean(s.scan_running)||scanningBorrow; $("borrowPoolCount").textContent=Number.isFinite(s.count)?s.count:rows.length; $("borrowPoolMeta").textContent=Number.isFinite(s.watch_health_factor)?`HF < ${Number(s.watch_health_factor).toFixed(2)} | 前 ${s.display_limit||100}`:"等待中"; $("borrowPoolWorstHF").textContent=Number.isFinite(s.worst_health_factor)?Number(s.worst_health_factor).toFixed(3):"-"; $("borrowPoolWorstMeta").textContent=s.worst_account||"暂无风险账户"; $("borrowPoolScanState").textContent=running?"扫描中":"已就绪"; $("borrowPoolScanState").className=running?"status-candidate":"positive"; $("borrowPoolScanMeta").textContent=s.scan_finished_at?`完成 ${fmtTime(s.scan_finished_at)}`:(s.stage?`阶段 ${s.stage}`:(s.error||"等待扫描")); $("borrowPoolHealthMeta").textContent=s.error||`阶段 ${s.stage||"idle"} | 来源账户 ${s.source_account_count??"-"} | 已扫 ${s.scanned_account_count??"-"} | block ${s.block_number??"-"} | 进入 ${s.entered_count??"-"} 退出 ${s.exited_count??"-"}`; $("accountTierCounts").textContent=`${accountTiers.hot_count??0}/${accountTiers.warm_count??0}/${accountTiers.cold_count??0}`; $("accountTierMeta").textContent=`热/温/冷 | 转化率 ${Number.isFinite(s.risk_pool_conversion_rate)?(s.risk_pool_conversion_rate*100).toFixed(2)+"%":"-"}`; $("corePoolCount").textContent=tiers.core_opportunity_count??0; $("corePoolMeta").textContent=`高频 ${tiers.high_frequency_count??0}`; $("latestBatchState").textContent=batch.status||"-"; $("latestBatchMeta").textContent=batch.id?`#${batch.id} | ${batch.scanned_count||0}/${batch.account_count||0} | 错误 ${batch.error_count||0}`:(s.error||"暂无批次"); $("borrowPoolScanBtn").disabled=running; $("borrowPoolScanBtn").textContent=running?"扫描中":"实时扫描借贷池"; $("borrowPoolBody").innerHTML=rows.map(row=>`<tr><td>${row.account||"-"}</td><td class="${hfCls(row.health_factor_band)}">${Number.isFinite(row.health_factor)?Number(row.health_factor).toFixed(3):"-"}</td><td class="${statusCls(row.status)}">${row.status||"-"}</td><td>${moneyText(row.total_collateral_base)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count)?row.candidate_count:"-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="8">暂无 HF 低于阈值的借贷账户</td></tr>'; $("highFrequencyPoolBody").innerHTML=(tiers.high_frequency_rows||[]).map(row=>`<tr><td>${row.account||"-"}</td><td>${Number.isFinite(row.health_factor)?Number(row.health_factor).toFixed(3):"-"}</td><td>${moneyText(row.priority_score)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count)?row.candidate_count:"-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="7">暂无高频更新账户</td></tr>'; $("coreOpportunityBody").innerHTML=(tiers.core_opportunity_rows||[]).map(row=>`<tr><td>${row.account||"-"}</td><td>${Number.isFinite(row.health_factor)?Number(row.health_factor).toFixed(3):"-"}</td><td>${moneyText(row.priority_score)}</td><td>${row.best_debt_asset||"-"}</td><td>${row.best_collateral_asset||"-"}</td><td>${row.debt_to_cover_units||"-"}</td><td>${moneyText(row.estimated_operator_net_profit_usd)}</td><td>${row.quote_viable?"viable":"pending"}</td><td>${row.static_call_status||"-"}</td><td><a class="link" href="${detailLink(row.account)}">打开</a></td></tr>`).join("")||'<tr><td colspan="10">暂无核心机会</td></tr>'; }
     async function refreshAccounts(force=false){ if(refreshingAccounts)return; refreshingAccounts=true; try{ renderAccounts(await api(`/api/liquidation/accounts${force?"?force=1":""}`)); }catch(e){ $("message").textContent=e.message; } finally{ refreshingAccounts=false; } }
     async function refreshBorrowPool(){ if(refreshingBorrow)return; refreshingBorrow=true; try{ renderBorrowPool(await api("/api/liquidation/borrow-pool")); }catch(e){ $("message").textContent=e.message; } finally{ refreshingBorrow=false; } }
     async function refreshAudit(){ try{ const attempts=await api("/api/liquidation/execution-attempts?limit=20"); $("attemptBody").innerHTML=(attempts.attempts||[]).map(row=>`<tr><td>${row.id}</td><td>${row.account||"-"}</td><td>${row.mode||"-"}</td><td>${row.state||"-"}</td><td>${(row.blocked_reasons||[]).join(", ")||"-"}</td><td>${row.error||"-"}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("")||'<tr><td colspan="7">暂无执行尝试</td></tr>'; const samples=await api("/api/liquidation/failure-samples?limit=20"); $("failureSampleBody").innerHTML=(samples.samples||[]).map(row=>`<tr><td>${row.id}</td><td>${row.account||"-"}</td><td>${row.failure_type||"-"}</td><td>${row.failure_reason||"-"}</td><td>${row.debt_asset||"-"}</td><td>${row.collateral_asset||"-"}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("")||'<tr><td colspan="7">暂无失败样本</td></tr>'; }catch(e){ $("message").textContent=e.message; } }
@@ -142,8 +141,7 @@
     async function refreshSettings(){ try{ const d=await api("/api/liquidation-settings"); $("liquidationScanIntervalInput").value=Number.isFinite(d.scan_interval_seconds)?Math.round(d.scan_interval_seconds):300; $("liquidationDiscoveryIntervalInput").value=Number.isFinite(d.discovery_interval_seconds)?Math.round(d.discovery_interval_seconds):3600; }catch(e){ $("message").textContent=e.message; } }
     async function saveSettings(){ const b=$("liquidationSettingsSaveBtn"), old=b.textContent; b.disabled=true; b.textContent="保存中"; try{ await api("/api/liquidation-settings",{method:"POST",body:JSON.stringify({scan_interval_seconds:$("liquidationScanIntervalInput").value,discovery_interval_seconds:$("liquidationDiscoveryIntervalInput").value})}); $("message").textContent="清算参数已保存"; }catch(e){ $("message").textContent=e.message; } finally{ b.disabled=false; b.textContent=old; } }
     async function scanAccounts(full=false){ if(scanningAccounts)return; scanningAccounts=true; const b=full?$("accountPoolRestartBtn"):$("accountPoolScanBtn"), old=b.textContent; b.disabled=true; b.textContent=full?"重扫中":"扫描中"; try{ const d=await api(`/api/liquidation-discovery${full?"?full=1":""}`,{method:"POST",body:JSON.stringify({full})}); $("message").textContent=d.skipped?`账户池扫描跳过：${d.reason||"间隔未到"}`:`账户池新增/更新 ${d.count||0} 个账户`; refreshAccounts(true); }catch(e){ $("message").textContent=e.message; } finally{ scanningAccounts=false; b.disabled=false; b.textContent=old; } }
-    async function initDb(){ const b=$("dbInitBtn"), old=b.textContent; b.disabled=true; b.textContent="初始化中"; try{ await api("/api/init",{method:"POST",body:"{}"}); $("message").textContent="数据库初始化完成"; refreshAccounts(true); refreshBorrowPool(); }catch(e){ $("message").textContent=e.message; } finally{ b.disabled=false; b.textContent=old; } }
-    $("dbInitBtn").onclick=initDb; $("accountPoolRefreshBtn").onclick=()=>refreshAccounts(true); $("accountPoolScanBtn").onclick=()=>scanAccounts(false); $("accountPoolRestartBtn").onclick=()=>scanAccounts(true); $("borrowPoolRefreshBtn").onclick=refreshBorrowPool; $("borrowPoolScanBtn").onclick=scanBorrowPool; $("liquidationSettingsSaveBtn").onclick=saveSettings;
+    $("accountPoolRefreshBtn").onclick=()=>refreshAccounts(true); $("accountPoolScanBtn").onclick=()=>scanAccounts(false); $("accountPoolRestartBtn").onclick=()=>scanAccounts(true); $("borrowPoolRefreshBtn").onclick=refreshBorrowPool; $("borrowPoolScanBtn").onclick=scanBorrowPool; $("liquidationSettingsSaveBtn").onclick=saveSettings;
     refreshSettings(); refreshAccounts(); refreshBorrowPool(); refreshAudit(); setInterval(refreshBorrowPool,5000); setInterval(refreshAudit,15000);
   </script>
 </body>

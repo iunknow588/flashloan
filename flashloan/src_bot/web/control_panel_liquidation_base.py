@@ -49,6 +49,7 @@ LIQUIDATION_SCAN_CACHE: dict[str, object] = {
     "running": False,
     "started_at": None,
     "finished_at": None,
+    "stage": "idle",
 }
 LIQUIDATION_SCAN_LOCK = threading.Lock()
 LIQUIDATION_ACCOUNT_CACHE: dict[str, object] = {"updated_at": 0.0, "accounts": None, "source": None}
@@ -56,6 +57,7 @@ LIQUIDATION_DISCOVERY_CACHE: dict[str, object] = {
     "running": False,
     "started_at": None,
     "finished_at": None,
+    "stage": "idle",
     "last_result": None,
     "last_backfill_at": None,
     "last_backfill_monotonic": 0.0,
@@ -542,11 +544,29 @@ def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, da
     latest_recent_to_block = progress.get("latest_recent_to_block")
     latest_end = parse_iso_datetime(progress.get("latest_recent_scan_end_at")) or parse_iso_datetime(registry.get("latest_scan_end_at"))
     start_anchor = now - timedelta(days=liquidation_account_scan_start_days())
-    window = timedelta(days=liquidation_backfill_window_days())
-    scan_start_at = start_anchor if force_full or latest_end is None else max(start_anchor, latest_end)
-    scan_end_at = min(now, scan_start_at + window)
     mode = "recent"
+
+    if force_full or latest_recent_to_block is None:
+        scan_start_at = start_anchor
+        scan_end_at = now
+        now_for_blocks = datetime.now(timezone.utc)
+        lookback_blocks = max(1, int(max(0.0, (now_for_blocks - scan_start_at).total_seconds()) / liquidation_block_seconds()))
+        from_block = -lookback_blocks
+        to_block = None
+        registry["discovery_scan_progress"] = progress
+        registry["discovery_cursor"] = {
+            "source": "full-year-bootstrap" if latest_recent_to_block is None else "full-year-rescan",
+            "mode": mode,
+            "scan_days": liquidation_account_scan_start_days(),
+            "overlap_blocks": overlap_blocks,
+            "next_from_block": from_block,
+            "next_to_block": to_block,
+        }
+        return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
+
     if latest_recent_to_block is not None and not force_full:
+        scan_start_at = max(start_anchor, latest_end) if latest_end else now - timedelta(days=liquidation_recent_discovery_days())
+        scan_end_at = now
         from_block = max(0, int(latest_recent_to_block) + 1 - overlap_blocks)
         to_block = None
         lookback_blocks = 0
@@ -561,17 +581,17 @@ def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, da
             "next_to_block": None,
         }
         return scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode
-    seconds = max(0.0, (scan_end_at - scan_start_at).total_seconds())
-    now_for_blocks = datetime.now(timezone.utc)
-    start_lookback_blocks = max(1, int(max(0.0, (now_for_blocks - scan_start_at).total_seconds()) / liquidation_block_seconds()))
-    end_lookback_blocks = int(max(0.0, (now_for_blocks - scan_end_at).total_seconds()) / liquidation_block_seconds())
-    from_block = -start_lookback_blocks
-    to_block = None if end_lookback_blocks <= 0 else -end_lookback_blocks
-    lookback_blocks = max(1, start_lookback_blocks - end_lookback_blocks)
+
+    scan_start_at = start_anchor
+    scan_end_at = now
+    lookback_blocks = max(1, int(max(0.0, (now - scan_start_at).total_seconds()) / liquidation_block_seconds()))
+    from_block = -lookback_blocks
+    to_block = None
     registry["discovery_scan_progress"] = progress
     registry["discovery_cursor"] = {
-        "source": "time-bootstrap",
+        "source": "full-year-bootstrap",
         "mode": mode,
+        "scan_days": liquidation_account_scan_start_days(),
         "overlap_blocks": overlap_blocks,
         "next_from_block": from_block,
         "next_to_block": to_block,
