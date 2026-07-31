@@ -8,6 +8,7 @@ from web3 import Web3
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 from execution.liquidation_preflight import attach_liquidation_preflight_state
 from execution.nonce_manager import NonceManager
+from execution.parallel_submitter import SubmissionAttempt, run_parallel_submissions
 from execution.revert_parser import parse_revert_reason, build_failure_record
 import web.control_panel_liquidation_base as liquidation_base
 from web.control_panel_liquidation_scan import liquidation_account_payload, scan_context_assets
@@ -27,6 +28,15 @@ def _nonce_manager(w3: Web3, sender: str) -> NonceManager:
         manager.initialize()
         _NONCE_MANAGERS[key] = manager
     return manager
+
+
+def liquidation_self_funded_private_keys() -> list[str]:
+    raw = os.getenv("LIQUIDATION_SELF_FUNDED_PRIVATE_KEYS", "").strip()
+    if raw:
+        keys = [item.strip() for item in raw.split(",") if item.strip()]
+    else:
+        keys = [liquidation_self_funded_private_key()]
+    return list(dict.fromkeys(key for key in keys if key))
 
 
 def apply_liquidation_submission_state(payload: dict, *, mode: str = "flashloan") -> dict:
@@ -357,7 +367,7 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
     }
 
 
-def execute_self_funded_liquidation_transaction(payload: dict, force: bool = False) -> dict:
+def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, force: bool = False) -> dict:
     controls = liquidation_execution_controls()
     payload["execution_controls"] = controls
     gated_payload = apply_liquidation_submission_state(dict(payload), mode="self_funded")
@@ -369,7 +379,6 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
     if not controls["execution_enabled"] and not force:
         raise RuntimeError("LIQUIDATION_EXECUTION_ENABLED is false")
 
-    private_key = liquidation_self_funded_private_key()
     if not private_key:
         raise RuntimeError("missing LIQUIDATION_SELF_FUNDED_PRIVATE_KEY")
 
@@ -467,5 +476,21 @@ def execute_self_funded_liquidation_transaction(payload: dict, force: bool = Fal
         "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
         "execution_controls": (payload.get("execution_controls") or controls) | {"manual_force": bool(force)},
     }
+
+
+def execute_self_funded_liquidation_transaction(payload: dict, force: bool = False) -> dict:
+    private_keys = liquidation_self_funded_private_keys()
+    if not private_keys:
+        raise RuntimeError("missing LIQUIDATION_SELF_FUNDED_PRIVATE_KEY")
+    if len(private_keys) == 1:
+        return _execute_self_funded_liquidation_for_key(payload, private_keys[0], force=force)
+    attempts = [
+        SubmissionAttempt(
+            name=f"self_funded_{index + 1}",
+            submit=lambda key=key: _execute_self_funded_liquidation_for_key(dict(payload), key, force=force),
+        )
+        for index, key in enumerate(private_keys)
+    ]
+    return run_parallel_submissions(attempts, max_workers=min(3, len(attempts)))
 
 
