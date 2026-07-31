@@ -1,6 +1,7 @@
 ﻿from datetime import datetime, timezone
 
 OBSERVER_ADVISORY_LOCK_ID = 2026072801
+SCHEMA_ADVISORY_LOCK_ID = 2026073102
 SCHEMA_MIGRATIONS = (
     (
         "20260730_liquidation_runtime_schema",
