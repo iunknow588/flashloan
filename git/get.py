@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -56,6 +55,53 @@ def run_git(root: Path, *args: str, capture: bool = False, check: bool = True) -
         detail = (result.stderr or result.stdout or "").strip()
         raise RuntimeError(f"git command failed: {' '.join(command)}\n{detail}")
     return result
+
+
+def get_git_dir(root: Path) -> Path:
+    result = run_git(root, "rev-parse", "--absolute-git-dir", capture=True, check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        return Path(result.stdout.strip())
+    return root / ".git"
+
+
+def has_rebase_in_progress(root: Path) -> bool:
+    git_dir = get_git_dir(root)
+    return (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists()
+
+
+def has_unmerged_paths(root: Path) -> bool:
+    result = run_git(root, "diff", "--name-only", "--diff-filter=U", capture=True, check=False)
+    return bool(result.stdout.strip())
+
+
+def remove_index_lock_if_requested(root: Path, cleanup_stale_lock: bool) -> None:
+    lock_path = get_git_dir(root) / "index.lock"
+    if not lock_path.exists():
+        return
+    if cleanup_stale_lock:
+        lock_path.unlink()
+        print(f"Removed stale git lock: {lock_path}")
+        return
+    raise RuntimeError(
+        f"Git index lock exists: {lock_path}\n"
+        "If no other git command is running, rerun with --cleanup-stale-lock."
+    )
+
+
+def continue_rebase_if_possible(root: Path) -> None:
+    if not has_rebase_in_progress(root):
+        return
+    if has_unmerged_paths(root):
+        raise RuntimeError(
+            "A rebase is in progress and has conflicts. Resolve them, run `git add ...`, then rerun this script."
+        )
+    print("A rebase is in progress. Continuing it before syncing.")
+    result = run_git(root, "rebase", "--continue", check=False)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Could not continue the existing rebase automatically.\n"
+            f"Run `git -C {root} rebase --continue` or `git -C {root} rebase --abort` and retry."
+        )
 
 
 def resolve_repo_root(create_if_missing: bool = False) -> Path:
@@ -155,6 +201,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--merge", action="store_true", help="Use git pull --no-ff when local and remote branches diverged.")
     parser.add_argument("--allow-dirty", action="store_true", help="Allow pulling with a dirty working tree.")
     parser.add_argument("--no-autostash", action="store_true", help="Do not pass --autostash to git pull --rebase/--merge.")
+    parser.add_argument(
+        "--cleanup-stale-lock",
+        action="store_true",
+        help="Remove .git/index.lock before syncing. Use only after confirming no other git process is running.",
+    )
     return parser
 
 
@@ -165,6 +216,8 @@ def main(argv: list[str] | None = None) -> int:
         root = resolve_repo_root(create_if_missing=True)
         load_env_values(root)
         initialize_repository_if_missing(root)
+        remove_index_lock_if_requested(root, args.cleanup_stale_lock)
+        continue_rebase_if_possible(root)
         ensure_origin_remote(root)
         branch = current_or_default_branch(root)
         ensure_local_branch_name(root, branch)
