@@ -7,7 +7,7 @@ import threading
 from core.env_loader import load_env_files
 
 
-load_env_files(__file__)
+load_env_files(__file__, override=True)
 
 
 REQUIRED_MODULES = {

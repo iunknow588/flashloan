@@ -1,6 +1,19 @@
+from pathlib import Path
+
 from execution.health_checker import classify_health_factor, estimate_liquidation_profit, health_factor_band
 from execution.prioritizer import incremental_scan_account_groups, split_candidate_accounts, watched_health_rows
 from execution.scanner import normalize_accounts
+
+
+def _module_line_count(relative_path: str) -> int:
+    root = Path(__file__).resolve().parents[1]
+    return len((root / relative_path).read_text(encoding="utf-8").splitlines())
+
+
+def test_liquidation_scan_split_modules_stay_small():
+    assert _module_line_count("execution/scanner.py") < 300
+    assert _module_line_count("execution/health_scanner.py") < 300
+    assert _module_line_count("execution/prioritizer.py") < 300
 
 
 def test_scanner_normalizes_and_deduplicates_accounts():

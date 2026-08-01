@@ -10,6 +10,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 REPO_ROOT_OVERRIDE = ""
+REPO_HTTPS_URL = ""
 PREFERRED_REMOTE_URL = ""
 
 
@@ -30,7 +31,7 @@ def read_env_file(path: Path) -> dict[str, str]:
 
 
 def load_env_values(repo_root: Path | None = None) -> None:
-    global REPO_ROOT_OVERRIDE, PREFERRED_REMOTE_URL
+    global REPO_ROOT_OVERRIDE, REPO_HTTPS_URL, PREFERRED_REMOTE_URL
     paths = [SCRIPT_DIR / ".env"]
     if repo_root is not None:
         paths.append(repo_root / ".env")
@@ -38,6 +39,8 @@ def load_env_values(repo_root: Path | None = None) -> None:
         for key, value in read_env_file(path).items():
             if key == "REPO_ROOT_OVERRIDE":
                 REPO_ROOT_OVERRIDE = value
+            elif key == "REPO_HTTPS_URL":
+                REPO_HTTPS_URL = value
             elif key == "PREFERRED_REMOTE_URL":
                 PREFERRED_REMOTE_URL = value
 
@@ -160,12 +163,35 @@ def ensure_origin_remote(root: Path) -> None:
         print(f"Added origin -> {PREFERRED_REMOTE_URL}")
 
 
+def fetch_origin(root: Path, *args: str, quiet: bool = False) -> subprocess.CompletedProcess[str]:
+    command = ["fetch", "origin", *args]
+    if quiet:
+        command.append("--quiet")
+    result = run_git(root, *command, capture=True, check=False)
+    detail = f"{result.stderr}\n{result.stdout}"
+    if result.returncode == 0 or "Permission denied (publickey)" not in detail or not REPO_HTTPS_URL:
+        if result.returncode != 0:
+            raise RuntimeError(f"git command failed: git -C {root} {' '.join(command)}\n{detail.strip()}")
+        return result
+
+    if get_origin_remote_url(root) != REPO_HTTPS_URL:
+        print(f"SSH authentication failed. Switching origin to HTTPS -> {REPO_HTTPS_URL}")
+        run_git(root, "remote", "set-url", "origin", REPO_HTTPS_URL)
+        run_git(root, "remote", "set-url", "--push", "origin", REPO_HTTPS_URL)
+
+    result = run_git(root, *command, capture=True, check=False)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(f"git command failed: git -C {root} {' '.join(command)}\n{detail}")
+    return result
+
+
 def current_or_default_branch(root: Path) -> str:
     branch = run_git(root, "branch", "--show-current", capture=True).stdout.strip()
     if branch and head_exists(root):
         return branch
 
-    run_git(root, "fetch", "origin")
+    fetch_origin(root)
     origin_head = run_git(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD", capture=True, check=False)
     value = origin_head.stdout.strip()
     if value.startswith("origin/"):
@@ -188,7 +214,7 @@ def ensure_local_branch_name(root: Path, branch: str) -> None:
 
 
 def branch_sync_state(root: Path, branch: str) -> tuple[int, int]:
-    run_git(root, "fetch", "origin", branch, "--quiet")
+    fetch_origin(root, branch, quiet=True)
     counts = run_git(root, "rev-list", "--left-right", "--count", f"origin/{branch}...{branch}", capture=True).stdout.split()
     if len(counts) < 2:
         raise RuntimeError(f"Unexpected branch comparison result: {' '.join(counts)}")

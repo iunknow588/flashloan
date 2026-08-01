@@ -9,18 +9,17 @@ from tools.liquidation_observation_report import (
     default_output_path as liquidation_observation_report_path,
     write_liquidation_observation_report,
 )
+from web.route_context import RouteContext
 
-PANEL = None
+ROUTE_CONTEXT = RouteContext()
 
 
 def panel_call(name: str, *args, **kwargs):
-    return getattr(PANEL, name)(*args, **kwargs)
+    return ROUTE_CONTEXT.call(name, *args, **kwargs)
 
 
 def register_data_routes(app, panel) -> None:
-    global PANEL
-    PANEL = panel
-    globals().update(vars(panel))
+    ROUTE_CONTEXT.bind(panel, globals())
 
     @app.get("/api/opportunity-health")
     def opportunity_health_api():
@@ -43,7 +42,7 @@ def register_data_routes(app, panel) -> None:
     def db_summary():
         schema = schema_status_payload()
         pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
-        coverage = liquidation_coverage_payload(pool_address, panel=PANEL)
+        coverage = liquidation_coverage_payload(pool_address, panel=ROUTE_CONTEXT.panel)
         attempts = panel_call("recent_liquidation_execution_attempts", limit=1)
         failure_samples = panel_call("recent_liquidation_failure_samples", limit=20)
         pause_guard = panel_call("liquidation_pause_guard_status")

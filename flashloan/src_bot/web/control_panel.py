@@ -10,7 +10,6 @@ from html import escape
 from pathlib import Path
 from typing import Optional
 
-from flask import Flask, Response, jsonify, request
 from eth_account import Account
 from web3 import Web3
 
@@ -68,11 +67,8 @@ import web.control_panel_liquidation_audit as liquidation_audit
 import web.control_panel_liquidation_scan as liquidation_scan_module
 import web.control_panel_liquidation_execute as liquidation_execute
 import web.control_panel_market as market_panel
-from web.control_panel_liquidation_context import install_liquidation_context
-from web.control_panel_liquidation_routes import register_liquidation_routes
-from web.control_panel_control_routes import register_control_routes
-from web.control_panel_data_routes import register_data_routes
-from web.control_panel_page_routes import register_page_routes
+from web.control_panel_app import create_control_panel_app
+from web.observer_runtime_service import ObserverRuntimeService
 
 for _module in (
     liquidation_base,
@@ -82,26 +78,26 @@ for _module in (
     market_panel,
 ):
     globals().update({name: value for name, value in vars(_module).items() if not name.startswith("_")})
-from db.storage import (
-    EXPECTED_SCHEMA_MIGRATION_IDS,
-    ensure_database_schema,
-    load_liquidation_borrow_health_scan_batches as db_load_liquidation_borrow_health_scan_batches,
-    load_schema_migrations,
+from db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
+from db.storage_liquidation import (
     load_liquidation_accounts as db_load_liquidation_accounts,
-    load_liquidation_borrow_health_pool as db_load_liquidation_borrow_health_pool,
-    load_liquidation_core_opportunity_pool as db_load_liquidation_core_opportunity_pool,
-    load_liquidation_high_frequency_pool as db_load_liquidation_high_frequency_pool,
     load_liquidation_scan_config_library as db_load_liquidation_scan_config_library,
     liquidation_account_registry_stats as db_liquidation_account_registry_stats,
     liquidation_discovery_scan_progress as db_liquidation_discovery_scan_progress,
     prune_liquidation_accounts as db_prune_liquidation_accounts,
-    record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
     record_liquidation_account_scan,
-    record_liquidation_borrow_health_scan_batch as db_record_liquidation_borrow_health_scan_batch,
-    require_psycopg,
-    sync_liquidation_borrow_health_pool as db_sync_liquidation_borrow_health_pool,
+    record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
+from db.storage_liquidation_pool import (
+    load_liquidation_borrow_health_scan_batches as db_load_liquidation_borrow_health_scan_batches,
+    load_liquidation_borrow_health_pool as db_load_liquidation_borrow_health_pool,
+    load_liquidation_core_opportunity_pool as db_load_liquidation_core_opportunity_pool,
+    load_liquidation_high_frequency_pool as db_load_liquidation_high_frequency_pool,
+    record_liquidation_borrow_health_scan_batch as db_record_liquidation_borrow_health_scan_batch,
+    sync_liquidation_borrow_health_pool as db_sync_liquidation_borrow_health_pool,
+)
+from db.storage_schema import ensure_database_schema, load_schema_migrations
 
 
 WEB_DIR = Path(__file__).resolve().parent
@@ -131,7 +127,6 @@ STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
 LIQUIDATION_CONFIG_PATH = CONFIG_DIR / "liquidation_config.json"
 REPO_ROOT = APP_DIR.parents[1]
 
-app = Flask(__name__)
 observer_process: Optional[subprocess.Popen] = None
 selected_symbols: list[str] = []
 discovered_observer_pid: Optional[int] = None
@@ -142,29 +137,10 @@ observer_start_lock = threading.Lock()
 observer_supervisor_thread: Optional[threading.Thread] = None
 observer_supervisor_stop = threading.Event()
 observer_supervisor_lock = threading.Lock()
-observer_supervisor_state = {
-    "enabled": False,
-    "heartbeat_at": 0.0,
-    "restart_count": 0,
-    "last_restart_at": 0.0,
-    "next_restart_at": 0.0,
-    "last_exit_code": None,
-    "last_error": None,
-}
-observer_start_progress = {
-    "state": "stopped",
-    "stage": "未启动",
-    "percent": 0,
-    "started_at": None,
-}
-control_status = {
-    "state": "stopped",
-    "stage": "",
-    "message": "",
-    "percent": 0,
-    "updated_at": 0.0,
-    "ttl_seconds": 0.0,
-}
+observer_runtime_service = ObserverRuntimeService()
+observer_supervisor_state = observer_runtime_service.supervisor_state
+observer_start_progress = observer_runtime_service.observer_start_progress
+control_status = observer_runtime_service.control_status
 
 VELOCITY_SIDE_LIMIT = 100
 SUMMARY_SIDE_LIMIT = 5
@@ -309,13 +285,7 @@ def quick_observer_running() -> bool:
 
 
 def set_observer_progress(state: str, stage: str, percent: int) -> None:
-    observer_start_progress.update(
-        {
-            "state": state, "stage": stage,
-            "percent": max(0, min(int(percent), 100)),
-            "started_at": observer_start_progress.get("started_at"),
-        }
-    )
+    observer_runtime_service.set_observer_progress(state, stage, percent)
 
 
 def observer_start_elapsed_seconds() -> Optional[float]:
@@ -353,16 +323,7 @@ def set_control_status(
     percent: int,
     ttl_seconds: float = 0.0,
 ) -> None:
-    control_status.update(
-        {
-            "state": state,
-            "stage": stage,
-            "message": message,
-            "percent": max(0, min(int(percent), 100)),
-            "updated_at": time.monotonic(),
-            "ttl_seconds": max(0.0, float(ttl_seconds)),
-        }
-    )
+    observer_runtime_service.set_control_status(state, stage, message, percent, ttl_seconds=ttl_seconds)
 
 
 def database_lock_message(action: str, exc: Exception) -> str:
@@ -588,14 +549,9 @@ def observer_supervisor_delay(restart_count: int) -> float:
 
 
 def observer_supervisor_payload() -> dict:
-    with observer_supervisor_lock:
-        state = dict(observer_supervisor_state)
-    heartbeat_at = float(state.get("heartbeat_at") or 0.0)
-    return {
-        **state,
-        "healthy": bool(state.get("enabled")) and quick_observer_running(),
-        "heartbeat_age_seconds": round(time.monotonic() - heartbeat_at, 1) if heartbeat_at else None,
-    }
+    payload = observer_runtime_service.supervisor_payload()
+    payload["healthy"] = bool(payload.get("enabled")) and quick_observer_running()
+    return payload
 
 
 def launch_observer_process(env: dict, symbols: list[str]) -> subprocess.Popen:
@@ -622,9 +578,7 @@ def launch_observer_process(env: dict, symbols: list[str]) -> subprocess.Popen:
 
 def start_observer_supervisor() -> None:
     global observer_supervisor_thread
-    with observer_supervisor_lock:
-        observer_supervisor_state["enabled"] = True
-        observer_supervisor_state["heartbeat_at"] = time.monotonic()
+    observer_runtime_service.mark_supervisor_heartbeat()
     observer_supervisor_stop.clear()
     if observer_supervisor_thread is not None and observer_supervisor_thread.is_alive():
         return
@@ -638,53 +592,50 @@ def start_observer_supervisor() -> None:
 
 def stop_observer_supervisor() -> None:
     observer_supervisor_stop.set()
-    with observer_supervisor_lock:
-        observer_supervisor_state["enabled"] = False
-        observer_supervisor_state["next_restart_at"] = 0.0
+    observer_runtime_service.reset_runtime_state()
 
 
 def observer_supervisor_once(now: float | None = None) -> dict:
     now = time.monotonic() if now is None else float(now)
     with observer_supervisor_lock:
-        enabled = bool(observer_supervisor_state.get("enabled"))
+        enabled = bool(observer_runtime_service.supervisor_state.get("enabled"))
     if not enabled:
         return {"action": "disabled"}
     if observer_starting:
-        with observer_supervisor_lock:
-            observer_supervisor_state["heartbeat_at"] = now
+        observer_runtime_service.mark_supervisor_heartbeat(now)
         return {"action": "starting"}
     if quick_observer_running():
-        with observer_supervisor_lock:
-            observer_supervisor_state["heartbeat_at"] = now
-            observer_supervisor_state["last_error"] = None
+        observer_runtime_service.mark_supervisor_heartbeat(now)
+        observer_runtime_service.update_supervisor_state(last_error=None)
         return {"action": "healthy"}
 
     exit_code = observer_process.poll() if observer_process is not None else None
     with observer_supervisor_lock:
-        restart_count = int(observer_supervisor_state.get("restart_count") or 0) + 1
-        next_restart_at = float(observer_supervisor_state.get("next_restart_at") or 0.0)
+        restart_count = int(observer_runtime_service.supervisor_state.get("restart_count") or 0) + 1
+        next_restart_at = float(observer_runtime_service.supervisor_state.get("next_restart_at") or 0.0)
         if next_restart_at and now < next_restart_at:
             return {"action": "backoff", "next_restart_at": next_restart_at}
-        observer_supervisor_state["restart_count"] = restart_count
-        observer_supervisor_state["last_exit_code"] = exit_code
-        observer_supervisor_state["last_error"] = f"observer exited code={exit_code}"
+        observer_runtime_service.update_supervisor_state(
+            restart_count=restart_count,
+            last_exit_code=exit_code,
+            last_error=f"observer exited code={exit_code}",
+        )
 
     delay = observer_supervisor_delay(restart_count)
     try:
         env, symbols = build_observer_env()
         process = launch_observer_process(env, symbols)
-        with observer_supervisor_lock:
-            observer_supervisor_state["heartbeat_at"] = now
-            observer_supervisor_state["last_restart_at"] = now
-            observer_supervisor_state["next_restart_at"] = now + delay
-            observer_supervisor_state["last_error"] = None
+        observer_runtime_service.mark_supervisor_heartbeat(now)
+        observer_runtime_service.update_supervisor_state(
+            last_restart_at=now,
+            next_restart_at=now + delay,
+            last_error=None,
+        )
         set_observer_progress("initializing", f"机会观察已自动重启 pid={process.pid}", 85)
         set_control_status("initializing", "自动恢复机会观察", f"观察进程崩溃后已自动重启，pid={process.pid}", 85, ttl_seconds=60)
         return {"action": "restarted", "pid": process.pid, "delay": delay}
     except Exception as exc:
-        with observer_supervisor_lock:
-            observer_supervisor_state["next_restart_at"] = now + delay
-            observer_supervisor_state["last_error"] = str(exc)
+        observer_runtime_service.update_supervisor_state(next_restart_at=now + delay, last_error=str(exc))
         set_observer_progress("error", f"机会观察自动重启失败：{exc}", 0)
         return {"action": "restart_failed", "error": str(exc), "delay": delay}
 
@@ -797,11 +748,7 @@ def render_control_panel() -> str:
     return template.replace("__CHART_OPTIONS__", chart_options)
 
 
-install_liquidation_context(sys.modules[__name__])
-register_page_routes(app, sys.modules[__name__])
-register_liquidation_routes(app, sys.modules[__name__])
-register_data_routes(app, sys.modules[__name__])
-register_control_routes(app, sys.modules[__name__])
+app = create_control_panel_app(sys.modules[__name__])
 
 
 if __name__ == "__main__":

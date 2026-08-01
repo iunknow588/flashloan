@@ -15,6 +15,7 @@ function normalizeRequest(raw) {
     minCollateralSwapOut: BigInt(raw.minCollateralSwapOut || 0),
     minProfitAmount: BigInt(raw.minProfitAmount || 0),
     deadline: BigInt(raw.deadline),
+    gasLimit: BigInt(raw.gasLimit || 0),
     swapPath: (raw.swapPath || []).map((item) => hre.ethers.getAddress(item)),
   };
 }

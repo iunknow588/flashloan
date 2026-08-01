@@ -173,16 +173,26 @@ def collect_liquidation_events(w3: Web3, config: LiquidationHistoryConfig) -> li
     latest_block = int(w3.eth.block_number)
     from_block = estimate_start_block(latest_block, config.days)
     events: list[dict[str, Any]] = []
+    def get_logs_with_retry(chunk_start: int, chunk_end: int) -> list[dict[str, Any]]:
+        params = {
+            "address": Web3.to_checksum_address(config.pool_address),
+            "fromBlock": chunk_start,
+            "toBlock": chunk_end,
+            "topics": [LIQUIDATION_CALL_TOPIC],
+        }
+        try:
+            return list(w3.eth.get_logs(params))
+        except ValueError as exc:
+            message = str(exc).lower()
+            too_many_blocks = "too many blocks" in message or "maximum is set to" in message
+            if not too_many_blocks or chunk_start >= chunk_end:
+                raise
+            midpoint = (chunk_start + chunk_end) // 2
+            return get_logs_with_retry(chunk_start, midpoint) + get_logs_with_retry(midpoint + 1, chunk_end)
+
     for chunk_start in range(from_block, latest_block + 1, max(1, int(config.chunk_size))):
         chunk_end = min(latest_block, chunk_start + max(1, int(config.chunk_size)) - 1)
-        logs = w3.eth.get_logs(
-            {
-                "address": Web3.to_checksum_address(config.pool_address),
-                "fromBlock": chunk_start,
-                "toBlock": chunk_end,
-                "topics": [LIQUIDATION_CALL_TOPIC],
-            }
-        )
+        logs = get_logs_with_retry(chunk_start, chunk_end)
         for log in logs:
             event = decode_liquidation_call_log(log)
             if config.include_receipts and event["transaction_hash"]:

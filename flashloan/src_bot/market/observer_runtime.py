@@ -10,15 +10,15 @@ from typing import Iterable
 import websockets
 from web3 import Web3
 
-from db.storage import (
+from db.storage_liquidation import try_acquire_observer_lock
+from db.storage_observer import (
     append_arbitrage_simulation,
     append_binance_candidate_price_history,
     append_binance_extremes,
     append_binance_pair_price_history,
     append_observations,
-    ensure_database_schema,
-    try_acquire_observer_lock,
 )
+from db.storage_schema import ensure_database_schema
 from market.observer_common import (
     AAVE_ORACLE,
     DEFAULT_BINANCE_WS_CHUNK_SIZE,

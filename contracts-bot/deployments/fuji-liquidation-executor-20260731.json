@@ -1,0 +1,17 @@
+{
+  "network": "fuji",
+  "chainId": 43113,
+  "deployed_at_utc": "2026-07-31T19:50:00Z",
+  "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "executor": "0x040f18CA0aFBb943d71304DFb2Aa113476B87Fe7",
+  "pool": "0x8B9b2AF4afB389b4a70A474dfD4AdCD4a302bb40",
+  "router": "0xd7f655E3376cE2D7A2b08fF01Eb3B1023191A901",
+  "usdc": "0x5425890298aed601595a70AB815c96711a31Bc65",
+  "verification": {
+    "code_length": 12830,
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "paused": false,
+    "minReserve": "0",
+    "flashloan_premium_bps": 5
+  }
+}

@@ -44,12 +44,19 @@ def parse_env_lines(lines: Iterable[str]) -> dict[str, str]:
     return values
 
 
-def load_env_files(start_path: str | os.PathLike[str]) -> list[Path]:
+def load_env_files(
+    start_path: str | os.PathLike[str],
+    *,
+    override: bool = False,
+) -> list[Path]:
     loaded: list[Path] = []
     for env_path in candidate_env_paths(start_path):
         values = parse_env_lines(env_path.read_text(encoding="utf-8").splitlines())
         for key, value in values.items():
-            os.environ.setdefault(key, value)
+            if override:
+                os.environ[key] = value
+            else:
+                os.environ.setdefault(key, value)
         loaded.append(env_path)
     return loaded
 

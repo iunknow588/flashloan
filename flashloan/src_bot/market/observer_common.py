@@ -29,15 +29,15 @@ from market.dex_usdc_targets import (
     load_usdc_pool_binance_symbols,
 )
 from core.env_loader import load_env_files, resolve_env_path
-from db.storage import (
+from db.storage_observer import (
     append_arbitrage_simulation,
     append_binance_candidate_price_history,
     append_binance_extremes,
     append_binance_pair_price_history,
     append_observations,
-    ensure_database_schema,
-    try_acquire_observer_lock,
 )
+from db.storage_schema import ensure_database_schema
+from db.storage_liquidation import try_acquire_observer_lock
 from strategy.arbitrage import ArbitrageConfig, simulate_basket
 from strategy.trigger_signal import TriggerConfig
 

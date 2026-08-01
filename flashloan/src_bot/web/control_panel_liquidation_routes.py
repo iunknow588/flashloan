@@ -2,15 +2,16 @@ import os
 
 from flask import jsonify, request
 
-PANEL = None
+from web.route_context import RouteContext
 
+ROUTE_CONTEXT = RouteContext()
 
 def panel_call(name: str, *args, **kwargs):
-    return getattr(PANEL, name)(*args, **kwargs)
+    return ROUTE_CONTEXT.call(name, *args, **kwargs)
 
 
 def liquidation_coverage_payload(pool_address: str, panel=None) -> dict:
-    source_panel = panel or PANEL
+    source_panel = panel or ROUTE_CONTEXT.panel
     progress = getattr(source_panel, "liquidation_discovery_progress")(pool_address)
     latest_to = progress.get("latest_recent_to_block")
     earliest_from = progress.get("earliest_backfill_from_block")
@@ -83,9 +84,7 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
 
 
 def register_liquidation_routes(app, panel) -> None:
-    global PANEL
-    PANEL = panel
-    globals().update(vars(panel))
+    ROUTE_CONTEXT.bind(panel, globals())
 
     @app.get("/api/liquidation-health")
     def liquidation_health_api():

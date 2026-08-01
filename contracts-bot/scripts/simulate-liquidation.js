@@ -22,6 +22,7 @@ function normalizeRequest(raw) {
     minCollateralSwapOut: BigInt(raw.minCollateralSwapOut || 0),
     minProfitAmount: BigInt(raw.minProfitAmount || 0),
     deadline: BigInt(requireField(raw, "deadline")),
+    gasLimit: BigInt(raw.gasLimit || 0),
     swapPath: (raw.swapPath || []).map((item) => hre.ethers.getAddress(item)),
   };
 }
@@ -29,7 +30,7 @@ function normalizeRequest(raw) {
 function readPayload(payloadPath) {
   if (!payloadPath) return {};
   const absolutePath = path.resolve(process.cwd(), payloadPath);
-  return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+  return JSON.parse(fs.readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
 function requireAddressEnv(name) {

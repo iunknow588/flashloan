@@ -1,0 +1,19 @@
+{
+  "source": "flashloan/src_bot/runtime/reports/liquidation_history_30d.json",
+  "source_event_block": 90438647,
+  "source_event_tx": "0x9632dfe3acc034adf5bdf9934881f3a1118b1346d5e0449a12db46930707873d",
+  "request": {
+    "user": "0xaE3F37A5a8F62A76fe6c1f45dd9d169962E6a18f",
+    "collateralAsset": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    "debtAsset": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "debtToCover": "396262",
+    "minCollateralSwapOut": "0",
+    "minProfitAmount": "0",
+    "deadline": "9999999999",
+    "gasLimit": "0",
+    "swapPath": [
+      "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    ]
+  }
+}

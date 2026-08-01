@@ -1,6 +1,12 @@
 from web3 import Web3
 
-from execution.gas_estimator import build_gas_params, estimate_gas_price, mempool_gas_price_distribution, recent_fee_distribution
+from execution.gas_estimator import (
+    build_gas_params,
+    compare_gas_strategy_costs,
+    estimate_gas_price,
+    mempool_gas_price_distribution,
+    recent_fee_distribution,
+)
 
 
 GWEI = 10**9
@@ -126,3 +132,24 @@ def test_mempool_distribution_reports_unavailable_when_pending_unsupported():
 
     assert distribution["source"] == "unavailable"
     assert distribution["gas_price_percentiles"] == {"p50": 0, "p75": 0, "p90": 0}
+
+
+def test_compare_gas_strategy_costs_reports_savings_against_baseline():
+    estimate = estimate_gas_price(
+        FakeWeb3(BlockFallbackEth()),
+        urgency="normal",
+        max_gas_price_gwei=100,
+        history_blocks=3,
+        include_mempool=False,
+    )
+
+    comparison = compare_gas_strategy_costs(
+        gas_used=500_000,
+        baseline_gas_price=30 * GWEI,
+        optimized=estimate,
+    )
+
+    assert comparison["baseline_cost_wei"] == 15_000_000 * GWEI
+    assert comparison["optimized_cost_wei"] == 9_000_000 * GWEI
+    assert comparison["savings_wei"] == 6_000_000 * GWEI
+    assert comparison["savings_percent"] == 40.0

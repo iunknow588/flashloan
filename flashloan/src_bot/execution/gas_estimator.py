@@ -209,3 +209,27 @@ def build_gas_params(estimate: GasEstimate) -> dict[str, Any]:
             "maxPriorityFeePerGas": estimate.priority_fee,
         }
     return {"gasPrice": estimate.max_fee}
+
+
+def compare_gas_strategy_costs(
+    *,
+    gas_used: int,
+    baseline_gas_price: int,
+    optimized: GasEstimate,
+) -> dict[str, Any]:
+    gas_units = max(0, int(gas_used or 0))
+    baseline_cost = gas_units * max(0, int(baseline_gas_price or 0))
+    optimized_cost = gas_units * max(0, int(optimized.max_fee or 0))
+    savings = baseline_cost - optimized_cost
+    savings_percent = 0.0
+    if baseline_cost > 0:
+        savings_percent = savings / baseline_cost * 100.0
+    return {
+        "gas_used": gas_units,
+        "baseline_cost_wei": baseline_cost,
+        "optimized_cost_wei": optimized_cost,
+        "savings_wei": savings,
+        "savings_percent": savings_percent,
+        "optimized_strategy": optimized.strategy,
+        "optimized_sample_source": optimized.sample_source,
+    }
