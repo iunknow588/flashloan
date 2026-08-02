@@ -18,6 +18,17 @@ from web.control_panel_liquidation_pause import (
 LIQUIDATION_PAUSE_GUARD_PATH = None
 
 
+def _decorate_execution_attempts(rows: list[dict]) -> list[dict]:
+    decorated: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        preflight = item.get("preflight") if isinstance(item.get("preflight"), dict) else {}
+        context = preflight.get("context") if isinstance(preflight.get("context"), dict) else {}
+        item["execution_phase"] = item.get("execution_phase") or preflight.get("execution_phase") or context.get("phase")
+        decorated.append(item)
+    return decorated
+
+
 def record_liquidation_execution_attempt_safely(
     *,
     account: str | None,
@@ -82,7 +93,7 @@ def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
         ensure_database_schema(database_url)
         return {
             "configured": True,
-            "attempts": db_load_recent_liquidation_execution_attempts(database_url, limit=limit),
+            "attempts": _decorate_execution_attempts(db_load_recent_liquidation_execution_attempts(database_url, limit=limit)),
             "stats": db_liquidation_execution_attempt_stats(database_url),
         }
     except Exception as exc:
@@ -112,7 +123,7 @@ def liquidation_execution_attempts_for_account(account: str, limit: int = 20) ->
         return {
             "configured": True,
             "account": account,
-            "attempts": db_load_liquidation_execution_attempts_for_account(database_url, account, limit=limit),
+            "attempts": _decorate_execution_attempts(db_load_liquidation_execution_attempts_for_account(database_url, account, limit=limit)),
         }
     except Exception as exc:
         return {"configured": True, "account": account, "error": str(exc), "attempts": []}
