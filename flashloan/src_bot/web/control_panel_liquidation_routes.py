@@ -6,6 +6,14 @@ from web.route_context import RouteContext
 
 ROUTE_CONTEXT = RouteContext()
 
+CANONICAL_ROUTE_FAILURE_STATES = {
+    "submission_blocked",
+    "submission_failed",
+    "static_call_failed",
+    "confirmed_failed",
+}
+
+
 def panel_call(name: str, *args, **kwargs):
     return ROUTE_CONTEXT.call(name, *args, **kwargs)
 
@@ -46,6 +54,9 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
             "submission_allowed": payload.get("submission_allowed"),
             "blocked_reasons": payload.get("blocked_reasons") or [],
             "checks": payload.get("checks") or {},
+            "dex_quote": payload.get("dex_quote") or {},
+            "tx_hash": payload.get("tx_hash"),
+            "receipt": payload.get("receipt") or {},
             "account_report": account_report,
             "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
             "execution_controls": payload.get("execution_controls") or panel_call("liquidation_execution_controls"),
@@ -54,16 +65,64 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
     return response
 
 
+def _receipt_status(receipt: dict | None) -> int | None:
+    try:
+        if receipt and receipt.get("status") is not None:
+            return int(receipt.get("status"))
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def route_failure_state(mode: str, response: dict) -> str:
+    state = str(response.get("state") or "").strip()
+    if state in CANONICAL_ROUTE_FAILURE_STATES:
+        return state
+    if _receipt_status(response.get("receipt") or {}) == 0:
+        return "confirmed_failed"
+    blocked = response.get("blocked_reasons") or []
+    if blocked:
+        return "submission_blocked"
+    preflight = response.get("preflight") if isinstance(response.get("preflight"), dict) else {}
+    if mode == "static_call" and (
+        preflight.get("static_call_passed") is False
+        or preflight.get("static_call_error")
+        or str(preflight.get("static_call_status") or "").lower() in {"error", "failed"}
+    ):
+        return "static_call_failed"
+    return "submission_failed"
+
+
+def route_failure_phase(response: dict, failure_state: str) -> str:
+    preflight = response.get("preflight") if isinstance(response.get("preflight"), dict) else {}
+    return (
+        response.get("execution_phase")
+        or preflight.get("execution_phase")
+        or (response.get("context") or {}).get("phase")
+        or failure_state
+    )
+
+
 def record_liquidation_route_failure(account: str, mode: str, response: dict, error: Exception) -> None:
+    failure_state = route_failure_state(mode, response)
+    failure_phase = route_failure_phase(response, failure_state)
+    preflight = {
+        **(response.get("preflight") or {}),
+        "execution_phase": failure_phase,
+        "route_failure_state": failure_state,
+        "route_error": str(error),
+    }
     panel_call(
         "record_liquidation_execution_attempt_safely",
         account=account,
         mode=mode,
-        state=response.get("state") or "submission_failed",
+        state=failure_state,
         blocked_reasons=response.get("blocked_reasons") or [],
         request_payload=response.get("request") or {},
         quote=response.get("dex_quote") or {},
-        preflight={**(response.get("preflight") or {}), "execution_phase": response.get("execution_phase")},
+        preflight=preflight,
+        tx_hash=response.get("tx_hash"),
+        receipt=response.get("receipt") or {},
         error=str(error),
     )
 
@@ -71,6 +130,7 @@ def record_liquidation_route_failure(account: str, mode: str, response: dict, er
 def record_liquidation_route_success(account: str, mode: str, result: dict) -> None:
     receipt = result.get("receipt") or {}
     state = "confirmed_success" if int(receipt.get("status") or 0) == 1 else "confirmed_failed"
+    execution_phase = result.get("execution_phase") or state
     panel_call(
         "record_liquidation_execution_attempt_safely",
         account=account,
@@ -78,7 +138,11 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
         state=state,
         request_payload=result.get("request") or {},
         quote=result.get("dex_quote") or {},
-        preflight={**(result.get("preflight") or {}), "execution_phase": result.get("execution_phase")},
+        preflight={
+            **(result.get("preflight") or {}),
+            "execution_phase": execution_phase,
+            "receipt_status": _receipt_status(receipt),
+        },
         tx_hash=result.get("tx_hash"),
         receipt=receipt,
     )

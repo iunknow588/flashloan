@@ -3,6 +3,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from execution.external_liquidation_index import fetch_external_borrower_accounts, merge_candidate_accounts
+
 
 def discover_and_sync_liquidation_accounts(ctx: Any, force_full: bool = False) -> dict:
     if not ctx.database_url_or_none():
@@ -77,6 +79,12 @@ def _discover_with_rpc_candidates(
 ) -> dict:
     chunk_size = int(os.getenv("LIQUIDATION_BORROW_SCAN_CHUNK_SIZE", "1000"))
     limit = _borrow_discovery_limit(ctx, force_full, registry)
+    external_index = _fetch_external_index_candidates(
+        pool_address=pool_address,
+        from_block=from_block,
+        to_block=to_block,
+        limit=limit or ctx.liquidation_scan_config().max_candidates,
+    )
     last_error = None
     for candidate in ctx.aave_rpc_urls():
         actual_from_block = 0
@@ -89,8 +97,9 @@ def _discover_with_rpc_candidates(
                 "to_block": actual_to_block,
                 "chunk_size": chunk_size,
                 "limit": limit,
+                "external_index": _external_index_summary(external_index),
             }
-            discovered = _discover_candidate_accounts(
+            onchain_discovered = _discover_candidate_accounts(
                 ctx,
                 candidate,
                 pool_address,
@@ -102,12 +111,19 @@ def _discover_with_rpc_candidates(
                     {"progress": {"rpc_url": candidate, "chunk_size": chunk_size, "limit": limit, **progress}}
                 ),
             )
+            discovered = merge_candidate_accounts(
+                onchain_discovered,
+                external_index.get("accounts") or [],
+                limit=limit or ctx.liquidation_scan_config().max_candidates,
+            )
             return _sync_discovered_accounts(
                 ctx,
                 force_full=force_full,
                 pool_address=pool_address,
                 rpc_url=candidate,
                 discovered=discovered,
+                onchain_discovered=onchain_discovered,
+                external_index=external_index,
                 scan_start_at=scan_start_at,
                 scan_end_at=scan_end_at,
                 from_block=from_block,
@@ -141,6 +157,9 @@ def _discover_with_rpc_candidates(
         "stage": ctx.LIQUIDATION_DISCOVERY_CACHE.get("stage"),
         "scan_start_at": scan_start_at.isoformat(timespec="seconds"),
         "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
+        "external_index": _external_index_summary(external_index),
+        "external_index_count": int(external_index.get("count") or 0),
+        "requires_onchain_verification": True,
     }
     ctx.LIQUIDATION_DISCOVERY_CACHE["last_result"] = result
     return result
@@ -176,11 +195,47 @@ def _discover_candidate_accounts(
     )
 
 
+def _fetch_external_index_candidates(
+    *,
+    pool_address: str,
+    from_block: int | None,
+    to_block: int | None,
+    limit: int,
+) -> dict[str, Any]:
+    result = fetch_external_borrower_accounts(
+        pool_address=pool_address,
+        from_block=from_block,
+        to_block=to_block,
+    )
+    accounts = list(result.get("accounts") or [])
+    if limit > 0 and len(accounts) > limit:
+        result = dict(result)
+        result["accounts"] = accounts[:limit]
+        result["count"] = len(result["accounts"])
+    return result
+
+
+def _external_index_summary(result: dict[str, Any] | None) -> dict[str, Any]:
+    data = result or {}
+    return {
+        "enabled": bool(data.get("enabled")),
+        "configured": bool(data.get("configured")),
+        "source": str(data.get("source") or "external-index-coarse"),
+        "count": int(data.get("count") or 0),
+        "error": data.get("error"),
+        "requires_onchain_verification": True,
+    }
+
+
 def _sync_discovered_accounts(ctx: Any, **data: Any) -> dict:
     discovered = data["discovered"]
+    external_index = data.get("external_index") or {}
+    source = "auto-discovery"
+    if int(external_index.get("count") or 0) > 0:
+        source = "auto-discovery+external-index-coarse"
     ctx.sync_liquidation_accounts_to_database(
         discovered,
-        source="auto-discovery",
+        source=source,
         scan_start_at=data["scan_start_at"],
         scan_end_at=data["scan_end_at"],
         update_existing=True,
@@ -213,6 +268,8 @@ def _sync_discovered_accounts(ctx: Any, **data: Any) -> dict:
 
 
 def _continuity_skip_result(ctx: Any, reason: str, **data: Any) -> dict:
+    external_summary = _external_index_summary(data.get("external_index"))
+    onchain_count = len(data.get("onchain_discovered") or [])
     return {
         "saved": False,
         "count": len(data["discovered"]),
@@ -229,10 +286,20 @@ def _continuity_skip_result(ctx: Any, reason: str, **data: Any) -> dict:
         "scan_start_at": data["scan_start_at"].isoformat(timespec="seconds"),
         "scan_end_at": data["scan_end_at"].isoformat(timespec="seconds"),
         "registry_window": data["registry"],
+        "candidate_source_counts": {
+            "onchain_borrow_logs": onchain_count,
+            "external_index_coarse": external_summary["count"],
+        },
+        "onchain_log_count": onchain_count,
+        "external_index_count": external_summary["count"],
+        "external_index": external_summary,
+        "requires_onchain_verification": True,
     }
 
 
 def _success_result(ctx: Any, **data: Any) -> dict:
+    external_summary = _external_index_summary(data.get("external_index"))
+    onchain_count = len(data.get("onchain_discovered") or [])
     if data["force_full"]:
         now = datetime.now(timezone.utc)
         ctx.LIQUIDATION_DISCOVERY_CACHE["last_backfill_at"] = now.isoformat(timespec="seconds")
@@ -256,4 +323,12 @@ def _success_result(ctx: Any, **data: Any) -> dict:
         "scan_start_at": data["scan_start_at"].isoformat(timespec="seconds"),
         "scan_end_at": data["scan_end_at"].isoformat(timespec="seconds"),
         "registry_window": ctx.liquidation_account_registry_window(),
+        "candidate_source_counts": {
+            "onchain_borrow_logs": onchain_count,
+            "external_index_coarse": external_summary["count"],
+        },
+        "onchain_log_count": onchain_count,
+        "external_index_count": external_summary["count"],
+        "external_index": external_summary,
+        "requires_onchain_verification": True,
     }

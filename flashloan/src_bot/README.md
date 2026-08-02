@@ -12,6 +12,7 @@ This directory keeps the active single-console bot runtime and source code in fu
 - `web/`: Flask control panel and templates.
 - `tools/`: command-line analysis and plotting tools.
 - `tests/`: Python unit tests.
+- `tests/README.md`: test taxonomy, run order, and regression checklist.
 
 ## Common Commands
 

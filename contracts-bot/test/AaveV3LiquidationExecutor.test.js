@@ -128,6 +128,32 @@ describe("AaveV3LiquidationExecutor", function () {
     await expect(executor.requestLiquidation(request)).to.be.revertedWithCustomError(pool, "LiquidationNotConfigured");
   });
 
+  it("enforces minProfitAmount even when collateral and debt asset are the same", async function () {
+    const { user, debt, pool, executor } = await deployFixture();
+    await pool.setLiquidationQuote(
+      user.address,
+      await debt.getAddress(),
+      await debt.getAddress(),
+      ethers.parseUnits("1050", 6)
+    );
+
+    const request = {
+      user: user.address,
+      collateralAsset: await debt.getAddress(),
+      debtAsset: await debt.getAddress(),
+      debtToCover: ethers.parseUnits("1000", 6),
+      minCollateralSwapOut: 0n,
+      minProfitAmount: ethers.parseUnits("60", 6),
+      deadline: await latestDeadline(),
+      gasLimit: 0n,
+      swapPath: [],
+    };
+
+    await expect(executor.requestLiquidation(request))
+      .to.be.revertedWithCustomError(executor, "ProfitTooLow")
+      .withArgs(ethers.parseUnits("49.5", 6), ethers.parseUnits("60", 6));
+  });
+
   it("pauses liquidation entry points and callbacks", async function () {
     const { other, user, debt, collateral, executor } = await deployFixture();
     const request = {
