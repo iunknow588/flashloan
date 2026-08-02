@@ -54,7 +54,7 @@ async function main() {
   if (before < usdcAmountUnits) {
     const missing = usdcAmountUnits - before;
     console.log(`funding executor with ${missing} USDC base units`);
-    const tx = await usdcContract.transfer(executorAddress, missing);
+    const tx = await usdcContract.transfer(executorAddress, missing, { gasLimit: 120_000n });
     await tx.wait();
   }
 
@@ -79,7 +79,7 @@ async function main() {
     },
   ];
 
-  const tx = await executor.executePlan(steps, usdc, minProfit, deadline);
+  const tx = await executor.executePlan(steps, usdc, minProfit, deadline, { gasLimit: 1_500_000n });
   const receipt = await tx.wait();
   const after = await usdcContract.balanceOf(executorAddress);
   const profitUnits = after - before;

@@ -11,7 +11,7 @@ def test_runtime_service_tracks_start_progress_and_control_status():
     assert service.observer_start_progress["state"] == "initializing"
     assert service.observer_start_progress["percent"] == 12
     assert service.control_status["message"] == "准备中"
-    assert service.observer_supervisor_payload()["heartbeat_age_seconds"] == 0.0
+    assert service.observer_supervisor_payload(now=100.0)["heartbeat_age_seconds"] == 0.0
 
 
 def test_runtime_service_can_reset_observer_state():

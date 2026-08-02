@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from web.market_volatility_event_service import (
     build_market_volatility_event,
     market_volatility_event_is_fresh,
@@ -25,7 +27,7 @@ def test_market_volatility_event_is_built_from_extremes():
     assert event["severity"] == "medium"
     assert event["affected_assets"] == ["AVAXUSDT", "BTCUSDT"]
     assert event["event_id"]
-    assert market_volatility_event_is_fresh(event)
+    assert market_volatility_event_is_fresh(event, now=datetime.fromisoformat(event["observed_at"]) + timedelta(seconds=1))
     assert market_volatility_route_intent(event)["target_page"] == "debt_pool"
 
 

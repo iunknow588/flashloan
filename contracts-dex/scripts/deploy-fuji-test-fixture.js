@@ -12,7 +12,7 @@ function requireEnv(name) {
 
 async function deploy(name, args) {
   const Factory = await hre.ethers.getContractFactory(name);
-  const contract = await Factory.deploy(...args);
+  const contract = await Factory.deploy(...args, { gasLimit: 6_000_000n });
   await contract.waitForDeployment();
   console.log(`${name}=${await contract.getAddress()}`);
   return contract;
@@ -38,13 +38,13 @@ async function main() {
   const oneUsdc = 1_000_000n;
   const oneToken = 1_000_000_000_000_000_000n;
 
-  await (await usdc.mint(executorAddress, 1_000n * oneUsdc)).wait();
-  await (await usdc.mint(routerAddress, 1_000_000n * oneUsdc)).wait();
-  await (await token.mint(routerAddress, 1_000_000n * oneToken)).wait();
+  await (await usdc.mint(executorAddress, 1_000n * oneUsdc, { gasLimit: 300_000n })).wait();
+  await (await usdc.mint(routerAddress, 1_000_000n * oneUsdc, { gasLimit: 300_000n })).wait();
+  await (await token.mint(routerAddress, 1_000_000n * oneToken, { gasLimit: 300_000n })).wait();
 
   // 1 tUSDC -> 1 tARB, then 1 tARB -> 1 tUSDC after decimal normalization.
-  await (await router.setRate(usdcAddress, tokenAddress, oneToken, oneUsdc)).wait();
-  await (await router.setRate(tokenAddress, usdcAddress, oneUsdc, oneToken)).wait();
+  await (await router.setRate(usdcAddress, tokenAddress, oneToken, oneUsdc, { gasLimit: 250_000n })).wait();
+  await (await router.setRate(tokenAddress, usdcAddress, oneUsdc, oneToken, { gasLimit: 250_000n })).wait();
 
   console.log("");
   console.log("Add these values to .env for mock fixture execution:");

@@ -191,6 +191,7 @@ def test_liquidation_account_registry_falls_back_to_file(monkeypatch, tmp_path):
 def test_liquidation_discovery_window_scans_from_one_year_start(monkeypatch):
     from web import control_panel
 
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
     monkeypatch.setenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
@@ -218,6 +219,7 @@ def test_liquidation_discovery_window_scans_from_one_year_start(monkeypatch):
 def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypatch):
     from web import control_panel
 
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("LIQUIDATION_DISCOVERY_BLOCK_OVERLAP", "1")
     monkeypatch.setattr(
         control_panel,
@@ -250,6 +252,7 @@ def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypat
 def test_liquidation_discovery_window_force_full_restarts_from_one_year(monkeypatch):
     from web import control_panel
 
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
     monkeypatch.setenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")

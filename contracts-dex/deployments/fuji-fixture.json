@@ -1,0 +1,10 @@
+{
+  "network": "fuji",
+  "chainId": 43113,
+  "deployedAt": "2026-08-02T03:59:43.590Z",
+  "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "mockExecutorAddress": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+  "routerAddress": "0xA8Cf7c51Eee671646bA440fFa180F970902FD2fb",
+  "usdcAddress": "0xf73f921f0EcA56c8e5816390d2Af378fC8173D3F",
+  "roundtripTokenAddress": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282"
+}

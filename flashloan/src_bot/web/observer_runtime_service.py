@@ -66,15 +66,19 @@ class ObserverRuntimeService:
             self.supervisor_state["enabled"] = True
             self.supervisor_state["heartbeat_at"] = current
 
-    def supervisor_payload(self) -> dict[str, Any]:
+    def supervisor_payload(self, now: float | None = None) -> dict[str, Any]:
         with self.supervisor_lock:
             state = dict(self.supervisor_state)
         heartbeat_at = float(state.get("heartbeat_at") or 0.0)
+        current = time.monotonic() if now is None else float(now)
         return {
             **state,
             "healthy": bool(state.get("enabled")) and bool(state.get("heartbeat_at")),
-            "heartbeat_age_seconds": round(time.monotonic() - heartbeat_at, 1) if heartbeat_at else None,
+            "heartbeat_age_seconds": round(current - heartbeat_at, 1) if heartbeat_at else None,
         }
+
+    def observer_supervisor_payload(self, now: float | None = None) -> dict[str, Any]:
+        return self.supervisor_payload(now=now)
 
     def update_supervisor_state(self, **kwargs: Any) -> None:
         with self.supervisor_lock:
