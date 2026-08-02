@@ -4,6 +4,8 @@ import os
 import threading
 from typing import Iterator
 
+from core.config_schema import parse_env_int
+
 OBSERVER_ADVISORY_LOCK_ID = 2026072801
 SCHEMA_ADVISORY_LOCK_ID = 2026073102
 SCHEMA_MIGRATIONS = (
@@ -61,15 +63,8 @@ def _pool_enabled() -> bool:
 
 
 def _pool_bounds() -> tuple[int, int]:
-    try:
-        min_size = int(os.getenv("DATABASE_POOL_MIN_SIZE", "2") or 2)
-    except ValueError:
-        min_size = 2
-    try:
-        max_size = int(os.getenv("DATABASE_POOL_MAX_SIZE", "10") or 10)
-    except ValueError:
-        max_size = 10
-    min_size = max(1, min_size)
+    min_size = parse_env_int("DATABASE_POOL_MIN_SIZE", 2, minimum=1)[0]
+    max_size = parse_env_int("DATABASE_POOL_MAX_SIZE", 10, minimum=1)[0]
     max_size = max(min_size, max_size)
     return min_size, max_size
 

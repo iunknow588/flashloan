@@ -17,8 +17,10 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.config_schema import parse_env_float, parse_env_int
 from execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
 from core.env_loader import load_env_files, resolve_env_path
+from core.sensitive_data import redact_sensitive_text
 from execution.execution_payload import PayloadConfig, build_execution_payload
 from execution.liquidation_scan import (
     LiquidationScanConfig,
@@ -146,10 +148,10 @@ VELOCITY_SIDE_LIMIT = 100
 SUMMARY_SIDE_LIMIT = 5
 SUMMARY_INITIAL_AMOUNT = 100.0
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
-OBSERVER_START_TIMEOUT_SECONDS = int(os.getenv("OBSERVER_START_TIMEOUT_SECONDS", "60"))
-OBSERVER_SUPERVISOR_INTERVAL_SECONDS = float(os.getenv("OBSERVER_SUPERVISOR_INTERVAL_SECONDS", "5"))
-OBSERVER_RESTART_BASE_DELAY_SECONDS = float(os.getenv("OBSERVER_RESTART_BASE_DELAY_SECONDS", "1"))
-OBSERVER_RESTART_MAX_DELAY_SECONDS = float(os.getenv("OBSERVER_RESTART_MAX_DELAY_SECONDS", "30"))
+OBSERVER_START_TIMEOUT_SECONDS = parse_env_int("OBSERVER_START_TIMEOUT_SECONDS", 60, minimum=1)[0]
+OBSERVER_SUPERVISOR_INTERVAL_SECONDS = parse_env_float("OBSERVER_SUPERVISOR_INTERVAL_SECONDS", 5, minimum=0.5)[0]
+OBSERVER_RESTART_BASE_DELAY_SECONDS = parse_env_float("OBSERVER_RESTART_BASE_DELAY_SECONDS", 1, minimum=0.1)[0]
+OBSERVER_RESTART_MAX_DELAY_SECONDS = parse_env_float("OBSERVER_RESTART_MAX_DELAY_SECONDS", 30, minimum=0.1)[0]
 
 def is_observer_running() -> bool:
     if observer_process is not None and observer_process.poll() is None:
@@ -327,7 +329,7 @@ def set_control_status(
 
 
 def database_lock_message(action: str, exc: Exception) -> str:
-    detail = str(exc)
+    detail = redact_sensitive_text(exc)
     lowered = detail.lower()
     lock_markers = (
         "deadlock detected",
@@ -465,7 +467,7 @@ def _liquidation_activity_detail(stage: str, progress: dict, last_result: dict) 
             if total:
                 return f"账户 {scanned}/{total}"
             return f"已扫 {scanned} 个账户"
-    error = str(last_result.get("error") or "")
+    error = redact_sensitive_text(last_result.get("error") or "")
     if stage == "borrowers":
         return "正在建立账户池，等待首次发现结果"
     if error == "database liquidation account table is empty":
@@ -747,9 +749,10 @@ def observer_supervisor_once(now: float | None = None) -> dict:
         set_control_status("initializing", "自动恢复机会观察", f"观察进程崩溃后已自动重启，pid={process.pid}", 85, ttl_seconds=60)
         return {"action": "restarted", "pid": process.pid, "delay": delay}
     except Exception as exc:
-        observer_runtime_service.update_supervisor_state(next_restart_at=now + delay, last_error=str(exc))
-        set_observer_progress("error", f"机会观察自动重启失败：{exc}", 0)
-        return {"action": "restart_failed", "error": str(exc), "delay": delay}
+        message = redact_sensitive_text(exc)
+        observer_runtime_service.update_supervisor_state(next_restart_at=now + delay, last_error=message)
+        set_observer_progress("error", f"机会观察自动重启失败：{message}", 0)
+        return {"action": "restart_failed", "error": message, "delay": delay}
 
 
 def observer_supervisor_loop() -> None:
@@ -764,7 +767,7 @@ def build_observer_env() -> tuple[dict, list[str]]:
     window_seconds = str(profile["seconds"])
     rpc_urls = aave_rpc_urls()
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
-    reserve_limit = int(os.getenv("AAVE_RESERVE_SYMBOL_LIMIT", str(AAVE_RESERVE_SYMBOL_LIMIT)))
+    reserve_limit = parse_env_int("AAVE_RESERVE_SYMBOL_LIMIT", AAVE_RESERVE_SYMBOL_LIMIT, minimum=0)[0]
     reserve_assets = load_aave_reserve_assets(
         rpc_urls,
         pool_address,
@@ -845,10 +848,11 @@ def start_observer_background() -> None:
         set_control_status("initializing", "启动机会观察", "观察进程已启动，等待第一个市场窗口", 80, ttl_seconds=OBSERVER_START_TIMEOUT_SECONDS + 30)
         set_observer_progress("initializing", "等待第一个市场窗口", 80)
     except Exception as exc:
+        message = redact_sensitive_text(exc)
         with observer_start_lock:
-            observer_start_error = str(exc)
+            observer_start_error = message
             selected_symbols = []
-        set_observer_progress("error", str(exc), 0)
+        set_observer_progress("error", message, 0)
     finally:
         with observer_start_lock:
             observer_starting = False
@@ -865,4 +869,4 @@ app = create_control_panel_app(sys.modules[__name__])
 
 if __name__ == "__main__":
     initialize_liquidation_runtime()
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
+    app.run(host="0.0.0.0", port=parse_env_int("PORT", 5000, minimum=1)[0])

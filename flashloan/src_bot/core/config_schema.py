@@ -45,14 +45,60 @@ def _address_check(name: str, *, required_for_execution: bool = True) -> ConfigC
 
 
 def _numeric_check(name: str, default: str, *, minimum: float | None = None) -> ConfigCheck:
-    raw = _env(name) or default
+    value, error = parse_env_float(name, default, minimum=minimum)
+    if error:
+        return ConfigCheck(name, False, "error", error)
+    return ConfigCheck(name, True, "info", f"{name} is {_env(name) or default}")
+
+
+def parse_env_float(name: str, default: float | str, *, minimum: float | None = None) -> tuple[float, str | None]:
+    raw = _env(name) or str(default)
+    try:
+        fallback = float(default)
+    except (TypeError, ValueError):
+        fallback = 0.0
     try:
         value = float(raw)
-    except ValueError:
-        return ConfigCheck(name, False, "error", f"{name} must be numeric")
+    except (TypeError, ValueError):
+        return fallback, f"{name} must be numeric"
     if minimum is not None and value < minimum:
-        return ConfigCheck(name, False, "error", f"{name} must be >= {minimum:g}")
-    return ConfigCheck(name, True, "info", f"{name} is {raw}")
+        return fallback, f"{name} must be >= {minimum:g}"
+    return value, None
+
+
+def parse_env_int(name: str, default: int | str, *, minimum: int | None = None) -> tuple[int, str | None]:
+    raw = _env(name) or str(default)
+    try:
+        fallback = int(default)
+    except (TypeError, ValueError):
+        fallback = 0
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return fallback, f"{name} must be an integer"
+    if minimum is not None and value < minimum:
+        return fallback, f"{name} must be >= {minimum:d}"
+    return value, None
+
+
+def _chain_id_check(chain_id: int | None) -> tuple[ConfigCheck, int]:
+    expected_chain_id, expected_error = parse_env_int("CHAIN_ID", AVALANCHE_C_CHAIN_ID)
+    actual_chain_id = chain_id if chain_id is not None else expected_chain_id
+    if expected_error:
+        return (
+            ConfigCheck("CHAIN_ID", False, "error", expected_error),
+            actual_chain_id,
+        )
+    chain_ok = int(actual_chain_id) == expected_chain_id == AVALANCHE_C_CHAIN_ID
+    return (
+        ConfigCheck(
+            "CHAIN_ID",
+            chain_ok,
+            "error",
+            f"chain id is {actual_chain_id}, expected {AVALANCHE_C_CHAIN_ID}",
+        ),
+        actual_chain_id,
+    )
 
 
 def _private_key_owner_check() -> ConfigCheck:
@@ -123,17 +169,8 @@ def liquidation_config_health(chain_id: int | None = None) -> dict[str, Any]:
         _private_key_owner_check(),
     ]
 
-    expected_chain_id = int(_env("CHAIN_ID") or AVALANCHE_C_CHAIN_ID)
-    actual_chain_id = chain_id if chain_id is not None else expected_chain_id
-    chain_ok = int(actual_chain_id) == expected_chain_id == AVALANCHE_C_CHAIN_ID
-    checks.append(
-        ConfigCheck(
-            "CHAIN_ID",
-            chain_ok,
-            "error",
-            f"chain id is {actual_chain_id}, expected {AVALANCHE_C_CHAIN_ID}",
-        )
-    )
+    chain_check, actual_chain_id = _chain_id_check(chain_id)
+    checks.append(chain_check)
 
     errors = [check.message for check in checks if not check.ok and check.severity == "error"]
     warnings = [check.message for check in checks if not check.ok and check.severity == "warning"]

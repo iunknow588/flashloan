@@ -6,6 +6,8 @@ from typing import Optional
 
 from web3 import Web3
 
+from core.config_schema import parse_env_int
+
 SRC_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AAVE_ORACLE = "0xEBd36016B3eD09D4693Ed4251c67Bd858c3c7C9C"
 STABLE_BASE_SYMBOLS = {
@@ -297,7 +299,11 @@ def load_aave_reserve_assets(
     exclude_stables: bool = False,
 ) -> list[dict]:
     cache_path = cache_path or default_cache_path()
-    refresh_seconds = int(os.getenv("AAVE_RESERVE_CACHE_SECONDS", "3600")) if refresh_seconds is None else int(refresh_seconds)
+    refresh_seconds = (
+        parse_env_int("AAVE_RESERVE_CACHE_SECONDS", 3600, minimum=0)[0]
+        if refresh_seconds is None
+        else max(0, int(refresh_seconds))
+    )
     cache = read_cache(cache_path)
     cache_assets = list((cache or {}).get("assets") or [])
     cache_version = int(cache.get("schema_version") or 0) if cache else 0

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
 from execution.revert_parser import parse_revert_reason
 
 
@@ -65,8 +66,9 @@ def simulate_request_liquidation_static_call(
         parsed = {"category": "success", "label": "staticCall passed", "raw": "", "confidence": "high"}
     except Exception as exc:
         status = "error"
-        error = str(exc)
-        parsed = parse_revert_reason(error)
+        raw_error = str(exc)
+        error = redact_sensitive_text(raw_error)
+        parsed = parse_revert_reason(raw_error)
     return {
         "status": status,
         "error": error,

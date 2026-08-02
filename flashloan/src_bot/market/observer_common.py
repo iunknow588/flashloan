@@ -22,6 +22,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.config_schema import parse_env_float, parse_env_int
 from market.aave_reserve_cache import load_aave_reserve_assets, load_aave_reserve_symbols, parse_rpc_urls
 from market.dex_usdc_targets import (
     load_borrow_pool_binance_symbols,
@@ -148,20 +149,17 @@ def setup_logging() -> None:
 
 
 def env_float(name: str, default: float) -> float:
-    try:
-        return float(os.getenv(name, str(default)) or default)
-    except ValueError:
+    value, error = parse_env_float(name, default)
+    if error:
         LOG.warning("invalid float env %s; using default=%s", name, default)
-        return default
+    return value
 
 
 def env_int(name: str, default: int, minimum: int = 0) -> int:
-    try:
-        value = int(float(os.getenv(name, str(default)) or default))
-    except ValueError:
+    value, error = parse_env_int(name, default, minimum=minimum)
+    if error:
         LOG.warning("invalid int env %s; using default=%s", name, default)
-        value = default
-    return max(minimum, value)
+    return value
 
 
 def env_bool(name: str, default: bool) -> bool:

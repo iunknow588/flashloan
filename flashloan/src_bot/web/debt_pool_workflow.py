@@ -61,6 +61,67 @@ def build_liquidatable_context(
     }
 
 
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def validate_liquidatable_context(
+    context: dict[str, Any] | None,
+    *,
+    account: str | None = None,
+    max_age_seconds: int = 30,
+    latest_block_number: int | None = None,
+    max_block_lag: int = 3,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    ctx = dict(context or {})
+    reasons: list[str] = []
+    ctx_account = str(ctx.get("account") or "").strip().lower()
+    expected_account = str(account or "").strip().lower()
+    if expected_account and ctx_account and ctx_account != expected_account:
+        reasons.append("context_account_mismatch")
+
+    checked_at = _parse_iso(ctx.get("checked_at"))
+    current = now or datetime.now(timezone.utc)
+    if checked_at is None:
+        reasons.append("context_missing_checked_at")
+        age_seconds = None
+    else:
+        age_seconds = max(0.0, (current - checked_at).total_seconds())
+        if age_seconds > max(0, int(max_age_seconds)):
+            reasons.append("context_expired")
+
+    block_number = ctx.get("block_number")
+    try:
+        block_number_int = int(block_number) if block_number is not None and str(block_number).strip() != "" else None
+    except (TypeError, ValueError):
+        block_number_int = None
+    if block_number_int is None:
+        reasons.append("context_missing_block_number")
+    elif latest_block_number is not None and int(latest_block_number) - block_number_int > max(0, int(max_block_lag)):
+        reasons.append("context_block_too_old")
+
+    if not str(ctx.get("candidate_hash") or "").strip():
+        reasons.append("context_missing_candidate_hash")
+
+    return {
+        "fresh": not reasons,
+        "blocked_reasons": reasons,
+        "age_seconds": age_seconds,
+        "max_age_seconds": max(0, int(max_age_seconds)),
+        "block_number": block_number_int,
+        "latest_block_number": latest_block_number,
+        "max_block_lag": max(0, int(max_block_lag)),
+        "context": ctx,
+    }
+
+
 def _first_liquidatable(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     for row in rows:
         if _row_account(row) and is_liquidatable_row(row):
@@ -147,4 +208,3 @@ def decision_from_borrow_pool_payload(payload: dict[str, Any]) -> dict[str, Any]
         normal_rows=normal_rows,
         block_number=block_number,
     )
-

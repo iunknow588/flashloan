@@ -8,6 +8,10 @@ from web.market_volatility_event_service import (
     market_volatility_event_is_fresh,
     market_volatility_route_intent,
 )
+from web.market_volatility_event_store import (
+    consume_market_volatility_event,
+    record_market_volatility_event,
+)
 from web.page_state import AccountScanStatus, DebtPoolStatus, ExecutionStatus, MarketObservationStatus, PageName
 from web.page_state_store import PAGE_STATE_STORE
 
@@ -78,7 +82,30 @@ def _latest_extremes(panel: Any) -> dict | None:
 
 
 def _market_event_snapshot(panel: Any) -> dict | None:
-    return build_market_volatility_event(_latest_extremes(panel))
+    event = build_market_volatility_event(_latest_extremes(panel))
+    if event and market_volatility_event_is_fresh(event):
+        event = _with_market_event_record(event, record_market_volatility_event(event))
+    return event
+
+
+def _with_market_event_record(event: dict, record: dict | None) -> dict:
+    if not isinstance(record, dict):
+        return event
+    result = dict(event)
+    result["store_status"] = record.get("status")
+    result["recorded_at"] = record.get("recorded_at")
+    result["consumed_at"] = record.get("consumed_at")
+    result["consumer_page"] = record.get("consumer_page")
+    return result
+
+
+def _market_event_pending(event: dict | None) -> bool:
+    return bool(
+        event
+        and market_volatility_event_is_fresh(event)
+        and not event.get("consumed_at")
+        and event.get("store_status") != "consumed"
+    )
 
 
 def debt_pool_state_payload(panel: Any) -> dict:
@@ -91,13 +118,17 @@ def debt_pool_state_payload(panel: Any) -> dict:
     last_result = scan_cache.get("last_result") if isinstance(scan_cache.get("last_result"), dict) else {}
     decision = last_result.get("debt_pool_decision") if isinstance(last_result.get("debt_pool_decision"), dict) else {}
     error = last_result.get("error") or scan_cache.get("error")
-    new_market_event = bool(market_event and market_volatility_event_is_fresh(market_event) and market_event.get("event_id") != current_state.source_event_id)
+    new_market_event = bool(_market_event_pending(market_event) and market_event.get("event_id") != current_state.source_event_id)
     if new_market_event:
         status = DebtPoolStatus.MARKET_ALERT_RECEIVED
         result = str(account_pool.get("result") or "ACCOUNT_POOL_READY")
         message = str(market_event.get("trigger_reason") or "market volatility alert received")
         source_event_id = str(market_event.get("event_id") or "")
         route_intent = market_volatility_route_intent(market_event)
+        market_event = _with_market_event_record(
+            market_event,
+            consume_market_volatility_event(market_event, PageName.DEBT_POOL.value),
+        )
     elif not account_pool.get("ready"):
         status = DebtPoolStatus.NEED_ACCOUNT_POOL
         result = str(account_pool.get("result") or "")
@@ -205,8 +236,11 @@ def market_observation_state_payload(panel: Any) -> dict:
         message = None
     elif panel.quick_observer_running():
         event = _market_event_snapshot(panel)
-        if event and market_volatility_event_is_fresh(event):
+        if _market_event_pending(event):
             status = MarketObservationStatus.ALERTING_DEBT_POOL
+            message = str(event.get("trigger_reason") or "")
+        elif event and market_volatility_event_is_fresh(event):
+            status = MarketObservationStatus.VOLATILITY_DETECTED
             message = str(event.get("trigger_reason") or "")
         elif event:
             status = MarketObservationStatus.VOLATILITY_DETECTED
@@ -231,7 +265,7 @@ def market_observation_state_payload(panel: Any) -> dict:
         context={
             "pid": panel.quick_observer_pid() if status in {MarketObservationStatus.OBSERVING, MarketObservationStatus.ALERTING_DEBT_POOL, MarketObservationStatus.VOLATILITY_DETECTED} else None,
             "market_event": event,
-            "route_intent": market_volatility_route_intent(event) if isinstance(event, dict) and market_volatility_event_is_fresh(event) else None,
+            "route_intent": market_volatility_route_intent(event) if _market_event_pending(event) else None,
         },
     )
 

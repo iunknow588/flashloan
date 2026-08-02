@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 
+from core.config_schema import parse_env_float
+
 
 STRATEGY_DEFAULTS = {
     "ARBITRAGE_NOTIONAL_USD": 1000.0,
@@ -47,11 +49,9 @@ def strategy_config(config_path: Path) -> dict:
             except (TypeError, ValueError):
                 pass
         elif os.getenv(key):
-            try:
-                value = float(os.getenv(key, str(default)))
+            value, error = parse_env_float(key, default)
+            if not error:
                 config[key] = int(value) if isinstance(default, int) else value
-            except ValueError:
-                pass
     return sanitize_strategy_config(config)
 
 

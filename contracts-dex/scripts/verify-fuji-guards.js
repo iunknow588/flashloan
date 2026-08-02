@@ -1,4 +1,11 @@
 const hre = require("hardhat");
+const {
+  appendJsonl,
+  evidencePaths,
+  networkContext,
+  sanitizeError,
+  writeJson,
+} = require("./fuji-evidence");
 
 const USE_FULL_BALANCE = hre.ethers.MaxUint256;
 
@@ -18,17 +25,27 @@ function envBigInt(name, fallback) {
 async function expectRevert(label, fn) {
   try {
     await fn();
-    throw new Error(`${label} unexpectedly succeeded`);
+    const message = `${label} unexpectedly succeeded`;
+    console.log(`${label}=unexpected_success`);
+    return {
+      label,
+      reverted: false,
+      reason: message,
+    };
   } catch (error) {
-    const message = error.shortMessage || error.reason || error.message || String(error);
+    const message = sanitizeError(error);
     console.log(`${label}=reverted`);
     console.log(`${label}.reason=${message.split("\n")[0]}`);
+    return {
+      label,
+      reverted: true,
+      reason: message.split("\n")[0],
+    };
   }
 }
 
 async function main() {
   requireEnv("FUJI_RPC_URL");
-  requireEnv("DEPLOYER_PRIVATE_KEY");
 
   const executorAddress = requireEnv("MOCK_EXECUTOR_ADDRESS");
   const router = requireEnv("FUJI_DEX_ROUTER");
@@ -65,18 +82,55 @@ async function main() {
     baseSteps[1],
   ];
 
-  await expectRevert("guard.amountOutMin", () =>
+  const paths = evidencePaths({ strategy: "fuji-guards" });
+  const checks = [];
+  checks.push(await expectRevert("guard.amountOutMin", () =>
     executor.executePlan.staticCall(highMinOutSteps, usdc, 0, validDeadline)
-  );
-  await expectRevert("guard.deadline", () =>
+  ));
+  checks.push(await expectRevert("guard.deadline", () =>
     executor.executePlan.staticCall(baseSteps, usdc, 0, expiredDeadline)
-  );
-  await expectRevert("guard.minProfit", () =>
+  ));
+  checks.push(await expectRevert("guard.minProfit", () =>
     executor.executePlan.staticCall(baseSteps, usdc, 1, validDeadline)
-  );
+  ));
+  const report = {
+    runId: paths.runId,
+    strategy: "mock_funded_guard_revert",
+    mode: "static-call",
+    startedAt: new Date().toISOString(),
+    finishedAt: new Date().toISOString(),
+    context: await networkContext(hre, process.env),
+    executorAddress,
+    blockTimestamp: latest.timestamp,
+    checks,
+    summary: {
+      ok: checks.every((item) => item.reverted),
+      checkCount: checks.length,
+    },
+  };
+  writeJson(paths.reportPath, report);
+  appendJsonl(paths.tradeLogPath, {
+    runId: paths.runId,
+    observedAt: report.finishedAt,
+    network: "fuji",
+    strategy: "mock_funded_guard_revert",
+    action: "static_call",
+    success: report.summary.ok,
+    reportPath: paths.reportPath,
+  });
+  console.log(JSON.stringify(report, null, 2));
+  if (!report.summary.ok) {
+    process.exitCode = 1;
+  }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(JSON.stringify({ ok: false, error: sanitizeError(error) }, null, 2));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  expectRevert,
+};

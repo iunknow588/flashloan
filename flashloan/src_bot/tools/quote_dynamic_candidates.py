@@ -10,6 +10,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from core.config_schema import parse_env_float, parse_env_int
 from core.env_loader import load_env_files
 from execution.dex_costs import ROUTER_ABI, TRADER_JOE_V2_ROUTER
 from execution.dynamic_quote import (
@@ -36,14 +37,25 @@ def read_candidate(path: Path) -> dict:
     return candidate
 
 
+def dynamic_quote_cli_defaults() -> dict:
+    return {
+        "usd_amount": parse_env_float("DYNAMIC_QUOTE_USD_AMOUNT", 100, minimum=0)[0],
+        "slippage_bps": parse_env_int("DYNAMIC_SLIPPAGE_BPS", 50, minimum=0)[0],
+        "gas_cost_usdc": parse_env_float("DYNAMIC_GAS_COST_USDC", 0, minimum=0)[0],
+        "min_net_profit_usdc": parse_env_float("DYNAMIC_MIN_NET_PROFIT_USDC", 0.01, minimum=0)[0],
+        "safety_margin_usdc": parse_env_float("DYNAMIC_SAFETY_MARGIN_USDC", 0, minimum=0)[0],
+    }
+
+
 def main() -> int:
+    defaults = dynamic_quote_cli_defaults()
     parser = argparse.ArgumentParser(description="Run real DEX quote precheck for latest dynamic candidate.")
     parser.add_argument("--input", default=str(default_signal_path()))
-    parser.add_argument("--usd-amount", type=float, default=float(os.getenv("DYNAMIC_QUOTE_USD_AMOUNT", "100")))
-    parser.add_argument("--slippage-bps", type=int, default=int(os.getenv("DYNAMIC_SLIPPAGE_BPS", "50")))
-    parser.add_argument("--gas-cost-usdc", type=float, default=float(os.getenv("DYNAMIC_GAS_COST_USDC", "0")))
-    parser.add_argument("--min-net-profit-usdc", type=float, default=float(os.getenv("DYNAMIC_MIN_NET_PROFIT_USDC", "0.01")))
-    parser.add_argument("--safety-margin-usdc", type=float, default=float(os.getenv("DYNAMIC_SAFETY_MARGIN_USDC", "0")))
+    parser.add_argument("--usd-amount", type=float, default=defaults["usd_amount"])
+    parser.add_argument("--slippage-bps", type=int, default=defaults["slippage_bps"])
+    parser.add_argument("--gas-cost-usdc", type=float, default=defaults["gas_cost_usdc"])
+    parser.add_argument("--min-net-profit-usdc", type=float, default=defaults["min_net_profit_usdc"])
+    parser.add_argument("--safety-margin-usdc", type=float, default=defaults["safety_margin_usdc"])
     parser.add_argument("--output", default="")
     args = parser.parse_args()
 
@@ -56,8 +68,8 @@ def main() -> int:
     config = DynamicQuoteConfig(
         amount_x_units=token_amount_units_for_usd(router, candidate["x_symbol"], args.usd_amount),
         amount_y_units=token_amount_units_for_usd(router, candidate["y_symbol"], args.usd_amount),
-        premium_bps=int(os.getenv("DYNAMIC_AAVE_PREMIUM_BPS", "5")),
-        min_profit_usdc_units=int(os.getenv("DYNAMIC_MIN_PROFIT_USDC_UNITS", "1")),
+        premium_bps=parse_env_int("DYNAMIC_AAVE_PREMIUM_BPS", 5, minimum=0)[0],
+        min_profit_usdc_units=parse_env_int("DYNAMIC_MIN_PROFIT_USDC_UNITS", 1, minimum=0)[0],
     )
     result = quote_dynamic_candidate(router, candidate, config)
     guard = evaluate_profit_guard(

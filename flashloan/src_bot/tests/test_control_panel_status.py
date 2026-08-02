@@ -12,6 +12,7 @@ from web.control_panel import (
 )
 from execution.liquidation_scan import LiquidationScanConfig
 from datetime import datetime
+import time
 from web3 import Web3
 
 
@@ -93,6 +94,7 @@ def test_opportunity_health_rows_and_summary_rank_by_threshold():
 def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     from web import control_panel
 
+    persisted_rows = []
     LIQUIDATION_SCAN_CACHE["updated_at"] = 0.0
     LIQUIDATION_SCAN_CACHE["payload"] = None
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
@@ -102,6 +104,11 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     monkeypatch.setattr(control_panel, "db_liquidation_account_registry_stats", lambda database_url, retained_days=365: {"total_count": 2, "active_count": 2, "earliest_scan_start_at": "2026-01-01T00:00:00+00:00", "latest_scan_end_at": "2026-01-02T00:00:00+00:00", "retained_days": retained_days})
     monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
     monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
+    monkeypatch.setattr(
+        control_panel,
+        "record_liquidation_health_scan_rows",
+        lambda rows: persisted_rows.extend(rows),
+    )
     monkeypatch.setattr(
         control_panel,
         "scan_account_health",
@@ -142,6 +149,7 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     assert payload["summary"]["account_source"] == "database"
     assert payload["summary"]["retention_days"] == 365
     assert payload["summary"]["registry_window"]["total_count"] == 2
+    assert len(persisted_rows) == 2
 
 
 def test_liquidation_account_registry_prefers_database(monkeypatch):
@@ -280,6 +288,7 @@ def test_liquidation_discovery_window_force_full_restarts_from_one_year(monkeypa
 def test_liquidation_discovery_window_force_full_ignores_old_backfill_cursor(monkeypatch):
     from web import control_panel
 
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
     monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
@@ -410,6 +419,7 @@ def test_liquidation_account_payload_normalizes_address(monkeypatch):
     monkeypatch.setattr(control_panel, "protocol_data_provider_address", lambda: "0x0000000000000000000000000000000000000002")
     monkeypatch.setattr(control_panel, "liquidation_data_provider_address", lambda: "0x0000000000000000000000000000000000000003")
     monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
 
     def fake_report(user, rpc_url, pool_address, reserve_assets, protocol_addr, liquidation_addr, config):
         captured["user"] = user
@@ -468,22 +478,72 @@ def test_liquidation_borrow_pool_api_reads_persisted_top_accounts(monkeypatch):
     assert data["summary"]["display_limit"] == 100
 
 
-def test_liquidation_borrow_pool_scan_api_triggers_dynamic_scan(monkeypatch):
+def test_liquidation_borrow_pool_payload_redacts_schema_errors(monkeypatch):
     from web import control_panel
 
-    captured = {}
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "e" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+
+    def fail_schema(_database_url):
+        raise RuntimeError(f"schema failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel, "ensure_database_schema", fail_schema)
+
+    payload = control_panel.liquidation_borrow_pool_payload()
+
+    assert payload["summary"]["configured"] is True
+    assert database_url not in payload["summary"]["error"]
+    assert private_key not in payload["summary"]["error"]
+    assert "secret-pass" not in payload["summary"]["error"]
+    assert "abc123" not in payload["summary"]["error"]
+    assert "[REDACTED]" in payload["summary"]["error"]
+
+
+def test_liquidation_borrow_pool_scan_api_respects_force_flag(monkeypatch):
+    from web import control_panel
+
+    captured = []
 
     def fake_scan(force=True):
-        captured["force"] = force
+        captured.append(force)
         return {"rows": [], "summary": {"scanned": True, "display_limit": 100}}
 
     monkeypatch.setattr(control_panel, "liquidation_borrow_pool_scan_payload", fake_scan)
 
-    response = app.test_client().post("/api/liquidation/borrow-pool/scan", json={})
+    client = app.test_client()
+    response = client.post("/api/liquidation/borrow-pool/scan", json={})
+    forced_response = client.post("/api/liquidation/borrow-pool/scan?force=1", json={})
 
     assert response.status_code == 200
     assert response.get_json()["summary"]["scanned"] is True
-    assert captured["force"] is True
+    assert forced_response.status_code == 200
+    assert captured == [False, True]
+
+
+def test_liquidation_borrow_pool_scan_suppresses_duplicate_within_interval(monkeypatch):
+    from web import control_panel_liquidation_scan as scan
+
+    cached_payload = {
+        "rows": [{"account": "0x1", "health_factor": 1.02}],
+        "summary": {"scanned": True, "display_limit": 100},
+        "debt_pool_decision": {"route_intent": "sync_core_then_rejudge"},
+    }
+    monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_payload", cached_payload)
+    monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
+    monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "running", False)
+    monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "stage", "idle")
+    monkeypatch.setattr(scan, "liquidation_scan_interval_seconds", lambda: 300.0)
+
+    payload = scan.liquidation_borrow_pool_scan_payload(force=False)
+
+    assert payload["rows"] == cached_payload["rows"]
+    assert payload["debt_pool_decision"]["route_intent"] == "sync_core_then_rejudge"
+    assert payload["summary"]["scanned"] is False
+    assert payload["summary"]["scan_suppressed"] is True
+    assert payload["summary"]["suppression_reason"] == "scan interval not reached"
+    assert payload["summary"]["scan_cooldown_remaining_seconds"] > 0
 
 
 def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
@@ -552,7 +612,21 @@ def test_liquidation_control_summary_api(monkeypatch):
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": True, "missing_migrations": []})
+    monkeypatch.setattr(control_panel, "liquidation_discovery_progress", lambda pool_address: {})
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_registry_window",
+        lambda: {"total_count": 10, "active_count": 8},
+    )
     monkeypatch.setattr(control_panel, "liquidation_pause_guard_status", lambda: {"configured": True, "paused": False})
+    monkeypatch.setattr(
+        control_panel,
+        "background_activity_payload",
+        lambda: {
+            "liquidation_discovery": {"running": False, "stage": "idle"},
+            "liquidation_health_scan": {"running": False, "stage": "idle"},
+        },
+    )
     monkeypatch.setattr(control_panel, "recent_liquidation_execution_attempts", lambda limit=5: {"stats": {"total": 2, "blocked": 1, "confirmed_success": 1}})
     monkeypatch.setattr(control_panel, "recent_liquidation_failure_samples", lambda limit=5: {"samples": [{"id": 1}]})
     monkeypatch.setattr(control_panel, "db_load_liquidation_borrow_health_scan_batches", lambda database_url, limit=1: [{"id": 5, "status": "success", "scanned_count": 7, "account_count": 10}])
@@ -571,6 +645,38 @@ def test_liquidation_control_summary_api(monkeypatch):
     assert data["account_tiers"]["hot_count"] == 1
 
 
+def test_liquidation_control_summary_redacts_database_errors(monkeypatch):
+    from web import control_panel
+
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "f" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
+    monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": False})
+    monkeypatch.setattr(control_panel, "liquidation_discovery_progress", lambda pool_address: {})
+    monkeypatch.setattr(control_panel, "liquidation_account_registry_window", lambda: {})
+    monkeypatch.setattr(control_panel, "liquidation_pause_guard_status", lambda: {"configured": True, "paused": False})
+    monkeypatch.setattr(control_panel, "background_activity_payload", lambda: {"liquidation_discovery": {}, "liquidation_health_scan": {}})
+    monkeypatch.setattr(control_panel, "recent_liquidation_execution_attempts", lambda limit=5: {"stats": {}})
+    monkeypatch.setattr(control_panel, "recent_liquidation_failure_samples", lambda limit=5: {"samples": []})
+
+    def fail_schema(_database_url):
+        raise RuntimeError(f"db failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel, "ensure_database_schema", fail_schema)
+
+    response = app.test_client().get("/api/liquidation/control-summary")
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert database_url not in data["error"]
+    assert private_key not in data["error"]
+    assert "secret-pass" not in data["error"]
+    assert "abc123" not in data["error"]
+    assert "[REDACTED]" in data["error"]
+
+
 def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_path):
     from web import control_panel_data_routes
 
@@ -586,6 +692,55 @@ def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_p
     assert response.status_code == 200
     assert data["report"]["core_opportunities"]["count"] == 2
     assert report_path.exists()
+
+
+def test_liquidation_daily_report_redacts_build_errors(monkeypatch, tmp_path):
+    from web import control_panel
+    from web import control_panel_data_routes
+
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "1" * 64
+    report_path = tmp_path / "daily.json"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setattr(control_panel_data_routes, "liquidation_observation_report_path", lambda: report_path)
+
+    def fail_report(_database_url):
+        raise RuntimeError(f"report failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel_data_routes, "build_liquidation_observation_report", fail_report)
+
+    response = app.test_client().post("/api/liquidation/reports/daily")
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert database_url not in data["error"]
+    assert private_key not in data["error"]
+    assert "secret-pass" not in data["error"]
+    assert "abc123" not in data["error"]
+    assert "[REDACTED]" in data["error"]
+
+
+def test_observations_api_uses_default_for_invalid_limit(monkeypatch):
+    from web import control_panel_data_routes
+
+    captured = {}
+
+    def recent_binance(symbol, limit):
+        captured["symbol"] = symbol
+        captured["limit"] = limit
+        return [{"symbol": symbol, "price": 1.0}]
+
+    monkeypatch.setattr(control_panel_data_routes, "recent_binance_price_history", recent_binance)
+    monkeypatch.setattr(control_panel_data_routes, "configured_fee_slippage_percent", lambda: 0.3)
+
+    response = app.test_client().get("/api/observations?symbol=UNKNOWN&limit=bad")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert captured["limit"] == 120
+    assert data["limit"] == 120
+    assert data["rows"][0]["symbol"] == "UNKNOWN"
 
 
 def test_liquidation_samples_api_returns_manifest(monkeypatch, tmp_path):

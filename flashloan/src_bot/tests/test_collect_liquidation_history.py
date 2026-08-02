@@ -151,3 +151,39 @@ def test_collect_liquidation_events_chunks_logs_and_receipts():
     assert calls[-1] == (4, 5, [history.LIQUIDATION_CALL_TOPIC])
     assert events[0]["gas_used"] == 321
     assert events[0]["effective_gas_price"] == 42
+
+
+def test_collect_liquidation_events_redacts_receipt_errors(monkeypatch):
+    rpc_url = "https://rpc.example/path?token=abc123"
+    private_key = "0x" + "c" * 64
+    monkeypatch.setenv("AVALANCHE_RPC_URL", rpc_url)
+
+    class FakeEth:
+        block_number = 5
+
+        @staticmethod
+        def get_logs(params):
+            return [_log(block_number=4, tx="0xreceipt")]
+
+        @staticmethod
+        def get_transaction_receipt(tx_hash):
+            raise RuntimeError(f"receipt failed: {rpc_url} private_key={private_key}")
+
+    class FakeWeb3:
+        eth = FakeEth()
+
+    config = history.LiquidationHistoryConfig(
+        rpc_url=rpc_url,
+        pool_address="0x00000000000000000000000000000000000000aa",
+        days=1,
+        chunk_size=2,
+        include_receipts=True,
+    )
+
+    events = history.collect_liquidation_events(FakeWeb3(), config)
+    error = events[0]["receipt_error"]
+
+    assert rpc_url not in error
+    assert private_key not in error
+    assert "abc123" not in error
+    assert "[REDACTED]" in error

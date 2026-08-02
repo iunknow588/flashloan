@@ -28,6 +28,7 @@ def test_page_state_apis_return_consistent_shape(monkeypatch):
     monkeypatch.setattr(control_panel, "quick_observer_pid", lambda: None)
     monkeypatch.setattr(control_panel, "observer_starting", False)
     monkeypatch.setattr(control_panel, "observer_start_error", None)
+    monkeypatch.setattr(control_panel, "latest_binance_extremes_file", lambda: {})
     control_panel.LIQUIDATION_SCAN_CACHE.update({"running": False, "stage": "idle", "last_result": {}})
     control_panel.LIQUIDATION_DISCOVERY_CACHE.update({"running": False, "stage": "idle", "last_result": {}})
     control_panel.LIQUIDATION_ACCOUNT_BACKFILL_CACHE.update({"running": False, "stage": "idle", "error": None})
@@ -78,6 +79,7 @@ def test_account_pool_state_api_and_debt_pool_gate(monkeypatch):
     from web import control_panel
 
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "latest_binance_extremes_file", lambda: {})
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: ([], "database"))
     monkeypatch.setattr(
         control_panel,
@@ -94,6 +96,73 @@ def test_account_pool_state_api_and_debt_pool_gate(monkeypatch):
     assert account_pool["ready"] is False
     assert debt_pool["status"] == "NEED_ACCOUNT_POOL"
     assert debt_pool["result"] == "ACCOUNT_POOL_EMPTY"
+
+
+def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch):
+    from web import control_panel
+
+    cases = [
+        {
+            "database_url": None,
+            "accounts": [],
+            "source": "none",
+            "window": {"total_count": 0, "active_count": 0, "latest_scan_end_at": None},
+            "account_result": "ACCOUNT_POOL_MISSING",
+            "debt_status": "NEED_ACCOUNT_POOL",
+        },
+        {
+            "database_url": "postgresql://example",
+            "accounts": [],
+            "source": "database",
+            "window": {"total_count": 0, "active_count": 0, "latest_scan_end_at": None},
+            "account_result": "ACCOUNT_POOL_EMPTY",
+            "debt_status": "NEED_ACCOUNT_POOL",
+        },
+        {
+            "database_url": "postgresql://example",
+            "accounts": ["0x1"],
+            "source": "database",
+            "window": {"total_count": 1, "active_count": 1, "latest_scan_end_at": None},
+            "account_result": "ACCOUNT_POOL_INCOMPLETE",
+            "debt_status": "NEED_ACCOUNT_POOL",
+        },
+        {
+            "database_url": "postgresql://example",
+            "accounts": ["0x1"],
+            "source": "database",
+            "window": {"total_count": 1, "active_count": 1, "latest_scan_end_at": "2026-08-02T00:00:00+00:00"},
+            "account_result": "ACCOUNT_POOL_READY",
+            "debt_status": "IDLE_FRESH",
+        },
+    ]
+    client = app.test_client()
+    monkeypatch.setattr(control_panel, "latest_binance_extremes_file", lambda: {})
+    control_panel.LIQUIDATION_SCAN_CACHE.update({"running": False, "stage": "idle", "last_result": {}, "error": None})
+
+    for case in cases:
+        monkeypatch.setattr(control_panel, "database_url_or_none", lambda value=case["database_url"]: value)
+        monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False, value=case: (value["accounts"], value["source"]))
+        monkeypatch.setattr(control_panel, "liquidation_account_registry_window", lambda value=case: value["window"])
+
+        account_pool = client.get("/api/account-pool/state").get_json()
+        debt_pool = client.get("/api/debt-pool/state").get_json()
+
+        assert account_pool["result"] == case["account_result"]
+        assert account_pool["ready"] is (case["account_result"] == "ACCOUNT_POOL_READY")
+        assert debt_pool["status"] == case["debt_status"]
+        if case["debt_status"] == "NEED_ACCOUNT_POOL":
+            assert debt_pool["context"]["account_pool"]["reason"]
+
+
+def test_account_scan_page_preserves_debt_pool_return_intent():
+    client = app.test_client()
+
+    body = client.get("/account-scan?from=debt_pool&reason=ACCOUNT_POOL_EMPTY&auto_return=debt_pool").get_data(as_text=True)
+
+    assert "autoReturnToDebtPoolIfReady" in body
+    assert 'params.get("auto_return")!=="debt_pool"' in body
+    assert 'location.href="/liquidation?from=account_scan&account_pool_ready=1"' in body
+    assert "/api/account-pool/state" in body
 
 
 def test_debt_pool_decision_api_returns_layered_decision(monkeypatch):

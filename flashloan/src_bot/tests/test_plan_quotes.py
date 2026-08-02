@@ -1,5 +1,5 @@
 from execution.dex_costs import USDC
-from execution.plan_quotes import quote_execution_plan, quote_token
+from execution.plan_quotes import quote_execution_plan, quote_token, step_error
 
 
 class FakeCall:
@@ -123,3 +123,20 @@ def test_quote_execution_plan_values_non_usdc_profit_asset(monkeypatch):
     assert quote["profit_legs"][0]["profit_symbol"] == "AAVEUSDT"
     assert quote["profit_legs"][0]["profit_input_amount"] > 3.3
     assert quote["quoted_profit_usdc"] > 9.9
+
+
+def test_step_error_redacts_sensitive_exception_text(monkeypatch):
+    rpc_url = "https://rpc.example/path?token=abc123"
+    private_key = "0x" + "9" * 64
+    monkeypatch.setenv("AVALANCHE_RPC_URL", rpc_url)
+
+    row = step_error(
+        "repay",
+        {"rank": 1, "action": "swap", "from_symbol": "AAVEUSDT", "to_symbol": "USDC"},
+        RuntimeError(f"quote failed: {rpc_url} private_key={private_key}"),
+    )
+
+    assert rpc_url not in row["error"]
+    assert private_key not in row["error"]
+    assert "abc123" not in row["error"]
+    assert "[REDACTED]" in row["error"]

@@ -7,6 +7,9 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from core.sensitive_data import redact_sensitive_text
+from core.config_schema import parse_env_float, parse_env_int
+
 
 AccountLoader = Callable[[], list[str]]
 PayloadBuilder = Callable[[str], dict[str, Any]]
@@ -33,12 +36,16 @@ class LiquidationEngineConfig:
 
     @classmethod
     def from_env(cls) -> "LiquidationEngineConfig":
+        poll_interval_seconds, _ = parse_env_float("LIQUIDATION_ENGINE_POLL_SECONDS", 30)
+        event_poll_interval_seconds, _ = parse_env_float("LIQUIDATION_EVENT_POLL_SECONDS", 5)
+        price_change_threshold_bps, _ = parse_env_int("LIQUIDATION_PRICE_TRIGGER_BPS", 100)
+        max_accounts_per_tick, _ = parse_env_int("LIQUIDATION_ENGINE_MAX_ACCOUNTS", 100)
         return cls(
-            poll_interval_seconds=max(1.0, float(os.getenv("LIQUIDATION_ENGINE_POLL_SECONDS", "30"))),
-            event_poll_interval_seconds=max(1.0, float(os.getenv("LIQUIDATION_EVENT_POLL_SECONDS", "5"))),
+            poll_interval_seconds=max(1.0, poll_interval_seconds),
+            event_poll_interval_seconds=max(1.0, event_poll_interval_seconds),
             auto_execute=os.getenv("LIQUIDATION_AUTO_EXECUTE", "false").strip().lower() in {"1", "true", "yes", "on"},
-            price_change_threshold_bps=max(1, int(os.getenv("LIQUIDATION_PRICE_TRIGGER_BPS", "100") or 100)),
-            max_accounts_per_tick=max(1, int(os.getenv("LIQUIDATION_ENGINE_MAX_ACCOUNTS", "100") or 100)),
+            price_change_threshold_bps=max(1, price_change_threshold_bps),
+            max_accounts_per_tick=max(1, max_accounts_per_tick),
         )
 
 
@@ -173,8 +180,9 @@ class LiquidationEngine:
             )
             return {"account": account, "state": state, "tx_hash": result.get("tx_hash"), "receipt": receipt}
         except Exception as exc:
-            self._record(account, state="submission_failed", payload=payload or {}, error=str(exc))
-            return {"account": account, "state": "submission_failed", "error": str(exc)}
+            message = redact_sensitive_text(exc)
+            self._record(account, state="submission_failed", payload=payload or {}, error=message)
+            return {"account": account, "state": "submission_failed", "error": message}
 
     def _record(
         self,

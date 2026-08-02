@@ -111,6 +111,20 @@ def test_estimate_gas_price_blocks_above_hard_cap():
     assert build_gas_params(estimate) == {}
 
 
+def test_estimate_gas_price_uses_default_when_env_cap_is_invalid(monkeypatch):
+    monkeypatch.setenv("LIQUIDATION_MAX_GAS_PRICE_GWEI", "bad")
+
+    estimate = estimate_gas_price(
+        FakeWeb3(FeeHistoryEth()),
+        urgency="normal",
+        history_blocks=4,
+        include_mempool=True,
+    )
+
+    assert estimate.strategy == "normal"
+    assert estimate.gas_price_gwei == 90.0
+
+
 def test_recent_fee_distribution_falls_back_to_block_transactions():
     estimate = estimate_gas_price(
         FakeWeb3(BlockFallbackEth()),

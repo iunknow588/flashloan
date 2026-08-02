@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.sensitive_data import redact_sensitive_text
 from web.page_state import AccountPoolResult
 
 
@@ -66,7 +67,7 @@ def account_pool_state_payload(panel: Any, *, force: bool = False) -> dict[str, 
             "active_count": 0,
             "earliest_scan_start_at": None,
             "latest_scan_end_at": None,
-            "error": str(exc),
+            "error": redact_sensitive_text(exc),
         }
     else:
         registry = panel.liquidation_account_registry_window()
@@ -76,4 +77,3 @@ def account_pool_state_payload(panel: Any, *, force: bool = False) -> dict[str, 
         account_source=source,
         database_configured=database_configured,
     )
-

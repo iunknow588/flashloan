@@ -5,6 +5,7 @@ from typing import Any, Callable, Iterable
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
 from execution.health_checker import classify_health_factor, estimate_liquidation_profit, health_factor_band
 
 
@@ -67,7 +68,7 @@ def scan_account_health(
         try:
             account_data = batch_data.get(account) or fetch_single(pool_address, account, rpc_url)
         except Exception as exc:
-            return {"account": account, "status": "error", "error": str(exc)}
+            return {"account": account, "status": "error", "error": redact_sensitive_text(exc)}
         status = classify_health_factor(
             account_data["health_factor"],
             config.warning_health_factor,
@@ -101,7 +102,7 @@ def scan_account_health(
                 try:
                     results.append(future.result())
                 except Exception as exc:
-                    results.append({"account": future_map[future], "status": "error", "error": str(exc)})
+                    results.append({"account": future_map[future], "status": "error", "error": redact_sensitive_text(exc)})
     results.sort(
         key=lambda row: (
             row.get("health_factor", 10.0),

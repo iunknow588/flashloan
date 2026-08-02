@@ -9,6 +9,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from market.aave_reserve_cache import load_aave_reserve_symbols
+from core.config_schema import parse_env_float, parse_env_int
 from core.env_loader import load_env_files
 from market.observer import ASSETS, DEFAULT_EXECUTABLE_SYMBOLS, DEFAULT_RPC, env_list
 from db.storage import require_psycopg
@@ -20,7 +21,7 @@ load_env_files(__file__)
 def executable_symbols() -> set[str]:
     raw = os.getenv("TRIGGER_EXECUTABLE_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS).strip()
     if raw.upper() in {"AAVE", "AAVE_RESERVES", "AAVE_POOL"}:
-        reserve_limit = int(os.getenv("AAVE_RESERVE_SYMBOL_LIMIT", "1000"))
+        reserve_limit = parse_env_int("AAVE_RESERVE_SYMBOL_LIMIT", 1000, minimum=0)[0]
         symbols = load_aave_reserve_symbols(
             os.getenv("AVALANCHE_RPC", DEFAULT_RPC).strip(),
             os.getenv("AAVE_POOL_ADDRESS", "").strip(),
@@ -44,8 +45,8 @@ def fetch_candidates(database_url: str, since_minutes: int, limit: int) -> list[
         ORDER BY observed_at DESC
         LIMIT %s
     """
-    min_up = float(os.getenv("TRIGGER_MIN_UP_CHANGE_PERCENT", "1.0"))
-    min_down = float(os.getenv("TRIGGER_MIN_DOWN_CHANGE_PERCENT", "1.0"))
+    min_up = parse_env_float("TRIGGER_MIN_UP_CHANGE_PERCENT", 1.0, minimum=0)[0]
+    min_down = parse_env_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", 1.0, minimum=0)[0]
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
@@ -98,8 +99,8 @@ def build_candidate(candidate: dict) -> dict:
         "b_start_price": candidate["y_start_price"],
         "b_end_price": candidate["y_end_price"],
         "window_spread_percent": spread,
-        "min_window_spread_percent": float(os.getenv("TRIGGER_MIN_UP_CHANGE_PERCENT", "1.0"))
-        + float(os.getenv("TRIGGER_MIN_DOWN_CHANGE_PERCENT", "1.0")),
+        "min_window_spread_percent": parse_env_float("TRIGGER_MIN_UP_CHANGE_PERCENT", 1.0, minimum=0)[0]
+        + parse_env_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", 1.0, minimum=0)[0],
         "trigger_signal": False,
         "signal": False,
         "profitable": False,

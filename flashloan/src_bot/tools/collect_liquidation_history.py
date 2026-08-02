@@ -18,6 +18,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
+from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_accounts import topic_to_address
 from execution.liquidation_realtime_params import read_aave_flashloan_premium
 
@@ -201,7 +202,7 @@ def collect_liquidation_events(w3: Web3, config: LiquidationHistoryConfig) -> li
                     event["gas_used"] = int(receipt.get("gasUsed") or 0)
                     event["effective_gas_price"] = int(receipt.get("effectiveGasPrice") or 0)
                 except Exception as exc:
-                    event["receipt_error"] = str(exc)
+                    event["receipt_error"] = redact_sensitive_text(exc)
             events.append(event)
     events.sort(key=lambda item: (item["block_number"], item["log_index"]))
     return events

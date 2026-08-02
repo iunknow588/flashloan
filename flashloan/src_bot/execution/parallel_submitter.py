@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from core.sensitive_data import redact_sensitive_text
+
 
 SubmitCallable = Callable[[], dict[str, Any]]
 
@@ -33,7 +35,7 @@ def run_parallel_submissions(
                 result.setdefault("parallel_attempt_name", attempt.name)
                 successes.append(result)
             except Exception as exc:
-                failures.append({"name": attempt.name, "error": str(exc)})
+                failures.append({"name": attempt.name, "error": redact_sensitive_text(exc)})
 
     if successes:
         winner = successes[0]

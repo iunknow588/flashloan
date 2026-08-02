@@ -8,23 +8,32 @@ from db.storage import (
     record_liquidation_execution_attempt as db_record_liquidation_execution_attempt,
     record_liquidation_failure_sample as db_record_liquidation_failure_sample,
 )
+from core.config_schema import parse_env_int
+from core.sensitive_data import redact_sensitive_text
 from web.control_panel_liquidation_base import database_url_or_none
 from web.control_panel_liquidation_pause import (
     clear_pause_guard,
     load_pause_guard_state,
     record_pause_guard_event,
 )
+from web.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from execution.liquidation_preflight import SOFT_BLOCK_REASONS
 
 LIQUIDATION_PAUSE_GUARD_PATH = None
+
+
+def _safe_error_message(error: object | None) -> str | None:
+    if error is None:
+        return None
+    return redact_sensitive_text(error)
 
 
 def _decorate_execution_attempts(rows: list[dict]) -> list[dict]:
     decorated: list[dict] = []
     for row in rows:
         item = dict(row)
-        preflight = item.get("preflight") if isinstance(item.get("preflight"), dict) else {}
-        context = preflight.get("context") if isinstance(preflight.get("context"), dict) else {}
-        item["execution_phase"] = item.get("execution_phase") or preflight.get("execution_phase") or context.get("phase")
+        item["execution_phase"] = normalize_execution_phase(item)
+        item["tx_hash"] = normalize_tx_hash(item)
         decorated.append(item)
     return decorated
 
@@ -43,7 +52,8 @@ def record_liquidation_execution_attempt_safely(
     error: str | None = None,
 ) -> int | None:
     database_url = database_url_or_none()
-    _record_pause_guard_if_configured(state, blocked_reasons, error)
+    safe_error = _safe_error_message(error)
+    _record_pause_guard_if_configured(state, blocked_reasons, safe_error)
     if not database_url:
         return None
     try:
@@ -59,7 +69,7 @@ def record_liquidation_execution_attempt_safely(
             preflight=preflight,
             tx_hash=tx_hash,
             receipt=receipt,
-            error=error,
+            error=safe_error,
         )
         if error or blocked_reasons or state in {"submission_blocked", "submission_failed", "static_call_failed", "confirmed_failed"}:
             db_record_liquidation_failure_sample(
@@ -68,17 +78,19 @@ def record_liquidation_execution_attempt_safely(
                 block_number=_payload_block_number(preflight, quote),
                 collateral_asset=_request_value(request_payload, "collateralAsset"),
                 debt_asset=_request_value(request_payload, "debtAsset"),
-                failure_type=_failure_type(state, blocked_reasons, error),
-                failure_reason=error or ", ".join(blocked_reasons or []) or state,
-                payload={
-                    "mode": mode,
-                    "state": state,
-                    "blocked_reasons": blocked_reasons or [],
-                    "request": request_payload or {},
-                    "quote": quote or {},
-                    "preflight": preflight or {},
-                    "receipt": receipt or {},
-                },
+                failure_type=_failure_type(state, blocked_reasons, safe_error),
+                failure_reason=safe_error or ", ".join(blocked_reasons or []) or state,
+                payload=build_failure_sample_payload(
+                    mode=mode,
+                    state=state,
+                    blocked_reasons=blocked_reasons,
+                    request_payload=request_payload,
+                    quote=quote,
+                    preflight=preflight,
+                    tx_hash=tx_hash,
+                    receipt=receipt,
+                    error=safe_error,
+                ),
             )
         return attempt_id
     except Exception:
@@ -97,7 +109,7 @@ def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
             "stats": db_liquidation_execution_attempt_stats(database_url),
         }
     except Exception as exc:
-        return {"configured": True, "error": str(exc), "attempts": [], "stats": empty_execution_attempt_stats()}
+        return {"configured": True, "error": _safe_error_message(exc), "attempts": [], "stats": empty_execution_attempt_stats()}
 
 
 def recent_liquidation_failure_samples(limit: int = 20) -> dict:
@@ -111,7 +123,7 @@ def recent_liquidation_failure_samples(limit: int = 20) -> dict:
             "samples": db_load_recent_liquidation_failure_samples(database_url, limit=limit),
         }
     except Exception as exc:
-        return {"configured": True, "error": str(exc), "samples": []}
+        return {"configured": True, "error": _safe_error_message(exc), "samples": []}
 
 
 def liquidation_execution_attempts_for_account(account: str, limit: int = 20) -> dict:
@@ -126,7 +138,7 @@ def liquidation_execution_attempts_for_account(account: str, limit: int = 20) ->
             "attempts": _decorate_execution_attempts(db_load_liquidation_execution_attempts_for_account(database_url, account, limit=limit)),
         }
     except Exception as exc:
-        return {"configured": True, "account": account, "error": str(exc), "attempts": []}
+        return {"configured": True, "account": account, "error": _safe_error_message(exc), "attempts": []}
 
 
 def liquidation_failure_samples_for_account(account: str, limit: int = 20) -> dict:
@@ -141,7 +153,7 @@ def liquidation_failure_samples_for_account(account: str, limit: int = 20) -> di
             "samples": db_load_liquidation_failure_samples_for_account(database_url, account, limit=limit),
         }
     except Exception as exc:
-        return {"configured": True, "account": account, "error": str(exc), "samples": []}
+        return {"configured": True, "account": account, "error": _safe_error_message(exc), "samples": []}
 
 
 def liquidation_pause_guard_status() -> dict:
@@ -184,6 +196,60 @@ def _payload_block_number(preflight: dict | None, quote: dict | None) -> int | N
     return None
 
 
+def build_failure_sample_payload(
+    *,
+    mode: str,
+    state: str,
+    blocked_reasons: list[str] | None = None,
+    request_payload: dict | None = None,
+    quote: dict | None = None,
+    preflight: dict | None = None,
+    tx_hash: str | None = None,
+    receipt: dict | None = None,
+    error: str | None = None,
+) -> dict:
+    blocked = list(blocked_reasons or [])
+    payload = {
+        "mode": mode,
+        "state": state,
+        "execution_phase": normalize_execution_phase(
+            {
+                "state": state,
+                "preflight": preflight or {},
+                "receipt": receipt or {},
+            }
+        ),
+        "blocked_reasons": blocked,
+        "request": request_payload or {},
+        "quote": quote or {},
+        "preflight": preflight or {},
+        "tx_hash": normalize_tx_hash(
+            {
+                "tx_hash": tx_hash,
+                "preflight": preflight or {},
+                "receipt": receipt or {},
+            }
+        ),
+        "receipt_status": receipt_status(receipt or {}),
+        "receipt": receipt or {},
+        "error": error,
+        "retryable": failure_retryable(state, blocked, error),
+    }
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def failure_retryable(state: str, blocked_reasons: list[str] | None, error: str | None = None) -> bool:
+    state = str(state or "")
+    blocked = set(blocked_reasons or [])
+    if state == "confirmed_failed":
+        return False
+    if blocked:
+        return bool(blocked and blocked.issubset(SOFT_BLOCK_REASONS))
+    if state in {"submission_failed", "static_call_failed"}:
+        return True
+    return bool(error)
+
+
 def _failure_type(state: str, blocked_reasons: list[str] | None, error: str | None) -> str:
     if blocked_reasons:
         return str(blocked_reasons[0])
@@ -199,7 +265,7 @@ def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | N
         import os
 
         enabled = os.getenv("LIQUIDATION_AUTO_PAUSE_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-        threshold = int(os.getenv("LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD", "3") or 3)
+        threshold, _ = parse_env_int("LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD", 3, minimum=1)
         record_pause_guard_event(
             LIQUIDATION_PAUSE_GUARD_PATH,
             state_name=state,

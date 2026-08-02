@@ -29,12 +29,17 @@ src_bot/tests/
 - `test_config_schema.py`
 - `test_database_schema_status.py`
 - `test_startup_behavior.py`
+- `test_run_logging.py`
+- `test_secret_leakage_guards.py`
 
 适合验证：
 
 - 新增文件是否落在正确目录
 - 环境变量是否缺失或冲突
 - Schema / 配置健康度是否可读
+- 启动和后台初始化异常是否脱敏
+- 真实 `.env` 是否被 Git 忽略且未被跟踪
+- 受版本控制的源码、示例配置是否混入私钥、助记词或 PEM 私钥
 
 ### 2. 控制台页面与路由
 
@@ -137,20 +142,106 @@ src_bot/tests/
 
 ## 常用命令
 
+所有命令默认在仓库根目录 `E:\2026OPC大赛\flashLoan` 执行，除非命令块里显式 `cd` 到子目录。
+
 ```powershell
 python -m pytest flashloan/src_bot/tests -q
 python -m pytest flashloan/src_bot/tests/test_liquidation_scan.py -q
 python -m pytest flashloan/src_bot/tests/test_control_panel_status.py -q
+python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py -q
 python -m pytest flashloan/src_bot/tests -k "liquidation and not network" -q
 python -m pytest flashloan/src_bot/tests -x --maxfail=1
+```
+
+DEX Python 回归：
+
+```powershell
+python -m pytest flashloan/srcs_dex/tests -q
 ```
 
 合约侧联动回归单独跑：
 
 ```powershell
-npm test -- --grep "ProfitTooLow"
-npx hardhat test test/AaveV3LiquidationExecutor.test.js
+cd contracts-dex
+npm test
+npx hardhat test test/MockFundedExecutor.test.js --grep "minProfit"
+npx hardhat test test/AaveSequentialFlashLoanExecutor.test.js
+npx hardhat test test/OnchainDynamicAaveExecutor.test.js
 ```
+
+如果需要回归旧的 `contracts-bot` 清算执行合约，单独在 `contracts-bot` 目录执行：
+
+```powershell
+cd contracts-bot
+npm test
+npm run test:fork
+```
+
+Fuji 预检只允许执行不广播命令，且输出必须脱敏：
+
+```powershell
+cd contracts-dex
+npm run preflight:fuji
+```
+
+`preflight:fuji` 只能用于 ready 状态检查；未完成 static call 证据、owner 校验、chain ID 和执行开关确认前，不得把 `readyForBroadcast=true` 当成允许广播。
+
+## 统一回归入口
+
+每轮离线回归优先按下面顺序执行，并把结果写入回归报告：
+
+```powershell
+python -m pytest flashloan/src_bot/tests -q
+python -m pytest flashloan/srcs_dex/tests -q
+cd contracts-dex
+npm test
+```
+
+可选但推荐的守卫命令：
+
+```powershell
+python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py flashloan/src_bot/tests/test_run_logging.py -q
+rg -n "int\(os\.getenv|float\(os\.getenv" flashloan/src_bot -g "*.py"
+rg -n "str\(exc\)|str\(e\)" flashloan/src_bot -g "*.py"
+git diff --check
+```
+
+`rg` 扫描结果需要人工分类：
+
+- `int/float(os.getenv(...))`：应为无命中；如有命中，优先迁移到 `parse_env_int` / `parse_env_float`。
+- `str(exc)`：允许保留在内部兼容判断、revert 分类或测试断言；用户可见、日志、API、attempt、failure sample 和报告字段必须使用 `redact_sensitive_text`。
+- `git diff --check`：允许出现 LF/CRLF warning；不允许出现 whitespace error。
+
+## 回归报告归档
+
+回归报告统一归档到：
+
+```text
+docs/清理机器人/evidence/regression/
+```
+
+推荐命名：
+
+```text
+YYYYMMDD-HHMMSS_regression_<scope>.md
+```
+
+示例：
+
+```text
+20260802-153000_regression_src_bot_318_passed.md
+20260802-153500_regression_full_offline.md
+```
+
+报告至少记录：
+
+- 执行时间和执行人。
+- 工作区版本：`git rev-parse --short HEAD`，以及 `git status --short` 是否为空。
+- 是否联网、是否连接真实 RPC/数据库、是否执行 Fuji 命令。
+- 每条命令、工作目录、通过数、失败数、退出码。
+- 敏感信息检查结果：私钥、token、完整 RPC URL、数据库密码是否泄露。
+- 未运行项和原因。
+- 结论：`pass` / `fail` / `blocked`，以及是否允许进入下一阶段。
 
 ## 变更速查
 
@@ -175,6 +266,9 @@ npx hardhat test test/AaveV3LiquidationExecutor.test.js
    - `test_profit_guard.py`
    - `test_liquidation_amounts.py`
 5. 合约盈利保护和回执闭环
+   - `contracts-dex/test/MockFundedExecutor.test.js`
+   - `contracts-dex/test/AaveSequentialFlashLoanExecutor.test.js`
+   - `contracts-dex/test/OnchainDynamicAaveExecutor.test.js`
    - `contracts-bot/test/AaveV3LiquidationExecutor.test.js`
 
 ## 新增测试建议
@@ -210,10 +304,12 @@ npx hardhat test test/AaveV3LiquidationExecutor.test.js
 
 ```powershell
 python -m pytest flashloan/src_bot/tests/test_architecture_guards.py
+python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py
 python -m pytest flashloan/src_bot/tests/test_control_panel_status.py flashloan/src_bot/tests/test_navigation_flow.py
 python -m pytest flashloan/src_bot/tests/test_liquidation_scan.py flashloan/src_bot/tests/test_liquidation_discovery_workflow.py flashloan/src_bot/tests/test_external_liquidation_index.py
 python -m pytest flashloan/src_bot/tests/test_control_panel_liquidation_actions.py
-npx hardhat test test/AaveV3LiquidationExecutor.test.js
+cd contracts-dex
+npm test
 ```
 
 ## 当前最值得优先维护的测试点
@@ -223,10 +319,10 @@ npx hardhat test test/AaveV3LiquidationExecutor.test.js
 - 链上健康度扫描必须是最终裁决
 - `minProfitAmount` 与 `ProfitTooLow`
 - 页面路由和嵌入态跳转闭环
+- 提交前的私钥泄露守卫
 
 ## 最近新增
 
 - `test_external_liquidation_index.py`
 - `test_liquidation_discovery_workflow.py`
 - `test_navigation_flow.py`
-

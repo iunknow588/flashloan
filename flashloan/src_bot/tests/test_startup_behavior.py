@@ -36,6 +36,9 @@ def reset_start_state():
             "last_error": None,
         }
     )
+    control_panel.control_status.update(
+        {"state": "stopped", "stage": "", "message": "", "percent": 0, "updated_at": 0.0, "ttl_seconds": 0.0}
+    )
 
 
 def test_start_api_returns_before_building_observer_environment(monkeypatch):
@@ -59,6 +62,36 @@ def test_start_api_returns_before_building_observer_environment(monkeypatch):
     assert data["message"] == "启动请求已提交，状态面板会显示加载进度。"
     assert control_panel.observer_starting is True
     assert DummyThread.started is True
+    reset_start_state()
+
+
+def test_start_api_redacts_database_config_error(monkeypatch):
+    reset_start_state()
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "a" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+
+    def fail_database_url():
+        raise RuntimeError(f"db failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel, "configured_database_url", fail_database_url)
+
+    response = app.test_client().post("/api/start", json={})
+    data = response.get_json()
+
+    assert response.status_code == 400
+    for value in (
+        data["error"],
+        control_panel.observer_start_error,
+        control_panel.observer_start_progress["stage"],
+        control_panel.control_status["message"],
+    ):
+        assert database_url not in value
+        assert private_key not in value
+        assert "secret-pass" not in value
+        assert "abc123" not in value
+        assert "[REDACTED]" in value
     reset_start_state()
 
 
@@ -130,4 +163,69 @@ def test_observer_supervisor_honors_backoff(monkeypatch):
 
     assert result["action"] == "backoff"
     assert result["next_restart_at"] == 120.0
+    reset_start_state()
+
+
+def test_observer_supervisor_restart_error_is_redacted(monkeypatch):
+    reset_start_state()
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "b" * 64
+
+    class CrashedProcess:
+        @staticmethod
+        def poll():
+            return 1
+
+    control_panel.observer_process = CrashedProcess()
+    control_panel.observer_supervisor_state["enabled"] = True
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+
+    def fail_build_env():
+        raise RuntimeError(f"restart failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel, "build_observer_env", fail_build_env)
+
+    result = control_panel.observer_supervisor_once(now=100.0)
+
+    assert result["action"] == "restart_failed"
+    for value in (
+        result["error"],
+        control_panel.observer_supervisor_state["last_error"],
+        control_panel.observer_start_progress["stage"],
+    ):
+        assert database_url not in value
+        assert private_key not in value
+        assert "secret-pass" not in value
+        assert "abc123" not in value
+        assert "[REDACTED]" in value
+    reset_start_state()
+
+
+def test_start_observer_background_redacts_build_error(monkeypatch):
+    reset_start_state()
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "c" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: database_url)
+    control_panel.observer_starting = True
+
+    def fail_build_env():
+        raise RuntimeError(f"background failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel, "build_observer_env", fail_build_env)
+
+    control_panel.start_observer_background()
+
+    for value in (
+        control_panel.observer_start_error,
+        control_panel.observer_start_progress["stage"],
+    ):
+        assert database_url not in value
+        assert private_key not in value
+        assert "secret-pass" not in value
+        assert "abc123" not in value
+        assert "[REDACTED]" in value
+    assert control_panel.observer_starting is False
     reset_start_state()

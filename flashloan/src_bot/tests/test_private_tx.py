@@ -56,3 +56,35 @@ def test_private_broadcast_falls_back_to_public_rpc_when_no_relays():
     assert result["tx_hash"] == "0xpublic"
     assert result["broadcast_channel"] == "public_rpc"
     assert public_w3.eth.sent == [b"raw"]
+
+
+def test_private_broadcast_redacts_relay_errors(monkeypatch):
+    from execution import private_tx
+
+    relay_url = "https://relay.example/rpc?token=abc123"
+    private_key = "0x" + "3" * 64
+    monkeypatch.setenv("LIQUIDATION_PRIVATE_RPC_URLS", f"fast={relay_url}")
+
+    class FailingEth:
+        def send_raw_transaction(self, raw):
+            raise RuntimeError(f"relay failed: {relay_url} private_key={private_key}")
+
+    class FailingRelayWeb3:
+        def __init__(self, provider):
+            self.eth = FailingEth()
+
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return {"url": url, "request_kwargs": request_kwargs}
+
+    monkeypatch.setattr(private_tx, "Web3", FailingRelayWeb3)
+    public_w3 = FakeWeb3("0xpublic")
+
+    result = send_raw_transaction_private_first(b"raw", public_w3=public_w3)
+    error = result["relay_errors"][0]["error"]
+
+    assert result["tx_hash"] == "0xpublic"
+    assert relay_url not in error
+    assert private_key not in error
+    assert "abc123" not in error
+    assert "[REDACTED]" in error

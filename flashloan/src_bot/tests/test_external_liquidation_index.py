@@ -97,6 +97,79 @@ def test_fetch_external_borrower_accounts_disabled_returns_empty_result():
     assert result["requires_onchain_verification"] is True
 
 
+def test_fetch_external_borrower_accounts_surfaces_graph_errors():
+    payload = {
+        "errors": [
+            {"message": "upstream timeout"},
+            {"message": "bad query"},
+        ],
+        "data": {"borrows": []},
+    }
+
+    result = fetch_external_borrower_accounts(
+        config=ExternalIndexConfig(enabled=True, url="https://index.example", limit=7),
+        fetch_json=lambda url, body, timeout_seconds: payload,
+    )
+
+    assert result["count"] == 0
+    assert result["error"] == "upstream timeout; bad query"
+
+
+def test_fetch_external_borrower_accounts_timeout_is_returned_as_error():
+    class TimeoutError(Exception):
+        pass
+
+    def fake_fetch(url, body, timeout_seconds):
+        raise TimeoutError("upstream timeout")
+
+    result = fetch_external_borrower_accounts(
+        config=ExternalIndexConfig(enabled=True, url="https://index.example"),
+        fetch_json=fake_fetch,
+    )
+
+    assert result["count"] == 0
+    assert result["accounts"] == []
+    assert result["error"] == "upstream timeout"
+
+
+def test_fetch_external_borrower_accounts_redacts_fetch_errors(monkeypatch):
+    index_url = "https://index.example/graphql?token=abc123"
+    private_key = "0x" + "e" * 64
+    monkeypatch.setenv("LIQUIDATION_EXTERNAL_INDEX_URL", index_url)
+
+    def fake_fetch(url, body, timeout_seconds):
+        raise RuntimeError(f"index failed: {index_url} private_key={private_key}")
+
+    result = fetch_external_borrower_accounts(
+        config=ExternalIndexConfig(enabled=True, url=index_url),
+        fetch_json=fake_fetch,
+    )
+
+    assert index_url not in result["error"]
+    assert private_key not in result["error"]
+    assert "abc123" not in result["error"]
+    assert "[REDACTED]" in result["error"]
+
+
+def test_fetch_external_borrower_accounts_enabled_without_url_returns_configuration_error():
+    result = fetch_external_borrower_accounts(config=ExternalIndexConfig(enabled=True, url=""))
+
+    assert result["count"] == 0
+    assert result["accounts"] == []
+    assert result["error"] == "LIQUIDATION_EXTERNAL_INDEX_URL is required when external index is enabled"
+
+
+def test_fetch_external_borrower_accounts_empty_payload_is_still_verified_onchain():
+    result = fetch_external_borrower_accounts(
+        config=ExternalIndexConfig(enabled=True, url="https://index.example"),
+        fetch_json=lambda url, body, timeout_seconds: {"data": {"borrows": []}},
+    )
+
+    assert result["count"] == 0
+    assert result["accounts"] == []
+    assert result["requires_onchain_verification"] is True
+
+
 def test_merge_candidate_accounts_deduplicates_onchain_and_external_sources():
     merged = merge_candidate_accounts(
         [

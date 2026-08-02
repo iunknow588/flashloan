@@ -25,6 +25,7 @@ python -m pytest flashloan/src_bot/tests
 
 The main entry is the control panel at `http://127.0.0.1:5000/`. The `/healthz` route stays available for liveness checks only.
 Liquidation accounts are stored in Postgres when `DATABASE_URL` is set. The control panel can keep either 30 days or 365 days of discovery data, and on startup it backfills the latest window first before doing incremental discovery.
+Environment precedence is process environment first, then the nearest `.env`, then parent-directory `.env` files.
 
 ## Runtime Files
 

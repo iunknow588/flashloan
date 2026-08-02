@@ -76,8 +76,24 @@ def main() -> int:
         json.dumps(
             {
                 "output": args.output,
+                "schema_version": manifest.get("schema_version"),
                 "source_count": manifest.get("source_count"),
                 "ready_labels": [item["label"] for item in manifest.get("samples", []) if item.get("status") == "ready"],
+                "replayable_labels": [
+                    item["label"]
+                    for item in manifest.get("samples", [])
+                    if (item.get("replay") or {}).get("replayable")
+                ],
+                "pending_labels": [
+                    item["label"]
+                    for item in manifest.get("samples", [])
+                    if item.get("status") == "pending_real_sample"
+                ],
+                "missing_replay_fields": {
+                    item["label"]: (item.get("replay") or {}).get("missing_fields", [])
+                    for item in manifest.get("samples", [])
+                    if (item.get("replay") or {}).get("missing_fields")
+                },
                 "failure_sample_db_result": db_result,
             },
             ensure_ascii=False,

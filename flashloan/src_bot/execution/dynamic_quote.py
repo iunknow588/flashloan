@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
+from core.sensitive_data import redact_sensitive_text
 from execution.plan_quotes import build_path, from_units, quote_token, to_units
 
 
@@ -93,7 +94,7 @@ def quote_strategy(
             "borrow_symbol": borrow_token.symbol,
             "borrow_amount_units": str(amount),
             "viable": False,
-            "error": str(exc),
+            "error": redact_sensitive_text(exc),
         }
 
     profit_token = quote_token(symbols[2])

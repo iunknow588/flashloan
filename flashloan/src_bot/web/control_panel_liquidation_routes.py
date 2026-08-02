@@ -2,6 +2,9 @@ import os
 
 from flask import jsonify, request
 
+from core.sensitive_data import redact_sensitive_text
+from web.debt_pool_workflow import validate_liquidatable_context
+from web.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 from web.route_context import RouteContext
 
 ROUTE_CONTEXT = RouteContext()
@@ -16,6 +19,88 @@ CANONICAL_ROUTE_FAILURE_STATES = {
 
 def panel_call(name: str, *args, **kwargs):
     return ROUTE_CONTEXT.call(name, *args, **kwargs)
+
+
+def route_error_message(error: object | None) -> str | None:
+    if error is None:
+        return None
+    return redact_sensitive_text(error)
+
+
+def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
+    raw = request.args.get(name, str(default))
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = int(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def _optional_request_int_arg(name: str) -> int | None:
+    raw = request.args.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def request_liquidatable_context(account: str) -> dict | None:
+    context_keys = {"checked_at", "block_number", "candidate_hash", "source_pool", "health_factor"}
+    if not any(request.args.get(key) for key in context_keys) and request.args.get("from", "").strip() != "debt_pool":
+        return None
+    return {
+        "account": account,
+        "checked_at": request.args.get("checked_at"),
+        "block_number": request.args.get("block_number"),
+        "candidate_hash": request.args.get("candidate_hash"),
+        "source_pool": request.args.get("source_pool"),
+        "health_factor": request.args.get("health_factor"),
+    }
+
+
+def validate_request_liquidatable_context(account: str) -> dict:
+    context = request_liquidatable_context(account)
+    if context is None:
+        return {"present": False, "fresh": True, "blocked_reasons": [], "context": None}
+    controls = panel_call("liquidation_execution_controls")
+    return {
+        "present": True,
+        **validate_liquidatable_context(
+            context,
+            account=account,
+            max_age_seconds=int(controls.get("max_payload_age_seconds") or 30),
+            latest_block_number=_optional_request_int_arg("latest_block_number"),
+            max_block_lag=request_int_arg("max_block_lag", 3, minimum=0),
+        ),
+    }
+
+
+def stale_liquidatable_context_response(account: str, validation: dict) -> tuple[dict, int]:
+    return (
+        {
+            "error": "liquidatable context is stale; refresh prediction/quote/preflight before submit",
+            "account": account,
+            "state": "submission_blocked",
+            "execution_phase": "context_expired",
+            "blocked_reasons": validation.get("blocked_reasons") or [],
+            "liquidatable_context": validation,
+        },
+        400,
+    )
+
+
+def ensure_request_liquidatable_context(account: str) -> dict | None:
+    validation = validate_request_liquidatable_context(account)
+    if validation.get("present") and not validation.get("fresh"):
+        response, status = stale_liquidatable_context_response(account, validation)
+        return jsonify(response), status
+    return None
 
 
 def liquidation_coverage_payload(pool_address: str, panel=None) -> dict:
@@ -40,7 +125,7 @@ def liquidation_coverage_payload(pool_address: str, panel=None) -> dict:
 
 
 def liquidation_failure_response(account: str, payload: dict | None, error: Exception) -> dict:
-    response = {"error": str(error), "account": account}
+    response = {"error": route_error_message(error), "account": account}
     if not isinstance(payload, dict):
         return response
     account_report = payload.get("account_report") or {}
@@ -55,7 +140,7 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
             "blocked_reasons": payload.get("blocked_reasons") or [],
             "checks": payload.get("checks") or {},
             "dex_quote": payload.get("dex_quote") or {},
-            "tx_hash": payload.get("tx_hash"),
+            "tx_hash": normalize_tx_hash(payload),
             "receipt": payload.get("receipt") or {},
             "account_report": account_report,
             "execution_plan": account_report.get("execution_plan") if isinstance(account_report, dict) else None,
@@ -65,20 +150,11 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
     return response
 
 
-def _receipt_status(receipt: dict | None) -> int | None:
-    try:
-        if receipt and receipt.get("status") is not None:
-            return int(receipt.get("status"))
-    except (TypeError, ValueError):
-        return None
-    return None
-
-
 def route_failure_state(mode: str, response: dict) -> str:
     state = str(response.get("state") or "").strip()
     if state in CANONICAL_ROUTE_FAILURE_STATES:
         return state
-    if _receipt_status(response.get("receipt") or {}) == 0:
+    if receipt_status(response.get("receipt") or {}) == 0:
         return "confirmed_failed"
     blocked = response.get("blocked_reasons") or []
     if blocked:
@@ -94,23 +170,19 @@ def route_failure_state(mode: str, response: dict) -> str:
 
 
 def route_failure_phase(response: dict, failure_state: str) -> str:
-    preflight = response.get("preflight") if isinstance(response.get("preflight"), dict) else {}
-    return (
-        response.get("execution_phase")
-        or preflight.get("execution_phase")
-        or (response.get("context") or {}).get("phase")
-        or failure_state
-    )
+    return normalize_execution_phase(response, fallback_state=failure_state) or failure_state
 
 
 def record_liquidation_route_failure(account: str, mode: str, response: dict, error: Exception) -> None:
+    safe_error = route_error_message(error)
     failure_state = route_failure_state(mode, response)
     failure_phase = route_failure_phase(response, failure_state)
     preflight = {
         **(response.get("preflight") or {}),
         "execution_phase": failure_phase,
+        "receipt_status": receipt_status(response.get("receipt") or {}),
         "route_failure_state": failure_state,
-        "route_error": str(error),
+        "route_error": safe_error,
     }
     panel_call(
         "record_liquidation_execution_attempt_safely",
@@ -121,9 +193,9 @@ def record_liquidation_route_failure(account: str, mode: str, response: dict, er
         request_payload=response.get("request") or {},
         quote=response.get("dex_quote") or {},
         preflight=preflight,
-        tx_hash=response.get("tx_hash"),
+        tx_hash=normalize_tx_hash(response),
         receipt=response.get("receipt") or {},
-        error=str(error),
+        error=safe_error,
     )
 
 
@@ -131,6 +203,7 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
     receipt = result.get("receipt") or {}
     state = "confirmed_success" if int(receipt.get("status") or 0) == 1 else "confirmed_failed"
     execution_phase = result.get("execution_phase") or state
+    tx_hash = normalize_tx_hash(result)
     panel_call(
         "record_liquidation_execution_attempt_safely",
         account=account,
@@ -141,9 +214,9 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
         preflight={
             **(result.get("preflight") or {}),
             "execution_phase": execution_phase,
-            "receipt_status": _receipt_status(receipt),
+            "receipt_status": receipt_status(receipt),
         },
-        tx_hash=result.get("tx_hash"),
+        tx_hash=tx_hash,
         receipt=receipt,
     )
 
@@ -167,11 +240,16 @@ def register_liquidation_routes(app, panel) -> None:
 
     @app.post("/api/liquidation/borrow-pool/scan")
     def liquidation_borrow_pool_scan_api():
-        return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=True))
+        payload = request.get_json(silent=True) or {}
+        force = (
+            request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
+            or str(payload.get("force", "")).strip().lower() in {"1", "true", "yes"}
+        )
+        return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=force))
 
     @app.get("/api/liquidation/borrow-pool/batches")
     def liquidation_borrow_pool_batches_api():
-        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        limit = request_int_arg("limit", 20, minimum=1, maximum=100)
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "batches": [], "error": "DATABASE_URL is required"})
@@ -179,7 +257,7 @@ def register_liquidation_routes(app, panel) -> None:
             panel_call("ensure_database_schema", database_url)
             return jsonify({"configured": True, "batches": panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=limit)})
         except Exception as exc:
-            return jsonify({"configured": True, "batches": [], "error": str(exc)}), 400
+            return jsonify({"configured": True, "batches": [], "error": route_error_message(exc)}), 400
 
     @app.get("/api/liquidation/borrow-pool/latest-batch")
     def liquidation_borrow_pool_latest_batch_api():
@@ -191,11 +269,11 @@ def register_liquidation_routes(app, panel) -> None:
             batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1)
             return jsonify({"configured": True, "batch": batches[0] if batches else None})
         except Exception as exc:
-            return jsonify({"configured": True, "batch": None, "error": str(exc)}), 400
+            return jsonify({"configured": True, "batch": None, "error": route_error_message(exc)}), 400
 
     @app.get("/api/liquidation/high-frequency-pool")
     def liquidation_high_frequency_pool_api():
-        limit = max(1, min(int(request.args.get("limit", "100")), 500))
+        limit = request_int_arg("limit", 100, minimum=1, maximum=500)
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
@@ -204,11 +282,11 @@ def register_liquidation_routes(app, panel) -> None:
             rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=limit)
             return jsonify({"configured": True, "count": len(rows), "rows": rows})
         except Exception as exc:
-            return jsonify({"configured": True, "rows": [], "error": str(exc)}), 400
+            return jsonify({"configured": True, "rows": [], "error": route_error_message(exc)}), 400
 
     @app.get("/api/liquidation/core-opportunities")
     def liquidation_core_opportunities_api():
-        limit = max(1, min(int(request.args.get("limit", "100")), 500))
+        limit = request_int_arg("limit", 100, minimum=1, maximum=500)
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
@@ -217,7 +295,7 @@ def register_liquidation_routes(app, panel) -> None:
             rows = panel_call("db_load_liquidation_core_opportunity_pool", database_url, limit=limit)
             return jsonify({"configured": True, "count": len(rows), "rows": rows})
         except Exception as exc:
-            return jsonify({"configured": True, "rows": [], "error": str(exc)}), 400
+            return jsonify({"configured": True, "rows": [], "error": route_error_message(exc)}), 400
 
     @app.post("/api/liquidation-discovery")
     def liquidation_discovery_api():
@@ -270,27 +348,27 @@ def register_liquidation_routes(app, panel) -> None:
     @app.get("/api/liquidation/config-health")
     def liquidation_config_health_api():
         raw_chain_id = request.args.get("chain_id", "").strip()
-        chain_id = int(raw_chain_id) if raw_chain_id else None
+        chain_id = request_int_arg("chain_id", 0) if raw_chain_id else None
         return jsonify(panel_call("liquidation_config_health", chain_id=chain_id))
 
     @app.get("/api/liquidation/execution-attempts")
     def liquidation_execution_attempts_api():
-        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        limit = request_int_arg("limit", 20, minimum=1, maximum=100)
         return jsonify(panel_call("recent_liquidation_execution_attempts", limit=limit))
 
     @app.get("/api/liquidation/failure-samples")
     def liquidation_failure_samples_api():
-        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        limit = request_int_arg("limit", 20, minimum=1, maximum=100)
         return jsonify(panel_call("recent_liquidation_failure_samples", limit=limit))
 
     @app.get("/api/liquidation/account/<account>/attempts")
     def liquidation_account_attempts_api(account: str):
-        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        limit = request_int_arg("limit", 20, minimum=1, maximum=100)
         return jsonify(panel_call("liquidation_execution_attempts_for_account", account, limit=limit))
 
     @app.get("/api/liquidation/account/<account>/samples")
     def liquidation_account_samples_api(account: str):
-        limit = max(1, min(int(request.args.get("limit", "20")), 100))
+        limit = request_int_arg("limit", 20, minimum=1, maximum=100)
         return jsonify(panel_call("liquidation_failure_samples_for_account", account, limit=limit))
 
     @app.get("/api/liquidation/pause-guard")
@@ -314,15 +392,18 @@ def register_liquidation_routes(app, panel) -> None:
         try:
             return jsonify(panel_call("liquidation_account_payload", account))
         except Exception as exc:
-            return jsonify({"error": str(exc), "account": account}), 400
+            return jsonify({"error": route_error_message(exc), "account": account}), 400
 
     @app.get("/api/liquidation/account/payload")
     def liquidation_account_payload_api():
         account = request.args.get("account", "").strip()
         if not account:
             return jsonify({"error": "account is required"}), 400
+        stale_context = ensure_request_liquidatable_context(account)
+        if stale_context is not None:
+            return stale_context
         try:
-            deadline_seconds = int(request.args.get("deadline_seconds", "300"))
+            deadline_seconds = request_int_arg("deadline_seconds", 300, minimum=1)
             allow_zero_min_out = request.args.get("allow_zero_min_out", "").strip().lower() in {"1", "true", "yes"}
             return jsonify(
                 panel_call(
@@ -333,24 +414,30 @@ def register_liquidation_routes(app, panel) -> None:
                 )
             )
         except Exception as exc:
-            return jsonify({"error": str(exc), "account": account}), 400
+            return jsonify({"error": route_error_message(exc), "account": account}), 400
 
     @app.post("/api/liquidation/account/preflight")
     def liquidation_account_preflight_api():
         account = request.args.get("account", "").strip()
         if not account:
             return jsonify({"error": "account is required"}), 400
+        stale_context = ensure_request_liquidatable_context(account)
+        if stale_context is not None:
+            return stale_context
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account)
             return jsonify(panel_call("simulate_liquidation_static_call", payload))
         except Exception as exc:
-            return jsonify({"error": str(exc), "account": account}), 400
+            return jsonify({"error": route_error_message(exc), "account": account}), 400
 
     @app.post("/api/liquidation/account/<account>/static-call-and-save")
     def liquidation_account_static_call_and_save_api(account: str):
         account = str(account or "").strip()
         if not account:
             return jsonify({"error": "account is required"}), 400
+        stale_context = ensure_request_liquidatable_context(account)
+        if stale_context is not None:
+            return stale_context
         payload: dict | None = None
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account)
@@ -379,11 +466,14 @@ def register_liquidation_routes(app, panel) -> None:
         account = str(account or "").strip()
         if not account:
             return jsonify({"error": "account is required"}), 400
+        stale_context = ensure_request_liquidatable_context(account)
+        if stale_context is not None:
+            return stale_context
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account)
             return jsonify(panel_call("simulate_liquidation_static_call", payload))
         except Exception as exc:
-            return jsonify({"error": str(exc), "account": account}), 400
+            return jsonify({"error": route_error_message(exc), "account": account}), 400
 
     @app.post("/api/liquidation/account/execute")
     def liquidation_account_execute_api():
@@ -391,6 +481,9 @@ def register_liquidation_routes(app, panel) -> None:
         force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
         if not account:
             return jsonify({"error": "account is required"}), 400
+        stale_context = ensure_request_liquidatable_context(account)
+        if stale_context is not None:
+            return stale_context
         payload: dict | None = None
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account, require_executor=False, force=force)
@@ -408,6 +501,9 @@ def register_liquidation_routes(app, panel) -> None:
         force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
         if not account:
             return jsonify({"error": "account is required"}), 400
+        stale_context = ensure_request_liquidatable_context(account)
+        if stale_context is not None:
+            return stale_context
         payload: dict | None = None
         try:
             payload = panel_call("liquidation_execution_payload_for_account", account, force=force)
@@ -460,7 +556,7 @@ def register_liquidation_routes(app, panel) -> None:
             )
             panel_call("db_prune_liquidation_accounts", database_url, retained_days=panel_call("liquidation_retention_days"))
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": route_error_message(exc)}), 400
         LIQUIDATION_ACCOUNT_CACHE["updated_at"] = 0.0
         LIQUIDATION_SCAN_CACHE["updated_at"] = 0.0
         return jsonify({"saved": True, "count": len(accounts), "source": "database", "accounts": accounts})

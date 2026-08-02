@@ -1,6 +1,13 @@
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+const {
+  appendJsonl,
+  evidencePaths,
+  networkContext,
+  sanitizeError,
+  writeJson,
+} = require("./fuji-evidence");
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -90,6 +97,25 @@ function readCandidate() {
   return candidate;
 }
 
+function signalId(candidate) {
+  return candidate.signal_id || candidate.signalId || candidate.id || candidate.observed_at || null;
+}
+
+function signalSummary(candidate) {
+  return {
+    signalId: signalId(candidate),
+    observedAt: candidate.observed_at || candidate.observedAt || null,
+    xSymbol: candidate.x_symbol,
+    ySymbol: candidate.y_symbol,
+    xChangePercent: candidate.x_change_percent ?? candidate.a_change_percent ?? null,
+    yChangePercent: candidate.y_change_percent ?? candidate.b_change_percent ?? null,
+    executableSignal: candidate.executable_signal ?? null,
+    dexQuoteVerified: candidate.dex_quote_verified ?? null,
+    netProfitVerified: candidate.net_profit_verified ?? null,
+    minProfit: candidate.min_profit ?? candidate.minProfit ?? null,
+  };
+}
+
 async function buildRequest(candidate) {
   const router = optionalEnv("DYNAMIC_DEX_ROUTER", "FUJI_DEX_ROUTER") || requireEnv("FUJI_DEX_ROUTER");
   const usdc = optionalEnv("DYNAMIC_USDC", "FUJI_USDC") || requireEnv("FUJI_USDC");
@@ -122,31 +148,69 @@ async function main() {
   const executorAddress = requireEnv("ONCHAIN_DYNAMIC_AAVE_EXECUTOR_ADDRESS");
   const request = await buildRequest(candidate);
   const executor = await hre.ethers.getContractAt("OnchainDynamicAaveExecutor", executorAddress);
+  const latest = await hre.ethers.provider.getBlock("latest");
+  const paths = evidencePaths({ strategy: "fuji-dynamic-signal-simulate" });
 
   const result = {
+    runId: paths.runId,
     simulatedAt: new Date().toISOString(),
+    context: await networkContext(hre, process.env),
     network: hre.network.name,
-    xSymbol: candidate.x_symbol,
-    ySymbol: candidate.y_symbol,
-    success: false,
+    executorAddress,
+    blockNumber: latest.number,
+    blockTimestamp: latest.timestamp,
+    signal: signalSummary(candidate),
+    request: {
+      xToken: request.xToken,
+      yToken: request.yToken,
+      usdc: request.usdc,
+      router: request.router,
+      amountX: request.amountX.toString(),
+      amountY: request.amountY.toString(),
+      premiumBps: request.premiumBps.toString(),
+      minProfitValueUsdc: request.minProfitValueUsdc.toString(),
+      deadline: request.deadline.toString(),
+      slippageBps: request.slippageBps.toString(),
+    },
+    staticCall: { ok: false },
   };
 
   try {
     await executor.requestDynamicFlashLoan.staticCall(request);
     const gasEstimate = await executor.requestDynamicFlashLoan.estimateGas(request);
-    result.success = true;
-    result.gasEstimate = gasEstimate.toString();
+    result.staticCall = { ok: true, gasEstimate: gasEstimate.toString() };
   } catch (error) {
-    result.error = error.shortMessage || error.reason || error.message;
+    result.staticCall = { ok: false, error: sanitizeError(error) };
   }
 
+  result.success = result.staticCall.ok;
+  result.finishedAt = new Date().toISOString();
+  writeJson(paths.reportPath, result);
+  appendJsonl(paths.tradeLogPath, {
+    runId: paths.runId,
+    observedAt: result.finishedAt,
+    network: "fuji",
+    strategy: "dynamic_signal",
+    action: "simulate_static_call",
+    signalId: result.signal.signalId,
+    success: result.success,
+    reportPath: paths.reportPath,
+    error: result.staticCall.error,
+  });
   console.log(JSON.stringify(result, null, 2));
   if (!result.success) {
     process.exitCode = 1;
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(JSON.stringify({ ok: false, error: sanitizeError(error) }, null, 2));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  signalId,
+  signalSummary,
+};

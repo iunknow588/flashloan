@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
 from web3 import Web3
+
+from core.config_schema import parse_env_float
 
 
 @dataclass(frozen=True)
@@ -142,7 +143,7 @@ def estimate_gas_price(
 ) -> GasEstimate:
     """Estimate EIP-1559 gas params from recent fee history and pending txs."""
     if max_gas_price_gwei is None:
-        max_gas_price_gwei = float(os.getenv("LIQUIDATION_MAX_GAS_PRICE_GWEI", "100"))
+        max_gas_price_gwei, _ = parse_env_float("LIQUIDATION_MAX_GAS_PRICE_GWEI", 100, minimum=0)
 
     latest = w3.eth.get_block("latest")
     distribution = recent_fee_distribution(w3, block_count=history_blocks, latest_block=latest)

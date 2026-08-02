@@ -4,6 +4,7 @@ import time
 from eth_account import Account
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 from execution.liquidation_preflight import attach_liquidation_preflight_state, force_remaining_blockers
 from execution.nonce_manager import NonceManager
@@ -91,7 +92,7 @@ def liquidation_execution_payload_for_account(
             {"request": {"account": account}, "preflight": {}, "account_report": {}},
             ExecutionStatus.ERROR,
             mode="flashloan",
-            message=str(exc),
+            message=redact_sensitive_text(exc),
             extra={"account": account, "phase": "loading_account"},
         )
         raise
@@ -173,7 +174,7 @@ def liquidation_execution_payload_for_account(
             {"request": {"account": account}, "preflight": locals().get("preflight", {}), "account_report": locals().get("report", {})},
             ExecutionStatus.ERROR,
             mode="flashloan",
-            message=str(exc),
+            message=redact_sensitive_text(exc),
             extra={"account": account, "phase": phase},
         )
         raise
@@ -219,6 +220,31 @@ def _record_execution_state(payload: dict, status: ExecutionStatus, *, mode: str
         last_error=message if status in {ExecutionStatus.SOFT_BLOCKED, ExecutionStatus.HARD_BLOCKED, ExecutionStatus.CONFIRMED_FAILED, ExecutionStatus.ERROR, ExecutionStatus.SCAN_ERROR} else None,
         context=_execution_state_context(payload, mode=mode, extra=extra),
     )
+
+
+def _record_execution_error(payload: dict, *, mode: str, message: str, phase: str, result: str | None = None, tx_hash: str | None = None) -> None:
+    payload["execution_phase"] = phase
+    if tx_hash:
+        payload["tx_hash"] = tx_hash
+    preflight = dict(payload.get("preflight") or {})
+    preflight["execution_phase"] = phase
+    payload["preflight"] = preflight
+    extra = {"phase": phase}
+    if tx_hash:
+        extra["tx_hash"] = tx_hash
+    _record_execution_state(
+        payload,
+        ExecutionStatus.ERROR,
+        mode=mode,
+        result=result if result is not None else payload.get("state"),
+        message=message,
+        extra=extra,
+    )
+
+
+def _raise_execution_error(payload: dict, *, mode: str, message: str, phase: str, result: str | None = None, tx_hash: str | None = None) -> None:
+    _record_execution_error(payload, mode=mode, message=message, phase=phase, result=result, tx_hash=tx_hash)
+    raise RuntimeError(message)
 
 
 LIQUIDATION_POOL_ABI = [
@@ -329,7 +355,7 @@ def simulate_liquidation_static_call(payload: dict) -> dict:
             payload,
             ExecutionStatus.ERROR,
             mode=str(payload.get("mode") or "flashloan"),
-            message=str(exc),
+            message=redact_sensitive_text(exc),
             extra={"phase": phase},
         )
         raise
@@ -339,6 +365,7 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
     controls = liquidation_execution_controls()
     payload["execution_controls"] = controls
     gated_payload = apply_liquidation_submission_state(dict(payload), mode="flashloan")
+    payload.update(gated_payload)
     initial_blockers = [
         reason
         for reason in gated_payload.get("blocked_reasons", [])
@@ -367,28 +394,54 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
 
     private_key = liquidation_executor_private_key()
     if not private_key:
-        raise RuntimeError("missing LIQUIDATION_EXECUTION_PRIVATE_KEY")
+        _raise_execution_error(
+            payload,
+            mode="flashloan",
+            message="missing LIQUIDATION_EXECUTION_PRIVATE_KEY",
+            phase="missing_private_key",
+        )
 
     owner_address = liquidation_executor_owner_address()
     if not owner_address:
-        raise RuntimeError("missing LIQUIDATION_EXECUTOR_OWNER_ADDRESS")
+        _raise_execution_error(
+            payload,
+            mode="flashloan",
+            message="missing LIQUIDATION_EXECUTOR_OWNER_ADDRESS",
+            phase="missing_owner",
+        )
 
     rpc_url, _, asset_error = scan_context_assets()
     if not rpc_url:
-        raise RuntimeError(asset_error or "unable to resolve rpc_url")
+        _raise_execution_error(
+            payload,
+            mode="flashloan",
+            message=asset_error or "unable to resolve rpc_url",
+            phase="missing_rpc",
+        )
 
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
     chain_health = liquidation_config_health(chain_id=int(w3.eth.chain_id))
     if not chain_health.get("valid"):
-        raise RuntimeError(f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}")
+        _raise_execution_error(
+            payload,
+            mode="flashloan",
+            message=f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}",
+            phase="config_blocked",
+        )
     account = Account.from_key(private_key)
     checksum_sender = Web3.to_checksum_address(account.address)
     if checksum_sender.lower() != Web3.to_checksum_address(owner_address).lower():
-        raise RuntimeError("execution private key does not match LIQUIDATION_EXECUTOR_OWNER_ADDRESS")
+        _raise_execution_error(
+            payload,
+            mode="flashloan",
+            message="execution private key does not match LIQUIDATION_EXECUTOR_OWNER_ADDRESS",
+            phase="private_key_mismatch",
+        )
 
     preflight = simulate_liquidation_static_call(dict(payload))
     preflight_info = preflight.get("preflight") or {}
     preflight = apply_liquidation_submission_state(preflight, mode="flashloan")
+    payload.update(preflight)
     blockers = preflight.get("blocked_reasons", [])
     if force:
         blockers = _force_remaining_blockers(blockers)
@@ -463,11 +516,19 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
         raw_tx = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
         broadcast = send_raw_transaction_private_first(raw_tx, public_w3=w3)
         tx_hash = broadcast["tx_hash"]
-    except Exception:
+    except Exception as exc:
         nonce_manager.release(nonce)
+        _record_execution_error(
+            payload,
+            mode="flashloan",
+            message=redact_sensitive_text(exc),
+            phase="submitting",
+            result=preflight.get("state"),
+        )
         raise
     timeout_seconds = max(30, int(controls["tx_timeout_seconds"]))
     execution_phase = "waiting_receipt"
+    payload.update({**preflight, "tx_hash": tx_hash, "execution_phase": execution_phase})
     _record_execution_state(
         preflight,
         ExecutionStatus.WAITING_RECEIPT,
@@ -479,13 +540,13 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
     try:
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=timeout_seconds)
     except Exception as exc:
-        _record_execution_state(
-            {**preflight, "tx_hash": tx_hash},
-            ExecutionStatus.ERROR,
+        _record_execution_error(
+            payload,
             mode="flashloan",
+            message=redact_sensitive_text(exc),
+            phase=execution_phase,
             result=preflight.get("state"),
-            message=str(exc),
-            extra={"tx_hash": tx_hash, "phase": execution_phase},
+            tx_hash=tx_hash,
         )
         raise
     receipt_data = format_tx_receipt(receipt)
@@ -526,6 +587,7 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
     controls = liquidation_execution_controls()
     payload["execution_controls"] = controls
     gated_payload = apply_liquidation_submission_state(dict(payload), mode="self_funded")
+    payload.update(gated_payload)
     blockers = gated_payload.get("blocked_reasons", [])
     if force:
         blockers = _force_remaining_blockers(blockers)
@@ -549,14 +611,29 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
         raise RuntimeError("LIQUIDATION_EXECUTION_ENABLED is false")
 
     if not private_key:
-        raise RuntimeError("missing LIQUIDATION_SELF_FUNDED_PRIVATE_KEY")
+        _raise_execution_error(
+            payload,
+            mode="self_funded",
+            message="missing LIQUIDATION_SELF_FUNDED_PRIVATE_KEY",
+            phase="missing_private_key",
+        )
 
     rpc_url, _, asset_error = scan_context_assets()
     if not rpc_url:
-        raise RuntimeError(asset_error or "unable to resolve rpc_url")
+        _raise_execution_error(
+            payload,
+            mode="self_funded",
+            message=asset_error or "unable to resolve rpc_url",
+            phase="missing_rpc",
+        )
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
     if not pool_address:
-        raise RuntimeError("missing AAVE_POOL_ADDRESS")
+        _raise_execution_error(
+            payload,
+            mode="self_funded",
+            message="missing AAVE_POOL_ADDRESS",
+            phase="missing_pool",
+        )
 
     request = dict(payload.get("request") or {})
     account = Account.from_key(private_key)
@@ -567,12 +644,23 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
     user = Web3.to_checksum_address(str(request.get("user") or payload.get("account") or ""))
     debt_to_cover = int(request.get("debtToCover") or 0)
     if debt_to_cover <= 0:
+        _record_execution_error(
+            payload,
+            mode="self_funded",
+            message="debtToCover must be greater than zero",
+            phase="invalid_request",
+        )
         raise ValueError("debtToCover must be greater than zero")
 
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 20}))
     chain_health = liquidation_config_health(chain_id=int(w3.eth.chain_id))
     if not chain_health.get("valid"):
-        raise RuntimeError(f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}")
+        _raise_execution_error(
+            payload,
+            mode="self_funded",
+            message=f"submission blocked: {', '.join(chain_health.get('errors') or ['invalid chain config'])}",
+            phase="config_blocked",
+        )
     debt_token = w3.eth.contract(address=debt_asset, abi=LIQUIDATION_ERC20_ABI)
     pool = w3.eth.contract(address=pool_address, abi=LIQUIDATION_POOL_ABI)
     nonce_manager = _nonce_manager(w3, sender)
@@ -598,11 +686,29 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
         raw_approval = getattr(signed_approval, "raw_transaction", None) or getattr(signed_approval, "rawTransaction")
         approval_broadcast = send_raw_transaction_private_first(raw_approval, public_w3=w3)
         approval_hash = approval_broadcast["tx_hash"]
-    except Exception:
+    except Exception as exc:
         nonce_manager.release(nonce)
+        _record_execution_error(
+            payload,
+            mode="self_funded",
+            message=redact_sensitive_text(exc),
+            phase="submitting_approval",
+            result=gated_payload.get("state"),
+        )
         raise
     timeout_seconds = max(30, int(controls["tx_timeout_seconds"]))
-    approval_receipt = w3.eth.wait_for_transaction_receipt(approval_hash, timeout=timeout_seconds)
+    try:
+        approval_receipt = w3.eth.wait_for_transaction_receipt(approval_hash, timeout=timeout_seconds)
+    except Exception as exc:
+        _record_execution_error(
+            payload,
+            mode="self_funded",
+            message=redact_sensitive_text(exc),
+            phase="waiting_approval_receipt",
+            result=gated_payload.get("state"),
+            tx_hash=approval_hash,
+        )
+        raise
     approval_data = format_tx_receipt(approval_receipt)
 
     liquidation_builder = pool.functions.liquidationCall(
@@ -630,8 +736,15 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
         raw_liquidation = getattr(signed_liquidation, "raw_transaction", None) or getattr(signed_liquidation, "rawTransaction")
         broadcast = send_raw_transaction_private_first(raw_liquidation, public_w3=w3)
         tx_hash = broadcast["tx_hash"]
-    except Exception:
+    except Exception as exc:
         nonce_manager.release(liquidation_nonce)
+        _record_execution_error(
+            payload,
+            mode="self_funded",
+            message=redact_sensitive_text(exc),
+            phase="submitting",
+            result=gated_payload.get("state"),
+        )
         raise
     _record_execution_state(
         {**payload, "approval_receipt": approval_data, "tx_hash": tx_hash},
@@ -642,16 +755,17 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
         extra={"phase": "waiting_receipt"},
     )
     execution_phase = "waiting_receipt"
+    payload.update({"tx_hash": tx_hash, "execution_phase": execution_phase})
     try:
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=timeout_seconds)
     except Exception as exc:
-        _record_execution_state(
-            {**payload, "approval_receipt": approval_data, "tx_hash": tx_hash},
-            ExecutionStatus.ERROR,
+        _record_execution_error(
+            payload,
             mode="self_funded",
+            message=redact_sensitive_text(exc),
+            phase=execution_phase,
             result=payload.get("state"),
-            message=str(exc),
-            extra={"phase": execution_phase},
+            tx_hash=tx_hash,
         )
         raise
     account_report = payload.get("account_report") or {}
@@ -689,7 +803,12 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
 def execute_self_funded_liquidation_transaction(payload: dict, force: bool = False) -> dict:
     private_keys = liquidation_self_funded_private_keys()
     if not private_keys:
-        raise RuntimeError("missing LIQUIDATION_SELF_FUNDED_PRIVATE_KEY")
+        _raise_execution_error(
+            payload,
+            mode="self_funded",
+            message="missing LIQUIDATION_SELF_FUNDED_PRIVATE_KEY",
+            phase="missing_private_key",
+        )
     if len(private_keys) == 1:
         return _execute_self_funded_liquidation_for_key(payload, private_keys[0], force=force)
     attempts = [

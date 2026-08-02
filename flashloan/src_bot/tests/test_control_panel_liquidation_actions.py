@@ -49,6 +49,156 @@ def test_route_failure_state_normalizes_failed_receipt():
     assert route_failure_phase(response, state) == "waiting_receipt"
 
 
+def test_route_failure_phase_uses_shared_context_fallback():
+    from web.control_panel_liquidation_routes import route_failure_phase
+
+    response = {
+        "state": "submission_allowed",
+        "context": {"phase": "submitting"},
+        "preflight": {"context": {"phase": "waiting_receipt"}},
+    }
+
+    assert route_failure_phase(response, "submission_failed") == "submitting"
+
+
+def test_route_failure_records_receipt_timeout_phase_and_tx(monkeypatch):
+    from web import control_panel_liquidation_routes as routes
+
+    captured = {}
+
+    def fake_panel_call(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+
+    monkeypatch.setattr(routes, "panel_call", fake_panel_call)
+
+    response = {
+        "state": "submission_allowed",
+        "execution_phase": "waiting_receipt",
+        "tx_hash": "0xtimeout",
+        "request": {"debtToCover": "1000"},
+        "preflight": {"execution_phase": "waiting_receipt"},
+        "receipt": {},
+    }
+
+    routes.record_liquidation_route_failure(
+        "0x0000000000000000000000000000000000000001",
+        "flashloan",
+        response,
+        TimeoutError("liquidation receipt timeout"),
+    )
+
+    assert captured["name"] == "record_liquidation_execution_attempt_safely"
+    assert captured["state"] == "submission_failed"
+    assert captured["tx_hash"] == "0xtimeout"
+    assert captured["preflight"]["execution_phase"] == "waiting_receipt"
+    assert captured["preflight"]["route_failure_state"] == "submission_failed"
+    assert captured["error"] == "liquidation receipt timeout"
+
+
+def test_route_failure_records_tx_hash_from_receipt_when_top_level_missing(monkeypatch):
+    from web import control_panel_liquidation_routes as routes
+
+    captured = {}
+
+    def fake_panel_call(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+
+    monkeypatch.setattr(routes, "panel_call", fake_panel_call)
+
+    routes.record_liquidation_route_failure(
+        "0x0000000000000000000000000000000000000001",
+        "flashloan",
+        {
+            "state": "submission_allowed",
+            "preflight": {"execution_phase": "waiting_receipt"},
+            "receipt": {"status": 0, "transaction_hash": "0xreceipt"},
+        },
+        RuntimeError("receipt failed"),
+    )
+
+    assert captured["state"] == "confirmed_failed"
+    assert captured["tx_hash"] == "0xreceipt"
+    assert captured["preflight"]["receipt_status"] == 0
+
+
+def test_route_failure_redacts_sensitive_error_before_attempt(monkeypatch):
+    from web import control_panel_liquidation_routes as routes
+
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "c" * 64
+    captured = {}
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    def fake_panel_call(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+
+    monkeypatch.setattr(routes, "panel_call", fake_panel_call)
+
+    response = {
+        "state": "submission_allowed",
+        "preflight": {"execution_phase": "submitting"},
+        "request": {"debtToCover": "1000"},
+    }
+
+    routes.record_liquidation_route_failure(
+        "0x0000000000000000000000000000000000000001",
+        "flashloan",
+        response,
+        RuntimeError(f"submit failed: {database_url} private_key={private_key}"),
+    )
+
+    assert database_url not in captured["error"]
+    assert private_key not in captured["error"]
+    assert "secret-pass" not in captured["preflight"]["route_error"]
+    assert "abc123" not in captured["preflight"]["route_error"]
+    assert "[REDACTED]" in captured["error"]
+
+
+def test_liquidation_account_api_redacts_sensitive_errors(monkeypatch):
+    from web import control_panel
+
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "d" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    def fail_payload(account):
+        raise RuntimeError(f"db failed: {database_url} private_key={private_key}")
+
+    monkeypatch.setattr(control_panel, "liquidation_account_payload", fail_payload)
+
+    response = app.test_client().get(
+        "/api/liquidation/account?account=0x0000000000000000000000000000000000000001"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert database_url not in data["error"]
+    assert private_key not in data["error"]
+    assert "secret-pass" not in data["error"]
+    assert "abc123" not in data["error"]
+    assert "[REDACTED]" in data["error"]
+
+
+def test_liquidation_attempts_api_uses_default_for_invalid_limit(monkeypatch):
+    from web import control_panel
+
+    captured = {}
+
+    def recent_attempts(limit=20):
+        captured["limit"] = limit
+        return {"configured": True, "attempts": [], "stats": {"total": 0}}
+
+    monkeypatch.setattr(control_panel, "recent_liquidation_execution_attempts", recent_attempts)
+
+    response = app.test_client().get("/api/liquidation/execution-attempts?limit=bad")
+
+    assert response.status_code == 200
+    assert captured["limit"] == 20
+
+
 def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
     from web import control_panel
 
@@ -209,6 +359,31 @@ def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
     assert data["tx_hash"] == "0xdef"
     assert data["receipt"]["status"] == 1
     assert captured["attempt"]["preflight"]["execution_phase"] == "confirmed_success"
+
+
+def test_liquidation_route_success_records_tx_hash_from_receipt(monkeypatch):
+    from web import control_panel_liquidation_routes as routes
+
+    captured = {}
+
+    def fake_panel_call(name, **kwargs):
+        captured["name"] = name
+        captured.update(kwargs)
+
+    monkeypatch.setattr(routes, "panel_call", fake_panel_call)
+
+    routes.record_liquidation_route_success(
+        "0x0000000000000000000000000000000000000001",
+        "flashloan",
+        {
+            "execution_phase": "confirmed_success",
+            "receipt": {"transaction_hash": "0xsuccess", "status": 1},
+        },
+    )
+
+    assert captured["state"] == "confirmed_success"
+    assert captured["tx_hash"] == "0xsuccess"
+    assert captured["preflight"]["receipt_status"] == 1
 
 
 def test_liquidation_account_execute_api_passes_force_flag(monkeypatch):
@@ -471,3 +646,108 @@ def test_liquidation_account_flashloan_receipt_zero_archives_confirmed_failed(mo
     assert captured["preflight"]["execution_phase"] == "confirmed_failed"
     assert captured["preflight"]["receipt_status"] == 0
     assert captured["tx_hash"] == "0xdead"
+
+
+def test_liquidation_account_flashloan_actual_missing_key_archives_phase(monkeypatch):
+    from web import control_panel
+    from web import control_panel_liquidation_execute as execute
+
+    account = "0x0000000000000000000000000000000000000001"
+    captured = {}
+    payload = _failing_payload(account) | {
+        "executor": "0x0000000000000000000000000000000000000002",
+        "request": {
+            "user": account,
+            "collateralAsset": "0x0000000000000000000000000000000000000003",
+            "debtAsset": "0x0000000000000000000000000000000000000004",
+            "debtToCover": "1000",
+            "minCollateralSwapOut": "1",
+            "minProfitAmount": "1",
+            "deadline": "9999999999",
+            "gasLimit": "0",
+            "swapPath": [],
+        },
+        "preflight": {"static_call_passed": True, "static_call_status": "passed"},
+    }
+    controls = {
+        "execution_enabled": True,
+        "require_static_call": False,
+        "flashloan_executor_configured": True,
+        "owner_configured": True,
+        "max_debt_to_cover": 0,
+        "min_profit_base": 0,
+        "max_payload_age_seconds": 30,
+        "max_quote_age_seconds": 15,
+    }
+    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: payload)
+    monkeypatch.setattr(control_panel, "liquidation_execution_controls", lambda: controls)
+    monkeypatch.setattr(execute, "liquidation_execution_controls", lambda: controls)
+    monkeypatch.setattr(control_panel, "liquidation_executor_private_key", lambda: "")
+    monkeypatch.setattr(execute, "liquidation_executor_private_key", lambda: "")
+    monkeypatch.setattr(
+        control_panel,
+        "record_liquidation_execution_attempt_safely",
+        lambda **kwargs: captured.update(kwargs),
+    )
+
+    response = app.test_client().post(f"/api/liquidation/account/flashloan?account={account}")
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert data["error"] == "missing LIQUIDATION_EXECUTION_PRIVATE_KEY"
+    assert data["execution_phase"] == "missing_private_key"
+    assert captured["state"] == "submission_failed"
+    assert captured["preflight"]["execution_phase"] == "missing_private_key"
+
+
+def test_liquidation_payload_api_blocks_stale_debt_pool_context(monkeypatch):
+    from web import control_panel
+
+    account = "0x0000000000000000000000000000000000000001"
+    called = {"payload": False}
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_controls",
+        lambda: {
+            "max_payload_age_seconds": 30,
+            "max_quote_age_seconds": 15,
+        },
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_payload_for_account",
+        lambda *args, **kwargs: called.update(payload=True) or {},
+    )
+
+    response = app.test_client().get(
+        "/api/liquidation/account/payload"
+        f"?account={account}"
+        "&from=debt_pool"
+        "&checked_at=2026-08-02T00:00:00Z"
+        "&block_number=100"
+        "&latest_block_number=100"
+        "&candidate_hash=abc"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert data["execution_phase"] == "context_expired"
+    assert "context_expired" in data["blocked_reasons"]
+    assert called["payload"] is False
+
+
+def test_liquidation_payload_api_allows_manual_account_without_route_context(monkeypatch):
+    from web import control_panel
+
+    account = "0x0000000000000000000000000000000000000001"
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_payload_for_account",
+        lambda account, **kwargs: {"account": account, "state": "submission_ready"},
+    )
+
+    response = app.test_client().get(f"/api/liquidation/account/payload?account={account}")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["account"] == account

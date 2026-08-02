@@ -140,6 +140,74 @@ class BlockLevel(_TextEnum):
     HARD = "hard"
 
 
+def receipt_status(receipt: dict | None) -> int | None:
+    try:
+        if receipt and receipt.get("status") is not None:
+            return int(receipt.get("status"))
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _first_text_value(*values: Any) -> str | None:
+    for value in values:
+        if value is None:
+            continue
+        if hasattr(value, "hex"):
+            value = value.hex()
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def normalize_tx_hash(row: dict | None) -> str | None:
+    row = row or {}
+    preflight = row.get("preflight") if isinstance(row.get("preflight"), dict) else {}
+    context = row.get("context") if isinstance(row.get("context"), dict) else {}
+    preflight_context = preflight.get("context") if isinstance(preflight.get("context"), dict) else {}
+    receipt = row.get("receipt") if isinstance(row.get("receipt"), dict) else {}
+    return _first_text_value(
+        row.get("tx_hash"),
+        row.get("txHash"),
+        preflight.get("tx_hash"),
+        preflight.get("txHash"),
+        context.get("tx_hash"),
+        context.get("txHash"),
+        preflight_context.get("tx_hash"),
+        preflight_context.get("txHash"),
+        receipt.get("transaction_hash"),
+        receipt.get("transactionHash"),
+        receipt.get("tx_hash"),
+        receipt.get("txHash"),
+    )
+
+
+def normalize_execution_phase(row: dict | None, fallback_state: str | None = None) -> str | None:
+    row = row or {}
+    preflight = row.get("preflight") if isinstance(row.get("preflight"), dict) else {}
+    context = row.get("context") if isinstance(row.get("context"), dict) else {}
+    preflight_context = preflight.get("context") if isinstance(preflight.get("context"), dict) else {}
+    phase = (
+        row.get("execution_phase")
+        or row.get("phase")
+        or preflight.get("execution_phase")
+        or context.get("execution_phase")
+        or context.get("phase")
+        or preflight_context.get("execution_phase")
+        or preflight_context.get("phase")
+    )
+    if phase:
+        return str(phase)
+    status = receipt_status(row.get("receipt") if isinstance(row.get("receipt"), dict) else None)
+    if status == 1:
+        return "confirmed_success"
+    if status == 0:
+        return "confirmed_failed"
+    state = row.get("state") or fallback_state
+    return str(state) if state else None
+
+
 @dataclass(frozen=True)
 class RouteIntent:
     source_page: str
@@ -160,4 +228,3 @@ class RouteIntent:
             "created_at": self.created_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "context": dict(self.context or {}),
         }
-

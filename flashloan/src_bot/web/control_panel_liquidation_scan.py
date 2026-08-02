@@ -6,6 +6,7 @@ from typing import Optional
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_scan import (
     build_user_liquidation_report,
     health_factor_band,
@@ -52,6 +53,12 @@ LIQUIDATION_ACCOUNT_BACKFILL_LOCK = LIQUIDATION_ACCOUNT_BACKFILL_SERVICE.lock
 LIQUIDATION_ACCOUNT_BACKFILL_STOP = LIQUIDATION_ACCOUNT_BACKFILL_SERVICE.stop_event
 
 
+def _scan_error_message(error: object | None) -> str | None:
+    if error is None:
+        return None
+    return redact_sensitive_text(error)
+
+
 def account_backfill_status_payload() -> dict:
     return LIQUIDATION_ACCOUNT_BACKFILL_SERVICE.status_payload()
 
@@ -90,7 +97,7 @@ def run_account_backfill_once() -> dict:
         if not pool_address:
             raise RuntimeError("missing AAVE_POOL_ADDRESS")
         scan_start_at, scan_end_at, from_block, to_block, lookback_blocks, registry, mode = liquidation_discovery_window(force_full=True)
-        chunk_size = int(os.getenv("LIQUIDATION_BORROW_SCAN_CHUNK_SIZE", "1000"))
+        chunk_size, _ = parse_env_int("LIQUIDATION_BORROW_SCAN_CHUNK_SIZE", 1000, minimum=1)
         last_error = None
         for rpc_url in aave_rpc_urls():
             if LIQUIDATION_ACCOUNT_BACKFILL_STOP.is_set():
@@ -145,7 +152,7 @@ def run_account_backfill_once() -> dict:
                 LIQUIDATION_ACCOUNT_BACKFILL_CACHE["last_result"] = result
                 return result
             except Exception as exc:
-                last_error = str(exc)
+                last_error = _scan_error_message(exc)
         result = {
             "started": True,
             "saved": False,
@@ -157,9 +164,10 @@ def run_account_backfill_once() -> dict:
         LIQUIDATION_ACCOUNT_BACKFILL_CACHE["last_result"] = result
         return result
     except Exception as exc:
-        result = {"started": True, "saved": False, "count": 0, "error": str(exc), "mode": "one-year-gap-fill"}
+        safe_error = _scan_error_message(exc)
+        result = {"started": True, "saved": False, "count": 0, "error": safe_error, "mode": "one-year-gap-fill"}
         LIQUIDATION_ACCOUNT_BACKFILL_CACHE["last_result"] = result
-        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["error"] = str(exc)
+        LIQUIDATION_ACCOUNT_BACKFILL_CACHE["error"] = safe_error
         return result
     finally:
         LIQUIDATION_ACCOUNT_BACKFILL_CACHE["running"] = False
@@ -236,7 +244,7 @@ def scan_context_assets() -> tuple[Optional[str], list[dict], Optional[str]]:
             if assets:
                 return candidate, assets, None
         except Exception as exc:
-            last_error = str(exc)
+            last_error = _scan_error_message(exc)
     return None, [], last_error or "unable to load reserve assets"
 
 
@@ -367,6 +375,32 @@ def liquidation_borrow_pool_summary(rows: list[dict], *, scanned: bool = False, 
     )
 
 
+def _borrow_pool_payload_with_suppression(
+    payload: dict,
+    ttl_seconds: float,
+    *,
+    cache_age_seconds: float,
+) -> dict:
+    current = dict(payload)
+    summary = dict(current.get("summary") or {})
+    summary.update(
+        {
+            "scanned": False,
+            "scan_running": bool(LIQUIDATION_SCAN_CACHE.get("running")),
+            "scan_started_at": LIQUIDATION_SCAN_CACHE.get("started_at"),
+            "scan_finished_at": LIQUIDATION_SCAN_CACHE.get("finished_at"),
+            "stage": LIQUIDATION_SCAN_CACHE.get("stage") or summary.get("stage") or "idle",
+            "scan_interval_seconds": ttl_seconds,
+            "scan_cache_age_seconds": max(0.0, cache_age_seconds),
+            "scan_cooldown_remaining_seconds": max(0.0, ttl_seconds - cache_age_seconds),
+            "scan_suppressed": True,
+            "suppression_reason": "scan interval not reached",
+        }
+    )
+    current["summary"] = summary
+    return current
+
+
 def liquidation_borrow_pool_payload() -> dict:
     database_url = database_url_or_none()
     if not database_url:
@@ -382,10 +416,21 @@ def liquidation_borrow_pool_payload() -> dict:
         payload["debt_pool_decision"] = decision_from_borrow_pool_payload(payload)
         return payload
     except Exception as exc:
-        return {"rows": [], "summary": {"configured": True, "error": str(exc)}}
+        return {"rows": [], "summary": {"configured": True, "error": _scan_error_message(exc)}}
 
 
-def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
+def liquidation_borrow_pool_scan_payload(force: bool = False) -> dict:
+    now = time.monotonic()
+    ttl_seconds = liquidation_scan_interval_seconds()
+    cached_payload = LIQUIDATION_SCAN_CACHE.get("borrow_pool_payload")
+    updated_at = float(LIQUIDATION_SCAN_CACHE.get("borrow_pool_updated_at") or 0.0)
+    cache_age_seconds = now - updated_at
+    if not force and isinstance(cached_payload, dict) and cache_age_seconds < ttl_seconds:
+        return _borrow_pool_payload_with_suppression(
+            cached_payload,
+            ttl_seconds,
+            cache_age_seconds=cache_age_seconds,
+        )
     database_url = database_url_or_none()
     if not database_url:
         return {"rows": [], "summary": {"configured": False, "error": "DATABASE_URL is required"}}
@@ -446,7 +491,7 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
                 error = None
                 break
             except Exception as exc:
-                error = str(exc)
+                error = _scan_error_message(exc)
         rows = db_load_liquidation_borrow_health_pool(database_url, limit=liquidation_borrow_pool_display_limit())
         tiers = liquidation_pool_tier_payload(database_url, liquidation_borrow_pool_display_limit())
         finished_at = datetime.now(timezone.utc)
@@ -494,8 +539,11 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
         decision = decision_from_borrow_pool_payload(payload)
         payload["debt_pool_decision"] = decision
         LIQUIDATION_SCAN_CACHE["last_result"] = {**scan_payload["summary"], "debt_pool_decision": decision}
+        LIQUIDATION_SCAN_CACHE["borrow_pool_updated_at"] = time.monotonic()
+        LIQUIDATION_SCAN_CACHE["borrow_pool_payload"] = payload
         return payload
     except Exception as exc:
+        safe_error = _scan_error_message(exc)
         try:
             latest_batch = db_record_liquidation_borrow_health_scan_batch(
                 database_url,
@@ -509,12 +557,12 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
                 rpc_url=rpc_url,
                 block_number=block_number,
                 watch_health_factor=config.watch_health_factor,
-                error=str(exc),
+                error=safe_error,
                 metadata={"account_tiers": liquidation_account_tier_summary()},
             )
         except Exception:
             latest_batch = None
-        return {"rows": [], "latest_batch": latest_batch, "summary": {"configured": True, "error": str(exc), "latest_batch": latest_batch}}
+        return {"rows": [], "latest_batch": latest_batch, "summary": {"configured": True, "error": safe_error, "latest_batch": latest_batch}}
     finally:
         LIQUIDATION_SCAN_CACHE["running"] = False
         LIQUIDATION_SCAN_CACHE["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -582,7 +630,7 @@ def liquidation_health_payload(force: bool = False) -> dict:
                 error = None
                 account_source = "database"
             elif discovery.get("error"):
-                error = str(discovery.get("error"))
+                error = _scan_error_message(discovery.get("error"))
             if not accounts and not error:
                 error = "liquidation account registry is empty"
         if accounts:
@@ -596,7 +644,7 @@ def liquidation_health_payload(force: bool = False) -> dict:
                     error = None
                     break
                 except Exception as exc:
-                    error = str(exc)
+                    error = _scan_error_message(exc)
         if not accounts and not error:
             error = "liquidation account registry is empty"
         display_limit = liquidation_health_display_limit()

@@ -427,6 +427,32 @@ def test_scan_account_health_keeps_one_account_failure_isolated(monkeypatch):
     assert rows[1]["error"] == "rpc failure"
 
 
+def test_scan_account_health_redacts_fetch_errors(monkeypatch):
+    from execution import liquidation_scan
+
+    rpc_url = "https://rpc.example/path?token=abc123"
+    private_key = "0x" + "4" * 64
+    monkeypatch.setenv("AVALANCHE_RPC_URL", rpc_url)
+
+    def fake_fetch(pool_address, account, rpc_url_arg):
+        raise RuntimeError(f"fetch failed: {rpc_url} private_key={private_key}")
+
+    monkeypatch.setattr(liquidation_scan, "fetch_user_account_data", fake_fetch)
+    rows = scan_account_health(
+        ["0x0000000000000000000000000000000000000001"],
+        "0x0000000000000000000000000000000000000003",
+        rpc_url,
+        LiquidationScanConfig(parallel_workers=1),
+    )
+
+    error = rows[0]["error"]
+    assert rows[0]["status"] == "error"
+    assert rpc_url not in error
+    assert private_key not in error
+    assert "abc123" not in error
+    assert "[REDACTED]" in error
+
+
 def test_incremental_scan_keeps_watch_accounts_and_full_scan_fallback():
     accounts = [
         "0x0000000000000000000000000000000000000001",

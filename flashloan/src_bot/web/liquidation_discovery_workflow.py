@@ -3,6 +3,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from core.sensitive_data import redact_sensitive_text
 from execution.external_liquidation_index import fetch_external_borrower_accounts, merge_candidate_accounts
 
 
@@ -77,27 +78,34 @@ def _discover_with_rpc_candidates(
     registry: dict,
     mode: str,
 ) -> dict:
-    chunk_size = int(os.getenv("LIQUIDATION_BORROW_SCAN_CHUNK_SIZE", "1000"))
-    limit = _borrow_discovery_limit(ctx, force_full, registry)
+    try:
+        chunk_size = _positive_int_env("LIQUIDATION_BORROW_SCAN_CHUNK_SIZE", 1000)
+        limit = _borrow_discovery_limit(ctx, force_full, registry)
+    except ValueError as exc:
+        return _configuration_error_result(ctx, redact_sensitive_text(exc))
     external_index = _fetch_external_index_candidates(
         pool_address=pool_address,
         from_block=from_block,
         to_block=to_block,
         limit=limit or ctx.liquidation_scan_config().max_candidates,
     )
+    external_index_summary = _external_index_summary(external_index)
     last_error = None
     for candidate in ctx.aave_rpc_urls():
         actual_from_block = 0
         actual_to_block = 0
         try:
             _, actual_from_block, actual_to_block = ctx.resolve_discovery_block_range(candidate, from_block, to_block)
-            ctx.LIQUIDATION_DISCOVERY_CACHE["progress"] = {
+            progress_base = {
                 "rpc_url": candidate,
                 "from_block": actual_from_block,
                 "to_block": actual_to_block,
                 "chunk_size": chunk_size,
                 "limit": limit,
-                "external_index": _external_index_summary(external_index),
+                "external_index": external_index_summary,
+            }
+            ctx.LIQUIDATION_DISCOVERY_CACHE["progress"] = {
+                **progress_base,
             }
             onchain_discovered = _discover_candidate_accounts(
                 ctx,
@@ -108,7 +116,7 @@ def _discover_with_rpc_candidates(
                 chunk_size,
                 limit,
                 progress_callback=lambda progress: ctx.LIQUIDATION_DISCOVERY_CACHE.update(
-                    {"progress": {"rpc_url": candidate, "chunk_size": chunk_size, "limit": limit, **progress}}
+                    {"progress": {**progress_base, **progress}}
                 ),
             )
             discovered = merge_candidate_accounts(
@@ -135,7 +143,7 @@ def _discover_with_rpc_candidates(
                 mode=mode,
             )
         except Exception as exc:
-            last_error = str(exc)
+            last_error = redact_sensitive_text(exc)
             if actual_from_block <= actual_to_block:
                 ctx.record_liquidation_discovery_window(
                     mode=mode,
@@ -159,6 +167,8 @@ def _discover_with_rpc_candidates(
         "scan_end_at": scan_end_at.isoformat(timespec="seconds"),
         "external_index": _external_index_summary(external_index),
         "external_index_count": int(external_index.get("count") or 0),
+        "external_index_enabled": bool(external_index.get("enabled")),
+        "external_index_configured": bool(external_index.get("configured")),
         "requires_onchain_verification": True,
     }
     ctx.LIQUIDATION_DISCOVERY_CACHE["last_result"] = result
@@ -168,8 +178,38 @@ def _discover_with_rpc_candidates(
 def _borrow_discovery_limit(ctx: Any, force_full: bool, registry: dict) -> int:
     if force_full or not registry.get("discovery_scan_progress", {}).get("latest_recent_to_block"):
         return 0
-    configured_limit = int(os.getenv("LIQUIDATION_BORROW_DISCOVERY_LIMIT", "5000"))
+    configured_limit = _nonnegative_int_env("LIQUIDATION_BORROW_DISCOVERY_LIMIT", 5000)
     return min(ctx.liquidation_scan_config().max_candidates, configured_limit)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    value = _nonnegative_int_env(name, default)
+    if value < 1:
+        raise ValueError(f"{name} must be at least 1, got {value}")
+    return value
+
+
+def _nonnegative_int_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {raw_value!r}") from exc
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative, got {value}")
+    return value
+
+
+def _configuration_error_result(ctx: Any, error: str) -> dict:
+    result = {
+        "saved": False,
+        "count": 0,
+        "error": error,
+        "stage": "configuration",
+        "requires_onchain_verification": True,
+    }
+    ctx.LIQUIDATION_DISCOVERY_CACHE["last_result"] = result
+    return result
 
 
 def _discover_candidate_accounts(
@@ -292,6 +332,8 @@ def _continuity_skip_result(ctx: Any, reason: str, **data: Any) -> dict:
         },
         "onchain_log_count": onchain_count,
         "external_index_count": external_summary["count"],
+        "external_index_enabled": external_summary["enabled"],
+        "external_index_configured": external_summary["configured"],
         "external_index": external_summary,
         "requires_onchain_verification": True,
     }
@@ -329,6 +371,8 @@ def _success_result(ctx: Any, **data: Any) -> dict:
         },
         "onchain_log_count": onchain_count,
         "external_index_count": external_summary["count"],
+        "external_index_enabled": external_summary["enabled"],
+        "external_index_configured": external_summary["configured"],
         "external_index": external_summary,
         "requires_onchain_verification": True,
     }

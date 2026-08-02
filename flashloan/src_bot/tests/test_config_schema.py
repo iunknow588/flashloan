@@ -1,3 +1,5 @@
+from eth_account import Account
+
 from core.config_schema import liquidation_config_health
 
 
@@ -40,8 +42,9 @@ def test_liquidation_config_health_reports_missing_execution_config(monkeypatch)
 
 def test_liquidation_config_health_accepts_matching_owner_key(monkeypatch):
     clear_liquidation_env(monkeypatch)
-    private_key = "0x59c6995e998f97a5a0044966f094538074834554443d1ead8ae5b6142f2c4f02"
-    owner = "0x39229BC384a259B53B366814F06088F9209d7116"
+    account = Account.create()
+    private_key = account.key.hex()
+    owner = account.address
     address = "0x0000000000000000000000000000000000000001"
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
     monkeypatch.setenv("AAVE_POOL_ADDRESS", address)
@@ -69,3 +72,13 @@ def test_liquidation_config_health_blocks_wrong_chain(monkeypatch):
 
     assert health["valid"] is False
     assert any("chain id" in error for error in health["errors"])
+
+
+def test_liquidation_config_health_reports_invalid_chain_id_without_raising(monkeypatch):
+    clear_liquidation_env(monkeypatch)
+    monkeypatch.setenv("CHAIN_ID", "not-a-number")
+
+    health = liquidation_config_health()
+
+    assert health["valid"] is False
+    assert "CHAIN_ID must be an integer" in health["errors"]

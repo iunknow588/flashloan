@@ -5,6 +5,8 @@ from typing import Any
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
+
 
 AAVE_POOL_FLASHLOAN_PREMIUM_ABI = [
     {
@@ -58,4 +60,4 @@ def read_aave_flashloan_premium(
             "error": None,
         }
     except Exception as exc:
-        return fallback_flashloan_premium(fallback_percent, str(exc))
+        return fallback_flashloan_premium(fallback_percent, redact_sensitive_text(exc))

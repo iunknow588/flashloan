@@ -64,6 +64,22 @@ def _deps(
     )
 
 
+def test_engine_config_from_env_uses_safe_defaults_for_invalid_numeric_values(monkeypatch):
+    monkeypatch.setenv("LIQUIDATION_ENGINE_POLL_SECONDS", "bad")
+    monkeypatch.setenv("LIQUIDATION_EVENT_POLL_SECONDS", "bad")
+    monkeypatch.setenv("LIQUIDATION_PRICE_TRIGGER_BPS", "bad")
+    monkeypatch.setenv("LIQUIDATION_ENGINE_MAX_ACCOUNTS", "bad")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+
+    config = LiquidationEngineConfig.from_env()
+
+    assert config.poll_interval_seconds == 30
+    assert config.event_poll_interval_seconds == 5
+    assert config.price_change_threshold_bps == 100
+    assert config.max_accounts_per_tick == 100
+    assert config.auto_execute is True
+
+
 def test_engine_observe_mode_runs_static_call_without_submit():
     records = []
     submitted = []
@@ -208,3 +224,35 @@ def test_engine_default_event_poll_interval_is_under_five_seconds(monkeypatch):
     config = LiquidationEngineConfig.from_env()
 
     assert config.event_poll_interval_seconds <= 5.0
+
+
+def test_engine_submission_error_is_redacted(monkeypatch):
+    records = []
+    submitted = []
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "d" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    deps = _deps(records=records, submitted=submitted)
+
+    def fail_submit(payload):
+        raise RuntimeError(f"submit failed: {database_url} private_key={private_key}")
+
+    deps = LiquidationEngineDependencies(
+        **{
+            **deps.__dict__,
+            "submit": fail_submit,
+        }
+    )
+    engine = LiquidationEngine(deps, LiquidationEngineConfig(auto_execute=True))
+
+    result = engine.run_once()
+
+    error = result["processed"][0]["error"]
+    recorded_error = records[-1]["error"]
+    for value in (error, recorded_error):
+        assert database_url not in value
+        assert private_key not in value
+        assert "secret-pass" not in value
+        assert "abc123" not in value
+        assert "[REDACTED]" in value

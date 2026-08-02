@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 
 
@@ -23,6 +24,13 @@ FAILURE_SAMPLE_LABELS = (
     "dust_leftover",
     "low_profit",
     "high_slippage_failure",
+)
+REPLAY_REQUIRED_FIELDS = (
+    "block_number",
+    "account",
+    "candidate_params",
+    "preflight_result",
+    "revert_classification",
 )
 FailureSampleRecorder = Callable[..., int]
 
@@ -72,6 +80,102 @@ def _repay_base_source(report: dict[str, Any]) -> str:
     candidate = _recommended_candidate(report)
     profit = candidate.get("estimated_profit") or {}
     return str(profit.get("repay_base_source") or candidate.get("repay_base_source") or "")
+
+
+def _block_number(report: dict[str, Any]) -> int | None:
+    candidates = (
+        report.get("block_number"),
+        (report.get("context") or {}).get("block_number") if isinstance(report.get("context"), dict) else None,
+        (report.get("preflight") or {}).get("block_number") if isinstance(report.get("preflight"), dict) else None,
+        (report.get("dex_quote") or {}).get("quote_block") if isinstance(report.get("dex_quote"), dict) else None,
+    )
+    for value in candidates:
+        try:
+            if value is not None:
+                return int(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _candidate_params(candidate: dict[str, Any]) -> dict[str, Any]:
+    keys = (
+        "collateral_asset",
+        "collateral_symbol",
+        "debt_asset",
+        "debt_symbol",
+        "amount_to_pass_to_liquidation_call",
+        "max_debt_to_liquidate",
+        "debt_to_cover",
+        "min_collateral_swap_out",
+        "min_profit_amount",
+        "repay_base_source",
+    )
+    return {key: candidate.get(key) for key in keys if candidate.get(key) is not None}
+
+
+def _preflight_result(report: dict[str, Any]) -> dict[str, Any]:
+    preflight = report.get("preflight") if isinstance(report.get("preflight"), dict) else {}
+    if not preflight and isinstance(report.get("payload"), dict):
+        preflight = report["payload"].get("preflight") if isinstance(report["payload"].get("preflight"), dict) else {}
+    keys = (
+        "static_call_required",
+        "static_call_status",
+        "static_call_passed",
+        "static_call_error",
+        "execution_phase",
+        "block_number",
+        "receipt_status",
+    )
+    return {key: preflight.get(key) for key in keys if preflight.get(key) is not None}
+
+
+def _revert_classification(report: dict[str, Any], label: str) -> dict[str, Any]:
+    preflight = _preflight_result(report)
+    error = str(preflight.get("static_call_error") or report.get("payload_error") or "")
+    lowered = error.lower()
+    if "slippage" in lowered or "amountoutmin" in lowered:
+        category = "high_slippage"
+    elif "close factor" in lowered or label == "close_factor_failure":
+        category = "close_factor"
+    elif "profit" in lowered or label == "low_profit":
+        category = "low_profit"
+    elif "dust" in lowered or label == "dust_leftover":
+        category = "dust_leftover"
+    elif error:
+        category = "static_call_revert"
+    else:
+        category = None
+    return {
+        "category": category,
+        "reason": error or None,
+        "source": "static_call_error" if error else None,
+    }
+
+
+def _replay_metadata(report: dict[str, Any], label: str) -> dict[str, Any]:
+    candidate = _recommended_candidate(report)
+    candidate_params = _candidate_params(candidate)
+    preflight_result = _preflight_result(report)
+    revert_classification = _revert_classification(report, label)
+    metadata = {
+        "block_number": _block_number(report),
+        "account": report.get("account"),
+        "candidate_params": candidate_params,
+        "preflight_result": preflight_result,
+        "revert_classification": revert_classification,
+    }
+    missing = [
+        key
+        for key in REPLAY_REQUIRED_FIELDS
+        if not metadata.get(key) or (key == "revert_classification" and not revert_classification.get("category"))
+    ]
+    return {
+        **metadata,
+        "required_fields": list(REPLAY_REQUIRED_FIELDS),
+        "missing_fields": missing,
+        "replayable": not missing,
+    }
 
 
 def classify_liquidation_sample_label(report: dict[str, Any]) -> str | None:
@@ -148,12 +252,18 @@ def build_liquidation_sample_record(
 ) -> dict[str, Any]:
     summary = _summary(report)
     record: dict[str, Any] = {
+        "schema_version": 2,
         "label": label,
         "account": report.get("account"),
+        "block_number": _block_number(report),
         "source": report.get("source") or report.get("context", {}).get("source"),
         "summary": summary,
         "recommended_candidate": _recommended_candidate(report),
+        "candidate_params": _candidate_params(_recommended_candidate(report)),
         "execution_plan": report.get("execution_plan") or {},
+        "preflight_result": _preflight_result(report),
+        "revert_classification": _revert_classification(report, label),
+        "replay": _replay_metadata(report, label),
         "context": report.get("context") or {},
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "input_status": summary.get("status"),
@@ -169,8 +279,13 @@ def build_liquidation_sample_record(
             )
             record["payload"] = payload
             record["preflight"] = payload.get("preflight") or {}
+            record["preflight_result"] = _preflight_result(record)
+            record["revert_classification"] = _revert_classification(record, label)
+            record["replay"] = _replay_metadata(record, label)
         except Exception as exc:
-            record["payload_error"] = str(exc)
+            record["payload_error"] = redact_sensitive_text(exc)
+            record["revert_classification"] = _revert_classification(record, label)
+            record["replay"] = _replay_metadata(record, label)
     return record
 
 
@@ -274,13 +389,30 @@ def build_liquidation_sample_manifest(
                     "status": "ready",
                     "file": files[label],
                     "account": report.get("account"),
+                    "block_number": _block_number(report),
                     "health_factor": _health_factor(report),
+                    "candidate_params": _candidate_params(_recommended_candidate(report)),
+                    "preflight_result": _preflight_result(report),
+                    "revert_classification": _revert_classification(report, label),
+                    "replay": _replay_metadata(report, label),
                 }
             )
         else:
-            samples.append({"label": label, "status": "pending_real_sample", "file": None})
+            samples.append(
+                {
+                    "label": label,
+                    "status": "pending_real_sample",
+                    "file": None,
+                    "required_fields": list(REPLAY_REQUIRED_FIELDS),
+                    "replay": {
+                        "replayable": False,
+                        "required_fields": list(REPLAY_REQUIRED_FIELDS),
+                        "missing_fields": list(REPLAY_REQUIRED_FIELDS),
+                    },
+                }
+            )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_count": len(reports),
         "samples": samples,

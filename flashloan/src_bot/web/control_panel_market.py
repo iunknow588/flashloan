@@ -9,10 +9,15 @@ from execution.dex_costs import estimate_symbol_cost
 from execution.execution_payload import PayloadConfig, build_execution_payload
 from execution.liquidation_scan import health_factor_band
 from execution.plan_quotes import quote_execution_plan
+from core.config_schema import parse_env_float
 from core.env_loader import load_env_files, resolve_env_path
 from strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
 from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES
-from web.control_panel_config import strategy_config as read_strategy_config, write_strategy_config as save_strategy_config
+from web.control_panel_config import (
+    STRATEGY_DEFAULTS,
+    strategy_config as read_strategy_config,
+    write_strategy_config as save_strategy_config,
+)
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
     borrow_target_universe as read_borrow_target_universe,
@@ -175,10 +180,9 @@ def available_candidate_symbols(limit: int = 500) -> list[str]:
 
 
 def configured_fee_slippage_percent() -> float:
-    try:
-        return max(0.0, float(os.getenv("FEE_SLIPPAGE_PERCENT", os.getenv("ALERT_DIFF_PERCENT", "0.30"))))
-    except ValueError:
-        return 0.30
+    fallback = parse_env_float("ALERT_DIFF_PERCENT", 0.30, minimum=0)[0]
+    value, error = parse_env_float("FEE_SLIPPAGE_PERCENT", fallback, minimum=0)
+    return fallback if error else value
 
 
 def latest_reference_price(symbol: str) -> float:
@@ -188,24 +192,59 @@ def latest_reference_price(symbol: str) -> float:
     return float(rows[-1]["aave_price"])
 
 
+def _strategy_float(
+    key: str,
+    config: dict | None = None,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    default = float(STRATEGY_DEFAULTS[key])
+    raw = (config or strategy_config()).get(key, default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = default
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def _strategy_int(
+    key: str,
+    config: dict | None = None,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    value = int(_strategy_float(key, config))
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
 def read_slippage_bps() -> int:
-    return int(strategy_config()["EXECUTION_SLIPPAGE_BPS"])
+    return _strategy_int("EXECUTION_SLIPPAGE_BPS", minimum=0, maximum=5000)
 
 
 def read_execution_plan_max_age_seconds() -> float:
-    return float(strategy_config()["EXECUTION_PLAN_MAX_AGE_SECONDS"])
+    return float(_strategy_int("EXECUTION_PLAN_MAX_AGE_SECONDS", minimum=1))
 
 
 def arbitrage_config_from_strategy() -> ArbitrageConfig:
     config = strategy_config()
     return ArbitrageConfig(
-        notional_usd=float(config["ARBITRAGE_NOTIONAL_USD"]),
-        trade_fee_percent=float(config["ARBITRAGE_TRADE_FEE_PERCENT"]),
-        flashloan_fee_percent=float(config["ARBITRAGE_FLASHLOAN_FEE_PERCENT"]),
-        min_window_spread_percent=float(config["ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT"]),
-        min_paper_profit_usd=float(config["ARBITRAGE_MIN_PAPER_PROFIT_USD"]),
-        fee_reserve_percent=float(config["ARBITRAGE_FEE_RESERVE_PERCENT"]),
-        basket_size=int(config["ARBITRAGE_BASKET_SIZE"]),
+        notional_usd=_strategy_float("ARBITRAGE_NOTIONAL_USD", config, minimum=0.0),
+        trade_fee_percent=_strategy_float("ARBITRAGE_TRADE_FEE_PERCENT", config, minimum=0.0),
+        flashloan_fee_percent=_strategy_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", config, minimum=0.0),
+        min_window_spread_percent=_strategy_float("ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT", config, minimum=0.0),
+        min_paper_profit_usd=_strategy_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", config, minimum=0.0),
+        fee_reserve_percent=_strategy_float("ARBITRAGE_FEE_RESERVE_PERCENT", config, minimum=0.0),
+        basket_size=_strategy_int("ARBITRAGE_BASKET_SIZE", config, minimum=1, maximum=10),
     )
 
 
@@ -362,8 +401,8 @@ def opportunity_health_rows(extremes: Optional[dict], config: Optional[dict] = N
     if not isinstance(basket, list) or not basket:
         return []
     config = config or strategy_config()
-    up_threshold = max(0.0001, float(config.get("TRIGGER_MIN_UP_CHANGE_PERCENT", 1.0)))
-    down_threshold = max(0.0001, float(config.get("TRIGGER_MIN_DOWN_CHANGE_PERCENT", 1.0)))
+    up_threshold = _strategy_float("TRIGGER_MIN_UP_CHANGE_PERCENT", config, minimum=0.0001)
+    down_threshold = _strategy_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", config, minimum=0.0001)
     rows: list[dict] = []
     for index, item in enumerate(basket, start=1):
         if not isinstance(item, dict):
@@ -430,9 +469,9 @@ def opportunity_health_rows(extremes: Optional[dict], config: Optional[dict] = N
 
 def opportunity_health_summary(rows: list[dict], config: Optional[dict] = None) -> dict:
     config = config or strategy_config()
-    monitor_window_seconds = float(config.get("BINANCE_CHANGE_WINDOW_SECONDS", 1.0))
-    trigger_up = float(config.get("TRIGGER_MIN_UP_CHANGE_PERCENT", 1.0))
-    trigger_down = float(config.get("TRIGGER_MIN_DOWN_CHANGE_PERCENT", 1.0))
+    monitor_window_seconds = _strategy_float("BINANCE_CHANGE_WINDOW_SECONDS", config, minimum=0.0)
+    trigger_up = _strategy_float("TRIGGER_MIN_UP_CHANGE_PERCENT", config, minimum=0.0)
+    trigger_down = _strategy_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", config, minimum=0.0)
     candidate_count = sum(1 for row in rows if row.get("status") in {"candidate", "selected"})
     selected_count = sum(1 for row in rows if row.get("status") == "selected")
     watched_count = sum(1 for row in rows if row.get("status") == "watching")

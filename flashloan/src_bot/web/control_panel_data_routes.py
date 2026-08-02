@@ -3,6 +3,7 @@ import os
 
 from flask import jsonify, request
 
+from core.sensitive_data import redact_sensitive_text
 from web.control_panel_liquidation_routes import liquidation_coverage_payload
 from tools.liquidation_observation_report import (
     build_liquidation_observation_report,
@@ -16,6 +17,38 @@ ROUTE_CONTEXT = RouteContext()
 
 def panel_call(name: str, *args, **kwargs):
     return ROUTE_CONTEXT.call(name, *args, **kwargs)
+
+
+def data_error_message(error: object | None) -> str | None:
+    if error is None:
+        return None
+    return redact_sensitive_text(error)
+
+
+def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
+    raw = request.args.get(name, str(default))
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = int(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def request_float_arg(name: str, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
+    raw = request.args.get(name, str(default))
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = float(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
 
 
 def register_data_routes(app, panel) -> None:
@@ -93,7 +126,7 @@ def register_data_routes(app, panel) -> None:
                 high_frequency_rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=5)
                 account_tiers = panel_call("liquidation_account_tier_summary")
             except Exception as exc:
-                return jsonify({"configured": True, "error": str(exc), "schema": schema}), 400
+                return jsonify({"configured": True, "error": data_error_message(exc), "schema": schema}), 400
         return jsonify(
             {
                 "configured": bool(database_url),
@@ -160,7 +193,7 @@ def register_data_routes(app, panel) -> None:
             write_liquidation_observation_report(report, path)
             return jsonify({"configured": True, "path": str(path), "reused": False, "report": report})
         except Exception as exc:
-            return jsonify({"configured": True, "error": str(exc), "report": None}), 400
+            return jsonify({"configured": True, "error": data_error_message(exc), "report": None}), 400
 
     @app.post("/api/liquidation/reports/daily")
     def liquidation_daily_report_refresh_api():
@@ -173,18 +206,18 @@ def register_data_routes(app, panel) -> None:
             write_liquidation_observation_report(report, path)
             return jsonify({"configured": True, "path": str(path), "reused": False, "report": report})
         except Exception as exc:
-            return jsonify({"configured": True, "error": str(exc), "report": None}), 400
+            return jsonify({"configured": True, "error": data_error_message(exc), "report": None}), 400
     
     
     @app.get("/api/velocity-timepoints")
     def velocity_timepoints():
         try:
-            limit = max(1, min(int(request.args.get("limit", "200")), 500))
+            limit = request_int_arg("limit", 200, minimum=1, maximum=500)
             rows = recent_velocity_timepoints(limit)
         except Exception as exc:
             if "does not exist" in str(exc):
                 return jsonify({"timepoints": []})
-            return jsonify({"error": str(exc), "timepoints": []}), 400
+            return jsonify({"error": data_error_message(exc), "timepoints": []}), 400
         return jsonify({"timepoints": rows})
     
     
@@ -192,7 +225,7 @@ def register_data_routes(app, panel) -> None:
     def velocity_summary():
         try:
             raw_id = request.args.get("id", "").strip()
-            snapshot_id = int(raw_id) if raw_id else None
+            snapshot_id = request_int_arg("id", 0) if raw_id else None
             snapshot = velocity_timepoint_snapshot(snapshot_id)
             if not snapshot and snapshot_id is not None:
                 snapshot = velocity_timepoint_snapshot(None)
@@ -202,7 +235,7 @@ def register_data_routes(app, panel) -> None:
         except Exception as exc:
             if "does not exist" in str(exc):
                 return jsonify({"error": "initialize database and collect velocity windows first", "rows": []})
-            return jsonify({"error": str(exc), "rows": []}), 400
+            return jsonify({"error": data_error_message(exc), "rows": []}), 400
     
     
     @app.get("/api/strategy-config")
@@ -216,7 +249,7 @@ def register_data_routes(app, panel) -> None:
         try:
             config = write_strategy_config(request.get_json(silent=True) or {})
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": data_error_message(exc)}), 400
         return jsonify({"config": config, "sampling_profile": unified_sampling_profile(config), "restart_required": is_observer_running()})
     
     
@@ -234,13 +267,13 @@ def register_data_routes(app, panel) -> None:
     def observations():
         symbol = request.args.get("symbol", "AVAXUSDT").strip().upper()
         try:
-            limit = max(2, min(int(request.args.get("limit", "120")), 1000))
+            limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
             rows = recent_observations(symbol, limit) if symbol in ASSETS else []
             mode = "aave_observations" if rows else "binance_price_history"
             if not rows:
                 rows = recent_binance_price_history(symbol, limit)
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": data_error_message(exc)}), 400
         return jsonify(
             {
                 "symbol": symbol,
@@ -265,10 +298,10 @@ def register_data_routes(app, panel) -> None:
         if x_symbol not in ASSETS or y_symbol not in ASSETS:
             return jsonify({"error": "x and y must be mapped Aave symbols", "rows": []}), 400
         try:
-            limit = max(2, min(int(request.args.get("limit", "120")), 1000))
+            limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
             rows = recent_aave_pair_prices(x_symbol, y_symbol, limit)
         except Exception as exc:
-            return jsonify({"error": str(exc), "rows": []}), 400
+            return jsonify({"error": data_error_message(exc), "rows": []}), 400
         return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": rows})
     
     
@@ -279,12 +312,12 @@ def register_data_routes(app, panel) -> None:
         if not x_symbol or not y_symbol or x_symbol == y_symbol:
             return jsonify({"error": "select two different symbols", "rows": []}), 400
         try:
-            limit = max(2, min(int(request.args.get("limit", "120")), 1000))
+            limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
             rows = recent_binance_pair_prices(x_symbol, y_symbol, limit)
         except Exception as exc:
             if "does not exist" in str(exc):
                 return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": []})
-            return jsonify({"error": str(exc), "rows": []}), 400
+            return jsonify({"error": data_error_message(exc), "rows": []}), 400
         return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": rows})
     
     
@@ -295,7 +328,7 @@ def register_data_routes(app, panel) -> None:
         if not x_symbol or not y_symbol or x_symbol == y_symbol:
             return jsonify({"error": "select two different symbols", "routes": []}), 400
         try:
-            initial_amount = max(0.000001, float(request.args.get("initial", "100")))
+            initial_amount = request_float_arg("initial", 100, minimum=0.000001)
             rows = latest_candidate_price_rows([x_symbol, y_symbol])
             if x_symbol not in rows or y_symbol not in rows:
                 return jsonify(
@@ -316,7 +349,7 @@ def register_data_routes(app, panel) -> None:
         except Exception as exc:
             if "does not exist" in str(exc):
                 return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "initial_amount": 100, "routes": []})
-            return jsonify({"error": str(exc), "routes": []}), 400
+            return jsonify({"error": data_error_message(exc), "routes": []}), 400
         return jsonify(
             {
                 "x_symbol": x_symbol,
@@ -331,11 +364,11 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/chart-symbols")
     def chart_symbols():
         try:
-            limit = max(len(ASSETS), min(int(request.args.get("limit", "500")), 1000))
+            limit = request_int_arg("limit", 500, minimum=len(ASSETS), maximum=1000)
             symbols = available_candidate_symbols(limit)
         except Exception as exc:
             if "does not exist" not in str(exc):
-                return jsonify({"error": str(exc), "symbols": list(ASSETS.keys())}), 400
+                return jsonify({"error": data_error_message(exc), "symbols": list(ASSETS.keys())}), 400
             symbols = list(ASSETS.keys())
         return jsonify({"symbols": symbols, "aave_symbols": list(ASSETS.keys())})
     
@@ -384,7 +417,7 @@ def register_data_routes(app, panel) -> None:
             if quote is None:
                 raise last_error or RuntimeError("all AAVE RPC candidates failed")
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": data_error_message(exc)}), 400
         return jsonify({"quote": quote})
     
     
@@ -415,12 +448,12 @@ def register_data_routes(app, panel) -> None:
                 simulation["execution_plan"],
                 quote,
                 PayloadConfig(
-                    min_profit_usdc=float(request.args.get("min_profit_usdc", "0")),
-                    deadline_seconds=int(request.args.get("deadline_seconds", "600")),
+                    min_profit_usdc=request_float_arg("min_profit_usdc", 0, minimum=0),
+                    deadline_seconds=request_int_arg("deadline_seconds", 600, minimum=1),
                 ),
             )
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": data_error_message(exc)}), 400
         return jsonify({"payload": payload})
     
     
@@ -457,5 +490,5 @@ def register_data_routes(app, panel) -> None:
                 if quote is not None
             ]
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+            return jsonify({"error": data_error_message(exc)}), 400
         return jsonify({"symbol": symbol, "dex_name": "Trader Joe V2", "reference_price_usd": reference_price, "costs": payload})

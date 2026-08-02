@@ -1,4 +1,4 @@
-from web.account_pool_state_service import evaluate_account_pool_state
+from web.account_pool_state_service import account_pool_state_payload, evaluate_account_pool_state
 
 
 def test_account_pool_state_missing_without_database_or_fallback():
@@ -50,3 +50,26 @@ def test_account_pool_state_ready_with_active_accounts_and_scan_window():
     assert state["result"] == "ACCOUNT_POOL_READY"
     assert state["ready"] is True
 
+
+def test_account_pool_state_payload_redacts_registry_errors(monkeypatch):
+    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    private_key = "0x" + "f" * 64
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    class Panel:
+        @staticmethod
+        def database_url_or_none():
+            return database_url
+
+        @staticmethod
+        def load_liquidation_account_registry(force=False):
+            raise RuntimeError(f"registry failed: {database_url} private_key={private_key}")
+
+    state = account_pool_state_payload(Panel())
+    error = state["registry_window"]["error"]
+
+    assert database_url not in error
+    assert private_key not in error
+    assert "secret-pass" not in error
+    assert "abc123" not in error
+    assert "[REDACTED]" in error

@@ -5,6 +5,7 @@ from typing import Any
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
 from execution.dex_costs import (
     ROUTER_ABI,
     TOKEN_COSTS,
@@ -267,5 +268,5 @@ def step_error(section: str, step: dict, exc: Exception) -> dict:
         "action": step.get("action"),
         "from_symbol": step.get("from_symbol"),
         "to_symbol": step.get("to_symbol"),
-        "error": str(exc),
+        "error": redact_sensitive_text(exc),
     }

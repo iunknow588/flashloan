@@ -4,6 +4,7 @@ from typing import Optional
 
 from web3 import Web3
 
+from core.config_schema import parse_env_int
 from execution.dex_costs import TRADER_JOE_V2_ROUTER, USDC
 from market.aave_reserve_cache import cache_is_fresh, parse_rpc_urls, web3_for_rpc_url, write_cache
 from market.dex_target_common import (
@@ -324,9 +325,9 @@ def load_usdc_pool_binance_symbols(
 ) -> list[str]:
     assets = load_usdc_pool_assets(
         rpc_urls,
-        from_block=int(float(os.getenv("DEX_USDC_POOL_FROM_BLOCK", "0") or 0)),
-        chunk_size=int(float(os.getenv("DEX_USDC_POOL_SCAN_CHUNK_SIZE", "50000") or 50000)),
-        refresh_seconds=int(float(os.getenv("DEX_USDC_TARGET_CACHE_SECONDS", "3600") or 3600)),
+        from_block=parse_env_int("DEX_USDC_POOL_FROM_BLOCK", 0, minimum=0)[0],
+        chunk_size=parse_env_int("DEX_USDC_POOL_SCAN_CHUNK_SIZE", 50000, minimum=1)[0],
+        refresh_seconds=parse_env_int("DEX_USDC_TARGET_CACHE_SECONDS", 3600, minimum=0)[0],
     )
     symbols = list(dict.fromkeys(str(asset.get("binance_symbol", "")).upper() for asset in assets if asset.get("binance_symbol")))
     if supported_symbols:
@@ -342,9 +343,9 @@ def load_stable_pool_binance_symbols(
 ) -> list[str]:
     assets = load_stable_pool_assets(
         rpc_urls,
-        from_block=int(float(os.getenv("DEX_STABLE_POOL_FROM_BLOCK", os.getenv("DEX_USDC_POOL_FROM_BLOCK", "0")) or 0)),
-        chunk_size=int(float(os.getenv("DEX_STABLE_POOL_SCAN_CHUNK_SIZE", os.getenv("DEX_USDC_POOL_SCAN_CHUNK_SIZE", "50000")) or 50000)),
-        refresh_seconds=int(float(os.getenv("DEX_STABLE_TARGET_CACHE_SECONDS", os.getenv("DEX_USDC_TARGET_CACHE_SECONDS", "3600")) or 3600)),
+        from_block=parse_env_int("DEX_STABLE_POOL_FROM_BLOCK", os.getenv("DEX_USDC_POOL_FROM_BLOCK", "0"), minimum=0)[0],
+        chunk_size=parse_env_int("DEX_STABLE_POOL_SCAN_CHUNK_SIZE", os.getenv("DEX_USDC_POOL_SCAN_CHUNK_SIZE", "50000"), minimum=1)[0],
+        refresh_seconds=parse_env_int("DEX_STABLE_TARGET_CACHE_SECONDS", os.getenv("DEX_USDC_TARGET_CACHE_SECONDS", "3600"), minimum=0)[0],
     )
     symbols = list(dict.fromkeys(str(asset.get("binance_symbol", "")).upper() for asset in assets if asset.get("binance_symbol")))
     if supported_symbols:
@@ -362,9 +363,9 @@ def load_borrow_pool_binance_symbols(
     assets = load_borrow_pool_assets(
         rpc_urls,
         borrow_assets,
-        from_block=int(float(os.getenv("DEX_BORROW_POOL_FROM_BLOCK", os.getenv("DEX_STABLE_POOL_FROM_BLOCK", "0")) or 0)),
-        chunk_size=int(float(os.getenv("DEX_BORROW_POOL_SCAN_CHUNK_SIZE", os.getenv("DEX_STABLE_POOL_SCAN_CHUNK_SIZE", "50000")) or 50000)),
-        refresh_seconds=int(float(os.getenv("DEX_BORROW_TARGET_CACHE_SECONDS", os.getenv("DEX_STABLE_TARGET_CACHE_SECONDS", "3600")) or 3600)),
+        from_block=parse_env_int("DEX_BORROW_POOL_FROM_BLOCK", os.getenv("DEX_STABLE_POOL_FROM_BLOCK", "0"), minimum=0)[0],
+        chunk_size=parse_env_int("DEX_BORROW_POOL_SCAN_CHUNK_SIZE", os.getenv("DEX_STABLE_POOL_SCAN_CHUNK_SIZE", "50000"), minimum=1)[0],
+        refresh_seconds=parse_env_int("DEX_BORROW_TARGET_CACHE_SECONDS", os.getenv("DEX_STABLE_TARGET_CACHE_SECONDS", "3600"), minimum=0)[0],
     )
     symbols = list(dict.fromkeys(str(asset.get("binance_symbol", "")).upper() for asset in assets if asset.get("binance_symbol")))
     if supported_symbols:

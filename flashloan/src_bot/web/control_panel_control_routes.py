@@ -6,6 +6,14 @@ from datetime import datetime, timezone
 
 from flask import jsonify
 
+from core.sensitive_data import redact_sensitive_text
+
+
+def control_error_message(error: object | None) -> str | None:
+    if error is None:
+        return None
+    return redact_sensitive_text(error)
+
 
 def _cache_running_blocker(panel, *, label: str, cache_name: str, lock_name: str) -> str | None:
     cache = getattr(panel, cache_name)
@@ -77,10 +85,11 @@ def register_control_routes(app, panel) -> None:
             try:
                 panel.configured_database_url()
             except Exception as exc:
-                panel.observer_start_error = str(exc)
-                panel.set_observer_progress("error", str(exc), 0)
-                panel.set_control_status("error", "启动机会观察", f"启动机会观察失败：{exc}", 0)
-                return jsonify({"error": str(exc)}), 400
+                message = control_error_message(exc)
+                panel.observer_start_error = message
+                panel.set_observer_progress("error", message, 0)
+                panel.set_control_status("error", "启动机会观察", f"启动机会观察失败：{message}", 0)
+                return jsonify({"error": message}), 400
             panel.observer_starting = True
             panel.observer_start_error = None
             panel.selected_symbols = panel.velocity_start_symbols()

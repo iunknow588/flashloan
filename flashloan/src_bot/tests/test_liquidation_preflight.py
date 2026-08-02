@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from execution.liquidation_preflight import evaluate_liquidation_submission, force_remaining_blockers
+from execution.liquidation_preflight import classify_liquidation_blockers, evaluate_liquidation_submission, force_remaining_blockers
 
 
 def base_payload():
@@ -207,3 +207,47 @@ def test_force_remaining_blockers_keeps_hard_and_config_blockers_only():
     ]
 
     assert force_remaining_blockers(blockers) == ["execution_disabled", "account_not_liquidatable"]
+
+
+def test_force_remaining_blockers_allows_only_soft_blockers():
+    blockers = [
+        "static_call_required",
+        "static_call_failed",
+        "profit_below_minimum",
+        "gas_cost_too_high",
+        "quote_expired",
+        "quote_failed",
+    ]
+
+    assert force_remaining_blockers(blockers) == []
+
+
+def test_force_remaining_blockers_keeps_all_hard_safety_gates():
+    blockers = [
+        "config_invalid",
+        "chain_id_mismatch",
+        "private_key_mismatch",
+        "missing_executor",
+        "missing_owner",
+        "missing_self_funded_key",
+        "account_not_liquidatable",
+        "no_liquidation_candidate",
+        "invalid_debt_to_cover",
+        "debt_exceeds_limit",
+        "payload_expired",
+        "fallback_close_factor",
+        "fallback_flashloan_premium",
+        "protocol_revert_unknown",
+    ]
+
+    assert force_remaining_blockers(blockers) == blockers
+
+
+def test_unknown_blocker_is_hard_and_not_force_allowed():
+    state = classify_liquidation_blockers(["static_call_required", "new_unclassified_blocker"])
+
+    assert state["block_level"] == "hard"
+    assert state["soft_blocked_reasons"] == ["static_call_required"]
+    assert state["hard_blocked_reasons"] == ["new_unclassified_blocker"]
+    assert state["unknown_blocked_reasons"] == ["new_unclassified_blocker"]
+    assert state["force_allowed"] is False

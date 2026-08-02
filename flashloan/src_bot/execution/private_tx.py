@@ -6,6 +6,8 @@ from typing import Any
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
+
 
 @dataclass(frozen=True)
 class PrivateRelayEndpoint:
@@ -61,7 +63,7 @@ def send_raw_transaction_private_first(
                 "relay": relay.name,
             }
         except Exception as exc:
-            errors.append({"relay": relay.name, "error": str(exc)})
+            errors.append({"relay": relay.name, "error": redact_sensitive_text(exc)})
 
     tx_hash = public_w3.eth.send_raw_transaction(raw_transaction)
     return {

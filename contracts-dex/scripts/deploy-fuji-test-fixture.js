@@ -1,6 +1,13 @@
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+const {
+  appendJsonl,
+  evidencePaths,
+  networkContext,
+  sanitizeError,
+  writeJson,
+} = require("./fuji-evidence");
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -21,6 +28,7 @@ async function deploy(name, args) {
 async function main() {
   requireEnv("FUJI_RPC_URL");
   requireEnv("DEPLOYER_PRIVATE_KEY");
+  const paths = evidencePaths({ strategy: "fuji-fixture-deploy" });
 
   const [deployer] = await hre.ethers.getSigners();
   console.log(`deployer=${deployer.address}`);
@@ -58,6 +66,7 @@ async function main() {
   console.log("FUJI_MIN_PROFIT_UNITS=0");
 
   const output = {
+    runId: paths.runId,
     network: "fuji",
     chainId: 43113,
     deployedAt: new Date().toISOString(),
@@ -69,11 +78,33 @@ async function main() {
   };
   const outputDir = path.join(process.cwd(), "deployments");
   fs.mkdirSync(outputDir, { recursive: true });
-  fs.writeFileSync(path.join(outputDir, "fuji-fixture.json"), JSON.stringify(output, null, 2));
-  console.log(`deploymentFile=${path.join(outputDir, "fuji-fixture.json")}`);
+  const fixturePath = path.join(outputDir, "fuji-fixture.json");
+  fs.writeFileSync(fixturePath, `${JSON.stringify(output, null, 2)}\n`);
+  const report = {
+    ...output,
+    context: await networkContext(hre, process.env),
+    fixturePath,
+    reportPath: paths.reportPath,
+  };
+  writeJson(paths.reportPath, report);
+  appendJsonl(paths.tradeLogPath, {
+    runId: paths.runId,
+    observedAt: report.deployedAt,
+    network: "fuji",
+    strategy: "fuji_fixture_deploy",
+    action: "deploy",
+    success: true,
+    fixturePath,
+    reportPath: paths.reportPath,
+    mockExecutorAddress: executorAddress,
+  });
+  console.log(`deploymentFile=${fixturePath}`);
+  console.log(`evidenceReport=${paths.reportPath}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(JSON.stringify({ ok: false, error: sanitizeError(error) }, null, 2));
+    process.exitCode = 1;
+  });
+}

@@ -41,6 +41,7 @@ CONTEXT_NAMES = [
     "build_user_liquidation_report",
     "database_url_or_none",
     "db_liquidation_account_registry_stats",
+    "db_liquidation_discovery_scan_progress",
     "db_load_liquidation_borrow_health_scan_batches",
     "db_load_liquidation_accounts",
     "db_load_liquidation_borrow_health_pool",
@@ -78,8 +79,10 @@ CONTEXT_NAMES = [
     "protocol_data_provider_address",
     "recent_liquidation_execution_attempts",
     "recent_liquidation_failure_samples",
+    "record_liquidation_account_scan",
     "liquidation_execution_attempts_for_account",
     "liquidation_failure_samples_for_account",
+    "record_liquidation_health_scan_rows",
     "record_liquidation_execution_attempt_safely",
     "record_liquidation_discovery_window",
     "resolve_discovery_block_range",
@@ -164,7 +167,7 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _scan_liquidation_borrow_pool_payload()
 
-    def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
+    def liquidation_borrow_pool_scan_payload(force: bool = False) -> dict:
         sync_liquidation_module_context()
         return _scan_liquidation_borrow_pool_scan_payload(force=force)
 

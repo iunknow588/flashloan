@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from execution.receipt_formatter import format_tx_receipt
-from execution.static_call import liquidation_request_tuple
+from execution.static_call import liquidation_request_tuple, simulate_request_liquidation_static_call
 from web.liquidation_account_backfill import AccountBackfillService
 from web.liquidation_scan_presenter import account_tier_summary, display_health_rows
 
@@ -61,3 +61,53 @@ def test_static_call_tuple_and_receipt_formatter_are_stable():
         "effective_gas_price": 25,
         "status": 1,
     }
+
+
+def test_static_call_error_is_redacted(monkeypatch):
+    rpc_url = "https://rpc.example/path?token=abc123"
+    private_key = "0x" + "a" * 64
+    monkeypatch.setenv("AVALANCHE_RPC_URL", rpc_url)
+
+    class FakeCall:
+        @staticmethod
+        def call(params):
+            raise RuntimeError(f"static failed: {rpc_url} private_key={private_key}")
+
+    class FakeFunctions:
+        @staticmethod
+        def requestLiquidation(request):
+            return FakeCall()
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    class FakeEth:
+        @staticmethod
+        def contract(address, abi):
+            return FakeContract()
+
+    class FakeWeb3:
+        eth = FakeEth()
+
+    result = simulate_request_liquidation_static_call(
+        FakeWeb3(),
+        executor_address="0x0000000000000000000000000000000000000001",
+        owner_address="0x0000000000000000000000000000000000000002",
+        request={
+            "user": "0x0000000000000000000000000000000000000003",
+            "collateralAsset": "0x0000000000000000000000000000000000000004",
+            "debtAsset": "0x0000000000000000000000000000000000000005",
+            "debtToCover": 100,
+            "minCollateralSwapOut": 90,
+            "minProfitAmount": 5,
+            "deadline": 123,
+            "gasLimit": 456,
+            "swapPath": ["0x0000000000000000000000000000000000000005"],
+        },
+    )
+
+    assert result["status"] == "error"
+    assert rpc_url not in result["error"]
+    assert private_key not in result["error"]
+    assert "abc123" not in result["error"]
+    assert "[REDACTED]" in result["error"]

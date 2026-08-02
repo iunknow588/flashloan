@@ -1,6 +1,16 @@
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
+const {
+  boolEnv,
+  buildBroadcastGate,
+  evidencePaths,
+  networkContext,
+  ownerMatchesSigner,
+  receiptReport,
+  sanitizeError,
+  writeJson,
+} = require("./fuji-evidence");
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -102,6 +112,25 @@ function readSignal() {
   return signal;
 }
 
+function signalId(signal) {
+  return signal.signal_id || signal.signalId || signal.id || signal.observed_at || null;
+}
+
+function signalSummary(signal) {
+  return {
+    signalId: signalId(signal),
+    observedAt: signal.observed_at || signal.observedAt || null,
+    xSymbol: signal.x_symbol,
+    ySymbol: signal.y_symbol,
+    xChangePercent: signal.x_change_percent ?? signal.a_change_percent ?? null,
+    yChangePercent: signal.y_change_percent ?? signal.b_change_percent ?? null,
+    executableSignal: signal.executable_signal ?? null,
+    dexQuoteVerified: signal.dex_quote_verified ?? null,
+    netProfitVerified: signal.net_profit_verified ?? null,
+    minProfit: signal.min_profit ?? signal.minProfit ?? null,
+  };
+}
+
 function tradeLogPath() {
   return path.resolve(process.cwd(), process.env.TESTNET_TRADE_LOG || "deployments/fuji-trades.jsonl");
 }
@@ -114,7 +143,6 @@ function appendTradeLog(row) {
 
 async function main() {
   requireEnv("FUJI_RPC_URL");
-  requireEnv("DEPLOYER_PRIVATE_KEY");
 
   const signal = readSignal();
   const executorAddress = requireEnv("ONCHAIN_DYNAMIC_AAVE_EXECUTOR_ADDRESS");
@@ -129,6 +157,7 @@ async function main() {
   const deadlineSeconds = envNumber("DYNAMIC_DEADLINE_SECONDS", 60);
 
   const latest = await hre.ethers.provider.getBlock("latest");
+  const paths = evidencePaths({ strategy: "fuji-dynamic-signal" });
   const request = {
     xToken: tokenAddressFor(signal.x_symbol),
     yToken: tokenAddressFor(signal.y_symbol),
@@ -143,40 +172,135 @@ async function main() {
   };
 
   const executor = await hre.ethers.getContractAt("OnchainDynamicAaveExecutor", executorAddress);
-  const baseLog = {
-    observedAt: signal.observed_at,
-    submittedAt: new Date().toISOString(),
-    network: hre.network.name,
-    xSymbol: signal.x_symbol,
-    ySymbol: signal.y_symbol,
-    xChangePercent: signal.x_change_percent ?? signal.a_change_percent,
-    yChangePercent: signal.y_change_percent ?? signal.b_change_percent,
+  const ownerGate = await ownerMatchesSigner(hre, executor, process.env);
+  const requestSummary = {
+    xToken: request.xToken,
+    yToken: request.yToken,
+    usdc: request.usdc,
+    router: request.router,
+    amountX: request.amountX.toString(),
+    amountY: request.amountY.toString(),
+    premiumBps: request.premiumBps.toString(),
+    minProfitValueUsdc: request.minProfitValueUsdc.toString(),
+    deadline: request.deadline.toString(),
+    slippageBps: request.slippageBps.toString(),
+  };
+  let staticCall = { ok: false };
+  try {
+    await executor.requestDynamicFlashLoan.staticCall(request);
+    const gasEstimate = await executor.requestDynamicFlashLoan.estimateGas(request);
+    staticCall = { ok: true, gasEstimate: gasEstimate.toString() };
+  } catch (error) {
+    staticCall = { ok: false, error: sanitizeError(error) };
+  }
+
+  const broadcastRequested = boolEnv(process.env, "DYNAMIC_SIGNAL_BROADCAST_ENABLED", "FUJI_DYNAMIC_SIGNAL_BROADCAST_ENABLED");
+  const gate = await buildBroadcastGate({
+    hreLike: hre,
+    env: process.env,
+    strategy: "small-amount",
+    intent: ["DYNAMIC_SIGNAL_BROADCAST_ENABLED", "FUJI_DYNAMIC_SIGNAL_BROADCAST_ENABLED"],
+    ownerMatches: ownerGate.matches,
+    staticCallOk: staticCall.ok,
+    payloadFresh: request.deadline > BigInt(latest.timestamp),
+    minProfitChecked: signal.net_profit_verified === true && signal.dex_quote_verified === true,
+  });
+
+  const report = {
+    runId: paths.runId,
+    strategy: "dynamic_signal",
+    mode: "static-call",
+    startedAt: new Date().toISOString(),
+    finishedAt: new Date().toISOString(),
+    context: await networkContext(hre, process.env),
+    owner: ownerGate,
+    executorAddress,
+    blockNumber: latest.number,
+    blockTimestamp: latest.timestamp,
+    signal: signalSummary(signal),
+    request: requestSummary,
+    staticCall,
+    gate,
+    broadcast: {
+      requested: broadcastRequested,
+      submitted: false,
+      reason: broadcastRequested && !gate.ready ? "broadcast gate failed" : "static call evidence only",
+    },
   };
 
+  if (!broadcastRequested || !gate.ready) {
+    writeJson(paths.reportPath, report);
+    appendTradeLog({
+      runId: paths.runId,
+      observedAt: report.finishedAt,
+      network: "fuji",
+      strategy: "dynamic_signal",
+      action: "static_call",
+      signalId: report.signal.signalId,
+      success: staticCall.ok,
+      reportPath: paths.reportPath,
+      error: staticCall.error,
+    });
+    console.log(JSON.stringify(report, null, 2));
+    if (!staticCall.ok) process.exitCode = 1;
+    return;
+  }
+
+  requireEnv("DEPLOYER_PRIVATE_KEY");
   try {
     const tx = await executor.requestDynamicFlashLoan(request);
     const receipt = await tx.wait();
+    const completedReport = {
+      ...report,
+      finishedAt: new Date().toISOString(),
+      broadcast: {
+        requested: true,
+        submitted: true,
+        txHash: tx.hash,
+        receiptStatus: receipt.status,
+      },
+    };
+    writeJson(paths.reportPath, completedReport);
+    writeJson(paths.receiptPath, receiptReport(receipt));
     appendTradeLog({
-      ...baseLog,
+      runId: paths.runId,
+      observedAt: completedReport.finishedAt,
+      network: "fuji",
+      strategy: "dynamic_signal",
+      action: "broadcast",
+      signalId: completedReport.signal.signalId,
       success: true,
       txHash: tx.hash,
       gasUsed: receipt.gasUsed.toString(),
       profitUnits: "0",
+      reportPath: paths.reportPath,
+      receiptPath: paths.receiptPath,
     });
-    console.log(`tx=${tx.hash}`);
-    console.log(`gasUsed=${receipt.gasUsed}`);
-    console.log(`x=${signal.x_symbol} y=${signal.y_symbol}`);
+    console.log(JSON.stringify(completedReport, null, 2));
   } catch (error) {
     appendTradeLog({
-      ...baseLog,
+      runId: paths.runId,
+      observedAt: new Date().toISOString(),
+      network: "fuji",
+      strategy: "dynamic_signal",
+      action: "broadcast",
+      signalId: report.signal.signalId,
       success: false,
-      error: error.shortMessage || error.reason || error.message,
+      reportPath: paths.reportPath,
+      error: sanitizeError(error),
     });
     throw error;
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(JSON.stringify({ ok: false, error: sanitizeError(error) }, null, 2));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  signalId,
+  signalSummary,
+};

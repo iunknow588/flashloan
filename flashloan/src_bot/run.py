@@ -5,9 +5,10 @@ import sys
 import threading
 
 from core.env_loader import load_env_files
+from core.sensitive_data import redact_sensitive_text
 
 
-load_env_files(__file__, override=True)
+load_env_files(__file__, override=False)
 
 
 REQUIRED_MODULES = {
@@ -54,14 +55,18 @@ def main() -> int:
         from web.control_panel import app, initialize_liquidation_runtime
 
     except Exception as exc:
-        print(f"startup failed: {exc}", file=sys.stderr)
+        print(f"startup failed: {redact_sensitive_text(exc)}", file=sys.stderr)
         return 1
 
     def initialize_runtime_background() -> None:
         try:
             initialize_liquidation_runtime()
         except Exception as exc:
-            print(f"liquidation runtime initialization failed: {exc}", file=sys.stderr, flush=True)
+            print(
+                f"liquidation runtime initialization failed: {redact_sensitive_text(exc)}",
+                file=sys.stderr,
+                flush=True,
+            )
 
     threading.Thread(
         target=initialize_runtime_background,

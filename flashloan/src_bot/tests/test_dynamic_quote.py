@@ -37,3 +37,28 @@ def test_quote_dynamic_candidate_selects_viable_quote_without_marking_executable
     assert result["net_profit_verified"] is False
     assert result["executable_signal"] is False
     assert result["best_quote"]["viable"] is True
+
+
+def test_quote_dynamic_candidate_redacts_quote_errors(monkeypatch):
+    rpc_url = "https://rpc.example/path?token=abc123"
+    private_key = "0x" + "1" * 64
+    monkeypatch.setenv("AVALANCHE_RPC_URL", rpc_url)
+
+    class FailingFunctions:
+        def getAmountsOut(self, amount_in, path):
+            raise RuntimeError(f"quote failed: {rpc_url} private_key={private_key}")
+
+    class FailingRouter:
+        functions = FailingFunctions()
+
+    result = quote_dynamic_candidate(
+        FailingRouter(),
+        {"x_symbol": "AVAXUSDT", "y_symbol": "AAVEUSDT"},
+        DynamicQuoteConfig(amount_x_units=1000, amount_y_units=1000, premium_bps=5),
+    )
+
+    error = result["quotes"][0]["error"]
+    assert rpc_url not in error
+    assert private_key not in error
+    assert "abc123" not in error
+    assert "[REDACTED]" in error

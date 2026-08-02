@@ -6,6 +6,7 @@ from typing import Any
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
 from execution.dex_costs import ROUTER_ABI, USDC
 from execution.liquidation_amounts import build_liquidation_amounts
 
@@ -86,7 +87,7 @@ def quote_liquidation_collateral_swap(
                 "viable": min_out > 0,
             }
         except Exception as exc:
-            errors.append({"path": path, "error": str(exc)})
+            errors.append({"path": path, "error": redact_sensitive_text(exc)})
     raise ValueError(f"unable to quote collateral swap: {errors}")
 
 

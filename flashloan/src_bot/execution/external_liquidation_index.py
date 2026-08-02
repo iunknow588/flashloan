@@ -8,6 +8,8 @@ from urllib import request as urllib_request
 
 from web3 import Web3
 
+from core.sensitive_data import redact_sensitive_text
+
 
 DEFAULT_GRAPH_BORROWERS_QUERY = """
 query LiquidationBorrowers($first: Int!) {
@@ -99,7 +101,7 @@ def fetch_external_borrower_accounts(
             result["error"] = _graph_error_message(payload.get("errors"))
         return result
     except Exception as exc:
-        result["error"] = str(exc)
+        result["error"] = redact_sensitive_text(exc)
         return result
 
 
