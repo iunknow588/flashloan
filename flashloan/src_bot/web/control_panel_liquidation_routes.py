@@ -41,6 +41,7 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
             "executor": payload.get("executor"),
             "request": payload.get("request") or {},
             "preflight": payload.get("preflight") or {},
+            "execution_phase": payload.get("execution_phase") or (payload.get("context") or {}).get("phase"),
             "state": payload.get("state"),
             "submission_allowed": payload.get("submission_allowed"),
             "blocked_reasons": payload.get("blocked_reasons") or [],
@@ -62,7 +63,7 @@ def record_liquidation_route_failure(account: str, mode: str, response: dict, er
         blocked_reasons=response.get("blocked_reasons") or [],
         request_payload=response.get("request") or {},
         quote=response.get("dex_quote") or {},
-        preflight=response.get("preflight") or {},
+        preflight={**(response.get("preflight") or {}), "execution_phase": response.get("execution_phase")},
         error=str(error),
     )
 
@@ -77,7 +78,7 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
         state=state,
         request_payload=result.get("request") or {},
         quote=result.get("dex_quote") or {},
-        preflight=result.get("preflight") or {},
+        preflight={**(result.get("preflight") or {}), "execution_phase": result.get("execution_phase")},
         tx_hash=result.get("tx_hash"),
         receipt=receipt,
     )
@@ -94,6 +95,11 @@ def register_liquidation_routes(app, panel) -> None:
     @app.get("/api/liquidation/borrow-pool")
     def liquidation_borrow_pool_api():
         return jsonify(panel_call("liquidation_borrow_pool_payload"))
+
+    @app.get("/api/debt-pool/decision")
+    def debt_pool_decision_api():
+        payload = panel_call("liquidation_borrow_pool_payload")
+        return jsonify(payload.get("debt_pool_decision") or {})
 
     @app.post("/api/liquidation/borrow-pool/scan")
     def liquidation_borrow_pool_scan_api():

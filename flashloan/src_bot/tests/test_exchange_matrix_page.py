@@ -67,6 +67,7 @@ def test_liquidation_page_accepts_account_query_from_overview():
     assert "new URLSearchParams(location.search)" in body
     assert 'params.get("account")' in body
     assert "refreshAccount(accountParam)" in body
+    assert "force_allowed" in body
 
 
 def test_liquidation_monitor_separates_account_pool_from_dynamic_health():

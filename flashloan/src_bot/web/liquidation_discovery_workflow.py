@@ -18,6 +18,7 @@ def discover_and_sync_liquidation_accounts(ctx: Any, force_full: bool = False) -
     ctx.LIQUIDATION_DISCOVERY_CACHE["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     ctx.LIQUIDATION_DISCOVERY_CACHE["finished_at"] = None
     ctx.LIQUIDATION_DISCOVERY_CACHE["stage"] = "window"
+    ctx.LIQUIDATION_DISCOVERY_CACHE["progress"] = {}
     try:
         pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
         if not pool_address:
@@ -82,6 +83,13 @@ def _discover_with_rpc_candidates(
         actual_to_block = 0
         try:
             _, actual_from_block, actual_to_block = ctx.resolve_discovery_block_range(candidate, from_block, to_block)
+            ctx.LIQUIDATION_DISCOVERY_CACHE["progress"] = {
+                "rpc_url": candidate,
+                "from_block": actual_from_block,
+                "to_block": actual_to_block,
+                "chunk_size": chunk_size,
+                "limit": limit,
+            }
             discovered = _discover_candidate_accounts(
                 ctx,
                 candidate,
@@ -90,6 +98,9 @@ def _discover_with_rpc_candidates(
                 actual_to_block,
                 chunk_size,
                 limit,
+                progress_callback=lambda progress: ctx.LIQUIDATION_DISCOVERY_CACHE.update(
+                    {"progress": {"rpc_url": candidate, "chunk_size": chunk_size, "limit": limit, **progress}}
+                ),
             )
             return _sync_discovered_accounts(
                 ctx,
@@ -150,6 +161,7 @@ def _discover_candidate_accounts(
     actual_to_block: int,
     chunk_size: int,
     limit: int,
+    progress_callback=None,
 ) -> list[str]:
     if actual_from_block > actual_to_block:
         return []
@@ -160,6 +172,7 @@ def _discover_candidate_accounts(
         to_block=actual_to_block,
         chunk_size=chunk_size,
         limit=limit,
+        progress_callback=progress_callback,
     )
 
 

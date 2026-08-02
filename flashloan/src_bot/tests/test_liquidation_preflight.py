@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from execution.liquidation_preflight import evaluate_liquidation_submission
+from execution.liquidation_preflight import evaluate_liquidation_submission, force_remaining_blockers
 
 
 def base_payload():
@@ -41,6 +41,8 @@ def test_liquidation_submission_allows_fresh_static_call_passed_payload():
     assert state["state"] == "submission_allowed"
     assert state["submission_allowed"] is True
     assert state["blocked_reasons"] == []
+    assert state["block_level"] == "none"
+    assert state["force_allowed"] is False
 
 
 def test_liquidation_submission_blocks_without_static_call():
@@ -52,6 +54,10 @@ def test_liquidation_submission_blocks_without_static_call():
 
     assert state["submission_allowed"] is False
     assert "static_call_required" in state["blocked_reasons"]
+    assert state["block_level"] == "soft"
+    assert state["soft_blocked_reasons"] == ["static_call_required"]
+    assert state["hard_blocked_reasons"] == []
+    assert state["force_allowed"] is True
 
 
 def test_liquidation_submission_blocks_expired_quote_and_low_profit():
@@ -77,6 +83,8 @@ def test_liquidation_submission_blocks_debt_limit_and_healthy_account():
     assert state["submission_allowed"] is False
     assert "debt_exceeds_limit" in state["blocked_reasons"]
     assert "account_not_liquidatable" in state["blocked_reasons"]
+    assert state["block_level"] == "hard"
+    assert state["force_allowed"] is False
 
 
 def test_liquidation_submission_blocks_config_errors():
@@ -94,6 +102,8 @@ def test_liquidation_submission_blocks_config_errors():
     assert state["submission_allowed"] is False
     assert "chain_id_mismatch" in state["blocked_reasons"]
     assert "private_key_mismatch" in state["blocked_reasons"]
+    assert state["hard_blocked_reasons"] == ["chain_id_mismatch", "private_key_mismatch"]
+    assert state["force_allowed"] is False
     assert state["checks"]["config_valid"] is False
     assert state["checks"]["chain_id"] == 1
 
@@ -183,4 +193,17 @@ def test_liquidation_submission_blocks_auto_pause():
 
     assert state["submission_allowed"] is False
     assert "auto_pause_active" in state["blocked_reasons"]
+    assert state["block_level"] == "hard"
+    assert state["force_allowed"] is False
     assert state["checks"]["auto_pause_reason"] == "static_call_failed"
+
+
+def test_force_remaining_blockers_keeps_hard_and_config_blockers_only():
+    blockers = [
+        "static_call_required",
+        "profit_below_minimum",
+        "execution_disabled",
+        "account_not_liquidatable",
+    ]
+
+    assert force_remaining_blockers(blockers) == ["execution_disabled", "account_not_liquidatable"]

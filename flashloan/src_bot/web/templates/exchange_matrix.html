@@ -77,7 +77,8 @@
       .replace("initialize database and collect velocity windows first", "请先初始化数据库并采集速度窗口。")
       .replace("no velocity timepoint found", "没有找到速度时间点。")
       .replace("request failed", "请求失败");
-    const api = async (p,o={}) => { const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d=await r.json(); if(!r.ok) throw new Error(zhError(d.error||"请求失败")); return d; };
+    const parseApiResponse = async (r, p) => { const ct=r.headers.get("content-type")||""; if(ct.includes("application/json"))return await r.json(); const text=await r.text(); const title=(text.match(/<title>(.*?)<\/title>/i)||[])[1]; throw new Error(`${p} 返回了非 JSON 响应：HTTP ${r.status}${title?` ${title}`:""}`); };
+    const api = async (p,o={}) => { const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d=await parseApiResponse(r,p); if(!r.ok) throw new Error(zhError(d.error||`HTTP ${r.status}`)); return d; };
     let refreshingSummary=false, summaryPinned=false;
     const fmtTime = v => v ? new Date(v).toLocaleString([], {hour12:false}) : "-";
     const displayAssetSymbol = s => {

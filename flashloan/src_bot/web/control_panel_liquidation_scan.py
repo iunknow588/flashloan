@@ -26,6 +26,7 @@ from db.storage_liquidation import (
 )
 import web.control_panel_liquidation_base as liquidation_base
 from web.liquidation_account_backfill import AccountBackfillService
+from web.debt_pool_workflow import decision_from_borrow_pool_payload
 from web.liquidation_discovery_service import build_discovery_window_result
 from web.liquidation_discovery_workflow import (
     discover_and_sync_liquidation_accounts as run_liquidation_discovery_workflow,
@@ -377,7 +378,9 @@ def liquidation_borrow_pool_payload() -> dict:
         latest_batch = latest_liquidation_borrow_pool_batch(database_url)
         scan_configs = db_load_liquidation_scan_config_library(database_url, limit=20)
         summary = liquidation_borrow_pool_summary(rows, scan_payload={"summary": {"latest_batch": latest_batch}})
-        return {"rows": rows, "tiers": tiers, "latest_batch": latest_batch, "scan_configs": scan_configs, "summary": summary}
+        payload = {"rows": rows, "tiers": tiers, "latest_batch": latest_batch, "scan_configs": scan_configs, "summary": summary}
+        payload["debt_pool_decision"] = decision_from_borrow_pool_payload(payload)
+        return payload
     except Exception as exc:
         return {"rows": [], "summary": {"configured": True, "error": str(exc)}}
 
@@ -398,8 +401,8 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
     LIQUIDATION_SCAN_CACHE["running"] = True
     LIQUIDATION_SCAN_CACHE["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     LIQUIDATION_SCAN_CACHE["finished_at"] = None
-    LIQUIDATION_SCAN_CACHE["stage"] = "health"
     LIQUIDATION_SCAN_CACHE["stage"] = "debt_pool"
+    LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": 0, "scanned_count": 0}
     accounts: list[str] = []
     rows: list[dict] = []
     rpc_url = None
@@ -411,11 +414,14 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
         ensure_database_schema(database_url)
         accounts = db_load_liquidation_accounts(database_url)
         accounts = prioritized_liquidation_accounts(database_url, accounts)
+        LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": 0}
         if not accounts:
             error = "database liquidation account table is empty"
         for candidate in aave_rpc_urls() if accounts else []:
             try:
+                LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": 0, "rpc_url": candidate}
                 rows = scan_account_health(accounts, os.getenv("AAVE_POOL_ADDRESS", "").strip(), candidate, config)
+                LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": len(accounts), "rpc_url": candidate}
                 try:
                     block_number = int(Web3(Web3.HTTPProvider(candidate, request_kwargs={"timeout": 8})).eth.block_number)
                 except Exception:
@@ -476,14 +482,19 @@ def liquidation_borrow_pool_scan_payload(force: bool = True) -> dict:
                 "error": error,
             }
         }
+        LIQUIDATION_SCAN_CACHE["last_result"] = scan_payload["summary"]
         scan_configs = db_load_liquidation_scan_config_library(database_url, limit=20)
-        return {
+        payload = {
             "rows": rows,
             "tiers": tiers,
             "latest_batch": latest_batch,
             "scan_configs": scan_configs,
             "summary": liquidation_borrow_pool_summary(rows, scanned=True, scan_payload=scan_payload),
         }
+        decision = decision_from_borrow_pool_payload(payload)
+        payload["debt_pool_decision"] = decision
+        LIQUIDATION_SCAN_CACHE["last_result"] = {**scan_payload["summary"], "debt_pool_decision": decision}
+        return payload
     except Exception as exc:
         try:
             latest_batch = db_record_liquidation_borrow_health_scan_batch(
@@ -550,6 +561,8 @@ def liquidation_health_payload(force: bool = False) -> dict:
     LIQUIDATION_SCAN_CACHE["running"] = True
     LIQUIDATION_SCAN_CACHE["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     LIQUIDATION_SCAN_CACHE["finished_at"] = None
+    LIQUIDATION_SCAN_CACHE["stage"] = "health"
+    LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": 0, "scanned_count": 0}
     accounts: list[str] = []
     account_source = "none"
     auto_discovered = False
@@ -558,10 +571,12 @@ def liquidation_health_payload(force: bool = False) -> dict:
     error = None
     try:
         accounts, account_source = load_liquidation_account_registry(force=force)
+        LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": 0, "source": account_source}
         if not accounts and os.getenv("LIQUIDATION_AUTO_DISCOVER_ACCOUNTS", "true").strip().lower() not in {"0", "false", "no"}:
             discovery = discover_and_sync_liquidation_accounts(force_full=force)
             if discovery.get("saved"):
                 accounts, account_source = load_liquidation_account_registry(force=True)
+                LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": 0, "source": account_source}
                 auto_discovered = True
                 rpc_url = str(discovery.get("rpc_url") or "") or None
                 error = None
@@ -573,7 +588,9 @@ def liquidation_health_payload(force: bool = False) -> dict:
         if accounts:
             for candidate in aave_rpc_urls():
                 try:
+                    LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": 0, "rpc_url": candidate, "source": account_source}
                     rows = scan_account_health(accounts, os.getenv("AAVE_POOL_ADDRESS", "").strip(), candidate, config)
+                    LIQUIDATION_SCAN_CACHE["progress"] = {"account_count": len(accounts), "scanned_count": len(accounts), "rpc_url": candidate, "source": account_source}
                     record_liquidation_health_scan_rows(rows)
                     rpc_url = candidate
                     error = None
@@ -596,6 +613,7 @@ def liquidation_health_payload(force: bool = False) -> dict:
                 "watch_count": len(watched_rows),
             },
         }
+        LIQUIDATION_SCAN_CACHE["last_result"] = payload["summary"]
         LIQUIDATION_SCAN_CACHE["running"] = False
         LIQUIDATION_SCAN_CACHE["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         LIQUIDATION_SCAN_CACHE["stage"] = "idle"

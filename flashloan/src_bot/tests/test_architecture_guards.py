@@ -60,6 +60,26 @@ def test_web_route_registration_smoke():
     paths = {rule.rule for rule in control_panel_app.url_map.iter_rules()}
 
     assert "/api/status" in paths
+    assert "/api/debt-pool/state" in paths
+    assert "/api/debt-pool/decision" in paths
+    assert "/api/account-pool/state" in paths
+    assert "/api/account-scan/state" in paths
+    assert "/api/market-observation/state" in paths
+    assert "/api/execution/state" in paths
     assert "/api/liquidation-health" in paths
     assert "/api/liquidation/borrow-pool/scan" in paths
     assert "/api/liquidation/account/<account>/static-call-and-save" in paths
+
+
+def test_page_status_enums_do_not_include_cross_page_route_nodes():
+    from web.page_state import AccountScanStatus, DebtPoolStatus, ExecutionStatus, MarketObservationStatus
+
+    route_nodes = {"ACCOUNT_SCAN_PAGE", "DEBT_POOL_PAGE", "EXECUTION_PAGE"}
+    status_values = {
+        *(status.value for status in DebtPoolStatus),
+        *(status.value for status in AccountScanStatus),
+        *(status.value for status in MarketObservationStatus),
+        *(status.value for status in ExecutionStatus),
+    }
+
+    assert status_values.isdisjoint(route_nodes)

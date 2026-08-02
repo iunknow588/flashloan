@@ -668,6 +668,8 @@ def test_status_reports_liquidation_background_scan(monkeypatch):
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", False)
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", True)
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "stage", "debt_pool")
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "started_at", "2020-01-01T00:00:00+00:00")
+    monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "progress", {"account_count": 10, "scanned_count": 3})
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
     monkeypatch.setattr(control_panel, "quick_observer_pid", lambda: None)
     monkeypatch.setattr(control_panel, "observer_starting", False)
@@ -689,8 +691,14 @@ def test_status_reports_liquidation_background_scan(monkeypatch):
     assert response.status_code == 200
     assert data["running"] is False
     assert data["background_activity"]["liquidation_health_scan"]["running"] is True
+    assert data["background_activity"]["liquidation_health_scan"]["stage_label"] == "扫描债务池"
+    assert data["background_activity"]["liquidation_health_scan"]["percent"] == 30
     assert data["system_monitor"]["state"] == "initializing"
     assert "后台清算扫描中" in data["system_monitor"]["action"]
+    assert "账户 3/10" in data["system_monitor"]["action"]
+    assert data["system_monitor"]["background_stage"] == "扫描债务池"
+    assert data["system_monitor"]["background_detail"] == "账户 3/10"
+    assert data["system_monitor"]["percent"] == 30
 
 
 def test_clear_database_api_truncates_without_schema_init(monkeypatch):

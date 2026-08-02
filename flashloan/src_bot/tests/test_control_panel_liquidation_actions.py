@@ -102,14 +102,16 @@ def test_liquidation_preflight_path_api_returns_static_call_status(monkeypatch):
 def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypatch):
     from web import control_panel
 
+    captured = {}
     monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account})
-    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: None)
+    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: captured.setdefault("attempt", kwargs))
     monkeypatch.setattr(
         control_panel,
         "execute_self_funded_liquidation_transaction",
         lambda payload, force=False: {
             "account_report": {"account": payload["account"], "summary": {}},
             "execution_controls": {"execution_enabled": True},
+            "execution_phase": "confirmed_success",
             "mode": "self_funded",
             "sender": "0xsender",
             "receipt": {"transaction_hash": "0xabc", "status": 1},
@@ -126,19 +128,22 @@ def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypa
     assert data["mode"] == "self_funded"
     assert data["tx_hash"] == "0xabc"
     assert data["receipt"]["status"] == 1
+    assert captured["attempt"]["preflight"]["execution_phase"] == "confirmed_success"
 
 
 def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
     from web import control_panel
 
+    captured = {}
     monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account})
-    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: None)
+    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: captured.setdefault("attempt", kwargs))
     monkeypatch.setattr(
         control_panel,
         "execute_flashloan_liquidation_transaction",
         lambda payload, force=False: {
             "account_report": {"account": payload["account"], "summary": {}},
             "execution_controls": {"execution_enabled": True},
+            "execution_phase": "confirmed_success",
             "mode": "flashloan",
             "executor": "0xexecutor",
             "receipt": {"transaction_hash": "0xdef", "status": 1},
@@ -155,6 +160,7 @@ def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
     assert data["mode"] == "flashloan"
     assert data["tx_hash"] == "0xdef"
     assert data["receipt"]["status"] == 1
+    assert captured["attempt"]["preflight"]["execution_phase"] == "confirmed_success"
 
 
 def test_liquidation_account_execute_api_passes_force_flag(monkeypatch):
@@ -227,6 +233,7 @@ def _failing_payload(account, **kwargs):
         "executor": "0x0000000000000000000000000000000000000002",
         "request": {"user": account, "debtToCover": "1000"},
         "preflight": {"static_call_required": True},
+        "execution_phase": "ready_to_submit",
         "account_report": {
             "account": account,
             "summary": {"status": "liquidatable", "health_factor": 0.98},
@@ -259,10 +266,12 @@ def test_liquidation_account_execute_api_returns_context_on_failure(monkeypatch)
 
     assert response.status_code == 400
     assert data["error"] == "self funded liquidation failed"
+    assert data["execution_phase"] == "ready_to_submit"
     assert data["request"]["debtToCover"] == "1000"
     assert data["preflight"]["static_call_required"] is True
     assert data["account_report"]["summary"]["status"] == "liquidatable"
     assert data["execution_plan"]["execution_ready"] is True
+    assert captured["preflight"]["execution_phase"] == "ready_to_submit"
     assert captured["mode"] == "self_funded"
     assert captured["state"] == "submission_failed"
     assert captured["error"] == "self funded liquidation failed"
@@ -291,10 +300,12 @@ def test_liquidation_account_flashloan_api_returns_context_on_failure(monkeypatc
 
     assert response.status_code == 400
     assert data["error"] == "flashloan failed"
+    assert data["execution_phase"] == "ready_to_submit"
     assert data["request"]["debtToCover"] == "1000"
     assert data["preflight"]["static_call_required"] is True
     assert data["account_report"]["summary"]["status"] == "liquidatable"
     assert data["execution_plan"]["execution_ready"] is True
+    assert captured["preflight"]["execution_phase"] == "ready_to_submit"
     assert captured["mode"] == "flashloan"
     assert captured["state"] == "submission_failed"
     assert captured["error"] == "flashloan failed"

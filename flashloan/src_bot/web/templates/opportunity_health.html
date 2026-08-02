@@ -65,7 +65,8 @@
   </main>
   <script>
     const $ = id => document.getElementById(id);
-    const api = async p => { const r=await fetch(p,{headers:{"Content-Type":"application/json"}}); const d=await r.json(); if(!r.ok) throw new Error(d.error||"请求失败"); return d; };
+    const parseApiResponse = async (r, p) => { const ct=r.headers.get("content-type")||""; if(ct.includes("application/json"))return await r.json(); const text=await r.text(); const title=(text.match(/<title>(.*?)<\/title>/i)||[])[1]; throw new Error(`${p} 返回了非 JSON 响应：HTTP ${r.status}${title?` ${title}`:""}`); };
+    const api = async p => { const r=await fetch(p,{headers:{"Content-Type":"application/json"}}); const d=await parseApiResponse(r,p); if(!r.ok) throw new Error(d.error||`HTTP ${r.status}`); return d; };
     const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "-";
     const cellCls = v => Number.isFinite(v) ? (v >= 0 ? "positive" : "negative") : "";
     const statusCls = v => ({selected:"status-selected",candidate:"status-candidate",healthy:"status-healthy"}[String(v||"").toLowerCase()]||"status-watching");

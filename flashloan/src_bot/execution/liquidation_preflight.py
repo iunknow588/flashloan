@@ -7,6 +7,37 @@ from typing import Any
 DEFAULT_MAX_PAYLOAD_AGE_SECONDS = 30
 DEFAULT_MAX_QUOTE_AGE_SECONDS = 15
 
+SOFT_BLOCK_REASONS = {
+    "static_call_required",
+    "static_call_failed",
+    "profit_below_minimum",
+    "gas_cost_too_high",
+    "quote_expired",
+    "quote_failed",
+}
+
+CONFIG_BLOCK_REASONS = {
+    "execution_disabled",
+    "auto_pause_active",
+    "config_invalid",
+}
+
+HARD_BLOCK_REASONS = {
+    "account_not_liquidatable",
+    "no_liquidation_candidate",
+    "invalid_debt_to_cover",
+    "debt_exceeds_limit",
+    "chain_id_mismatch",
+    "private_key_mismatch",
+    "missing_executor",
+    "missing_owner",
+    "missing_self_funded_key",
+    "payload_expired",
+    "fallback_close_factor",
+    "fallback_flashloan_premium",
+    *CONFIG_BLOCK_REASONS,
+}
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -38,6 +69,38 @@ def age_seconds(value: Any, now: datetime | None = None) -> float | None:
 def _append_once(items: list[str], value: str) -> None:
     if value not in items:
         items.append(value)
+
+
+def classify_liquidation_blockers(blocked_reasons: list[str]) -> dict[str, Any]:
+    hard: list[str] = []
+    soft: list[str] = []
+    unknown: list[str] = []
+    for reason in blocked_reasons:
+        if reason in HARD_BLOCK_REASONS:
+            _append_once(hard, reason)
+        elif reason in SOFT_BLOCK_REASONS:
+            _append_once(soft, reason)
+        else:
+            _append_once(unknown, reason)
+            _append_once(hard, reason)
+    if hard:
+        block_level = "hard"
+    elif soft:
+        block_level = "soft"
+    else:
+        block_level = "none"
+    return {
+        "block_level": block_level,
+        "soft_blocked_reasons": soft,
+        "hard_blocked_reasons": hard,
+        "unknown_blocked_reasons": unknown,
+        "force_allowed": bool(soft and not hard),
+    }
+
+
+def force_remaining_blockers(blocked_reasons: list[str]) -> list[str]:
+    classification = classify_liquidation_blockers(blocked_reasons)
+    return list(classification["hard_blocked_reasons"])
 
 
 def _float_value(value: Any) -> float:
@@ -171,10 +234,12 @@ def evaluate_liquidation_submission(
         _append_once(blocked, "quote_failed")
 
     state = "submission_allowed" if not blocked else "submission_blocked"
+    blocker_classification = classify_liquidation_blockers(blocked)
     return {
         "state": state,
         "submission_allowed": not blocked,
         "blocked_reasons": blocked,
+        **blocker_classification,
         "checks": {
             "execution_enabled": bool(controls.get("execution_enabled")),
             "auto_pause_active": bool(controls.get("auto_pause_active")),
@@ -226,5 +291,10 @@ def attach_liquidation_preflight_state(
     payload["state"] = state["state"]
     payload["submission_allowed"] = state["submission_allowed"]
     payload["blocked_reasons"] = state["blocked_reasons"]
+    payload["block_level"] = state["block_level"]
+    payload["soft_blocked_reasons"] = state["soft_blocked_reasons"]
+    payload["hard_blocked_reasons"] = state["hard_blocked_reasons"]
+    payload["unknown_blocked_reasons"] = state["unknown_blocked_reasons"]
+    payload["force_allowed"] = state["force_allowed"]
     payload["checks"] = state["checks"]
     return payload

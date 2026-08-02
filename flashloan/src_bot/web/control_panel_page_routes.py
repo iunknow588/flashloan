@@ -1,18 +1,45 @@
 from flask import Response, jsonify
 
+from web.account_pool_state_service import account_pool_state_payload
+from web.page_state_service import (
+    account_scan_state_payload,
+    debt_pool_state_payload,
+    execution_state_payload,
+    market_observation_state_payload,
+)
+
 
 def register_page_routes(app, panel) -> None:
     @app.get("/")
     def index():
         return panel.render_control_panel()
 
+    @app.get("/home")
+    @app.get("/legacy")
+    def legacy_control_panel():
+        return panel.render_control_panel()
+
     @app.get("/liquidation")
+    @app.get("/account-scan")
+    @app.get("/audit")
     def liquidation_panel():
         return panel.LIQUIDATION_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    @app.get("/execution")
+    def execution_panel():
+        return panel.LIQUIDATION_ACCOUNT_TEMPLATE_PATH.read_text(encoding="utf-8")
 
     @app.get("/liquidation/account")
     def liquidation_account_panel():
         return panel.LIQUIDATION_ACCOUNT_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    @app.get("/market-observation")
+    def market_observation_panel():
+        return panel.render_control_panel()
+
+    @app.get("/config")
+    def config_panel():
+        return panel.render_control_panel()
 
     @app.get("/exchange-matrix")
     def exchange_matrix_panel():
@@ -71,3 +98,23 @@ def register_page_routes(app, panel) -> None:
                 "sampling_profile": panel.unified_sampling_profile(config),
             }
         )
+
+    @app.get("/api/debt-pool/state")
+    def debt_pool_state():
+        return jsonify(debt_pool_state_payload(panel))
+
+    @app.get("/api/account-pool/state")
+    def account_pool_state():
+        return jsonify(account_pool_state_payload(panel))
+
+    @app.get("/api/account-scan/state")
+    def account_scan_state():
+        return jsonify(account_scan_state_payload(panel))
+
+    @app.get("/api/market-observation/state")
+    def market_observation_state():
+        return jsonify(market_observation_state_payload(panel))
+
+    @app.get("/api/execution/state")
+    def execution_state():
+        return jsonify(execution_state_payload(panel))
