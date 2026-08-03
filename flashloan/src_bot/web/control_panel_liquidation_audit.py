@@ -50,6 +50,8 @@ def record_liquidation_execution_attempt_safely(
     tx_hash: str | None = None,
     receipt: dict | None = None,
     error: str | None = None,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> int | None:
     database_url = database_url_or_none()
     safe_error = _safe_error_message(error)
@@ -70,6 +72,8 @@ def record_liquidation_execution_attempt_safely(
             tx_hash=tx_hash,
             receipt=receipt,
             error=safe_error,
+            market_id=market_id,
+            chain_id=chain_id,
         )
         if error or blocked_reasons or state in {"submission_blocked", "submission_failed", "static_call_failed", "confirmed_failed"}:
             db_record_liquidation_failure_sample(
@@ -91,13 +95,20 @@ def record_liquidation_execution_attempt_safely(
                     receipt=receipt,
                     error=safe_error,
                 ),
+                market_id=market_id,
+                chain_id=chain_id,
             )
         return attempt_id
     except Exception:
         return None
 
 
-def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
+def recent_liquidation_execution_attempts(
+    limit: int = 20,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
     database_url = database_url_or_none()
     if not database_url:
         return {"configured": False, "attempts": [], "stats": empty_execution_attempt_stats()}
@@ -105,14 +116,26 @@ def recent_liquidation_execution_attempts(limit: int = 20) -> dict:
         ensure_database_schema(database_url)
         return {
             "configured": True,
-            "attempts": _decorate_execution_attempts(db_load_recent_liquidation_execution_attempts(database_url, limit=limit)),
-            "stats": db_liquidation_execution_attempt_stats(database_url),
+            "attempts": _decorate_execution_attempts(
+                db_load_recent_liquidation_execution_attempts(
+                    database_url,
+                    limit=limit,
+                    market_id=market_id,
+                    chain_id=chain_id,
+                )
+            ),
+            "stats": db_liquidation_execution_attempt_stats(database_url, market_id=market_id, chain_id=chain_id),
         }
     except Exception as exc:
         return {"configured": True, "error": _safe_error_message(exc), "attempts": [], "stats": empty_execution_attempt_stats()}
 
 
-def recent_liquidation_failure_samples(limit: int = 20) -> dict:
+def recent_liquidation_failure_samples(
+    limit: int = 20,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
     database_url = database_url_or_none()
     if not database_url:
         return {"configured": False, "samples": []}
@@ -120,13 +143,24 @@ def recent_liquidation_failure_samples(limit: int = 20) -> dict:
         ensure_database_schema(database_url)
         return {
             "configured": True,
-            "samples": db_load_recent_liquidation_failure_samples(database_url, limit=limit),
+            "samples": db_load_recent_liquidation_failure_samples(
+                database_url,
+                limit=limit,
+                market_id=market_id,
+                chain_id=chain_id,
+            ),
         }
     except Exception as exc:
         return {"configured": True, "error": _safe_error_message(exc), "samples": []}
 
 
-def liquidation_execution_attempts_for_account(account: str, limit: int = 20) -> dict:
+def liquidation_execution_attempts_for_account(
+    account: str,
+    limit: int = 20,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
     database_url = database_url_or_none()
     if not database_url:
         return {"configured": False, "attempts": []}
@@ -135,13 +169,27 @@ def liquidation_execution_attempts_for_account(account: str, limit: int = 20) ->
         return {
             "configured": True,
             "account": account,
-            "attempts": _decorate_execution_attempts(db_load_liquidation_execution_attempts_for_account(database_url, account, limit=limit)),
+            "attempts": _decorate_execution_attempts(
+                db_load_liquidation_execution_attempts_for_account(
+                    database_url,
+                    account,
+                    limit=limit,
+                    market_id=market_id,
+                    chain_id=chain_id,
+                )
+            ),
         }
     except Exception as exc:
         return {"configured": True, "account": account, "error": _safe_error_message(exc), "attempts": []}
 
 
-def liquidation_failure_samples_for_account(account: str, limit: int = 20) -> dict:
+def liquidation_failure_samples_for_account(
+    account: str,
+    limit: int = 20,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
     database_url = database_url_or_none()
     if not database_url:
         return {"configured": False, "samples": []}
@@ -150,7 +198,13 @@ def liquidation_failure_samples_for_account(account: str, limit: int = 20) -> di
         return {
             "configured": True,
             "account": account,
-            "samples": db_load_liquidation_failure_samples_for_account(database_url, account, limit=limit),
+            "samples": db_load_liquidation_failure_samples_for_account(
+                database_url,
+                account,
+                limit=limit,
+                market_id=market_id,
+                chain_id=chain_id,
+            ),
         }
     except Exception as exc:
         return {"configured": True, "account": account, "error": _safe_error_message(exc), "samples": []}
@@ -260,6 +314,8 @@ def _failure_type(state: str, blocked_reasons: list[str] | None, error: str | No
 
 def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | None, error: str | None) -> None:
     if LIQUIDATION_PAUSE_GUARD_PATH is None:
+        return
+    if state == "submission_blocked" and not failure_retryable(state, blocked_reasons, error):
         return
     try:
         import os

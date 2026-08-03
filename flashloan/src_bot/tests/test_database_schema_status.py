@@ -1,4 +1,6 @@
 from db.storage import EXPECTED_SCHEMA_MIGRATION_IDS, record_schema_migrations
+from db.storage_schema import ensure_database_schema
+import db.storage_schema as storage_schema
 from web import control_panel_data
 
 
@@ -16,6 +18,7 @@ def test_record_schema_migrations_is_idempotent():
     record_schema_migrations(cursor)
 
     assert len(cursor.calls) == len(EXPECTED_SCHEMA_MIGRATION_IDS)
+    assert "20260803_liquidation_market_namespace" in EXPECTED_SCHEMA_MIGRATION_IDS
     query, params = cursor.calls[0]
     assert "ON CONFLICT (migration_id) DO NOTHING" in query
     assert params[0] == "20260730_liquidation_runtime_schema"
@@ -47,3 +50,72 @@ def test_database_table_counts_includes_liquidation_and_schema_status(monkeypatc
     assert counts["schema"]["up_to_date"] is True
     assert counts["total"] == 120 + len(EXPECTED_SCHEMA_MIGRATION_IDS)
     assert captured["params"] == (list(EXPECTED_SCHEMA_MIGRATION_IDS),)
+
+
+class FakeSchemaCursor:
+    def __init__(self, lock_acquired):
+        self.lock_acquired = lock_acquired
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def execute(self, query, params=()):
+        self.calls.append((query, params))
+
+    def fetchone(self):
+        return (self.lock_acquired,)
+
+
+class FakeSchemaConnection:
+    def __init__(self, cursor):
+        self.cursor_instance = cursor
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def cursor(self):
+        return self.cursor_instance
+
+
+def fake_schema_connection(cursor):
+    def factory(database_url, connect_timeout=8):
+        return FakeSchemaConnection(cursor)
+
+    return factory
+
+
+def test_ensure_database_schema_skips_when_advisory_lock_is_busy(monkeypatch):
+    cursor = FakeSchemaCursor(lock_acquired=False)
+    monkeypatch.setattr(storage_schema, "require_psycopg", lambda: object())
+    monkeypatch.setattr(storage_schema, "db_connection", fake_schema_connection(cursor))
+
+    ensure_database_schema("postgresql://example")
+
+    queries = [query for query, _params in cursor.calls]
+    assert len(queries) == 1
+    assert "pg_try_advisory_lock" in queries[0]
+    assert all("CREATE TABLE" not in query for query in queries)
+    assert all("pg_advisory_unlock" not in query for query in queries)
+
+
+def test_ensure_database_schema_unlocks_after_success(monkeypatch):
+    cursor = FakeSchemaCursor(lock_acquired=True)
+    monkeypatch.setattr(storage_schema, "require_psycopg", lambda: object())
+    monkeypatch.setattr(storage_schema, "db_connection", fake_schema_connection(cursor))
+
+    ensure_database_schema("postgresql://example")
+
+    queries = [query for query, _params in cursor.calls]
+    assert "pg_try_advisory_lock" in queries[0]
+    assert any("CREATE TABLE IF NOT EXISTS schema_migrations" in query for query in queries)
+    assert any("ADD COLUMN IF NOT EXISTS market_id" in query for query in queries)
+    assert any("ADD COLUMN IF NOT EXISTS chain_id" in query for query in queries)
+    assert any("idx_liq_core_mkt" in query for query in queries)
+    assert "pg_advisory_unlock" in queries[-1]

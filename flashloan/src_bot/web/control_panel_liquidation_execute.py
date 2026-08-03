@@ -1,10 +1,16 @@
 import os
+import json
+import shutil
+import subprocess
+import tempfile
 import time
+from pathlib import Path
 
 from eth_account import Account
 from web3 import Web3
 
 from core.sensitive_data import redact_sensitive_text
+from execution.dex_costs import USDC
 from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 from execution.liquidation_preflight import attach_liquidation_preflight_state, force_remaining_blockers
 from execution.nonce_manager import NonceManager
@@ -50,6 +56,137 @@ def apply_liquidation_submission_state(payload: dict, *, mode: str = "flashloan"
     controls = payload.get("execution_controls") or liquidation_execution_controls()
     payload["execution_controls"] = controls
     return attach_liquidation_preflight_state(payload, controls, mode=mode)
+
+
+def liquidation_contracts_bot_dir() -> Path:
+    configured = os.getenv("LIQUIDATION_CONTRACTS_BOT_DIR", "").strip()
+    if configured:
+        return Path(configured)
+    return Path(__file__).resolve().parents[3] / "contracts-bot"
+
+
+def _set_env_if_blank(env: dict[str, str], name: str, value: str) -> None:
+    if value and not str(env.get(name) or "").strip():
+        env[name] = value
+
+
+def _parse_fork_simulation_stdout(stdout: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for line in str(stdout or "").splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key in {"network", "mode", "executorSource", "executor", "sender", "user", "debtAsset", "debtToCover", "tx", "status", "gasUsed"}:
+            parsed[key] = value.strip()
+    return parsed
+
+
+def run_liquidation_fork_simulation(payload: dict, *, timeout_seconds: int = 180) -> dict:
+    contracts_dir = liquidation_contracts_bot_dir()
+    if not contracts_dir.exists():
+        raise RuntimeError(f"contracts-bot directory not found: {contracts_dir}")
+    npm = shutil.which("npm.cmd") or shutil.which("npm")
+    if not npm:
+        raise RuntimeError("npm is required for liquidation fork simulation")
+    use_configured_executor = env_bool("LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR", True)
+    payload_executor = str(payload.get("executor") or "").strip()
+    env_executor = str(os.getenv("LIQUIDATION_EXECUTOR_ADDRESS") or "").strip()
+    if use_configured_executor and not (payload_executor or env_executor):
+        raise RuntimeError("LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR=true requires LIQUIDATION_EXECUTOR_ADDRESS or payload.executor")
+    simulation_payload = {
+        "executor": payload_executor or env_executor,
+        "request": payload.get("request") or {},
+    }
+    with tempfile.TemporaryDirectory(prefix="liquidation-fork-") as temp_dir:
+        payload_path = Path(temp_dir) / "payload.json"
+        payload_path.write_text(json.dumps(simulation_payload, indent=2), encoding="utf-8")
+        env = os.environ.copy()
+        env["LIQUIDATION_PAYLOAD_PATH"] = str(payload_path)
+        _set_env_if_blank(env, "AAVE_POOL_ADDRESS", aave_pool_address())
+        _set_env_if_blank(env, "DEX_ROUTER_ADDRESS", dex_router_address())
+        _set_env_if_blank(
+            env,
+            "USDC_ADDRESS",
+            os.getenv("LIQUIDATION_USDC_ADDRESS")
+            or os.getenv("DYNAMIC_USDC")
+            or os.getenv("FUJI_USDC_ADDRESS")
+            or os.getenv("FUJI_USDC")
+            or USDC,
+        )
+        rpc_urls = aave_rpc_urls()
+        if rpc_urls:
+            _set_env_if_blank(env, "AVALANCHE_RPC_URL", rpc_urls[0])
+            _set_env_if_blank(env, "AVALANCHE_RPC", rpc_urls[0])
+        if use_configured_executor:
+            _set_env_if_blank(env, "SIMULATE_USE_CONFIGURED_EXECUTOR", "true")
+            _set_env_if_blank(env, "LIQUIDATION_EXECUTOR_ADDRESS", simulation_payload["executor"])
+        completed = subprocess.run(
+            [npm, "run", "simulate:liquidation"],
+            cwd=str(contracts_dir),
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=max(1, int(timeout_seconds)),
+        )
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
+    if completed.returncode != 0:
+        message = (stderr or stdout or f"fork simulation failed with exit code {completed.returncode}").strip()
+        raise RuntimeError(redact_sensitive_text(message[-4000:]))
+    return {
+        "fork_simulation_status": "passed",
+        "fork_simulation_passed": True,
+        "fork_simulation_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "fork_simulation_stdout_tail": stdout.strip()[-2000:],
+        "fork_simulation_result": _parse_fork_simulation_stdout(stdout),
+    }
+
+
+def simulate_liquidation_fork_transaction(payload: dict) -> dict:
+    controls = payload.get("execution_controls") or liquidation_execution_controls()
+    timeout_seconds = int(controls.get("fork_simulation_timeout_seconds") or 180)
+    phase = "fork_simulating"
+    _record_execution_state(
+        payload,
+        ExecutionStatus.PREFLIGHTING,
+        mode="flashloan",
+        message="running liquidation fork transaction simulation",
+        extra={"phase": phase},
+    )
+    preflight = dict(payload.get("preflight") or {})
+    preflight.update(
+        {
+            "fork_simulation_required": True,
+            "fork_simulation_status": "running",
+            "fork_simulation_passed": False,
+            "fork_simulation_error": None,
+        }
+    )
+    payload["preflight"] = preflight
+    try:
+        result = run_liquidation_fork_simulation(payload, timeout_seconds=timeout_seconds)
+        preflight.update(result)
+        payload["preflight"] = preflight
+        return payload
+    except Exception as exc:
+        preflight.update(
+            {
+                "fork_simulation_status": "error",
+                "fork_simulation_passed": False,
+                "fork_simulation_error": redact_sensitive_text(exc),
+            }
+        )
+        payload["preflight"] = preflight
+        _record_execution_state(
+            payload,
+            ExecutionStatus.HARD_BLOCKED,
+            mode="flashloan",
+            result="submission_blocked",
+            message=preflight["fork_simulation_error"],
+            extra={"phase": "fork_simulation_failed"},
+        )
+        raise
 
 
 def liquidation_execution_payload_for_account(
@@ -98,8 +235,16 @@ def liquidation_execution_payload_for_account(
         raise
     phase = "building_prediction"
     try:
-        deadline = int(time.time()) + max(30, int(deadline_seconds))
         controls = liquidation_execution_controls()
+        effective_deadline_seconds = max(30, int(deadline_seconds))
+        if controls.get("require_fork_simulation"):
+            effective_deadline_seconds = max(
+                effective_deadline_seconds,
+                int(controls.get("fork_simulation_timeout_seconds") or 0)
+                + int(controls.get("min_deadline_remaining_seconds") or 0)
+                + 30,
+            )
+        deadline = int(time.time()) + effective_deadline_seconds
         _record_execution_state(
             {"request": {"account": account}, "preflight": {}, "account_report": report},
             ExecutionStatus.BUILDING_PREDICTION,
@@ -146,6 +291,12 @@ def liquidation_execution_payload_for_account(
         preflight["static_call_passed"] = False
         preflight["static_call_error"] = None
         preflight["static_call_simulated_at"] = None
+        preflight["fork_simulation_required"] = bool(controls.get("require_fork_simulation"))
+        preflight["fork_simulation_status"] = "pending" if controls.get("require_fork_simulation") else "skipped"
+        preflight["fork_simulation_passed"] = False
+        preflight["fork_simulation_error"] = None
+        preflight["deadline_seconds_requested"] = int(deadline_seconds)
+        preflight["deadline_seconds_effective"] = int(effective_deadline_seconds)
         payload["preflight"] = preflight
         payload["account_report"] = report
         payload["execution_controls"] = controls
@@ -369,7 +520,7 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
     initial_blockers = [
         reason
         for reason in gated_payload.get("blocked_reasons", [])
-        if reason not in {"static_call_required", "static_call_failed"}
+        if reason not in {"static_call_required", "static_call_failed", "fork_simulation_required"}
     ]
     if force:
         initial_blockers = _force_remaining_blockers(initial_blockers)
@@ -443,6 +594,18 @@ def execute_flashloan_liquidation_transaction(payload: dict, force: bool = False
     preflight = apply_liquidation_submission_state(preflight, mode="flashloan")
     payload.update(preflight)
     blockers = preflight.get("blocked_reasons", [])
+    if controls.get("require_fork_simulation") and preflight_info.get("static_call_passed"):
+        try:
+            preflight = simulate_liquidation_fork_transaction(preflight)
+        except Exception:
+            preflight = apply_liquidation_submission_state(preflight, mode="flashloan")
+            payload.update(preflight)
+            blockers = preflight.get("blocked_reasons", [])
+        else:
+            preflight_info = preflight.get("preflight") or {}
+            preflight = apply_liquidation_submission_state(preflight, mode="flashloan")
+            payload.update(preflight)
+            blockers = preflight.get("blocked_reasons", [])
     if force:
         blockers = _force_remaining_blockers(blockers)
     if blockers:
@@ -626,7 +789,7 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
             message=asset_error or "unable to resolve rpc_url",
             phase="missing_rpc",
         )
-    pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+    pool_address = aave_pool_address()
     if not pool_address:
         _raise_execution_error(
             payload,
@@ -710,6 +873,23 @@ def _execute_self_funded_liquidation_for_key(payload: dict, private_key: str, fo
         )
         raise
     approval_data = format_tx_receipt(approval_receipt)
+    if int(approval_data.get("status") or 0) != 1:
+        payload.update(
+            {
+                "approval_receipt": approval_data,
+                "tx_hash": approval_hash,
+                "execution_phase": "approval_failed",
+            }
+        )
+        _record_execution_error(
+            payload,
+            mode="self_funded",
+            message="approval transaction failed",
+            phase="approval_failed",
+            result=gated_payload.get("state"),
+            tx_hash=approval_hash,
+        )
+        raise RuntimeError("approval transaction failed")
 
     liquidation_builder = pool.functions.liquidationCall(
         collateral_asset,

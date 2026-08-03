@@ -1,7 +1,23 @@
 import json
 from typing import Any
 
+from core.market_config import liquidation_market_config, liquidation_market_config_for
 from db.storage_common import db_connection, require_psycopg
+from db.storage_liquidation_failures import (
+    load_liquidation_failure_samples_for_account,
+    load_recent_liquidation_failure_samples,
+    record_liquidation_failure_sample,
+)
+
+
+def _market_scope(market_id: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
+    market = liquidation_market_config_for(market_id, chain_id=chain_id) if (market_id is not None or chain_id is not None) else liquidation_market_config()
+    return {
+        "market_id": market.market_id,
+        "chain_id": market.chain_id,
+        "network": market.network,
+        "protocol": market.protocol,
+    }
 
 
 def record_liquidation_execution_attempt(
@@ -17,21 +33,29 @@ def record_liquidation_execution_attempt(
     tx_hash: str | None = None,
     receipt: dict[str, Any] | None = None,
     error: str | None = None,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> int:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO liquidation_execution_attempts (
+                    market_id, chain_id, network, protocol,
                     account, mode, state, blocked_reasons_json,
                     request_json, quote_json, preflight_json,
                     tx_hash, receipt_json, error, created_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                 RETURNING id
                 """,
                 (
+                    scope["market_id"],
+                    scope["chain_id"],
+                    scope["network"],
+                    scope["protocol"],
                     account,
                     mode,
                     state,
@@ -48,201 +72,158 @@ def record_liquidation_execution_attempt(
             return int(row[0]) if row else 0
 
 
-def record_liquidation_failure_sample(
+def load_recent_liquidation_execution_attempts(
     database_url: str,
-    *,
-    account: str | None = None,
-    block_number: int | None = None,
-    collateral_asset: str | None = None,
-    debt_asset: str | None = None,
-    failure_type: str,
-    failure_reason: str | None = None,
-    payload: dict[str, Any] | None = None,
-    source: str = "execution_attempt",
-) -> int:
-    psycopg = require_psycopg()
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO liquidation_failure_samples (
-                    account, block_number, collateral_asset, debt_asset,
-                    failure_type, failure_reason, payload_json, source, created_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                RETURNING id
-                """,
-                (
-                    account,
-                    block_number,
-                    collateral_asset,
-                    debt_asset,
-                    failure_type,
-                    failure_reason,
-                    json.dumps(payload or {}, ensure_ascii=True, separators=(",", ":")),
-                    source,
-                ),
-            )
-            row = cursor.fetchone()
-            return int(row[0]) if row else 0
-
-
-def load_recent_liquidation_failure_samples(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
-    psycopg = require_psycopg()
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    id, account, block_number, collateral_asset, debt_asset,
-                    failure_type, failure_reason, payload_json, source, created_at
-                FROM liquidation_failure_samples
-                ORDER BY created_at DESC, id DESC
-                LIMIT %s
-                """,
-                (max(1, int(limit)),),
-            )
-            rows = cursor.fetchall()
-    samples: list[dict[str, Any]] = []
-    for row in rows:
-        samples.append(
-            {
-                "id": int(row[0]),
-                "account": str(row[1]) if row[1] else None,
-                "block_number": int(row[2]) if row[2] is not None else None,
-                "collateral_asset": str(row[3]) if row[3] else None,
-                "debt_asset": str(row[4]) if row[4] else None,
-                "failure_type": str(row[5]),
-                "failure_reason": str(row[6]) if row[6] else None,
-                "payload": _json_or_default(row[7], {}),
-                "source": str(row[8]),
-                "created_at": row[9].isoformat() if row[9] else None,
-            }
-        )
-    return samples
-
-
-def load_liquidation_failure_samples_for_account(
-    database_url: str,
-    account: str,
     limit: int = 20,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
-                    id, account, block_number, collateral_asset, debt_asset,
-                    failure_type, failure_reason, payload_json, source, created_at
-                FROM liquidation_failure_samples
-                WHERE lower(account) = lower(%s)
-                ORDER BY created_at DESC, id DESC
-                LIMIT %s
-                """,
-                (account, max(1, int(limit))),
-            )
-            rows = cursor.fetchall()
-    return [
-        {
-            "id": int(row[0]),
-            "account": str(row[1]) if row[1] else None,
-            "block_number": int(row[2]) if row[2] is not None else None,
-            "collateral_asset": str(row[3]) if row[3] else None,
-            "debt_asset": str(row[4]) if row[4] else None,
-            "failure_type": str(row[5]),
-            "failure_reason": str(row[6]) if row[6] else None,
-            "payload": _json_or_default(row[7], {}),
-            "source": str(row[8]),
-            "created_at": row[9].isoformat() if row[9] else None,
-        }
-        for row in rows
-    ]
-
-
-def load_recent_liquidation_execution_attempts(database_url: str, limit: int = 20) -> list[dict[str, Any]]:
-    psycopg = require_psycopg()
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
+                    market_id, chain_id, network, protocol,
                     id, account, mode, state, blocked_reasons_json,
                     request_json, quote_json, preflight_json,
                     tx_hash, receipt_json, error, created_at, updated_at
                 FROM liquidation_execution_attempts
+                WHERE market_id = %s AND chain_id = %s
                 ORDER BY created_at DESC, id DESC
                 LIMIT %s
                 """,
-                (max(1, int(limit)),),
+                (scope["market_id"], scope["chain_id"], max(1, int(limit))),
             )
             rows = cursor.fetchall()
-    attempts: list[dict[str, Any]] = []
-    for row in rows:
-        attempts.append(
-            {
-                "id": int(row[0]),
-                "account": str(row[1]) if row[1] else None,
-                "mode": str(row[2]),
-                "state": str(row[3]),
-                "blocked_reasons": _json_or_default(row[4], []),
-                "request": _json_or_default(row[5], {}),
-                "quote": _json_or_default(row[6], {}),
-                "preflight": _json_or_default(row[7], {}),
-                "tx_hash": str(row[8]) if row[8] else None,
-                "receipt": _json_or_default(row[9], {}),
-                "error": str(row[10]) if row[10] else None,
-                "created_at": row[11].isoformat() if row[11] else None,
-                "updated_at": row[12].isoformat() if row[12] else None,
-            }
-        )
-    return attempts
+    return [_execution_attempt_from_row(row, scope) for row in rows]
+
+
+def _execution_attempt_from_row(row: Any, scope: dict[str, Any]) -> dict[str, Any]:
+    if len(row) == 13:
+        row = (scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"], *row)
+    return {
+        "market_id": str(row[0]),
+        "chain_id": int(row[1]) if row[1] is not None else None,
+        "network": str(row[2]) if row[2] else None,
+        "protocol": str(row[3]) if row[3] else None,
+        "id": int(row[4]),
+        "account": str(row[5]) if row[5] else None,
+        "mode": str(row[6]),
+        "state": str(row[7]),
+        "blocked_reasons": _json_or_default(row[8], []),
+        "request": _json_or_default(row[9], {}),
+        "quote": _json_or_default(row[10], {}),
+        "preflight": _json_or_default(row[11], {}),
+        "tx_hash": str(row[12]) if row[12] else None,
+        "receipt": _json_or_default(row[13], {}),
+        "error": str(row[14]) if row[14] else None,
+        "created_at": row[15].isoformat() if row[15] else None,
+        "updated_at": row[16].isoformat() if row[16] else None,
+    }
+
+
+def load_latest_liquidation_execution_attempts_for_accounts(
+    database_url: str,
+    accounts: list[str],
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> list[dict[str, Any]]:
+    requested_accounts = list(dict.fromkeys(str(account or "").strip() for account in accounts if str(account or "").strip()))
+    if not requested_accounts:
+        return []
+    psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
+    lower_accounts = [account.lower() for account in requested_accounts]
+    with db_connection(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT ON (lower(account))
+                    market_id, chain_id, network, protocol,
+                    id, account, mode, state, blocked_reasons_json,
+                    request_json, quote_json, preflight_json,
+                    tx_hash, receipt_json, error, created_at, updated_at
+                FROM liquidation_execution_attempts
+                WHERE market_id = %s
+                  AND chain_id = %s
+                  AND (account = ANY(%s) OR lower(account) = ANY(%s))
+                ORDER BY lower(account), created_at DESC, id DESC
+                """,
+                (scope["market_id"], scope["chain_id"], requested_accounts, lower_accounts),
+            )
+            rows = cursor.fetchall()
+    return [_execution_attempt_from_row(row, scope) for row in rows]
 
 
 def load_liquidation_execution_attempts_for_account(
     database_url: str,
     account: str,
     limit: int = 20,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
+                    market_id, chain_id, network, protocol,
                     id, account, mode, state, blocked_reasons_json,
                     request_json, quote_json, preflight_json,
                     tx_hash, receipt_json, error, created_at, updated_at
                 FROM liquidation_execution_attempts
                 WHERE lower(account) = lower(%s)
+                  AND market_id = %s
+                  AND chain_id = %s
                 ORDER BY created_at DESC, id DESC
                 LIMIT %s
                 """,
-                (account, max(1, int(limit))),
+                (account, scope["market_id"], scope["chain_id"], max(1, int(limit))),
             )
             rows = cursor.fetchall()
-    return [
-        {
-            "id": int(row[0]),
-            "account": str(row[1]) if row[1] else None,
-            "mode": str(row[2]),
-            "state": str(row[3]),
-            "blocked_reasons": _json_or_default(row[4], []),
-            "request": _json_or_default(row[5], {}),
-            "quote": _json_or_default(row[6], {}),
-            "preflight": _json_or_default(row[7], {}),
-            "tx_hash": str(row[8]) if row[8] else None,
-            "receipt": _json_or_default(row[9], {}),
-            "error": str(row[10]) if row[10] else None,
-            "created_at": row[11].isoformat() if row[11] else None,
-            "updated_at": row[12].isoformat() if row[12] else None,
-        }
-        for row in rows
-    ]
+    result = []
+    for row in rows:
+        if len(row) == 13:
+            row = (scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"], *row)
+        result.append(
+            {
+                "market_id": str(row[0]),
+                "chain_id": int(row[1]) if row[1] is not None else None,
+                "network": str(row[2]) if row[2] else None,
+                "protocol": str(row[3]) if row[3] else None,
+                "id": int(row[4]),
+                "account": str(row[5]) if row[5] else None,
+                "mode": str(row[6]),
+                "state": str(row[7]),
+                "blocked_reasons": _json_or_default(row[8], []),
+                "request": _json_or_default(row[9], {}),
+                "quote": _json_or_default(row[10], {}),
+                "preflight": _json_or_default(row[11], {}),
+                "tx_hash": str(row[12]) if row[12] else None,
+                "receipt": _json_or_default(row[13], {}),
+                "error": str(row[14]) if row[14] else None,
+                "created_at": row[15].isoformat() if row[15] else None,
+                "updated_at": row[16].isoformat() if row[16] else None,
+            }
+        )
+    return result
 
 
-def liquidation_execution_attempt_stats(database_url: str) -> dict[str, int]:
+def liquidation_execution_attempt_stats(
+    database_url: str,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, int]:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -256,7 +237,10 @@ def liquidation_execution_attempt_stats(database_url: str) -> dict[str, int]:
                     COUNT(*) FILTER (WHERE state = 'static_call_failed') AS static_call_failed,
                     COUNT(*) FILTER (WHERE error IS NOT NULL) AS errors
                 FROM liquidation_execution_attempts
+                WHERE market_id = %s AND chain_id = %s
                 """
+                ,
+                (scope["market_id"], scope["chain_id"]),
             )
             row = cursor.fetchone() or (0, 0, 0, 0, 0, 0, 0)
     return {

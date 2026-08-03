@@ -4,6 +4,8 @@ from execution.liquidation_amounts import build_liquidation_amounts, token_amoun
 from execution.liquidation_payload import (
     LiquidationExecutionPayloadConfig,
     build_liquidation_execution_payload,
+    liquidation_swap_quote_paths,
+    profit_base_to_debt_units,
     validate_min_profit_consistency,
 )
 
@@ -91,6 +93,10 @@ def test_liquidation_payload_includes_structured_amounts():
             "debt_price": 1,
             "amount_to_pass_to_liquidation_call": 1_000_000,
             "min_collateral_swap_out": 1_050_000,
+            "swap_path": [
+                "0x0000000000000000000000000000000000000002",
+                "0x0000000000000000000000000000000000000003",
+            ],
             "estimated_profit": {"net_profit_base": 123, "gas_cost_usd": 2},
         },
     }
@@ -108,6 +114,11 @@ def test_liquidation_payload_includes_structured_amounts():
     assert payload["amounts"]["profit"]["legacy_net_profit_base"] == 123.0
 
 
+def test_profit_base_to_debt_units_converts_usd_profit_to_debt_token_units():
+    assert profit_base_to_debt_units(1.25, debt_decimals=6, debt_price=1) == 1_250_000
+    assert profit_base_to_debt_units(12.5, debt_decimals=18, debt_price=6.40331191) == 1_952_114_808_038_454_587
+
+
 def test_liquidation_payload_can_set_contract_gas_limit_and_validate_min_profit():
     report = {
         "account": "0x0000000000000000000000000000000000000001",
@@ -116,8 +127,14 @@ def test_liquidation_payload_can_set_contract_gas_limit_and_validate_min_profit(
         "recommended_candidate": {
             "collateral_asset": "0x0000000000000000000000000000000000000002",
             "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_decimals": 6,
+            "debt_price": 1,
             "amount_to_pass_to_liquidation_call": 1_000_000,
             "min_collateral_swap_out": 1_050_000,
+            "swap_path": [
+                "0x0000000000000000000000000000000000000002",
+                "0x0000000000000000000000000000000000000003",
+            ],
             "estimated_profit": {"net_profit_base": 123},
         },
     }
@@ -134,18 +151,90 @@ def test_liquidation_payload_can_set_contract_gas_limit_and_validate_min_profit(
         ),
     )
 
-    assert payload["request"]["minProfitAmount"] == "100"
+    assert payload["request"]["minProfitAmount"] == "102999997"
     assert payload["request"]["gasLimit"] == "700000"
     assert payload["preflight"]["min_profit_consistency"] == {
         "consistent": True,
-        "actual_min_profit_amount": 100,
-        "expected_min_profit_amount": 100,
-        "min_profit_buffer_base": 20,
+        "actual_min_profit_amount": 102999997,
+        "expected_min_profit_amount": 102999997,
+        "debt_decimals": 6,
+        "debt_price": 1.0,
+        "min_profit_buffer_base": 20.0,
         "rounding_buffer_units": 3,
     }
     assert validate_min_profit_consistency(
-        {"minProfitAmount": "99"},
+        {"minProfitAmount": "102999996"},
         {"net_profit_base": 123},
+        debt_decimals=6,
+        debt_price=1,
         min_profit_buffer_base=20,
         rounding_buffer_units=3,
     )["consistent"] is False
+
+
+def test_liquidation_payload_requires_debt_price_for_positive_profit_guard():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "execution_plan": {"execution_ready": True},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_decimals": 6,
+            "debt_price": 0,
+            "amount_to_pass_to_liquidation_call": 1_000_000,
+            "min_collateral_swap_out": 1_050_000,
+            "swap_path": [
+                "0x0000000000000000000000000000000000000002",
+                "0x0000000000000000000000000000000000000003",
+            ],
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    with pytest.raises(ValueError, match="debt_price is required"):
+        build_liquidation_execution_payload(
+            report,
+            executor_address="0x0000000000000000000000000000000000000004",
+            router_address="0x0000000000000000000000000000000000000005",
+            deadline=123456,
+        )
+
+
+def test_liquidation_swap_quote_paths_include_stable_and_wavax_routes():
+    paths = liquidation_swap_quote_paths(
+        "0x0000000000000000000000000000000000000002",
+        "0x0000000000000000000000000000000000000003",
+    )
+
+    assert paths[0] == [
+        "0x0000000000000000000000000000000000000002",
+        "0x0000000000000000000000000000000000000003",
+    ]
+    assert any(len(path) == 3 and path[1].lower() == "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7" for path in paths)
+    assert any(len(path) == 3 and path[1].lower() == "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e" for path in paths)
+
+
+def test_liquidation_payload_requires_swap_path_when_min_out_is_precomputed():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "execution_plan": {"execution_ready": True},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_decimals": 6,
+            "debt_price": 1,
+            "amount_to_pass_to_liquidation_call": 1_000_000,
+            "min_collateral_swap_out": 1_050_000,
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    with pytest.raises(ValueError, match="swap_path is required"):
+        build_liquidation_execution_payload(
+            report,
+            executor_address="0x0000000000000000000000000000000000000004",
+            router_address="0x0000000000000000000000000000000000000005",
+            deadline=123456,
+        )

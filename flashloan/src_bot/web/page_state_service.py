@@ -194,7 +194,12 @@ def account_scan_state_payload(panel: Any) -> dict:
     backfill_running = bool(backfill_cache.get("running"))
     discovery_running = bool(discovery_cache.get("running"))
     discovery_result = discovery_cache.get("last_result") if isinstance(discovery_cache.get("last_result"), dict) else {}
-    error = backfill_cache.get("error") or discovery_result.get("error")
+    backfill_result = backfill_cache.get("last_result") if isinstance(backfill_cache.get("last_result"), dict) else {}
+    backfill_error = backfill_cache.get("error") or backfill_result.get("error")
+    discovery_error = discovery_cache.get("error") or discovery_result.get("error")
+    error = backfill_error or discovery_error
+    skipped = bool(discovery_result.get("skipped"))
+    reason = str(discovery_result.get("reason") or "") if skipped else ""
     if backfill_running:
         stage = str(backfill_cache.get("stage") or "")
         status = AccountScanStatus.SCANNING_HISTORICAL_EVENTS if stage == "borrowers" else AccountScanStatus.PREPARING_BACKFILL
@@ -202,12 +207,17 @@ def account_scan_state_payload(panel: Any) -> dict:
         status = AccountScanStatus.SCANNING_EVENTS
     elif error:
         status = AccountScanStatus.ERROR
+    elif skipped:
+        status = AccountScanStatus.SKIPPED
+    elif discovery_result.get("saved"):
+        status = AccountScanStatus.COMPLETED
     else:
         status = AccountScanStatus.SHOWING_ACCOUNT_POOL
     return _state_payload(
         PageName.ACCOUNT_SCAN,
         status.value,
-        message=str(error) if error else None,
+        result=reason or None,
+        message=str(error or reason or account_pool.get("reason") or "") or None,
         last_error=str(error) if error else None,
         context={
             "account_pool": account_pool,
@@ -217,6 +227,8 @@ def account_scan_state_payload(panel: Any) -> dict:
                 "progress": backfill_cache.get("progress") or {},
                 "started_at": backfill_cache.get("started_at"),
                 "finished_at": backfill_cache.get("finished_at"),
+                "last_result": backfill_result,
+                "error": backfill_error,
             },
             "discovery": {
                 "running": discovery_running,
@@ -224,12 +236,17 @@ def account_scan_state_payload(panel: Any) -> dict:
                 "progress": discovery_cache.get("progress") or {},
                 "started_at": discovery_cache.get("started_at"),
                 "finished_at": discovery_cache.get("finished_at"),
+                "last_result": discovery_result,
+                "skipped": skipped,
+                "reason": reason or None,
+                "error": discovery_error,
             },
         },
     )
 
 
 def market_observation_state_payload(panel: Any) -> dict:
+    daemon_status = _call_value(panel, "read_daemon_status")
     if getattr(panel, "observer_starting", False):
         status = MarketObservationStatus.STARTING
         event = None
@@ -266,6 +283,7 @@ def market_observation_state_payload(panel: Any) -> dict:
             "pid": panel.quick_observer_pid() if status in {MarketObservationStatus.OBSERVING, MarketObservationStatus.ALERTING_DEBT_POOL, MarketObservationStatus.VOLATILITY_DETECTED} else None,
             "market_event": event,
             "route_intent": market_volatility_route_intent(event) if _market_event_pending(event) else None,
+            "liquidation_daemon": daemon_status if isinstance(daemon_status, dict) else {},
         },
     )
 

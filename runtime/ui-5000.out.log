@@ -1,0 +1,4 @@
+opportunity console listening on 0.0.0.0:5000
+control panel: http://127.0.0.1:5000
+ * Serving Flask app 'web.control_panel'
+ * Debug mode: off

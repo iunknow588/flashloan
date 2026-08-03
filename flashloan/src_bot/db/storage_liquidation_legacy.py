@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
+from core.market_config import liquidation_market_config, liquidation_market_config_for
 from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, db_connection, dedicated_db_connection, require_psycopg
 
 
@@ -14,18 +15,26 @@ def _upsert_scan_config_snapshot_cursor(
     category: str = "scan",
     source_key: str | None = None,
     active: bool = True,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> None:
+    scope = _market_scope(market_id, chain_id)
     item = dict(payload or {})
     item.setdefault("config_key", config_key)
     item.setdefault("source_table", source_table)
+    item.setdefault("market_id", scope["market_id"])
+    item.setdefault("chain_id", scope["chain_id"])
     cursor.execute(
         """
         INSERT INTO liquidation_scan_config_library (
+            market_id, chain_id, network, protocol,
             config_key, category, source_table, source_key,
             active, payload_json, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, NOW())
-        ON CONFLICT (config_key) DO UPDATE SET
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        ON CONFLICT (market_id, chain_id, config_key) DO UPDATE SET
+            network = EXCLUDED.network,
+            protocol = EXCLUDED.protocol,
             category = EXCLUDED.category,
             source_table = EXCLUDED.source_table,
             source_key = EXCLUDED.source_key,
@@ -34,6 +43,10 @@ def _upsert_scan_config_snapshot_cursor(
             updated_at = NOW()
         """,
         (
+            scope["market_id"],
+            scope["chain_id"],
+            scope["network"],
+            scope["protocol"],
             config_key,
             str(category or "scan"),
             source_table,
@@ -42,6 +55,19 @@ def _upsert_scan_config_snapshot_cursor(
             json.dumps(item, ensure_ascii=True, separators=(",", ":")),
         ),
     )
+
+
+def _market_scope(
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, Any]:
+    market = liquidation_market_config_for(market_id, chain_id=chain_id) if (market_id is not None or chain_id is not None) else liquidation_market_config()
+    return {
+        "market_id": market.market_id,
+        "chain_id": market.chain_id,
+        "network": market.network,
+        "protocol": market.protocol,
+    }
 
 
 def record_liquidation_discovery_scan(
@@ -57,19 +83,25 @@ def record_liquidation_discovery_scan(
     scan_end_at: datetime,
     discovered_count: int = 0,
     error: str | None = None,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> None:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO liquidation_discovery_scans (
+                    market_id, chain_id, network, protocol,
                     mode, status, rpc_url, pool_address,
                     from_block, to_block, scan_start_at, scan_end_at,
                     discovered_count, error, created_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (mode, pool_address, from_block, to_block) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (market_id, chain_id, mode, pool_address, from_block, to_block) DO UPDATE SET
+                    network = EXCLUDED.network,
+                    protocol = EXCLUDED.protocol,
                     status = EXCLUDED.status,
                     rpc_url = EXCLUDED.rpc_url,
                     scan_start_at = EXCLUDED.scan_start_at,
@@ -79,6 +111,10 @@ def record_liquidation_discovery_scan(
                     created_at = NOW()
                 """,
                 (
+                    scope["market_id"],
+                    scope["chain_id"],
+                    scope["network"],
+                    scope["protocol"],
                     mode,
                     status,
                     rpc_url,
@@ -93,8 +129,15 @@ def record_liquidation_discovery_scan(
             )
 
 
-def liquidation_discovery_scan_progress(database_url: str, pool_address: str) -> dict[str, Any]:
+def liquidation_discovery_scan_progress(
+    database_url: str,
+    pool_address: str,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, Any]:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -109,8 +152,10 @@ def liquidation_discovery_scan_progress(database_url: str, pool_address: str) ->
                     COALESCE(SUM(GREATEST(0, to_block - from_block + 1)) FILTER (WHERE status = 'success'), 0) AS scanned_block_count
                 FROM liquidation_discovery_scans
                 WHERE pool_address = %s
+                  AND market_id = %s
+                  AND chain_id = %s
                 """,
-                (pool_address,),
+                (pool_address, scope["market_id"], scope["chain_id"]),
             )
             row = cursor.fetchone() or (None, None, 0, 0, 0)
             return {
@@ -133,6 +178,8 @@ def record_liquidation_scan_config_snapshot(
     category: str = "scan",
     source_key: str | None = None,
     active: bool = True,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> dict[str, Any]:
     key = str(config_key or "").strip()
     table = str(source_table or "").strip()
@@ -141,17 +188,23 @@ def record_liquidation_scan_config_snapshot(
     item = dict(payload or {})
     item.setdefault("config_key", key)
     item.setdefault("source_table", table)
+    scope = _market_scope(market_id, chain_id)
+    item.setdefault("market_id", scope["market_id"])
+    item.setdefault("chain_id", scope["chain_id"])
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO liquidation_scan_config_library (
+                    market_id, chain_id, network, protocol,
                     config_key, category, source_table, source_key,
                     active, payload_json, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (config_key) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (market_id, chain_id, config_key) DO UPDATE SET
+                    network = EXCLUDED.network,
+                    protocol = EXCLUDED.protocol,
                     category = EXCLUDED.category,
                     source_table = EXCLUDED.source_table,
                     source_key = EXCLUDED.source_key,
@@ -160,6 +213,10 @@ def record_liquidation_scan_config_snapshot(
                     updated_at = NOW()
                 """,
                 (
+                    scope["market_id"],
+                    scope["chain_id"],
+                    scope["network"],
+                    scope["protocol"],
                     key,
                     str(category or "scan"),
                     table,
@@ -177,14 +234,18 @@ def load_liquidation_scan_config_library(
     category: str | None = None,
     active_only: bool = True,
     limit: int = 100,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     query = """
-        SELECT config_key, category, source_table, source_key, active, payload_json, updated_at
+        SELECT market_id, chain_id, network, protocol,
+               config_key, category, source_table, source_key, active, payload_json, updated_at
         FROM liquidation_scan_config_library
-        WHERE 1=1
+        WHERE market_id = %s AND chain_id = %s
     """
-    params: list[Any] = []
+    params: list[Any] = [scope["market_id"], scope["chain_id"]]
     if category:
         query += " AND category = %s"
         params.append(str(category))
@@ -198,15 +259,27 @@ def load_liquidation_scan_config_library(
             rows = cursor.fetchall()
     result: list[dict[str, Any]] = []
     for row in rows:
+        if len(row) == 7:
+            row = (
+                scope["market_id"],
+                scope["chain_id"],
+                scope["network"],
+                scope["protocol"],
+                *row,
+            )
         result.append(
             {
-                "config_key": str(row[0]),
-                "category": str(row[1]),
-                "source_table": str(row[2]),
-                "source_key": str(row[3]) if row[3] else None,
-                "active": bool(row[4]),
-                "payload": _json_or_default(row[5], {}),
-                "updated_at": row[6].isoformat() if row[6] else None,
+                "market_id": str(row[0]),
+                "chain_id": int(row[1]) if row[1] is not None else None,
+                "network": str(row[2]) if row[2] else None,
+                "protocol": str(row[3]) if row[3] else None,
+                "config_key": str(row[4]),
+                "category": str(row[5]),
+                "source_table": str(row[6]),
+                "source_key": str(row[7]) if row[7] else None,
+                "active": bool(row[8]),
+                "payload": _json_or_default(row[9], {}),
+                "updated_at": row[10].isoformat() if row[10] else None,
             }
         )
     return result
@@ -253,6 +326,8 @@ def rebuild_liquidation_scan_config_library(database_url: str) -> dict[str, Any]
                 cursor,
                 config_key="liquidation_accounts.latest",
                 source_table="liquidation_accounts",
+                market_id=scope["market_id"],
+                chain_id=scope["chain_id"],
                 payload={
                     "total_count": int(row[0] or 0),
                     "active_count": int(row[1] or 0),
@@ -391,6 +466,8 @@ def upsert_liquidation_accounts(
     scan_start_at: datetime | None = None,
     scan_end_at: datetime | None = None,
     update_existing: bool = True,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> list[str]:
     unique_accounts: list[str] = []
     for account in accounts:
@@ -402,12 +479,18 @@ def upsert_liquidation_accounts(
     if not unique_accounts:
         return []
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     now = scan_end_at or datetime.now(timezone.utc)
     started_at = scan_start_at or now
-    values = [(account, source, active, started_at, now) for account in unique_accounts]
+    values = [
+        (scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"], account, source, active, started_at, now)
+        for account in unique_accounts
+    ]
     conflict_clause = (
         """
-                ON CONFLICT (account) DO UPDATE SET
+                ON CONFLICT (market_id, chain_id, account) DO UPDATE SET
+                    network = EXCLUDED.network,
+                    protocol = EXCLUDED.protocol,
                     source = EXCLUDED.source,
                     active = EXCLUDED.active,
                     scan_start_at = COALESCE(liquidation_accounts.scan_start_at, EXCLUDED.scan_start_at),
@@ -415,16 +498,17 @@ def upsert_liquidation_accounts(
                     updated_at = NOW()
                 """
         if update_existing
-        else "ON CONFLICT (account) DO NOTHING"
+        else "ON CONFLICT (market_id, chain_id, account) DO NOTHING"
     )
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.executemany(
                 f"""
                 INSERT INTO liquidation_accounts (
+                    market_id, chain_id, network, protocol,
                     account, source, active, scan_start_at, scan_end_at, added_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                 {conflict_clause}
                 """,
                 values,
@@ -438,6 +522,10 @@ def upsert_liquidation_accounts(
                     "active": bool(active),
                     "update_existing": bool(update_existing),
                     "account_count": len(unique_accounts),
+                    "market_id": scope["market_id"],
+                    "chain_id": scope["chain_id"],
+                    "network": scope["network"],
+                    "protocol": scope["protocol"],
                     "scan_start_at": started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at),
                     "scan_end_at": now.isoformat() if hasattr(now, "isoformat") else str(now),
                     "sample_accounts": unique_accounts[:100],
@@ -452,10 +540,13 @@ def load_liquidation_accounts(
     retained_days: int = 0,
     scan_start_after: datetime | None = None,
     scan_end_before: datetime | None = None,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> list[str]:
     psycopg = require_psycopg()
-    query = "SELECT account FROM liquidation_accounts WHERE 1=1"
-    params: list[Any] = []
+    scope = _market_scope(market_id, chain_id)
+    query = "SELECT account FROM liquidation_accounts WHERE market_id = %s AND chain_id = %s"
+    params: list[Any] = [scope["market_id"], scope["chain_id"]]
     if active_only:
         query += " AND active = TRUE"
     if retained_days and retained_days > 0:
@@ -485,8 +576,91 @@ def load_liquidation_accounts(
             return [str(row[0]) for row in cursor.fetchall() if row and row[0]]
 
 
-def liquidation_account_registry_stats(database_url: str, retained_days: int = 365) -> dict[str, Any]:
+def load_liquidation_accounts_page(
+    database_url: str,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    active_only: bool = True,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, Any]:
     psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
+    safe_page = max(1, int(page))
+    safe_page_size = max(1, min(int(page_size), 100))
+    offset = (safe_page - 1) * safe_page_size
+    where = "WHERE market_id = %s AND chain_id = %s"
+    params: list[Any] = [scope["market_id"], scope["chain_id"]]
+    if active_only:
+        where += " AND active = TRUE"
+    order_by = """
+        ORDER BY
+            CASE
+                WHEN activity_tier = 'hot' THEN 0
+                WHEN activity_tier = 'warm' THEN 1
+                WHEN activity_tier = 'cold' THEN 2
+                ELSE 1
+            END,
+            COALESCE(last_scanned_at, scan_end_at, updated_at) DESC,
+            account ASC
+    """
+    with db_connection(database_url, connect_timeout=8) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM liquidation_accounts {where}", params)
+            total_count = int((cursor.fetchone() or (0,))[0] or 0)
+            cursor.execute(
+                f"""
+                SELECT market_id, chain_id, network, protocol, account, source, active,
+                       last_scanned_at, updated_at, scan_start_at, scan_end_at,
+                       last_health_factor, last_status, last_health_factor_band, last_candidate_count
+                FROM liquidation_accounts
+                {where}
+                {order_by}
+                LIMIT %s OFFSET %s
+                """,
+                [*params, safe_page_size, offset],
+            )
+            accounts = [
+                {
+                    "market_id": str(row[0]),
+                    "chain_id": int(row[1]) if row[1] is not None else None,
+                    "network": str(row[2]) if row[2] else None,
+                    "protocol": str(row[3]) if row[3] else None,
+                    "account": str(row[4]),
+                    "source": str(row[5]),
+                    "active": bool(row[6]),
+                    "last_scanned_at": row[7].isoformat() if row[7] else None,
+                    "updated_at": row[8].isoformat() if row[8] else None,
+                    "scan_start_at": row[9].isoformat() if row[9] else None,
+                    "scan_end_at": row[10].isoformat() if row[10] else None,
+                    "last_health_factor": float(row[11]) if row[11] is not None else None,
+                    "last_status": str(row[12]) if row[12] else None,
+                    "last_health_factor_band": str(row[13]) if row[13] else None,
+                    "last_candidate_count": int(row[14]) if row[14] is not None else None,
+                }
+                for row in cursor.fetchall()
+                if row and row[4]
+            ]
+    page_count = max(1, (total_count + safe_page_size - 1) // safe_page_size)
+    return {
+        "accounts": accounts,
+        "total_count": total_count,
+        "page": safe_page,
+        "page_size": safe_page_size,
+        "page_count": page_count,
+    }
+
+
+def liquidation_account_registry_stats(
+    database_url: str,
+    retained_days: int = 365,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, Any]:
+    psycopg = require_psycopg()
+    scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -500,10 +674,17 @@ def liquidation_account_registry_stats(database_url: str, retained_days: int = 3
                     MIN(scan_start_at) AS earliest_scan_start_at,
                     MAX(scan_end_at) AS latest_scan_end_at
                 FROM liquidation_accounts
+                WHERE market_id = %s AND chain_id = %s
                 """
+                ,
+                (scope["market_id"], scope["chain_id"]),
             )
             row = cursor.fetchone() or (0, 0, None, None)
             return {
+                "market_id": scope["market_id"],
+                "chain_id": scope["chain_id"],
+                "network": scope["network"],
+                "protocol": scope["protocol"],
                 "total_count": int(row[0] or 0),
                 "active_count": int(row[1] or 0),
                 "hot_count": int(row[2] or 0),

@@ -140,6 +140,9 @@ def test_liquidation_runtime_config_uses_safe_env_parsing(monkeypatch, tmp_path)
         "LIQUIDATION_RETENTION_DAYS": 365,
         "LIQUIDATION_SCAN_INTERVAL_SECONDS": 300,
         "LIQUIDATION_DISCOVERY_INTERVAL_SECONDS": 3600,
+        "LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS": 1800,
+        "LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS": 300,
+        "LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS": 1,
     }
 
 
@@ -161,4 +164,3 @@ def test_liquidation_base_schema_errors_are_redacted(monkeypatch):
     assert "secret-pass" not in error
     assert "abc123" not in error
     assert "[REDACTED]" in error
-

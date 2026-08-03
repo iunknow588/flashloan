@@ -27,6 +27,8 @@ class LiquidationEngineConfig:
     poll_interval_seconds: float = 30.0
     event_poll_interval_seconds: float = 5.0
     auto_execute: bool = False
+    auto_execute_requested: bool = False
+    manual_test_completed: bool = True
     price_change_threshold_bps: int = 100
     max_accounts_per_tick: int = 100
 
@@ -40,10 +42,14 @@ class LiquidationEngineConfig:
         event_poll_interval_seconds, _ = parse_env_float("LIQUIDATION_EVENT_POLL_SECONDS", 5)
         price_change_threshold_bps, _ = parse_env_int("LIQUIDATION_PRICE_TRIGGER_BPS", 100)
         max_accounts_per_tick, _ = parse_env_int("LIQUIDATION_ENGINE_MAX_ACCOUNTS", 100)
+        auto_execute_requested = os.getenv("LIQUIDATION_AUTO_EXECUTE", "true").strip().lower() in {"1", "true", "yes", "on"}
+        manual_test_completed = os.getenv("LIQUIDATION_MANUAL_TEST_COMPLETED", "true").strip().lower() in {"1", "true", "yes", "on"}
         return cls(
             poll_interval_seconds=max(1.0, poll_interval_seconds),
             event_poll_interval_seconds=max(1.0, event_poll_interval_seconds),
-            auto_execute=os.getenv("LIQUIDATION_AUTO_EXECUTE", "false").strip().lower() in {"1", "true", "yes", "on"},
+            auto_execute=auto_execute_requested and manual_test_completed,
+            auto_execute_requested=auto_execute_requested,
+            manual_test_completed=manual_test_completed,
             price_change_threshold_bps=max(1, price_change_threshold_bps),
             max_accounts_per_tick=max(1, max_accounts_per_tick),
         )
@@ -162,9 +168,11 @@ class LiquidationEngine:
             blocked = list(static_result.get("blocked_reasons") or [])
             if not preflight.get("static_call_passed"):
                 return {"account": account, "state": "static_call_failed", "blocked_reasons": blocked}
-            if blocked:
+            deferred_submit_blockers = {"fork_simulation_required"} if self.config.auto_execute else set()
+            remaining_blockers = [reason for reason in blocked if reason not in deferred_submit_blockers]
+            if remaining_blockers:
                 self._record(account, state="submission_blocked", payload=static_result)
-                return {"account": account, "state": "submission_blocked", "blocked_reasons": blocked}
+                return {"account": account, "state": "submission_blocked", "blocked_reasons": remaining_blockers}
             if not self.config.auto_execute:
                 return {"account": account, "state": "observed", "preflight": preflight}
 
@@ -181,6 +189,20 @@ class LiquidationEngine:
             return {"account": account, "state": state, "tx_hash": result.get("tx_hash"), "receipt": receipt}
         except Exception as exc:
             message = redact_sensitive_text(exc)
+            if "execution plan is not ready" in message.lower():
+                blocked_reasons = ["no_liquidation_candidate"]
+                self._record(
+                    account,
+                    state="submission_blocked",
+                    payload={"blocked_reasons": blocked_reasons},
+                    error=message,
+                )
+                return {
+                    "account": account,
+                    "state": "submission_blocked",
+                    "blocked_reasons": blocked_reasons,
+                    "error": message,
+                }
             self._record(account, state="submission_failed", payload=payload or {}, error=message)
             return {"account": account, "state": "submission_failed", "error": message}
 

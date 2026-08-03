@@ -15,6 +15,8 @@ LIQUIDATION_ENV_NAMES = [
     "LIQUIDATION_EXECUTION_PRIVATE_KEY",
     "DEPLOYER_PRIVATE_KEY",
     "LIQUIDATION_EXECUTION_ENABLED",
+    "LIQUIDATION_REQUIRE_FORK_SIMULATION",
+    "LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR",
     "LIQUIDATION_SWAP_SLIPPAGE_BPS",
     "EXECUTION_SLIPPAGE_BPS",
     "LIQUIDATION_MIN_PROFIT_BASE",
@@ -25,8 +27,10 @@ LIQUIDATION_ENV_NAMES = [
     "LIQUIDATION_MIN_OPERATOR_NET_PROFIT_USD",
     "LIQUIDATION_EXECUTION_PRIORITY_FEE_GWEI",
     "LIQUIDATION_EXECUTION_TIMEOUT_SECONDS",
+    "LIQUIDATION_FORK_SIMULATION_TIMEOUT_SECONDS",
     "LIQUIDATION_MAX_PAYLOAD_AGE_SECONDS",
     "LIQUIDATION_MAX_QUOTE_AGE_SECONDS",
+    "LIQUIDATION_MIN_DEADLINE_REMAINING_SECONDS",
     "LIQUIDATION_AUTO_PAUSE_ENABLED",
     "LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD",
     "LIQUIDATION_WIDE_SCAN_SECONDS",
@@ -80,6 +84,8 @@ def test_liquidation_execution_controls_reports_invalid_numeric_env_without_rais
     monkeypatch.setenv("LIQUIDATION_MAX_DEBT_TO_COVER", "not-an-int")
     monkeypatch.setenv("LIQUIDATION_SWAP_SLIPPAGE_BPS", "-1")
     monkeypatch.setenv("LIQUIDATION_EXECUTION_TIMEOUT_SECONDS", "never")
+    monkeypatch.setenv("LIQUIDATION_FORK_SIMULATION_TIMEOUT_SECONDS", "never")
+    monkeypatch.setenv("LIQUIDATION_MIN_DEADLINE_REMAINING_SECONDS", "-1")
     monkeypatch.setenv("LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD", "0")
 
     controls = base.liquidation_execution_controls()
@@ -89,11 +95,25 @@ def test_liquidation_execution_controls_reports_invalid_numeric_env_without_rais
     assert "LIQUIDATION_MAX_DEBT_TO_COVER must be an integer" in controls["config_errors"]
     assert "LIQUIDATION_SWAP_SLIPPAGE_BPS must be >= 0" in controls["config_errors"]
     assert "LIQUIDATION_EXECUTION_TIMEOUT_SECONDS must be an integer" in controls["config_errors"]
+    assert "LIQUIDATION_FORK_SIMULATION_TIMEOUT_SECONDS must be an integer" in controls["config_errors"]
+    assert "LIQUIDATION_MIN_DEADLINE_REMAINING_SECONDS must be >= 0" in controls["config_errors"]
     assert "LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD must be >= 1" in controls["config_errors"]
     assert controls["max_debt_to_cover"] == 0
     assert controls["slippage_bps"] == 50
     assert controls["tx_timeout_seconds"] == 180
+    assert controls["fork_simulation_timeout_seconds"] == 180
+    assert controls["min_deadline_remaining_seconds"] == 60
     assert controls["auto_pause_threshold"] == 3
+
+
+def test_liquidation_execution_controls_default_operator_profit_floor_is_one_usd(monkeypatch):
+    _clear_liquidation_env(monkeypatch)
+
+    controls = base.liquidation_execution_controls()
+
+    assert controls["min_operator_net_profit_usd"] == 1.0
+    assert controls["require_fork_simulation"] is True
+    assert controls["min_deadline_remaining_seconds"] == 60
 
 
 def test_invalid_control_config_blocks_submission_as_hard_gate(monkeypatch):

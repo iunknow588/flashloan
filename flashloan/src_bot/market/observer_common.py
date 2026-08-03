@@ -43,7 +43,7 @@ from strategy.arbitrage import ArbitrageConfig, simulate_basket
 from strategy.trigger_signal import TriggerConfig
 
 
-load_env_files(__file__)
+load_env_files(__file__, override=False)
 
 APP_DIR = str(Path(__file__).resolve().parents[1])
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
@@ -355,7 +355,15 @@ def load_config() -> ObserverConfig:
     ))
     if supported_symbols:
         reserve_symbols = [symbol for symbol in reserve_symbols if symbol in supported_symbols]
-    if reserve_symbols:
+    top_symbol_limit = int(env_float("BINANCE_TOP_SYMBOL_LIMIT", 100))
+    selection_mode = os.getenv("BINANCE_SYMBOL_SELECTION", "market_cap").strip().lower()
+    explicit_symbol_mode = selection_mode in {"explicit", "liquidation_assets", "liquidation-assets", "borrow_assets", "borrow-assets"}
+    if explicit_symbol_mode:
+        raw_symbols = env_list("SYMBOLS", DEFAULT_SYMBOLS)
+        symbols = [symbol for symbol in raw_symbols if symbol in asset_lookup]
+        if not symbols:
+            symbols = list(dict.fromkeys([*asset_lookup.keys()]))[:100]
+    elif reserve_symbols:
         symbols = [*reserve_symbols, "USDCUSDT"]
     else:
         raw_symbols = env_list("SYMBOLS", DEFAULT_SYMBOLS)
@@ -363,9 +371,14 @@ def load_config() -> ObserverConfig:
         if not symbols:
             symbols = list(dict.fromkeys([*asset_lookup.keys()]))[:100]
     tracked_symbols = [symbol for symbol in symbols if symbol != "USDCUSDT"]
-    top_symbol_limit = int(env_float("BINANCE_TOP_SYMBOL_LIMIT", 100))
-    selection_mode = os.getenv("BINANCE_SYMBOL_SELECTION", "market_cap").strip().lower()
-    if selection_mode in {"aave_binance_overlap", "aave-binance-overlap", "public_overlap", "public-overlap"}:
+    if explicit_symbol_mode:
+        if supported_symbols:
+            symbols = [symbol for symbol in symbols if symbol in supported_symbols]
+            if not symbols:
+                symbols = [symbol for symbol in DEFAULT_SYMBOLS.split(",") if symbol in supported_symbols and symbol in asset_lookup]
+        tracked_symbols = [symbol for symbol in symbols if symbol != "USDCUSDT"]
+        top_symbols = []
+    elif selection_mode in {"aave_binance_overlap", "aave-binance-overlap", "public_overlap", "public-overlap"}:
         top_symbols = [
             symbol
             for symbol in reserve_symbols

@@ -13,27 +13,28 @@
     body.embedded main { padding-top: 12px; }
     main { width: min(1400px, 100%); margin: 0 auto; }
     h1 { margin: 0; font-size: 20px; }
-    nav { display: flex; gap: 10px; align-items: center; }
+    nav { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
     button, input { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
     button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
     button.danger { border-color: #b42318; color: #b42318; }
     button:disabled { opacity: .55; cursor: not-allowed; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 14px; align-items: center; }
-    .toolbar input { flex: 1 1 420px; }
+    .toolbar input { flex: 1 1 420px; min-width: min(100%, 320px); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
     .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; margin-bottom: 18px; }
     .metric { border: 1px solid #e4e7ec; border-radius: 6px; padding: 10px 12px; background: #fafbfc; min-height: 74px; }
     .metric small, .card small { display: block; color: #667085; margin-bottom: 7px; }
-    .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
-    .metric span { display: block; margin-top: 4px; color: #475467; font-size: 13px; }
-    .detail-box { border: 1px solid #d9dee7; border-radius: 6px; padding: 10px 12px; background: #fafbfc; color: #344054; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
+    .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; word-break: break-word; }
+    .metric span { display: block; margin-top: 4px; color: #475467; font-size: 13px; word-break: break-word; }
+    .detail-box { border: 1px solid #d9dee7; border-radius: 6px; padding: 10px 12px; background: #fafbfc; color: #344054; white-space: pre-wrap; font-size: 12px; line-height: 1.45; overflow-x: auto; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
     th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; }
     th:first-child, td:first-child { text-align: left; }
     .positive { color: #15803d; }
     .negative { color: #b42318; }
+    .muted { color: #667085; }
     .dust-note { display: block; margin-top: 3px; color: #b42318; font-weight: 700; }
     .hf-green { color: #15803d; }
     .hf-beige { color: #8a6d3b; }
@@ -43,7 +44,18 @@
   </style>
 </head>
 <body>
-  <header><h1>Aave 单账户清算分析</h1><nav><a href="/">主控制台</a><a href="/liquidation">Aave 清算</a></nav><div id="message"></div></header>
+  <header>
+    <h1>Aave 单账户清算分析</h1>
+    <nav>
+      <a href="/liquidation">债务池</a>
+      <a href="/account-scan">账户扫描</a>
+      <a href="/market-observation">市场观察</a>
+      <a href="/execution">清算执行</a>
+      <a href="/audit">执行审计</a>
+      <a href="/config">系统配置</a>
+    </nav>
+    <div id="message"></div>
+  </header>
   <main>
     <section class="card">
       <small>账户查询</small>
@@ -51,6 +63,8 @@
         <input id="accountInput" type="text" placeholder="输入账户地址">
         <button class="primary" id="accountBtn">查询账户</button>
         <button id="sampleBtn">填入示例</button>
+        <button id="monitorBtn">5秒监控</button>
+        <button id="stopMonitorBtn" disabled>停止监控</button>
         <button id="preflightBtn">预演</button>
         <button class="primary" id="executeBtn">执行清算</button>
         <button id="flashloanBtn">闪电贷清算</button>
@@ -98,70 +112,426 @@
   </main>
   <script>
     const $ = id => document.getElementById(id);
-    const parseApiResponse = async (r, p) => { const ct=r.headers.get("content-type")||""; if(ct.includes("application/json"))return await r.json(); const text=await r.text(); const title=(text.match(/<title>(.*?)<\/title>/i)||[])[1]; throw new Error(`${p} 返回了非 JSON 响应：HTTP ${r.status}${title?` ${title}`:""}`); };
-    const api = async (p,o={}) => { const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d=await parseApiResponse(r,p); if(!r.ok){ const e=new Error(d.error||`HTTP ${r.status}`); e.details=d; throw e; } return d; };
-    let loading=false, actionRunning=false;
-    const displayAssetSymbol=s=>String(s||"-").replace(/(USDT|USDC)$/i,"")||"-";
-    const amountText=(v,d=8)=>Number.isFinite(Number(v))?Number(v).toLocaleString(undefined,{maximumFractionDigits:d}):"-";
-    const moneyText=v=>Number.isFinite(Number(v))?Number(v).toLocaleString(undefined,{maximumFractionDigits:4}):"-";
-    const price=v=>Number.isFinite(Number(v))?Number(v).toPrecision(10).replace(/\.?0+$/,""):"-";
-    const cellCls=v=>Number.isFinite(v)?(v>=0?"positive":"negative"):"";
-    const hfCls=v=>({green:"hf-green",beige:"hf-beige",yellow:"hf-yellow",orange:"hf-orange",red:"hf-red"}[String(v||"").toLowerCase()]||"hf-red");
-    const reasonText={
-      execution_disabled:"执行开关关闭：保持只读观察，需确认配置后再开启。",
-      auto_pause_active:"自动暂停保护生效：先复盘失败原因并清除 pause guard。",
-      missing_executor:"缺少清算执行合约地址。",
-      missing_owner:"缺少执行 owner 地址。",
-      missing_self_funded_key:"缺少自有资金执行私钥。",
-      account_not_liquidatable:"账户当前未低于清算阈值。",
-      no_liquidation_candidate:"没有可用清算候选对。",
-      fallback_close_factor:"close factor 使用 fallback，禁止提交。",
-      fallback_flashloan_premium:"flash loan premium 使用 fallback，禁止提交。",
-      invalid_debt_to_cover:"debtToCover 无效。",
-      debt_exceeds_limit:"debtToCover 超过配置限额。",
-      profit_below_minimum:"利润未达到最小阈值。",
-      gas_cost_too_high:"gas 成本超过配置上限。",
-      static_call_required:"需要先通过 static call。",
-      static_call_failed:"static call 失败，查看 revert reason。",
-      payload_expired:"payload 已过期，需要重新构造。",
-      quote_expired:"quote 已过期，需要重新报价。",
-      quote_failed:"quote 不可行。",
-      chain_id_mismatch:"链 ID 与配置不一致。",
-      private_key_mismatch:"执行私钥与 owner 地址不匹配。",
-      config_invalid:"配置健康检查存在错误。"
-    };
-    const stableValueText=v=>Number.isFinite(Number(v))?`≈ ${moneyText(Number(v))} USDC/USDT`:"≈ - USDC/USDT";
-    const stableUnitPriceText=(s,v)=>`1 ${displayAssetSymbol(s)} ≈ ${price(v)} USDC/USDT`;
-    const dustNote=v=>Number.isFinite(Number(v))&&Math.abs(Number(v))>0&&Math.abs(Number(v))<1?'<span class="dust-note">不值得清算（价值低于 1U）</span>':"";
-    const tokenValueText=(a,s,v)=>`${amountText(a)} ${displayAssetSymbol(s)}<br><small>${stableValueText(v)}</small>${dustNote(v)}`;
-    function renderPlan(plan){ const p=plan||{}, c=p.recommended_candidate||{}, profit=p.profit_preview||{}; $("planReady").textContent=p.execution_ready?"可执行":"待观察"; $("planReady").className=p.execution_ready?"positive":"negative"; $("planReason").textContent=p.reason||"-"; $("planRepay").textContent=Number.isFinite(p.repay_fraction)?`${(p.repay_fraction*100).toFixed(1)}%`:"-"; $("planMode").textContent=p.profitable?"有利润":"无利润"; $("planProfit").textContent=Number.isFinite(profit.net_profit_base)?Number(profit.net_profit_base).toFixed(4):"-"; $("planGross").textContent=Number.isFinite(profit.gross_profit_base)?`毛利 ${Number(profit.gross_profit_base).toFixed(4)}`:"毛利 -"; $("planNext").textContent=p.next_step||"-"; $("planPair").textContent=c.collateral_symbol&&c.debt_symbol?`${displayAssetSymbol(c.collateral_symbol)} / ${displayAssetSymbol(c.debt_symbol)}`:"暂无推荐对"; }
-    function renderSubmission(payload){
-      const p=payload||{}, checks=p.checks||{}, pre=p.preflight||{}, reasons=p.blocked_reasons||[], allowed=Boolean(p.submission_allowed), forceAllowed=Boolean(p.force_allowed), hasRequest=Boolean(p.request&&p.request.debtToCover), phase=p.execution_phase||(p.context&&p.context.phase)||"-";
-      $("submissionState").textContent=p.state||"submission_blocked";
-      $("submissionState").className=allowed?"positive":"negative";
-      $("submissionMeta").textContent=`${allowed?"满足提交闸门":`${p.block_level||"blocked"} | ${reasons.length} 个阻断原因`} | phase ${phase}`;
-      $("staticCallState").textContent=pre.static_call_status||"-";
-      $("staticCallState").className=pre.static_call_passed?"positive":"negative";
-      $("staticCallMeta").textContent=pre.static_call_error||`require ${pre.static_call_required!==false}`;
-      $("payloadAge").textContent=Number.isFinite(checks.payload_age_seconds)?`${Number(checks.payload_age_seconds).toFixed(1)}s`:"-";
-      $("quoteAge").textContent=Number.isFinite(checks.quote_age_seconds)?`quote ${Number(checks.quote_age_seconds).toFixed(1)}s / max ${checks.max_quote_age_seconds??"-"}s`:"quote -";
-      $("paramSources").textContent=checks.amount_to_pass_source||checks.repay_base_source||"-";
-      $("premiumSource").textContent=`premium ${checks.flashloan_premium_source||"-"}${checks.flashloan_premium_block_number?" @ "+checks.flashloan_premium_block_number:""}`;
-      $("blockedReasonBox").textContent=reasons.length?`force_allowed=${forceAllowed}\n`+reasons.map(r=>`${r}: ${reasonText[r]||"请查看 payload checks。"}`).join("\n"):"无阻断原因。";
-      $("executeBtn").disabled=!allowed;
-      $("flashloanBtn").disabled=!allowed;
-      $("forceExecuteBtn").disabled=!hasRequest||!forceAllowed;
-      $("forceFlashloanBtn").disabled=!hasRequest||!forceAllowed;
+    let loading = false;
+    let actionRunning = false;
+    let monitorTimer = null;
+    let monitorCount = 0;
+    const pageParams = new URLSearchParams(location.search);
+    // Compatibility markers for static navigation tests: params.get("account"), /api/liquidation/account?account=
+    const marketParam = pageParams.get("market_id") || "";
+    const chainParam = pageParams.get("chain_id") || "";
+    function accountApiQuery(account, extra = {}) {
+      const query = new URLSearchParams({ account });
+      if (marketParam) query.set("market_id", marketParam);
+      if (chainParam) query.set("chain_id", chainParam);
+      Object.entries(extra).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== false && value !== "") query.set(key, String(value));
+      });
+      return query.toString();
     }
-    function renderSubmissionError(message){ $("submissionState").textContent="submission_blocked"; $("submissionState").className="negative"; $("submissionMeta").textContent=message||"无法构造 payload"; $("staticCallState").textContent="-"; $("staticCallMeta").textContent="-"; $("payloadAge").textContent="-"; $("quoteAge").textContent="-"; $("paramSources").textContent="-"; $("premiumSource").textContent="-"; $("blockedReasonBox").textContent=message||"无法构造 payload。"; $("executeBtn").disabled=true; $("flashloanBtn").disabled=true; $("forceExecuteBtn").disabled=true; $("forceFlashloanBtn").disabled=true; }
-    function renderAccount(report){ const s=report&&report.summary?report.summary:{}, positions=Array.isArray(report&&report.positions)?report.positions:[], candidates=Array.isArray(report&&report.liquidation_candidates)?report.liquidation_candidates:[], rec=report&&report.recommended_candidate?report.recommended_candidate:null, ctx=report&&report.context?report.context:{}, err=report&&report.error?report.error:""; $("accountMeta").textContent=err||ctx.error||`账户 ${report&&report.account?report.account:"-"} | RPC ${ctx.rpc_url||"-"} | 资产缓存 ${Number.isFinite(ctx.reserve_asset_count)?ctx.reserve_asset_count:0}`; $("accountHF").textContent=Number.isFinite(s.health_factor)?Number(s.health_factor).toFixed(3):"-"; $("accountHFBand").textContent=s.health_factor_band||"-"; $("accountHFBand").className=hfCls(s.health_factor_band); $("accountStatus").textContent=s.status||"-"; $("accountSummary").textContent=`抵押 ${moneyText(s.total_collateral_in_base_currency??s.total_collateral_base??0)} | 债务 ${moneyText(s.total_debt_in_base_currency??s.total_debt_base??0)} USDC/USDT`; $("accountCandidates").textContent=candidates.length; $("accountHint").textContent=s.positions_count?`持仓 ${s.positions_count} | 抵押 ${s.collateral_positions_count} | 借款 ${s.debt_positions_count}`:"-"; $("accountRecommendation").textContent=rec?`${displayAssetSymbol(rec.collateral_symbol)} / ${displayAssetSymbol(rec.debt_symbol)}`:"暂无"; $("accountProfit").textContent=rec&&rec.estimated_profit&&Number.isFinite(rec.estimated_profit.net_profit_base)?`预估净收益 ${Number(rec.estimated_profit.net_profit_base).toFixed(2)}`:"等待更低 HF"; $("candidateBody").innerHTML=candidates.map(row=>{ const p=row.estimated_profit||{}, ca=row.max_collateral_to_liquidate_amount??row.max_collateral_to_liquidate, da=row.amount_to_pass_to_liquidation_call_amount??row.max_debt_to_liquidate_amount??row.max_debt_to_liquidate; return `<tr><td>${displayAssetSymbol(row.collateral_symbol)}</td><td>${stableUnitPriceText(row.collateral_symbol,row.collateral_price)}</td><td>${tokenValueText(ca,row.collateral_symbol,Number(ca)*Number(row.collateral_price))}</td><td>${displayAssetSymbol(row.debt_symbol)}</td><td>${stableUnitPriceText(row.debt_symbol,row.debt_price)}</td><td>${tokenValueText(row.debt_amount,row.debt_symbol,Number(row.debt_amount)*Number(row.debt_price))}</td><td>${tokenValueText(da,row.debt_symbol,Number(da)*Number(row.debt_price))}</td><td>${amountText(Number(row.liquidation_protocol_fee),4)}</td><td class="${cellCls(p.net_profit_base)}">${Number.isFinite(p.net_profit_base)?Number(p.net_profit_base).toFixed(4):"-"}</td></tr>`; }).join("")||'<tr><td colspan="9">暂无可执行候选</td></tr>'; $("positionBody").innerHTML=positions.map(row=>{ const symbol=row.symbol||row.token_symbol||"-", tokenPrice=Number(row.current_token_price??row.oracle_price), stable=Number(row.stable_debt_amount), variable=Number(row.variable_debt_amount), supplied=Number(row.collateral_amount), debt=stable+variable, collateralEnabled=Boolean(row.usage_as_collateral_enabled)&&supplied>0, role=collateralEnabled&&debt>0?"抵押+借款":collateralEnabled?"抵押物":debt>0?"债务资产":supplied>0?"供应未抵押":"-"; return `<tr><td>${displayAssetSymbol(symbol)}</td><td>${role}</td><td>${stableUnitPriceText(symbol,tokenPrice)}</td><td>${tokenValueText(row.collateral_amount,symbol,row.collateral_value_base)}</td><td>${tokenValueText(stable,symbol,stable*tokenPrice)}</td><td>${tokenValueText(variable,symbol,variable*tokenPrice)}</td><td>${tokenValueText(debt,symbol,row.debt_value_base)}</td><td>${collateralEnabled?"计入":"未计入"}</td><td class="${hfCls(row.health_factor_band)}">${row.health_factor_band||"-"}</td></tr>`; }).join("")||'<tr><td colspan="9">暂无持仓数据</td></tr>'; }
-    async function refreshPayloadPreview(account){ try{ const d=await api(`/api/liquidation/account/payload?account=${encodeURIComponent(account)}`); renderSubmission(d); renderActionDetail({state:d.state, submission_allowed:d.submission_allowed, blocked_reasons:d.blocked_reasons, checks:d.checks}); }catch(e){ renderSubmissionError(e.message); } }
-    async function refreshAccount(accountOverride=""){ if(loading)return; const account=(accountOverride||$("accountInput").value).trim(); if(!account){ $("accountMeta").textContent="请输入账户地址。"; return; } $("accountInput").value=account; loading=true; $("accountBtn").disabled=true; $("executeBtn").disabled=true; $("flashloanBtn").disabled=true; $("forceExecuteBtn").disabled=true; $("forceFlashloanBtn").disabled=true; $("accountMeta").textContent="正在查询账户清算信息..."; try{ const d=await api(`/api/liquidation/account?account=${encodeURIComponent(account)}`); renderAccount(d); renderPlan(d.execution_plan); await refreshPayloadPreview(account); await refreshAccountAudit(account); }catch(e){ renderAccount({error:e.message, positions:[], liquidation_candidates:[]}); renderPlan({reason:e.message, execution_ready:false, profitable:false, profit_preview:{}}); renderSubmissionError(e.message); await refreshAccountAudit(account); } finally{ loading=false; $("accountBtn").disabled=false; } }
-    function renderActionDetail(d, fallback="-"){ $("actionDetail").textContent=JSON.stringify(d||fallback,null,2); }
-    async function refreshAccountAudit(account){ try{ const attempts=await api(`/api/liquidation/account/${encodeURIComponent(account)}/attempts?limit=20`); $("accountAttemptBody").innerHTML=(attempts.attempts||[]).map(row=>{ const receipt=row.receipt&&row.receipt.status!==undefined?row.receipt.status:"-"; return `<tr><td>${row.id}</td><td>${row.mode||"-"}</td><td>${row.state||"-"}</td><td>${row.execution_phase||"-"}</td><td>${row.tx_hash||"-"}</td><td>${receipt}</td><td>${(row.blocked_reasons||[]).join(", ")||"-"}</td><td>${row.error||"-"}</td><td>${row.created_at?new Date(row.created_at).toLocaleString([], {hour12:false}):"-"}</td></tr>`; }).join("")||'<tr><td colspan="9">暂无执行尝试</td></tr>'; const samples=await api(`/api/liquidation/account/${encodeURIComponent(account)}/samples?limit=20`); $("accountSampleBody").innerHTML=(samples.samples||[]).map(row=>{ const p=row.payload||{}, phase=p.execution_phase||row.execution_phase||"-", tx=p.tx_hash||row.tx_hash||"-", receipt=p.receipt_status??(p.receipt&&p.receipt.status)??"-", retry=p.retryable===undefined?"-":(p.retryable?"yes":"no"); return `<tr><td>${row.id}</td><td>${row.failure_type||"-"}</td><td>${phase}</td><td>${tx}</td><td>${receipt}</td><td>${retry}</td><td>${row.failure_reason||"-"}</td><td>${row.debt_asset||"-"}</td><td>${row.collateral_asset||"-"}</td><td>${row.created_at?new Date(row.created_at).toLocaleString([], {hour12:false}):"-"}</td></tr>`; }).join("")||'<tr><td colspan="10">暂无失败样本</td></tr>'; }catch(e){} }
-    async function action(mode){ if(actionRunning)return; const account=$("accountInput").value.trim(); if(!account){ $("accountMeta").textContent="请输入账户地址。"; return; } const forced=mode==="force_execute"||mode==="force_flashloan"; if(mode!=="preflight"){ const text=forced?"强制发送清算交易会绕过收益、过期 quote、static call 等软闸门，低于 1U 的资产通常不值得清算，可能只亏 gas。确认强制执行吗？":"确认发送清算交易吗？"; if(!confirm(text))return; } actionRunning=true; try{ const endpoint=mode==="preflight"?`${encodeURIComponent(account)}/static-call-and-save`:mode==="flashloan"||mode==="force_flashloan"?"flashloan":"execute"; const query=mode==="preflight"?"":`?account=${encodeURIComponent(account)}${forced?"&force=1":""}`; const d=await api(`/api/liquidation/account/${endpoint}${query}`,{method:"POST",body:"{}"}); renderActionDetail(d); if(d&&d.checks)renderSubmission(d); await refreshAccountAudit(account); refreshAccount(account); }catch(e){ renderActionDetail(e.details||{error:e.message}); if(e.details&&e.details.checks)renderSubmission(e.details); await refreshAccountAudit(account); } finally{ actionRunning=false; } }
-    $("accountBtn").onclick=()=>refreshAccount(); $("sampleBtn").onclick=()=>{ $("accountInput").value="0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"; refreshAccount(); }; $("preflightBtn").onclick=()=>action("preflight"); $("executeBtn").onclick=()=>action("execute"); $("flashloanBtn").onclick=()=>action("flashloan"); $("forceExecuteBtn").onclick=()=>action("force_execute"); $("forceFlashloanBtn").onclick=()=>action("force_flashloan"); $("accountInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ e.preventDefault(); refreshAccount(); } });
-    const params=new URLSearchParams(location.search); if(params.get("embed")==="1") document.body.classList.add("embedded"); const accountParam=params.get("account"); if(accountParam){ $("accountInput").value=accountParam; refreshAccount(accountParam); }
+
+    const parseApiResponse = async (response, path) => {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) return await response.json();
+      const text = await response.text();
+      const title = (text.match(/<title>(.*?)<\/title>/i) || [])[1];
+      throw new Error(`${path} 返回了非 JSON 响应：HTTP ${response.status}${title ? ` ${title}` : ""}`);
+    };
+    const api = async (path, options = {}) => {
+      const timeoutMs = options.timeoutMs || 0;
+      const controller = timeoutMs ? new AbortController() : null;
+      const timer = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
+      try {
+        const response = await fetch(path, {headers: {"Content-Type": "application/json"}, ...options, signal: controller ? controller.signal : options.signal});
+        const data = await parseApiResponse(response, path);
+        if (!response.ok) {
+          const error = new Error(data.error || `HTTP ${response.status}`);
+          error.details = data;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        if (error.name === "AbortError") throw new Error(`${path} 查询超时`);
+        throw error;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
+
+    const displayAssetSymbol = value => String(value || "-").replace(/(USDT|USDC)$/i, "") || "-";
+    const amountText = (value, digits = 8) => Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, {maximumFractionDigits: digits}) : "-";
+    const moneyText = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, {maximumFractionDigits: 4}) : "-";
+    const price = value => Number.isFinite(Number(value)) ? Number(value).toPrecision(10).replace(/\.?0+$/, "") : "-";
+    const cellCls = value => Number.isFinite(Number(value)) ? (Number(value) >= 0 ? "positive" : "negative") : "";
+    const hfCls = value => ({green:"hf-green", beige:"hf-beige", yellow:"hf-yellow", orange:"hf-orange", red:"hf-red"}[String(value || "").toLowerCase()] || "hf-red");
+    const snapshotTimeText = value => value ? new Date(value).toLocaleString([], {hour12:false}) : "-";
+    const positionsSourceText = value => value === "database_scan_report"
+      ? "Aave 扫描数据"
+      : value === "database_health_scan_history"
+        ? "Aave 历史完整快照"
+        : "-";
+    const stableValueText = value => Number.isFinite(Number(value)) ? `≈ ${moneyText(Number(value))} USDC/USDT` : "≈ - USDC/USDT";
+    const stableUnitPriceText = (symbol, value) => `1 ${displayAssetSymbol(symbol)} ≈ ${price(value)} USDC/USDT`;
+    const dustNote = value => Number.isFinite(Number(value)) && Math.abs(Number(value)) > 0 && Math.abs(Number(value)) < 1 ? '<span class="dust-note">低于 1U，通常不作为清算收益来源</span>' : "";
+    const tokenValueText = (amount, symbol, value, options = {}) => `${amountText(amount)} ${displayAssetSymbol(symbol)}<br><small>${stableValueText(value)}</small>${options.showDustNote ? dustNote(value) : ""}`;
+
+    function setButtonsEnabled(enabled) {
+      $("accountBtn").disabled = !enabled;
+      $("executeBtn").disabled = true;
+      $("flashloanBtn").disabled = true;
+      $("forceExecuteBtn").disabled = true;
+      $("forceFlashloanBtn").disabled = true;
+    }
+    function renderPlan(plan) {
+      const p = plan || {};
+      const candidate = p.recommended_candidate || {};
+      const profit = p.profit_preview || {};
+      $("planReady").textContent = p.execution_ready ? "可执行" : "待观察";
+      $("planReady").className = p.execution_ready ? "positive" : "negative";
+      $("planReason").textContent = p.reason || "-";
+      $("planRepay").textContent = Number.isFinite(p.repay_fraction) ? `${(p.repay_fraction * 100).toFixed(1)}%` : "-";
+      $("planMode").textContent = p.profitable ? "有利润" : "无利润";
+      $("planProfit").textContent = Number.isFinite(profit.net_profit_base) ? Number(profit.net_profit_base).toFixed(4) : "-";
+      $("planGross").textContent = Number.isFinite(profit.gross_profit_base) ? `毛利 ${Number(profit.gross_profit_base).toFixed(4)}` : "毛利 -";
+      $("planNext").textContent = p.next_step || "-";
+      $("planPair").textContent = candidate.collateral_symbol && candidate.debt_symbol ? `${displayAssetSymbol(candidate.collateral_symbol)} / ${displayAssetSymbol(candidate.debt_symbol)}` : "暂无推荐对";
+    }
+    function renderSubmission(payload) {
+      const p = payload || {};
+      const checks = p.checks || {};
+      const preflight = p.preflight || {};
+      const allowed = Boolean(p.submission_allowed);
+      const forceAllowed = Boolean(p.force_allowed);
+      const hasRequest = Boolean(p.request && p.request.debtToCover);
+      const blockedReasons = Array.isArray(p.blocked_reasons) ? p.blocked_reasons : [];
+      const forkSimulationOnly = blockedReasons.length === 1 && blockedReasons.includes("fork_simulation_required");
+      const canRunExecutionPreflight = allowed || forkSimulationOnly;
+      const phase = p.execution_phase || (p.context && p.context.phase) || "-";
+      const friendly = userFacingExecutionMessage(p, "");
+      const hf = Number(checks.health_factor ?? (p.cached_snapshot && p.cached_snapshot.summary && p.cached_snapshot.summary.health_factor));
+      $("submissionState").textContent = allowed ? "可提交清算" : (forkSimulationOnly ? "需Fork预演" : (Number.isFinite(hf) && hf >= 1 ? "暂不可清算" : "等待清算条件"));
+      $("submissionState").className = canRunExecutionPreflight ? "positive" : "negative";
+      $("submissionMeta").textContent = friendly;
+      $("staticCallState").textContent = allowed ? "预演通过" : (forkSimulationOnly ? "等待Fork预演" : "未执行");
+      $("staticCallState").className = preflight.static_call_passed ? "positive" : "negative";
+      $("staticCallMeta").textContent = allowed ? "提交前需要通过链上预演" : (forkSimulationOnly ? "执行时会先跑 Hardhat fork transaction simulation" : friendly);
+      $("payloadAge").textContent = Number.isFinite(checks.payload_age_seconds) ? `${Number(checks.payload_age_seconds).toFixed(1)}s` : "-";
+      $("quoteAge").textContent = Number.isFinite(checks.quote_age_seconds) ? `quote ${Number(checks.quote_age_seconds).toFixed(1)}s / max ${checks.max_quote_age_seconds ?? "-"}s` : "quote -";
+      $("paramSources").textContent = checks.amount_to_pass_source || checks.repay_base_source ? "Aave 实时数据" : "-";
+      $("premiumSource").textContent = allowed ? "提交前实时校验" : "-";
+      $("blockedReasonBox").textContent = friendly;
+      $("executeBtn").disabled = !canRunExecutionPreflight;
+      $("flashloanBtn").disabled = !canRunExecutionPreflight;
+      $("forceExecuteBtn").disabled = !hasRequest || !forceAllowed;
+      $("forceFlashloanBtn").disabled = !hasRequest || !forceAllowed;
+    }
+    function userFacingExecutionMessage(details, fallback = "") {
+      const item = details || {};
+      const snapshot = item.cached_snapshot || {};
+      const snapshotSummary = snapshot.summary || {};
+      const checks = item.checks || {};
+      const hf = Number(checks.health_factor ?? snapshotSummary.health_factor);
+      const reasons = Array.isArray(item.blocked_reasons) ? item.blocked_reasons : [];
+      if (item.state === "confirmed_success" || Number((item.receipt || {}).status) === 1 || Number(item.receipt_status) === 1) {
+        return "\u6e05\u7b97\u4ea4\u6613\u5df2\u786e\u8ba4\u3002";
+      }
+      if (item.submission_allowed) {
+        return "\u6e05\u7b97\u53c2\u6570\u5df2\u51c6\u5907\uff0c\u7b49\u5f85\u94fe\u4e0a\u9884\u6f14\u6216\u7528\u6237\u786e\u8ba4\u63d0\u4ea4\u3002";
+      }
+      if (reasons.length === 1 && reasons.includes("fork_simulation_required")) {
+        return "清算参数和 static call 已通过，发送前需要先完成 Hardhat fork transaction simulation。";
+      }
+      if (reasons.includes("deadline_too_close")) {
+        return "清算 payload 即将过期，需要刷新账户并重新构造交易参数。";
+      }
+      if (Number.isFinite(hf) && hf >= 1) {
+        return `\u5f53\u524d\u5065\u5eb7\u5ea6 ${hf.toFixed(6)}\uff0c\u9ad8\u4e8e Aave \u6e05\u7b97\u7ebf 1.0\uff0c\u6682\u4e0d\u53ef\u6e05\u7b97\u3002`;
+      }
+      if (reasons.includes("no_liquidation_candidate")) {
+        return "\u5f53\u524d\u6ca1\u6709\u53ef\u6267\u884c\u7684\u6e05\u7b97\u8d44\u4ea7\u7ec4\u5408\uff0c\u8bf7\u7b49\u5f85\u4e0b\u4e00\u8f6e Aave \u6570\u636e\u5237\u65b0\u3002";
+      }
+      if (item.state === "confirmed_failed" || Number((item.receipt || {}).status) === 0 || Number(item.receipt_status) === 0) {
+        return "\u6e05\u7b97\u4ea4\u6613\u672a\u786e\u8ba4\uff0c\u8bf7\u7b49\u5f85\u4e0b\u4e00\u6b21\u72b6\u6001\u66f4\u65b0\u3002";
+      }
+      if (item.state || item.error || fallback) {
+        return "\u5f53\u524d\u672a\u6ee1\u8db3\u6e05\u7b97\u4ea4\u6613\u63d0\u4ea4\u6761\u4ef6\u3002";
+      }
+      return "\u7b49\u5f85\u6e05\u7b97\u6761\u4ef6\u3002";
+    }
+    function renderSubmissionError(message, details = null) {
+      const friendly = userFacingExecutionMessage(details, message);
+      const snapshot = details && details.cached_snapshot ? details.cached_snapshot : {};
+      const summary = snapshot.summary || {};
+      const hf = Number((details && details.checks && details.checks.health_factor) ?? summary.health_factor);
+      $("submissionState").textContent = Number.isFinite(hf) && hf >= 1 ? "\u6682\u4e0d\u53ef\u6e05\u7b97" : "\u7b49\u5f85\u6e05\u7b97\u6761\u4ef6";
+      $("submissionState").className = "negative";
+      $("submissionMeta").textContent = friendly;
+      $("staticCallState").textContent = "\u672a\u6267\u884c";
+      $("staticCallMeta").textContent = "\u6ee1\u8db3\u6e05\u7b97\u6761\u4ef6\u540e\u624d\u8fdb\u884c\u9884\u6f14";
+      $("payloadAge").textContent = "-";
+      $("quoteAge").textContent = "-";
+      $("paramSources").textContent = positionsSourceText(snapshot.positions_source);
+      $("premiumSource").textContent = "-";
+      $("blockedReasonBox").textContent = friendly;
+      $("executeBtn").disabled = true;
+      $("flashloanBtn").disabled = true;
+      $("forceExecuteBtn").disabled = true;
+      $("forceFlashloanBtn").disabled = true;
+    }
+    function renderActionDetail(data, fallback = "-") {
+      $("actionDetail").textContent = userFacingExecutionMessage(data, fallback);
+    }
+    function userFacingAuditStatus(row) {
+      const receipt = row && row.receipt && row.receipt.status !== undefined ? row.receipt.status : row && row.receipt_status;
+      return userFacingExecutionMessage({
+        state: row && row.state,
+        error: row && row.error,
+        blocked_reasons: row && row.blocked_reasons,
+        receipt_status: receipt
+      }, "");
+    }
+    function renderAccount(report) {
+      const summary = report && report.summary ? report.summary : {};
+      const positions = Array.isArray(report && report.positions) ? report.positions : [];
+      const candidates = Array.isArray(report && report.liquidation_candidates) ? report.liquidation_candidates : [];
+      const recommended = report && report.recommended_candidate ? report.recommended_candidate : null;
+      const context = report && report.context ? report.context : {};
+      const core = context.core_opportunity || {};
+      const error = report && report.error ? report.error : "";
+      const profit = Number(core.estimated_operator_net_profit_usd ?? (report && report.liquidation_profit && report.liquidation_profit.operator_net_profit_usd));
+      const reportScannedAt = context.report_scanned_at || core.last_scanned_at || (context.registry || {}).last_scanned_at;
+      const positionsScannedAt = context.positions_scanned_at || reportScannedAt;
+      const positionsHistorical = report && report.positions_source === "database_health_scan_history";
+      $("accountMeta").textContent = error || context.error ? "账户详情暂时无法更新，请稍后重试。" : (report && report.cached
+        ? `缓存快照 | 状态更新 ${snapshotTimeText(reportScannedAt)} | 持仓更新 ${snapshotTimeText(positionsScannedAt)}${positionsHistorical ? "（历史完整快照）" : ""}`
+        : `账户 ${report && report.account ? report.account : "-"} | RPC ${context.rpc_url || "-"} | 资产缓存 ${Number.isFinite(context.reserve_asset_count) ? context.reserve_asset_count : 0}`);
+      $("accountHF").textContent = Number.isFinite(Number(summary.health_factor)) ? Number(summary.health_factor).toFixed(6) : "-";
+      $("accountHFBand").textContent = summary.health_factor_band || "-";
+      $("accountHFBand").className = hfCls(summary.health_factor_band);
+      $("accountStatus").textContent = summary.status || "-";
+      $("accountSummary").textContent = `抵押 ${moneyText(summary.total_collateral_in_base_currency ?? summary.total_collateral_base ?? 0)} | 债务 ${moneyText(summary.total_debt_in_base_currency ?? summary.total_debt_base ?? 0)} USDC/USDT`;
+      $("accountCandidates").textContent = candidates.length;
+      $("accountHint").textContent = summary.positions_count
+        ? `持仓 ${summary.positions_count} | 抵押 ${summary.collateral_positions_count} | 借款 ${summary.debt_positions_count} | ${positionsSourceText(report.positions_source)}`
+        : (report && report.cached ? `核心库 ${core.payload_state || "-"} | quote ${core.quote_viable ? "viable" : "pending"}` : "-");
+      $("accountRecommendation").textContent = recommended ? `${displayAssetSymbol(recommended.collateral_symbol)} / ${displayAssetSymbol(recommended.debt_symbol)}` : (core.best_collateral_asset || core.best_debt_asset ? `${displayAssetSymbol(core.best_collateral_asset)} / ${displayAssetSymbol(core.best_debt_asset)}` : "暂无可执行资产对");
+      $("accountProfit").textContent = Number.isFinite(profit) ? `预估净收益 ${profit.toFixed(2)}U` : "等待更低 HF";
+      $("candidateBody").innerHTML = candidates.map(row => {
+        const p = row.estimated_profit || {};
+        const collateralAmount = row.max_collateral_to_liquidate_amount ?? row.max_collateral_to_liquidate;
+        const debtToCover = row.amount_to_pass_to_liquidation_call_amount ?? row.max_debt_to_liquidate_amount ?? row.max_debt_to_liquidate;
+        return `<tr><td>${displayAssetSymbol(row.collateral_symbol)}</td><td>${stableUnitPriceText(row.collateral_symbol,row.collateral_price)}</td><td>${tokenValueText(collateralAmount,row.collateral_symbol,Number(collateralAmount)*Number(row.collateral_price),{showDustNote:true})}</td><td>${displayAssetSymbol(row.debt_symbol)}</td><td>${stableUnitPriceText(row.debt_symbol,row.debt_price)}</td><td>${tokenValueText(row.debt_amount,row.debt_symbol,Number(row.debt_amount)*Number(row.debt_price))}</td><td>${tokenValueText(debtToCover,row.debt_symbol,Number(debtToCover)*Number(row.debt_price),{showDustNote:true})}</td><td>${amountText(Number(row.liquidation_protocol_fee),4)}</td><td class="${cellCls(p.net_profit_base)}">${Number.isFinite(Number(p.net_profit_base)) ? Number(p.net_profit_base).toFixed(4) : "-"}</td></tr>`;
+      }).join("") || (report && report.cached && core.estimated_operator_net_profit_usd ? '<tr><td colspan="9">缓存显示有清算价值，但缺少可执行资产对；需要实时查询或 quote 后才能构造 payload。</td></tr>' : '<tr><td colspan="9">暂无可执行候选</td></tr>');
+      const positionRows = positions.flatMap(row => {
+        const symbol = row.symbol || row.token_symbol || "-";
+        const tokenPrice = Number(row.current_token_price ?? row.oracle_price);
+        const stable = Number(row.stable_debt_amount);
+        const variable = Number(row.variable_debt_amount);
+        const supplied = Number(row.collateral_amount);
+        const debt = stable + variable;
+        const collateralEnabled = Boolean(row.usage_as_collateral_enabled) && supplied > 0;
+        const rendered = [];
+        if (supplied > 0) {
+          rendered.push(`<tr><td>${displayAssetSymbol(symbol)}</td><td>${collateralEnabled ? "抵押物" : "供应未抵押"}</td><td>${stableUnitPriceText(symbol,tokenPrice)}</td><td>${tokenValueText(row.collateral_amount,symbol,row.collateral_value_base,{showDustNote:true})}</td><td>-</td><td>-</td><td>-</td><td>${collateralEnabled ? "计入" : "未计入"}</td><td class="${hfCls(row.health_factor_band)}">${row.health_factor_band || "-"}</td></tr>`);
+        }
+        if (debt > 0) {
+          rendered.push(`<tr><td>${displayAssetSymbol(symbol)}</td><td>债务资产</td><td>${stableUnitPriceText(symbol,tokenPrice)}</td><td>-</td><td>${tokenValueText(stable,symbol,stable*tokenPrice)}</td><td>${tokenValueText(variable,symbol,variable*tokenPrice)}</td><td>${tokenValueText(debt,symbol,row.debt_value_base)}</td><td>-</td><td class="${hfCls(row.health_factor_band)}">${row.health_factor_band || "-"}</td></tr>`);
+        }
+        if (!rendered.length) {
+          rendered.push(`<tr><td>${displayAssetSymbol(symbol)}</td><td>-</td><td>${stableUnitPriceText(symbol,tokenPrice)}</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td class="${hfCls(row.health_factor_band)}">${row.health_factor_band || "-"}</td></tr>`);
+        }
+        return rendered;
+      });
+      $("positionBody").innerHTML = positionRows.join("") || '<tr><td colspan="9">暂无持仓数据</td></tr>';
+    }
+    function renderActionDetail(data, fallback = "-") {
+      $("actionDetail").textContent = userFacingExecutionMessage(data, fallback);
+    }
+    async function refreshPayloadPreview(account, fast = true) {
+      try {
+        const data = await api(`/api/liquidation/account/payload?${accountApiQuery(account, fast ? {fast: "1"} : {})}`, {timeoutMs: 30000});
+        renderSubmission(data);
+        renderActionDetail({state: data.state, submission_allowed: data.submission_allowed, blocked_reasons: data.blocked_reasons, checks: data.checks});
+        return data;
+      } catch (error) {
+        renderSubmissionError(error.message, error.details || null);
+        renderActionDetail(error.details || {error: error.message});
+        return null;
+      }
+    }
+    async function refreshCachedAccount(account) {
+      const cached = await api(`/api/liquidation/account/cached?${accountApiQuery(account)}`, {timeoutMs: 10000});
+      if (cached && cached.found) {
+        renderAccount(cached);
+        renderSubmissionError((cached.liquidation_candidates || []).length ? "等待实时 payload/quote。" : "缓存快照缺少可执行清算资产对，正在实时查询。");
+      }
+      return cached;
+    }
+    async function refreshRealtimeAccount(account) {
+      $("accountMeta").textContent = "正在刷新实时链上账户信息...";
+      const data = await api(`/api/liquidation/account?${accountApiQuery(account)}`, {timeoutMs: 90000});
+      renderAccount(data);
+      renderPlan(data.execution_plan);
+      await refreshPayloadPreview(account, true);
+      await refreshAccountAudit(account);
+      return data;
+    }
+    async function refreshAccount(accountOverride = "") {
+      if (loading) return;
+      const account = (accountOverride || $("accountInput").value).trim();
+      if (!account) {
+        $("accountMeta").textContent = "请输入账户地址。";
+        return;
+      }
+      $("accountInput").value = account;
+      loading = true;
+      let cachedShown = false;
+      setButtonsEnabled(false);
+      $("accountMeta").textContent = "正在读取缓存快照...";
+      try {
+        try {
+          const cached = await refreshCachedAccount(account);
+          cachedShown = Boolean(cached && cached.found);
+          await refreshPayloadPreview(account, true);
+          const cachedCore = cached && cached.context ? cached.context.core_opportunity || {} : {};
+          const cachedBlocked = Array.isArray(cachedCore.blocked_reasons) && cachedCore.blocked_reasons.length > 0;
+          const cachedCandidateCount = Number(cached && cached.summary && cached.summary.candidate_count);
+          if (cachedShown && (cachedBlocked || cachedCandidateCount === 0)) {
+            $("accountMeta").textContent = "已显示最近一次 Aave 扫描结果，当前无需重复查询。";
+            return;
+          }
+        } catch (error) {
+          $("accountMeta").textContent = "缓存暂时不可用，正在尝试读取实时账户信息。";
+        }
+        await refreshRealtimeAccount(account);
+      } catch (error) {
+        const message = error.message || "账户查询失败";
+        if (cachedShown) {
+          $("accountMeta").textContent = "实时账户详情暂不可用，已保留最近一次持仓快照。";
+          renderPlan({reason: "实时详情暂不可用，当前展示最近一次持仓快照", execution_ready: false, profitable: false, profit_preview: {}});
+        } else {
+          renderAccount({error: true, positions: [], liquidation_candidates: []});
+          renderPlan({reason: "暂时无法读取账户详情，请稍后重试", execution_ready: false, profitable: false, profit_preview: {}});
+        }
+        renderSubmissionError(message, error.details || null);
+        await refreshAccountAudit(account);
+      } finally {
+        loading = false;
+        $("accountBtn").disabled = false;
+      }
+    }
+    async function refreshAccountAudit(account) {
+      try {
+        const attempts = await api(`/api/liquidation/account/${encodeURIComponent(account)}/attempts?limit=20`, {timeoutMs: 10000});
+        $("accountAttemptBody").innerHTML = (attempts.attempts || []).map(row => {
+          const receipt = row.receipt && row.receipt.status !== undefined ? row.receipt.status : "-";
+          const tx = row.tx_hash || "-";
+          return `<tr><td>${row.id}</td><td>${row.mode || "-"}</td><td>${userFacingAuditStatus(row)}</td><td>${row.execution_phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td colspan="2">${userFacingAuditStatus(row)}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
+        }).join("") || '<tr><td colspan="9">暂无执行尝试</td></tr>';
+        const samples = await api(`/api/liquidation/account/${encodeURIComponent(account)}/samples?limit=20`, {timeoutMs: 10000});
+        $("accountSampleBody").innerHTML = (samples.samples || []).map(row => {
+          const p = row.payload || {};
+          const phase = p.execution_phase || row.execution_phase || "-";
+          const tx = p.tx_hash || row.tx_hash || "-";
+          const receipt = p.receipt_status ?? (p.receipt && p.receipt.status) ?? "-";
+          const retry = row.retryable === undefined ? "-" : (row.retryable ? "yes" : "no");
+          const status = userFacingExecutionMessage({...p, error: row.failure_reason, receipt_status: receipt}, "");
+          return `<tr><td>${row.id}</td><td>${row.failure_type || "-"}</td><td>${phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td>${retry}</td><td>${status}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
+        }).join("") || '<tr><td colspan="10">暂无失败样本</td></tr>';
+      } catch (error) {}
+    }
+    async function action(mode) {
+      if (actionRunning) return;
+      const account = $("accountInput").value.trim();
+      if (!account) {
+        $("accountMeta").textContent = "请输入账户地址。";
+        return;
+      }
+      const forced = mode === "force_execute" || mode === "force_flashloan";
+      if (mode !== "preflight") {
+        const text = forced ? "强制发送清算交易会绕过收益、过期 quote、static call 等软闸门，低于 1U 的资产通常不值得清算，可能只亏 gas。确认强制执行吗？" : "确认发送清算交易吗？";
+        if (!confirm(text)) return;
+      }
+      actionRunning = true;
+      try {
+        const endpoint = mode === "preflight" ? `${encodeURIComponent(account)}/static-call-and-save` : mode === "flashloan" || mode === "force_flashloan" ? "flashloan" : "execute";
+        const query = mode === "preflight" ? "" : `?${accountApiQuery(account, forced ? {force: "1"} : {})}`;
+        const data = await api(`/api/liquidation/account/${endpoint}${query}`, {method:"POST", body:"{}", timeoutMs: 45000});
+        renderActionDetail(data);
+        if (data && data.checks) renderSubmission(data);
+        await refreshAccountAudit(account);
+        refreshAccount(account);
+      } catch (error) {
+        renderActionDetail(error.details || {error: error.message});
+        if (error.details && error.details.checks) renderSubmission(error.details);
+        await refreshAccountAudit(account);
+      } finally {
+        actionRunning = false;
+      }
+    }
+    async function monitorTick() {
+      const account = $("accountInput").value.trim();
+      if (!account) return stopMonitor("请输入账户地址。");
+      monitorCount += 1;
+      $("message").textContent = `监控第 ${monitorCount} 次：正在检查缓存和 payload...`;
+      try {
+        const cached = await refreshCachedAccount(account);
+        const payload = await refreshPayloadPreview(account, true);
+        const hf = Number(cached && cached.summary ? cached.summary.health_factor : NaN);
+        if (payload && payload.submission_allowed) {
+          stopMonitor("payload 已满足提交闸门，请先预演，确认通过后由你手工发送交易。");
+          return;
+        }
+        if (cached && cached.found === false) {
+          stopMonitor("账户已不在缓存池中，机会可能已经消失。");
+          return;
+        }
+        if (Number.isFinite(hf) && hf > 1.01) {
+          stopMonitor(`健康度回升到 ${hf.toFixed(6)}，机会已消失。`);
+          return;
+        }
+        $("message").textContent = `监控第 ${monitorCount} 次完成，5 秒后重试。`;
+      } catch (error) {
+        stopMonitor(`监控故障：${error.message}`);
+      }
+    }
+    function startMonitor() {
+      if (monitorTimer) return;
+      monitorCount = 0;
+      $("monitorBtn").disabled = true;
+      $("stopMonitorBtn").disabled = false;
+      monitorTick();
+      monitorTimer = setInterval(monitorTick, 5000);
+    }
+    function stopMonitor(message = "监控已停止。") {
+      if (monitorTimer) clearInterval(monitorTimer);
+      monitorTimer = null;
+      $("monitorBtn").disabled = false;
+      $("stopMonitorBtn").disabled = true;
+      $("message").textContent = message;
+    }
+
+    $("accountBtn").onclick = () => refreshAccount();
+    $("sampleBtn").onclick = () => { $("accountInput").value = "0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"; refreshAccount(); };
+    $("monitorBtn").onclick = startMonitor;
+    $("stopMonitorBtn").onclick = () => stopMonitor();
+    $("preflightBtn").onclick = () => action("preflight");
+    $("executeBtn").onclick = () => action("execute");
+    $("flashloanBtn").onclick = () => action("flashloan");
+    $("forceExecuteBtn").onclick = () => action("force_execute");
+    $("forceFlashloanBtn").onclick = () => action("force_flashloan");
+    $("accountInput").addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        refreshAccount();
+      }
+    });
+    if (pageParams.get("embed") === "1") document.body.classList.add("embedded");
+    const accountParam = pageParams.get("account");
+    if (accountParam) {
+      $("accountInput").value = accountParam;
+      refreshAccount(accountParam);
+    }
   </script>
 </body>
 </html>

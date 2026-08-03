@@ -5,9 +5,12 @@ from db.storage_liquidation_schema import (
     LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
     LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS,
     LIQUIDATION_CORE_OPPORTUNITY_POOL_COLUMNS,
+    LIQUIDATION_EXECUTION_NAMESPACE_COLUMNS,
     LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
     LIQUIDATION_HIGH_FREQUENCY_POOL_COLUMNS,
+    LIQUIDATION_MARKET_NAMESPACE_COLUMNS,
     LIQUIDATION_SCAN_CONFIG_LIBRARY_COLUMNS,
+    LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
     create_liquidation_borrow_health_scan_batch_schema,
     create_liquidation_borrow_health_pool_schema,
     create_liquidation_core_opportunity_pool_schema,
@@ -19,7 +22,11 @@ def ensure_database_schema(database_url: str) -> None:
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT pg_advisory_lock(%s)", (SCHEMA_ADVISORY_LOCK_ID,))
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", (SCHEMA_ADVISORY_LOCK_ID,))
+            lock_row = cursor.fetchone()
+            lock_acquired = bool(lock_row and lock_row[0])
+            if not lock_acquired:
+                return
             try:
                 cursor.execute(
                     """
@@ -190,7 +197,13 @@ def ensure_database_schema(database_url: str) -> None:
                 cursor.execute(
                     """
                     CREATE TABLE IF NOT EXISTS liquidation_accounts (
-                        account TEXT PRIMARY KEY,
+                        market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+                        chain_id INTEGER NOT NULL DEFAULT 43114,
+                        network TEXT NOT NULL DEFAULT 'avalanche',
+                        protocol TEXT NOT NULL DEFAULT 'aave_v3',
+                        source_rpc TEXT,
+                        source_block BIGINT,
+                        account TEXT NOT NULL,
                         source TEXT NOT NULL DEFAULT 'manual',
                         active BOOLEAN NOT NULL DEFAULT TRUE,
                         scan_start_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -214,6 +227,12 @@ def ensure_database_schema(database_url: str) -> None:
                     """
                     CREATE TABLE IF NOT EXISTS liquidation_discovery_scans (
                         id BIGSERIAL PRIMARY KEY,
+                        market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+                        chain_id INTEGER NOT NULL DEFAULT 43114,
+                        network TEXT NOT NULL DEFAULT 'avalanche',
+                        protocol TEXT NOT NULL DEFAULT 'aave_v3',
+                        source_rpc TEXT,
+                        source_block BIGINT,
                         mode TEXT NOT NULL,
                         status TEXT NOT NULL,
                         rpc_url TEXT,
@@ -252,6 +271,13 @@ def ensure_database_schema(database_url: str) -> None:
                     """
                     CREATE TABLE IF NOT EXISTS liquidation_execution_attempts (
                         id BIGSERIAL PRIMARY KEY,
+                        market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+                        chain_id INTEGER NOT NULL DEFAULT 43114,
+                        network TEXT NOT NULL DEFAULT 'avalanche',
+                        protocol TEXT NOT NULL DEFAULT 'aave_v3',
+                        source_rpc TEXT,
+                        source_block BIGINT,
+                        executor_address TEXT,
                         account TEXT,
                         mode TEXT NOT NULL,
                         state TEXT NOT NULL,
@@ -269,7 +295,9 @@ def ensure_database_schema(database_url: str) -> None:
                 )
                 create_liquidation_failure_sample_schema(cursor)
                 ensure_schema_columns(cursor)
+                ensure_liquidation_market_indexes(cursor)
                 ensure_deduplication_constraints(cursor)
+                ensure_liquidation_scan_config_constraints(cursor)
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_arbitrage_simulations_time "
                     "ON arbitrage_simulations(observed_at)"
@@ -300,7 +328,8 @@ def ensure_database_schema(database_url: str) -> None:
                 )
                 record_schema_migrations(cursor)
             finally:
-                cursor.execute("SELECT pg_advisory_unlock(%s)", (SCHEMA_ADVISORY_LOCK_ID,))
+                if lock_acquired:
+                    cursor.execute("SELECT pg_advisory_unlock(%s)", (SCHEMA_ADVISORY_LOCK_ID,))
 
 
 def record_schema_migrations(cursor) -> None:
@@ -463,6 +492,7 @@ def ensure_schema_columns(cursor) -> None:
             "execution_plan_json": "TEXT",
         },
         "liquidation_accounts": {
+            **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
             "account": "TEXT",
             "source": "TEXT",
             "active": "BOOLEAN",
@@ -482,6 +512,7 @@ def ensure_schema_columns(cursor) -> None:
             "last_report_json": "TEXT",
         },
         "liquidation_discovery_scans": {
+            **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
             "mode": "TEXT",
             "status": "TEXT",
             "rpc_url": "TEXT",
@@ -495,6 +526,7 @@ def ensure_schema_columns(cursor) -> None:
             "created_at": "TIMESTAMPTZ",
         },
         "liquidation_account_health_scans": {
+            **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
             "account": "TEXT",
             "scanned_at": "TIMESTAMPTZ",
             "health_factor": "DOUBLE PRECISION",
@@ -510,6 +542,7 @@ def ensure_schema_columns(cursor) -> None:
         "liquidation_borrow_health_scan_batches": LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS,
         "liquidation_scan_config_library": LIQUIDATION_SCAN_CONFIG_LIBRARY_COLUMNS,
         "liquidation_execution_attempts": {
+            **LIQUIDATION_EXECUTION_NAMESPACE_COLUMNS,
             "account": "TEXT",
             "mode": "TEXT",
             "state": "TEXT",
@@ -528,6 +561,28 @@ def ensure_schema_columns(cursor) -> None:
     for table, columns in migrations.items():
         for column, column_type in columns.items():
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {column_type}")
+
+
+def ensure_liquidation_market_indexes(cursor) -> None:
+    market_tables = {
+        "liq_acct_mkt": ("liquidation_accounts", "active, updated_at DESC"),
+        "liq_borrow_mkt": ("liquidation_borrow_health_pool", "active, health_factor ASC, updated_at DESC"),
+        "liq_high_mkt": ("liquidation_high_frequency_pool", "active, priority_score DESC, health_factor ASC, updated_at DESC"),
+        "liq_core_mkt": ("liquidation_core_opportunity_pool", "active, priority_score DESC, health_factor ASC, updated_at DESC"),
+        "liq_health_scan_mkt": ("liquidation_account_health_scans", "scanned_at DESC"),
+        "liq_batch_mkt": ("liquidation_borrow_health_scan_batches", "started_at DESC, id DESC"),
+        "liq_discovery_mkt": ("liquidation_discovery_scans", "mode, scan_start_at DESC"),
+        "liq_attempt_mkt": ("liquidation_execution_attempts", "created_at DESC"),
+        "liq_failure_mkt": ("liquidation_failure_samples", "created_at DESC"),
+        "liq_config_mkt": ("liquidation_scan_config_library", "category, updated_at DESC"),
+    }
+    for index_name, (table, suffix) in market_tables.items():
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_{index_name}
+            ON {table}(market_id, chain_id, {suffix})
+            """
+        )
 
 
 def ensure_deduplication_constraints(cursor) -> None:
@@ -596,16 +651,127 @@ def ensure_deduplication_constraints(cursor) -> None:
         ON observations(symbol, binance_event_time, aave_block)
         """
     )
+    ensure_liquidation_composite_identity_constraints(cursor)
+    ensure_liquidation_discovery_scan_constraints(cursor)
+
+
+def ensure_liquidation_composite_identity_constraints(cursor) -> None:
+    identity_tables = {
+        "liquidation_accounts": "uq_liquidation_accounts_market_chain_account",
+        "liquidation_borrow_health_pool": "uq_liquidation_borrow_health_pool_market_chain_account",
+        "liquidation_high_frequency_pool": "uq_liquidation_high_frequency_pool_market_chain_account",
+        "liquidation_core_opportunity_pool": "uq_liquidation_core_opportunity_pool_market_chain_account",
+    }
+    for table, unique_index in identity_tables.items():
+        cursor.execute(
+            f"""
+            DO $$
+            DECLARE single_account_constraint record;
+            BEGIN
+              FOR single_account_constraint IN
+                SELECT conname
+                FROM pg_constraint
+                WHERE conrelid = '{table}'::regclass
+                  AND contype IN ('p', 'u')
+                  AND array_length(conkey, 1) = 1
+                  AND conkey[1] = (
+                    SELECT attnum
+                    FROM pg_attribute
+                    WHERE attrelid = '{table}'::regclass
+                      AND attname = 'account'
+                  )
+              LOOP
+                EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', '{table}', single_account_constraint.conname);
+              END LOOP;
+            END $$;
+            """
+        )
+        cursor.execute(f"DROP INDEX IF EXISTS uq_{table}_account")
+        cursor.execute(f"DROP INDEX IF EXISTS {table}_account_key")
+        cursor.execute(
+            f"""
+            DELETE FROM {table} keep
+            USING {table} dup
+            WHERE keep.ctid > dup.ctid
+              AND keep.market_id = dup.market_id
+              AND keep.chain_id = dup.chain_id
+              AND keep.account = dup.account
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE UNIQUE INDEX IF NOT EXISTS {unique_index}
+            ON {table}(market_id, chain_id, account)
+            """
+        )
+
+
+def ensure_liquidation_scan_config_constraints(cursor) -> None:
     cursor.execute(
         """
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_liquidation_accounts_account
-        ON liquidation_accounts(account)
+        DO $$
+        DECLARE single_key_constraint record;
+        BEGIN
+          FOR single_key_constraint IN
+            SELECT conname
+            FROM pg_constraint
+            WHERE conrelid = 'liquidation_scan_config_library'::regclass
+              AND contype IN ('p', 'u')
+              AND array_length(conkey, 1) = 1
+              AND conkey[1] = (
+                SELECT attnum
+                FROM pg_attribute
+                WHERE attrelid = 'liquidation_scan_config_library'::regclass
+                  AND attname = 'config_key'
+              )
+          LOOP
+            EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', 'liquidation_scan_config_library', single_key_constraint.conname);
+          END LOOP;
+        END $$;
+        """
+    )
+    cursor.execute("DROP INDEX IF EXISTS liquidation_scan_config_library_config_key_key")
+    cursor.execute(
+        """
+        DELETE FROM liquidation_scan_config_library keep
+        USING liquidation_scan_config_library dup
+        WHERE keep.ctid > dup.ctid
+          AND keep.market_id = dup.market_id
+          AND keep.chain_id = dup.chain_id
+          AND keep.config_key = dup.config_key
         """
     )
     cursor.execute(
         """
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_liquidation_discovery_scan_window
-        ON liquidation_discovery_scans(mode, pool_address, from_block, to_block)
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_liquidation_scan_config_market_chain_key
+        ON liquidation_scan_config_library(market_id, chain_id, config_key)
+        """
+    )
+
+
+def ensure_liquidation_discovery_scan_constraints(cursor) -> None:
+    cursor.execute(
+        """
+        DROP INDEX IF EXISTS uq_liquidation_discovery_scan_window
+        """
+    )
+    cursor.execute(
+        """
+        DELETE FROM liquidation_discovery_scans keep
+        USING liquidation_discovery_scans dup
+        WHERE keep.ctid > dup.ctid
+          AND keep.market_id = dup.market_id
+          AND keep.chain_id = dup.chain_id
+          AND keep.mode = dup.mode
+          AND keep.pool_address = dup.pool_address
+          AND keep.from_block = dup.from_block
+          AND keep.to_block = dup.to_block
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_liquidation_discovery_scan_market_window
+        ON liquidation_discovery_scans(market_id, chain_id, mode, pool_address, from_block, to_block)
         """
     )
 

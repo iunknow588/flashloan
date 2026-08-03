@@ -45,6 +45,30 @@ def test_liquidation_submission_allows_fresh_static_call_passed_payload():
     assert state["force_allowed"] is False
 
 
+def test_liquidation_submission_requires_fork_simulation_when_enabled():
+    controls = {**base_controls(), "require_fork_simulation": True}
+
+    state = evaluate_liquidation_submission(base_payload(), controls)
+
+    assert state["submission_allowed"] is False
+    assert "fork_simulation_required" in state["blocked_reasons"]
+    assert state["block_level"] == "hard"
+    assert state["force_allowed"] is False
+    assert state["checks"]["fork_simulation_required"] is True
+    assert state["checks"]["fork_simulation_passed"] is False
+
+
+def test_liquidation_submission_allows_passed_fork_simulation_when_required():
+    payload = base_payload()
+    payload["preflight"]["fork_simulation_status"] = "passed"
+    payload["preflight"]["fork_simulation_passed"] = True
+
+    state = evaluate_liquidation_submission(payload, {**base_controls(), "require_fork_simulation": True})
+
+    assert state["submission_allowed"] is True
+    assert state["blocked_reasons"] == []
+
+
 def test_liquidation_submission_blocks_without_static_call():
     payload = base_payload()
     payload["preflight"]["static_call_passed"] = False
@@ -120,6 +144,38 @@ def test_liquidation_submission_blocks_expired_deadline():
     assert state["checks"]["deadline"] == int(current.timestamp()) - 1
 
 
+def test_liquidation_submission_blocks_deadline_too_close():
+    current = datetime(2026, 7, 30, 10, 0, 0, tzinfo=timezone.utc)
+    payload = base_payload()
+    payload["request"]["deadline"] = str(int(current.timestamp()) + 30)
+
+    state = evaluate_liquidation_submission(
+        payload,
+        {**base_controls(), "min_deadline_remaining_seconds": 60},
+        now=current,
+    )
+
+    assert state["submission_allowed"] is False
+    assert "deadline_too_close" in state["blocked_reasons"]
+    assert state["block_level"] == "hard"
+    assert state["checks"]["deadline_seconds_remaining"] == 30
+
+
+def test_liquidation_submission_allows_deadline_with_enough_remaining_time():
+    current = datetime(2026, 7, 30, 10, 0, 0, tzinfo=timezone.utc)
+    payload = base_payload()
+    payload["request"]["deadline"] = str(int(current.timestamp()) + 120)
+
+    state = evaluate_liquidation_submission(
+        payload,
+        {**base_controls(), "min_deadline_remaining_seconds": 60},
+        now=current,
+    )
+
+    assert "deadline_too_close" not in state["blocked_reasons"]
+    assert state["submission_allowed"] is True
+
+
 def test_liquidation_submission_blocks_fallback_close_factor_and_premium():
     payload = base_payload()
     payload["account_report"]["recommended_candidate"] = {
@@ -156,6 +212,42 @@ def test_liquidation_submission_allows_verified_parameter_sources():
     assert state["checks"]["flashloan_premium_source"] == "aave_pool"
     assert state["checks"]["flashloan_premium_block_number"] == 123
     assert state["checks"]["close_factor_source"] == "liquidation_data_provider"
+
+
+def test_liquidation_submission_ignores_sub_one_usd_position_dust_when_candidate_is_profitable():
+    payload = base_payload()
+    payload["account_report"] = {
+        "summary": {"status": "liquidatable"},
+        "positions": [
+            {
+                "symbol": "AVAX",
+                "collateral_value_base": 0.0002,
+                "debt_value_base": 441_393.8434,
+                "usage_as_collateral_enabled": True,
+            },
+            {
+                "symbol": "SAVAX",
+                "collateral_value_base": 467_419.6665,
+                "debt_value_base": 0,
+                "usage_as_collateral_enabled": True,
+            },
+        ],
+        "recommended_candidate": {
+            "repay_base_source": "amount_to_pass_to_liquidation_call",
+            "parameter_sources": {
+                "amount_to_pass_source": "amount_to_pass_to_liquidation_call",
+                "close_factor_source": "liquidation_data_provider",
+                "flashloan_premium_source": "aave_pool",
+            },
+            "estimated_profit": {"operator_net_profit_usd": 12.5, "net_profit_base": 12.5},
+        },
+    }
+
+    state = evaluate_liquidation_submission(payload, {**base_controls(), "min_operator_net_profit_usd": 1})
+
+    assert state["submission_allowed"] is True
+    assert state["blocked_reasons"] == []
+    assert state["checks"]["operator_net_profit_usd"] == 12.5
 
 
 def test_liquidation_submission_blocks_high_gas_and_operator_profit():
@@ -235,8 +327,11 @@ def test_force_remaining_blockers_keeps_all_hard_safety_gates():
         "invalid_debt_to_cover",
         "debt_exceeds_limit",
         "payload_expired",
+        "deadline_too_close",
         "fallback_close_factor",
         "fallback_flashloan_premium",
+        "fork_simulation_required",
+        "fork_simulation_failed",
         "protocol_revert_unknown",
     ]
 
