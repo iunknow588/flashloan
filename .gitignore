@@ -25,6 +25,7 @@ flashloan/src_bot/*.log
 flashloan/src_bot/importtime.err
 /src_bot/
 /srcs_dex/
+/srcs/
 docs/
 back/
 .agents/
