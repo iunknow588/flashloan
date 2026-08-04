@@ -17,10 +17,10 @@ This directory keeps the active single-console bot runtime and source code in fu
 ## Common Commands
 
 ```powershell
-python src_bot/run.py
-python src_bot/strategy/build_executable_signal.py --since-minutes 60 --limit 200
-python src_bot/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
-python -m pytest src_bot/tests
+python flashloan/src_bot/run.py
+python flashloan/src_bot/strategy/build_executable_signal.py --since-minutes 60 --limit 200
+python flashloan/src_bot/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
+python -m pytest flashloan/src_bot/tests
 ```
 
 The main entry is the control panel at `http://127.0.0.1:5000/`. The `/healthz` route stays available for liveness checks only.

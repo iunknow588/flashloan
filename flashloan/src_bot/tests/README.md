@@ -1,4 +1,4 @@
-﻿# `src_bot/tests` 测试说明
+# `src_bot/tests` 测试说明
 
 这份文档用来给后续测试、补测和回归提供统一参照。这里的测试以本地离线单测为主，核心原则是：
 
@@ -15,7 +15,7 @@ src_bot/tests/
   README.md                    本说明
 ```
 
-`conftest.py` 只做了一件事：把 `src_bot/` 加入 `sys.path`，方便直接 `python -m pytest src_bot/tests`。
+`conftest.py` 只做了一件事：把 `src_bot/` 加入 `sys.path`，方便直接 `python -m pytest flashloan/src_bot/tests`。
 
 ## 测试分层
 
@@ -145,18 +145,18 @@ src_bot/tests/
 所有命令默认在仓库根目录 `E:\2026OPC大赛\flashLoan` 执行，除非命令块里显式 `cd` 到子目录。
 
 ```powershell
-python -m pytest src_bot/tests -q
-python -m pytest src_bot/tests/test_liquidation_scan.py -q
-python -m pytest src_bot/tests/test_control_panel_status.py -q
-python -m pytest src_bot/tests/test_secret_leakage_guards.py -q
-python -m pytest src_bot/tests -k "liquidation and not network" -q
-python -m pytest src_bot/tests -x --maxfail=1
+python -m pytest flashloan/src_bot/tests -q
+python -m pytest flashloan/src_bot/tests/test_liquidation_scan.py -q
+python -m pytest flashloan/src_bot/tests/test_control_panel_status.py -q
+python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py -q
+python -m pytest flashloan/src_bot/tests -k "liquidation and not network" -q
+python -m pytest flashloan/src_bot/tests -x --maxfail=1
 ```
 
 DEX Python 回归：
 
 ```powershell
-python -m pytest srcs_dex/tests -q
+python -m pytest flashloan/srcs_dex/tests -q
 ```
 
 合约侧联动回归单独跑：
@@ -191,8 +191,8 @@ npm run preflight:fuji
 每轮离线回归优先按下面顺序执行，并把结果写入回归报告：
 
 ```powershell
-python -m pytest src_bot/tests -q
-python -m pytest srcs_dex/tests -q
+python -m pytest flashloan/src_bot/tests -q
+python -m pytest flashloan/srcs_dex/tests -q
 cd contracts-dex
 npm test
 ```
@@ -200,9 +200,9 @@ npm test
 可选但推荐的守卫命令：
 
 ```powershell
-python -m pytest src_bot/tests/test_secret_leakage_guards.py src_bot/tests/test_run_logging.py -q
-rg -n "int\(os\.getenv|float\(os\.getenv" src_bot -g "*.py"
-rg -n "str\(exc\)|str\(e\)" src_bot -g "*.py"
+python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py flashloan/src_bot/tests/test_run_logging.py -q
+rg -n "int\(os\.getenv|float\(os\.getenv" flashloan/src_bot -g "*.py"
+rg -n "str\(exc\)|str\(e\)" flashloan/src_bot -g "*.py"
 git diff --check
 ```
 
@@ -303,11 +303,11 @@ YYYYMMDD-HHMMSS_regression_<scope>.md
 一个比较稳的组合是：
 
 ```powershell
-python -m pytest src_bot/tests/test_architecture_guards.py
-python -m pytest src_bot/tests/test_secret_leakage_guards.py
-python -m pytest src_bot/tests/test_control_panel_status.py src_bot/tests/test_navigation_flow.py
-python -m pytest src_bot/tests/test_liquidation_scan.py src_bot/tests/test_liquidation_discovery_workflow.py src_bot/tests/test_external_liquidation_index.py
-python -m pytest src_bot/tests/test_control_panel_liquidation_actions.py
+python -m pytest flashloan/src_bot/tests/test_architecture_guards.py
+python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py
+python -m pytest flashloan/src_bot/tests/test_control_panel_status.py flashloan/src_bot/tests/test_navigation_flow.py
+python -m pytest flashloan/src_bot/tests/test_liquidation_scan.py flashloan/src_bot/tests/test_liquidation_discovery_workflow.py flashloan/src_bot/tests/test_external_liquidation_index.py
+python -m pytest flashloan/src_bot/tests/test_control_panel_liquidation_actions.py
 cd contracts-dex
 npm test
 ```
@@ -326,4 +326,3 @@ npm test
 - `test_external_liquidation_index.py`
 - `test_liquidation_discovery_workflow.py`
 - `test_navigation_flow.py`
-
