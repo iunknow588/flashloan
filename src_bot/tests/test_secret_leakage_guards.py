@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SECRET_PATTERNS = (
     re.compile(r"0x[a-fA-F0-9]{64}"),
     re.compile(r"-----BEGIN [A-Z ]+PRIVATE KEY-----"),
@@ -26,7 +26,7 @@ SECRET_PATTERNS = (
 )
 TRACKED_SUFFIXES = {".py", ".js", ".mjs", ".sol", ".json", ".md", ".yml", ".yaml", ".toml", ".html"}
 LOCAL_ENV_FILES = (
-    REPO_ROOT / "flashloan" / "src_bot" / ".env",
+    REPO_ROOT / "src_bot" / ".env",
     REPO_ROOT / "contracts-bot" / ".env",
     REPO_ROOT / "contracts-dex" / ".env",
 )
@@ -67,7 +67,7 @@ def test_tracked_source_does_not_contain_private_key_literals():
 
 def test_example_env_files_do_not_embed_secret_material():
     example_files = [
-        REPO_ROOT / "flashloan" / "src_bot" / ".env.example",
+        REPO_ROOT / "src_bot" / ".env.example",
         REPO_ROOT / "contracts-bot" / ".env.example",
         REPO_ROOT / "contracts-dex" / ".env.example",
         REPO_ROOT / "contracts-dex" / ".env.testnet.example",

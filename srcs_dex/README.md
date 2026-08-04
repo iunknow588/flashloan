@@ -16,11 +16,11 @@ This directory keeps runtime files at the root and source code in functional pac
 ## Common Commands
 
 ```powershell
-python flashloan/srcs_dex/run.py
-python flashloan/srcs_dex/market/observer.py
-python flashloan/srcs_dex/strategy/build_executable_signal.py --since-minutes 60 --limit 200
-python flashloan/srcs_dex/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
-python -m pytest flashloan/srcs_dex/tests
+python srcs_dex/run.py
+python srcs_dex/market/observer.py
+python srcs_dex/strategy/build_executable_signal.py --since-minutes 60 --limit 200
+python srcs_dex/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
+python -m pytest srcs_dex/tests
 ```
 
 ## Runtime Files
