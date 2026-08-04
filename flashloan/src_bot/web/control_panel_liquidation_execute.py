@@ -62,7 +62,14 @@ def liquidation_contracts_bot_dir() -> Path:
     configured = os.getenv("LIQUIDATION_CONTRACTS_BOT_DIR", "").strip()
     if configured:
         return Path(configured)
-    return Path(__file__).resolve().parents[3] / "contracts-bot"
+    repo_root = Path(__file__).resolve().parents[3]
+    for candidate in (
+        repo_root / "contract" / "contracts-bot",
+        repo_root / "contracts-bot",
+    ):
+        if candidate.exists():
+            return candidate
+    return repo_root / "contract" / "contracts-bot"
 
 
 def _set_env_if_blank(env: dict[str, str], name: str, value: str) -> None:
@@ -85,7 +92,10 @@ def _parse_fork_simulation_stdout(stdout: str) -> dict[str, str]:
 def run_liquidation_fork_simulation(payload: dict, *, timeout_seconds: int = 180) -> dict:
     contracts_dir = liquidation_contracts_bot_dir()
     if not contracts_dir.exists():
-        raise RuntimeError(f"contracts-bot directory not found: {contracts_dir}")
+        raise RuntimeError(
+            "contracts-bot directory not found (checked contract/contracts-bot and contracts-bot): "
+            f"{contracts_dir}"
+        )
     npm = shutil.which("npm.cmd") or shutil.which("npm")
     if not npm:
         raise RuntimeError("npm is required for liquidation fork simulation")
