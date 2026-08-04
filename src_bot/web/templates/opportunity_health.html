@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>机会健康诊断</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1280px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; margin-bottom: 18px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .card strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .card span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.45; margin-bottom: 18px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+    .status-selected { color: #15803d; }
+    .status-candidate { color: #b45309; }
+    .status-watching { color: #475467; }
+    .status-healthy { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>机会健康诊断</h1>
+    <nav><a href="/">主控制台</a><a href="/opportunity-health">机会诊断</a><a href="/exchange-matrix">兑换矩阵</a><a href="/liquidation">Aave 清算</a></nav>
+    <div id="message"></div>
+  </header>
+  <main>
+    <div class="notice">
+      本页用于机会观察启动后诊断市场窗口、阈值命中和候选选择状态。触发场景：主控台“候选机会”为 0、观察中数量异常、兑换矩阵为空，或需要复盘某个币种为什么未进入可执行候选。清算执行仍以 Aave 清算页的 HF、quote、static call、blocked reasons 和 operator net profit 为准。
+    </div>
+    <section class="grid">
+      <div class="card"><small>窗口</small><strong id="monitorWindow">-</strong><span id="monitorWindowMeta">等待中</span></div>
+      <div class="card"><small>机会总数</small><strong id="opportunityCount">-</strong><span id="opportunityCountMeta">等待中</span></div>
+      <div class="card"><small>候选机会</small><strong id="opportunityCandidateCount">-</strong><span id="opportunityCandidateMeta">等待中</span></div>
+      <div class="card"><small>最高健康度</small><strong id="opportunityTopScore">-</strong><span id="opportunityTopMeta">等待中</span></div>
+    </section>
+    <section class="card">
+      <small>全量机会健康度列表</small>
+      <div class="toolbar"><button class="primary" id="refreshBtn">刷新诊断</button><span id="opportunityHealthMeta">等待中</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>机会</th><th>健康度</th><th>状态</th><th>变化</th><th>阈值</th><th>窗口</th><th>来源</th></tr>
+          </thead>
+          <tbody id="opportunityHealthBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const parseApiResponse = async (r, p) => { const ct=r.headers.get("content-type")||""; if(ct.includes("application/json"))return await r.json(); const text=await r.text(); const title=(text.match(/<title>(.*?)<\/title>/i)||[])[1]; throw new Error(`${p} 返回了非 JSON 响应：HTTP ${r.status}${title?` ${title}`:""}`); };
+    const api = async p => { const r=await fetch(p,{headers:{"Content-Type":"application/json"}}); const d=await parseApiResponse(r,p); if(!r.ok) throw new Error(d.error||`HTTP ${r.status}`); return d; };
+    const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "-";
+    const cellCls = v => Number.isFinite(v) ? (v >= 0 ? "positive" : "negative") : "";
+    const statusCls = v => ({selected:"status-selected",candidate:"status-candidate",healthy:"status-healthy"}[String(v||"").toLowerCase()]||"status-watching");
+    const base = s => String(s||"-").replace(/(USDT|USDC)$/i,"")||"-";
+    function renderHealth(data){
+      const rows=data.rows||[], summary=data.summary||{}, total=Number.isFinite(summary.total)?summary.total:rows.length;
+      $("monitorWindow").textContent=Number.isFinite(summary.monitor_window_seconds)?`${summary.monitor_window_seconds.toFixed(1)} 秒`:"-";
+      $("monitorWindowMeta").textContent=Number.isFinite(summary.trigger_up_percent)&&Number.isFinite(summary.trigger_down_percent)?`阈值 ${summary.trigger_up_percent.toFixed(2)}% / ${summary.trigger_down_percent.toFixed(2)}%`:"等待中";
+      $("opportunityCount").textContent=total; $("opportunityCountMeta").textContent=summary.best_symbol?`最佳 ${base(summary.best_symbol)}`:"等待中";
+      $("opportunityCandidateCount").textContent=Number.isFinite(summary.candidate_count)?summary.candidate_count:"-"; $("opportunityCandidateMeta").textContent=Number.isFinite(summary.selected_count)?`已选 ${summary.selected_count}`:"等待中";
+      $("opportunityTopScore").textContent=Number.isFinite(summary.best_health_score)?Number(summary.best_health_score).toFixed(2):"-"; $("opportunityTopMeta").textContent=summary.best_symbol?`${base(summary.best_symbol)} | ${summary.best_status||"-"}`:"等待中";
+      $("opportunityHealthMeta").textContent=`${total} 条机会 | ${summary.watched_count??0} 条观察中 | ${summary.healthy_count??0} 条健康`;
+      $("opportunityHealthBody").innerHTML=rows.map(row=>`<tr><td>${row.symbol||"-"}</td><td class="${cellCls(row.health_score)}">${Number.isFinite(row.health_score)?row.health_score.toFixed(2):"-"}</td><td class="${statusCls(row.status)}">${row.status||"-"}</td><td class="${cellCls(row.change_percent)}">${Number.isFinite(row.change_percent)?pct(row.change_percent):"-"}</td><td>${Number.isFinite(row.trigger_threshold_percent)?row.trigger_threshold_percent.toFixed(2)+"%":"-"}</td><td>${row.window_ready?"就绪":"监视中"}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="7">暂无机会健康度数据</td></tr>';
+    }
+    async function refresh(){ try{ renderHealth(await api("/api/opportunity-health")); }catch(e){ $("message").textContent=e.message; } }
+    $("refreshBtn").onclick=refresh; refresh(); setInterval(refresh,5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,494 @@
+import json
+import os
+
+from flask import jsonify, request
+
+from core.sensitive_data import redact_sensitive_text
+from web.control_panel_liquidation_routes import liquidation_coverage_payload
+from tools.liquidation_observation_report import (
+    build_liquidation_observation_report,
+    default_output_path as liquidation_observation_report_path,
+    write_liquidation_observation_report,
+)
+from web.route_context import RouteContext
+
+ROUTE_CONTEXT = RouteContext()
+
+
+def panel_call(name: str, *args, **kwargs):
+    return ROUTE_CONTEXT.call(name, *args, **kwargs)
+
+
+def data_error_message(error: object | None) -> str | None:
+    if error is None:
+        return None
+    return redact_sensitive_text(error)
+
+
+def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
+    raw = request.args.get(name, str(default))
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = int(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def request_float_arg(name: str, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
+    raw = request.args.get(name, str(default))
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = float(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def register_data_routes(app, panel) -> None:
+    ROUTE_CONTEXT.bind(panel, globals())
+
+    @app.get("/api/opportunity-health")
+    def opportunity_health_api():
+        running = quick_observer_running()
+        symbols = displayed_symbols(running or observer_starting)
+        binance_extremes = restrict_extremes_to_symbols(safe_latest(latest_binance_extremes_file), symbols)
+        config = strategy_config()
+        rows = opportunity_health_rows(binance_extremes, config)
+        return jsonify(
+            {
+                "rows": rows,
+                "summary": opportunity_health_summary(rows, config),
+                "sampling_profile": unified_sampling_profile(config),
+                "binance_extremes": binance_extremes,
+            }
+        )
+    
+    
+    @app.get("/api/db-summary")
+    def db_summary():
+        schema = schema_status_payload()
+        pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+        coverage = liquidation_coverage_payload(pool_address, panel=ROUTE_CONTEXT.panel)
+        attempts = panel_call("recent_liquidation_execution_attempts", limit=1)
+        failure_samples = panel_call("recent_liquidation_failure_samples", limit=20)
+        pause_guard = panel_call("liquidation_pause_guard_status")
+        return jsonify(
+            {
+                "rows": observation_count(),
+                "db_counts": database_table_counts(),
+                "trade_stats": safe_latest(lambda: read_trade_stats(configured_database_url())),
+                "testnet_trade_stats": safe_latest(lambda: read_testnet_trade_stats(REPO_ROOT)),
+                "liquidation": {
+                    "schema": {
+                        "configured": schema.get("configured"),
+                        "up_to_date": schema.get("up_to_date"),
+                        "missing_migrations": schema.get("missing_migrations", []),
+                    },
+                    "discovery_coverage": coverage,
+                    "execution_attempts": attempts.get("stats", {}),
+                    "failure_samples": {
+                        "configured": failure_samples.get("configured"),
+                        "recent_count": len(failure_samples.get("samples") or []),
+                    },
+                    "pause_guard": pause_guard,
+                },
+            }
+        )
+
+    @app.get("/api/liquidation/control-summary")
+    def liquidation_control_summary():
+        database_url = panel_call("database_url_or_none")
+        pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+        schema = panel_call("schema_status_payload")
+        discovery_progress = panel_call("liquidation_discovery_progress", pool_address) if database_url and pool_address else {}
+        registry_window = panel_call("liquidation_account_registry_window") if database_url else {}
+        pause_guard = panel_call("liquidation_pause_guard_status")
+        background_activity = panel_call("background_activity_payload")
+        attempts = panel_call("recent_liquidation_execution_attempts", limit=5)
+        failure_samples = panel_call("recent_liquidation_failure_samples", limit=5)
+        latest_batch = None
+        core_opportunities = []
+        high_frequency_rows = []
+        account_tiers = {}
+        if database_url:
+            try:
+                panel_call("ensure_database_schema", database_url)
+                latest_batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1)
+                latest_batch = latest_batches[0] if latest_batches else None
+                core_opportunities = panel_call("db_load_liquidation_core_opportunity_pool", database_url, limit=5)
+                high_frequency_rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=5)
+                account_tiers = panel_call("liquidation_account_tier_summary")
+            except Exception as exc:
+                return jsonify({"configured": True, "error": data_error_message(exc), "schema": schema}), 400
+        return jsonify(
+            {
+                "configured": bool(database_url),
+                "schema": {
+                    "configured": schema.get("configured"),
+                    "up_to_date": schema.get("up_to_date"),
+                    "missing_migrations": schema.get("missing_migrations", []),
+                    "error": schema.get("error"),
+                },
+                "pause_guard": pause_guard,
+                "background_activity": background_activity,
+                "discovery_running": bool((background_activity.get("liquidation_discovery") or {}).get("running")),
+                "discovery_stage": (background_activity.get("liquidation_discovery") or {}).get("stage"),
+                "scan_running": bool((background_activity.get("liquidation_health_scan") or {}).get("running")),
+                "scan_stage": (background_activity.get("liquidation_health_scan") or {}).get("stage"),
+                "integrity": {
+                    "schema_up_to_date": bool(schema.get("up_to_date")),
+                    "discovery_has_gap": bool(discovery_progress.get("has_gap")),
+                    "discovery_covered_from_block": discovery_progress.get("earliest_backfill_from_block"),
+                    "discovery_covered_to_block": discovery_progress.get("latest_recent_to_block"),
+                    "discovery_stage": str(
+                        discovery_progress.get("stage")
+                        or ("borrowers" if discovery_progress.get("latest_recent_to_block") is not None else "idle")
+                    ),
+                    "registry_total_count": int(registry_window.get("total_count") or 0),
+                    "registry_active_count": int(registry_window.get("active_count") or 0),
+                    "latest_batch_status": (latest_batch or {}).get("status") if latest_batch else None,
+                    "latest_batch_account_count": int((latest_batch or {}).get("account_count") or 0),
+                    "latest_batch_scanned_count": int((latest_batch or {}).get("scanned_count") or 0),
+                    "latest_batch_matches_account_count": bool(
+                        latest_batch
+                        and str((latest_batch or {}).get("status") or "").lower() == "success"
+                        and int((latest_batch or {}).get("account_count") or 0) == int((latest_batch or {}).get("scanned_count") or 0)
+                    ),
+                    "complete": bool(
+                        schema.get("up_to_date")
+                        and not discovery_progress.get("has_gap")
+                        and latest_batch
+                        and str((latest_batch or {}).get("status") or "").lower() == "success"
+                        and int((latest_batch or {}).get("account_count") or 0) == int((latest_batch or {}).get("scanned_count") or 0)
+                    ),
+                },
+                "execution_attempts": attempts.get("stats", {}),
+                "failure_samples": {"recent_count": len(failure_samples.get("samples") or [])},
+                "latest_batch": latest_batch,
+                "core_opportunities": core_opportunities,
+                "high_frequency_rows": high_frequency_rows,
+                "account_tiers": account_tiers,
+                "control_status": panel_call("control_status_payload"),
+            }
+        )
+
+    @app.get("/api/liquidation/reports/daily")
+    def liquidation_daily_report_api():
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "error": "DATABASE_URL is required", "report": None})
+        try:
+            path = liquidation_observation_report_path()
+            if path.exists():
+                report = json.loads(path.read_text(encoding="utf-8"))
+                return jsonify({"configured": True, "path": str(path), "reused": True, "report": report})
+            report = build_liquidation_observation_report(database_url)
+            write_liquidation_observation_report(report, path)
+            return jsonify({"configured": True, "path": str(path), "reused": False, "report": report})
+        except Exception as exc:
+            return jsonify({"configured": True, "error": data_error_message(exc), "report": None}), 400
+
+    @app.post("/api/liquidation/reports/daily")
+    def liquidation_daily_report_refresh_api():
+        database_url = panel_call("database_url_or_none")
+        if not database_url:
+            return jsonify({"configured": False, "error": "DATABASE_URL is required", "report": None})
+        try:
+            path = liquidation_observation_report_path()
+            report = build_liquidation_observation_report(database_url)
+            write_liquidation_observation_report(report, path)
+            return jsonify({"configured": True, "path": str(path), "reused": False, "report": report})
+        except Exception as exc:
+            return jsonify({"configured": True, "error": data_error_message(exc), "report": None}), 400
+    
+    
+    @app.get("/api/velocity-timepoints")
+    def velocity_timepoints():
+        try:
+            limit = request_int_arg("limit", 200, minimum=1, maximum=500)
+            rows = recent_velocity_timepoints(limit)
+        except Exception as exc:
+            if "does not exist" in str(exc):
+                return jsonify({"timepoints": []})
+            return jsonify({"error": data_error_message(exc), "timepoints": []}), 400
+        return jsonify({"timepoints": rows})
+    
+    
+    @app.get("/api/velocity-summary")
+    def velocity_summary():
+        try:
+            raw_id = request.args.get("id", "").strip()
+            snapshot_id = request_int_arg("id", 0) if raw_id else None
+            snapshot = velocity_timepoint_snapshot(snapshot_id)
+            if not snapshot and snapshot_id is not None:
+                snapshot = velocity_timepoint_snapshot(None)
+            if not snapshot:
+                return jsonify({"error": "no velocity timepoint found", "rows": []}), 404
+            return jsonify(build_velocity_summary(snapshot))
+        except Exception as exc:
+            if "does not exist" in str(exc):
+                return jsonify({"error": "initialize database and collect velocity windows first", "rows": []})
+            return jsonify({"error": data_error_message(exc), "rows": []}), 400
+    
+    
+    @app.get("/api/strategy-config")
+    def get_strategy_config():
+        config = strategy_config()
+        return jsonify({"config": config, "sampling_profile": unified_sampling_profile(config), "running": is_observer_running()})
+    
+    
+    @app.post("/api/strategy-config")
+    def post_strategy_config():
+        try:
+            config = write_strategy_config(request.get_json(silent=True) or {})
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc)}), 400
+        return jsonify({"config": config, "sampling_profile": unified_sampling_profile(config), "restart_required": is_observer_running()})
+    
+    
+    @app.get("/api/trade-stats")
+    def get_trade_stats():
+        return jsonify({"stats": safe_latest(lambda: read_trade_stats(configured_database_url()))})
+    
+    
+    @app.get("/api/testnet-trade-stats")
+    def get_testnet_trade_stats():
+        return jsonify({"stats": safe_latest(lambda: read_testnet_trade_stats(REPO_ROOT))})
+    
+    
+    @app.get("/api/observations")
+    def observations():
+        symbol = request.args.get("symbol", "AVAXUSDT").strip().upper()
+        try:
+            limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
+            rows = recent_observations(symbol, limit) if symbol in ASSETS else []
+            mode = "aave_observations" if rows else "binance_price_history"
+            if not rows:
+                rows = recent_binance_price_history(symbol, limit)
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc)}), 400
+        return jsonify(
+            {
+                "symbol": symbol,
+                "limit": limit,
+                "mode": mode,
+                "supports_aave": symbol in ASSETS and mode == "aave_observations",
+                "supports_dex_costs": symbol in ASSETS and mode == "aave_observations",
+                "fee_slippage_percent": configured_fee_slippage_percent(),
+                "rows": rows,
+            }
+        )
+    
+    
+    @app.get("/api/aave-pair-prices")
+    def aave_pair_prices():
+        x_symbol = request.args.get("x", "").strip().upper()
+        y_symbol = request.args.get("y", "").strip().upper()
+        if not x_symbol or not y_symbol:
+            simulation = safe_latest(latest_arbitrage_simulation_file) or {}
+            x_symbol = x_symbol or str(simulation.get("x_symbol") or simulation.get("a_symbol") or "").upper()
+            y_symbol = y_symbol or str(simulation.get("y_symbol") or simulation.get("b_symbol") or "").upper()
+        if x_symbol not in ASSETS or y_symbol not in ASSETS:
+            return jsonify({"error": "x and y must be mapped Aave symbols", "rows": []}), 400
+        try:
+            limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
+            rows = recent_aave_pair_prices(x_symbol, y_symbol, limit)
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc), "rows": []}), 400
+        return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": rows})
+    
+    
+    @app.get("/api/binance-pair-prices")
+    def binance_pair_prices():
+        x_symbol = request.args.get("x", "").strip().upper()
+        y_symbol = request.args.get("y", "").strip().upper()
+        if not x_symbol or not y_symbol or x_symbol == y_symbol:
+            return jsonify({"error": "select two different symbols", "rows": []}), 400
+        try:
+            limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
+            rows = recent_binance_pair_prices(x_symbol, y_symbol, limit)
+        except Exception as exc:
+            if "does not exist" in str(exc):
+                return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": []})
+            return jsonify({"error": data_error_message(exc), "rows": []}), 400
+        return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "limit": limit, "rows": rows})
+    
+    
+    @app.get("/api/pair-route-profits")
+    def pair_route_profits():
+        x_symbol = request.args.get("x", "").strip().upper()
+        y_symbol = request.args.get("y", "").strip().upper()
+        if not x_symbol or not y_symbol or x_symbol == y_symbol:
+            return jsonify({"error": "select two different symbols", "routes": []}), 400
+        try:
+            initial_amount = request_float_arg("initial", 100, minimum=0.000001)
+            rows = latest_candidate_price_rows([x_symbol, y_symbol])
+            if x_symbol not in rows or y_symbol not in rows:
+                return jsonify(
+                    {
+                        "x_symbol": x_symbol,
+                        "y_symbol": y_symbol,
+                        "initial_amount": initial_amount,
+                        "routes": [],
+                        "error": "route profit needs both symbols in binance_candidate_price_history",
+                    }
+                )
+            routes = simulate_four_route_cycles(
+                rows[x_symbol],
+                rows[y_symbol],
+                arbitrage_config_from_strategy(),
+                initial_amount,
+            )
+        except Exception as exc:
+            if "does not exist" in str(exc):
+                return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "initial_amount": 100, "routes": []})
+            return jsonify({"error": data_error_message(exc), "routes": []}), 400
+        return jsonify(
+            {
+                "x_symbol": x_symbol,
+                "y_symbol": y_symbol,
+                "initial_amount": initial_amount,
+                "prices": {"x": rows[x_symbol], "y": rows[y_symbol]},
+                "routes": routes,
+            }
+        )
+    
+    
+    @app.get("/api/chart-symbols")
+    def chart_symbols():
+        try:
+            limit = request_int_arg("limit", 500, minimum=len(ASSETS), maximum=1000)
+            symbols = available_candidate_symbols(limit)
+        except Exception as exc:
+            if "does not exist" not in str(exc):
+                return jsonify({"error": data_error_message(exc), "symbols": list(ASSETS.keys())}), 400
+            symbols = list(ASSETS.keys())
+        return jsonify({"symbols": symbols, "aave_symbols": list(ASSETS.keys())})
+    
+    
+    @app.get("/api/binance-extremes/latest")
+    def binance_extremes_latest():
+        return jsonify({"extremes": safe_latest(latest_binance_extremes)})
+    
+    
+    @app.get("/api/arbitrage/latest")
+    def arbitrage_latest():
+        return jsonify({"simulation": safe_latest(latest_arbitrage_simulation)})
+    
+    
+    @app.get("/api/trigger/latest")
+    def trigger_latest():
+        return jsonify({"trigger": safe_latest(latest_arbitrage_simulation)})
+    
+    
+    @app.get("/api/executable-signal/latest")
+    def executable_signal_latest():
+        return jsonify({"executable_signal": safe_latest(latest_executable_signal)})
+    
+    
+    @app.get("/api/execution-plan/quote")
+    def execution_plan_quote():
+        try:
+            simulation = latest_arbitrage_simulation()
+            if not simulation or not simulation.get("execution_plan"):
+                return jsonify({"error": "latest arbitrage result has no execution_plan"}), 404
+            assert_fresh_execution_plan(simulation)
+            router = os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
+            last_error = None
+            quote = None
+            for rpc_url in aave_rpc_urls():
+                try:
+                    quote = quote_execution_plan(
+                        simulation["execution_plan"],
+                        rpc_url=rpc_url,
+                        router_address=router,
+                        slippage_bps=read_slippage_bps(),
+                    )
+                    break
+                except Exception as exc:
+                    last_error = exc
+            if quote is None:
+                raise last_error or RuntimeError("all AAVE RPC candidates failed")
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc)}), 400
+        return jsonify({"quote": quote})
+    
+    
+    @app.get("/api/execution-plan/payload")
+    def execution_plan_payload():
+        try:
+            simulation = latest_arbitrage_simulation()
+            if not simulation or not simulation.get("execution_plan"):
+                return jsonify({"error": "latest arbitrage result has no execution_plan"}), 404
+            assert_fresh_execution_plan(simulation)
+            router = os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
+            last_error = None
+            quote = None
+            for rpc_url in aave_rpc_urls():
+                try:
+                    quote = quote_execution_plan(
+                        simulation["execution_plan"],
+                        rpc_url=rpc_url,
+                        router_address=router,
+                        slippage_bps=read_slippage_bps(),
+                    )
+                    break
+                except Exception as exc:
+                    last_error = exc
+            if quote is None:
+                raise last_error or RuntimeError("all AAVE RPC candidates failed")
+            payload = build_execution_payload(
+                simulation["execution_plan"],
+                quote,
+                PayloadConfig(
+                    min_profit_usdc=request_float_arg("min_profit_usdc", 0, minimum=0),
+                    deadline_seconds=request_int_arg("deadline_seconds", 600, minimum=1),
+                ),
+            )
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc)}), 400
+        return jsonify({"payload": payload})
+    
+    
+    @app.get("/api/dex-costs")
+    def dex_costs():
+        symbol = request.args.get("symbol", "AVAXUSDT").strip().upper()
+        if symbol not in ASSETS:
+            return jsonify({"error": f"unsupported symbol: {symbol}"}), 400
+        try:
+            amounts = parse_trade_usd_amounts(os.getenv("DEX_COST_USD_AMOUNTS"))
+            reference_price = latest_reference_price(symbol)
+            router = os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
+            last_error = None
+            costs = None
+            for rpc_url in aave_rpc_urls():
+                try:
+                    costs = [estimate_symbol_cost(rpc_url, symbol, amount, reference_price, router) for amount in amounts]
+                    break
+                except Exception as exc:
+                    last_error = exc
+            if costs is None:
+                raise last_error or RuntimeError("all AAVE RPC candidates failed")
+            payload = [
+                {
+                    "amount_usd": quote.amount_usd,
+                    "buy_cost_percent": quote.buy_cost_percent,
+                    "sell_cost_percent": quote.sell_cost_percent,
+                    "roundtrip_cost_percent": quote.roundtrip_cost_percent,
+                    "buy_price_usd": quote.buy_price_usd,
+                    "sell_price_usd": quote.sell_price_usd,
+                    "token_amount": quote.token_amount,
+                }
+                for quote in costs
+                if quote is not None
+            ]
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc)}), 400
+        return jsonify({"symbol": symbol, "dex_name": "Trader Joe V2", "reference_price_usd": reference_price, "costs": payload})

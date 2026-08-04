@@ -215,6 +215,12 @@ def ensure_local_branch_name(root: Path, branch: str) -> None:
 
 def branch_sync_state(root: Path, branch: str) -> tuple[int, int]:
     fetch_origin(root, branch, quiet=True)
+    if not head_exists(root):
+        # Freshly initialised repo — local branch has no commits yet, so the
+        # three-dot comparison fails with "ambiguous argument".  Report how
+        # many commits the remote has; local is 0 ahead.
+        count_str = run_git(root, "rev-list", "--count", f"origin/{branch}", capture=True).stdout.strip()
+        return int(count_str), 0
     counts = run_git(root, "rev-list", "--left-right", "--count", f"origin/{branch}...{branch}", capture=True).stdout.split()
     if len(counts) < 2:
         raise RuntimeError(f"Unexpected branch comparison result: {' '.join(counts)}")
@@ -256,6 +262,17 @@ def main(argv: list[str] | None = None) -> int:
         if behind == 0 and ahead == 0:
             print(f"Branch {branch} is already up to date")
             return 0
+
+        # Freshly initialised repo: local branch has no commits at all.
+        # git pull --ff-only aborts because every file is "untracked" from
+        # git's perspective.  Force-checkout creates the local branch and
+        # syncs the working tree in one step; .gitignore'd files (e.g. .env)
+        # are left untouched.
+        if not head_exists(root) and behind > 0:
+            run_git(root, "checkout", "-f", "-b", branch, f"origin/{branch}")
+            print(f"Initialised local branch {branch} from origin/{branch} ({behind} commits)")
+            return 0
+
         if ahead > 0 and behind > 0 and not args.rebase and not args.merge:
             print(
                 f"Local branch and origin/{branch} diverged: local is ahead by {ahead}, behind by {behind}.\n"
