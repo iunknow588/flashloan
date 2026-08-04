@@ -18,6 +18,7 @@ charts/
 observations.csv
 srcs_dex/runtime/
 flashloan/srcs_dex/runtime/
+flashloan/srcs/runtime/
 flashloan/src_bot/runtime/*
 !flashloan/src_bot/runtime/*.py
 flashloan/src_bot/*.log
