@@ -10,6 +10,9 @@ class RouteContext:
     def call(self, name: str, *args, **kwargs):
         if self.panel is None:
             raise RuntimeError("route context is not bound")
+        sync = getattr(self.panel, "sync_liquidation_module_context", None)
+        if callable(sync):
+            sync()
         return getattr(self.panel, name)(*args, **kwargs)
 
     def get(self, name: str):

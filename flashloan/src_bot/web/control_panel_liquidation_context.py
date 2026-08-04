@@ -2,6 +2,7 @@ from web import control_panel_liquidation_audit as liquidation_audit_module
 from web import control_panel_liquidation_base as liquidation_base_module
 from web import control_panel_liquidation_execute as liquidation_execute_module
 from web import control_panel_liquidation_scan as liquidation_scan_module
+from web import control_panel_market as market_panel_module
 
 _base_load_liquidation_account_registry = liquidation_base_module.load_liquidation_account_registry
 _base_liquidation_account_registry_window = liquidation_base_module.liquidation_account_registry_window
@@ -104,7 +105,13 @@ CONTEXT_NAMES = [
 
 def install_liquidation_context(panel) -> None:
     def sync_liquidation_module_context() -> None:
-        for module in (liquidation_base_module, liquidation_audit_module, liquidation_scan_module, liquidation_execute_module):
+        for module in (
+            liquidation_base_module,
+            liquidation_audit_module,
+            liquidation_scan_module,
+            liquidation_execute_module,
+            market_panel_module,
+        ):
             for name in CONTEXT_NAMES:
                 if hasattr(panel, name):
                     setattr(module, name, getattr(panel, name))
