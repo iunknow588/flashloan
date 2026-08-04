@@ -297,6 +297,7 @@ def test_initialize_liquidation_runtime_autostarts_engine_when_execution_enabled
     monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
     monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
     monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("LIQUIDATION_OBSERVER_AUTOSTART", "false")
     monkeypatch.delenv("LIQUIDATION_ENGINE_ENABLED", raising=False)
     monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: engine_calls.append(force))
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: registry_calls.append(force))
@@ -305,3 +306,49 @@ def test_initialize_liquidation_runtime_autostarts_engine_when_execution_enabled
 
     assert engine_calls == [True]
     assert registry_calls == [True]
+
+
+def test_initialize_liquidation_runtime_autostarts_observer_when_execution_enabled(monkeypatch):
+    reset_start_state()
+    DummyThread.started = False
+    engine_calls = []
+    registry_calls = []
+
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.delenv("LIQUIDATION_ENGINE_ENABLED", raising=False)
+    monkeypatch.delenv("LIQUIDATION_OBSERVER_AUTOSTART", raising=False)
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: engine_calls.append(force))
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: registry_calls.append(force))
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "velocity_start_symbols", lambda: ["AVAXUSDT"])
+    monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert engine_calls == [True]
+    assert registry_calls == [True]
+    assert control_panel.observer_starting is True
+    assert control_panel.selected_symbols == ["AVAXUSDT"]
+    assert DummyThread.started is True
+    reset_start_state()
+
+
+def test_initialize_liquidation_runtime_allows_observer_autostart_opt_out(monkeypatch):
+    reset_start_state()
+    DummyThread.started = False
+
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("LIQUIDATION_OBSERVER_AUTOSTART", "false")
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: None)
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: None)
+    monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert control_panel.observer_starting is False
+    assert DummyThread.started is False

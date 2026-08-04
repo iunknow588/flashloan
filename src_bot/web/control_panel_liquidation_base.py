@@ -18,6 +18,7 @@ from core.config_schema import (
     parse_env_int,
 )
 from core.env_loader import load_env_files, resolve_env_path
+from core.market_config import liquidation_market_config, supported_market_summaries
 from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
 from market.observer import env_urls
@@ -36,7 +37,7 @@ from db.storage import (
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
 
-load_env_files(__file__)
+load_env_files(__file__, override=False)
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 CONFIG_DIR = RUNTIME_DIR / "config"
 CACHE_DIR = RUNTIME_DIR / "cache"
@@ -71,12 +72,19 @@ LIQUIDATION_DISCOVERY_CACHE: dict[str, object] = {
 LIQUIDATION_DISCOVERY_LOCK = threading.Lock()
 LIQUIDATION_REFRESH_THREAD: Optional[threading.Thread] = None
 LIQUIDATION_REFRESH_STOP = threading.Event()
+SCHEMA_ENSURE_CACHE: dict[str, object] = {"database_url": None, "checked_at": 0.0, "error": None}
+SCHEMA_ENSURE_CACHE_LOCK = threading.Lock()
 
 DEFAULT_LIQUIDATION_CONFIG = {
     "LIQUIDATION_RETENTION_DAYS": 365,
     "LIQUIDATION_SCAN_INTERVAL_SECONDS": 300,
     "LIQUIDATION_DISCOVERY_INTERVAL_SECONDS": 3600,
+    "LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS": 1800,
+    "LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS": 300,
+    "LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS": 1,
 }
+
+DEFAULT_LIQUIDATION_SCAN_VERSION = "2026-08-03.1"
 
 
 def liquidation_runtime_config() -> dict[str, float]:
@@ -105,9 +113,30 @@ def write_liquidation_runtime_config(values: dict) -> dict[str, float]:
         current["LIQUIDATION_SCAN_INTERVAL_SECONDS"] = max(30.0, float(values.get("scan_interval_seconds") or 300))
     if "discovery_interval_seconds" in values:
         current["LIQUIDATION_DISCOVERY_INTERVAL_SECONDS"] = max(30.0, float(values.get("discovery_interval_seconds") or 3600))
+    if "borrow_health_refresh_seconds" in values:
+        current["LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS"] = max(30.0, float(values.get("borrow_health_refresh_seconds") or 1800))
+    if "high_frequency_refresh_seconds" in values:
+        current["LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS"] = max(30.0, float(values.get("high_frequency_refresh_seconds") or 300))
+    if "core_opportunity_refresh_seconds" in values:
+        current["LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS"] = max(1.0, float(values.get("core_opportunity_refresh_seconds") or 1))
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     LIQUIDATION_CONFIG_PATH.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+    for key, value in current.items():
+        os.environ[str(key)] = str(value)
     return current
+
+
+def liquidation_scan_version() -> str:
+    return os.getenv("LIQUIDATION_SCAN_VERSION", DEFAULT_LIQUIDATION_SCAN_VERSION).strip() or DEFAULT_LIQUIDATION_SCAN_VERSION
+
+
+def liquidation_scan_refresh_profile() -> dict[str, float]:
+    config = liquidation_runtime_config()
+    return {
+        "borrow_health_refresh_seconds": max(30.0, float(config["LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS"])),
+        "high_frequency_refresh_seconds": max(30.0, float(config["LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS"])),
+        "core_opportunity_refresh_seconds": max(1.0, float(config["LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS"])),
+    }
 
 def configured_database_url() -> str:
     database_url = os.getenv("DATABASE_URL", "").strip()
@@ -117,6 +146,9 @@ def configured_database_url() -> str:
 
 
 def aave_rpc_urls() -> list[str]:
+    market = liquidation_market_config()
+    if market.rpc_urls:
+        return list(market.rpc_urls)
     raw_primary = os.getenv("AVALANCHE_RPC", os.getenv("AVALANCHE_RPC_URL", "")).strip()
     raw_fallbacks = os.getenv("AVALANCHE_RPCS", "").strip()
     candidates: list[str] = []
@@ -128,9 +160,23 @@ def aave_rpc_urls() -> list[str]:
     return candidates
 
 
+def liquidation_market_payload() -> dict:
+    return {
+        "active": liquidation_market_config().as_dict(),
+        "supported_markets": supported_market_summaries(),
+    }
+
+
+def aave_pool_address() -> str:
+    return liquidation_market_config().pool_address
+
+
 def liquidation_scan_config() -> LiquidationScanConfig:
     wide_scan_seconds, _ = parse_env_float("LIQUIDATION_WIDE_SCAN_SECONDS", 1800)
     near_scan_seconds, _ = parse_env_float("LIQUIDATION_NEAR_SCAN_SECONDS", 0.2)
+    borrow_health_refresh_seconds, _ = parse_env_float("LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS", 1800)
+    high_frequency_refresh_seconds, _ = parse_env_float("LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS", 300)
+    core_opportunity_refresh_seconds, _ = parse_env_float("LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS", 1)
     warning_health_factor, _ = parse_env_float("LIQUIDATION_WARNING_HEALTH_FACTOR", 1.05)
     liquidation_health_factor, _ = parse_env_float("LIQUIDATION_TRIGGER_HEALTH_FACTOR", 1.0)
     max_candidates, _ = parse_env_int("LIQUIDATION_MAX_CANDIDATES", 5000)
@@ -140,6 +186,7 @@ def liquidation_scan_config() -> LiquidationScanConfig:
     gas_cost_usd, _ = parse_env_float("LIQUIDATION_GAS_COST_USD", 0)
     mev_buffer_usd, _ = parse_env_float("LIQUIDATION_MEV_BUFFER_USD", 0)
     retry_buffer_usd, _ = parse_env_float("LIQUIDATION_RETRY_BUFFER_USD", 0)
+    min_operator_net_profit_usd, _ = parse_env_float("LIQUIDATION_MIN_OPERATOR_NET_PROFIT_USD", 1.0, minimum=0)
     watch_health_factor, _ = parse_env_float("LIQUIDATION_WATCH_HEALTH_FACTOR", 1.5)
     close_factor, _ = parse_env_float("LIQUIDATION_CLOSE_FACTOR", 0.5)
     parallel_workers, _ = parse_env_int("LIQUIDATION_SCAN_PARALLEL_WORKERS", 8)
@@ -147,6 +194,9 @@ def liquidation_scan_config() -> LiquidationScanConfig:
     return LiquidationScanConfig(
         wide_scan_seconds=wide_scan_seconds,
         near_scan_seconds=near_scan_seconds,
+        borrow_health_refresh_seconds=borrow_health_refresh_seconds,
+        high_frequency_refresh_seconds=high_frequency_refresh_seconds,
+        core_opportunity_refresh_seconds=core_opportunity_refresh_seconds,
         warning_health_factor=warning_health_factor,
         liquidation_health_factor=liquidation_health_factor,
         max_candidates=max_candidates,
@@ -156,11 +206,12 @@ def liquidation_scan_config() -> LiquidationScanConfig:
         gas_cost_usd=gas_cost_usd,
         mev_buffer_usd=mev_buffer_usd,
         retry_buffer_usd=retry_buffer_usd,
+        min_operator_net_profit_usd=min_operator_net_profit_usd,
         watch_health_factor=watch_health_factor,
         close_factor=close_factor,
         parallel_workers=parallel_workers,
         batch_size=batch_size,
-        multicall3_address=os.getenv("LIQUIDATION_MULTICALL3_ADDRESS", "0xcA11bde05977b3631167028862bE2a173976CA11").strip(),
+        multicall3_address=liquidation_market_config().multicall3_address,
     )
 
 
@@ -233,19 +284,19 @@ def liquidation_retention_days() -> int:
 
 
 def protocol_data_provider_address() -> str:
-    return os.getenv("AAVE_PROTOCOL_DATA_PROVIDER_ADDRESS", "").strip()
+    return liquidation_market_config().protocol_data_provider_address
 
 
 def liquidation_data_provider_address() -> str:
-    return os.getenv("AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS", "").strip()
+    return liquidation_market_config().liquidation_data_provider_address
 
 
 def liquidation_executor_address() -> str:
-    return os.getenv("LIQUIDATION_EXECUTOR_ADDRESS", "").strip()
+    return liquidation_market_config().executor_address
 
 
 def liquidation_executor_owner_address() -> str:
-    return os.getenv("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "").strip()
+    return liquidation_market_config().executor_owner_address
 
 
 def liquidation_executor_private_key() -> str:
@@ -257,7 +308,7 @@ def liquidation_self_funded_private_key() -> str:
 
 
 def dex_router_address() -> str:
-    return os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
+    return liquidation_market_config().dex_router_address or os.getenv("DEX_ROUTER_ADDRESS", "0x60aE616a2155Ee3d9A68541Ba4544862310933d4").strip()
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -285,7 +336,7 @@ def liquidation_execution_controls() -> dict:
     retry_buffer_usd, retry_error = parse_env_float("LIQUIDATION_RETRY_BUFFER_USD", 0, minimum=0)
     min_operator_net_profit_usd, min_operator_error = parse_env_float(
         "LIQUIDATION_MIN_OPERATOR_NET_PROFIT_USD",
-        0,
+        1.0,
         minimum=0,
     )
     slippage_bps, slippage_error = parse_env_int(
@@ -303,6 +354,11 @@ def liquidation_execution_controls() -> dict:
         180,
         minimum=1,
     )
+    fork_simulation_timeout_seconds, fork_simulation_timeout_error = parse_env_int(
+        "LIQUIDATION_FORK_SIMULATION_TIMEOUT_SECONDS",
+        180,
+        minimum=1,
+    )
     max_payload_age_seconds, payload_age_error = parse_env_int(
         "LIQUIDATION_MAX_PAYLOAD_AGE_SECONDS",
         30,
@@ -312,6 +368,11 @@ def liquidation_execution_controls() -> dict:
         "LIQUIDATION_MAX_QUOTE_AGE_SECONDS",
         15,
         minimum=1,
+    )
+    min_deadline_remaining_seconds, min_deadline_error = parse_env_int(
+        "LIQUIDATION_MIN_DEADLINE_REMAINING_SECONDS",
+        60,
+        minimum=0,
     )
     auto_pause_threshold, auto_pause_error = parse_env_int(
         "LIQUIDATION_AUTO_PAUSE_FAILURE_THRESHOLD",
@@ -328,8 +389,10 @@ def liquidation_execution_controls() -> dict:
         slippage_error,
         priority_fee_error,
         tx_timeout_error,
+        fork_simulation_timeout_error,
         payload_age_error,
         quote_age_error,
+        min_deadline_error,
         auto_pause_error,
     ):
         _append_config_error(config_errors, config_blocked_reasons, error)
@@ -339,10 +402,11 @@ def liquidation_execution_controls() -> dict:
         threshold=auto_pause_threshold,
     )
     return {
-        "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", False),
+        "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", True),
         "require_static_call": env_bool("LIQUIDATION_REQUIRE_STATIC_CALL", True),
+        "require_fork_simulation": env_bool("LIQUIDATION_REQUIRE_FORK_SIMULATION", True),
         "self_funded_ready": bool(
-            liquidation_self_funded_private_key() and os.getenv("AAVE_POOL_ADDRESS", "").strip()
+            liquidation_self_funded_private_key() and aave_pool_address()
         ),
         "owner_configured": bool(liquidation_executor_owner_address()),
         "private_key_configured": bool(liquidation_executor_private_key()),
@@ -362,8 +426,10 @@ def liquidation_execution_controls() -> dict:
         "slippage_bps": slippage_bps,
         "priority_fee_gwei": priority_fee_gwei,
         "tx_timeout_seconds": tx_timeout_seconds,
+        "fork_simulation_timeout_seconds": fork_simulation_timeout_seconds,
         "max_payload_age_seconds": max_payload_age_seconds,
         "max_quote_age_seconds": max_quote_age_seconds,
+        "min_deadline_remaining_seconds": min_deadline_remaining_seconds,
         "config_valid": bool(config_health.get("valid")) and not config_errors,
         "config_errors": config_errors,
         "config_warnings": list(config_health.get("warnings") or []),
@@ -393,7 +459,7 @@ def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:
             reason = "private_key_mismatch"
         elif name == "CHAIN_ID":
             reason = "chain_id_mismatch"
-        elif name == "AAVE_POOL_ADDRESS":
+        elif name in {"AAVE_POOL_ADDRESS", "LIQUIDATION_POOL_ADDRESS"}:
             reason = "missing_pool" if "missing" in message else "invalid_pool"
         else:
             reason = "config_invalid"
@@ -405,6 +471,31 @@ def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:
 def database_url_or_none() -> Optional[str]:
     database_url = os.getenv("DATABASE_URL", "").strip()
     return database_url or None
+
+
+def ensure_database_schema_cached(database_url: str, *, ttl_seconds: float = 300.0, force: bool = False) -> None:
+    if not database_url:
+        return
+    now = time.monotonic()
+    with SCHEMA_ENSURE_CACHE_LOCK:
+        cached_url = SCHEMA_ENSURE_CACHE.get("database_url")
+        checked_at = float(SCHEMA_ENSURE_CACHE.get("checked_at") or 0.0)
+        cached_error = SCHEMA_ENSURE_CACHE.get("error")
+        if (
+            not force
+            and cached_url == database_url
+            and cached_error is None
+            and now - checked_at < max(1.0, float(ttl_seconds))
+        ):
+            return
+    try:
+        ensure_database_schema(database_url)
+    except Exception as exc:
+        with SCHEMA_ENSURE_CACHE_LOCK:
+            SCHEMA_ENSURE_CACHE.update({"database_url": database_url, "checked_at": now, "error": redact_sensitive_text(exc)})
+        raise
+    with SCHEMA_ENSURE_CACHE_LOCK:
+        SCHEMA_ENSURE_CACHE.update({"database_url": database_url, "checked_at": now, "error": None})
 
 
 def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], str]:
@@ -439,13 +530,26 @@ def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], s
     return list(accounts), source
 
 
-def liquidation_account_registry_window() -> dict:
+def liquidation_account_registry_window(market_id: str | None = None, chain_id: int | None = None) -> dict:
     database_url = database_url_or_none()
     if not database_url:
         return {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": liquidation_retention_days()}
     try:
         ensure_database_schema(database_url)
-        return db_liquidation_account_registry_stats(database_url, retained_days=liquidation_retention_days())
+        try:
+            return db_liquidation_account_registry_stats(
+                database_url,
+                retained_days=liquidation_retention_days(),
+                market_id=market_id,
+                chain_id=chain_id,
+            )
+        except TypeError:
+            if market_id is not None or chain_id is not None:
+                raise
+            return db_liquidation_account_registry_stats(
+                database_url,
+                retained_days=liquidation_retention_days(),
+            )
     except Exception:
         return {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": liquidation_retention_days()}
 
@@ -470,7 +574,12 @@ def schema_status_payload() -> dict:
         return {"configured": True, "up_to_date": False, "error": redact_sensitive_text(exc), "expected_migrations": list(EXPECTED_SCHEMA_MIGRATION_IDS), "applied_migrations": []}
 
 
-def liquidation_discovery_progress(pool_address: str) -> dict:
+def liquidation_discovery_progress(
+    pool_address: str,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
     database_url = database_url_or_none()
     if not database_url or not pool_address:
         return {
@@ -484,7 +593,12 @@ def liquidation_discovery_progress(pool_address: str) -> dict:
         }
     try:
         ensure_database_schema(database_url)
-        return db_liquidation_discovery_scan_progress(database_url, pool_address)
+        return db_liquidation_discovery_scan_progress(
+            database_url,
+            pool_address,
+            market_id=market_id,
+            chain_id=chain_id,
+        )
     except Exception:
         return {
             "latest_recent_scan_end_at": None,
@@ -497,13 +611,23 @@ def liquidation_discovery_progress(pool_address: str) -> dict:
         }
 
 
-def liquidation_scan_config_library(limit: int = 100) -> dict:
+def liquidation_scan_config_library(
+    limit: int = 100,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
     database_url = database_url_or_none()
     if not database_url:
         return {"configured": False, "configs": []}
     try:
         ensure_database_schema(database_url)
-        return {"configured": True, "configs": db_load_liquidation_scan_config_library(database_url, limit=limit)}
+        kwargs = {}
+        if market_id is not None:
+            kwargs["market_id"] = market_id
+        if chain_id is not None:
+            kwargs["chain_id"] = chain_id
+        return {"configured": True, "configs": db_load_liquidation_scan_config_library(database_url, limit=limit, **kwargs)}
     except Exception as exc:
         return {"configured": True, "configs": [], "error": redact_sensitive_text(exc)}
 
@@ -541,6 +665,8 @@ def record_liquidation_discovery_window(
     scan_end_at: datetime,
     discovered_count: int = 0,
     error: Optional[str] = None,
+    market_id: str | None = None,
+    chain_id: int | None = None,
 ) -> None:
     database_url = database_url_or_none()
     if not database_url:
@@ -559,6 +685,8 @@ def record_liquidation_discovery_window(
             scan_end_at=scan_end_at,
             discovered_count=discovered_count,
             error=error,
+            market_id=market_id,
+            chain_id=chain_id,
         )
     except Exception:
         pass
@@ -622,7 +750,7 @@ def parse_iso_datetime(value: object) -> Optional[datetime]:
 def liquidation_discovery_window(force_full: bool = False) -> tuple[datetime, datetime, int, Optional[int], int, dict, str]:
     now = datetime.now(timezone.utc)
     registry = liquidation_account_registry_window()
-    pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+    pool_address = aave_pool_address()
     progress = liquidation_discovery_progress(pool_address)
     config_cursor = liquidation_scan_config_payload("liquidation_discovery_scans.latest_success")
     if not config_cursor:

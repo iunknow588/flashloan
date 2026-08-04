@@ -24,7 +24,7 @@ def test_control_page_links_exchange_matrix_without_inline_matrix():
 
     control_body = client.get("/").get_data(as_text=True)
 
-    assert "/exchange-matrix" in control_body
+    assert "/exchange-matrix" not in control_body
     assert "5×5 兑换胜率汇总" not in control_body
     assert "5×5 兑换路径矩阵" not in control_body
     assert "refreshLiquidationSettings(" not in control_body
@@ -45,13 +45,13 @@ def test_opportunity_health_page_is_standalone():
 def test_control_page_links_opportunity_health_without_inline_table():
     body = app.test_client().get("/").get_data(as_text=True)
 
-    assert "/opportunity-health" in body
+    assert "/opportunity-health" not in body
     assert "全量机会健康度列表" not in body
     assert "opportunityHealthBody" not in body
 
 
 def test_control_page_keeps_liquidation_account_health_as_primary_table():
-    body = app.test_client().get("/").get_data(as_text=True)
+    body = app.test_client().get("/config").get_data(as_text=True)
 
     assert "Aave 清算总览" in body
     assert "全体清算账户健康度" in body
@@ -116,7 +116,7 @@ def test_liquidation_panel_script_references_existing_dom_ids():
 def test_liquidation_monitor_shows_circuit_breaker_panel():
     body = app.test_client().get("/liquidation").get_data(as_text=True)
 
-    assert "Circuit breaker" in body
+    assert "执行保护" in body
     assert "circuitBreakerLevel" in body
     assert "circuitBreakerHistoryBody" in body
     assert "/api/liquidation/pause-guard" in body
@@ -126,8 +126,10 @@ def test_liquidation_monitor_shows_circuit_breaker_panel():
 def test_liquidation_monitor_shows_candidate_queue_and_static_simulation_panel():
     body = app.test_client().get("/liquidation").get_data(as_text=True)
 
-    assert "Liquidation candidate queue" in body
-    assert "Static simulation" in body
+    assert "核心机会库" in body
+    assert "高频更新库" in body
+    assert "highFrequencyPoolCount" in body
+    assert "静态模拟" in body
     assert "staticCallPassedCount" in body
     assert "staticCallFailedCount" in body
     assert "staticCallBody" in body
@@ -145,14 +147,20 @@ def test_liquidation_monitor_shows_statistics_and_removes_arbitrage_navigation()
     assert "renderLiquidationStats" in body
     assert "/exchange-matrix" not in body
     assert "/opportunity-health" not in body
+    assert "债务池" in body
+    assert "账户扫描" in body
+    assert "市场观察" in body
+    assert "清算执行" in body
+    assert "执行审计" in body
+    assert "系统配置" in body
 
 
 def test_liquidation_monitor_failure_samples_show_execution_replay_fields():
     body = app.test_client().get("/liquidation").get_data(as_text=True)
 
     assert "failureSampleBody" in body
-    assert "Receipt" in body
-    assert "Retryable" in body
+    assert "回执" in body
+    assert "可重试" in body
     assert "p.execution_phase" in body
     assert "p.tx_hash" in body
     assert "p.receipt_status" in body

@@ -216,6 +216,10 @@ def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
                 "debt_asset": "0x0000000000000000000000000000000000000003",
                 "amount_to_pass_to_liquidation_call": 1000,
                 "min_collateral_swap_out": 900,
+                "swap_path": [
+                    "0x0000000000000000000000000000000000000002",
+                    "0x0000000000000000000000000000000000000003",
+                ],
                 "estimated_profit": {"net_profit_base": 123},
             },
         },
@@ -230,6 +234,84 @@ def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
     assert data["method"] == "requestLiquidation"
     assert data["request"]["debtToCover"] == "1000"
     assert data["preflight"]["static_call_required"] is True
+
+
+def test_liquidation_account_cached_api_returns_pool_snapshot(monkeypatch):
+    from web import control_panel
+
+    account = "0x0000000000000000000000000000000000000001"
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_cached_payload",
+        lambda value: {"found": True, "cached": True, "account": value, "summary": {"health_factor": 1.01}},
+    )
+
+    response = app.test_client().get(f"/api/liquidation/account/cached?account={account}")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["cached"] is True
+    assert data["account"] == account
+
+
+def test_liquidation_payload_fast_blocks_non_liquidatable_cached_account(monkeypatch):
+    from web import control_panel
+
+    account = "0x0000000000000000000000000000000000000001"
+    called = {"payload": False}
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_account_cached_payload",
+        lambda value: {
+            "found": True,
+            "cached": True,
+            "account": value,
+            "summary": {"health_factor": 1.006, "status": "warning"},
+            "liquidation_candidates": [],
+            "context": {"core_opportunity": {"payload_state": "over_1u_candidate", "quote_viable": False}},
+        },
+    )
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_payload_for_account",
+        lambda *args, **kwargs: called.update(payload=True) or {},
+    )
+
+    response = app.test_client().get(f"/api/liquidation/account/payload?account={account}&fast=1")
+    data = response.get_json()
+
+    assert response.status_code == 400
+    assert data["reason_code"] == "ACCOUNT_NOT_LIQUIDATABLE"
+    assert "account_not_liquidatable" in data["blocked_reasons"]
+    assert "no_liquidation_candidate" in data["blocked_reasons"]
+    assert called["payload"] is False
+
+
+def test_liquidation_payload_block_marks_low_value_missing_candidate_as_manual_only():
+    from web.control_panel_liquidation_routes import classify_liquidation_payload_block
+
+    blocked = classify_liquidation_payload_block(
+        "0x0000000000000000000000000000000000000001",
+        {
+            "found": True,
+            "summary": {"health_factor": 0.767, "status": "liquidatable"},
+            "liquidation_candidates": [],
+            "recommended_candidate": None,
+            "liquidation_profit": {"operator_net_profit_usd": 0.000001},
+            "context": {
+                "core_opportunity": {
+                    "estimated_operator_net_profit_usd": 0.000001,
+                    "best_debt_asset": None,
+                    "best_collateral_asset": None,
+                }
+            },
+        },
+    )
+
+    assert blocked["reason_code"] == "NO_EXECUTABLE_CANDIDATE"
+    assert blocked["state"] == "submission_blocked"
+    assert blocked["blocked_reasons"] == ["no_liquidation_candidate", "profit_below_minimum"]
+    assert "manual test only" in blocked["error"]
 
 
 def test_liquidation_account_preflight_api_returns_static_call_status(monkeypatch):

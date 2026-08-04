@@ -37,6 +37,9 @@ ACCOUNT_DATA_OUTPUT_TYPES = ["uint256", "uint256", "uint256", "uint256", "uint25
 class LiquidationScanConfig:
     wide_scan_seconds: float = 1800.0
     near_scan_seconds: float = 0.2
+    borrow_health_refresh_seconds: float = 1800.0
+    high_frequency_refresh_seconds: float = 300.0
+    core_opportunity_refresh_seconds: float = 1.0
     warning_health_factor: float = 1.05
     liquidation_health_factor: float = 1.0
     max_candidates: int = 5000
@@ -46,6 +49,7 @@ class LiquidationScanConfig:
     gas_cost_usd: float = 0.0
     mev_buffer_usd: float = 0.0
     retry_buffer_usd: float = 0.0
+    min_operator_net_profit_usd: float = 1.0
     watch_health_factor: float = 1.5
     close_factor: float = 0.5
     parallel_workers: int = 8
@@ -321,8 +325,6 @@ def build_liquidation_candidates(
     candidates: list[dict] = []
     for collateral in active_collateral:
         for debt in active_debts:
-            if collateral["token_address"].lower() == debt["token_address"].lower():
-                continue
             try:
                 raw = provider.functions.getLiquidationInfo(
                     Web3.to_checksum_address(user),
@@ -412,7 +414,8 @@ def build_liquidation_execution_plan(
     liquidation_ready = health_factor < float(config.liquidation_health_factor)
     profitable = bool(
         recommended_candidate
-        and float((recommended_candidate.get("estimated_profit") or {}).get("net_profit_base", 0.0)) > 0
+        and float((recommended_candidate.get("estimated_profit") or {}).get("net_profit_base", 0.0))
+        > float(config.min_operator_net_profit_usd)
     )
     execution_ready = liquidation_ready and profitable and recommended_candidate is not None
     reason: str
@@ -421,7 +424,7 @@ def build_liquidation_execution_plan(
     elif not liquidation_ready:
         reason = f"health factor {health_factor:.3f} is above liquidation threshold"
     elif not profitable:
-        reason = "recommended candidate is not profitable after fees"
+        reason = f"recommended candidate net profit is not above {config.min_operator_net_profit_usd:.2f} USD"
     else:
         reason = "ready for execution preflight"
     return {
@@ -493,6 +496,7 @@ def build_user_liquidation_report(
         liquidation_state = "warning"
     report = {
         "account": checksum_user,
+        "positions_complete": True,
         "summary": {
             **summary,
             "status": liquidation_state,

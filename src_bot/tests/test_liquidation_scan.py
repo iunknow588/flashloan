@@ -195,6 +195,79 @@ def test_build_liquidation_candidates_uses_realtime_flashloan_premium(monkeypatc
     assert candidates[0]["parameter_sources"]["flashloan_premium_source"] == "aave_pool"
 
 
+def test_build_liquidation_candidates_allows_same_asset_collateral_and_debt(monkeypatch):
+    from execution import liquidation_scan
+
+    calls = []
+
+    class FakeProvider:
+        class functions:
+            @staticmethod
+            def getLiquidationInfo(user, collateral, debt):
+                calls.append((collateral, debt))
+
+                class Call:
+                    @staticmethod
+                    def call():
+                        return (
+                            (0, 2000, 0, 0, 0, 0),
+                            (100, 200, collateral, 500, 500),
+                            (100, 400, debt, 300, 300),
+                            120,
+                            80,
+                            0,
+                            40,
+                        )
+
+                return Call()
+
+    class FakeContract:
+        functions = FakeProvider.functions
+
+    class FakeEth:
+        @staticmethod
+        def contract(address, abi):
+            return FakeContract()
+
+    class FakeWeb3:
+        def __init__(self, provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(*args, **kwargs):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return value
+
+    monkeypatch.setattr(liquidation_scan, "Web3", FakeWeb3)
+    positions = [
+        {
+            "token_address": "0xUSDC",
+            "symbol": "USDC",
+            "usage_as_collateral_enabled": True,
+            "current_a_token_balance": 500,
+            "current_stable_debt": 0,
+            "current_variable_debt": 300,
+            "decimals": 6,
+            "oracle_price": 1,
+        },
+    ]
+
+    candidates = build_liquidation_candidates(
+        "https://rpc.example",
+        "0xabc",
+        positions,
+        "0xdef",
+        LiquidationScanConfig(close_factor=0.5),
+    )
+
+    assert calls == [("0xUSDC", "0xUSDC")]
+    assert candidates[0]["collateral_asset"] == "0xUSDC"
+    assert candidates[0]["debt_asset"] == "0xUSDC"
+
+
 def test_split_candidate_accounts():
     groups = split_candidate_accounts(
         [
@@ -651,6 +724,24 @@ def test_build_liquidation_execution_plan_marks_readiness():
     assert plan["reason"] == "ready for execution preflight"
 
 
+def test_build_liquidation_execution_plan_requires_profit_above_one_usd():
+    plan = build_liquidation_execution_plan(
+        "0x0000000000000000000000000000000000000001",
+        {"health_factor": 0.98},
+        {
+            "collateral_symbol": "WETH",
+            "debt_symbol": "USDC",
+            "estimated_profit": {"net_profit_base": 1.0, "gross_profit_base": 3.0},
+        },
+        LiquidationScanConfig(min_operator_net_profit_usd=1.0),
+    )
+
+    assert plan["liquidation_ready"] is True
+    assert plan["profitable"] is False
+    assert plan["execution_ready"] is False
+    assert "not above 1.00 USD" in plan["reason"]
+
+
 def test_near_threshold_healthy_account_is_not_liquidatable(monkeypatch):
     from execution import liquidation_scan
 
@@ -722,8 +813,14 @@ def test_build_liquidation_execution_payload_requires_static_preflight():
         "recommended_candidate": {
             "collateral_asset": "0x0000000000000000000000000000000000000002",
             "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_decimals": 6,
+            "debt_price": 1,
             "amount_to_pass_to_liquidation_call": 1000,
             "min_collateral_swap_out": 900,
+            "swap_path": [
+                "0x0000000000000000000000000000000000000002",
+                "0x0000000000000000000000000000000000000003",
+            ],
             "estimated_profit": {"net_profit_base": 123},
         },
     }
@@ -738,7 +835,7 @@ def test_build_liquidation_execution_payload_requires_static_preflight():
     assert payload["method"] == "requestLiquidation"
     assert payload["request"]["debtToCover"] == "1000"
     assert payload["request"]["minCollateralSwapOut"] == "900"
-    assert payload["request"]["minProfitAmount"] == "113"
+    assert payload["request"]["minProfitAmount"] == "122999990"
     assert payload["request"]["gasLimit"] == "0"
     assert payload["preflight"]["min_profit_consistency"]["consistent"] is True
     assert payload["preflight"]["static_call_required"] is True
@@ -767,6 +864,23 @@ def test_build_liquidation_execution_payload_rejects_healthy_account():
         )
 
 
+def test_build_liquidation_execution_payload_rejects_missing_candidate_before_plan_check():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "execution_plan": {"execution_ready": False},
+        "recommended_candidate": None,
+    }
+
+    with pytest.raises(ValueError, match="no executable liquidation candidate"):
+        build_liquidation_execution_payload(
+            report,
+            executor_address="0x0000000000000000000000000000000000000004",
+            router_address="0x0000000000000000000000000000000000000005",
+            deadline=123456,
+        )
+
+
 def test_build_liquidation_execution_payload_requires_min_swap_output():
     report = {
         "account": "0x0000000000000000000000000000000000000001",
@@ -775,6 +889,7 @@ def test_build_liquidation_execution_payload_requires_min_swap_output():
         "recommended_candidate": {
             "collateral_asset": "0x0000000000000000000000000000000000000002",
             "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_price": 1,
             "amount_to_pass_to_liquidation_call": 1000,
             "estimated_profit": {"net_profit_base": 123},
         },
@@ -833,6 +948,7 @@ def test_build_liquidation_execution_payload_quotes_min_swap_output(monkeypatch)
         "recommended_candidate": {
             "collateral_asset": "0x0000000000000000000000000000000000000002",
             "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_price": 1,
             "max_collateral_to_liquidate": 1000,
             "amount_to_pass_to_liquidation_call": 100,
             "estimated_profit": {"net_profit_base": 123},

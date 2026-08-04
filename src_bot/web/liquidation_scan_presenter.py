@@ -131,13 +131,18 @@ def build_borrow_pool_summary(
     scan_summary = dict((scan_payload or {}).get("summary") or {})
     worst_row = rows[0] if rows else None
     latest_batch = scan_summary.get("latest_batch")
+    pool_counts = scan_summary.get("pool_counts") or {}
+    risk_count = int(pool_counts.get("borrow_health_count") or scan_summary.get("risk_count") or len(rows))
+    active_account_count = int(account_tiers.get("active_count") or scan_summary.get("account_count") or 1)
     return {
-        "count": len(rows),
+        "count": risk_count,
         "display_limit": display_limit,
         "watch_health_factor": config.watch_health_factor,
         "worst_account": worst_row.get("account") if worst_row else None,
         "worst_health_factor": worst_row.get("health_factor") if worst_row else None,
         "scanned": scanned,
+        "scan_response_source": scan_summary.get("scan_response_source") or ("chain_scan" if scanned else "database_display"),
+        "manual_force_scan": bool(scan_summary.get("manual_force_scan")),
         "scan_running": bool(scan_cache.get("running")),
         "scan_started_at": scan_cache.get("started_at"),
         "scan_finished_at": scan_cache.get("finished_at"),
@@ -145,14 +150,22 @@ def build_borrow_pool_summary(
         "scan_interval_seconds": scan_interval_seconds,
         "source_account_count": scan_summary.get("account_count"),
         "scanned_account_count": scan_summary.get("scanned_count"),
-        "risk_count": scan_summary.get("risk_count", len(rows)),
+        "selected_account_count": scan_summary.get("selected_account_count"),
+        "scan_strategy": scan_summary.get("scan_strategy"),
+        "scan_included_tiers": scan_summary.get("scan_included_tiers") or [],
+        "core_due": scan_summary.get("core_due"),
+        "high_frequency_due": scan_summary.get("high_frequency_due"),
+        "borrow_health_due": scan_summary.get("borrow_health_due"),
+        "core_account_count": scan_summary.get("core_account_count"),
+        "high_frequency_account_count": scan_summary.get("high_frequency_account_count"),
+        "risk_count": risk_count,
         "entered_count": scan_summary.get("entered_count"),
         "exited_count": scan_summary.get("exited_count"),
         "block_number": scan_summary.get("block_number"),
         "latest_batch": latest_batch,
         "account_tiers": account_tiers,
         "risk_pool_conversion_rate": (
-            float(len(rows)) / float(account_tiers.get("active_count") or scan_summary.get("account_count") or 1)
+            float(risk_count) / float(active_account_count)
         ),
         "error": scan_summary.get("error"),
     }

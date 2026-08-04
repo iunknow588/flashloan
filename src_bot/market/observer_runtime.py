@@ -305,7 +305,7 @@ async def main() -> None:
     binance_symbols = list(dict.fromkeys([*config.symbols, *config.binance_top_symbols]))
     ws_chunk_size = max(1, int(env_float("BINANCE_WS_CHUNK_SIZE", DEFAULT_BINANCE_WS_CHUNK_SIZE)))
     binance_chunks = chunked_symbols(binance_symbols, ws_chunk_size)
-    LOG.info("binance websocket chunks=%s chunk_size=%s total_symbols=%s", len(binance_chunks), ws_chunk_size, len(binance_symbols))
+    LOG.info("binance websocket chunks=%s chunk_size=%s total_symbols=%s symbols=%s", len(binance_chunks), ws_chunk_size, len(binance_symbols), ",".join(binance_symbols))
     tasks = [
         *[
             asyncio.create_task(binance_listener(chunk, config.binance_ws_bases, state, stop))

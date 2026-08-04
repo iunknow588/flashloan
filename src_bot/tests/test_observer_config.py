@@ -98,3 +98,28 @@ def test_aave_binance_overlap_mode_uses_public_intersection(monkeypatch):
     symbols = observer.resolve_binance_top_symbols(["https://binance.example"], 0)
 
     assert symbols == ["BTCUSDT", "ETHUSDT"]
+
+
+def test_explicit_mode_filters_unsupported_symbols(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
+    monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
+    monkeypatch.setenv("AVALANCHE_RPCS", "https://rpc.example")
+    monkeypatch.setenv("AVALANCHE_RPC", "https://rpc.example")
+    monkeypatch.setenv("BINANCE_REST_BASES", "https://binance.example")
+    monkeypatch.setenv("BINANCE_SYMBOL_SELECTION", "explicit")
+    monkeypatch.setenv("SYMBOLS", "AVAXUSDT,SAVAXUSDT,USDCUSDT")
+    monkeypatch.setattr(
+        observer,
+        "load_aave_reserve_assets",
+        lambda *args, **kwargs: [
+            {"token_symbol": "WAVAX", "token_address": "0xavax", "binance_symbol": "AVAXUSDT"},
+            {"token_symbol": "SAVAX", "token_address": "0xsavax", "binance_symbol": "SAVAXUSDT"},
+            {"token_symbol": "USDC", "token_address": "0xusdc", "binance_symbol": "USDCUSDT"},
+        ],
+    )
+    monkeypatch.setattr(observer, "fetch_binance_usdt_symbols", lambda *args, **kwargs: {"AVAXUSDT", "USDCUSDT"})
+
+    config = observer.load_config()
+
+    assert config.symbols == ["AVAXUSDT", "USDCUSDT"]
+    assert config.binance_top_symbols == ["AVAXUSDT"]

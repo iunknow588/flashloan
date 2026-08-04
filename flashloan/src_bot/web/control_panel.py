@@ -978,6 +978,45 @@ def liquidation_engine_autostart_enabled() -> bool:
     )
 
 
+def liquidation_observer_autostart_enabled() -> bool:
+    raw = os.getenv("LIQUIDATION_OBSERVER_AUTOSTART")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return liquidation_engine_autostart_enabled()
+
+
+def start_observer_runtime_async() -> dict:
+    global observer_start_error, observer_starting, selected_symbols
+    if quick_observer_running():
+        return {"enabled": True, "started": False, "reason": "already_running", "pid": quick_observer_pid()}
+    with observer_start_lock:
+        clear_stale_observer_start()
+        if observer_starting:
+            return {"enabled": True, "started": False, "reason": "already_starting"}
+        try:
+            configured_database_url()
+        except Exception as exc:
+            message = redact_sensitive_text(exc)
+            observer_start_error = message
+            set_observer_progress("error", message, 0)
+            set_control_status("error", "start observer", message, 0)
+            return {"enabled": True, "started": False, "reason": "database_config_error", "error": message}
+        observer_starting = True
+        observer_start_error = None
+        selected_symbols = velocity_start_symbols()
+        observer_start_progress["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        set_observer_progress("initializing", "observer autostart requested", 5)
+        set_control_status(
+            "initializing",
+            "start observer",
+            "observer autostart requested",
+            5,
+            ttl_seconds=OBSERVER_START_TIMEOUT_SECONDS + 30,
+        )
+    threading.Thread(target=start_observer_background, name="observer-autostarter", daemon=True).start()
+    return {"enabled": True, "started": True, "symbols": selected_symbols}
+
+
 def liquidation_market_price_snapshot() -> dict[str, float]:
     max_age, _ = parse_env_float("LIQUIDATION_MARKET_PRICE_MAX_AGE_SECONDS", 120.0)
     return price_snapshot_from_extremes(latest_binance_extremes_file(), max_age_seconds=max(1.0, max_age))
@@ -1069,6 +1108,11 @@ def initialize_liquidation_runtime() -> None:
             start_liquidation_engine_runtime(force=True)
         except Exception as exc:
             set_control_status("error", "启动清算引擎", redact_sensitive_text(exc), 0)
+    if liquidation_observer_autostart_enabled():
+        try:
+            start_observer_runtime_async()
+        except Exception as exc:
+            set_control_status("error", "start observer", redact_sensitive_text(exc), 0)
     ui_scan_enabled = os.getenv("LIQUIDATION_UI_SCAN_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
     if ui_scan_enabled:
         _scan_initialize_liquidation_runtime()

@@ -83,6 +83,8 @@ for _module in (
 from db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
 from db.storage_liquidation import (
     load_liquidation_accounts as db_load_liquidation_accounts,
+    load_liquidation_accounts_page as db_load_liquidation_accounts_page,
+    load_latest_liquidation_account_reports as db_load_latest_liquidation_account_reports,
     load_liquidation_scan_config_library as db_load_liquidation_scan_config_library,
     liquidation_account_registry_stats as db_liquidation_account_registry_stats,
     liquidation_discovery_scan_progress as db_liquidation_discovery_scan_progress,
@@ -92,6 +94,7 @@ from db.storage_liquidation import (
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
 from db.storage_liquidation_pool import (
+    load_liquidation_accounts_for_assets as db_load_liquidation_accounts_for_assets,
     load_liquidation_borrow_health_scan_batches as db_load_liquidation_borrow_health_scan_batches,
     load_liquidation_borrow_health_pool as db_load_liquidation_borrow_health_pool,
     load_liquidation_core_opportunity_pool as db_load_liquidation_core_opportunity_pool,
@@ -100,11 +103,29 @@ from db.storage_liquidation_pool import (
     sync_liquidation_borrow_health_pool as db_sync_liquidation_borrow_health_pool,
 )
 from db.storage_schema import ensure_database_schema, load_schema_migrations
+from runtime.liquidation_daemon import market_status_payload, read_daemon_status
+from runtime.liquidation_engine import LiquidationEngine, LiquidationEngineConfig, LiquidationEngineDependencies
+from runtime.liquidation_market_bridge import (
+    asset_variants_for_market_symbols,
+    binance_symbols_for_liquidation_assets,
+    liquidation_asset_ids_from_pool_rows,
+    price_snapshot_from_extremes,
+)
+from runtime.liquidation_price_trigger import accounts_triggered_by_prices
+
+_BASE_ENSURE_DATABASE_SCHEMA = ensure_database_schema
+
+
+def ensure_database_schema_cached(database_url: str, *, ttl_seconds: float = 300.0, force: bool = False) -> None:
+    if ensure_database_schema is not _BASE_ENSURE_DATABASE_SCHEMA:
+        ensure_database_schema(database_url)
+        return
+    liquidation_base.ensure_database_schema_cached(database_url, ttl_seconds=ttl_seconds, force=force)
 
 
 WEB_DIR = Path(__file__).resolve().parent
 APP_DIR = SRC_ROOT
-load_env_files(__file__)
+load_env_files(__file__, override=False)
 
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
@@ -141,6 +162,10 @@ observer_supervisor_stop = threading.Event()
 observer_supervisor_lock = threading.Lock()
 observer_runtime_service = ObserverRuntimeService()
 observer_supervisor_state = observer_runtime_service.supervisor_state
+liquidation_engine_instance: Optional[LiquidationEngine] = None
+liquidation_engine_thread: Optional[threading.Thread] = None
+liquidation_engine_lock = threading.Lock()
+_scan_initialize_liquidation_runtime = liquidation_scan_module.initialize_liquidation_runtime
 observer_start_progress = observer_runtime_service.observer_start_progress
 control_status = observer_runtime_service.control_status
 
@@ -192,12 +217,13 @@ def observer_process_exists(pid: int) -> bool:
                 timeout=3,
                 check=False,
             )
-            return "observer.py" in result.stdout.replace("\\", "/")
+            command_line = result.stdout.replace("\\", "/")
+            return "observer.py" in command_line or "market.observer" in command_line
         except Exception:
             return False
     try:
         command_line = Path(f"/proc/{int(pid)}/cmdline").read_text(encoding="utf-8", errors="ignore")
-        return "observer.py" in command_line
+        return "observer.py" in command_line or "market.observer" in command_line
     except OSError:
         return False
 
@@ -233,7 +259,7 @@ def discover_observer_pid() -> Optional[int]:
     try:
         command = (
             "Get-CimInstance Win32_Process -Filter \"name = 'python.exe'\" | "
-            "Where-Object { $_.CommandLine -like '*market*observer.py*' } | "
+            "Where-Object { $_.CommandLine -like '*observer.py*' -or $_.CommandLine -like '*market.observer*' } | "
             "Select-Object -First 1 -ExpandProperty ProcessId"
         )
         result = subprocess.run(
@@ -270,16 +296,7 @@ def read_observer_pid() -> Optional[int]:
 def quick_observer_pid() -> Optional[int]:
     if observer_process is not None and observer_process.poll() is None:
         return observer_process.pid
-    try:
-        if not OBSERVER_PID_PATH.exists():
-            return None
-        pid = int(OBSERVER_PID_PATH.read_text(encoding="utf-8").strip())
-        if observer_process_exists(pid):
-            return pid
-        OBSERVER_PID_PATH.unlink(missing_ok=True)
-    except (OSError, ValueError):
-        return None
-    return None
+    return read_observer_pid()
 
 
 def quick_observer_running() -> bool:
@@ -485,6 +502,7 @@ def _liquidation_activity_detail(stage: str, progress: dict, last_result: dict) 
 def background_activity_payload(running: Optional[bool] = None, starting: Optional[bool] = None) -> dict:
     observer_running = quick_observer_running() if running is None else bool(running)
     observer_starting_current = bool(globals().get("observer_starting")) if starting is None else bool(starting)
+    daemon_status = liquidation_daemon_status_payload()
     discovery = _liquidation_activity_payload("账户池发现扫描", LIQUIDATION_DISCOVERY_CACHE, LIQUIDATION_DISCOVERY_LOCK)
     health_scan = _liquidation_activity_payload("债务/健康池扫描", LIQUIDATION_SCAN_CACHE, LIQUIDATION_SCAN_LOCK)
     account_backfill = _liquidation_activity_payload("账户池一年查漏补缺", LIQUIDATION_ACCOUNT_BACKFILL_CACHE, LIQUIDATION_ACCOUNT_BACKFILL_LOCK)
@@ -493,6 +511,20 @@ def background_activity_payload(running: Optional[bool] = None, starting: Option
         tasks.append({"label": "机会观察启动", "running": True, "stage": "starting", "stage_label": "启动中", "text": "机会观察：启动中", "feedback": "机会观察：启动中", "percent": 10})
     if observer_running:
         tasks.append({"label": "机会观察", "running": True, "stage": "running", "stage_label": "运行中", "text": "机会观察：运行中", "feedback": "机会观察：运行中", "percent": 100})
+    if daemon_status.get("state") in {"starting", "running", "degraded"}:
+        market = daemon_status.get("market") if isinstance(daemon_status.get("market"), dict) else {}
+        subscribed = market.get("subscribed_symbols") or []
+        tasks.append(
+            {
+                "label": "清算守护进程",
+                "running": daemon_status.get("state") in {"running", "degraded"},
+                "stage": daemon_status.get("state"),
+                "stage_label": daemon_status.get("state"),
+                "text": f"清算守护进程：{daemon_status.get('state')} | Binance {len(subscribed)}",
+                "feedback": f"清算守护进程：{daemon_status.get('state')} | Binance {len(subscribed)}",
+                "percent": 100 if daemon_status.get("state") == "running" else 60,
+            }
+        )
     for item in (discovery, health_scan, account_backfill):
         if item["running"]:
             tasks.append(item)
@@ -501,11 +533,61 @@ def background_activity_payload(running: Optional[bool] = None, starting: Option
         "observer_running": observer_running,
         "observer_starting": observer_starting_current,
         "observer_supervisor": observer_supervisor_payload(),
+        "liquidation_daemon": daemon_status,
         "liquidation_discovery": discovery,
         "liquidation_health_scan": health_scan,
         "liquidation_account_backfill": account_backfill,
         "tasks": tasks,
         "summary": "；".join(str(item.get("feedback") or item.get("text") or item.get("label")) for item in tasks),
+    }
+
+
+def liquidation_daemon_status_payload() -> dict:
+    daemon_status = read_daemon_status()
+    if daemon_status.get("state") not in {"", None, "stale"}:
+        return daemon_status
+    engine = liquidation_engine_instance
+    observer = observer_supervisor_payload()
+    quick_running = quick_observer_running()
+    if quick_running:
+        fallback_symbols = ",".join(displayed_symbols(True) or velocity_start_symbols())
+        observer = {
+            **observer,
+            "enabled": True,
+            "healthy": True,
+            "state": "running",
+            "pid": quick_observer_pid(),
+            "env_symbols": observer.get("env_symbols") or fallback_symbols,
+            "display_symbols": observer.get("display_symbols") or fallback_symbols,
+        }
+    market_snapshot = liquidation_market_price_snapshot()
+    market = market_status_payload(
+        observer.get("env_symbols"),
+        observer.get("display_symbols"),
+        market_snapshot,
+    )
+    engine_payload = {
+        "started": bool(engine),
+        "mode": engine.config.mode if engine else None,
+        "auto_execute": bool(engine and engine.config.auto_execute),
+        "manual_test_completed": bool(engine and engine.config.manual_test_completed),
+        "last_market_snapshot": market_snapshot,
+    }
+    observer_healthy = bool(observer.get("healthy"))
+    market_healthy = bool(market.get("fresh")) or not bool(market.get("subscribed_symbols"))
+    state = "running" if engine and observer_healthy and market_healthy else "degraded" if engine else "stopped"
+    return {
+        "state": state,
+        "source": "ui_runtime",
+        "daemon_file_state": daemon_status,
+        "pid": os.getpid(),
+        "observer": observer,
+        "engine": engine_payload,
+        "market": market,
+        "stale": False,
+        "running": state in {"running", "degraded"},
+        "last_error": None,
+        "updated_at": time.time(),
     }
 
 
@@ -766,7 +848,8 @@ def build_observer_env() -> tuple[dict, list[str]]:
     profile = unified_sampling_profile(config)
     window_seconds = str(profile["seconds"])
     rpc_urls = aave_rpc_urls()
-    pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
+    pool_address = aave_pool_address()
+    market = liquidation_market_payload().get("active") or {}
     reserve_limit = parse_env_int("AAVE_RESERVE_SYMBOL_LIMIT", AAVE_RESERVE_SYMBOL_LIMIT, minimum=0)[0]
     reserve_assets = load_aave_reserve_assets(
         rpc_urls,
@@ -781,9 +864,24 @@ def build_observer_env() -> tuple[dict, list[str]]:
             if asset.get("binance_symbol")
         )
     )
-    tracked_symbols = [*reserve_symbols, "USDCUSDT"]
-    env["SYMBOLS"] = ",".join(tracked_symbols if reserve_symbols else ASSETS.keys())
-    env["BINANCE_SYMBOL_SELECTION"] = "aave_binance_overlap"
+    liquidation_symbols: list[str] = []
+    try:
+        database_url = database_url_or_none()
+        if database_url:
+            related_rows = [
+                *db_load_liquidation_core_opportunity_pool(database_url, limit=500),
+                *db_load_liquidation_high_frequency_pool(database_url, limit=500),
+                *db_load_liquidation_borrow_health_pool(database_url, limit=500),
+                *db_load_latest_liquidation_account_reports(database_url, limit=500),
+            ]
+            liquidation_symbols = binance_symbols_for_liquidation_assets(
+                liquidation_asset_ids_from_pool_rows(related_rows),
+                reserve_assets,
+            )
+    except Exception:
+        liquidation_symbols = []
+    tracked_symbols = list(dict.fromkeys([*(liquidation_symbols or reserve_symbols), "USDCUSDT"]))
+    env["BINANCE_SYMBOL_SELECTION"] = "explicit"
     env["BINANCE_TOP_SYMBOL_LIMIT"] = "0"
     env["BINANCE_VELOCITY_SIDE_LIMIT"] = str(VELOCITY_SIDE_LIMIT)
     env["BINANCE_CANDIDATE_DB_SIDE_LIMIT"] = str(VELOCITY_SIDE_LIMIT)
@@ -794,26 +892,33 @@ def build_observer_env() -> tuple[dict, list[str]]:
     env["OBSERVATION_WRITE_SECONDS"] = window_seconds
     env["AAVE_POLL_SECONDS"] = window_seconds
     env["BINANCE_PAIR_HISTORY_WRITES"] = "false"
-    env["AAVE_VERIFICATION_ENABLED"] = "true"
+    env["AAVE_VERIFICATION_ENABLED"] = "false"
     env["AAVE_RESERVE_SYMBOL_LIMIT"] = str(reserve_limit)
     env["OBSERVATION_DB_WRITES"] = "true"
     env["REPORT_ONLY_ALERTS"] = "true"
     env["SKIP_DATABASE_SCHEMA"] = "true"
     env["OBSERVER_REQUIRE_DB_LOCK"] = "true"
-    env["AVALANCHE_RPC"] = rpc_urls[0]
-    env["AVALANCHE_RPCS"] = ",".join(rpc_urls)
+    env["LIQUIDATION_RPC"] = rpc_urls[0]
+    env["LIQUIDATION_RPCS"] = ",".join(rpc_urls)
+    network_prefix = str(market.get("network") or "avalanche").upper().replace("-", "_")
+    env[f"{network_prefix}_RPC"] = rpc_urls[0]
+    env[f"{network_prefix}_RPCS"] = ",".join(rpc_urls)
     if pool_address:
+        env["LIQUIDATION_POOL_ADDRESS"] = pool_address
         env["AAVE_POOL_ADDRESS"] = pool_address
     for key, value in config.items():
         env[key] = str(value)
-    env["BINANCE_SYMBOL_SELECTION"] = "aave_binance_overlap"
+    env["SYMBOLS"] = ",".join(tracked_symbols if (liquidation_symbols or reserve_symbols) else ASSETS.keys())
+    env["BINANCE_SYMBOL_SELECTION"] = "explicit"
     env["BINANCE_TOP_SYMBOL_LIMIT"] = "0"
-    try:
-        rest_bases = env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")
-        display_symbols = resolve_aave_binance_overlap_symbols(rest_bases, int(env["BINANCE_TOP_SYMBOL_LIMIT"]))
-    except Exception:
-        display_symbols = []
-    fallback_symbols = tracked_symbols if reserve_symbols else list(ASSETS.keys())
+    display_symbols = liquidation_symbols or reserve_symbols
+    if not display_symbols:
+        try:
+            rest_bases = env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")
+            display_symbols = resolve_aave_binance_overlap_symbols(rest_bases, int(env["BINANCE_TOP_SYMBOL_LIMIT"]))
+        except Exception:
+            display_symbols = []
+    fallback_symbols = tracked_symbols if (liquidation_symbols or reserve_symbols) else list(ASSETS.keys())
     return env, display_symbols or fallback_symbols
 
 
@@ -856,6 +961,166 @@ def start_observer_background() -> None:
     finally:
         with observer_start_lock:
             observer_starting = False
+
+
+def liquidation_engine_enabled() -> bool:
+    return os.getenv("LIQUIDATION_ENGINE_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def liquidation_engine_autostart_enabled() -> bool:
+    return any(
+        os.getenv(name, "false").strip().lower() in {"1", "true", "yes", "on"}
+        for name in (
+            "LIQUIDATION_ENGINE_ENABLED",
+            "LIQUIDATION_EXECUTION_ENABLED",
+            "LIQUIDATION_AUTO_EXECUTE",
+        )
+    )
+
+
+def liquidation_observer_autostart_enabled() -> bool:
+    raw = os.getenv("LIQUIDATION_OBSERVER_AUTOSTART")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return liquidation_engine_autostart_enabled()
+
+
+def start_observer_runtime_async() -> dict:
+    global observer_start_error, observer_starting, selected_symbols
+    if quick_observer_running():
+        return {"enabled": True, "started": False, "reason": "already_running", "pid": quick_observer_pid()}
+    with observer_start_lock:
+        clear_stale_observer_start()
+        if observer_starting:
+            return {"enabled": True, "started": False, "reason": "already_starting"}
+        try:
+            configured_database_url()
+        except Exception as exc:
+            message = redact_sensitive_text(exc)
+            observer_start_error = message
+            set_observer_progress("error", message, 0)
+            set_control_status("error", "start observer", message, 0)
+            return {"enabled": True, "started": False, "reason": "database_config_error", "error": message}
+        observer_starting = True
+        observer_start_error = None
+        selected_symbols = velocity_start_symbols()
+        observer_start_progress["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        set_observer_progress("initializing", "observer autostart requested", 5)
+        set_control_status(
+            "initializing",
+            "start observer",
+            "observer autostart requested",
+            5,
+            ttl_seconds=OBSERVER_START_TIMEOUT_SECONDS + 30,
+        )
+    threading.Thread(target=start_observer_background, name="observer-autostarter", daemon=True).start()
+    return {"enabled": True, "started": True, "symbols": selected_symbols}
+
+
+def liquidation_market_price_snapshot() -> dict[str, float]:
+    max_age, _ = parse_env_float("LIQUIDATION_MARKET_PRICE_MAX_AGE_SECONDS", 120.0)
+    return price_snapshot_from_extremes(latest_binance_extremes_file(), max_age_seconds=max(1.0, max_age))
+
+
+def liquidation_affected_accounts_for_market_assets(assets: list[str]) -> list[str]:
+    database_url = database_url_or_none()
+    if not database_url:
+        return []
+    limit, _ = parse_env_int("LIQUIDATION_ENGINE_MAX_ACCOUNTS", 100, minimum=1)
+    buffer_bps, _ = parse_env_int("LIQUIDATION_PRICE_TRIGGER_BUFFER_BPS", 25, minimum=0)
+    variants = asset_variants_for_market_symbols(assets, reserve_cache_path=AAVE_RESERVE_CACHE_PATH)
+    price_snapshot = liquidation_market_price_snapshot()
+    core_rows = db_load_liquidation_core_opportunity_pool(database_url, limit=limit)
+    related_rows = [
+        row
+        for row in core_rows
+        if set(liquidation_asset_ids_from_pool_rows([row])).intersection(set(variants))
+    ]
+    triggered = accounts_triggered_by_prices(
+        related_rows,
+        price_snapshot,
+        target_health_factor=1.0,
+        buffer_bps=buffer_bps,
+    )
+    if triggered:
+        return triggered[:limit]
+    affected = db_load_liquidation_accounts_for_assets(database_url, variants, limit=limit)
+    executable = set(liquidation_engine_core_accounts())
+    return [account for account in affected if account in executable][:limit]
+
+
+def liquidation_engine_core_accounts() -> list[str]:
+    database_url = database_url_or_none()
+    if not database_url:
+        return []
+    config = LiquidationEngineConfig.from_env()
+    rows = db_load_liquidation_core_opportunity_pool(
+        database_url,
+        limit=config.max_accounts_per_tick,
+    )
+    accounts: list[str] = []
+    for row in rows:
+        account = str(row.get("account") or "").strip()
+        if not account:
+            continue
+        if row.get("auto_execution_blocked"):
+            continue
+        if not row.get("best_collateral_asset") or not row.get("best_debt_asset"):
+            continue
+        if not bool(row.get("quote_viable")):
+            continue
+        accounts.append(account)
+    return list(dict.fromkeys(accounts))
+
+
+def start_liquidation_engine_runtime(*, force: bool = False) -> dict:
+    global liquidation_engine_instance, liquidation_engine_thread
+    if not force and not liquidation_engine_enabled():
+        return {"enabled": False, "started": False, "reason": "LIQUIDATION_ENGINE_ENABLED is false"}
+    with liquidation_engine_lock:
+        if liquidation_engine_thread is not None and liquidation_engine_thread.is_alive():
+            return {"enabled": True, "started": False, "reason": "already_running"}
+        dependencies = LiquidationEngineDependencies(
+            load_accounts=liquidation_engine_core_accounts,
+            build_payload=liquidation_execution_payload_for_account,
+            simulate_static_call=simulate_liquidation_static_call,
+            submit=execute_flashloan_liquidation_transaction,
+            record_attempt=record_liquidation_execution_attempt_safely,
+            load_controls=liquidation_execution_controls,
+            load_price_snapshot=liquidation_market_price_snapshot,
+            load_price_events=lambda: [],
+            load_affected_accounts=liquidation_affected_accounts_for_market_assets,
+        )
+        liquidation_engine_instance = LiquidationEngine(dependencies, LiquidationEngineConfig.from_env())
+        liquidation_engine_thread = liquidation_engine_instance.run_in_thread(name="liquidation-engine")
+        return {
+            "enabled": True,
+            "started": True,
+            "mode": liquidation_engine_instance.config.mode,
+            "auto_execute": liquidation_engine_instance.config.auto_execute,
+            "manual_test_completed": liquidation_engine_instance.config.manual_test_completed,
+        }
+
+
+def initialize_liquidation_runtime() -> None:
+    if liquidation_engine_autostart_enabled():
+        try:
+            start_liquidation_engine_runtime(force=True)
+        except Exception as exc:
+            set_control_status("error", "启动清算引擎", redact_sensitive_text(exc), 0)
+    if liquidation_observer_autostart_enabled():
+        try:
+            start_observer_runtime_async()
+        except Exception as exc:
+            set_control_status("error", "start observer", redact_sensitive_text(exc), 0)
+    ui_scan_enabled = os.getenv("LIQUIDATION_UI_SCAN_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+    if ui_scan_enabled:
+        _scan_initialize_liquidation_runtime()
+    else:
+        try:
+            load_liquidation_account_registry(force=True)
+        except Exception as exc:
+            set_control_status("error", "读取清算数据库", redact_sensitive_text(exc), 0)
 
 
 def render_control_panel() -> str:

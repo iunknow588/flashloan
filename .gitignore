@@ -2,6 +2,7 @@
 *.env
 !.env.example
 !.env.testnet.example
+.replit
 node_modules/
 artifacts/
 cache/

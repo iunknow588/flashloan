@@ -14,6 +14,7 @@ def _deps(
     events=None,
     affected=None,
     static_passed=True,
+    blocked_reasons=None,
 ):
     price_iter = iter(prices or [])
     event_iter = iter(events or [])
@@ -35,7 +36,7 @@ def _deps(
                 "static_call_passed": static_passed,
                 "static_call_error": None if static_passed else "execution reverted",
             },
-            "blocked_reasons": [] if static_passed else ["static_call_failed"],
+            "blocked_reasons": list(blocked_reasons or ([] if static_passed else ["static_call_failed"])),
         }
 
     def submit(payload):
@@ -69,7 +70,8 @@ def test_engine_config_from_env_uses_safe_defaults_for_invalid_numeric_values(mo
     monkeypatch.setenv("LIQUIDATION_EVENT_POLL_SECONDS", "bad")
     monkeypatch.setenv("LIQUIDATION_PRICE_TRIGGER_BPS", "bad")
     monkeypatch.setenv("LIQUIDATION_ENGINE_MAX_ACCOUNTS", "bad")
-    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.delenv("LIQUIDATION_AUTO_EXECUTE", raising=False)
+    monkeypatch.delenv("LIQUIDATION_MANUAL_TEST_COMPLETED", raising=False)
 
     config = LiquidationEngineConfig.from_env()
 
@@ -77,6 +79,30 @@ def test_engine_config_from_env_uses_safe_defaults_for_invalid_numeric_values(mo
     assert config.event_poll_interval_seconds == 5
     assert config.price_change_threshold_bps == 100
     assert config.max_accounts_per_tick == 100
+    assert config.auto_execute_requested is True
+    assert config.manual_test_completed is True
+    assert config.auto_execute is True
+
+
+def test_engine_config_from_env_observe_mode_when_manual_test_is_explicitly_false(monkeypatch):
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_MANUAL_TEST_COMPLETED", "false")
+
+    config = LiquidationEngineConfig.from_env()
+
+    assert config.auto_execute_requested is True
+    assert config.manual_test_completed is False
+    assert config.auto_execute is False
+
+
+def test_engine_config_from_env_allows_auto_execute_only_after_manual_test(monkeypatch):
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_MANUAL_TEST_COMPLETED", "true")
+
+    config = LiquidationEngineConfig.from_env()
+
+    assert config.auto_execute_requested is True
+    assert config.manual_test_completed is True
     assert config.auto_execute is True
 
 
@@ -110,6 +136,37 @@ def test_engine_auto_mode_submits_after_static_call_gate_passes():
     assert result["processed"][0]["state"] == "confirmed_success"
     assert submitted == ["0x1"]
     assert [row["state"] for row in records] == ["static_call_passed", "confirmed_success"]
+
+
+def test_engine_auto_mode_defers_fork_simulation_required_to_submitter():
+    records = []
+    submitted = []
+    engine = LiquidationEngine(
+        _deps(records=records, submitted=submitted, blocked_reasons=["fork_simulation_required"]),
+        LiquidationEngineConfig(auto_execute=True),
+    )
+
+    result = engine.run_once()
+
+    assert result["processed"][0]["state"] == "confirmed_success"
+    assert submitted == ["0x1"]
+    assert [row["state"] for row in records] == ["static_call_passed", "confirmed_success"]
+
+
+def test_engine_auto_mode_blocks_failed_fork_simulation():
+    records = []
+    submitted = []
+    engine = LiquidationEngine(
+        _deps(records=records, submitted=submitted, blocked_reasons=["fork_simulation_failed"]),
+        LiquidationEngineConfig(auto_execute=True),
+    )
+
+    result = engine.run_once()
+
+    assert result["processed"][0]["state"] == "submission_blocked"
+    assert result["processed"][0]["blocked_reasons"] == ["fork_simulation_failed"]
+    assert submitted == []
+    assert [row["state"] for row in records] == ["static_call_passed", "submission_blocked"]
 
 
 def test_engine_blocks_submit_when_static_call_fails():

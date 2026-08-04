@@ -50,6 +50,25 @@ def _optional_request_int_arg(name: str) -> int | None:
         return None
 
 
+def _request_market_kwargs() -> dict:
+    try:
+        args = request.args
+    except RuntimeError:
+        return {}
+    market_id = args.get("market_id", "").strip() or None
+    raw_chain_id = args.get("chain_id", "").strip()
+    try:
+        chain_id = int(raw_chain_id) if raw_chain_id else None
+    except (TypeError, ValueError):
+        chain_id = None
+    kwargs = {}
+    if market_id is not None:
+        kwargs["market_id"] = market_id
+    if chain_id is not None:
+        kwargs["chain_id"] = chain_id
+    return kwargs
+
+
 def request_liquidatable_context(account: str) -> dict | None:
     context_keys = {"checked_at", "block_number", "candidate_hash", "source_pool", "health_factor"}
     if not any(request.args.get(key) for key in context_keys) and request.args.get("from", "").strip() != "debt_pool":
@@ -103,9 +122,100 @@ def ensure_request_liquidatable_context(account: str) -> dict | None:
     return None
 
 
-def liquidation_coverage_payload(pool_address: str, panel=None) -> dict:
+def _float_or_none(value) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def classify_liquidation_payload_block(account: str, snapshot: dict | None, error: object | None = None) -> dict | None:
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    summary = snapshot.get("summary") if isinstance(snapshot.get("summary"), dict) else {}
+    context = snapshot.get("context") if isinstance(snapshot.get("context"), dict) else {}
+    core = context.get("core_opportunity") if isinstance(context.get("core_opportunity"), dict) else {}
+    candidates = snapshot.get("liquidation_candidates") if isinstance(snapshot.get("liquidation_candidates"), list) else []
+    recommended = snapshot.get("recommended_candidate") if isinstance(snapshot.get("recommended_candidate"), dict) else {}
+    error_text = route_error_message(error) if error is not None else ""
+    health_factor = _float_or_none(summary.get("health_factor") or core.get("health_factor"))
+
+    reason_code = None
+    blocked_reasons: list[str] = []
+    detail = None
+    if health_factor is not None and health_factor >= 1:
+        reason_code = "ACCOUNT_NOT_LIQUIDATABLE"
+        blocked_reasons.append("account_not_liquidatable")
+        detail = f"health_factor={health_factor:.18g} is not below 1.0"
+        if not candidates and not recommended and snapshot.get("found"):
+            blocked_reasons.append("no_liquidation_candidate")
+            detail += "; pool cache has no recommended debt/collateral asset pair"
+    elif not candidates and not recommended and snapshot.get("found"):
+        reason_code = "NO_EXECUTABLE_CANDIDATE"
+        blocked_reasons.append("no_liquidation_candidate")
+        core_profit = _float_or_none(core.get("estimated_operator_net_profit_usd"))
+        if core_profit is None:
+            liquidation_profit = snapshot.get("liquidation_profit") if isinstance(snapshot.get("liquidation_profit"), dict) else {}
+            core_profit = _float_or_none(liquidation_profit.get("operator_net_profit_usd"))
+        if core_profit is not None and core_profit < 1.0:
+            blocked_reasons.append("profit_below_minimum")
+            detail = "no executable debt/collateral pair; estimated operator profit is below 1U; manual test only"
+        else:
+            detail = "pool cache has no recommended debt/collateral asset pair"
+    elif error_text:
+        lowered = error_text.lower()
+        if "recommended_candidate" in lowered or "candidate" in lowered:
+            reason_code = "NO_EXECUTABLE_CANDIDATE"
+            blocked_reasons.append("no_liquidation_candidate")
+        elif "not liquidatable" in lowered:
+            reason_code = "ACCOUNT_NOT_LIQUIDATABLE"
+            blocked_reasons.append("account_not_liquidatable")
+        elif "quote" in lowered:
+            reason_code = "QUOTE_FAILED"
+            blocked_reasons.append("quote_failed")
+        else:
+            reason_code = "PAYLOAD_BUILD_FAILED"
+            blocked_reasons.append("payload_build_failed")
+        detail = error_text
+
+    if not reason_code:
+        return None
+    return {
+        "error": detail or reason_code,
+        "reason_code": reason_code,
+        "account": account,
+        "state": "submission_blocked",
+        "execution_phase": "payload_blocked",
+        "blocked_reasons": blocked_reasons,
+        "preflight": {
+            "static_call_required": True,
+            "static_call_status": "blocked",
+            "static_call_passed": False,
+            "static_call_error": detail or reason_code,
+        },
+        "checks": {
+            "health_factor": health_factor,
+            "candidate_count": len(candidates),
+            "recommended_candidate_present": bool(recommended),
+            "payload_state": core.get("payload_state"),
+            "quote_viable": core.get("quote_viable"),
+            "static_call_status": core.get("static_call_status"),
+        },
+        "cached_snapshot": snapshot or None,
+    }
+
+
+def liquidation_coverage_payload(pool_address: str, panel=None, *, market_id: str | None = None, chain_id: int | None = None) -> dict:
     source_panel = panel or ROUTE_CONTEXT.panel
-    progress = getattr(source_panel, "liquidation_discovery_progress")(pool_address)
+    try:
+        progress = getattr(source_panel, "liquidation_discovery_progress")(
+            pool_address,
+            market_id=market_id,
+            chain_id=chain_id,
+        )
+    except TypeError:
+        if market_id is not None or chain_id is not None:
+            raise
+        progress = getattr(source_panel, "liquidation_discovery_progress")(pool_address)
     latest_to = progress.get("latest_recent_to_block")
     earliest_from = progress.get("earliest_backfill_from_block")
     latest_gap_from = None
@@ -127,6 +237,13 @@ def liquidation_coverage_payload(pool_address: str, panel=None) -> dict:
 def liquidation_failure_response(account: str, payload: dict | None, error: Exception) -> dict:
     response = {"error": route_error_message(error), "account": account}
     if not isinstance(payload, dict):
+        try:
+            snapshot = panel_call("liquidation_account_cached_payload", account)
+        except Exception:
+            snapshot = {}
+        blocked = classify_liquidation_payload_block(account, snapshot, error)
+        if blocked is not None:
+            return blocked
         return response
     account_report = payload.get("account_report") or {}
     response.update(
@@ -177,6 +294,7 @@ def record_liquidation_route_failure(account: str, mode: str, response: dict, er
     safe_error = route_error_message(error)
     failure_state = route_failure_state(mode, response)
     failure_phase = route_failure_phase(response, failure_state)
+    market_kwargs = _request_market_kwargs()
     preflight = {
         **(response.get("preflight") or {}),
         "execution_phase": failure_phase,
@@ -196,6 +314,7 @@ def record_liquidation_route_failure(account: str, mode: str, response: dict, er
         tx_hash=normalize_tx_hash(response),
         receipt=response.get("receipt") or {},
         error=safe_error,
+        **market_kwargs,
     )
 
 
@@ -204,6 +323,7 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
     state = "confirmed_success" if int(receipt.get("status") or 0) == 1 else "confirmed_failed"
     execution_phase = result.get("execution_phase") or state
     tx_hash = normalize_tx_hash(result)
+    market_kwargs = _request_market_kwargs()
     panel_call(
         "record_liquidation_execution_attempt_safely",
         account=account,
@@ -218,6 +338,7 @@ def record_liquidation_route_success(account: str, mode: str, result: dict) -> N
         },
         tx_hash=tx_hash,
         receipt=receipt,
+        **market_kwargs,
     )
 
 
@@ -231,7 +352,25 @@ def register_liquidation_routes(app, panel) -> None:
 
     @app.get("/api/liquidation/borrow-pool")
     def liquidation_borrow_pool_api():
-        return jsonify(panel_call("liquidation_borrow_pool_payload"))
+        market_kwargs = _request_market_kwargs()
+        pagination_requested = any(
+            name in request.args
+            for name in ("page_size", "risk_page", "high_page", "core_page", "market_id", "chain_id")
+        )
+        if not pagination_requested:
+            return jsonify(panel_call("liquidation_borrow_pool_payload", **market_kwargs))
+        page_size = request_int_arg("page_size", 20, minimum=1, maximum=100)
+        return jsonify(
+            panel_call(
+                "liquidation_borrow_pool_payload",
+                page_size=page_size,
+                risk_page=request_int_arg("risk_page", 1, minimum=1),
+                high_page=request_int_arg("high_page", 1, minimum=1),
+                core_page=request_int_arg("core_page", 1, minimum=1),
+                skip_schema=True,
+                **market_kwargs,
+            )
+        )
 
     @app.get("/api/debt-pool/decision")
     def debt_pool_decision_api():
@@ -241,32 +380,50 @@ def register_liquidation_routes(app, panel) -> None:
     @app.post("/api/liquidation/borrow-pool/scan")
     def liquidation_borrow_pool_scan_api():
         payload = request.get_json(silent=True) or {}
+        market_kwargs = _request_market_kwargs()
         force = (
             request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
             or str(payload.get("force", "")).strip().lower() in {"1", "true", "yes"}
         )
-        return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=force))
+        pagination_requested = any(
+            name in request.args
+            for name in ("page_size", "risk_page", "high_page", "core_page", "market_id", "chain_id")
+        )
+        if not pagination_requested:
+            return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=force, **market_kwargs))
+        page_size = request_int_arg("page_size", 20, minimum=1, maximum=100)
+        return jsonify(
+            panel_call(
+                "liquidation_borrow_pool_scan_payload",
+                force=force,
+                page_size=page_size,
+                risk_page=request_int_arg("risk_page", 1, minimum=1),
+                high_page=request_int_arg("high_page", 1, minimum=1),
+                core_page=request_int_arg("core_page", 1, minimum=1),
+                **market_kwargs,
+            )
+        )
 
     @app.get("/api/liquidation/borrow-pool/batches")
     def liquidation_borrow_pool_batches_api():
         limit = request_int_arg("limit", 20, minimum=1, maximum=100)
+        market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "batches": [], "error": "DATABASE_URL is required"})
         try:
-            panel_call("ensure_database_schema", database_url)
-            return jsonify({"configured": True, "batches": panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=limit)})
+            return jsonify({"configured": True, "batches": panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=limit, **market_kwargs)})
         except Exception as exc:
             return jsonify({"configured": True, "batches": [], "error": route_error_message(exc)}), 400
 
     @app.get("/api/liquidation/borrow-pool/latest-batch")
     def liquidation_borrow_pool_latest_batch_api():
+        market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "batch": None, "error": "DATABASE_URL is required"})
         try:
-            panel_call("ensure_database_schema", database_url)
-            batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1)
+            batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1, **market_kwargs)
             return jsonify({"configured": True, "batch": batches[0] if batches else None})
         except Exception as exc:
             return jsonify({"configured": True, "batch": None, "error": route_error_message(exc)}), 400
@@ -274,12 +431,12 @@ def register_liquidation_routes(app, panel) -> None:
     @app.get("/api/liquidation/high-frequency-pool")
     def liquidation_high_frequency_pool_api():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
+        market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
         try:
-            panel_call("ensure_database_schema", database_url)
-            rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=limit)
+            rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=limit, **market_kwargs)
             return jsonify({"configured": True, "count": len(rows), "rows": rows})
         except Exception as exc:
             return jsonify({"configured": True, "rows": [], "error": route_error_message(exc)}), 400
@@ -287,12 +444,12 @@ def register_liquidation_routes(app, panel) -> None:
     @app.get("/api/liquidation/core-opportunities")
     def liquidation_core_opportunities_api():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
+        market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
             return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
         try:
-            panel_call("ensure_database_schema", database_url)
-            rows = panel_call("db_load_liquidation_core_opportunity_pool", database_url, limit=limit)
+            rows = panel_call("liquidation_core_rows_with_execution", database_url, limit=limit, **market_kwargs)
             return jsonify({"configured": True, "count": len(rows), "rows": rows})
         except Exception as exc:
             return jsonify({"configured": True, "rows": [], "error": route_error_message(exc)}), 400
@@ -322,6 +479,7 @@ def register_liquidation_routes(app, panel) -> None:
         config = liquidation_runtime_config()
         return jsonify(
             {
+                "refresh_profile": liquidation_scan_refresh_profile(),
                 "retention_days": liquidation_retention_days(),
                 "scan_interval_seconds": liquidation_scan_interval_seconds(),
                 "discovery_interval_seconds": liquidation_discovery_interval_seconds(),
@@ -338,6 +496,7 @@ def register_liquidation_routes(app, panel) -> None:
         return jsonify(
             {
                 "saved": True,
+                "refresh_profile": liquidation_scan_refresh_profile(),
                 "retention_days": liquidation_retention_days(),
                 "scan_interval_seconds": liquidation_scan_interval_seconds(),
                 "discovery_interval_seconds": liquidation_discovery_interval_seconds(),
@@ -351,25 +510,29 @@ def register_liquidation_routes(app, panel) -> None:
         chain_id = request_int_arg("chain_id", 0) if raw_chain_id else None
         return jsonify(panel_call("liquidation_config_health", chain_id=chain_id))
 
+    @app.get("/api/liquidation/market")
+    def liquidation_market_api():
+        return jsonify(panel_call("liquidation_market_payload"))
+
     @app.get("/api/liquidation/execution-attempts")
     def liquidation_execution_attempts_api():
         limit = request_int_arg("limit", 20, minimum=1, maximum=100)
-        return jsonify(panel_call("recent_liquidation_execution_attempts", limit=limit))
+        return jsonify(panel_call("recent_liquidation_execution_attempts", limit=limit, **_request_market_kwargs()))
 
     @app.get("/api/liquidation/failure-samples")
     def liquidation_failure_samples_api():
         limit = request_int_arg("limit", 20, minimum=1, maximum=100)
-        return jsonify(panel_call("recent_liquidation_failure_samples", limit=limit))
+        return jsonify(panel_call("recent_liquidation_failure_samples", limit=limit, **_request_market_kwargs()))
 
     @app.get("/api/liquidation/account/<account>/attempts")
     def liquidation_account_attempts_api(account: str):
         limit = request_int_arg("limit", 20, minimum=1, maximum=100)
-        return jsonify(panel_call("liquidation_execution_attempts_for_account", account, limit=limit))
+        return jsonify(panel_call("liquidation_execution_attempts_for_account", account, limit=limit, **_request_market_kwargs()))
 
     @app.get("/api/liquidation/account/<account>/samples")
     def liquidation_account_samples_api(account: str):
         limit = request_int_arg("limit", 20, minimum=1, maximum=100)
-        return jsonify(panel_call("liquidation_failure_samples_for_account", account, limit=limit))
+        return jsonify(panel_call("liquidation_failure_samples_for_account", account, limit=limit, **_request_market_kwargs()))
 
     @app.get("/api/liquidation/pause-guard")
     def liquidation_pause_guard_api():
@@ -381,8 +544,8 @@ def register_liquidation_routes(app, panel) -> None:
 
     @app.get("/api/liquidation/discovery-coverage")
     def liquidation_discovery_coverage_api():
-        pool_address = request.args.get("pool", os.getenv("AAVE_POOL_ADDRESS", "")).strip()
-        return jsonify(liquidation_coverage_payload(pool_address))
+        pool_address = request.args.get("pool", panel_call("aave_pool_address")).strip()
+        return jsonify(liquidation_coverage_payload(pool_address, **_request_market_kwargs()))
 
     @app.get("/api/liquidation/account")
     def liquidation_account_api():
@@ -391,6 +554,28 @@ def register_liquidation_routes(app, panel) -> None:
             return jsonify({"error": "account is required"}), 400
         try:
             return jsonify(panel_call("liquidation_account_payload", account))
+        except Exception as exc:
+            return jsonify({"error": route_error_message(exc), "account": account}), 400
+
+    @app.get("/api/liquidation/daemon/status")
+    def liquidation_daemon_status_api():
+        return jsonify(panel_call("liquidation_daemon_status_payload"))
+
+    @app.get("/api/liquidation/account/cached")
+    def liquidation_account_cached_api():
+        account = request.args.get("account", "").strip()
+        if not account:
+            return jsonify({"error": "account is required"}), 400
+        market_id = request.args.get("market_id", "").strip() or None
+        chain_id = _optional_request_int_arg("chain_id")
+        try:
+            try:
+                payload = panel_call("liquidation_account_cached_payload", account, market_id=market_id, chain_id=chain_id)
+            except TypeError:
+                if market_id is not None or chain_id is not None:
+                    raise
+                payload = panel_call("liquidation_account_cached_payload", account)
+            return jsonify(payload)
         except Exception as exc:
             return jsonify({"error": route_error_message(exc), "account": account}), 400
 
@@ -405,6 +590,27 @@ def register_liquidation_routes(app, panel) -> None:
         try:
             deadline_seconds = request_int_arg("deadline_seconds", 300, minimum=1)
             allow_zero_min_out = request.args.get("allow_zero_min_out", "").strip().lower() in {"1", "true", "yes"}
+            fast = request.args.get("fast", "").strip().lower() in {"1", "true", "yes"}
+            if fast:
+                try:
+                    market_id = request.args.get("market_id", "").strip() or None
+                    chain_id = _optional_request_int_arg("chain_id")
+                    try:
+                        snapshot = panel_call(
+                            "liquidation_account_cached_payload",
+                            account,
+                            market_id=market_id,
+                            chain_id=chain_id,
+                        )
+                    except TypeError:
+                        if market_id is not None or chain_id is not None:
+                            raise
+                        snapshot = panel_call("liquidation_account_cached_payload", account)
+                    blocked = classify_liquidation_payload_block(account, snapshot)
+                    if blocked is not None:
+                        return jsonify(blocked), 400
+                except Exception:
+                    pass
             return jsonify(
                 panel_call(
                     "liquidation_execution_payload_for_account",
@@ -414,6 +620,13 @@ def register_liquidation_routes(app, panel) -> None:
                 )
             )
         except Exception as exc:
+            try:
+                snapshot = panel_call("liquidation_account_cached_payload", account)
+            except Exception:
+                snapshot = {}
+            blocked = classify_liquidation_payload_block(account, snapshot, exc)
+            if blocked is not None:
+                return jsonify(blocked), 400
             return jsonify({"error": route_error_message(exc), "account": account}), 400
 
     @app.post("/api/liquidation/account/preflight")
@@ -525,13 +738,65 @@ def register_liquidation_routes(app, panel) -> None:
     @app.get("/api/liquidation/accounts")
     def liquidation_accounts_list_api():
         force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
+        page = request_int_arg("page", 1, minimum=1)
+        page_size = request_int_arg("page_size", 20, minimum=1, maximum=100)
+        market_id = request.args.get("market_id", "").strip() or None
+        chain_id = _optional_request_int_arg("chain_id")
+        database_url = panel_call("database_url_or_none")
+        if database_url:
+            try:
+                paged = panel_call(
+                    "db_load_liquidation_accounts_page",
+                    database_url,
+                    page=page,
+                    page_size=page_size,
+                    market_id=market_id,
+                    chain_id=chain_id,
+                )
+                account_rows = [
+                    row if isinstance(row, dict) else {"account": row}
+                    for row in paged["accounts"]
+                ]
+                return jsonify(
+                    {
+                        "accounts": account_rows,
+                        "account_rows": account_rows,
+                        "count": paged["total_count"],
+                        "source": "database",
+                        "registry_window": panel_call("liquidation_account_registry_window", market_id=market_id, chain_id=chain_id),
+                        "pagination": {
+                            "page": paged["page"],
+                            "page_size": paged["page_size"],
+                            "total_count": paged["total_count"],
+                            "page_count": paged["page_count"],
+                        },
+                    }
+                )
+            except Exception as exc:
+                if not force:
+                    return jsonify(
+                        {
+                            "accounts": [],
+                            "count": 0,
+                            "source": "database-error",
+                            "error": route_error_message(exc),
+                        }
+                    )
         accounts, source = panel_call("load_liquidation_account_registry", force=force)
+        offset = (page - 1) * page_size
+        total_count = len(accounts)
         return jsonify(
             {
-                "accounts": [{"account": account} for account in accounts],
-                "count": len(accounts),
+                "accounts": [{"account": account} for account in accounts[offset : offset + page_size]],
+                "count": total_count,
                 "source": source,
-                "registry_window": panel_call("liquidation_account_registry_window"),
+                "registry_window": panel_call("liquidation_account_registry_window", market_id=market_id, chain_id=chain_id),
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_count": total_count,
+                    "page_count": max(1, (total_count + page_size - 1) // page_size),
+                },
             }
         )
 
@@ -546,7 +811,7 @@ def register_liquidation_routes(app, panel) -> None:
             database_url = panel_call("database_url_or_none")
             if not database_url:
                 return jsonify({"error": "DATABASE_URL is required"}), 400
-            panel_call("ensure_database_schema", database_url)
+            panel_call("ensure_database_schema_cached", database_url)
             panel_call(
                 "db_upsert_liquidation_accounts",
                 database_url,

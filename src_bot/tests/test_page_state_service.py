@@ -397,6 +397,281 @@ def test_flashloan_submit_exception_records_submitting_phase(monkeypatch):
     assert payload["execution_phase"] == "submitting"
 
 
+def test_flashloan_submit_runs_required_fork_simulation_before_broadcast(monkeypatch):
+    from web import control_panel_liquidation_execute as execute
+
+    class FakeNonceManager:
+        def acquire(self):
+            return 7
+
+        def release(self, nonce):
+            assert nonce == 7
+
+    class FakeBuilder:
+        def estimate_gas(self, tx):
+            return 350000
+
+        def build_transaction(self, tx):
+            raise RuntimeError("broadcast rejected")
+
+    class FakeContractFunctions:
+        def requestLiquidation(self, request):
+            return FakeBuilder()
+
+    class FakeContract:
+        functions = FakeContractFunctions()
+
+    class FakeEth:
+        chain_id = 43113
+        gas_price = 1
+        account = SimpleNamespace(sign_transaction=lambda *args, **kwargs: SimpleNamespace(raw_transaction=b"0xraw"))
+
+        def contract(self, **kwargs):
+            return FakeContract()
+
+        def get_block(self, block):
+            return SimpleNamespace(baseFeePerGas=0)
+
+    class FakeWeb3:
+        eth = FakeEth()
+
+        def __init__(self, provider):
+            pass
+
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return str(value)
+
+        @staticmethod
+        def to_wei(value, unit):
+            return int(float(value) * 1_000_000_000)
+
+    calls = {"fork": 0}
+
+    PAGE_STATE_STORE._states.clear()
+    payload = _executable_payload()
+    monkeypatch.setattr(
+        execute,
+        "liquidation_execution_controls",
+        lambda: _execution_controls(require_static_call=True, require_fork_simulation=True, fork_simulation_timeout_seconds=30),
+    )
+    monkeypatch.setattr(execute, "liquidation_executor_private_key", lambda: "0x" + "1" * 64)
+    monkeypatch.setattr(execute, "liquidation_executor_owner_address", lambda: "0xsender")
+    monkeypatch.setattr(execute, "scan_context_assets", lambda: ("http://example.invalid", None, None))
+    monkeypatch.setattr(execute, "liquidation_config_health", lambda chain_id=None: {"valid": True})
+    monkeypatch.setattr(execute.Account, "from_key", lambda private_key: SimpleNamespace(address="0xsender"))
+    monkeypatch.setattr(execute, "Web3", FakeWeb3)
+    monkeypatch.setattr(execute, "_nonce_manager", lambda w3, sender: FakeNonceManager())
+    monkeypatch.setattr(execute, "simulate_liquidation_static_call", lambda payload: payload | {"preflight": {"static_call_passed": True, "static_call_status": "passed"}})
+
+    def fake_fork(payload, *, timeout_seconds=180):
+        calls["fork"] += 1
+        return {
+            "fork_simulation_status": "passed",
+            "fork_simulation_passed": True,
+            "fork_simulation_at": "2026-08-04T00:00:00Z",
+        }
+
+    monkeypatch.setattr(execute, "run_liquidation_fork_simulation", fake_fork)
+
+    try:
+        execute.execute_flashloan_liquidation_transaction(payload)
+    except RuntimeError:
+        pass
+
+    assert calls["fork"] == 1
+    state = execution_state_payload(control_panel)
+    assert state["status"] == "ERROR"
+    assert state["last_error"] == "broadcast rejected"
+    assert payload["execution_phase"] == "submitting"
+
+
+def test_fork_simulation_runner_bridges_contract_env(monkeypatch, tmp_path):
+    from web import control_panel_liquidation_execute as execute
+
+    captured = {}
+    contracts_dir = tmp_path / "contracts-bot"
+    contracts_dir.mkdir()
+    monkeypatch.setenv("USDC_ADDRESS", "")
+    monkeypatch.setenv("AAVE_POOL_ADDRESS", "")
+    monkeypatch.setenv("DEX_ROUTER_ADDRESS", "")
+    monkeypatch.setenv("AVALANCHE_RPC_URL", "")
+    monkeypatch.setenv("AVALANCHE_RPC", "")
+    monkeypatch.delenv("SIMULATE_USE_CONFIGURED_EXECUTOR", raising=False)
+    monkeypatch.delenv("LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR", raising=False)
+    monkeypatch.setattr(execute, "liquidation_contracts_bot_dir", lambda: contracts_dir)
+    monkeypatch.setattr(execute.shutil, "which", lambda name: "npm.cmd")
+    monkeypatch.setattr(execute, "aave_pool_address", lambda: "0xpool")
+    monkeypatch.setattr(execute, "dex_router_address", lambda: "0xrouter")
+    monkeypatch.setattr(execute, "aave_rpc_urls", lambda: ["https://rpc.example"])
+
+    def fake_run(command, cwd, env, text, capture_output, timeout):
+        captured.update(command=command, cwd=cwd, env=env, timeout=timeout)
+        return SimpleNamespace(returncode=0, stdout="fork liquidation transaction simulation passed", stderr="")
+
+    monkeypatch.setattr(execute.subprocess, "run", fake_run)
+
+    result = execute.run_liquidation_fork_simulation(
+        {
+            "executor": "0x0000000000000000000000000000000000000002",
+            "request": _executable_payload()["request"],
+        },
+        timeout_seconds=12,
+    )
+
+    assert result["fork_simulation_passed"] is True
+    assert captured["command"] == ["npm.cmd", "run", "simulate:liquidation"]
+    assert captured["cwd"] == str(contracts_dir)
+    assert captured["timeout"] == 12
+    assert captured["env"]["AAVE_POOL_ADDRESS"] == "0xpool"
+    assert captured["env"]["DEX_ROUTER_ADDRESS"] == "0xrouter"
+    assert captured["env"]["USDC_ADDRESS"] == "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    assert captured["env"]["AVALANCHE_RPC_URL"] == "https://rpc.example"
+    assert captured["env"]["AVALANCHE_RPC"] == "https://rpc.example"
+    assert captured["env"]["SIMULATE_USE_CONFIGURED_EXECUTOR"] == "true"
+    assert captured["env"]["LIQUIDATION_PAYLOAD_PATH"].endswith("payload.json")
+
+
+def test_fork_simulation_requires_configured_executor_when_enabled(monkeypatch, tmp_path):
+    from web import control_panel_liquidation_execute as execute
+
+    contracts_dir = tmp_path / "contracts-bot"
+    contracts_dir.mkdir()
+    monkeypatch.setenv("LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR", "true")
+    monkeypatch.delenv("LIQUIDATION_EXECUTOR_ADDRESS", raising=False)
+    monkeypatch.setattr(execute, "liquidation_contracts_bot_dir", lambda: contracts_dir)
+    monkeypatch.setattr(execute.shutil, "which", lambda name: "npm.cmd")
+
+    try:
+        execute.run_liquidation_fork_simulation(
+            {
+                "executor": "",
+                "request": _executable_payload()["request"],
+            },
+            timeout_seconds=12,
+        )
+    except RuntimeError as exc:
+        assert "LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR=true requires" in str(exc)
+    else:
+        raise AssertionError("missing configured executor should block fork simulation")
+
+
+def test_liquidation_payload_deadline_covers_required_fork_simulation(monkeypatch):
+    from web import control_panel_liquidation_execute as execute
+
+    captured = {}
+    PAGE_STATE_STORE._states.clear()
+    monkeypatch.setattr(execute.time, "time", lambda: 1_000)
+    monkeypatch.setattr(execute, "liquidation_executor_address", lambda: "0x0000000000000000000000000000000000000004")
+    monkeypatch.setattr(execute, "liquidation_account_payload", lambda account: {"account": account, "summary": {"status": "liquidatable"}})
+    monkeypatch.setattr(execute, "dex_router_address", lambda: "0x0000000000000000000000000000000000000005")
+    monkeypatch.setattr(
+        execute,
+        "liquidation_execution_controls",
+        lambda: _execution_controls(
+            require_static_call=True,
+            require_fork_simulation=True,
+            fork_simulation_timeout_seconds=180,
+            min_deadline_remaining_seconds=60,
+            slippage_bps=50,
+            max_debt_to_cover=0,
+            min_profit_base=0,
+        ),
+    )
+
+    def fake_build(report, **kwargs):
+        captured["deadline"] = kwargs["deadline"]
+        return {
+            "executor": kwargs["executor_address"],
+            "request": {"debtToCover": "1", "minProfitAmount": "1", "deadline": str(kwargs["deadline"])},
+            "preflight": {},
+            "account_report": report,
+        }
+
+    monkeypatch.setattr(execute, "build_liquidation_execution_payload", fake_build)
+    monkeypatch.setattr(
+        execute,
+        "apply_liquidation_submission_state",
+        lambda payload, mode="flashloan": {
+            **payload,
+            "submission_allowed": False,
+            "block_level": "none",
+            "blocked_reasons": [],
+            "force_allowed": False,
+            "state": "submission_blocked",
+        },
+    )
+
+    payload = execute.liquidation_execution_payload_for_account(
+        "0x0000000000000000000000000000000000000001",
+        deadline_seconds=30,
+    )
+
+    assert captured["deadline"] == 1_270
+    assert payload["preflight"]["deadline_seconds_requested"] == 30
+    assert payload["preflight"]["deadline_seconds_effective"] == 270
+
+
+def test_flashloan_failed_fork_simulation_blocks_before_broadcast(monkeypatch):
+    from web import control_panel_liquidation_execute as execute
+
+    class FakeEth:
+        chain_id = 43113
+
+    class FakeWeb3:
+        eth = FakeEth()
+
+        def __init__(self, provider):
+            pass
+
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return str(value)
+
+    calls = {"fork": 0, "nonce": 0}
+
+    PAGE_STATE_STORE._states.clear()
+    payload = _executable_payload()
+    monkeypatch.setattr(
+        execute,
+        "liquidation_execution_controls",
+        lambda: _execution_controls(require_static_call=True, require_fork_simulation=True, fork_simulation_timeout_seconds=30),
+    )
+    monkeypatch.setattr(execute, "liquidation_executor_private_key", lambda: "0x" + "1" * 64)
+    monkeypatch.setattr(execute, "liquidation_executor_owner_address", lambda: "0xsender")
+    monkeypatch.setattr(execute, "scan_context_assets", lambda: ("http://example.invalid", None, None))
+    monkeypatch.setattr(execute, "liquidation_config_health", lambda chain_id=None: {"valid": True})
+    monkeypatch.setattr(execute.Account, "from_key", lambda private_key: SimpleNamespace(address="0xsender"))
+    monkeypatch.setattr(execute, "Web3", FakeWeb3)
+    monkeypatch.setattr(execute, "_nonce_manager", lambda w3, sender: calls.update(nonce=calls["nonce"] + 1))
+    monkeypatch.setattr(execute, "simulate_liquidation_static_call", lambda payload: payload | {"preflight": {"static_call_passed": True, "static_call_status": "passed"}})
+
+    def fail_fork(payload, *, timeout_seconds=180):
+        calls["fork"] += 1
+        raise RuntimeError("fork simulation failed")
+
+    monkeypatch.setattr(execute, "run_liquidation_fork_simulation", fail_fork)
+
+    try:
+        execute.execute_flashloan_liquidation_transaction(payload)
+    except RuntimeError:
+        pass
+
+    assert calls["fork"] == 1
+    assert calls["nonce"] == 0
+    state = execution_state_payload(control_panel)
+    assert state["status"] == "HARD_BLOCKED"
+    assert state["last_error"] == "submission blocked: fork_simulation_failed"
+
+
 def test_flashloan_receipt_timeout_records_waiting_receipt_phase(monkeypatch):
     from web import control_panel_liquidation_execute as execute
 
@@ -562,6 +837,93 @@ def test_self_funded_approval_receipt_timeout_records_phase(monkeypatch):
     assert state["context"]["tx_hash"] == "0xapproval"
     assert payload["execution_phase"] == "waiting_approval_receipt"
     assert payload["tx_hash"] == "0xapproval"
+
+
+def test_self_funded_approval_receipt_status_zero_stops_before_liquidation(monkeypatch):
+    from web import control_panel_liquidation_execute as execute
+
+    class FakeNonceManager:
+        def acquire(self):
+            return 8
+
+        def release(self, nonce):
+            pass
+
+    class FakeBuilder:
+        def estimate_gas(self, tx):
+            return 100000
+
+        def build_transaction(self, tx):
+            return {"nonce": tx["nonce"]}
+
+    calls = {"liquidation": 0}
+
+    class FakeFunctions:
+        def approve(self, pool_address, amount):
+            return FakeBuilder()
+
+        def liquidationCall(self, *args):
+            calls["liquidation"] += 1
+            return FakeBuilder()
+
+    class FakeContract:
+        functions = FakeFunctions()
+
+    class FakeEth:
+        chain_id = 43113
+        gas_price = 1
+        account = SimpleNamespace(sign_transaction=lambda *args, **kwargs: SimpleNamespace(raw_transaction=b"0xraw"))
+
+        def contract(self, **kwargs):
+            return FakeContract()
+
+        def get_block(self, block):
+            return SimpleNamespace(baseFeePerGas=0)
+
+        def wait_for_transaction_receipt(self, tx_hash, timeout):
+            return SimpleNamespace(transactionHash=tx_hash, blockNumber=123, gasUsed=21000, effectiveGasPrice=1, status=0)
+
+    class FakeWeb3:
+        eth = FakeEth()
+
+        def __init__(self, provider):
+            pass
+
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return object()
+
+        @staticmethod
+        def to_checksum_address(value):
+            return str(value)
+
+        @staticmethod
+        def to_wei(value, unit):
+            return int(float(value) * 1_000_000_000)
+
+    PAGE_STATE_STORE._states.clear()
+    monkeypatch.setenv("AAVE_POOL_ADDRESS", "0xpool")
+    monkeypatch.setattr(execute, "liquidation_execution_controls", lambda: _execution_controls())
+    monkeypatch.setattr(execute, "scan_context_assets", lambda: ("http://example.invalid", None, None))
+    monkeypatch.setattr(execute, "liquidation_config_health", lambda chain_id=None: {"valid": True})
+    monkeypatch.setattr(execute.Account, "from_key", lambda private_key: SimpleNamespace(address="0xsender"))
+    monkeypatch.setattr(execute, "Web3", FakeWeb3)
+    monkeypatch.setattr(execute, "_nonce_manager", lambda w3, sender: FakeNonceManager())
+    monkeypatch.setattr(execute, "send_raw_transaction_private_first", lambda raw_tx, public_w3=None: {"tx_hash": "0xapproval"})
+
+    payload = _executable_payload()
+    try:
+        execute._execute_self_funded_liquidation_for_key(payload, "0x" + "1" * 64)
+    except RuntimeError:
+        pass
+
+    state = execution_state_payload(control_panel)
+    assert state["status"] == "ERROR"
+    assert state["last_error"] == "approval transaction failed"
+    assert state["context"]["phase"] == "approval_failed"
+    assert state["context"]["tx_hash"] == "0xapproval"
+    assert payload["execution_phase"] == "approval_failed"
+    assert calls["liquidation"] == 0
 
 
 def test_self_funded_liquidation_receipt_timeout_records_phase(monkeypatch):

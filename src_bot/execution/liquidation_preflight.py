@@ -33,8 +33,11 @@ HARD_BLOCK_REASONS = {
     "missing_owner",
     "missing_self_funded_key",
     "payload_expired",
+    "deadline_too_close",
     "fallback_close_factor",
     "fallback_flashloan_premium",
+    "fork_simulation_required",
+    "fork_simulation_failed",
     *CONFIG_BLOCK_REASONS,
 }
 
@@ -212,6 +215,12 @@ def evaluate_liquidation_submission(
         else:
             _append_once(blocked, "static_call_required")
 
+    if mode == "flashloan" and controls.get("require_fork_simulation") and not preflight.get("fork_simulation_passed"):
+        if preflight.get("fork_simulation_status") == "error":
+            _append_once(blocked, "fork_simulation_failed")
+        else:
+            _append_once(blocked, "fork_simulation_required")
+
     built_age = age_seconds(payload.get("payload_built_at"), now=now)
     max_payload_age = int(controls.get("max_payload_age_seconds") or DEFAULT_MAX_PAYLOAD_AGE_SECONDS)
     if built_age is not None and built_age > max_payload_age:
@@ -224,6 +233,15 @@ def evaluate_liquidation_submission(
     current_timestamp = int((now or utc_now()).timestamp())
     if deadline > 0 and deadline <= current_timestamp:
         _append_once(blocked, "payload_expired")
+    min_deadline_remaining = int(controls.get("min_deadline_remaining_seconds") or 0)
+    deadline_seconds_remaining = deadline - current_timestamp if deadline > 0 else None
+    if (
+        deadline_seconds_remaining is not None
+        and deadline > current_timestamp
+        and min_deadline_remaining > 0
+        and deadline_seconds_remaining < min_deadline_remaining
+    ):
+        _append_once(blocked, "deadline_too_close")
 
     quote_age = age_seconds(dex_quote.get("quote_at"), now=now)
     max_quote_age = int(controls.get("max_quote_age_seconds") or DEFAULT_MAX_QUOTE_AGE_SECONDS)
@@ -248,6 +266,10 @@ def evaluate_liquidation_submission(
             "auto_pause_reason": controls.get("auto_pause_reason"),
             "require_static_call": bool(controls.get("require_static_call", True)),
             "static_call_passed": bool(preflight.get("static_call_passed")),
+            "fork_simulation_required": bool(controls.get("require_fork_simulation")),
+            "fork_simulation_passed": bool(preflight.get("fork_simulation_passed")),
+            "fork_simulation_status": preflight.get("fork_simulation_status"),
+            "fork_simulation_error": preflight.get("fork_simulation_error"),
             "debt_to_cover": debt_to_cover,
             "max_debt_to_cover": max_debt,
             "min_profit_amount": min_profit,
@@ -271,6 +293,8 @@ def evaluate_liquidation_submission(
             "max_payload_age_seconds": max_payload_age,
             "deadline": deadline,
             "current_timestamp": current_timestamp,
+            "deadline_seconds_remaining": deadline_seconds_remaining,
+            "min_deadline_remaining_seconds": min_deadline_remaining,
             "quote_age_seconds": quote_age,
             "max_quote_age_seconds": max_quote_age,
             "config_valid": controls.get("config_valid"),

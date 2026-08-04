@@ -33,6 +33,10 @@ SCHEMA_MIGRATIONS = (
         "20260731_liquidation_scan_config_library",
         "Persist reusable liquidation scan configuration snapshots for account, borrow, and opportunity pools.",
     ),
+    (
+        "20260803_liquidation_market_namespace",
+        "Add chain, market, protocol, executor, source RPC, and source block columns for future multi-market liquidation isolation.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 
@@ -94,13 +98,60 @@ def get_connection_pool(database_url: str, connect_timeout: int = 8):
         return pool
 
 
+def _drop_connection_pool(database_url: str, connect_timeout: int = 8) -> None:
+    key = _pool_key(database_url, connect_timeout)
+    with _POOL_LOCK:
+        pool = _POOLS.pop(key, None)
+    close = getattr(pool, "close", None)
+    if close:
+        close()
+
+
+def _pool_connection_context(pool, connect_timeout: int):
+    try:
+        return pool.connection(timeout=int(connect_timeout))
+    except TypeError:
+        return pool.connection()
+
+
+def _is_connection_termination_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "terminating connection due to administrator command",
+        "server closed the connection unexpectedly",
+        "connection already closed",
+        "connection is closed",
+        "could not receive data from server",
+        "could not send data to server",
+        "ssl connection has been closed unexpectedly",
+    )
+    return any(marker in text for marker in markers)
+
+
 @contextmanager
 def db_connection(database_url: str, connect_timeout: int = 8) -> Iterator[object]:
-    pool = get_connection_pool(database_url, connect_timeout=connect_timeout)
+    pool = None
+    try:
+        pool = get_connection_pool(database_url, connect_timeout=connect_timeout)
+    except Exception:
+        pool = None
     if pool is not None:
-        with pool.connection() as connection:
-            yield connection
-        return
+        try:
+            pool_context = _pool_connection_context(pool, connect_timeout)
+            connection = pool_context.__enter__()
+        except Exception:
+            _drop_connection_pool(database_url, connect_timeout=connect_timeout)
+        else:
+            try:
+                yield connection
+            except BaseException as exc:
+                pool_context.__exit__(type(exc), exc, exc.__traceback__)
+                if _is_connection_termination_error(exc):
+                    _drop_connection_pool(database_url, connect_timeout=connect_timeout)
+                raise
+            else:
+                pool_context.__exit__(None, None, None)
+            return
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=connect_timeout) as connection:
         yield connection

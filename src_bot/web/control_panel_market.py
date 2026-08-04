@@ -44,7 +44,7 @@ from web.control_panel_liquidation_base import configured_database_url
 SRC_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = SRC_ROOT
 WEB_DIR = Path(__file__).resolve().parent
-load_env_files(__file__)
+load_env_files(__file__, override=False)
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
 CONFIG_DIR = RUNTIME_DIR / "config"

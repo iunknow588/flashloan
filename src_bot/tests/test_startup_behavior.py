@@ -166,6 +166,50 @@ def test_observer_supervisor_honors_backoff(monkeypatch):
     reset_start_state()
 
 
+def test_build_observer_env_prefers_detailed_liquidation_account_assets(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
+    monkeypatch.setattr(
+        control_panel,
+        "load_aave_reserve_assets",
+        lambda *args, **kwargs: [
+            {"token_symbol": "WAVAX", "token_address": "0xavax", "binance_symbol": "AVAXUSDT"},
+            {"token_symbol": "USDC", "token_address": "0xusdc", "binance_symbol": "USDCUSDT"},
+            {"token_symbol": "AAVE", "token_address": "0xaave", "binance_symbol": "AAVEUSDT"},
+        ],
+    )
+    monkeypatch.setattr(control_panel, "db_load_liquidation_core_opportunity_pool", lambda *args, **kwargs: [])
+    monkeypatch.setattr(control_panel, "db_load_liquidation_high_frequency_pool", lambda *args, **kwargs: [])
+    monkeypatch.setattr(control_panel, "db_load_liquidation_borrow_health_pool", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        control_panel,
+        "db_load_latest_liquidation_account_reports",
+        lambda *args, **kwargs: [
+            {
+                "report": {
+                    "positions": [
+                        {"symbol": "AVAXUSDT", "token_symbol": "WAVAX", "debt_value_base": 100},
+                        {"symbol": "USDCUSDT", "token_symbol": "USDC", "collateral_value_base": 200},
+                    ]
+                }
+            }
+        ],
+    )
+    monkeypatch.setattr(control_panel, "env_urls", lambda *args, **kwargs: ["https://binance.example"])
+    monkeypatch.setattr(control_panel, "resolve_aave_binance_overlap_symbols", lambda *args, **kwargs: ["AAVEUSDT"])
+
+    env, symbols = control_panel.build_observer_env()
+
+    assert env["BINANCE_SYMBOL_SELECTION"] == "explicit"
+    assert env["SYMBOLS"] == "AVAXUSDT,USDCUSDT"
+    assert env["AAVE_VERIFICATION_ENABLED"] == "false"
+    assert symbols == ["AVAXUSDT", "USDCUSDT"]
+
+
 def test_observer_supervisor_restart_error_is_redacted(monkeypatch):
     reset_start_state()
     database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
@@ -229,3 +273,82 @@ def test_start_observer_background_redacts_build_error(monkeypatch):
         assert "[REDACTED]" in value
     assert control_panel.observer_starting is False
     reset_start_state()
+
+
+def test_initialize_liquidation_runtime_does_not_start_engine_when_execution_disabled(monkeypatch):
+    calls = {"engine": 0, "registry": 0}
+
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "false")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_ENGINE_ENABLED", "false")
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: calls.update(engine=calls["engine"] + 1))
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: calls.update(registry=calls["registry"] + 1))
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert calls == {"engine": 0, "registry": 1}
+
+
+def test_initialize_liquidation_runtime_autostarts_engine_when_execution_enabled(monkeypatch):
+    engine_calls = []
+    registry_calls = []
+
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("LIQUIDATION_OBSERVER_AUTOSTART", "false")
+    monkeypatch.delenv("LIQUIDATION_ENGINE_ENABLED", raising=False)
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: engine_calls.append(force))
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: registry_calls.append(force))
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert engine_calls == [True]
+    assert registry_calls == [True]
+
+
+def test_initialize_liquidation_runtime_autostarts_observer_when_execution_enabled(monkeypatch):
+    reset_start_state()
+    DummyThread.started = False
+    engine_calls = []
+    registry_calls = []
+
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.delenv("LIQUIDATION_ENGINE_ENABLED", raising=False)
+    monkeypatch.delenv("LIQUIDATION_OBSERVER_AUTOSTART", raising=False)
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: engine_calls.append(force))
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: registry_calls.append(force))
+    monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "velocity_start_symbols", lambda: ["AVAXUSDT"])
+    monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert engine_calls == [True]
+    assert registry_calls == [True]
+    assert control_panel.observer_starting is True
+    assert control_panel.selected_symbols == ["AVAXUSDT"]
+    assert DummyThread.started is True
+    reset_start_state()
+
+
+def test_initialize_liquidation_runtime_allows_observer_autostart_opt_out(monkeypatch):
+    reset_start_state()
+    DummyThread.started = False
+
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("LIQUIDATION_OBSERVER_AUTOSTART", "false")
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: None)
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: None)
+    monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert control_panel.observer_starting is False
+    assert DummyThread.started is False

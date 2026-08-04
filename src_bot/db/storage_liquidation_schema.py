@@ -1,4 +1,23 @@
+LIQUIDATION_MARKET_NAMESPACE_COLUMNS = {
+    "market_id": "TEXT NOT NULL DEFAULT 'avalanche-aave-v3'",
+    "chain_id": "INTEGER NOT NULL DEFAULT 43114",
+    "network": "TEXT NOT NULL DEFAULT 'avalanche'",
+    "protocol": "TEXT NOT NULL DEFAULT 'aave_v3'",
+}
+
+LIQUIDATION_SOURCE_NAMESPACE_COLUMNS = {
+    **LIQUIDATION_MARKET_NAMESPACE_COLUMNS,
+    "source_rpc": "TEXT",
+    "source_block": "BIGINT",
+}
+
+LIQUIDATION_EXECUTION_NAMESPACE_COLUMNS = {
+    **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
+    "executor_address": "TEXT",
+}
+
 LIQUIDATION_FAILURE_SAMPLE_COLUMNS = {
+    **LIQUIDATION_EXECUTION_NAMESPACE_COLUMNS,
     "account": "TEXT",
     "block_number": "BIGINT",
     "collateral_asset": "TEXT",
@@ -11,6 +30,7 @@ LIQUIDATION_FAILURE_SAMPLE_COLUMNS = {
 }
 
 LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS = {
+    **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
     "account": "TEXT",
     "health_factor": "DOUBLE PRECISION",
     "status": "TEXT",
@@ -26,6 +46,7 @@ LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS = {
 }
 
 LIQUIDATION_HIGH_FREQUENCY_POOL_COLUMNS = {
+    **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
     "account": "TEXT",
     "health_factor": "DOUBLE PRECISION",
     "status": "TEXT",
@@ -41,6 +62,7 @@ LIQUIDATION_HIGH_FREQUENCY_POOL_COLUMNS = {
 }
 
 LIQUIDATION_CORE_OPPORTUNITY_POOL_COLUMNS = {
+    **LIQUIDATION_EXECUTION_NAMESPACE_COLUMNS,
     "account": "TEXT",
     "health_factor": "DOUBLE PRECISION",
     "priority_score": "DOUBLE PRECISION",
@@ -66,6 +88,7 @@ LIQUIDATION_CORE_OPPORTUNITY_POOL_COLUMNS = {
 }
 
 LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS = {
+    **LIQUIDATION_SOURCE_NAMESPACE_COLUMNS,
     "id": "BIGSERIAL",
     "started_at": "TIMESTAMPTZ",
     "finished_at": "TIMESTAMPTZ",
@@ -84,6 +107,7 @@ LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS = {
 }
 
 LIQUIDATION_SCAN_CONFIG_LIBRARY_COLUMNS = {
+    **LIQUIDATION_MARKET_NAMESPACE_COLUMNS,
     "config_key": "TEXT",
     "category": "TEXT",
     "source_table": "TEXT",
@@ -98,7 +122,13 @@ def create_liquidation_borrow_health_pool_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_borrow_health_pool (
-            account TEXT PRIMARY KEY,
+            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+            chain_id INTEGER NOT NULL DEFAULT 43114,
+            network TEXT NOT NULL DEFAULT 'avalanche',
+            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            source_rpc TEXT,
+            source_block BIGINT,
+            account TEXT NOT NULL,
             health_factor DOUBLE PRECISION,
             status TEXT,
             health_factor_band TEXT,
@@ -123,7 +153,13 @@ def create_liquidation_high_frequency_pool_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_high_frequency_pool (
-            account TEXT PRIMARY KEY,
+            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+            chain_id INTEGER NOT NULL DEFAULT 43114,
+            network TEXT NOT NULL DEFAULT 'avalanche',
+            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            source_rpc TEXT,
+            source_block BIGINT,
+            account TEXT NOT NULL,
             health_factor DOUBLE PRECISION,
             status TEXT,
             total_collateral_base DOUBLE PRECISION,
@@ -148,7 +184,14 @@ def create_liquidation_core_opportunity_pool_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_core_opportunity_pool (
-            account TEXT PRIMARY KEY,
+            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+            chain_id INTEGER NOT NULL DEFAULT 43114,
+            network TEXT NOT NULL DEFAULT 'avalanche',
+            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            source_rpc TEXT,
+            source_block BIGINT,
+            executor_address TEXT,
+            account TEXT NOT NULL,
             health_factor DOUBLE PRECISION,
             priority_score DOUBLE PRECISION,
             total_debt_base DOUBLE PRECISION,
@@ -238,7 +281,11 @@ def create_liquidation_scan_config_library_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_scan_config_library (
-            config_key TEXT PRIMARY KEY,
+            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
+            chain_id INTEGER NOT NULL DEFAULT 43114,
+            network TEXT NOT NULL DEFAULT 'avalanche',
+            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            config_key TEXT NOT NULL,
             category TEXT NOT NULL DEFAULT 'scan',
             source_table TEXT NOT NULL,
             source_key TEXT,

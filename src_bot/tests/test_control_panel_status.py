@@ -1,3 +1,4 @@
+from web import control_panel
 from web.control_panel import (
     app,
     LIQUIDATION_SCAN_CACHE,
@@ -5,6 +6,7 @@ from web.control_panel import (
     discovery_window_continuity_error,
     liquidation_account_payload,
     liquidation_discovery_window,
+    liquidation_engine_core_accounts,
     liquidation_health_payload,
     opportunity_health_rows,
     opportunity_health_summary,
@@ -14,6 +16,46 @@ from execution.liquidation_scan import LiquidationScanConfig
 from datetime import datetime
 import time
 from web3 import Web3
+
+
+def test_liquidation_engine_core_accounts_only_returns_executable_rows(monkeypatch):
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(
+        control_panel,
+        "db_load_liquidation_core_opportunity_pool",
+        lambda database_url, limit: [
+            {
+                "account": "0xblocked",
+                "auto_execution_blocked": True,
+                "best_collateral_asset": "WAVAX",
+                "best_debt_asset": "USDC",
+                "quote_viable": True,
+            },
+            {
+                "account": "0xmissing-pair",
+                "auto_execution_blocked": False,
+                "best_collateral_asset": None,
+                "best_debt_asset": "USDC",
+                "quote_viable": True,
+            },
+            {
+                "account": "0xquote-pending",
+                "auto_execution_blocked": False,
+                "best_collateral_asset": "WAVAX",
+                "best_debt_asset": "USDC",
+                "quote_viable": False,
+            },
+            {
+                "account": "0xready",
+                "auto_execution_blocked": False,
+                "best_collateral_asset": "WAVAX",
+                "best_debt_asset": "USDC",
+                "quote_viable": True,
+            },
+        ],
+    )
+
+    assert liquidation_engine_core_accounts() == ["0xready"]
 
 
 def test_restrict_extremes_to_current_observation_basket():
@@ -501,6 +543,43 @@ def test_liquidation_borrow_pool_payload_redacts_schema_errors(monkeypatch):
     assert "[REDACTED]" in payload["summary"]["error"]
 
 
+def test_liquidation_borrow_pool_payload_marks_database_ready(monkeypatch):
+    from web import control_panel
+    from web import control_panel_liquidation_context as context
+
+    scan = context.liquidation_scan_module
+
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
+    monkeypatch.setattr(control_panel, "db_load_liquidation_borrow_health_pool", lambda database_url, limit=20, offset=0: [])
+    monkeypatch.setattr(
+        scan,
+        "liquidation_pool_tier_payload",
+        lambda database_url, limit, high_page=1, core_page=1: {
+            "borrow_health_count": 0,
+            "high_frequency_rows": [],
+            "core_opportunity_rows": [],
+            "high_frequency_count": 0,
+            "core_opportunity_count": 0,
+            "pagination": {
+                "high_frequency": {"page": 1, "page_size": 20, "total_count": 0, "page_count": 1},
+                "core_opportunity": {"page": 1, "page_size": 20, "total_count": 0, "page_count": 1},
+            },
+        },
+    )
+    monkeypatch.setattr(scan, "latest_liquidation_borrow_pool_batch", lambda database_url: None)
+    monkeypatch.setattr(control_panel, "db_load_liquidation_scan_config_library", lambda database_url, limit=20: [])
+    monkeypatch.setattr(control_panel, "liquidation_account_tier_summary", lambda: {"hot_count": 0, "warm_count": 0, "cold_count": 0})
+
+    payload = control_panel.liquidation_borrow_pool_payload(page_size=20)
+
+    assert payload["summary"]["configured"] is True
+    assert payload["summary"]["db_ready"] is True
+    assert payload["summary"]["scan_blocked"] is False
+    assert payload["summary"]["scan_blocked_reason"] is None
+    assert payload["summary"]["scan_response_source"] == "database_display"
+
+
 def test_liquidation_borrow_pool_scan_api_respects_force_flag(monkeypatch):
     from web import control_panel
 
@@ -523,27 +602,125 @@ def test_liquidation_borrow_pool_scan_api_respects_force_flag(monkeypatch):
 
 
 def test_liquidation_borrow_pool_scan_suppresses_duplicate_within_interval(monkeypatch):
-    from web import control_panel_liquidation_scan as scan
+    from web import control_panel_liquidation_context as context
 
+    scan = context.liquidation_scan_module
+    scan_payload = context._scan_liquidation_borrow_pool_scan_payload
+
+    database_url = "postgresql://example"
     cached_payload = {
         "rows": [{"account": "0x1", "health_factor": 1.02}],
-        "summary": {"scanned": True, "display_limit": 100},
+        "summary": {
+            "scanned": True,
+            "display_limit": 100,
+            "database_url_fingerprint": scan._database_url_fingerprint(database_url),
+        },
         "debt_pool_decision": {"route_intent": "sync_core_then_rejudge"},
     }
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_payload", cached_payload)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "running", False)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "stage", "idle")
+    monkeypatch.setattr(scan, "database_url_or_none", lambda: database_url, raising=False)
     monkeypatch.setattr(scan, "liquidation_scan_interval_seconds", lambda: 300.0)
 
-    payload = scan.liquidation_borrow_pool_scan_payload(force=False)
+    payload = scan_payload(force=False)
 
     assert payload["rows"] == cached_payload["rows"]
     assert payload["debt_pool_decision"]["route_intent"] == "sync_core_then_rejudge"
     assert payload["summary"]["scanned"] is False
     assert payload["summary"]["scan_suppressed"] is True
+    assert payload["summary"]["scan_response_source"] == "cached_scan_suppressed"
     assert payload["summary"]["suppression_reason"] == "scan interval not reached"
     assert payload["summary"]["scan_cooldown_remaining_seconds"] > 0
+
+
+def test_liquidation_borrow_pool_scan_does_not_use_cache_without_database(monkeypatch):
+    from web import control_panel_liquidation_context as context
+
+    scan = context.liquidation_scan_module
+    scan_payload = context._scan_liquidation_borrow_pool_scan_payload
+
+    monkeypatch.setitem(
+        scan.LIQUIDATION_SCAN_CACHE,
+        "borrow_pool_payload",
+        {"rows": [{"account": "0xold"}], "summary": {"database_url_fingerprint": "old"}},
+    )
+    monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
+    monkeypatch.setattr(scan, "database_url_or_none", lambda: None, raising=False)
+
+    payload = scan_payload(force=False)
+
+    assert payload["rows"] == []
+    assert payload["summary"]["scan_blocked"] is True
+    assert payload["summary"]["scan_blocked_reason"] == "database_unconfigured"
+
+
+def test_liquidation_borrow_pool_scan_ignores_cache_for_changed_database(monkeypatch):
+    from web import control_panel_liquidation_context as context
+
+    scan = context.liquidation_scan_module
+    scan_payload = context._scan_liquidation_borrow_pool_scan_payload
+
+    monkeypatch.setitem(
+        scan.LIQUIDATION_SCAN_CACHE,
+        "borrow_pool_payload",
+        {"rows": [{"account": "0xold"}], "summary": {"database_url_fingerprint": "old"}},
+    )
+    monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
+    monkeypatch.setattr(scan, "database_url_or_none", lambda: "postgresql://new-example", raising=False)
+    class BusyLock:
+        @staticmethod
+        def acquire(blocking=False):
+            return False
+
+    monkeypatch.setattr(scan, "LIQUIDATION_SCAN_LOCK", BusyLock())
+    monkeypatch.setattr(
+        scan,
+        "liquidation_borrow_pool_payload",
+        lambda page_size=20, risk_page=1, high_page=1, core_page=1: {
+            "rows": [],
+            "summary": {"configured": True, "db_ready": False, "scan_blocked": True},
+        },
+    )
+
+    payload = scan_payload(force=False)
+
+    assert payload["rows"] == []
+    assert payload["summary"]["scan_running"] is True
+
+
+def test_liquidation_borrow_pool_classifies_disabled_database_endpoint():
+    from web import control_panel_liquidation_context as context
+
+    scan = context.liquidation_scan_module
+
+    payload = scan._borrow_pool_blocked_payload(
+        configured=True,
+        error='connection failed: ERROR: The endpoint has been disabled. Enable it using the API and retry.',
+    )
+
+    assert payload["summary"]["scan_blocked_reason"] == "database_endpoint_disabled"
+    assert "端点已被服务商禁用" in payload["summary"]["next_action"]
+
+
+def test_liquidation_borrow_pool_reports_database_blocker(monkeypatch):
+    from web import control_panel
+    from web import control_panel_liquidation_scan as scan
+
+    scan.LIQUIDATION_SCAN_CACHE.pop("borrow_pool_payload", None)
+    scan.LIQUIDATION_SCAN_CACHE.pop("borrow_pool_updated_at", None)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None, raising=False)
+
+    payload = control_panel.liquidation_borrow_pool_payload(page_size=20)
+
+    assert payload["summary"]["configured"] is False
+    assert payload["summary"]["db_ready"] is False
+    assert payload["summary"]["scan_blocked"] is True
+    assert payload["summary"]["scan_blocked_reason"] == "database_unconfigured"
+    assert "DATABASE_URL" in payload["summary"]["error"]
+    assert payload["tiers"]["core_opportunity_rows"] == []
+    assert payload["pagination"]["core_opportunity"]["page_size"] == 20
 
 
 def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
@@ -678,10 +855,12 @@ def test_liquidation_control_summary_redacts_database_errors(monkeypatch):
 
 
 def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_path):
+    from web import control_panel
     from web import control_panel_data_routes
 
     report_path = tmp_path / "daily.json"
     monkeypatch.setattr(control_panel_data_routes, "liquidation_observation_report_path", lambda: report_path)
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
     monkeypatch.setattr(control_panel_data_routes, "database_url_or_none", lambda: "postgresql://example")
     monkeypatch.setattr(control_panel_data_routes, "build_liquidation_observation_report", lambda database_url: {"generated_at": "2026-07-31T00:00:00+00:00", "borrow_pool": {"count": 1}, "core_opportunities": {"count": 2}, "execution": {"stats": {"total": 3}}})
     monkeypatch.setattr(control_panel_data_routes, "write_liquidation_observation_report", lambda report, path: path.write_text(__import__("json").dumps(report), encoding="utf-8") or path)

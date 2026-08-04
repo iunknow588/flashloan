@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from flask import Response, jsonify
 
 from web.account_pool_state_service import account_pool_state_payload
@@ -9,10 +11,37 @@ from web.page_state_service import (
 )
 
 
+def _html_response(path: Path) -> Response:
+    response = Response(path.read_text(encoding="utf-8"), mimetype="text/html")
+    response.charset = "utf-8"
+    return response
+
+
 def register_page_routes(app, panel) -> None:
+    def system_info_payload() -> dict:
+        refresh_profile = (
+            panel.liquidation_scan_refresh_profile()
+            if hasattr(panel, "liquidation_scan_refresh_profile")
+            else {}
+        )
+        scan_version = (
+            panel.liquidation_scan_version()
+            if hasattr(panel, "liquidation_scan_version")
+            else "unknown"
+        )
+        return {
+            "version": scan_version,
+            "scan_policy": {
+                "strategy": "core_every_base_cycle_high_frequency_after_5m_borrow_health_after_30m",
+                "core_opportunity_refresh_seconds": refresh_profile.get("core_opportunity_refresh_seconds", 1.0),
+                "high_frequency_refresh_seconds": refresh_profile.get("high_frequency_refresh_seconds", 300.0),
+                "borrow_health_refresh_seconds": refresh_profile.get("borrow_health_refresh_seconds", 1800.0),
+            },
+        }
+
     @app.get("/")
     def index():
-        return panel.render_control_panel()
+        return _html_response(panel.LIQUIDATION_TEMPLATE_PATH)
 
     @app.get("/home")
     @app.get("/legacy")
@@ -23,15 +52,15 @@ def register_page_routes(app, panel) -> None:
     @app.get("/account-scan")
     @app.get("/audit")
     def liquidation_panel():
-        return panel.LIQUIDATION_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return _html_response(panel.LIQUIDATION_TEMPLATE_PATH)
 
     @app.get("/execution")
     def execution_panel():
-        return panel.LIQUIDATION_ACCOUNT_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return _html_response(panel.LIQUIDATION_ACCOUNT_TEMPLATE_PATH)
 
     @app.get("/liquidation/account")
     def liquidation_account_panel():
-        return panel.LIQUIDATION_ACCOUNT_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return _html_response(panel.LIQUIDATION_ACCOUNT_TEMPLATE_PATH)
 
     @app.get("/market-observation")
     def market_observation_panel():
@@ -43,15 +72,19 @@ def register_page_routes(app, panel) -> None:
 
     @app.get("/exchange-matrix")
     def exchange_matrix_panel():
-        return panel.EXCHANGE_MATRIX_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return _html_response(panel.EXCHANGE_MATRIX_TEMPLATE_PATH)
 
     @app.get("/opportunity-health")
     def opportunity_health_panel():
-        return panel.OPPORTUNITY_HEALTH_TEMPLATE_PATH.read_text(encoding="utf-8")
+        return _html_response(panel.OPPORTUNITY_HEALTH_TEMPLATE_PATH)
 
     @app.get("/healthz")
     def healthz():
         return jsonify({"status": "ok"})
+
+    @app.get("/api/system-info")
+    def system_info():
+        return jsonify(system_info_payload())
 
     @app.get("/favicon.ico")
     def favicon():
@@ -76,6 +109,7 @@ def register_page_routes(app, panel) -> None:
                 "starting": panel.observer_starting,
                 "start_error": panel.observer_start_error,
                 "background_activity": background_activity,
+                "system_info": system_info_payload(),
                 "observer_progress": panel.observer_progress_payload(running, panel.observer_starting, binance_extremes),
                 "control_status": control_status_current,
                 "system_monitor": panel.system_monitor_payload(
