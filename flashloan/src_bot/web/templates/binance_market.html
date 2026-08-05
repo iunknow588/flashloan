@@ -106,12 +106,12 @@
         <option value="1" selected>每链 1 组</option>
       </select>
       <div id="cowNetworkChecks" class="network-checks" title="选择要同时展示和报价的 CoW 网络"></div>
-      <label class="auto-toggle" title="净利润超过 1U 时进入自动执行检查；真实下单仍受后端下单模块控制">
+      <label class="auto-toggle" title="净利润达到动态阈值时进入自动执行检查；真实下单仍受后端下单模块控制">
         <input id="autoExecuteToggle" type="checkbox" checked>
-        净利润 &gt; 1U 自动执行检查
+        净利润达到动态阈值时自动执行检查
       </label>
       <input id="quoteAmountInput" inputmode="decimal" min="0" step="0.000001" type="number" value="1000" title="CoW quote amount">
-      <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="1.0" title="最小候选差价 %">
+      <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="0" title="额外手动价差 %">
       <span id="cowQuoteContext" class="context">CoW -</span>
       <span id="refreshMeta" class="muted">等待数据</span>
     </div>
@@ -124,29 +124,8 @@
     </section>
     <section class="split">
       <div class="card">
-        <h2 id="rawTopTitle">Binance 涨幅前 5</h2>
-        <div class="context">原始窗口排序：仅排除价格低于 0.01U，不要求涨幅超过 0.5%。</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
-            <tbody id="rawTopBody"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <h2 id="rawBottomTitle">Binance 跌幅前 5</h2>
-        <div class="context">原始窗口排序：仅排除价格低于 0.01U，不要求跌幅超过 0.5%。</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
-            <tbody id="rawBottomBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-    <section class="split">
-      <div class="card">
         <h2 id="cowSupportedTopTitle">所有 CoW 支持代币涨幅前 50</h2>
+        <div id="cowSupportedTopMeta" class="context">等待过滤条件</div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
@@ -156,6 +135,7 @@
       </div>
       <div class="card">
         <h2 id="cowSupportedBottomTitle">所有 CoW 支持代币跌幅前 50</h2>
+        <div id="cowSupportedBottomMeta" class="context">等待过滤条件</div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
@@ -171,15 +151,6 @@
     <section class="card" style="margin-bottom:18px">
       <h2>各 CoW 网络支持 Top/Bottom 5</h2>
       <div id="networkClaims" class="network-claims"></div>
-    </section>
-    <section class="card" style="margin-bottom:18px">
-        <h2>行情触发资产</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>代币</th><th>涨跌幅</th><th>起始价</th><th>当前价</th><th>窗口</th><th>状态</th></tr></thead>
-          <tbody id="aaveBody"></tbody>
-        </table>
-      </div>
     </section>
     <section class="card">
       <h2 id="pairTitle">多链稳定币闭环套利候选路径</h2>
@@ -197,6 +168,28 @@
           </thead>
           <tbody id="cowQuoteBody"></tbody>
         </table>
+      </div>
+    </section>
+    <section class="split" style="margin-top:18px">
+      <div class="card">
+        <h2 id="rawTopTitle">Binance 涨幅前 5</h2>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+            <tbody id="rawTopBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="rawBottomTitle">Binance 跌幅前 5</h2>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+            <tbody id="rawBottomBody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
     <section class="review-section" id="cowExecutionReviewSection">
@@ -217,6 +210,15 @@
             </tr>
           </thead>
           <tbody id="cowAttemptHistoryBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>行情触发资产</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>代币</th><th>涨跌幅</th><th>起始价</th><th>当前价</th><th>窗口</th><th>状态</th></tr></thead>
+          <tbody id="aaveBody"></tbody>
         </table>
       </div>
     </section>
@@ -293,8 +295,8 @@
       return `${diff >= 0 ? "+" : ""}${diff.toFixed(6)} ${displaySymbol(quote.final_symbol || plan.final_symbol || "")} (${diff >= 0 ? "+" : ""}${pctDiff.toFixed(4)}%)`;
     };
     const minSpreadValue = () => {
-      const value = Number($("minSpreadInput").value || "1");
-      return Number.isFinite(value) && value >= 0 ? String(value) : "1";
+      const value = Number($("minSpreadInput").value || "0");
+      return Number.isFinite(value) && value >= 0 ? String(value) : "0";
     };
     const hopLine = hop => `${esc(hop.hop || "-")}. ${esc(hop.sell_amount || "-")} ${esc(displaySymbol(hop.sell_symbol))} -> ${esc(hop.buy_amount || "-")} ${esc(displaySymbol(hop.buy_symbol))} @ ${esc(hop.exchange_rate || "-")}`;
     const quoteRates = quote => (quote?.hops || []).map(hop => `${displaySymbol(hop.sell_symbol)}/${displaySymbol(hop.buy_symbol)} ${hop.exchange_rate || "-"}`).join(" | ") || "-";
@@ -322,7 +324,7 @@
       const items = Array.isArray(rows) ? rows : [];
       if (!items.length) {
         return {
-          conclusion: "暂无复盘记录。只有触发 CoW 报价/执行预检后，才会写入这里；单纯刷新行情不会生成历史记录。",
+          conclusion: "暂无最近 7 天复盘记录。行情候选、链级候选和 CoW 报价/执行预检都会写入这里；若实时区已有候选但这里仍为空，请重启控制台服务让后端路由加载最新代码。",
           metrics: ["记录 0 条", "通过检查 0 条", "可提交 0 条", "阻断 0 条"],
         };
       }
@@ -447,6 +449,7 @@
       quote_unavailable: "报价不可用",
       price_guard_failed: "价格保护未通过",
       not_profitable: "不盈利",
+      profit_below_threshold: "低于盈利预期",
       blocked: "不能下单",
     }[status] || status || "未检查");
     const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
@@ -455,7 +458,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 自动执行阈值 ${check.auto_execute_min_profit_usd || "1"}U | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
+      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 盈利下限 ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
       return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
@@ -463,28 +466,28 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 自动执行阈值 ${check.auto_execute_min_profit_usd || "1"}U | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
+      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 盈利下限 ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
       return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
       `输入数量 ${esc(step.query_sell_amount_before_fee || step.input_amount || "-")} ${esc(displaySymbol(step.from_symbol))} | CoW 查询输出 ${esc(step.query_buy_amount_after_fee || "等待查询")} ${esc(displaySymbol(step.to_symbol))}<br>` +
       `候选价格：${priceCandidateHtml(step)}<br>候选兑换比例：${rateCandidateHtml(step)}<br>` +
-      `${selectionHtml(step)} | 滑点设置 ${esc(step.slippage_bps ?? "-")}bps (${esc(step.slippage_percent || "-")}%)<br>` +
+      `${selectionHtml(step)} | 保底价动态生成；兜底参数 ${esc(step.slippage_bps ?? "-")}bps (${esc(step.slippage_percent || "-")}%)<br>` +
       `目标数量 ${esc(step.target_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))} | 最低接收 ${esc(step.min_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))}<br>` +
       `${sdkParamsHtml(step)}<br>规则：${esc(step.selection_rule || step.price_compare_rule || "-")}`;
     const executionStepText = step => `${step.step || "-"}. ${displaySymbol(step.from_symbol)} -> ${displaySymbol(step.to_symbol)} | ${basisLabel(step.price_basis)}\n` +
       `输入数量 ${step.query_sell_amount_before_fee || step.input_amount || "-"} ${displaySymbol(step.from_symbol)} | CoW 查询输出 ${step.query_buy_amount_after_fee || "等待查询"} ${displaySymbol(step.to_symbol)}\n` +
       `候选价格：${priceCandidateText(step)}\n候选兑换比例：${rateCandidateText(step)}\n` +
-      `${selectionText(step)} | 滑点设置 ${step.slippage_bps ?? "-"}bps (${step.slippage_percent || "-"}%)\n` +
+      `${selectionText(step)} | 保底价动态生成；兜底参数 ${step.slippage_bps ?? "-"}bps (${step.slippage_percent || "-"}%)\n` +
       `目标数量 ${step.target_output_amount || "-"} ${displaySymbol(step.to_symbol)} | 最低接收 ${step.min_output_amount || "-"} ${displaySymbol(step.to_symbol)}\n` +
       `${sdkParamsText(step)}\n规则：${step.selection_rule || step.price_compare_rule || "-"}`;
-    const executionParams = plan => plan?.available ? `<div>Binance 行情价格：<br>${planMarketPrices(plan)}</div><div>兑换参数：<br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>最终 Binance 估算：${esc(planFinal(plan))} | 统一滑点 ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%)</div>` : `计划不可用：${esc(plan?.reason || "-")}`;
+    const executionParams = plan => plan?.available ? `<div>Binance 行情价格：<br>${planMarketPrices(plan)}</div><div>兑换参数：<br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>最终 Binance 估算：${esc(planFinal(plan))} | 保底价/比例按目标与中间价动态生成；兜底参数 ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%)</div>` : `计划不可用：${esc(plan?.reason || "-")}`;
     const executionParamsText = plan => plan?.available ? [
       "Binance 行情价格：",
       planMarketPricesText(plan),
       "兑换参数：",
       ...((plan.steps || []).map(executionStepText)),
-      `最终 Binance 估算：${planFinal(plan)} | 统一滑点 ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
+      `最终 Binance 估算：${planFinal(plan)} | 保底价/比例按目标与中间价动态生成；兜底参数 ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
     ].join("\n") : `计划不可用：${plan?.reason || "-"}`;
     const planStepLine = executionStepLine;
     const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `计划不可用：${esc(plan?.reason || "-")}`;
@@ -514,12 +517,42 @@
       ...((rows || []).map((row, index) => `${index + 1}. ${displaySymbol(row.symbol)} | ${plainPct(row.change_percent)} | ${plainNum(row.start_price)} -> ${plainNum(row.current_price)} | chains ${chainList(row)} | ${row.price_source || "-"}`)),
       ...(rows && rows.length ? [] : ["-"]),
     ].join("\n");
+    const reasonCountsText = counts => Object.entries(counts || {}).map(([key, value]) => `${key}:${value}`).join(", ") || "-";
+    const thresholdBreakdownText = threshold => {
+      const t = threshold || {};
+      const dynamic = t.min_window_spread_percent ?? t.adjusted_min_spread_percent ?? "-";
+      const minProfit = t.min_profit_usd != null && t.amount != null && t.min_profit_percent != null ? `${t.min_profit_usd}U/${t.amount}U=${t.min_profit_percent}%` : "动态计算";
+      return `动态门槛 ${dynamic}% = 双向手续费 ${t.route_trade_fee_percent ?? "-"}% + 闪电贷利息 ${t.flashloan_fee_percent ?? "-"}% + gas/费用预留 ${t.fee_reserve_percent ?? "0"}% + 盈利下限 ${minProfit}；滑点按每条 CoW 路径的目标价与保底价动态校验`;
+    };
+    const cowSupportedSourceCount = overview => {
+      const direct = Number(overview?.source_market_row_count);
+      if (Number.isFinite(direct) && direct > 0) return direct;
+      const eligible = Number(overview?.market_eligible_symbol_count || 0);
+      const excluded = Number(overview?.market_excluded_symbol_count || 0);
+      return eligible + excluded;
+    };
+    const cowSupportedOverviewMeta = (overview, sideLabel) => {
+      const sideFilter = sideLabel === "涨幅" ? overview?.top_filter : overview?.bottom_filter;
+      const stats = sideFilter || overview || {};
+      const excluded = Number(stats.market_excluded_symbol_count || 0);
+      const reasonText = excluded > 0 && reasonCountsText(stats.market_excluded_reason_counts) === "-" ? "旧接口未返回明细" : reasonCountsText(stats.market_excluded_reason_counts);
+      return [
+        `${sideLabel}要求：单边${sideLabel} > 0.05%`,
+        `币价 >= ${overview?.min_token_price_usd ?? "0.01"}U`,
+        `来源 ${stats.source_market_row_count ?? cowSupportedSourceCount(overview)} 个`,
+        `通过行情过滤 ${stats.market_eligible_symbol_count ?? 0} 个`,
+        `CoW 命中 ${stats.supported_symbol_count ?? 0} / 未命中 ${stats.unsupported_symbol_count ?? 0}`,
+        `行情过滤排除 ${stats.market_excluded_symbol_count ?? 0} 个(${reasonText})`,
+      ].join(" | ");
+    };
     const renderCowSupportedOverview = overview => {
       const top = overview?.top || [];
       const bottom = overview?.bottom || [];
       const limit = overview?.limit || 50;
       $("cowSupportedTopTitle").textContent = `所有 CoW 支持代币涨幅前 ${limit}`;
       $("cowSupportedBottomTitle").textContent = `所有 CoW 支持代币跌幅前 ${limit}`;
+      $("cowSupportedTopMeta").textContent = cowSupportedOverviewMeta(overview, "涨幅");
+      $("cowSupportedBottomMeta").textContent = cowSupportedOverviewMeta(overview, "跌幅");
       $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported top data</td></tr>';
       $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported bottom data</td></tr>';
     };
@@ -532,7 +565,7 @@
         <h3>${esc(claim.label || claim.network || "-")} <span class="muted">(${esc(claim.chain_id || "-")})</span></h3>
         <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</span>
       </div>
-      <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; ${esc(claim.min_side_change_percent ?? "0.5")}% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)}</div>
+      <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; 0.05% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
       <div class="mini-split">
         <div>${rowsTable(claim.top || [], "涨幅")}</div>
         <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
@@ -568,11 +601,12 @@
       const autoReady = Boolean(check?.auto_execute_requested);
       const canSubmit = Boolean(check?.can_submit_order);
       const autoSwitchOn = Boolean($("autoExecuteToggle")?.checked);
+      const minProfitLabel = check?.auto_execute_min_profit_usd ? `${check.auto_execute_min_profit_usd}U` : "动态阈值";
       const executeLabel = !autoSwitchOn
         ? "自动执行检查关闭"
         : autoReady
-        ? (canSubmit ? "自动执行已就绪" : "净利润>1U，下单未启用")
-        : "净利润未达1U";
+        ? (canSubmit ? "自动执行已就绪" : `净利润>${minProfitLabel}，下单未启用`)
+        : `净利润未达 ${minProfitLabel}`;
       const detail = quote
         ? `<div class="route-detail">
             <div>初始数量：${esc(quoteInitial(quote))}</div>
@@ -734,8 +768,8 @@
         `样本数量：${data.sample_count ?? "-"} / universe ${data.observation_universe_size ?? "-"}`,
         `CoW token 缓存：${cowFilter.token_cache_count ?? "-"} (${cowFilter.token_cache_source || "-"})`,
         `Binance 命中：${cowFilter.supported_symbol_count ?? 0} / 未命中 ${cowFilter.unsupported_symbol_count ?? 0}`,
-        `统计过滤：单边涨跌 > ${cowFilter.min_side_change_percent ?? "0.5"}%；价格 >= ${cowFilter.min_token_price_usd ?? "0.01"}U；过滤 ${cowFilter.market_excluded_symbol_count ?? 0} 个`,
-        `最小候选差价：${cowFilter.min_spread_percent ?? minSpreadValue()}%`,
+        `统计过滤：单边涨跌 > ${cowFilter.min_side_change_percent ?? "0.05"}%；价格 >= ${cowFilter.min_token_price_usd ?? "0.01"}U；过滤 ${cowFilter.market_excluded_symbol_count ?? 0} 个`,
+        `动态交易门槛：${thresholdBreakdownText(cowFilter.threshold_detail || {})}`,
         `候选路径：${data.pair_count ?? 0}`,
         "",
         tableText(`Binance 原始涨幅前 ${data.top_limit || 5}`, data.raw_top || []),
@@ -812,7 +846,7 @@
           <span>${esc(quoteInfo)}</span>
           <span>最佳纯利润 ${esc(best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
         </div>
-        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "-")}% | 价差 ${esc(filter.min_spread_percent ?? minSpreadValue())}% | ${esc(threshold.threshold_rule || "fixed threshold")}</div>
+        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 0.05% | ${esc(thresholdBreakdownText(threshold))}</div>
         <div class="chain-routes">
           ${pair ? routeGraph(pair.route_results || [], pair, panel.network) : '<div class="muted">当前窗口没有同时满足涨幅、跌幅、价格、价差和 CoW 支持条件的一对代币。</div>'}
         </div>
@@ -876,7 +910,7 @@
       const filterAmount = threshold.amount ?? ($("quoteAmountInput").value || "1000");
       $("cowTokenCount").textContent = tokenTotal || cowFilter.token_cache_count || "-";
       $("cowMatchCount").textContent = `Binance 命中 ${supportedTotal || cowFilter.supported_symbol_count || 0} / 未命中 ${unsupportedTotal || cowFilter.unsupported_symbol_count || 0}`;
-      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > ${cowFilter.min_side_change_percent ?? "0.5"}% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | spread ${threshold.requested_min_spread_percent ?? "-"} -> ${cowFilter.min_spread_percent ?? "-"}% | amount ${filterAmount} | 每链 1 组`;
+      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > 0.05% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | ${thresholdBreakdownText(threshold)} | amount ${filterAmount} | 复盘记录全部候选`;
       $("pairCount").textContent = totalPairs;
       $("bestPair").textContent = totalPairs ? "waiting for CoW" : "-";
       $("rawTopBody").innerHTML = (data.raw_top || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw top data</td></tr>';
@@ -909,7 +943,7 @@
         <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
         <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "可自动执行" : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
       </tr>`).join("");
-      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">没有满足价格保护、净利润大于 1U、且 CoW 支持条件的交易机会</td></tr>';
+      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">没有满足价格保护、动态盈利下限且 CoW 支持条件的交易机会</td></tr>';
       const best = opportunities[0] || null;
       $("notionalUsd").textContent = best?.final_delta_amount || "-";
       $("notionalUsd").title = best ? `${networkLabel(best.display_network)} | ${best.pair || "-"} | ${(best.path || []).join(" -> ")}` : "";
@@ -934,7 +968,9 @@
     }
     async function refreshCowAttemptHistory() {
       try {
-        renderCowAttemptHistory(await api("/api/binance-market/cow-execution-attempts?limit=50"));
+        const networks = selectedNetworkIds();
+        const suffix = networks.length ? `&cow_networks=${encodeURIComponent(networks.join(","))}` : "";
+        renderCowAttemptHistory(await api(`/api/binance-market/cow-execution-attempts?limit=300${suffix}`));
       } catch (error) {
         $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
       }
@@ -981,6 +1017,7 @@
           const state = data.states?.[network];
           if (state) renderMarket({...state, cow_network_claims: data.cow_network_claims || [], cow_supported_overview: data.cow_supported_overview || null}, network);
         }
+        refreshCowAttemptHistory();
       } catch (error) {
         $("message").textContent = error.message;
       } finally {

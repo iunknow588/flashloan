@@ -3,30 +3,11 @@ import os
 from pathlib import Path
 
 from core.config_schema import parse_env_float
-from strategy.movement_thresholds import (
-    DEFAULT_ROUTE_TRADE_FEE_HOPS,
-    DEFAULT_TARGET_PROFIT_PERCENT,
-    enforce_min_paper_profit_usd,
-)
+from strategy.limits import strategy_defaults
+from strategy.movement_thresholds import enforce_min_paper_profit_usd
 
 
-STRATEGY_DEFAULTS = {
-    "ARBITRAGE_NOTIONAL_USD": 1000.0,
-    "ARBITRAGE_BASKET_SIZE": 2,
-    "ARBITRAGE_TRADE_FEE_PERCENT": 0.10,
-    "ARBITRAGE_FLASHLOAN_FEE_PERCENT": 0.05,
-    "ARBITRAGE_FEE_RESERVE_PERCENT": 0.10,
-    "ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT": 0.30,
-    "ARBITRAGE_MIN_PAPER_PROFIT_USD": 1.0,
-    "ARBITRAGE_TARGET_PROFIT_PERCENT": DEFAULT_TARGET_PROFIT_PERCENT,
-    "ARBITRAGE_ROUTE_TRADE_FEE_HOPS": DEFAULT_ROUTE_TRADE_FEE_HOPS,
-    "EXECUTION_SLIPPAGE_BPS": 50,
-    "EXECUTION_PLAN_MAX_AGE_SECONDS": 15,
-    "BINANCE_CHANGE_WINDOW_SECONDS": 1.0,
-    "BINANCE_VELOCITY_MIN_CHANGE_PERCENT": 0.2,
-    "TRIGGER_MIN_UP_CHANGE_PERCENT": 1.0,
-    "TRIGGER_MIN_DOWN_CHANGE_PERCENT": 1.0,
-}
+STRATEGY_DEFAULTS = strategy_defaults()
 
 MIN_SAMPLING_SECONDS = 0.2
 

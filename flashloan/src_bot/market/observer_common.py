@@ -42,11 +42,21 @@ from db.storage_liquidation import try_acquire_observer_lock
 from execution.liquidation_realtime_params import read_aave_flashloan_premium
 from strategy.arbitrage import ArbitrageConfig, simulate_basket
 from strategy.movement_thresholds import (
-    DEFAULT_ROUTE_TRADE_FEE_HOPS,
-    DEFAULT_TARGET_PROFIT_PERCENT,
     MovementThresholdConfig,
     calculate_movement_thresholds,
     enforce_min_paper_profit_usd,
+)
+from strategy.limits import (
+    DEFAULT_ARBITRAGE_BASKET_SIZE,
+    DEFAULT_ARBITRAGE_FEE_RESERVE_PERCENT,
+    DEFAULT_ARBITRAGE_FLASHLOAN_FEE_PERCENT,
+    DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD,
+    DEFAULT_ARBITRAGE_NOTIONAL_USD,
+    DEFAULT_ARBITRAGE_ROUTE_TRADE_FEE_HOPS,
+    DEFAULT_ARBITRAGE_TARGET_PROFIT_PERCENT,
+    DEFAULT_ARBITRAGE_TRADE_FEE_PERCENT,
+    DEFAULT_BINANCE_VELOCITY_MIN_CHANGE_PERCENT,
+    resolve_min_paper_profit_usd,
 )
 from strategy.trigger_signal import TriggerConfig
 
@@ -498,8 +508,10 @@ def load_config() -> ObserverConfig:
             for symbol in env_list("TRIGGER_EXECUTABLE_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS)
             if symbol in asset_lookup
         )
-    trade_fee_percent = max(0.0, env_float("ARBITRAGE_TRADE_FEE_PERCENT", 0.10))
-    fallback_flashloan_fee_percent = max(0.0, env_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", 0.05))
+    trade_fee_percent = max(0.0, env_float("ARBITRAGE_TRADE_FEE_PERCENT", DEFAULT_ARBITRAGE_TRADE_FEE_PERCENT))
+    fallback_flashloan_fee_percent = max(0.0, env_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", DEFAULT_ARBITRAGE_FLASHLOAN_FEE_PERCENT))
+    notional_usd = max(0.0, env_float("ARBITRAGE_NOTIONAL_USD", DEFAULT_ARBITRAGE_NOTIONAL_USD))
+    target_profit_percent = max(0.0, env_float("ARBITRAGE_TARGET_PROFIT_PERCENT", DEFAULT_ARBITRAGE_TARGET_PROFIT_PERCENT))
     flashloan_premium = read_aave_flashloan_premium(
         rpc_urls[0],
         pool_address,
@@ -509,13 +521,18 @@ def load_config() -> ObserverConfig:
         MovementThresholdConfig(
             trade_fee_percent=trade_fee_percent,
             flashloan_fee_percent=fallback_flashloan_fee_percent,
-            target_profit_percent=max(0.0, env_float("ARBITRAGE_TARGET_PROFIT_PERCENT", DEFAULT_TARGET_PROFIT_PERCENT)),
-            route_trade_fee_hops=env_int("ARBITRAGE_ROUTE_TRADE_FEE_HOPS", DEFAULT_ROUTE_TRADE_FEE_HOPS, minimum=1),
+            target_profit_percent=target_profit_percent,
+            route_trade_fee_hops=env_int("ARBITRAGE_ROUTE_TRADE_FEE_HOPS", DEFAULT_ARBITRAGE_ROUTE_TRADE_FEE_HOPS, minimum=1),
         ),
         flashloan_premium=flashloan_premium,
     )
-    min_paper_profit_usd = enforce_min_paper_profit_usd(
-        env_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", 1.0)
+    configured_min_paper_profit_usd = enforce_min_paper_profit_usd(
+        env_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD)
+    )
+    min_paper_profit_usd = resolve_min_paper_profit_usd(
+        configured_min_paper_profit_usd,
+        notional_usd=notional_usd,
+        target_profit_percent=target_profit_percent,
     )
     return ObserverConfig(
         rpc_url=rpc_urls[0],
@@ -532,7 +549,7 @@ def load_config() -> ObserverConfig:
             1.0,
             minimum=0.2,
         ),
-        binance_velocity_min_change_percent=max(0.0, env_float("BINANCE_VELOCITY_MIN_CHANGE_PERCENT", 0.2)),
+        binance_velocity_min_change_percent=max(0.0, env_float("BINANCE_VELOCITY_MIN_CHANGE_PERCENT", DEFAULT_BINANCE_VELOCITY_MIN_CHANGE_PERCENT)),
         binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", 10))),
         binance_extreme_write_seconds=profile_seconds(
             scan_profile,
@@ -565,13 +582,13 @@ def load_config() -> ObserverConfig:
             executable_symbols=executable_symbols,
         ),
         arbitrage=ArbitrageConfig(
-            notional_usd=max(0.0, env_float("ARBITRAGE_NOTIONAL_USD", 1000.0)),
+            notional_usd=notional_usd,
             trade_fee_percent=trade_fee_percent,
             flashloan_fee_percent=movement_thresholds.flashloan_fee_percent,
             min_window_spread_percent=movement_thresholds.min_window_spread_percent,
             min_paper_profit_usd=min_paper_profit_usd,
-            fee_reserve_percent=max(0.0, env_float("ARBITRAGE_FEE_RESERVE_PERCENT", 0.0)),
-            basket_size=max(1, int(env_float("ARBITRAGE_BASKET_SIZE", 5))),
+            fee_reserve_percent=max(0.0, env_float("ARBITRAGE_FEE_RESERVE_PERCENT", DEFAULT_ARBITRAGE_FEE_RESERVE_PERCENT)),
+            basket_size=max(1, int(env_float("ARBITRAGE_BASKET_SIZE", DEFAULT_ARBITRAGE_BASKET_SIZE))),
             executable_symbols=(),
             min_up_change_percent=movement_thresholds.min_up_change_percent,
             min_down_change_percent=movement_thresholds.min_down_change_percent,

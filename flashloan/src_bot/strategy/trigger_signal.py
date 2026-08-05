@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from strategy.limits import DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT, DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT
+
 
 @dataclass(frozen=True)
 class TriggerConfig:
-    min_up_change_percent: float = 1.0
-    min_down_change_percent: float = 1.0
+    min_up_change_percent: float = DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT
+    min_down_change_percent: float = DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT
     executable_symbols: tuple[str, ...] = ()
 
 
@@ -21,16 +23,14 @@ def build_trigger_signal(extremes: dict, config: TriggerConfig) -> Optional[dict
 
     up_change = float(up["change_percent"])
     down_change = float(down["change_percent"])
-    up_ok = up_change >= max(0.0, config.min_up_change_percent)
-    down_ok = abs(down_change) >= max(0.0, config.min_down_change_percent) and down_change < 0
-    signal = up_ok and down_ok
-    blocked_reasons = []
-    if not up_ok:
-        blocked_reasons.append("top_gainer_below_threshold")
-    if not down_ok:
-        blocked_reasons.append("top_loser_below_threshold")
-
+    min_window_spread = max(0.0, config.min_up_change_percent) + max(0.0, config.min_down_change_percent)
     spread = up_change - down_change
+    spread_ok = down_change < 0 and spread > min_window_spread
+    signal = spread_ok
+    blocked_reasons = []
+    if not spread_ok:
+        blocked_reasons.append("window_spread_below_threshold")
+
     return {
         "observed_at": extremes["observed_at"],
         "window_seconds": extremes["window_seconds"],
@@ -57,7 +57,7 @@ def build_trigger_signal(extremes: dict, config: TriggerConfig) -> Optional[dict
         "b_start_price": float(down["start_price"]),
         "b_end_price": float(down["end_price"]),
         "window_spread_percent": spread,
-        "min_window_spread_percent": config.min_up_change_percent + config.min_down_change_percent,
+        "min_window_spread_percent": min_window_spread,
         "notional_usd": 0.0,
         "per_leg_notional_usd": 0.0,
         "trade_fee_percent": 0.0,

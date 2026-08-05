@@ -28,7 +28,7 @@ def test_build_executable_signal_uses_defaults_for_invalid_trigger_env(monkeypat
         }
     )
 
-    assert candidate["min_window_spread_percent"] == 2.0
+    assert candidate["min_window_spread_percent"] == 0.1
 
 
 def test_executable_symbols_uses_default_reserve_limit_for_invalid_env(monkeypatch):

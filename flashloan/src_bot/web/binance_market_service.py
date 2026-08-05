@@ -14,22 +14,24 @@ from db.storage_cow_tokens import load_cow_supported_tokens, replace_cow_support
 from execution.cow_routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
-from market.velocity_candidates import top_bottom_from_extremes
+from market.velocity_candidates import base_token_symbol, top_bottom_from_extremes
 from strategy.arbitrage import ArbitrageConfig
+from strategy.limits import (
+    DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT,
+    DEFAULT_COW_NETWORK_DISPLAY_LIMIT,
+    DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
+    DEFAULT_EXECUTION_SLIPPAGE_BPS,
+    DEFAULT_MIN_COW_SPREAD_PERCENT,
+    DEFAULT_MIN_SIDE_CHANGE_PERCENT,
+    DEFAULT_MIN_TOKEN_PRICE_USD,
+)
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AAVE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "aave_reserve_assets.json"
 DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "state" / "binance_market_snapshot.json"
 DEFAULT_COW_TOKEN_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "cow_supported_tokens.json"
 DEFAULT_COW_TEST_NETWORK = "avalanche"
-DEFAULT_EXECUTION_SLIPPAGE_BPS = 50
-DEFAULT_MIN_COW_SPREAD_PERCENT = 1.0
-DEFAULT_MIN_SIDE_CHANGE_PERCENT = 0.5
-DEFAULT_MIN_TOKEN_PRICE_USD = 0.01
-DEFAULT_COW_NETWORK_DISPLAY_LIMIT = 5
 DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS = 120.0
-DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_USD = Decimal("1")
-DEFAULT_COW_ROUTE_HOP_COUNT = 3
 COW_NETWORK_LABELS = {
     "ethereum": "Ethereum",
     "gnosis": "Gnosis",
@@ -94,41 +96,42 @@ def cost_adjusted_cow_thresholds(
     amount: str | int | float | Decimal = "1000",
     arbitrage_config: ArbitrageConfig | None = None,
     slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
-    min_profit_usd: Decimal = DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_USD,
+    min_profit_percent: Decimal = DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT,
 ) -> dict[str, Any]:
     notional = _decimal_value(amount)
     if notional is None or notional <= 0:
         configured_notional = getattr(arbitrage_config, "notional_usd", None) if arbitrage_config else None
         notional = _decimal_value(configured_notional) or Decimal("1000")
     trade_fee_percent = _decimal_value(getattr(arbitrage_config, "trade_fee_percent", 0) if arbitrage_config else 0) or Decimal("0")
+    flashloan_fee_percent = _decimal_value(getattr(arbitrage_config, "flashloan_fee_percent", 0) if arbitrage_config else 0) or Decimal("0")
     fee_reserve_percent = _decimal_value(getattr(arbitrage_config, "fee_reserve_percent", 0) if arbitrage_config else 0) or Decimal("0")
     requested_spread = _decimal_value(requested_min_spread_percent) or Decimal(str(DEFAULT_MIN_COW_SPREAD_PERCENT))
-    slippage_percent = Decimal(max(0, min(int(slippage_bps), 5000))) / Decimal("100")
-    min_profit_percent = (min_profit_usd / notional * Decimal("100")) if notional > 0 else Decimal("0")
-    route_cost_percent = (
-        trade_fee_percent * Decimal(DEFAULT_COW_ROUTE_HOP_COUNT)
-        + fee_reserve_percent
-        + slippage_percent
-        + min_profit_percent
-    )
-    adjusted_spread = max(Decimal("0"), requested_spread, route_cost_percent)
-    side_threshold = max(Decimal(str(DEFAULT_MIN_SIDE_CHANGE_PERCENT)), adjusted_spread / Decimal("2"))
+    configured_min_profit_percent = max(Decimal("0"), _decimal_value(min_profit_percent) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT)
+    min_profit_usd = notional * configured_min_profit_percent / Decimal("100")
+    route_trade_fee_percent = trade_fee_percent * Decimal(DEFAULT_COW_TRADE_FEE_SIDE_COUNT)
+    route_cost_percent = route_trade_fee_percent + flashloan_fee_percent + fee_reserve_percent + configured_min_profit_percent
+    adjusted_spread = max(Decimal("0"), route_cost_percent)
+    side_threshold = Decimal(str(DEFAULT_MIN_SIDE_CHANGE_PERCENT))
     return {
         "requested_min_spread_percent": _decimal_text(requested_spread),
         "adjusted_min_spread_percent": _decimal_text(adjusted_spread),
+        "min_window_spread_percent": _decimal_text(adjusted_spread),
         "min_side_change_percent": _decimal_text(side_threshold),
         "min_token_price_usd": _decimal_text(Decimal(str(DEFAULT_MIN_TOKEN_PRICE_USD))),
         "amount": _decimal_text(notional),
         "trade_fee_percent_per_hop": _decimal_text(trade_fee_percent),
-        "route_hop_count": DEFAULT_COW_ROUTE_HOP_COUNT,
-        "route_trade_fee_percent": _decimal_text(trade_fee_percent * Decimal(DEFAULT_COW_ROUTE_HOP_COUNT)),
+        "trade_fee_side_count": DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
+        "route_hop_count": DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
+        "route_trade_fee_percent": _decimal_text(route_trade_fee_percent),
+        "flashloan_fee_percent": _decimal_text(flashloan_fee_percent),
         "fee_reserve_percent": _decimal_text(fee_reserve_percent),
         "slippage_bps": max(0, min(int(slippage_bps), 5000)),
-        "slippage_percent": _decimal_text(slippage_percent),
+        "slippage_percent": None,
+        "slippage_model": "dynamic_target_minus_acceptable_price",
         "min_profit_usd": _decimal_text(min_profit_usd),
-        "min_profit_percent": _decimal_text(min_profit_percent),
+        "min_profit_percent": _decimal_text(configured_min_profit_percent),
         "route_cost_floor_percent": _decimal_text(route_cost_percent),
-        "threshold_rule": "max(requested_spread, trade_fee*3 + fee_reserve + slippage + min_profit/notional)",
+        "threshold_rule": "gain - loss > dynamic_min_window_spread_percent; side display > 0.05%",
     }
 
 
@@ -442,7 +445,18 @@ def _basket_rows_from_extremes(extremes: dict[str, Any] | None) -> list[dict[str
         return []
     basket = extremes.get("basket")
     if isinstance(basket, list) and basket:
-        top_rows, bottom_rows = top_bottom_from_extremes({"basket": basket}, side_limit=1000)
+        source_rows = [_market_row_from_item(item) for item in basket if isinstance(item, dict)]
+        rows = []
+        seen: set[str] = set()
+        for row in source_rows:
+            if not row:
+                continue
+            symbol = str(row.get("symbol") or "")
+            if not symbol or symbol in seen:
+                continue
+            rows.append(row)
+            seen.add(symbol)
+        return rows
     else:
         top_rows, bottom_rows = top_bottom_from_extremes(extremes, side_limit=1000)
     rows = []
@@ -456,6 +470,25 @@ def _basket_rows_from_extremes(extremes: dict[str, Any] | None) -> list[dict[str
     return rows
 
 
+def _market_row_from_item(item: dict[str, Any]) -> dict[str, Any] | None:
+    symbol = str(item.get("symbol") or "").strip().upper()
+    if not symbol:
+        return None
+    current_price = item.get("current_price") if item.get("current_price") is not None else item.get("end_price")
+    return {
+        "rank": item.get("rank") or 0,
+        "side": item.get("side") or "basket",
+        "symbol": symbol,
+        "base_symbol": str(item.get("base_symbol") or base_token_symbol(symbol)).strip().upper(),
+        "change_percent": _safe_float(item.get("change_percent")),
+        "start_price": _safe_float(item.get("start_price")),
+        "end_price": _safe_float(item.get("end_price") if item.get("end_price") is not None else current_price),
+        "current_price": _safe_float(current_price),
+        "price_source": item.get("price_source"),
+        "window_ready": bool(item.get("window_ready", True)),
+    }
+
+
 def _market_row_price_ok(row: dict[str, Any], min_token_price_usd: float) -> bool:
     threshold = max(0.0, float(min_token_price_usd))
     prices = [
@@ -466,11 +499,15 @@ def _market_row_price_ok(row: dict[str, Any], min_token_price_usd: float) -> boo
     return bool(observed_prices) and min(observed_prices) >= threshold
 
 
-def _market_row_change_ok(row: dict[str, Any], min_side_change_percent: float) -> bool:
+def _market_row_change_ok(row: dict[str, Any], min_side_change_percent: float, side: str | None = None) -> bool:
     change = _safe_float(row.get("change_percent"))
     if change is None:
         return False
     threshold = max(0.0, float(min_side_change_percent))
+    if side == "top":
+        return change > threshold
+    if side == "bottom":
+        return change < -threshold
     return change > threshold or change < -threshold
 
 
@@ -479,13 +516,14 @@ def _eligible_market_rows(
     *,
     min_side_change_percent: float = DEFAULT_MIN_SIDE_CHANGE_PERCENT,
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
+    side: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     eligible = []
     excluded = []
     for row in rows:
         copied = dict(row)
         reasons = []
-        if not _market_row_change_ok(copied, min_side_change_percent):
+        if not _market_row_change_ok(copied, min_side_change_percent, side=side):
             reasons.append("side_change_below_threshold")
         if not _market_row_price_ok(copied, min_token_price_usd):
             reasons.append("price_below_threshold")
@@ -495,6 +533,15 @@ def _eligible_market_rows(
         else:
             eligible.append(copied)
     return eligible, excluded
+
+
+def _market_filter_reason_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        for reason in row.get("market_filter_reasons") or []:
+            key = str(reason or "").strip() or "unknown"
+            counts[key] = counts.get(key, 0) + 1
+    return counts
 
 
 def _price_filtered_market_rows(
@@ -530,6 +577,43 @@ def _cow_supported_market_rows(
         copied["base_symbol"] = token["symbol"]
         supported.append(copied)
     return supported, unsupported
+
+
+def _cow_supported_union_market_rows(
+    rows: list[dict[str, Any]],
+    network_token_caches: dict[str, dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    supported: dict[str, dict[str, Any]] = {}
+    unsupported: list[dict[str, Any]] = []
+    eligible_symbols: set[str] = set()
+    for row in rows:
+        symbol = str(row.get("symbol") or "").upper()
+        base_symbol = str(row.get("base_symbol") or "").upper()
+        if not symbol or not base_symbol:
+            continue
+        eligible_symbols.add(symbol)
+        support_networks = []
+        cow_symbols = []
+        for network, token_cache in network_token_caches.items():
+            config = cow_network_config(network=network)
+            if config.testnet:
+                continue
+            registry = token_cache.get("registry") if isinstance(token_cache, dict) else {}
+            token = _resolve_cow_market_symbol(base_symbol, registry or {})
+            if token is None:
+                continue
+            support_networks.append(config.network)
+            cow_symbols.append(token["symbol"])
+        if not support_networks:
+            unsupported.append(dict(row))
+            continue
+        copied = dict(row)
+        copied["cow_supported"] = True
+        copied["cow_networks"] = support_networks
+        copied["cow_network_count"] = len(support_networks)
+        copied["cow_base_symbols"] = list(dict.fromkeys(cow_symbols))
+        supported[symbol] = copied
+    return list(supported.values()), unsupported, eligible_symbols
 
 
 def _rank_supported_extremes(
@@ -1050,18 +1134,40 @@ def build_binance_rest_market_snapshot(
     return snapshot
 
 
+def _market_basket_symbol_count(extremes: dict[str, Any] | None) -> int:
+    if not isinstance(extremes, dict):
+        return 0
+    seen: set[str] = set()
+    basket = extremes.get("basket")
+    if not isinstance(basket, list):
+        return 0
+    for item in basket:
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if symbol:
+            seen.add(symbol)
+    return len(seen)
+
+
 def needs_binance_rest_snapshot(extremes: dict[str, Any] | None, *, side_limit: int = 5) -> bool:
-    if isinstance(extremes, dict) and extremes.get("price_source") == "binance_rest_24h":
+    if not isinstance(extremes, dict):
+        return True
+    if extremes.get("price_source") == "binance_rest_24h":
         return True
     top, bottom = top_bottom_from_extremes(extremes, side_limit=side_limit)
     if len(top) < side_limit or len(bottom) < side_limit:
         return True
-    if not isinstance(extremes, dict):
-        return True
+    basket_symbol_count = _market_basket_symbol_count(extremes)
     try:
-        return int(extremes.get("observation_universe_size") or 0) < side_limit * 2
+        observation_universe_size = int(extremes.get("observation_universe_size") or 0)
     except (TypeError, ValueError):
+        observation_universe_size = 0
+    if basket_symbol_count < side_limit * 2:
         return True
+    if observation_universe_size > 0 and basket_symbol_count < observation_universe_size:
+        return True
+    return False
 
 
 def read_binance_market_snapshot(path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH) -> dict[str, Any] | None:
@@ -1227,6 +1333,13 @@ def _cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None)
         "profit_amount": final_delta_amount,
         "profit_symbol": result.get("final_symbol"),
     }
+
+
+def _cow_min_profit_usd_for_amount(amount: Any) -> Decimal:
+    notional = _decimal_value(amount)
+    if notional is None or notional <= 0:
+        notional = Decimal("1000")
+    return notional * DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT / Decimal("100")
 
 
 def _execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1425,10 +1538,11 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     route_supported = bool((result.get("cow_support") or {}).get("supported"))
     quote_available = bool(result.get("viable")) and bool(hops)
     final_delta = _decimal_value(result.get("final_delta_amount"))
+    min_profit_usd = _cow_min_profit_usd_for_amount(result.get("input_amount"))
     profit_positive = final_delta is not None and final_delta > 0
     profit_above_auto_threshold = (
         final_delta is not None
-        and final_delta >= DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_USD
+        and final_delta >= min_profit_usd
         and _stable_symbol(str(result.get("final_symbol") or ""))
     )
     price_guards_passed = bool(hop_checks) and all(item["price_guard_passed"] for item in hop_checks)
@@ -1444,7 +1558,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     elif not profit_above_auto_threshold:
         reasons.append(
             f"手续费后净利润低于自动执行阈值：{result.get('final_delta_amount') or '-'} "
-            f"{result.get('final_symbol') or ''} < {DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_USD}U".strip()
+            f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
         )
     checks_passed = route_supported and quote_available and price_guards_passed and profit_above_auto_threshold
     order_submission_enabled = False
@@ -1459,6 +1573,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         status = "price_guard_failed"
     elif not profit_positive:
         status = "not_profitable"
+    elif not profit_above_auto_threshold:
+        status = "profit_below_threshold"
     else:
         status = "blocked"
     return {
@@ -1467,7 +1583,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "can_submit_order": checks_passed and order_submission_enabled,
         "order_submission_enabled": order_submission_enabled,
         "auto_execute_requested": checks_passed,
-        "auto_execute_min_profit_usd": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_USD),
+        "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
+        "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),
         "auto_execute_blocked": checks_passed and not order_submission_enabled,
         "route_supported": route_supported,
         "quote_available": quote_available,
@@ -1560,7 +1677,7 @@ def _candidate_pair_count(top_rows: list[dict[str, Any]], bottom_rows: list[dict
                 if x.get("change_percent") is not None and y.get("change_percent") is not None
                 else None
             )
-            if spread is not None and spread >= min_spread:
+            if spread is not None and spread > min_spread:
                 count += 1
     return count
 
@@ -1575,6 +1692,7 @@ def build_cow_network_market_claims(
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
     threshold_detail: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
+    min_side_change_percent = DEFAULT_MIN_SIDE_CHANGE_PERCENT
     market_rows = _basket_rows_from_extremes(extremes)
     eligible_market_rows, excluded_market_rows = _eligible_market_rows(
         market_rows,
@@ -1626,49 +1744,76 @@ def build_cow_supported_market_overview(
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
     threshold_detail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    min_side_change_percent = DEFAULT_MIN_SIDE_CHANGE_PERCENT
     market_rows = _basket_rows_from_extremes(extremes)
-    eligible_market_rows, excluded_market_rows = _eligible_market_rows(
+    top_eligible_market_rows, top_excluded_market_rows = _eligible_market_rows(
+        market_rows,
+        min_side_change_percent=min_side_change_percent,
+        min_token_price_usd=min_token_price_usd,
+        side="top",
+    )
+    bottom_eligible_market_rows, bottom_excluded_market_rows = _eligible_market_rows(
+        market_rows,
+        min_side_change_percent=min_side_change_percent,
+        min_token_price_usd=min_token_price_usd,
+        side="bottom",
+    )
+    all_eligible_market_rows, all_excluded_market_rows = _eligible_market_rows(
         market_rows,
         min_side_change_percent=min_side_change_percent,
         min_token_price_usd=min_token_price_usd,
     )
-    by_symbol: dict[str, dict[str, Any]] = {}
-    for row in eligible_market_rows:
-        symbol = str(row.get("symbol") or "").upper()
-        base_symbol = str(row.get("base_symbol") or "").upper()
-        if not symbol or not base_symbol:
-            continue
-        support_networks = []
-        cow_symbols = []
-        for network, token_cache in network_token_caches.items():
-            config = cow_network_config(network=network)
-            if config.testnet:
-                continue
-            registry = token_cache.get("registry") if isinstance(token_cache, dict) else {}
-            token = _resolve_cow_market_symbol(base_symbol, registry or {})
-            if token is None:
-                continue
-            support_networks.append(config.network)
-            cow_symbols.append(token["symbol"])
-        if not support_networks:
-            continue
-        copied = dict(row)
-        copied["cow_supported"] = True
-        copied["cow_networks"] = support_networks
-        copied["cow_network_count"] = len(support_networks)
-        copied["cow_base_symbols"] = list(dict.fromkeys(cow_symbols))
-        by_symbol[symbol] = copied
-    top_rows, bottom_rows = _rank_supported_extremes(
-        list(by_symbol.values()),
+    top_supported_rows, top_unsupported_rows, top_eligible_symbols = _cow_supported_union_market_rows(
+        top_eligible_market_rows,
+        network_token_caches,
+    )
+    bottom_supported_rows, bottom_unsupported_rows, bottom_eligible_symbols = _cow_supported_union_market_rows(
+        bottom_eligible_market_rows,
+        network_token_caches,
+    )
+    all_supported_rows, all_unsupported_rows, all_eligible_symbols = _cow_supported_union_market_rows(
+        all_eligible_market_rows,
+        network_token_caches,
+    )
+    top_rows, _ = _rank_supported_extremes(
+        top_supported_rows,
+        max(1, int(limit)),
+        min_side_change_percent=min_side_change_percent,
+        min_token_price_usd=min_token_price_usd,
+    )
+    _, bottom_rows = _rank_supported_extremes(
+        bottom_supported_rows,
         max(1, int(limit)),
         min_side_change_percent=min_side_change_percent,
         min_token_price_usd=min_token_price_usd,
     )
     return {
         "limit": max(1, int(limit)),
-        "supported_symbol_count": len(by_symbol),
-        "market_eligible_symbol_count": len(eligible_market_rows),
-        "market_excluded_symbol_count": len(excluded_market_rows),
+        "source_market_row_count": len(market_rows),
+        "eligible_symbol_count": len(all_eligible_symbols),
+        "supported_symbol_count": len(all_supported_rows),
+        "unsupported_symbol_count": len(all_unsupported_rows),
+        "market_eligible_symbol_count": len(all_eligible_market_rows),
+        "market_excluded_symbol_count": len(all_excluded_market_rows),
+        "market_excluded_reason_counts": _market_filter_reason_counts(all_excluded_market_rows),
+        "top_filter": {
+            "source_market_row_count": len(market_rows),
+            "eligible_symbol_count": len(top_eligible_symbols),
+            "supported_symbol_count": len(top_supported_rows),
+            "unsupported_symbol_count": len(top_unsupported_rows),
+            "market_eligible_symbol_count": len(top_eligible_market_rows),
+            "market_excluded_symbol_count": len(top_excluded_market_rows),
+            "market_excluded_reason_counts": _market_filter_reason_counts(top_excluded_market_rows),
+        },
+        "bottom_filter": {
+            "source_market_row_count": len(market_rows),
+            "eligible_symbol_count": len(bottom_eligible_symbols),
+            "supported_symbol_count": len(bottom_supported_rows),
+            "unsupported_symbol_count": len(bottom_unsupported_rows),
+            "market_eligible_symbol_count": len(bottom_eligible_market_rows),
+            "market_excluded_symbol_count": len(bottom_excluded_market_rows),
+            "market_excluded_reason_counts": _market_filter_reason_counts(bottom_excluded_market_rows),
+        },
         "min_side_change_percent": float(min_side_change_percent),
         "min_token_price_usd": float(min_token_price_usd),
         "threshold_detail": threshold_detail or {},
@@ -1790,7 +1935,7 @@ def build_binance_market_state(
                 if x["change_percent"] is not None and y["change_percent"] is not None
                 else None
             )
-            if spread is None or spread < min_spread:
+            if spread is None or spread <= min_spread:
                 continue
             row = _pair_quote_candidates(x, y, arbitrage_config, slippage_bps=slippage_bps)
             row["grid_rank"] = len(pairs) + 1
@@ -1842,7 +1987,7 @@ def build_cow_quote_verification(
     owner = requested_owner or account_config.owner
     owner_source = "request.owner" if requested_owner else account_config.owner_source
     ranked_pairs = list(market_state.get("pairs") or [])
-    selected_pairs = ranked_pairs[: max(1, int(quote_limit))]
+    selected_pairs = ranked_pairs
     route_specs = [spec for pair in selected_pairs for spec in _cow_route_specs(pair, amount)]
     token_registry = registry if registry is not None else build_token_registry(
         aave_cache_path=aave_cache_path,

@@ -107,6 +107,50 @@ def test_simulate_basket_reports_grid_counts_and_closed_execution_route():
     assert plan["buy_steps"][0]["from_symbol"] == plan["repay_steps"][0]["to_symbol"]
 
 
+def test_simulate_basket_uses_pair_spread_instead_of_side_thresholds():
+    extremes = {
+        "observed_at": "2026-07-27T00:00:00Z",
+        "window_seconds": 10,
+        "sample_count": 2,
+        "top": [row("X", 10, 10.06)],
+        "bottom": [row("Y", 10, 9.95)],
+    }
+    config = ArbitrageConfig(
+        notional_usd=1000,
+        trade_fee_percent=0,
+        flashloan_fee_percent=0,
+        min_window_spread_percent=1.0,
+        min_up_change_percent=1.0,
+        min_down_change_percent=1.0,
+        basket_size=1,
+    )
+
+    result = simulate_basket(extremes, config)
+
+    assert result["candidate_pair_count"] == 1
+    assert result["window_spread_percent"] > result["min_window_spread_percent"]
+    assert result["signal"] is True
+
+
+def test_simulate_basket_requires_pair_spread_strictly_above_threshold():
+    extremes = {
+        "observed_at": "2026-07-27T00:00:00Z",
+        "window_seconds": 10,
+        "sample_count": 2,
+        "top": [{"symbol": "X", "start_price": 10, "end_price": 10.05, "change_percent": 0.5}],
+        "bottom": [{"symbol": "Y", "start_price": 10, "end_price": 9.95, "change_percent": -0.5}],
+    }
+    config = ArbitrageConfig(
+        notional_usd=1000,
+        trade_fee_percent=0,
+        flashloan_fee_percent=0,
+        min_window_spread_percent=1.0,
+        basket_size=1,
+    )
+
+    assert simulate_basket(extremes, config) is None
+
+
 def test_simulate_basket_generates_quote_candidate_when_negative_m_selects_reverse():
     extremes = {
         "observed_at": "2026-07-27T00:00:00Z",

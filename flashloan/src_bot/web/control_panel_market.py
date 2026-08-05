@@ -12,6 +12,7 @@ from execution.plan_quotes import quote_execution_plan
 from core.config_schema import parse_env_float
 from core.env_loader import load_env_files, resolve_env_path
 from strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
+from strategy.limits import resolve_min_paper_profit_usd
 from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES
 from web.control_panel_config import (
     STRATEGY_DEFAULTS,
@@ -237,12 +238,23 @@ def read_execution_plan_max_age_seconds() -> float:
 
 def arbitrage_config_from_strategy() -> ArbitrageConfig:
     config = strategy_config()
+    notional_usd = _strategy_float("ARBITRAGE_NOTIONAL_USD", config, minimum=0.0)
+    target_profit_percent = _strategy_float(
+        "ARBITRAGE_TARGET_PROFIT_PERCENT",
+        config,
+        minimum=0.0,
+    )
+    configured_min_paper_profit_usd = _strategy_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", config, minimum=0.0)
     return ArbitrageConfig(
-        notional_usd=_strategy_float("ARBITRAGE_NOTIONAL_USD", config, minimum=0.0),
+        notional_usd=notional_usd,
         trade_fee_percent=_strategy_float("ARBITRAGE_TRADE_FEE_PERCENT", config, minimum=0.0),
         flashloan_fee_percent=_strategy_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", config, minimum=0.0),
         min_window_spread_percent=_strategy_float("ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT", config, minimum=0.0),
-        min_paper_profit_usd=_strategy_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", config, minimum=1.0),
+        min_paper_profit_usd=resolve_min_paper_profit_usd(
+            configured_min_paper_profit_usd,
+            notional_usd=notional_usd,
+            target_profit_percent=target_profit_percent,
+        ),
         fee_reserve_percent=_strategy_float("ARBITRAGE_FEE_RESERVE_PERCENT", config, minimum=0.0),
         basket_size=_strategy_int("ARBITRAGE_BASKET_SIZE", config, minimum=1, maximum=10),
         min_up_change_percent=_strategy_float("TRIGGER_MIN_UP_CHANGE_PERCENT", config, minimum=0.0),

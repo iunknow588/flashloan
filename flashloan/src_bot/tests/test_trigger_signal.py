@@ -40,13 +40,10 @@ def test_builds_onchain_dynamic_trigger_signal():
 
 
 def test_blocks_when_thresholds_are_not_met():
-    signal = build_trigger_signal(extremes(up_change=0.5, down_change=-0.4), TriggerConfig())
+    signal = build_trigger_signal(extremes(up_change=0.04, down_change=-0.03), TriggerConfig())
 
     assert signal["trigger_signal"] is False
-    assert signal["blocked_reasons"] == [
-        "top_gainer_below_threshold",
-        "top_loser_below_threshold",
-    ]
+    assert signal["blocked_reasons"] == ["window_spread_below_threshold"]
 
 
 def test_filters_to_executable_symbols():

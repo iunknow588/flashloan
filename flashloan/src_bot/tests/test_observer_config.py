@@ -188,7 +188,7 @@ def test_binance_scan_profile_sets_short_window_cadence(monkeypatch):
     assert config.binance_pair_price_write_seconds == 0.2
 
 
-def test_load_config_uses_realtime_fee_thresholds_and_one_usd_profit_floor(monkeypatch):
+def test_load_config_uses_realtime_fee_thresholds_and_dynamic_profit_floor(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
     monkeypatch.setenv("AVALANCHE_RPCS", "https://rpc.example")
@@ -198,6 +198,7 @@ def test_load_config_uses_realtime_fee_thresholds_and_one_usd_profit_floor(monke
     monkeypatch.setenv("BINANCE_TOP_SYMBOL_LIMIT", "0")
     monkeypatch.setenv("ARBITRAGE_TRADE_FEE_PERCENT", "0.10")
     monkeypatch.setenv("ARBITRAGE_FLASHLOAN_FEE_PERCENT", "1.00")
+    monkeypatch.setenv("ARBITRAGE_TARGET_PROFIT_PERCENT", "0.618")
     monkeypatch.setenv("ARBITRAGE_MIN_PAPER_PROFIT_USD", "0")
     monkeypatch.setattr(observer, "load_aave_reserve_assets", lambda *args, **kwargs: [])
     monkeypatch.setattr(observer, "fetch_binance_usdt_symbols", lambda *args, **kwargs: {"AVAXUSDT", "ETHUSDT"})
@@ -205,9 +206,9 @@ def test_load_config_uses_realtime_fee_thresholds_and_one_usd_profit_floor(monke
 
     config = observer.load_config()
 
-    expected_spread = (1 - (1 - 0.001) ** 3) * 100 + 0.05 + 0.58
+    expected_spread = (1 - (1 - 0.001) ** 3) * 100 + 0.05 + 0.618
     assert config.trigger.min_up_change_percent == pytest.approx(expected_spread / 2)
     assert config.trigger.min_down_change_percent == pytest.approx(expected_spread / 2)
     assert config.arbitrage.flashloan_fee_percent == 0.05
     assert config.arbitrage.min_window_spread_percent == pytest.approx(expected_spread)
-    assert config.arbitrage.min_paper_profit_usd == 1.0
+    assert config.arbitrage.min_paper_profit_usd == pytest.approx(6.18)

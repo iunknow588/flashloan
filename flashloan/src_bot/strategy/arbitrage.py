@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD, DEFAULT_ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT
+
 
 STABLE_SYMBOL = "USDC"
 
@@ -10,8 +12,8 @@ class ArbitrageConfig:
     notional_usd: float
     trade_fee_percent: float
     flashloan_fee_percent: float
-    min_window_spread_percent: float = 0.30
-    min_paper_profit_usd: float = 0.0
+    min_window_spread_percent: float = DEFAULT_ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT
+    min_paper_profit_usd: float = DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
     fee_reserve_percent: float = 0.0
     basket_size: int = 5
     executable_symbols: tuple[str, ...] = ()
@@ -330,12 +332,13 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
     executable = {symbol.upper() for symbol in config.executable_symbols}
     min_up_change_percent = max(0.0, float(config.min_up_change_percent))
     min_down_change_percent = max(0.0, float(config.min_down_change_percent))
+    min_window_spread_percent = max(0.0, float(config.min_window_spread_percent))
     top = [
         row
         for row in extremes.get("top", [])
         if (
             _valid_leg(row)
-            and float(row["change_percent"]) >= min_up_change_percent
+            and float(row["change_percent"]) > 0
             and (not executable or str(row["symbol"]).upper() in executable)
         )
     ]
@@ -345,11 +348,14 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
         if (
             _valid_leg(row)
             and float(row["change_percent"]) < 0
-            and abs(float(row["change_percent"])) >= min_down_change_percent
             and (not executable or str(row["symbol"]).upper() in executable)
         )
     ]
-    candidate_rows = select_cross_pair_rows(top, bottom)
+    candidate_rows = [
+        (top_row, bottom_row)
+        for top_row, bottom_row in select_cross_pair_rows(top, bottom)
+        if pair_window_spread_percent(top_row, bottom_row) > min_window_spread_percent
+    ]
     if not candidate_rows:
         return None
 
@@ -394,11 +400,11 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
     primary = pairs[0]
     window_spread_percent = float(primary["a_change_percent"] - primary["b_change_percent"])
     signal = (
-        window_spread_percent >= max(0.0, config.min_window_spread_percent)
+        window_spread_percent > min_window_spread_percent
         and net_signal_profit_usd >= max(0.0, config.min_paper_profit_usd)
     )
     blocked_reasons = []
-    if window_spread_percent < max(0.0, config.min_window_spread_percent):
+    if window_spread_percent <= min_window_spread_percent:
         blocked_reasons.append("window_spread_below_threshold")
     if net_signal_profit_usd < max(0.0, config.min_paper_profit_usd):
         blocked_reasons.append("candidate_score_below_threshold")
@@ -485,6 +491,10 @@ def select_cross_pair_rows(top: list[dict], bottom: list[dict]) -> list[tuple[di
             if bottom_symbol != top_symbol:
                 pairs.append((top_row, bottom_row))
     return pairs
+
+
+def pair_window_spread_percent(up: dict, down: dict) -> float:
+    return float(up["change_percent"]) - float(down["change_percent"])
 
 
 def select_disjoint_pair_rows(

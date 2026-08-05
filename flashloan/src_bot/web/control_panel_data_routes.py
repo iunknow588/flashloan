@@ -8,6 +8,8 @@ from core.sensitive_data import redact_sensitive_text
 from db.storage_cow_execution import (
     append_cow_execution_attempts_jsonl,
     build_cow_execution_attempts,
+    build_cow_market_claim_candidate_attempts,
+    build_cow_market_candidate_attempts,
     load_recent_cow_execution_attempts,
     load_recent_cow_execution_attempts_jsonl,
     record_cow_execution_attempts,
@@ -37,6 +39,7 @@ from web.route_context import RouteContext
 ROUTE_CONTEXT = RouteContext()
 SRC_ROOT = Path(__file__).resolve().parents[1]
 COW_EXECUTION_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
+COW_EXECUTION_RETENTION_DAYS = 7
 
 
 def panel_call(name: str, *args, **kwargs):
@@ -54,24 +57,84 @@ def data_error_message(error: object | None) -> str | None:
     return redact_sensitive_text(message)
 
 
+def _request_networks_arg() -> list[str]:
+    raw = request.args.get("cow_networks", "") or request.args.get("cow_network", "")
+    return [
+        item.strip().lower()
+        for item in raw.split(",")
+        if item.strip()
+    ]
+
+
+def record_cow_attempt_list_safely(
+    attempts: list[dict],
+    *,
+    database_url: str | None,
+) -> dict:
+    if not attempts:
+        return {"recorded": 0, "source": "empty", "error": None}
+    if database_url:
+        try:
+            ids = record_cow_execution_attempts(
+                database_url,
+                attempts,
+                retention_days=COW_EXECUTION_RETENTION_DAYS,
+            )
+            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
+        except Exception as exc:
+            file_count = append_cow_execution_attempts_jsonl(
+                COW_EXECUTION_ATTEMPT_LOG_PATH,
+                attempts,
+                retention_days=COW_EXECUTION_RETENTION_DAYS,
+            )
+            return {"recorded": file_count, "source": "jsonl_fallback", "error": data_error_message(exc)}
+    file_count = append_cow_execution_attempts_jsonl(
+        COW_EXECUTION_ATTEMPT_LOG_PATH,
+        attempts,
+        retention_days=COW_EXECUTION_RETENTION_DAYS,
+    )
+    return {"recorded": file_count, "source": "jsonl", "error": None}
+
+
 def record_cow_execution_attempts_safely(
     payload: dict,
     *,
     market_state: dict,
     database_url: str | None,
 ) -> dict:
-    attempts = build_cow_execution_attempts(payload, market_state=market_state)
-    if not attempts:
-        return {"recorded": 0, "source": "empty", "error": None}
-    if database_url:
-        try:
-            ids = record_cow_execution_attempts(database_url, attempts)
-            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
-        except Exception as exc:
-            file_count = append_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, attempts)
-            return {"recorded": file_count, "source": "jsonl_fallback", "error": data_error_message(exc)}
-    file_count = append_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, attempts)
-    return {"recorded": file_count, "source": "jsonl", "error": None}
+    return record_cow_attempt_list_safely(
+        build_cow_execution_attempts(payload, market_state=market_state),
+        database_url=database_url,
+    )
+
+
+def record_cow_market_candidates_safely(
+    market_states: list[dict],
+    *,
+    network_claims: list[dict] | None = None,
+    observed_at: object = None,
+    window_seconds: object = None,
+    price_source: object = None,
+    market_state_source: object = None,
+    fallback_reason: object = None,
+    database_url: str | None,
+) -> dict:
+    attempts = [
+        attempt
+        for market_state in market_states
+        for attempt in build_cow_market_candidate_attempts(market_state)
+    ]
+    attempts.extend(
+        build_cow_market_claim_candidate_attempts(
+            network_claims or [],
+            observed_at=observed_at,
+            window_seconds=window_seconds,
+            price_source=price_source,
+            market_state_source=market_state_source,
+            fallback_reason=fallback_reason,
+        )
+    )
+    return record_cow_attempt_list_safely(attempts, database_url=database_url)
 
 
 def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
@@ -527,6 +590,16 @@ def register_data_routes(app, panel) -> None:
             min_token_price_usd=min_token_price_usd,
             threshold_detail=thresholds,
         )
+        market_state["history_recording"] = record_cow_market_candidates_safely(
+            [market_state],
+            network_claims=market_state.get("cow_network_claims") or [],
+            observed_at=market_state.get("observed_at"),
+            window_seconds=market_state.get("window_seconds"),
+            price_source=market_state.get("price_source"),
+            market_state_source=market_state.get("market_state_source"),
+            fallback_reason=market_state.get("fallback_reason"),
+            database_url=database_url,
+        )
         return jsonify(market_state)
 
     @app.get("/api/binance-market/states")
@@ -589,6 +662,7 @@ def register_data_routes(app, panel) -> None:
             threshold_detail=thresholds,
         )
         states = {}
+        market_states_for_history = []
         for network in requested:
             token_cache = network_token_caches[network]
             market_state = build_binance_market_state(
@@ -613,10 +687,22 @@ def register_data_routes(app, panel) -> None:
             market_state["cow_top"] = list(market_state.get("top") or [])[:1]
             market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:1]
             states[network] = market_state
+            market_states_for_history.append(market_state)
+        history_recording = record_cow_market_candidates_safely(
+            market_states_for_history,
+            network_claims=claims,
+            observed_at=extremes.get("observed_at") if isinstance(extremes, dict) else None,
+            window_seconds=extremes.get("window_seconds") if isinstance(extremes, dict) else None,
+            price_source=extremes.get("price_source") if isinstance(extremes, dict) else None,
+            market_state_source=extremes.get("market_state_source") if isinstance(extremes, dict) else None,
+            fallback_reason=extremes.get("fallback_reason") if isinstance(extremes, dict) else None,
+            database_url=database_url,
+        )
         return jsonify(
             {
                 "networks": requested,
                 "states": states,
+                "history_recording": history_recording,
                 "cow_network_claims": claims,
                 "cow_supported_overview": cow_supported_overview,
                 "observed_at": extremes.get("observed_at") if isinstance(extremes, dict) else None,
@@ -669,6 +755,7 @@ def register_data_routes(app, panel) -> None:
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
         pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
+        pair_side_limit = max(pair_side_limit, 5)
         quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
         amount = request_cow_amount()
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
@@ -715,6 +802,7 @@ def register_data_routes(app, panel) -> None:
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
         pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
+        pair_side_limit = max(pair_side_limit, 5)
         quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
         amount = request_cow_amount()
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
@@ -765,14 +853,22 @@ def register_data_routes(app, panel) -> None:
 
     @app.get("/api/binance-market/cow-execution-attempts")
     def binance_market_cow_execution_attempts():
-        limit = request_int_arg("limit", 50, minimum=1, maximum=200)
+        limit = request_int_arg("limit", 300, minimum=1, maximum=1000)
+        networks = _request_networks_arg()
         database_url = panel_call("database_url_or_none")
         if database_url:
             try:
                 return jsonify(
                     {
                         "source": "database",
-                        "attempts": load_recent_cow_execution_attempts(database_url, limit=limit),
+                        "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                        "networks": networks,
+                        "attempts": load_recent_cow_execution_attempts(
+                            database_url,
+                            limit=limit,
+                            networks=networks,
+                            retention_days=COW_EXECUTION_RETENTION_DAYS,
+                        ),
                     }
                 )
             except Exception as exc:
@@ -780,13 +876,27 @@ def register_data_routes(app, panel) -> None:
                     {
                         "source": "jsonl_fallback",
                         "error": data_error_message(exc),
-                        "attempts": load_recent_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, limit=limit),
+                        "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                        "networks": networks,
+                        "attempts": load_recent_cow_execution_attempts_jsonl(
+                            COW_EXECUTION_ATTEMPT_LOG_PATH,
+                            limit=limit,
+                            networks=networks,
+                            retention_days=COW_EXECUTION_RETENTION_DAYS,
+                        ),
                     }
                 )
         return jsonify(
             {
                 "source": "jsonl",
-                "attempts": load_recent_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, limit=limit),
+                "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                "networks": networks,
+                "attempts": load_recent_cow_execution_attempts_jsonl(
+                    COW_EXECUTION_ATTEMPT_LOG_PATH,
+                    limit=limit,
+                    networks=networks,
+                    retention_days=COW_EXECUTION_RETENTION_DAYS,
+                ),
             }
         )
     

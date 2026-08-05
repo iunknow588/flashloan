@@ -1,4 +1,14 @@
-from web.control_panel_config import sanitize_strategy_config, unified_sampling_profile
+import pytest
+
+from strategy.limits import strategy_defaults
+from web.control_panel_config import STRATEGY_DEFAULTS, sanitize_strategy_config, unified_sampling_profile
+
+
+def test_strategy_defaults_come_from_single_strategy_library():
+    assert STRATEGY_DEFAULTS == strategy_defaults()
+    assert STRATEGY_DEFAULTS["TRIGGER_MIN_UP_CHANGE_PERCENT"] == 0.05
+    assert STRATEGY_DEFAULTS["TRIGGER_MIN_DOWN_CHANGE_PERCENT"] == 0.05
+    assert STRATEGY_DEFAULTS["ARBITRAGE_MIN_PAPER_PROFIT_USD"] == 0.0
 
 
 def test_sampling_profile_allows_configured_200ms_window():
@@ -41,4 +51,5 @@ def test_market_strategy_numeric_readers_fall_back_for_invalid_config(monkeypatc
     assert control_panel_market.read_execution_plan_max_age_seconds() == 15.0
     config = control_panel_market.arbitrage_config_from_strategy()
     assert config.notional_usd == 1000.0
+    assert config.min_paper_profit_usd == pytest.approx(6.18)
     assert config.basket_size == 2

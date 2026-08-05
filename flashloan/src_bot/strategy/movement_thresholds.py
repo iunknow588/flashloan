@@ -3,18 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
-DEFAULT_TARGET_PROFIT_PERCENT = 0.58
-DEFAULT_ROUTE_TRADE_FEE_HOPS = 3
-MIN_PAPER_PROFIT_USD = 1.0
+from strategy.limits import (
+    DEFAULT_ARBITRAGE_ROUTE_TRADE_FEE_HOPS,
+    DEFAULT_ARBITRAGE_TARGET_PROFIT_PERCENT,
+    normalize_min_paper_profit_usd,
+)
 
 
 @dataclass(frozen=True)
 class MovementThresholdConfig:
     trade_fee_percent: float
     flashloan_fee_percent: float
-    target_profit_percent: float = DEFAULT_TARGET_PROFIT_PERCENT
-    route_trade_fee_hops: int = DEFAULT_ROUTE_TRADE_FEE_HOPS
+    target_profit_percent: float = DEFAULT_ARBITRAGE_TARGET_PROFIT_PERCENT
+    route_trade_fee_hops: int = DEFAULT_ARBITRAGE_ROUTE_TRADE_FEE_HOPS
 
 
 @dataclass(frozen=True)
@@ -67,4 +68,4 @@ def calculate_movement_thresholds(
 
 
 def enforce_min_paper_profit_usd(value: float) -> float:
-    return max(MIN_PAPER_PROFIT_USD, float(value))
+    return normalize_min_paper_profit_usd(value)
