@@ -63,12 +63,6 @@ def liquidation_contracts_bot_dir() -> Path:
     if configured:
         return Path(configured)
     repo_root = Path(__file__).resolve().parents[3]
-    for candidate in (
-        repo_root / "contract" / "contracts-bot",
-        repo_root / "contracts-bot",
-    ):
-        if candidate.exists():
-            return candidate
     return repo_root / "contract" / "contracts-bot"
 
 
@@ -93,7 +87,7 @@ def run_liquidation_fork_simulation(payload: dict, *, timeout_seconds: int = 180
     contracts_dir = liquidation_contracts_bot_dir()
     if not contracts_dir.exists():
         raise RuntimeError(
-            "contracts-bot directory not found (checked contract/contracts-bot and contracts-bot): "
+            "contract/contracts-bot directory not found: "
             f"{contracts_dir}"
         )
     npm = shutil.which("npm.cmd") or shutil.which("npm")

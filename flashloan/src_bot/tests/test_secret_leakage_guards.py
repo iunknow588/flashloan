@@ -25,10 +25,14 @@ SECRET_PATTERNS = (
     ),
 )
 TRACKED_SUFFIXES = {".py", ".js", ".mjs", ".sol", ".json", ".md", ".yml", ".yaml", ".toml", ".html"}
+CONTRACT_SOURCE_DIRS = (
+    REPO_ROOT / "contract" / "contracts-bot",
+    REPO_ROOT / "contract" / "contracts-dex",
+)
 LOCAL_ENV_FILES = (
     REPO_ROOT / "flashloan" / "src_bot" / ".env",
-    REPO_ROOT / "contracts-bot" / ".env",
-    REPO_ROOT / "contracts-dex" / ".env",
+    REPO_ROOT / "contract" / "contracts-bot" / ".env",
+    REPO_ROOT / "contract" / "contracts-dex" / ".env",
 )
 
 
@@ -40,13 +44,30 @@ def _tracked_files() -> list[Path]:
         text=True,
     )
     files: list[Path] = []
+    seen: set[Path] = set()
     for raw in result.stdout.splitlines():
         path = Path(raw)
         if "deployments" in path.parts or "runtime" in path.parts or "cache" in path.parts:
             continue
         if path.suffix.lower() not in TRACKED_SUFFIXES and path.name not in {".env.example", ".env.testnet.example"}:
             continue
-        files.append(REPO_ROOT / path)
+        resolved = REPO_ROOT / path
+        if resolved.exists() and resolved not in seen:
+            files.append(resolved)
+            seen.add(resolved)
+    for root in CONTRACT_SOURCE_DIRS:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if {"node_modules", "artifacts", "cache", "deployments"} & set(path.parts):
+                continue
+            if path.suffix.lower() not in TRACKED_SUFFIXES and path.name not in {".env.example", ".env.testnet.example"}:
+                continue
+            if path not in seen:
+                files.append(path)
+                seen.add(path)
     return files
 
 
@@ -68,9 +89,9 @@ def test_tracked_source_does_not_contain_private_key_literals():
 def test_example_env_files_do_not_embed_secret_material():
     example_files = [
         REPO_ROOT / "flashloan" / "src_bot" / ".env.example",
-        REPO_ROOT / "contracts-bot" / ".env.example",
-        REPO_ROOT / "contracts-dex" / ".env.example",
-        REPO_ROOT / "contracts-dex" / ".env.testnet.example",
+        REPO_ROOT / "contract" / "contracts-bot" / ".env.example",
+        REPO_ROOT / "contract" / "contracts-dex" / ".env.example",
+        REPO_ROOT / "contract" / "contracts-dex" / ".env.testnet.example",
     ]
 
     offenders: list[str] = []

@@ -494,8 +494,8 @@ def test_fork_simulation_runner_bridges_contract_env(monkeypatch, tmp_path):
     from web import control_panel_liquidation_execute as execute
 
     captured = {}
-    contracts_dir = tmp_path / "contracts-bot"
-    contracts_dir.mkdir()
+    contracts_dir = tmp_path / "contract" / "contracts-bot"
+    contracts_dir.mkdir(parents=True)
     monkeypatch.setenv("USDC_ADDRESS", "")
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "")
     monkeypatch.setenv("DEX_ROUTER_ADDRESS", "")
@@ -539,8 +539,8 @@ def test_fork_simulation_runner_bridges_contract_env(monkeypatch, tmp_path):
 def test_fork_simulation_requires_configured_executor_when_enabled(monkeypatch, tmp_path):
     from web import control_panel_liquidation_execute as execute
 
-    contracts_dir = tmp_path / "contracts-bot"
-    contracts_dir.mkdir()
+    contracts_dir = tmp_path / "contract" / "contracts-bot"
+    contracts_dir.mkdir(parents=True)
     monkeypatch.setenv("LIQUIDATION_FORK_USE_CONFIGURED_EXECUTOR", "true")
     monkeypatch.delenv("LIQUIDATION_EXECUTOR_ADDRESS", raising=False)
     monkeypatch.setattr(execute, "liquidation_contracts_bot_dir", lambda: contracts_dir)

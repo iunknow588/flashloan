@@ -1,29 +1,29 @@
-# `src_bot/tests` 测试说明
+﻿# `src_bot/tests` 娴嬭瘯璇存槑
 
-这份文档用来给后续测试、补测和回归提供统一参照。这里的测试以本地离线单测为主，核心原则是：
+杩欎唤鏂囨。鐢ㄦ潵缁欏悗缁祴璇曘€佽ˉ娴嬪拰鍥炲綊鎻愪緵缁熶竴鍙傜収銆傝繖閲岀殑娴嬭瘯浠ユ湰鍦扮绾垮崟娴嬩负涓伙紝鏍稿績鍘熷垯鏄細
 
-1. 尽量用 `monkeypatch`、fake、静态样本覆盖分支。
-2. 涉及链上状态时，优先验证“流程是否会继续调用链上复核”，不要把外部索引或缓存当成最终结论。
-3. 页面状态、执行状态、失败样本态要分别测，避免只测主路径。
+1. 灏介噺鐢?`monkeypatch`銆乫ake銆侀潤鎬佹牱鏈鐩栧垎鏀€?
+2. 娑夊強閾句笂鐘舵€佹椂锛屼紭鍏堥獙璇佲€滄祦绋嬫槸鍚︿細缁х画璋冪敤閾句笂澶嶆牳鈥濓紝涓嶈鎶婂閮ㄧ储寮曟垨缂撳瓨褰撴垚鏈€缁堢粨璁恒€?
+3. 椤甸潰鐘舵€併€佹墽琛岀姸鎬併€佸け璐ユ牱鏈€佽鍒嗗埆娴嬶紝閬垮厤鍙祴涓昏矾寰勩€?
 
-## 目录结构
+## 鐩綍缁撴瀯
 
 ```text
 src_bot/tests/
-  conftest.py                  pytest 路径注入
-  test_*.py                    业务单测
-  README.md                    本说明
+  conftest.py                  pytest 璺緞娉ㄥ叆
+  test_*.py                    涓氬姟鍗曟祴
+  README.md                    鏈鏄?
 ```
 
-`conftest.py` 只做了一件事：把 `src_bot/` 加入 `sys.path`，方便直接 `python -m pytest flashloan/src_bot/tests`。
+`conftest.py` 鍙仛浜嗕竴浠朵簨锛氭妸 `src_bot/` 鍔犲叆 `sys.path`锛屾柟渚跨洿鎺?`python -m pytest flashloan/src_bot/tests`銆?
 
-## 测试分层
+## 娴嬭瘯鍒嗗眰
 
-### 1. 基础与架构守卫
+### 1. 鍩虹涓庢灦鏋勫畧鍗?
 
-关注配置、依赖边界、目录约束、启动行为是否稳定。
+鍏虫敞閰嶇疆銆佷緷璧栬竟鐣屻€佺洰褰曠害鏉熴€佸惎鍔ㄨ涓烘槸鍚︾ǔ瀹氥€?
 
-常见文件：
+甯歌鏂囦欢锛?
 
 - `test_architecture_guards.py`
 - `test_config_schema.py`
@@ -32,20 +32,20 @@ src_bot/tests/
 - `test_run_logging.py`
 - `test_secret_leakage_guards.py`
 
-适合验证：
+閫傚悎楠岃瘉锛?
 
-- 新增文件是否落在正确目录
-- 环境变量是否缺失或冲突
-- Schema / 配置健康度是否可读
-- 启动和后台初始化异常是否脱敏
-- 真实 `.env` 是否被 Git 忽略且未被跟踪
-- 受版本控制的源码、示例配置是否混入私钥、助记词或 PEM 私钥
+- 鏂板鏂囦欢鏄惁钀藉湪姝ｇ‘鐩綍
+- 鐜鍙橀噺鏄惁缂哄け鎴栧啿绐?
+- Schema / 閰嶇疆鍋ュ悍搴︽槸鍚﹀彲璇?
+- 鍚姩鍜屽悗鍙板垵濮嬪寲寮傚父鏄惁鑴辨晱
+- 鐪熷疄 `.env` 鏄惁琚?Git 蹇界暐涓旀湭琚窡韪?
+- 鍙楃増鏈帶鍒剁殑婧愮爜銆佺ず渚嬮厤缃槸鍚︽贩鍏ョ閽ャ€佸姪璁拌瘝鎴?PEM 绉侀挜
 
-### 2. 控制台页面与路由
+### 2. 鎺у埗鍙伴〉闈笌璺敱
 
-关注 `/`、`/liquidation`、`/account-scan`、`/execution`、`/audit`、`/config` 等页面，以及 API 是否返回稳定状态。
+鍏虫敞 `/`銆乣/liquidation`銆乣/account-scan`銆乣/execution`銆乣/audit`銆乣/config` 绛夐〉闈紝浠ュ強 API 鏄惁杩斿洖绋冲畾鐘舵€併€?
 
-常见文件：
+甯歌鏂囦欢锛?
 
 - `test_web_app_assembly.py`
 - `test_navigation_flow.py`
@@ -54,18 +54,18 @@ src_bot/tests/
 - `test_page_state_service.py`
 - `test_control_panel_liquidation_actions.py`
 
-适合验证：
+閫傚悎楠岃瘉锛?
 
-- 页面跳转是否存在闭环
-- 页面 embedded / 非 embedded 模式是否一致
-- `/api/status`、`/api/liquidation/*` 的状态字段是否回归
-- 执行链路中的 `submission_failed`、`static_call_failed`、`confirmed_failed` 是否归一
+- 椤甸潰璺宠浆鏄惁瀛樺湪闂幆
+- 椤甸潰 embedded / 闈?embedded 妯″紡鏄惁涓€鑷?
+- `/api/status`銆乣/api/liquidation/*` 鐨勭姸鎬佸瓧娈垫槸鍚﹀洖褰?
+- 鎵ц閾捐矾涓殑 `submission_failed`銆乣static_call_failed`銆乣confirmed_failed` 鏄惁褰掍竴
 
-### 3. 清算发现与扫描
+### 3. 娓呯畻鍙戠幇涓庢壂鎻?
 
-这是当前最重要的一层，负责把“候选账号”变成“可执行前的链上复核结果”。
+杩欐槸褰撳墠鏈€閲嶈鐨勪竴灞傦紝璐熻矗鎶娾€滃€欓€夎处鍙封€濆彉鎴愨€滃彲鎵ц鍓嶇殑閾句笂澶嶆牳缁撴灉鈥濄€?
 
-常见文件：
+甯歌鏂囦欢锛?
 
 - `test_liquidation_discovery_service.py`
 - `test_liquidation_discovery_workflow.py`
@@ -75,25 +75,25 @@ src_bot/tests/
 - `test_liquidation_priority.py`
 - `test_liquidation_amounts.py`
 
-推荐关注的链路顺序：
+鎺ㄨ崘鍏虫敞鐨勯摼璺『搴忥細
 
 ```text
-外部粗筛 -> 链上 Borrow 日志发现 -> 账户健康度扫描 -> 候选排序 -> 执行前置校验
+澶栭儴绮楃瓫 -> 閾句笂 Borrow 鏃ュ織鍙戠幇 -> 璐︽埛鍋ュ悍搴︽壂鎻?-> 鍊欓€夋帓搴?-> 鎵ц鍓嶇疆鏍￠獙
 ```
 
-这里的测试重点不是“外部索引准不准”，而是：
+杩欓噷鐨勬祴璇曢噸鐐逛笉鏄€滃閮ㄧ储寮曞噯涓嶅噯鈥濓紝鑰屾槸锛?
 
-- 外部索引是否只作为候选来源
-- 候选是否会去重合并
-- 最终是否仍走 `scan_account_health()`
-- `Multicall3` 失败时是否能退回单账户 RPC
-- 账户数上限、批次、并发是否保持稳定
+- 澶栭儴绱㈠紩鏄惁鍙綔涓哄€欓€夋潵婧?
+- 鍊欓€夋槸鍚︿細鍘婚噸鍚堝苟
+- 鏈€缁堟槸鍚︿粛璧?`scan_account_health()`
+- `Multicall3` 澶辫触鏃舵槸鍚﹁兘閫€鍥炲崟璐︽埛 RPC
+- 璐︽埛鏁颁笂闄愩€佹壒娆°€佸苟鍙戞槸鍚︿繚鎸佺ǔ瀹?
 
-### 4. 执行、预检、盈利兜底
+### 4. 鎵ц銆侀妫€銆佺泩鍒╁厹搴?
 
-关注从 report 到 payload，再到 static call / submit / receipt / failure sample 的完整闭环。
+鍏虫敞浠?report 鍒?payload锛屽啀鍒?static call / submit / receipt / failure sample 鐨勫畬鏁撮棴鐜€?
 
-常见文件：
+甯歌鏂囦欢锛?
 
 - `test_liquidation_preflight.py`
 - `test_liquidation_execution_service.py`
@@ -104,19 +104,19 @@ src_bot/tests/
 - `test_parallel_submitter.py`
 - `test_private_tx.py`
 
-适合验证：
+閫傚悎楠岃瘉锛?
 
-- `minProfitAmount` 是否严格生效
-- `ProfitTooLow` 是否能阻断亏损执行
-- `static_call_required`、`static_call_passed`、`execution_phase` 是否一致
-- `receipt.status == 0` 是否进入失败样本态
-- 强制执行是否只绕过软阻断，不绕过硬阻断
+- `minProfitAmount` 鏄惁涓ユ牸鐢熸晥
+- `ProfitTooLow` 鏄惁鑳介樆鏂簭鎹熸墽琛?
+- `static_call_required`銆乣static_call_passed`銆乣execution_phase` 鏄惁涓€鑷?
+- `receipt.status == 0` 鏄惁杩涘叆澶辫触鏍锋湰鎬?
+- 寮哄埗鎵ц鏄惁鍙粫杩囪蒋闃绘柇锛屼笉缁曡繃纭樆鏂?
 
-### 5. 市场与观察
+### 5. 甯傚満涓庤瀵?
 
-关注行情监控、阈值触发、观察器运行态。
+鍏虫敞琛屾儏鐩戞帶銆侀槇鍊艰Е鍙戙€佽瀵熷櫒杩愯鎬併€?
 
-常见文件：
+甯歌鏂囦欢锛?
 
 - `test_observer_config.py`
 - `test_observer_runtime_service.py`
@@ -127,11 +127,11 @@ src_bot/tests/
 - `test_dynamic_quote.py`
 - `test_gas_estimator.py`
 
-### 6. 工具和分析
+### 6. 宸ュ叿鍜屽垎鏋?
 
-用于结果复盘、窗口分析、阈值分析、可执行信号构建。
+鐢ㄤ簬缁撴灉澶嶇洏銆佺獥鍙ｅ垎鏋愩€侀槇鍊煎垎鏋愩€佸彲鎵ц淇″彿鏋勫缓銆?
 
-常见文件：
+甯歌鏂囦欢锛?
 
 - `test_analyze_thresholds.py`
 - `test_analyze_trade_results.py`
@@ -140,9 +140,9 @@ src_bot/tests/
 - `test_check_manual_prereqs.py`
 - `test_aave_hit_stats.py`
 
-## 常用命令
+## 甯哥敤鍛戒护
 
-所有命令默认在仓库根目录 `E:\2026OPC大赛\flashLoan` 执行，除非命令块里显式 `cd` 到子目录。
+鎵€鏈夊懡浠ら粯璁ゅ湪浠撳簱鏍圭洰褰?`E:\2026OPC澶ц禌\flashLoan` 鎵ц锛岄櫎闈炲懡浠ゅ潡閲屾樉寮?`cd` 鍒板瓙鐩綍銆?
 
 ```powershell
 python -m pytest flashloan/src_bot/tests -q
@@ -153,51 +153,51 @@ python -m pytest flashloan/src_bot/tests -k "liquidation and not network" -q
 python -m pytest flashloan/src_bot/tests -x --maxfail=1
 ```
 
-DEX Python 回归：
+DEX Python 鍥炲綊锛?
 
 ```powershell
 python -m pytest flashloan/srcs_dex/tests -q
 ```
 
-合约侧联动回归单独跑：
+鍚堢害渚ц仈鍔ㄥ洖褰掑崟鐙窇锛?
 
 ```powershell
-cd contracts-dex
+cd contract/contracts-dex
 npm test
 npx hardhat test test/MockFundedExecutor.test.js --grep "minProfit"
 npx hardhat test test/AaveSequentialFlashLoanExecutor.test.js
 npx hardhat test test/OnchainDynamicAaveExecutor.test.js
 ```
 
-如果需要回归旧的 `contracts-bot` 清算执行合约，单独在 `contracts-bot` 目录执行：
+濡傛灉闇€瑕佸洖褰掓棫鐨?`contract/contracts-bot` 娓呯畻鎵ц鍚堢害锛屽崟鐙湪 `contract/contracts-bot` 鐩綍鎵ц锛?
 
 ```powershell
-cd contracts-bot
+cd contract/contracts-bot
 npm test
 npm run test:fork
 ```
 
-Fuji 预检只允许执行不广播命令，且输出必须脱敏：
+Fuji 棰勬鍙厑璁告墽琛屼笉骞挎挱鍛戒护锛屼笖杈撳嚭蹇呴』鑴辨晱锛?
 
 ```powershell
-cd contracts-dex
+cd contract/contracts-dex
 npm run preflight:fuji
 ```
 
-`preflight:fuji` 只能用于 ready 状态检查；未完成 static call 证据、owner 校验、chain ID 和执行开关确认前，不得把 `readyForBroadcast=true` 当成允许广播。
+`preflight:fuji` 鍙兘鐢ㄤ簬 ready 鐘舵€佹鏌ワ紱鏈畬鎴?static call 璇佹嵁銆乷wner 鏍￠獙銆乧hain ID 鍜屾墽琛屽紑鍏崇‘璁ゅ墠锛屼笉寰楁妸 `readyForBroadcast=true` 褰撴垚鍏佽骞挎挱銆?
 
-## 统一回归入口
+## 缁熶竴鍥炲綊鍏ュ彛
 
-每轮离线回归优先按下面顺序执行，并把结果写入回归报告：
+姣忚疆绂荤嚎鍥炲綊浼樺厛鎸変笅闈㈤『搴忔墽琛岋紝骞舵妸缁撴灉鍐欏叆鍥炲綊鎶ュ憡锛?
 
 ```powershell
 python -m pytest flashloan/src_bot/tests -q
 python -m pytest flashloan/srcs_dex/tests -q
-cd contracts-dex
+cd contract/contracts-dex
 npm test
 ```
 
-可选但推荐的守卫命令：
+鍙€変絾鎺ㄨ崘鐨勫畧鍗懡浠わ細
 
 ```powershell
 python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py flashloan/src_bot/tests/test_run_logging.py -q
@@ -206,101 +206,101 @@ rg -n "str\(exc\)|str\(e\)" flashloan/src_bot -g "*.py"
 git diff --check
 ```
 
-`rg` 扫描结果需要人工分类：
+`rg` 鎵弿缁撴灉闇€瑕佷汉宸ュ垎绫伙細
 
-- `int/float(os.getenv(...))`：应为无命中；如有命中，优先迁移到 `parse_env_int` / `parse_env_float`。
-- `str(exc)`：允许保留在内部兼容判断、revert 分类或测试断言；用户可见、日志、API、attempt、failure sample 和报告字段必须使用 `redact_sensitive_text`。
-- `git diff --check`：允许出现 LF/CRLF warning；不允许出现 whitespace error。
+- `int/float(os.getenv(...))`锛氬簲涓烘棤鍛戒腑锛涘鏈夊懡涓紝浼樺厛杩佺Щ鍒?`parse_env_int` / `parse_env_float`銆?
+- `str(exc)`锛氬厑璁镐繚鐣欏湪鍐呴儴鍏煎鍒ゆ柇銆乺evert 鍒嗙被鎴栨祴璇曟柇瑷€锛涚敤鎴峰彲瑙併€佹棩蹇椼€丄PI銆乤ttempt銆乫ailure sample 鍜屾姤鍛婂瓧娈靛繀椤讳娇鐢?`redact_sensitive_text`銆?
+- `git diff --check`锛氬厑璁稿嚭鐜?LF/CRLF warning锛涗笉鍏佽鍑虹幇 whitespace error銆?
 
-## 回归报告归档
+## 鍥炲綊鎶ュ憡褰掓。
 
-回归报告统一归档到：
+鍥炲綊鎶ュ憡缁熶竴褰掓。鍒帮細
 
 ```text
-docs/清理机器人/evidence/regression/
+docs/娓呯悊鏈哄櫒浜?evidence/regression/
 ```
 
-推荐命名：
+鎺ㄨ崘鍛藉悕锛?
 
 ```text
 YYYYMMDD-HHMMSS_regression_<scope>.md
 ```
 
-示例：
+绀轰緥锛?
 
 ```text
 20260802-153000_regression_src_bot_318_passed.md
 20260802-153500_regression_full_offline.md
 ```
 
-报告至少记录：
+鎶ュ憡鑷冲皯璁板綍锛?
 
-- 执行时间和执行人。
-- 工作区版本：`git rev-parse --short HEAD`，以及 `git status --short` 是否为空。
-- 是否联网、是否连接真实 RPC/数据库、是否执行 Fuji 命令。
-- 每条命令、工作目录、通过数、失败数、退出码。
-- 敏感信息检查结果：私钥、token、完整 RPC URL、数据库密码是否泄露。
-- 未运行项和原因。
-- 结论：`pass` / `fail` / `blocked`，以及是否允许进入下一阶段。
+- 鎵ц鏃堕棿鍜屾墽琛屼汉銆?
+- 宸ヤ綔鍖虹増鏈細`git rev-parse --short HEAD`锛屼互鍙?`git status --short` 鏄惁涓虹┖銆?
+- 鏄惁鑱旂綉銆佹槸鍚﹁繛鎺ョ湡瀹?RPC/鏁版嵁搴撱€佹槸鍚︽墽琛?Fuji 鍛戒护銆?
+- 姣忔潯鍛戒护銆佸伐浣滅洰褰曘€侀€氳繃鏁般€佸け璐ユ暟銆侀€€鍑虹爜銆?
+- 鏁忔劅淇℃伅妫€鏌ョ粨鏋滐細绉侀挜銆乼oken銆佸畬鏁?RPC URL銆佹暟鎹簱瀵嗙爜鏄惁娉勯湶銆?
+- 鏈繍琛岄」鍜屽師鍥犮€?
+- 缁撹锛歚pass` / `fail` / `blocked`锛屼互鍙婃槸鍚﹀厑璁歌繘鍏ヤ笅涓€闃舵銆?
 
-## 变更速查
+## 鍙樻洿閫熸煡
 
-改这些地方时，优先跑对应测试：
+鏀硅繖浜涘湴鏂规椂锛屼紭鍏堣窇瀵瑰簲娴嬭瘯锛?
 
-1. 路由、页面跳转、埋入态
+1. 璺敱銆侀〉闈㈣烦杞€佸煁鍏ユ€?
    - `test_navigation_flow.py`
    - `test_web_app_assembly.py`
    - `test_exchange_matrix_page.py`
-2. 控制台状态、执行态、失败样本态
+2. 鎺у埗鍙扮姸鎬併€佹墽琛屾€併€佸け璐ユ牱鏈€?
    - `test_control_panel_status.py`
    - `test_control_panel_liquidation_actions.py`
    - `test_liquidation_audit_service.py`
-3. 清算发现、外部索引、链上复核
+3. 娓呯畻鍙戠幇銆佸閮ㄧ储寮曘€侀摼涓婂鏍?
    - `test_external_liquidation_index.py`
    - `test_liquidation_discovery_service.py`
    - `test_liquidation_discovery_workflow.py`
    - `test_liquidation_scan.py`
-4. 预检、报价、payload、盈利兜底
+4. 棰勬銆佹姤浠枫€乸ayload銆佺泩鍒╁厹搴?
    - `test_liquidation_preflight.py`
    - `test_execution_payload.py`
    - `test_profit_guard.py`
    - `test_liquidation_amounts.py`
-5. 合约盈利保护和回执闭环
-   - `contracts-dex/test/MockFundedExecutor.test.js`
-   - `contracts-dex/test/AaveSequentialFlashLoanExecutor.test.js`
-   - `contracts-dex/test/OnchainDynamicAaveExecutor.test.js`
-   - `contracts-bot/test/AaveV3LiquidationExecutor.test.js`
+5. 鍚堢害鐩堝埄淇濇姢鍜屽洖鎵ч棴鐜?
+   - `contract/contracts-dex/test/MockFundedExecutor.test.js`
+   - `contract/contracts-dex/test/AaveSequentialFlashLoanExecutor.test.js`
+   - `contract/contracts-dex/test/OnchainDynamicAaveExecutor.test.js`
+   - `contract/contracts-bot/test/AaveV3LiquidationExecutor.test.js`
 
-## 新增测试建议
+## 鏂板娴嬭瘯寤鸿
 
-新增测试时，优先补下面几类：
+鏂板娴嬭瘯鏃讹紝浼樺厛琛ヤ笅闈㈠嚑绫伙細
 
-1. 状态归一测试
-   - 例如 `route_failure_state()`、`execution_phase`、`receipt.status`
-2. 失败样本测试
-   - 例如提交失败、链上回执失败、静态调用失败
-3. 退化路径测试
-   - 例如 Multicall 不可用、外部索引不可用、RPC 单点失败
-4. 闭环测试
-   - 例如发现 -> 复核 -> 排序 -> payload -> preflight -> submit
+1. 鐘舵€佸綊涓€娴嬭瘯
+   - 渚嬪 `route_failure_state()`銆乣execution_phase`銆乣receipt.status`
+2. 澶辫触鏍锋湰娴嬭瘯
+   - 渚嬪鎻愪氦澶辫触銆侀摼涓婂洖鎵уけ璐ャ€侀潤鎬佽皟鐢ㄥけ璐?
+3. 閫€鍖栬矾寰勬祴璇?
+   - 渚嬪 Multicall 涓嶅彲鐢ㄣ€佸閮ㄧ储寮曚笉鍙敤銆丷PC 鍗曠偣澶辫触
+4. 闂幆娴嬭瘯
+   - 渚嬪鍙戠幇 -> 澶嶆牳 -> 鎺掑簭 -> payload -> preflight -> submit
 
-## 编写约定
+## 缂栧啓绾﹀畾
 
-- 优先使用 `monkeypatch` 或 fake 对象，不直接打真实 RPC。
-- 每个测试只验证一个关键行为。
-- 名称尽量把场景写清楚。
-- 涉及清算时，优先断言 `health_factor`、`status`、`execution_phase`、`receipt.status`、`profit`、`failure_type`。
-- 如果改了页面跳转或接口状态，优先补 `navigation` / `status` / `actions` 三类测试。
+- 浼樺厛浣跨敤 `monkeypatch` 鎴?fake 瀵硅薄锛屼笉鐩存帴鎵撶湡瀹?RPC銆?
+- 姣忎釜娴嬭瘯鍙獙璇佷竴涓叧閿涓恒€?
+- 鍚嶇О灏介噺鎶婂満鏅啓娓呮銆?
+- 娑夊強娓呯畻鏃讹紝浼樺厛鏂█ `health_factor`銆乣status`銆乣execution_phase`銆乣receipt.status`銆乣profit`銆乣failure_type`銆?
+- 濡傛灉鏀逛簡椤甸潰璺宠浆鎴栨帴鍙ｇ姸鎬侊紝浼樺厛琛?`navigation` / `status` / `actions` 涓夌被娴嬭瘯銆?
 
-## 回归顺序建议
+## 鍥炲綊椤哄簭寤鸿
 
-1. 先跑基础守卫。
-2. 再跑页面和路由。
-3. 再跑清算发现与扫描。
-4. 再跑执行、预检、盈利兜底。
-5. 最后跑合约测试。
+1. 鍏堣窇鍩虹瀹堝崼銆?
+2. 鍐嶈窇椤甸潰鍜岃矾鐢便€?
+3. 鍐嶈窇娓呯畻鍙戠幇涓庢壂鎻忋€?
+4. 鍐嶈窇鎵ц銆侀妫€銆佺泩鍒╁厹搴曘€?
+5. 鏈€鍚庤窇鍚堢害娴嬭瘯銆?
 
-一个比较稳的组合是：
+涓€涓瘮杈冪ǔ鐨勭粍鍚堟槸锛?
 
 ```powershell
 python -m pytest flashloan/src_bot/tests/test_architecture_guards.py
@@ -308,21 +308,22 @@ python -m pytest flashloan/src_bot/tests/test_secret_leakage_guards.py
 python -m pytest flashloan/src_bot/tests/test_control_panel_status.py flashloan/src_bot/tests/test_navigation_flow.py
 python -m pytest flashloan/src_bot/tests/test_liquidation_scan.py flashloan/src_bot/tests/test_liquidation_discovery_workflow.py flashloan/src_bot/tests/test_external_liquidation_index.py
 python -m pytest flashloan/src_bot/tests/test_control_panel_liquidation_actions.py
-cd contracts-dex
+cd contract/contracts-dex
 npm test
 ```
 
-## 当前最值得优先维护的测试点
+## 褰撳墠鏈€鍊煎緱浼樺厛缁存姢鐨勬祴璇曠偣
 
-- `/execution` 的提交态、receipt 态、失败样本态
-- 清算发现链路里的“外部索引只做粗筛”
-- 链上健康度扫描必须是最终裁决
-- `minProfitAmount` 与 `ProfitTooLow`
-- 页面路由和嵌入态跳转闭环
-- 提交前的私钥泄露守卫
+- `/execution` 鐨勬彁浜ゆ€併€乺eceipt 鎬併€佸け璐ユ牱鏈€?
+- 娓呯畻鍙戠幇閾捐矾閲岀殑鈥滃閮ㄧ储寮曞彧鍋氱矖绛涒€?
+- 閾句笂鍋ュ悍搴︽壂鎻忓繀椤绘槸鏈€缁堣鍐?
+- `minProfitAmount` 涓?`ProfitTooLow`
+- 椤甸潰璺敱鍜屽祵鍏ユ€佽烦杞棴鐜?
+- 鎻愪氦鍓嶇殑绉侀挜娉勯湶瀹堝崼
 
-## 最近新增
+## 鏈€杩戞柊澧?
 
 - `test_external_liquidation_index.py`
 - `test_liquidation_discovery_workflow.py`
 - `test_navigation_flow.py`
+
