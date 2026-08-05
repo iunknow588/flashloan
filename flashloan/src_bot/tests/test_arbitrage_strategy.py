@@ -134,3 +134,28 @@ def test_simulate_basket_generates_quote_candidate_when_negative_m_selects_rever
     assert result["candidate_score_usd"] < 0
     assert result["signal"] is False
     assert result["execution_plan"] is None
+
+
+def test_simulate_basket_blocks_candidates_below_one_usd_expected_profit():
+    extremes = {
+        "observed_at": "2026-07-27T00:00:00Z",
+        "window_seconds": 10,
+        "sample_count": 2,
+        "top": [row("X", 10, 10.002)],
+        "bottom": [row("Y", 10, 9.998)],
+    }
+    config = ArbitrageConfig(
+        notional_usd=1000,
+        trade_fee_percent=0,
+        flashloan_fee_percent=0,
+        min_window_spread_percent=0,
+        min_paper_profit_usd=1,
+        basket_size=1,
+    )
+
+    result = simulate_basket(extremes, config)
+
+    assert result["net_signal_profit_usd"] < 1
+    assert result["signal"] is False
+    assert "candidate_score_below_threshold" in result["blocked_reasons"]
+    assert result["execution_plan"] is None

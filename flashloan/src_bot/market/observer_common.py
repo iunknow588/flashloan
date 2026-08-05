@@ -39,7 +39,15 @@ from db.storage_observer import (
 )
 from db.storage_schema import ensure_database_schema
 from db.storage_liquidation import try_acquire_observer_lock
+from execution.liquidation_realtime_params import read_aave_flashloan_premium
 from strategy.arbitrage import ArbitrageConfig, simulate_basket
+from strategy.movement_thresholds import (
+    DEFAULT_ROUTE_TRADE_FEE_HOPS,
+    DEFAULT_TARGET_PROFIT_PERCENT,
+    MovementThresholdConfig,
+    calculate_movement_thresholds,
+    enforce_min_paper_profit_usd,
+)
 from strategy.trigger_signal import TriggerConfig
 
 
@@ -126,6 +134,80 @@ class ObserverConfig:
     market_divergence_trigger_min: float
 
 
+BINANCE_SCAN_PROFILES: dict[str, dict[str, float]] = {
+    "200ms": {
+        "binance_change_window_seconds": 0.2,
+        "sample_seconds": 0.2,
+        "binance_extreme_write_seconds": 0.2,
+        "binance_pair_price_write_seconds": 0.2,
+        "binance_pair_price_flush_seconds": 1.0,
+        "report_seconds": 0.5,
+    },
+    "500ms": {
+        "binance_change_window_seconds": 0.5,
+        "sample_seconds": 0.5,
+        "binance_extreme_write_seconds": 0.5,
+        "binance_pair_price_write_seconds": 0.5,
+        "binance_pair_price_flush_seconds": 2.0,
+        "report_seconds": 1.0,
+    },
+    "1000ms": {
+        "binance_change_window_seconds": 1.0,
+        "sample_seconds": 1.0,
+        "binance_extreme_write_seconds": 1.0,
+        "binance_pair_price_write_seconds": 1.0,
+        "binance_pair_price_flush_seconds": 5.0,
+        "report_seconds": 2.0,
+    },
+    "3000ms": {
+        "binance_change_window_seconds": 3.0,
+        "sample_seconds": 1.0,
+        "binance_extreme_write_seconds": 1.0,
+        "binance_pair_price_write_seconds": 1.0,
+        "binance_pair_price_flush_seconds": 5.0,
+        "report_seconds": 3.0,
+    },
+}
+
+
+def binance_scan_profile() -> tuple[str, dict[str, float]]:
+    raw = os.getenv("BINANCE_SCAN_PROFILE", "custom").strip().lower()
+    aliases = {
+        "fastest": "200ms",
+        "ultra": "200ms",
+        "fast": "500ms",
+        "balanced": "1000ms",
+        "normal": "1000ms",
+        "stable": "3000ms",
+        "slow": "3000ms",
+    }
+    name = aliases.get(raw, raw)
+    if name in {"0.2", "0.2s", "200", "200ms"}:
+        name = "200ms"
+    elif name in {"0.5", "0.5s", "500", "500ms"}:
+        name = "500ms"
+    elif name in {"1", "1.0", "1s", "1000", "1000ms"}:
+        name = "1000ms"
+    elif name in {"3", "3.0", "3s", "3000", "3000ms"}:
+        name = "3000ms"
+    if name not in BINANCE_SCAN_PROFILES:
+        return "custom", {}
+    return name, BINANCE_SCAN_PROFILES[name]
+
+
+def profile_seconds(
+    profile: dict[str, float],
+    key: str,
+    env_name: str,
+    default: float,
+    *,
+    minimum: float,
+) -> float:
+    if key in profile:
+        return max(minimum, float(profile[key]))
+    return max(minimum, env_float(env_name, default))
+
+
 LEGACY_ASSETS = {
     "AVAXUSDT": AssetConfig("WAVAX", "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7", "AVAXUSDT"),
     "ETHUSDT": AssetConfig("WETH.e", "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB", "ETHUSDT"),
@@ -180,15 +262,30 @@ def env_urls(name: str, default: str, scheme: str) -> list[str]:
     return list(dict.fromkeys(values))
 
 
-def fetch_json(url: str) -> object:
-    with urlopen(Request(url, headers={"User-Agent": "flashloan-observer/1.0"}), timeout=15) as response:
+def fetch_json(url: str, timeout_seconds: float | None = None) -> object:
+    timeout = max(0.5, float(timeout_seconds if timeout_seconds is not None else env_float("HTTP_JSON_TIMEOUT_SECONDS", 15.0)))
+    with urlopen(Request(url, headers={"User-Agent": "flashloan-observer/1.0"}), timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def fetch_binance_usdt_symbols(rest_bases: list[str]) -> set[str]:
+    timeout = env_float("BINANCE_REST_TIMEOUT_SECONDS", 5.0)
+    if env_bool("BINANCE_SYMBOLS_FAST_PRICE_LIST", True):
+        for base in rest_bases:
+            try:
+                payload = fetch_json(f"{base}/api/v3/ticker/price", timeout_seconds=timeout)
+                if isinstance(payload, list):
+                    return {
+                        str(item.get("symbol", "")).upper()
+                        for item in payload
+                        if str(item.get("symbol", "")).upper().endswith("USDT")
+                        and float(item.get("price") or 0) > 0
+                    }
+            except Exception as exc:
+                LOG.warning("binance ticker price list failed base=%s error=%r", mask_url(base), exc)
     for base in rest_bases:
         try:
-            payload = fetch_json(f"{base}/api/v3/exchangeInfo")
+            payload = fetch_json(f"{base}/api/v3/exchangeInfo", timeout_seconds=timeout)
             return {
                 item["symbol"].upper()
                 for item in payload.get("symbols", [])
@@ -200,9 +297,10 @@ def fetch_binance_usdt_symbols(rest_bases: list[str]) -> set[str]:
 
 
 def fetch_binance_24h_tickers(rest_bases: list[str]) -> list[dict]:
+    timeout = env_float("BINANCE_REST_TIMEOUT_SECONDS", 5.0)
     for base in rest_bases:
         try:
-            payload = fetch_json(f"{base}/api/v3/ticker/24hr")
+            payload = fetch_json(f"{base}/api/v3/ticker/24hr", timeout_seconds=timeout)
             if isinstance(payload, list):
                 return payload
         except Exception as exc:
@@ -323,6 +421,7 @@ def load_config() -> ObserverConfig:
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise ValueError("DATABASE_URL is required.")
+    scan_profile_name, scan_profile = binance_scan_profile()
     rpc_urls = avalanche_rpc_urls()
     rest_bases = env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")
     pool_address = os.getenv("AAVE_POOL_ADDRESS", "").strip()
@@ -399,6 +498,25 @@ def load_config() -> ObserverConfig:
             for symbol in env_list("TRIGGER_EXECUTABLE_SYMBOLS", DEFAULT_EXECUTABLE_SYMBOLS)
             if symbol in asset_lookup
         )
+    trade_fee_percent = max(0.0, env_float("ARBITRAGE_TRADE_FEE_PERCENT", 0.10))
+    fallback_flashloan_fee_percent = max(0.0, env_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", 0.05))
+    flashloan_premium = read_aave_flashloan_premium(
+        rpc_urls[0],
+        pool_address,
+        fallback_percent=fallback_flashloan_fee_percent,
+    )
+    movement_thresholds = calculate_movement_thresholds(
+        MovementThresholdConfig(
+            trade_fee_percent=trade_fee_percent,
+            flashloan_fee_percent=fallback_flashloan_fee_percent,
+            target_profit_percent=max(0.0, env_float("ARBITRAGE_TARGET_PROFIT_PERCENT", DEFAULT_TARGET_PROFIT_PERCENT)),
+            route_trade_fee_hops=env_int("ARBITRAGE_ROUTE_TRADE_FEE_HOPS", DEFAULT_ROUTE_TRADE_FEE_HOPS, minimum=1),
+        ),
+        flashloan_premium=flashloan_premium,
+    )
+    min_paper_profit_usd = enforce_min_paper_profit_usd(
+        env_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", 1.0)
+    )
     return ObserverConfig(
         rpc_url=rpc_urls[0],
         rpc_urls=rpc_urls,
@@ -407,36 +525,68 @@ def load_config() -> ObserverConfig:
         binance_rest_bases=rest_bases,
         binance_rest_poll_seconds=max(1.0, env_float("BINANCE_REST_POLL_SECONDS", 3.0)),
         binance_top_symbols=top_symbols,
-        binance_change_window_seconds=max(0.2, env_float("BINANCE_CHANGE_WINDOW_SECONDS", 1.0)),
+        binance_change_window_seconds=profile_seconds(
+            scan_profile,
+            "binance_change_window_seconds",
+            "BINANCE_CHANGE_WINDOW_SECONDS",
+            1.0,
+            minimum=0.2,
+        ),
         binance_velocity_min_change_percent=max(0.0, env_float("BINANCE_VELOCITY_MIN_CHANGE_PERCENT", 0.2)),
         binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", 10))),
-        binance_extreme_write_seconds=max(0.2, env_float("BINANCE_EXTREME_WRITE_SECONDS", 1.0)),
+        binance_extreme_write_seconds=profile_seconds(
+            scan_profile,
+            "binance_extreme_write_seconds",
+            "BINANCE_EXTREME_WRITE_SECONDS",
+            1.0,
+            minimum=0.2,
+        ),
         binance_candidate_db_side_limit=max(1, int(env_float("BINANCE_CANDIDATE_DB_SIDE_LIMIT", 10))),
-        binance_pair_price_write_seconds=max(0.2, env_float("BINANCE_PAIR_PRICE_WRITE_SECONDS", 1.0)),
-        binance_pair_price_flush_seconds=max(1.0, env_float("BINANCE_PAIR_PRICE_FLUSH_SECONDS", 5.0)),
+        binance_pair_price_write_seconds=profile_seconds(
+            scan_profile,
+            "binance_pair_price_write_seconds",
+            "BINANCE_PAIR_PRICE_WRITE_SECONDS",
+            1.0,
+            minimum=0.2,
+        ),
+        binance_pair_price_flush_seconds=profile_seconds(
+            scan_profile,
+            "binance_pair_price_flush_seconds",
+            "BINANCE_PAIR_PRICE_FLUSH_SECONDS",
+            5.0,
+            minimum=1.0,
+        ),
         binance_pair_history_writes=env_bool("BINANCE_PAIR_HISTORY_WRITES", True),
         observation_db_writes=env_bool("OBSERVATION_DB_WRITES", False),
         aave_verification_enabled=env_bool("AAVE_VERIFICATION_ENABLED", True),
         trigger=TriggerConfig(
-            min_up_change_percent=max(0.0, env_float("TRIGGER_MIN_UP_CHANGE_PERCENT", 1.0)),
-            min_down_change_percent=max(0.0, env_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", 1.0)),
+            min_up_change_percent=movement_thresholds.min_up_change_percent,
+            min_down_change_percent=movement_thresholds.min_down_change_percent,
             executable_symbols=executable_symbols,
         ),
         arbitrage=ArbitrageConfig(
             notional_usd=max(0.0, env_float("ARBITRAGE_NOTIONAL_USD", 1000.0)),
-            trade_fee_percent=max(0.0, env_float("ARBITRAGE_TRADE_FEE_PERCENT", 0.10)),
-            flashloan_fee_percent=max(0.0, env_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", 0.05)),
-            min_window_spread_percent=max(0.0, env_float("ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT", 0.30)),
-            min_paper_profit_usd=max(0.0, env_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", 0.0)),
+            trade_fee_percent=trade_fee_percent,
+            flashloan_fee_percent=movement_thresholds.flashloan_fee_percent,
+            min_window_spread_percent=movement_thresholds.min_window_spread_percent,
+            min_paper_profit_usd=min_paper_profit_usd,
             fee_reserve_percent=max(0.0, env_float("ARBITRAGE_FEE_RESERVE_PERCENT", 0.0)),
             basket_size=max(1, int(env_float("ARBITRAGE_BASKET_SIZE", 5))),
             executable_symbols=(),
+            min_up_change_percent=movement_thresholds.min_up_change_percent,
+            min_down_change_percent=movement_thresholds.min_down_change_percent,
         ),
         symbols=list(dict.fromkeys(symbols)),
-        sample_seconds=max(0.2, env_float("SAMPLE_SECONDS", 1.0)),
-        observation_write_seconds=max(0.2, env_float("OBSERVATION_WRITE_SECONDS", env_float("SAMPLE_SECONDS", 1.0))),
+        sample_seconds=profile_seconds(scan_profile, "sample_seconds", "SAMPLE_SECONDS", 1.0, minimum=0.2),
+        observation_write_seconds=profile_seconds(
+            scan_profile,
+            "sample_seconds",
+            "OBSERVATION_WRITE_SECONDS",
+            env_float("SAMPLE_SECONDS", 1.0),
+            minimum=0.2,
+        ),
         poll_seconds=max(0.2, env_float("AAVE_POLL_SECONDS", 1.0)),
-        report_seconds=max(0.5, env_float("REPORT_SECONDS", 2.0)),
+        report_seconds=profile_seconds(scan_profile, "report_seconds", "REPORT_SECONDS", 2.0, minimum=0.5),
         alert_diff_percent=max(0.0, env_float("ALERT_DIFF_PERCENT", 0.30)),
         database_url=database_url,
         stale_seconds=max(1.0, env_float("STALE_SECONDS", 30.0)),
@@ -509,8 +659,11 @@ def binance_stream_url(base: str, symbols: Iterable[str]) -> str:
 
 def fetch_binance_rest_price(base: str, symbol: str) -> float:
     url = f"{base}/api/v3/ticker/price?{urlencode({'symbol': symbol})}"
-    payload = fetch_json(url)
-    return float(payload["price"])
+    payload = fetch_json(url, timeout_seconds=env_float("BINANCE_REST_TIMEOUT_SECONDS", 5.0))
+    price = float(payload["price"])
+    if price <= 0:
+        raise ValueError(f"non-positive Binance REST price for {symbol}")
+    return price
 
 
 

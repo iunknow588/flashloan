@@ -242,9 +242,11 @@ def arbitrage_config_from_strategy() -> ArbitrageConfig:
         trade_fee_percent=_strategy_float("ARBITRAGE_TRADE_FEE_PERCENT", config, minimum=0.0),
         flashloan_fee_percent=_strategy_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", config, minimum=0.0),
         min_window_spread_percent=_strategy_float("ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT", config, minimum=0.0),
-        min_paper_profit_usd=_strategy_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", config, minimum=0.0),
+        min_paper_profit_usd=_strategy_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", config, minimum=1.0),
         fee_reserve_percent=_strategy_float("ARBITRAGE_FEE_RESERVE_PERCENT", config, minimum=0.0),
         basket_size=_strategy_int("ARBITRAGE_BASKET_SIZE", config, minimum=1, maximum=10),
+        min_up_change_percent=_strategy_float("TRIGGER_MIN_UP_CHANGE_PERCENT", config, minimum=0.0),
+        min_down_change_percent=_strategy_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", config, minimum=0.0),
     )
 
 

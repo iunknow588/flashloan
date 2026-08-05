@@ -293,6 +293,50 @@ def ensure_database_schema(database_url: str) -> None:
                     )
                     """
                 )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS cow_supported_tokens (
+                        network TEXT NOT NULL,
+                        chain_id INTEGER NOT NULL,
+                        symbol TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        decimals INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        token_json TEXT NOT NULL,
+                        refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (network, address)
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS cow_execution_attempts (
+                        id BIGSERIAL PRIMARY KEY,
+                        observed_at TIMESTAMPTZ,
+                        network TEXT NOT NULL,
+                        chain_id INTEGER,
+                        owner_address TEXT,
+                        pair TEXT,
+                        pair_rank INTEGER,
+                        priority_reason TEXT,
+                        route_path_json TEXT,
+                        state TEXT NOT NULL,
+                        execution_phase TEXT NOT NULL,
+                        checks_passed BOOLEAN NOT NULL DEFAULT FALSE,
+                        can_submit_order BOOLEAN NOT NULL DEFAULT FALSE,
+                        order_submission_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                        auto_execute_requested BOOLEAN NOT NULL DEFAULT FALSE,
+                        final_delta_amount TEXT,
+                        final_symbol TEXT,
+                        blocked_reasons_json TEXT,
+                        quote_json TEXT,
+                        precheck_json TEXT,
+                        market_state_json TEXT,
+                        error TEXT,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
                 create_liquidation_failure_sample_schema(cursor)
                 ensure_schema_columns(cursor)
                 ensure_liquidation_market_indexes(cursor)
@@ -325,6 +369,18 @@ def ensure_database_schema(database_url: str) -> None:
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_liquidation_execution_attempts_state_time "
                     "ON liquidation_execution_attempts(state, created_at DESC)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cow_supported_tokens_network_symbol "
+                    "ON cow_supported_tokens(network, symbol)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_network_time "
+                    "ON cow_execution_attempts(network, created_at DESC)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_state_time "
+                    "ON cow_execution_attempts(state, created_at DESC)"
                 )
                 record_schema_migrations(cursor)
             finally:
@@ -555,6 +611,40 @@ def ensure_schema_columns(cursor) -> None:
             "error": "TEXT",
             "created_at": "TIMESTAMPTZ",
             "updated_at": "TIMESTAMPTZ",
+        },
+        "cow_supported_tokens": {
+            "network": "TEXT",
+            "chain_id": "INTEGER",
+            "symbol": "TEXT",
+            "address": "TEXT",
+            "decimals": "INTEGER",
+            "source": "TEXT",
+            "token_json": "TEXT",
+            "refreshed_at": "TIMESTAMPTZ",
+        },
+        "cow_execution_attempts": {
+            "observed_at": "TIMESTAMPTZ",
+            "network": "TEXT",
+            "chain_id": "INTEGER",
+            "owner_address": "TEXT",
+            "pair": "TEXT",
+            "pair_rank": "INTEGER",
+            "priority_reason": "TEXT",
+            "route_path_json": "TEXT",
+            "state": "TEXT",
+            "execution_phase": "TEXT",
+            "checks_passed": "BOOLEAN",
+            "can_submit_order": "BOOLEAN",
+            "order_submission_enabled": "BOOLEAN",
+            "auto_execute_requested": "BOOLEAN",
+            "final_delta_amount": "TEXT",
+            "final_symbol": "TEXT",
+            "blocked_reasons_json": "TEXT",
+            "quote_json": "TEXT",
+            "precheck_json": "TEXT",
+            "market_state_json": "TEXT",
+            "error": "TEXT",
+            "created_at": "TIMESTAMPTZ",
         },
         "liquidation_failure_samples": LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
     }

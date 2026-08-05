@@ -3,6 +3,11 @@ import os
 from pathlib import Path
 
 from core.config_schema import parse_env_float
+from strategy.movement_thresholds import (
+    DEFAULT_ROUTE_TRADE_FEE_HOPS,
+    DEFAULT_TARGET_PROFIT_PERCENT,
+    enforce_min_paper_profit_usd,
+)
 
 
 STRATEGY_DEFAULTS = {
@@ -13,6 +18,8 @@ STRATEGY_DEFAULTS = {
     "ARBITRAGE_FEE_RESERVE_PERCENT": 0.10,
     "ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT": 0.30,
     "ARBITRAGE_MIN_PAPER_PROFIT_USD": 1.0,
+    "ARBITRAGE_TARGET_PROFIT_PERCENT": DEFAULT_TARGET_PROFIT_PERCENT,
+    "ARBITRAGE_ROUTE_TRADE_FEE_HOPS": DEFAULT_ROUTE_TRADE_FEE_HOPS,
     "EXECUTION_SLIPPAGE_BPS": 50,
     "EXECUTION_PLAN_MAX_AGE_SECONDS": 15,
     "BINANCE_CHANGE_WINDOW_SECONDS": 1.0,
@@ -74,6 +81,8 @@ def sanitize_strategy_config(values: dict) -> dict:
             value = float(default)
         config[key] = int(value) if isinstance(default, int) else max(0.0, value)
     config["ARBITRAGE_BASKET_SIZE"] = max(1, min(int(config["ARBITRAGE_BASKET_SIZE"]), 10))
+    config["ARBITRAGE_MIN_PAPER_PROFIT_USD"] = enforce_min_paper_profit_usd(config["ARBITRAGE_MIN_PAPER_PROFIT_USD"])
+    config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"] = max(1, int(config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"]))
     config["EXECUTION_SLIPPAGE_BPS"] = max(0, min(int(config["EXECUTION_SLIPPAGE_BPS"]), 5000))
     config["EXECUTION_PLAN_MAX_AGE_SECONDS"] = max(1, int(config["EXECUTION_PLAN_MAX_AGE_SECONDS"]))
     config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(MIN_SAMPLING_SECONDS, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))

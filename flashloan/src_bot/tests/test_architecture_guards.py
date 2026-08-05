@@ -66,6 +66,17 @@ def test_web_route_registration_smoke():
     assert "/api/account-scan/state" in paths
     assert "/api/market-observation/state" in paths
     assert "/api/execution/state" in paths
+    assert "/binance-market" in paths
+    assert "/dex-arbitrage" in paths
+    assert "/api/binance-market/state" in paths
+    assert "/api/binance-market/states" in paths
+    assert "/api/binance-market/cow-config" in paths
+    assert "/api/binance-market/cow-tokens" in paths
+    assert "/api/binance-market/cow-tokens/refresh" in paths
+    assert "/api/binance-market/cow-support" in paths
+    assert "/api/binance-market/cow-quotes" in paths
+    assert "/api/binance-market/cow-execution-attempts" in paths
+    assert "/api/binance-velocity/candidates" in paths
     assert "/api/liquidation-health" in paths
     assert "/api/liquidation/borrow-pool/scan" in paths
     assert "/api/liquidation/account/<account>/static-call-and-save" in paths

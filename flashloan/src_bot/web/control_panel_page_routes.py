@@ -66,6 +66,11 @@ def register_page_routes(app, panel) -> None:
     def market_observation_panel():
         return panel.render_control_panel()
 
+    @app.get("/binance-market")
+    @app.get("/dex-arbitrage")
+    def binance_market_panel():
+        return _html_response(panel.BINANCE_MARKET_TEMPLATE_PATH)
+
     @app.get("/config")
     def config_panel():
         return panel.render_control_panel()

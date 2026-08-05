@@ -15,6 +15,8 @@ class ArbitrageConfig:
     fee_reserve_percent: float = 0.0
     basket_size: int = 5
     executable_symbols: tuple[str, ...] = ()
+    min_up_change_percent: float = 0.0
+    min_down_change_percent: float = 0.0
 
 
 STRATEGY_ROUTES = {
@@ -326,15 +328,26 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
         return None
 
     executable = {symbol.upper() for symbol in config.executable_symbols}
+    min_up_change_percent = max(0.0, float(config.min_up_change_percent))
+    min_down_change_percent = max(0.0, float(config.min_down_change_percent))
     top = [
         row
         for row in extremes.get("top", [])
-        if _valid_leg(row) and (not executable or str(row["symbol"]).upper() in executable)
+        if (
+            _valid_leg(row)
+            and float(row["change_percent"]) >= min_up_change_percent
+            and (not executable or str(row["symbol"]).upper() in executable)
+        )
     ]
     bottom = [
         row
         for row in extremes.get("bottom", [])
-        if _valid_leg(row) and (not executable or str(row["symbol"]).upper() in executable)
+        if (
+            _valid_leg(row)
+            and float(row["change_percent"]) < 0
+            and abs(float(row["change_percent"])) >= min_down_change_percent
+            and (not executable or str(row["symbol"]).upper() in executable)
+        )
     ]
     candidate_rows = select_cross_pair_rows(top, bottom)
     if not candidate_rows:
@@ -445,6 +458,8 @@ def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
         "borrow_rebought": primary["borrow_rebought"],
         "borrow_to_repay": primary["borrow_to_repay"],
         "window_spread_percent": window_spread_percent,
+        "min_up_change_percent": min_up_change_percent,
+        "min_down_change_percent": min_down_change_percent,
         "min_window_spread_percent": config.min_window_spread_percent,
         "min_paper_profit_usd": config.min_paper_profit_usd,
         "fee_reserve_percent": config.fee_reserve_percent,

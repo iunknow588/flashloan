@@ -37,6 +37,14 @@ SCHEMA_MIGRATIONS = (
         "20260803_liquidation_market_namespace",
         "Add chain, market, protocol, executor, source RPC, and source block columns for future multi-market liquidation isolation.",
     ),
+    (
+        "20260804_cow_supported_tokens",
+        "Persist CoW supported token universe per network for DEX arbitrage filtering.",
+    ),
+    (
+        "20260805_cow_execution_attempts",
+        "Record CoW quote and execution-precheck outcomes for DEX arbitrage review.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 

@@ -50,11 +50,12 @@ from market.observer_state import PriceState
 from strategy.arbitrage import simulate_basket
 async def binance_listener(symbols: Iterable[str], ws_bases: Iterable[str], state: PriceState, stop: asyncio.Event) -> None:
     symbol_list, base_list, base_index, delay = list(symbols), list(ws_bases), 0, 1.0
+    open_timeout = max(1.0, env_float("BINANCE_WS_OPEN_TIMEOUT_SECONDS", 5.0))
     while not stop.is_set():
         base = base_list[base_index % len(base_list)]
         try:
             LOG.info("binance connecting base=%s symbols=%s", mask_url(base), len(symbol_list))
-            async with websockets.connect(binance_stream_url(base, symbol_list), ping_interval=20, ping_timeout=20, open_timeout=15, max_queue=2048) as ws:
+            async with websockets.connect(binance_stream_url(base, symbol_list), ping_interval=20, ping_timeout=20, open_timeout=open_timeout, max_queue=2048) as ws:
                 LOG.info("binance connected base=%s", mask_url(base))
                 delay = 1.0
                 async for raw in ws:
@@ -86,14 +87,23 @@ def chunked_symbols(symbols: Iterable[str], chunk_size: int) -> list[list[str]]:
 async def binance_rest_poller(config: ObserverConfig, state: PriceState, stop: asyncio.Event) -> None:
     base_index = 0
     while not stop.is_set():
-        base = config.binance_rest_bases[base_index % len(config.binance_rest_bases)]
-        try:
-            for symbol in config.symbols:
-                price = await asyncio.to_thread(fetch_binance_rest_price, base, symbol)
-                await state.update_binance(symbol, price, int(time.time() * 1000), "rest")
-        except Exception as exc:
-            LOG.warning("binance_rest error=%r base=%s", exc, mask_url(base))
-            base_index += 1
+        base_count = max(1, len(config.binance_rest_bases))
+        for symbol in config.symbols:
+            last_error = None
+            for offset in range(base_count):
+                base = config.binance_rest_bases[(base_index + offset) % base_count]
+                try:
+                    price = await asyncio.to_thread(fetch_binance_rest_price, base, symbol)
+                    await state.update_binance(symbol, price, int(time.time() * 1000), "rest")
+                    if offset:
+                        base_index = (base_index + offset) % base_count
+                        LOG.info("binance_rest selected base=%s", mask_url(base))
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    LOG.warning("binance_rest error=%r base=%s symbol=%s", exc, mask_url(base), symbol)
+            else:
+                LOG.warning("binance_rest all bases failed symbol=%s last_error=%r", symbol, last_error)
         await sleep_until_next(stop, config.binance_rest_poll_seconds)
 
 
@@ -294,13 +304,16 @@ async def main() -> None:
             return
         LOG.info("database writer lock acquired")
     LOG.info(
-        "observer started top_symbols=%s velocity_side_limit=%s sample=%.3fs trigger_window=%.3fs trigger_up=%.2f%% trigger_down=%.2f%%",
+        "observer started top_symbols=%s velocity_side_limit=%s sample=%.3fs trigger_window=%.3fs trigger_up=%.4f%% trigger_down=%.4f%% min_spread=%.4f%% notional=%.2f min_profit=%.2f",
         len(config.binance_top_symbols),
         config.binance_velocity_side_limit,
         config.sample_seconds,
         config.binance_change_window_seconds,
         config.trigger.min_up_change_percent,
         config.trigger.min_down_change_percent,
+        config.arbitrage.min_window_spread_percent,
+        config.arbitrage.notional_usd,
+        config.arbitrage.min_paper_profit_usd,
     )
     binance_symbols = list(dict.fromkeys([*config.symbols, *config.binance_top_symbols]))
     ws_chunk_size = max(1, int(env_float("BINANCE_WS_CHUNK_SIZE", DEFAULT_BINANCE_WS_CHUNK_SIZE)))

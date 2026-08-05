@@ -19,6 +19,8 @@ def test_record_schema_migrations_is_idempotent():
 
     assert len(cursor.calls) == len(EXPECTED_SCHEMA_MIGRATION_IDS)
     assert "20260803_liquidation_market_namespace" in EXPECTED_SCHEMA_MIGRATION_IDS
+    assert "20260804_cow_supported_tokens" in EXPECTED_SCHEMA_MIGRATION_IDS
+    assert "20260805_cow_execution_attempts" in EXPECTED_SCHEMA_MIGRATION_IDS
     query, params = cursor.calls[0]
     assert "ON CONFLICT (migration_id) DO NOTHING" in query
     assert params[0] == "20260730_liquidation_runtime_schema"
@@ -118,4 +120,8 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any("ADD COLUMN IF NOT EXISTS market_id" in query for query in queries)
     assert any("ADD COLUMN IF NOT EXISTS chain_id" in query for query in queries)
     assert any("idx_liq_core_mkt" in query for query in queries)
+    assert any("CREATE TABLE IF NOT EXISTS cow_supported_tokens" in query for query in queries)
+    assert any("idx_cow_supported_tokens_network_symbol" in query for query in queries)
+    assert any("CREATE TABLE IF NOT EXISTS cow_execution_attempts" in query for query in queries)
+    assert any("idx_cow_execution_attempts_network_time" in query for query in queries)
     assert "pg_advisory_unlock" in queries[-1]

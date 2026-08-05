@@ -43,6 +43,7 @@ from market.observer_common import (
     now_iso,
     parse_rpc_urls,
     pct_diff,
+    read_aave_flashloan_premium,
     setup_logging,
     should_compute_conversion_profits,
     sleep_until_next,
@@ -72,6 +73,7 @@ _PATCHABLE_COMMON_NAMES = (
     "load_stable_pool_binance_symbols",
     "load_usdc_pool_binance_symbols",
     "parse_rpc_urls",
+    "read_aave_flashloan_premium",
 )
 
 

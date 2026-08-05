@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEX 套利 | CoW SDK</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 10px; font-size: 15px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button, select, input { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    input { min-width: 220px; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .split { display: grid; grid-template-columns: minmax(360px, 1.3fr) minmax(320px, .9fr); gap: 14px; margin-bottom: 18px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .card strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .card span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; vertical-align: top; }
+    th:first-child, td:first-child { text-align: left; }
+    main, table, td, th, .card, .route-detail { user-select: text; }
+    button, select, input { user-select: none; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+    .muted { color: #667085; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; }
+    .context { color: #475467; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .route-cell { min-width: 520px; white-space: normal; }
+    .route-grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px; }
+    .route-box { border: 1px solid #d0d5dd; border-radius: 8px; padding: 8px; background: #fff; min-height: 86px; }
+    .route-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .route-no { color: #344054; font-weight: 700; }
+    .route-path { color: #344054; line-height: 1.35; overflow-wrap: anywhere; }
+    .route-meta { color: #667085; line-height: 1.35; font-variant-numeric: tabular-nums; }
+    .route-detail { margin-top: 6px; color: #344054; line-height: 1.45; font-size: 12px; overflow-wrap: anywhere; }
+    .route-detail div { margin-top: 2px; }
+    .route-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .route-actions button { min-height: 30px; padding: 0 8px; font-size: 12px; }
+    .network-claims { display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 12px; }
+    .network-claim { border: 1px solid #d9dee7; border-radius: 8px; padding: 10px; background: #fff; }
+    .network-claim-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .network-claim h3 { margin: 0; font-size: 14px; }
+    .mini-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .network-checks { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 720px; }
+    .network-check, .auto-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 10px; background: #fff; font-weight: 700; }
+    .network-check input, .auto-toggle input { min-width: auto; min-height: auto; width: 16px; height: 16px; padding: 0; }
+    .network-opportunity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 12px; }
+    .chain-card { border: 1px solid #cfd6e2; border-radius: 8px; background: #fff; padding: 12px; }
+    .chain-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .chain-card h3 { margin: 0; font-size: 15px; }
+    .chain-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .chain-summary span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 4px 8px; background: #f8fafc; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .chain-routes { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .execute-button { border-color: #b42318; color: #b42318; }
+    .execute-button.ready { border-color: #15803d; color: #15803d; }
+    .execute-button:disabled { color: #667085; border-color: #d0d5dd; background: #f2f4f7; }
+    .review-section { border: 1px solid #cfd6e2; border-radius: 8px; padding: 14px; background: #fff; margin-top: 18px; }
+    .review-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+    .review-head h2 { margin-bottom: 4px; }
+    .review-source { text-align: right; font-size: 12px; color: #667085; font-variant-numeric: tabular-nums; }
+    .review-conclusion { border: 1px solid #e4e7ec; border-radius: 8px; padding: 10px; background: #f8fafc; color: #344054; line-height: 1.5; margin-bottom: 10px; overflow-wrap: anywhere; }
+    .review-metrics { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .review-metrics span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 5px 8px; background: #fff; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
+    @media (max-width: 900px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } .route-grid { grid-template-columns: 1fr; } .route-cell { min-width: 300px; } .network-opportunity-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DEX 套利 | CoW SDK</h1>
+    <nav>
+      <a href="/liquidation">清算</a>
+      <a href="/account-scan">账户扫描</a>
+      <a href="/market-observation">市场观察</a>
+      <a href="/dex-arbitrage">DEX 套利</a>
+      <a href="/exchange-matrix">兑换矩阵</a>
+      <a href="/execution">执行</a>
+      <a href="/config">配置</a>
+    </nav>
+    <div id="message"></div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="primary" id="refreshBtn">刷新触发行情</button>
+      <button id="refreshTokensBtn">刷新支持代币</button>
+      <button id="supportBtn">CoW 支持检查</button>
+      <button id="quoteBtn">CoW SDK 报价验证</button>
+      <button id="copySummaryBtn">复制摘要</button>
+      <button id="copyQuotesBtn">复制报价</button>
+      <select id="sideLimitSelect">
+        <option value="5">前 5 名</option>
+        <option value="10">前 10 名</option>
+        <option value="20">前 20 名</option>
+        <option value="50" selected>前 50 名</option>
+      </select>
+      <select id="quoteLimitSelect">
+        <option value="1" selected>每链 1 组</option>
+      </select>
+      <div id="cowNetworkChecks" class="network-checks" title="选择要同时展示和报价的 CoW 网络"></div>
+      <label class="auto-toggle" title="净利润超过 1U 时进入自动执行检查；真实下单仍受后端下单模块控制">
+        <input id="autoExecuteToggle" type="checkbox" checked>
+        净利润 &gt; 1U 自动执行检查
+      </label>
+      <input id="quoteAmountInput" inputmode="decimal" min="0" step="0.000001" type="number" value="1000" title="CoW quote amount">
+      <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="1.0" title="最小候选差价 %">
+      <span id="cowQuoteContext" class="context">CoW -</span>
+      <span id="refreshMeta" class="muted">等待数据</span>
+    </div>
+    <section class="grid">
+      <div class="card"><small>观察窗口</small><strong id="windowSeconds">-</strong><span id="observedAt">-</span></div>
+      <div class="card"><small>样本数量</small><strong id="sampleCount">-</strong><span id="universeSize">-</span></div>
+      <div class="card"><small>CoW 支持过滤</small><strong id="cowTokenCount">-</strong><span id="cowMatchCount">-</span><span id="cowFilterMeta">-</span></div>
+      <div class="card"><small>套利候选路径</small><strong id="pairCount">-</strong><span id="bestPair">-</span></div>
+      <div class="card"><small>最佳 CoW 结果</small><strong id="notionalUsd">-</strong><span id="quoteState">等待报价</span></div>
+    </section>
+    <section class="split">
+      <div class="card">
+        <h2 id="rawTopTitle">Binance 涨幅前 5</h2>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U，不要求涨幅超过 0.5%。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+            <tbody id="rawTopBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="rawBottomTitle">Binance 跌幅前 5</h2>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U，不要求跌幅超过 0.5%。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+            <tbody id="rawBottomBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="split">
+      <div class="card">
+        <h2 id="cowSupportedTopTitle">所有 CoW 支持代币涨幅前 50</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
+            <tbody id="cowSupportedTopBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="cowSupportedBottomTitle">所有 CoW 支持代币跌幅前 50</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
+            <tbody id="cowSupportedBottomBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="card" style="margin-bottom:18px">
+      <h2>选中 CoW 网络候选链路</h2>
+      <div id="networkOpportunityCards" class="network-opportunity-grid"></div>
+    </section>
+    <section class="card" style="margin-bottom:18px">
+      <h2>各 CoW 网络支持 Top/Bottom 5</h2>
+      <div id="networkClaims" class="network-claims"></div>
+    </section>
+    <section class="card" style="margin-bottom:18px">
+        <h2>行情触发资产</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>代币</th><th>涨跌幅</th><th>起始价</th><th>当前价</th><th>窗口</th><th>状态</th></tr></thead>
+          <tbody id="aaveBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h2 id="pairTitle">多链稳定币闭环套利候选路径</h2>
+      <div class="muted">Binance 行情先给出综合排名；每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅，同一个代币可以同时出现在多条链。</div>
+      <div class="muted">每个链卡片内展示 U-X-Y-U 与 U-Y-X-U 路径、三价来源、目标价、滑点边界、净利润和执行状态。</div>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>CoW SDK 套利报价验证</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>兑换对</th><th>初始数量</th><th>CoW 报价流程</th><th>CoW 报价比例</th><th>CoW 预计结果</th><th>差额</th><th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="cowQuoteBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="review-section" id="cowExecutionReviewSection">
+      <div class="review-head">
+        <div>
+          <h2>CoW 执行复盘历史</h2>
+          <div class="muted">记录满足候选条件后的报价、预检、阻断原因和最终状态，用于事后复盘。</div>
+        </div>
+        <div id="cowAttemptHistorySource" class="review-source">source -</div>
+      </div>
+      <div id="cowAttemptReviewConclusion" class="review-conclusion">等待复盘历史</div>
+      <div id="cowAttemptReviewMetrics" class="review-metrics"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>纯利润</th><th>未成功原因</th>
+            </tr>
+          </thead>
+          <tbody id="cowAttemptHistoryBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+    <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    let cowConfig = null;
+    let currentMarketState = null;
+    let latestCowQuotes = null;
+    let latestCowSupport = null;
+    let marketRefreshInFlight = false;
+    const DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb"];
+    const networkPanels = new Map();
+
+    const api = async path => {
+      const response = await fetch(path, {headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    };
+    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const stripZeros = text => String(text).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+    const priceDigits = value => {
+      const num = Math.abs(Number(value));
+      if (!Number.isFinite(num)) return 6;
+      if (num === 0) return 6;
+      if (num >= 1) return 6;
+      if (num >= 0.01) return 8;
+      if (num >= 0.0001) return 10;
+      return Math.min(14, Math.max(8, Math.ceil(-Math.log10(num)) + 4));
+    };
+    const formatPrice = value => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return "-";
+      return stripZeros(parsed.toFixed(priceDigits(parsed)));
+    };
+    const num = value => formatPrice(value);
+    const pct = value => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(5)}%` : "-";
+    const displaySymbol = symbol => {
+      const value = String(symbol || "-").toUpperCase();
+      if (value === "USDC" || value === "USDT") return value;
+      return value.replace(/(USDT|USDC)$/i, "") || value;
+    };
+    const cls = value => Number.isFinite(Number(value)) ? (Number(value) >= 0 ? "positive" : "negative") : "";
+    const routePath = route => (route.route || route.route_symbols || []).map(displaySymbol).join(" -> ") || "-";
+    const selectedNetworkIds = () => Array.from(document.querySelectorAll("input[name='cow_network']:checked")).map(item => item.value);
+    const activeNetworkPanels = () => selectedNetworkIds().map(network => networkPanels.get(network)).filter(Boolean);
+    const primaryNetwork = () => selectedNetworkIds()[0] || cowConfig?.default_network || "avalanche";
+    const selectedCowConfig = network => cowConfig?.networks?.find(item => item.network === (network || primaryNetwork())) || null;
+    const networkLabel = network => selectedCowConfig(network)?.label || network || "-";
+    const setNetworkPanel = (network, patch) => {
+      const previous = networkPanels.get(network) || {};
+      networkPanels.set(network, {...previous, ...patch, network});
+      renderNetworkOpportunityCards();
+    };
+    const marketPairSignature = state => (state?.pairs || []).slice(0, 1).map(pair =>
+      `${pair.pair || ""}:${(pair.route_results || []).map(route => (route.route || []).join(">")).join("|")}`
+    ).join(";");
+    const shortAddress = value => {
+      const text = String(value || "").trim();
+      return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 6)}...${text.slice(-4)}` : (text || "-");
+    };
+    const quotePath = quote => (quote?.path || []).map(displaySymbol).join(" -> ") || "-";
+    const quoteInitial = quote => quote ? `${quote.input_amount || "-"} ${displaySymbol(quote.input_symbol || "")}` : "-";
+    const quoteFinal = quote => quote ? `${quote.final_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "-";
+    const quoteVsPlan = (quote, plan) => {
+      if (!quote || !plan?.available) return "-";
+      const finalAmount = Number(quote.final_amount);
+      const targetAmount = Number(plan.final_target_amount);
+      if (!Number.isFinite(finalAmount) || !Number.isFinite(targetAmount) || targetAmount === 0) return "-";
+      const diff = finalAmount - targetAmount;
+      const pctDiff = diff / targetAmount * 100;
+      return `${diff >= 0 ? "+" : ""}${diff.toFixed(6)} ${displaySymbol(quote.final_symbol || plan.final_symbol || "")} (${diff >= 0 ? "+" : ""}${pctDiff.toFixed(4)}%)`;
+    };
+    const minSpreadValue = () => {
+      const value = Number($("minSpreadInput").value || "1");
+      return Number.isFinite(value) && value >= 0 ? String(value) : "1";
+    };
+    const hopLine = hop => `${esc(hop.hop || "-")}. ${esc(hop.sell_amount || "-")} ${esc(displaySymbol(hop.sell_symbol))} -> ${esc(hop.buy_amount || "-")} ${esc(displaySymbol(hop.buy_symbol))} @ ${esc(hop.exchange_rate || "-")}`;
+    const quoteRates = quote => (quote?.hops || []).map(hop => `${displaySymbol(hop.sell_symbol)}/${displaySymbol(hop.buy_symbol)} ${hop.exchange_rate || "-"}`).join(" | ") || "-";
+    const quoteFlow = quote => (quote?.hops || []).map(hopLine).join("<br>") || esc(quotePath(quote));
+    const plain = value => String(value ?? "-");
+    const plainPct = value => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(5)}%` : "-";
+    const plainNum = value => formatPrice(value);
+    const tableText = (title, rows) => [
+      title,
+      ...((rows || []).map((row, index) => `${index + 1}. ${displaySymbol(row.symbol)} | ${plainPct(row.change_percent)} | ${plainNum(row.start_price)} -> ${plainNum(row.current_price)} | ${row.price_source || "-"}`)),
+      ...(rows && rows.length ? [] : ["-"]),
+    ].join("\n");
+    const planText = plan => executionParamsText(plan);
+    const quoteHopText = hop => `${hop.hop || "-"}. ${hop.sell_amount || "-"} ${displaySymbol(hop.sell_symbol)} -> ${hop.buy_amount || "-"} ${displaySymbol(hop.buy_symbol)} @ ${hop.exchange_rate || "-"} | fee ${hop.fee_amount || "-"} ${displaySymbol(hop.sell_symbol)}`;
+    const quoteText = quote => (quote?.hops || []).map(quoteHopText).join("\n") || quotePath(quote);
+    const historyRoutePath = row => (row?.route_path || row?.quote?.path || []).map(displaySymbol).join(" -> ") || "-";
+    const historyReasons = row => (row?.blocked_reasons || row?.precheck?.reasons || []).join("；") || row?.error || "-";
+    const historyPureProfit = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
+    const historyReasonList = row => {
+      const reasons = row?.blocked_reasons || row?.precheck?.reasons || [];
+      if (Array.isArray(reasons) && reasons.length) return reasons.map(item => String(item || "").trim()).filter(Boolean);
+      return row?.error ? [String(row.error)] : [];
+    };
+    function cowAttemptReview(rows) {
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        return {
+          conclusion: "暂无复盘记录。只有触发 CoW 报价/执行预检后，才会写入这里；单纯刷新行情不会生成历史记录。",
+          metrics: ["记录 0 条", "通过检查 0 条", "可提交 0 条", "阻断 0 条"],
+        };
+      }
+      const passed = items.filter(row => row?.checks_passed);
+      const submittable = items.filter(row => row?.can_submit_order);
+      const passedButDisabled = items.filter(row => row?.checks_passed && !row?.can_submit_order);
+      const blocked = items.filter(row => !row?.can_submit_order);
+      const reasonCounts = new Map();
+      for (const row of blocked) {
+        const reasons = historyReasonList(row);
+        for (const reason of reasons.length ? reasons : [precheckStatusLabel(row?.state)]) {
+          reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+        }
+      }
+      const topReason = Array.from(reasonCounts.entries()).sort((a, b) => b[1] - a[1])[0] || null;
+      const latest = items[0];
+      const latestLine = `${fmtTime(latest?.created_at)} | ${networkLabel(latest?.network) || latest?.network || "-"} | ${latest?.pair || "-"} | ${precheckStatusLabel(latest?.state)} | ${historyPureProfit(latest)}`;
+      let conclusion = "";
+      if (submittable.length) {
+        conclusion = `复盘结论：最近 ${items.length} 条中有 ${submittable.length} 条达到可提交状态，需要重点核对实际订单提交和成交回执。最近一条：${latestLine}`;
+      } else if (passedButDisabled.length) {
+        conclusion = `复盘结论：最近 ${items.length} 条中有 ${passedButDisabled.length} 条报价、价格保护和净利润检查通过，但真实下单模块仍关闭，所以没有实盘成交。最近一条：${latestLine}`;
+      } else if (topReason) {
+        conclusion = `复盘结论：最近 ${items.length} 条没有可提交交易，主要阻断原因是“${topReason[0]}”（${topReason[1]} 次）。最近一条：${latestLine}`;
+      } else {
+        conclusion = `复盘结论：最近 ${items.length} 条没有可提交交易，主要原因需要查看明细状态。最近一条：${latestLine}`;
+      }
+      return {
+        conclusion,
+        metrics: [
+          `记录 ${items.length} 条`,
+          `通过检查 ${passed.length} 条`,
+          `可提交 ${submittable.length} 条`,
+          `通过但未下单 ${passedButDisabled.length} 条`,
+          `阻断/失败 ${blocked.length} 条`,
+          `主要原因 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
+        ],
+      };
+    }
+    const costText = (quote, plan) => {
+      const costs = quote?.costs || {};
+      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
+      return [
+        `原生币余额：before ${costs.native_balance_before ?? "未检查"} / after ${costs.native_balance_after ?? "未检查"} (${costs.native_balance_source || "quote_stage"})`,
+        `Gas：quote ${costs.quote_api_gas_used ?? 0}；下单 ${costs.user_order_submission_gas_used ?? 0}；结算 ${costs.settlement_gas_payer || "solver"}；授权 ${costs.approval_gas_status || "待检查"}`,
+        `手续费：${feeLines(costs)}`,
+        `盘面盈利：${planProfit(plan)}`,
+        `CoW 相对 Binance 估算：${quoteVsPlan(quote, plan)}`,
+        `CoW 盈利：${actualProfit}`,
+      ].join("\n");
+    };
+    const supportText = support => {
+      if (!support) return "CoW 支持：未检查";
+      return support.supported
+        ? `CoW 支持：${support.cow_network} 可识别`
+        : `CoW 支持：不支持 ${support.unsupported_tokens?.join(", ") || "-"}`;
+    };
+    const planInitial = plan => plan?.available ? `${plan.initial_amount || "-"} ${displaySymbol(plan.initial_symbol || "")}` : "-";
+    const planFinal = plan => plan?.available ? `${plan.final_target_amount || "-"} ${displaySymbol(plan.final_symbol || "")}` : "-";
+    const planProfit = plan => plan?.available ? `${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
+    const basisLabel = basis => ({
+      current_binance_buy_low: "当前盘面买入",
+      pre_change_binance_cross: "变化前价格换票",
+      current_binance_sell_high: "当前盘面卖出",
+      stable_reference: "稳定币参考",
+    }[basis] || basis || "-");
+    const planMarketPrices = plan => plan?.available ? (plan.market_prices || []).map(item =>
+      `${displaySymbol(item.symbol)} | 前期价 ${item.start_price || "-"} | 实时价 ${item.current_price || "-"} | 涨跌 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
+    ).join("<br>") : "-";
+    const planMarketPricesText = plan => plan?.available ? (plan.market_prices || []).map(item =>
+      `${displaySymbol(item.symbol)} | 前期价 ${item.start_price || "-"} | 实时价 ${item.current_price || "-"} | 涨跌 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
+    ).join("\n") : "-";
+    const sourceLabel = source => ({
+      previous_window: "前期窗口",
+      current_window: "当前窗口",
+      query_quote: "CoW 查询报价",
+    }[source] || source || "等待查询");
+    const pricedToken = step => step.from_symbol === "USDC" ? step.to_symbol : step.from_symbol;
+    const priceCandidateHtml = step => (step.price_candidates || []).length
+      ? (step.price_candidates || []).map(item => `${esc(sourceLabel(item.source))} ${esc(item.price || "-")} USDC/${esc(displaySymbol(pricedToken(step)))}`).join(" | ")
+      : "无价格候选";
+    const priceCandidateText = step => (step.price_candidates || []).length
+      ? (step.price_candidates || []).map(item => `${sourceLabel(item.source)} ${item.price || "-"} USDC/${displaySymbol(pricedToken(step))}`).join(" | ")
+      : "无价格候选";
+    const rateCandidateHtml = step => (step.rate_candidates || []).length
+      ? (step.rate_candidates || []).map(item => `${esc(sourceLabel(item.source))} ${esc(item.rate || "-")} ${esc(displaySymbol(step.to_symbol))}/${esc(displaySymbol(step.from_symbol))}`).join(" | ")
+      : "无比例候选";
+    const rateCandidateText = step => (step.rate_candidates || []).length
+      ? (step.rate_candidates || []).map(item => `${sourceLabel(item.source)} ${item.rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`).join(" | ")
+      : "无比例候选";
+    const selectionHtml = step => {
+      const usesPrice = (step.price_candidates || []).length > 0;
+      const target = usesPrice
+        ? `${step.selected_target_price_usd_per_token || step.target_price_usd_per_token || "-"} USDC/${displaySymbol(pricedToken(step))}`
+        : `${step.selected_target_exchange_rate || step.target_exchange_rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`;
+      const acceptable = usesPrice
+        ? `${step.acceptable_slippage_price_usd_per_token || step.acceptable_price_usd_per_token || "-"} USDC/${displaySymbol(pricedToken(step))}`
+        : `${step.acceptable_slippage_exchange_rate || step.min_exchange_rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`;
+      return `目标：${esc(target)} (${esc(sourceLabel(step.selected_target_source))}) | 可接受滑点价/比例：${esc(acceptable)} (${esc(sourceLabel(step.selected_acceptable_source))})`;
+    };
+    const selectionText = step => {
+      const usesPrice = (step.price_candidates || []).length > 0;
+      const target = usesPrice
+        ? `${step.selected_target_price_usd_per_token || step.target_price_usd_per_token || "-"} USDC/${displaySymbol(pricedToken(step))}`
+        : `${step.selected_target_exchange_rate || step.target_exchange_rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`;
+      const acceptable = usesPrice
+        ? `${step.acceptable_slippage_price_usd_per_token || step.acceptable_price_usd_per_token || "-"} USDC/${displaySymbol(pricedToken(step))}`
+        : `${step.acceptable_slippage_exchange_rate || step.min_exchange_rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`;
+      return `目标：${target} (${sourceLabel(step.selected_target_source)}) | 可接受滑点价/比例：${acceptable} (${sourceLabel(step.selected_acceptable_source)})`;
+    };
+    const sdkParamsHtml = step => {
+      const sdk = step.cow_sdk_parameters || {};
+      return `传给 CoW SDK：kind=${esc(sdk.quote_kind || "sell")} | sellToken=${esc(displaySymbol(sdk.sell_token_symbol || step.from_symbol))} | buyToken=${esc(displaySymbol(sdk.buy_token_symbol || step.to_symbol))} | sellAmountBeforeFee=${esc(sdk.sell_amount_before_fee || "-")} | targetBuyAmountAfterFee=${esc(sdk.target_buy_amount_after_fee || "-")} | minBuyAmountAfterFee=${esc(sdk.min_buy_amount_after_fee || "-")}`;
+    };
+    const sdkParamsText = step => {
+      const sdk = step.cow_sdk_parameters || {};
+      return `传给 CoW SDK：kind=${sdk.quote_kind || "sell"} | sellToken=${displaySymbol(sdk.sell_token_symbol || step.from_symbol)} | buyToken=${displaySymbol(sdk.buy_token_symbol || step.to_symbol)} | sellAmountBeforeFee=${sdk.sell_amount_before_fee || "-"} | targetBuyAmountAfterFee=${sdk.target_buy_amount_after_fee || "-"} | minBuyAmountAfterFee=${sdk.min_buy_amount_after_fee || "-"}`;
+    };
+    const precheckStatusLabel = status => ({
+      checks_passed_order_disabled: "价格/盈利通过，真实下单未开放",
+      unsupported: "代币不支持",
+      quote_unavailable: "报价不可用",
+      price_guard_failed: "价格保护未通过",
+      not_profitable: "不盈利",
+      blocked: "不能下单",
+    }[status] || status || "未检查");
+    const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
+    const precheckHtml = quote => {
+      const check = quote?.execution_precheck;
+      if (!check) return "下单条件：等待查询真实报价";
+      const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
+      const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
+      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 自动执行阈值 ${check.auto_execute_min_profit_usd || "1"}U | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
+      return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
+    };
+    const precheckText = quote => {
+      const check = quote?.execution_precheck;
+      if (!check) return "下单条件：等待查询真实报价";
+      const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
+      const reasons = (check.reasons || []).join("\n") || "-";
+      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 自动执行阈值 ${check.auto_execute_min_profit_usd || "1"}U | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
+      return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
+    };
+    const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
+      `输入数量 ${esc(step.query_sell_amount_before_fee || step.input_amount || "-")} ${esc(displaySymbol(step.from_symbol))} | CoW 查询输出 ${esc(step.query_buy_amount_after_fee || "等待查询")} ${esc(displaySymbol(step.to_symbol))}<br>` +
+      `候选价格：${priceCandidateHtml(step)}<br>候选兑换比例：${rateCandidateHtml(step)}<br>` +
+      `${selectionHtml(step)} | 滑点设置 ${esc(step.slippage_bps ?? "-")}bps (${esc(step.slippage_percent || "-")}%)<br>` +
+      `目标数量 ${esc(step.target_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))} | 最低接收 ${esc(step.min_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))}<br>` +
+      `${sdkParamsHtml(step)}<br>规则：${esc(step.selection_rule || step.price_compare_rule || "-")}`;
+    const executionStepText = step => `${step.step || "-"}. ${displaySymbol(step.from_symbol)} -> ${displaySymbol(step.to_symbol)} | ${basisLabel(step.price_basis)}\n` +
+      `输入数量 ${step.query_sell_amount_before_fee || step.input_amount || "-"} ${displaySymbol(step.from_symbol)} | CoW 查询输出 ${step.query_buy_amount_after_fee || "等待查询"} ${displaySymbol(step.to_symbol)}\n` +
+      `候选价格：${priceCandidateText(step)}\n候选兑换比例：${rateCandidateText(step)}\n` +
+      `${selectionText(step)} | 滑点设置 ${step.slippage_bps ?? "-"}bps (${step.slippage_percent || "-"}%)\n` +
+      `目标数量 ${step.target_output_amount || "-"} ${displaySymbol(step.to_symbol)} | 最低接收 ${step.min_output_amount || "-"} ${displaySymbol(step.to_symbol)}\n` +
+      `${sdkParamsText(step)}\n规则：${step.selection_rule || step.price_compare_rule || "-"}`;
+    const executionParams = plan => plan?.available ? `<div>Binance 行情价格：<br>${planMarketPrices(plan)}</div><div>兑换参数：<br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>最终 Binance 估算：${esc(planFinal(plan))} | 统一滑点 ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%)</div>` : `计划不可用：${esc(plan?.reason || "-")}`;
+    const executionParamsText = plan => plan?.available ? [
+      "Binance 行情价格：",
+      planMarketPricesText(plan),
+      "兑换参数：",
+      ...((plan.steps || []).map(executionStepText)),
+      `最终 Binance 估算：${planFinal(plan)} | 统一滑点 ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
+    ].join("\n") : `计划不可用：${plan?.reason || "-"}`;
+    const planStepLine = executionStepLine;
+    const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `计划不可用：${esc(plan?.reason || "-")}`;
+    const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `hop ${item.hop || "-"} ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
+    const costDetail = (quote, plan) => {
+      const costs = quote?.costs || {};
+      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
+      return `<div>原生币余额：before ${esc(costs.native_balance_before ?? "未检查")} / after ${esc(costs.native_balance_after ?? "未检查")} (${esc(costs.native_balance_source || "quote_stage")})</div>
+        <div>Gas：quote ${esc(costs.quote_api_gas_used ?? 0)}；下单 ${esc(costs.user_order_submission_gas_used ?? 0)}；结算 ${esc(costs.settlement_gas_payer || "solver")}；授权 ${esc(costs.approval_gas_status || "待检查")}</div>
+        <div>手续费：${esc(feeLines(costs))}</div>
+        <div>盘面盈利：${esc(planProfit(plan))}</div>
+        <div>CoW 相对 Binance 估算：${esc(quoteVsPlan(quote, plan))}</div>
+        <div>CoW 盈利：${esc(actualProfit)}</div>`;
+    };
+
+    const rowHtml = (row, index) => `<tr>
+      <td>${index}</td><td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
+      <td>${num(row.start_price)}</td><td>${num(row.current_price)}</td><td>${esc(row.price_source || "-")}</td>
+    </tr>`;
+    const chainList = row => (row?.cow_networks || []).join(", ") || "-";
+    const cowSupportedRowHtml = (row, index) => `<tr>
+      <td>${index}</td><td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
+      <td>${num(row.start_price)}</td><td>${num(row.current_price)}</td><td>${esc(chainList(row))}</td><td>${esc(row.price_source || "-")}</td>
+    </tr>`;
+    const cowSupportedText = (title, rows) => [
+      title,
+      ...((rows || []).map((row, index) => `${index + 1}. ${displaySymbol(row.symbol)} | ${plainPct(row.change_percent)} | ${plainNum(row.start_price)} -> ${plainNum(row.current_price)} | chains ${chainList(row)} | ${row.price_source || "-"}`)),
+      ...(rows && rows.length ? [] : ["-"]),
+    ].join("\n");
+    const renderCowSupportedOverview = overview => {
+      const top = overview?.top || [];
+      const bottom = overview?.bottom || [];
+      const limit = overview?.limit || 50;
+      $("cowSupportedTopTitle").textContent = `所有 CoW 支持代币涨幅前 ${limit}`;
+      $("cowSupportedBottomTitle").textContent = `所有 CoW 支持代币跌幅前 ${limit}`;
+      $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported top data</td></tr>';
+      $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported bottom data</td></tr>';
+    };
+    const rowsTable = (rows, sideLabel) => `<div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>代币</th><th>${esc(sideLabel)}</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+      <tbody>${(rows || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No data</td></tr>'}</tbody>
+    </table></div>`;
+    const networkClaimHtml = claim => `<div class="network-claim">
+      <div class="network-claim-head">
+        <h3>${esc(claim.label || claim.network || "-")} <span class="muted">(${esc(claim.chain_id || "-")})</span></h3>
+        <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</span>
+      </div>
+      <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; ${esc(claim.min_side_change_percent ?? "0.5")}% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)}</div>
+      <div class="mini-split">
+        <div>${rowsTable(claim.top || [], "涨幅")}</div>
+        <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
+      </div>
+    </div>`;
+    const renderNetworkClaims = claims => {
+      $("networkClaims").innerHTML = (claims || []).map(networkClaimHtml).join("") || '<div class="muted">No CoW network support data</div>';
+    };
+    const networkClaimText = claim => [
+      `${claim.label || claim.network || "-"} (${claim.chain_id || "-"}) | token ${claim.token_cache_count ?? "-"} | 命中 ${claim.supported_symbol_count ?? 0} | 候选 ${claim.pair_count ?? 0}`,
+      tableText(`涨幅前 ${(claim.top || []).length || 5}`, claim.top || []),
+      tableText(`跌幅前 ${(claim.bottom || []).length || 5}`, claim.bottom || []),
+    ].join("\n");
+
+    function routeBox(route, pair, network) {
+      const reason = route.priority_reason === "buy_loser_then_gainer" ? "priority" : "reverse";
+      const quote = route.cow_quote || null;
+      const support = route.cow_support || quote?.cow_support || null;
+      const plan = quote?.binance_execution_plan || route.binance_execution_plan || null;
+      const pairRank = pair?.rank || route.pair_rank || "";
+      const priorityReason = route.priority_reason || "";
+      const pairName = pair?.pair || "";
+      const quoteBadge = quote
+        ? `<span class="badge">${quote.viable ? "已报价未下单" : "报价失败"}</span>`
+        : support
+          ? `<span class="badge">${support.supported ? "支持" : "不支持"}</span>`
+        : '<span class="badge">未报价</span>';
+      const quoteMeta = quote
+        ? `final ${quote.final_amount || "-"} | delta ${quote.final_delta_amount || "-"}`
+        : "等待查询 CoW 链上报价";
+      const check = quote?.execution_precheck || null;
+      const pureProfit = check?.pure_profit_amount || quote?.final_delta_amount || "-";
+      const autoReady = Boolean(check?.auto_execute_requested);
+      const canSubmit = Boolean(check?.can_submit_order);
+      const autoSwitchOn = Boolean($("autoExecuteToggle")?.checked);
+      const executeLabel = !autoSwitchOn
+        ? "自动执行检查关闭"
+        : autoReady
+        ? (canSubmit ? "自动执行已就绪" : "净利润>1U，下单未启用")
+        : "净利润未达1U";
+      const detail = quote
+        ? `<div class="route-detail">
+            <div>初始数量：${esc(quoteInitial(quote))}</div>
+            <div>Binance 估算目标：${esc(planFinal(plan))}</div>
+            <div>Binance/CoW 兑换参数：${executionParams(plan)}</div>
+            <div>CoW 链上实时报价流程：${quoteFlow(quote)}</div>
+            <div>${esc(supportText(support))}</div>
+            <div>CoW 实时报价比例：${esc(quoteRates(quote))}</div>
+            <div>CoW 预计结果：${esc(quoteFinal(quote))}</div>
+            <div>预期收益：${esc(planProfit(plan))}</div>
+            <div>纯利润：${esc(pureProfit)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
+            <div>${precheckHtml(quote)}</div>
+            ${costDetail(quote, plan)}
+            ${quote.viable ? "" : `<div>失败原因：${esc(quote.error || "-")}</div>`}
+          </div>`
+        : `<div class="route-detail">
+            <div>初始数量：${esc(planInitial(plan))}</div>
+            <div>Binance 估算目标：${esc(planFinal(plan))}</div>
+            <div>Binance/CoW 兑换参数：${executionParams(plan)}</div>
+            <div>CoW 链上报价路径：${esc(routePath(route))}</div>
+            <div>${esc(supportText(support))}</div>
+            <div>CoW 实时报价比例：等待查询</div>
+            <div>CoW 预计结果：等待查询</div>
+            <div>预期收益：${esc(planProfit(plan))}</div>
+            <div>纯利润：等待 CoW SDK 报价</div>
+            ${costDetail(null, plan)}
+          </div>`;
+      return `<div class="route-box">
+        <div class="route-top"><span class="route-no">Route ${esc(route.route_no || "-")} | ${reason}</span>${quoteBadge}</div>
+        <div class="route-path">${esc(routePath(route))}</div>
+        <div class="route-meta">start ${esc(displaySymbol(route.initial_symbol || "USDC"))}<br>${esc(quoteMeta)}</div>
+        ${detail}
+        <div class="route-actions">
+          <button data-route-action="quote" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}">查询真实报价</button>
+          <button data-route-action="execute-check" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}">检查下单条件</button>
+          <button class="execute-button ${autoSwitchOn && autoReady && canSubmit ? "ready" : ""}" data-route-action="auto-execute" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}" ${autoSwitchOn && canSubmit ? "" : "disabled"}>${esc(executeLabel)}</button>
+        </div>
+      </div>`;
+    }
+    function routeGraph(routes, pair, network) {
+      return `<div class="route-grid">${(routes || []).map(route => routeBox(route, pair, network)).join("")}</div>`;
+    }
+    function renderCowIdentity(config) {
+      const selected = config || selectedCowConfig();
+      $("cowQuoteContext").textContent = selected
+        ? `CoW ${selected.network} | ${selected.owner_source || "-"} | ${shortAddress(selected.owner)}`
+        : "CoW -";
+      $("cowQuoteContext").title = selected?.owner || "";
+    }
+    function renderCowConfig(data) {
+      cowConfig = data || null;
+      const networks = Array.isArray(data?.networks) ? data.networks : [];
+      const uiNetworks = networks.filter(item => !item.testnet).sort((left, right) => {
+        const leftIndex = DEFAULT_SELECTED_NETWORKS.indexOf(left.network);
+        const rightIndex = DEFAULT_SELECTED_NETWORKS.indexOf(right.network);
+        const leftRank = leftIndex >= 0 ? leftIndex : DEFAULT_SELECTED_NETWORKS.length + networks.indexOf(left);
+        const rightRank = rightIndex >= 0 ? rightIndex : DEFAULT_SELECTED_NETWORKS.length + networks.indexOf(right);
+        return leftRank - rightRank;
+      });
+      const selectedSet = new Set(DEFAULT_SELECTED_NETWORKS.filter(name => uiNetworks.some(item => item.network === name)));
+      if (!selectedSet.size && uiNetworks[0]?.network) selectedSet.add(uiNetworks[0].network);
+      $("cowNetworkChecks").innerHTML = uiNetworks.map(item => {
+        const label = `${item.label || item.network} (${item.chain_id})`;
+        const checked = selectedSet.has(item.network) ? " checked" : "";
+        return `<label class="network-check"><input type="checkbox" name="cow_network" value="${esc(item.network)}"${checked}>${esc(label)}</label>`;
+      }).join("");
+      $("refreshMeta").textContent = selectedSet.size ? `CoW 多链 ${Array.from(selectedSet).join(", ")}` : "CoW -";
+      renderCowIdentity(selectedCowConfig(primaryNetwork()));
+    }
+    function quoteKey(pairRank, priorityReason, pair) {
+      return `${pair || ""}:${pairRank || ""}:${priorityReason || ""}`;
+    }
+    function quoteMap(data) {
+      const map = new Map();
+      for (const row of data?.ranking || []) map.set(quoteKey(row.pair_rank, row.priority_reason, row.pair), row);
+      return map;
+    }
+    function supportMap(data) {
+      const map = new Map();
+      for (const row of data?.routes || data?.precheck?.routes || []) map.set(quoteKey(row.pair_rank, row.priority_reason, row.pair), row);
+      return map;
+    }
+    function copyText(text, label) {
+      const value = String(text || "").trim();
+      if (!value) {
+        $("message").textContent = "没有可复制的内容";
+        return Promise.resolve(false);
+      }
+      const finish = () => {
+        $("message").textContent = `${label}已复制`;
+        return true;
+      };
+      if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value).then(finish);
+      const area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "readonly");
+      area.style.position = "fixed";
+      area.style.left = "-9999px";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      if (!ok) throw new Error("浏览器拒绝复制，请手动选择页面文本复制");
+      return Promise.resolve(finish());
+    }
+    function routeText(route, pair) {
+      const quote = route.cow_quote || null;
+      const support = route.cow_support || quote?.cow_support || null;
+      const plan = quote?.binance_execution_plan || route.binance_execution_plan || null;
+      const reason = route.priority_reason === "buy_loser_then_gainer" ? "priority" : "reverse";
+      return [
+        `Route ${route.route_no || "-"} | ${reason} | ${pair?.pair || "-"}`,
+        `路径：${routePath(route)}`,
+        `初始数量：${quote ? quoteInitial(quote) : planInitial(plan)}`,
+        `Binance 估算目标：${planFinal(plan)}`,
+        "Binance/CoW 兑换参数：",
+        executionParamsText(plan),
+        `CoW 支持：${supportText(support)}`,
+        `CoW 链上报价路径：${quote ? quotePath(quote) : routePath(route)}`,
+        `CoW 实时报价比例：${quote ? quoteRates(quote) : "等待查询"}`,
+        `CoW 预计结果：${quote ? quoteFinal(quote) : "等待查询"}`,
+        precheckText(quote),
+        costText(quote, plan),
+        quote && quote.error ? `失败原因：${quote.error}` : "",
+      ].filter(Boolean).join("\n");
+    }
+    function pairText(pair) {
+      return [
+        `#${pair.rank || "-"} ${displaySymbol(pair.x_symbol)} / ${displaySymbol(pair.y_symbol)} | spread ${pair.window_spread_percent ?? "-"}`,
+        ...((pair.route_results || []).map(route => routeText(route, pair))),
+      ].join("\n");
+    }
+    function quoteRowText(row, index) {
+      const plan = row.binance_execution_plan || null;
+      return [
+        `#${index + 1} ${row.pair || "-"} | ${row.viable ? "quotable" : "failed"}`,
+        `路径：${quotePath(row)}`,
+        `初始数量：${quoteInitial(row)}`,
+        `CoW 链上报价流程：`,
+        quoteText(row),
+        `CoW 实时报价比例：${quoteRates(row)}`,
+        `CoW 预计结果：${quoteFinal(row)}`,
+        `差额：${row.final_delta_amount || "-"}`,
+        costText(row, plan),
+        row.error ? `错误：${row.error}` : "",
+      ].filter(Boolean).join("\n");
+    }
+    function marketCopyText(includeQuotes) {
+      const data = currentMarketState || {};
+      const primaryPanel = networkPanels.get(primaryNetwork()) || {};
+      const cowFilter = (primaryPanel.marketState || data).cow_filter || {};
+      const lines = [
+        "DEX 套利 | CoW SDK 页面信息",
+        `复制时间：${new Date().toLocaleString([], {hour12: false})}`,
+        `CoW 网络：${selectedNetworkIds().join(", ") || "-"}`,
+        `Owner：${selectedCowConfig(primaryNetwork())?.owner_source || "-"} | ${selectedCowConfig(primaryNetwork())?.owner || "-"}`,
+        `观察窗口：${Number.isFinite(Number(data.window_seconds)) ? `${Number(data.window_seconds).toFixed(3)}s` : "-"}`,
+        `观察时间：${fmtTime(data.observed_at)}`,
+        `样本数量：${data.sample_count ?? "-"} / universe ${data.observation_universe_size ?? "-"}`,
+        `CoW token 缓存：${cowFilter.token_cache_count ?? "-"} (${cowFilter.token_cache_source || "-"})`,
+        `Binance 命中：${cowFilter.supported_symbol_count ?? 0} / 未命中 ${cowFilter.unsupported_symbol_count ?? 0}`,
+        `统计过滤：单边涨跌 > ${cowFilter.min_side_change_percent ?? "0.5"}%；价格 >= ${cowFilter.min_token_price_usd ?? "0.01"}U；过滤 ${cowFilter.market_excluded_symbol_count ?? 0} 个`,
+        `最小候选差价：${cowFilter.min_spread_percent ?? minSpreadValue()}%`,
+        `候选路径：${data.pair_count ?? 0}`,
+        "",
+        tableText(`Binance 原始涨幅前 ${data.top_limit || 5}`, data.raw_top || []),
+        "",
+        tableText(`Binance 原始跌幅前 ${data.bottom_limit || 5}`, data.raw_bottom || []),
+        "",
+        cowSupportedText(`所有 CoW 支持代币涨幅前 ${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.top || []),
+        "",
+        cowSupportedText(`所有 CoW 支持代币跌幅前 ${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.bottom || []),
+        "",
+        "各 CoW 网络支持 Top/Bottom 5：",
+        ...((data.cow_network_claims || []).map(networkClaimText)),
+        "",
+        "选中链候选路线：",
+        ...activeNetworkPanels().map(panel => [
+          `网络：${networkLabel(panel.network)} (${panel.network})`,
+          ...((pairsWithQuotes(panel.marketState?.pairs || [], panel.quotes, panel.support)).map(pairText)),
+        ].join("\n")),
+      ];
+      if (includeQuotes) {
+        lines.push(
+          "",
+          "CoW 报价验证：",
+          "",
+          ...activeNetworkPanels().flatMap(panel => (panel.quotes?.ranking || []).map((row, index) => `${networkLabel(panel.network)}\n${quoteRowText(row, index)}`))
+        );
+      }
+      return lines.join("\n");
+    }
+    function pairsWithQuotes(pairs, quotes, supportData = latestCowSupport) {
+      const map = quoteMap(quotes);
+      const precheck = supportMap(supportData);
+      return (pairs || []).map(pair => ({
+        ...pair,
+        route_results: (pair.route_results || []).map(route => ({
+          ...route,
+          cow_support: precheck.get(quoteKey(pair.rank, route.priority_reason, pair.pair)) || null,
+          cow_quote: map.get(quoteKey(pair.rank, route.priority_reason, pair.pair)) || null,
+        })),
+        quote_verified: Boolean(quotes) && (pair.rank || 0) <= Number(quotes.selected_pair_count || 0),
+      }));
+    }
+    function renderPairs() {
+      renderNetworkOpportunityCards();
+    }
+    function selectedPanelPairs(panel) {
+      return pairsWithQuotes((panel?.marketState?.pairs || []).slice(0, 1), panel?.quotes || null, panel?.support || null);
+    }
+    function routeCountText(panel) {
+      const state = panel?.marketState || {};
+      return `${state.pair_count ?? 0} 组候选，当前展示 ${Math.min(1, Number(state.pair_count || 0))} 组`;
+    }
+    function networkOpportunityCard(panel) {
+      const state = panel?.marketState || {};
+      const filter = state.cow_filter || {};
+      const pairs = selectedPanelPairs(panel);
+      const pair = pairs[0] || null;
+      const best = (panel?.quotes?.opportunities || panel?.quotes?.ranking || []).find(row => row?.execution_precheck?.checks_passed) || null;
+      const quoteInfo = panel?.quotes
+        ? `${panel.quotes.viable_count || 0}/${panel.quotes.route_count || 0} 已报价`
+        : panel?.support
+          ? `${panel.support.supported_route_count || 0}/${panel.support.route_count || 0} 支持`
+          : "等待检查";
+      const threshold = filter.threshold_detail || {};
+      return `<div class="chain-card" data-chain-card="${esc(panel.network || "")}">
+        <div class="chain-card-head">
+          <h3>${esc(networkLabel(panel.network))}</h3>
+          <span class="context">${esc(panel.network || "-")} | ${esc(shortAddress(selectedCowConfig(panel.network)?.owner))}</span>
+        </div>
+        <div class="chain-summary">
+          <span>最高涨幅：${esc(displaySymbol(state.top?.[0]?.symbol || "-"))} ${esc(pct(state.top?.[0]?.change_percent))}</span>
+          <span>最高跌幅：${esc(displaySymbol(state.bottom?.[0]?.symbol || "-"))} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
+          <span>${esc(routeCountText(panel))}</span>
+          <span>${esc(quoteInfo)}</span>
+          <span>最佳纯利润 ${esc(best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
+        </div>
+        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "-")}% | 价差 ${esc(filter.min_spread_percent ?? minSpreadValue())}% | ${esc(threshold.threshold_rule || "fixed threshold")}</div>
+        <div class="chain-routes">
+          ${pair ? routeGraph(pair.route_results || [], pair, panel.network) : '<div class="muted">当前窗口没有同时满足涨幅、跌幅、价格、价差和 CoW 支持条件的一对代币。</div>'}
+        </div>
+      </div>`;
+    }
+    function renderNetworkOpportunityCards() {
+      const selected = selectedNetworkIds();
+      const panels = selected.map(network => networkPanels.get(network) || {network});
+      $("networkOpportunityCards").innerHTML = panels.map(networkOpportunityCard).join("") || '<div class="muted">请选择至少一条 CoW 网络</div>';
+    }
+    async function quoteRouteGroup(network, pairRank) {
+      $("message").textContent = `正在查询 ${networkLabel(network)} 第 ${pairRank || "1"} 组 CoW 链上真实报价`;
+      await refreshCowQuotes(network);
+    }
+    function routeQuoteForButton(button) {
+      const panel = networkPanels.get(button.dataset.cowNetwork || "");
+      const latest = panel?.quotes || null;
+      if (!latest) return null;
+      const key = quoteKey(button.dataset.pairRank, button.dataset.priorityReason, button.dataset.pair);
+      return quoteMap(latest).get(key) || null;
+    }
+    function executePrecheck(button) {
+      const quote = routeQuoteForButton(button);
+      if (!quote) {
+        $("message").textContent = "请先点击“查询真实报价”，拿到 CoW 链上报价后再检查是否能下单";
+        return;
+      }
+      const check = quote.execution_precheck || null;
+      if (!check) {
+        $("message").textContent = "不能兑换：缺少后端下单条件检查结果，请重新查询真实报价";
+        return;
+      }
+      const reasons = (check.reasons || []).join("；") || "-";
+      $("message").textContent = `${precheckStatusLabel(check.status)}：${reasons}`;
+    }
+    function renderMarket(data, network) {
+      currentMarketState = data || null;
+      $("windowSeconds").textContent = Number.isFinite(Number(data.window_seconds)) ? `${Number(data.window_seconds).toFixed(3)}s` : "-";
+      $("observedAt").textContent = fmtTime(data.observed_at);
+      $("sampleCount").textContent = data.sample_count ?? "-";
+      $("universeSize").textContent = `universe ${data.observation_universe_size ?? 0}`;
+      const cowFilter = data.cow_filter || {};
+      const resolvedNetwork = network || cowFilter.network || data.cow_network || primaryNetwork();
+      const previousPanel = networkPanels.get(resolvedNetwork) || {};
+      const previousObservedAt = previousPanel.marketState?.observed_at || null;
+      const nextObservedAt = data.observed_at || null;
+      const pairChanged = marketPairSignature(previousPanel.marketState) !== marketPairSignature(data);
+      const quoteWindowChanged = previousObservedAt && nextObservedAt && previousObservedAt !== nextObservedAt;
+      setNetworkPanel(resolvedNetwork, {
+        marketState: data,
+        loaded: true,
+        ...(quoteWindowChanged ? {quotes: null} : {}),
+        ...(pairChanged ? {support: null, quotes: null} : {}),
+      });
+      const panels = selectedNetworkIds().map(item => networkPanels.get(item)).filter(Boolean);
+      const totalPairs = panels.reduce((sum, panel) => sum + Number(panel?.marketState?.pair_count || 0), 0);
+      const tokenTotal = panels.reduce((sum, panel) => sum + Number(panel?.marketState?.cow_filter?.token_cache_count || 0), 0);
+      const supportedTotal = panels.reduce((sum, panel) => sum + Number(panel?.marketState?.cow_filter?.supported_symbol_count || 0), 0);
+      const unsupportedTotal = panels.reduce((sum, panel) => sum + Number(panel?.marketState?.cow_filter?.unsupported_symbol_count || 0), 0);
+      const threshold = cowFilter.threshold_detail || {};
+      const filterAmount = threshold.amount ?? ($("quoteAmountInput").value || "1000");
+      $("cowTokenCount").textContent = tokenTotal || cowFilter.token_cache_count || "-";
+      $("cowMatchCount").textContent = `Binance 命中 ${supportedTotal || cowFilter.supported_symbol_count || 0} / 未命中 ${unsupportedTotal || cowFilter.unsupported_symbol_count || 0}`;
+      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > ${cowFilter.min_side_change_percent ?? "0.5"}% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | spread ${threshold.requested_min_spread_percent ?? "-"} -> ${cowFilter.min_spread_percent ?? "-"}% | amount ${filterAmount} | 每链 1 组`;
+      $("pairCount").textContent = totalPairs;
+      $("bestPair").textContent = totalPairs ? "waiting for CoW" : "-";
+      $("rawTopBody").innerHTML = (data.raw_top || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw top data</td></tr>';
+      $("rawBottomBody").innerHTML = (data.raw_bottom || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw bottom data</td></tr>';
+      $("rawTopTitle").textContent = `Binance 原始涨幅前 ${data.top_limit || 5}`;
+      $("rawBottomTitle").textContent = `Binance 原始跌幅前 ${data.bottom_limit || 5}`;
+      renderCowSupportedOverview(data.cow_supported_overview || null);
+      renderNetworkClaims(data.cow_network_claims || []);
+      $("pairTitle").textContent = `每条选中链仅展示 1 组 CoW 支持稳定币闭环套利候选路径`;
+      $("aaveBody").innerHTML = (data.aave_rows || []).map(row => `<tr>
+        <td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
+        <td>${num(row.start_price)}</td><td>${num(row.current_price)}</td><td>${row.window_ready ? "ready" : "waiting"}</td><td>${row.tracked ? "tracked" : "not tracked"}</td>
+      </tr>`).join("") || '<tr><td colspan="6">No Aave mapped assets</td></tr>';
+      renderNetworkOpportunityCards();
+      renderCowIdentity();
+      if (!Array.from(networkPanels.values()).some(panel => panel?.quotes)) {
+        $("notionalUsd").textContent = "-";
+        $("quoteState").textContent = "等待 CoW SDK 报价";
+      }
+      $("refreshMeta").textContent = `updated ${fmtTime(data.observed_at)} | ${data.market_state_source || data.price_source || "-"}${data.fallback_reason ? ` | ${data.fallback_reason}` : ""}`;
+    }
+    function renderCowQuoteTable() {
+      const opportunities = activeNetworkPanels().flatMap(panel =>
+        (panel?.quotes?.ranking || [])
+          .filter(row => row?.execution_precheck?.checks_passed)
+          .map(row => ({...row, display_network: panel.network}))
+      );
+      const rows = opportunities.map((row, index) => `<tr>
+        <td>${index + 1}</td><td>${esc(networkLabel(row.display_network))}<br>${esc(row.pair || "-")}</td><td>${esc(quoteInitial(row))}</td>
+        <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
+        <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "可自动执行" : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
+      </tr>`).join("");
+      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">没有满足价格保护、净利润大于 1U、且 CoW 支持条件的交易机会</td></tr>';
+      const best = opportunities[0] || null;
+      $("notionalUsd").textContent = best?.final_delta_amount || "-";
+      $("notionalUsd").title = best ? `${networkLabel(best.display_network)} | ${best.pair || "-"} | ${(best.path || []).join(" -> ")}` : "";
+      const quotedRoutes = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.quotes?.route_count || 0), 0);
+      $("quoteState").innerHTML = `<span class="badge">CoW 多链</span><span class="muted">${esc(opportunities.length)} opportunity | ${esc(quotedRoutes)} routes quoted</span>`;
+    }
+    function renderCowAttemptHistory(data) {
+      const rows = data?.attempts || [];
+      const review = cowAttemptReview(rows);
+      $("cowAttemptHistorySource").textContent = `source ${data?.source || "-"} | ${rows.length} rows`;
+      $("cowAttemptReviewConclusion").textContent = review.conclusion;
+      $("cowAttemptReviewMetrics").innerHTML = review.metrics.map(item => `<span>${esc(item)}</span>`).join("");
+      $("cowAttemptHistoryBody").innerHTML = rows.map(row => `<tr>
+        <td>${esc(fmtTime(row.created_at))}</td>
+        <td>${esc(row.network || "-")}</td>
+        <td>${esc(row.pair || "-")}</td>
+        <td>${esc(historyRoutePath(row))}</td>
+        <td>${esc(precheckStatusLabel(row.state))}</td>
+        <td>${esc(historyPureProfit(row))}</td>
+        <td>${esc(historyReasons(row))}</td>
+      </tr>`).join("") || '<tr><td colspan="7">暂无 CoW 执行复盘历史</td></tr>';
+    }
+    async function refreshCowAttemptHistory() {
+      try {
+        renderCowAttemptHistory(await api("/api/binance-market/cow-execution-attempts?limit=50"));
+      } catch (error) {
+        $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
+      }
+    }
+    function renderCowQuotes(data, network) {
+      latestCowQuotes = data || null;
+      latestCowSupport = data?.precheck || latestCowSupport;
+      if (data.market_state) currentMarketState = data.market_state;
+      const resolvedNetwork = network || data.cow_network || primaryNetwork();
+      setNetworkPanel(resolvedNetwork, {
+        marketState: data.market_state || networkPanels.get(resolvedNetwork)?.marketState,
+        quotes: data || null,
+        support: data?.precheck || networkPanels.get(resolvedNetwork)?.support || null,
+      });
+      renderNetworkOpportunityCards();
+      renderCowQuoteTable();
+      refreshCowAttemptHistory();
+      $("cowQuoteContext").textContent = `CoW ${selectedNetworkIds().join(", ") || "-"} | 默认账户`;
+      $("cowQuoteContext").title = selectedNetworkIds().map(item => `${item}: ${selectedCowConfig(item)?.owner || "-"}`).join("\n");
+    }
+    async function loadCowConfig() {
+      try {
+        renderCowConfig(await api("/api/binance-market/cow-config"));
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    async function refresh() {
+      if (marketRefreshInFlight) return;
+      marketRefreshInFlight = true;
+      try {
+        $("message").textContent = "";
+        const sideLimit = $("sideLimitSelect").value || "50";
+        const networks = selectedNetworkIds();
+        const minSpread = minSpreadValue();
+        const amount = $("quoteAmountInput").value || "1000";
+        if (!networks.length) {
+          renderNetworkOpportunityCards();
+          throw new Error("请至少选择一条 CoW 网络");
+        }
+        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
+        const data = await api(`/api/binance-market/states?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&cow_networks=${encodeURIComponent(networks.join(","))}&min_spread_percent=${encodeURIComponent(minSpread)}&amount=${encodeURIComponent(amount)}`);
+        for (const network of networks) {
+          const state = data.states?.[network];
+          if (state) renderMarket({...state, cow_network_claims: data.cow_network_claims || [], cow_supported_overview: data.cow_supported_overview || null}, network);
+        }
+      } catch (error) {
+        $("message").textContent = error.message;
+      } finally {
+        marketRefreshInFlight = false;
+      }
+    }
+    async function refreshCowQuotes(network = null) {
+      try {
+        $("message").textContent = "";
+        const sideLimit = $("sideLimitSelect").value || "50";
+        const quoteLimit = "1";
+        const networks = network ? [network] : selectedNetworkIds();
+        const amount = $("quoteAmountInput").value || "1000";
+        const minSpread = minSpreadValue();
+        if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
+        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
+        await Promise.all(networks.map(async cowNetwork => {
+          const data = await api(`/api/binance-market/cow-quotes?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}`);
+          renderCowQuotes(data, cowNetwork);
+        }));
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    async function refreshCowSupport(network = null) {
+      try {
+        $("message").textContent = "";
+        const sideLimit = $("sideLimitSelect").value || "50";
+        const quoteLimit = "1";
+        const networks = network ? [network] : selectedNetworkIds();
+        const amount = $("quoteAmountInput").value || "1000";
+        const minSpread = minSpreadValue();
+        if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
+        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
+        await Promise.all(networks.map(async cowNetwork => {
+          const data = await api(`/api/binance-market/cow-support?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}`);
+          latestCowSupport = data || null;
+          if (data.market_state) currentMarketState = data.market_state;
+          setNetworkPanel(cowNetwork, {
+            marketState: data.market_state || networkPanels.get(cowNetwork)?.marketState,
+            support: data || null,
+          });
+        }));
+        const supportedRoutes = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.support?.supported_route_count || 0), 0);
+        const routeCount = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.support?.route_count || 0), 0);
+        $("quoteState").innerHTML = `<span class="badge">CoW 多链</span><span class="muted">${esc(supportedRoutes)} / ${esc(routeCount)} supported</span>`;
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    async function refreshCowTokens() {
+      try {
+        const networks = (cowConfig?.networks || []).filter(item => !item.testnet).map(item => item.network);
+        const targets = networks.length ? networks : selectedNetworkIds();
+        $("message").textContent = `正在刷新 ${targets.length} 个 CoW 主网支持代币`;
+        const refreshed = [];
+        for (const network of targets) {
+          const response = await fetch(`/api/binance-market/cow-tokens/refresh?cow_network=${encodeURIComponent(network)}`, {method: "POST", headers: {"Accept": "application/json"}});
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+          refreshed.push(`${data.network}:${data.token_count || 0}`);
+        }
+        latestCowQuotes = null;
+        latestCowSupport = null;
+        $("message").textContent = `CoW 主网支持代币已刷新：${refreshed.join(" | ")}`;
+        await refresh();
+        await refreshCowSupport();
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    $("refreshBtn").onclick = refresh;
+    $("refreshTokensBtn").onclick = refreshCowTokens;
+    $("supportBtn").onclick = refreshCowSupport;
+    $("quoteBtn").onclick = refreshCowQuotes;
+    $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "页面信息").catch(error => { $("message").textContent = error.message; });
+    $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 报价" : "页面信息").catch(error => { $("message").textContent = error.message; });
+    $("networkOpportunityCards").onclick = event => {
+      const button = event.target.closest("button[data-route-action]");
+      if (!button) return;
+      if (button.dataset.routeAction === "quote") {
+        quoteRouteGroup(button.dataset.cowNetwork, button.dataset.pairRank).catch(error => { $("message").textContent = error.message; });
+      } else if (button.dataset.routeAction === "execute-check") {
+        executePrecheck(button);
+      } else if (button.dataset.routeAction === "auto-execute") {
+        if (!$("autoExecuteToggle").checked) {
+          $("message").textContent = "自动执行检查已关闭";
+          return;
+        }
+        executePrecheck(button);
+      }
+    };
+    $("cowNetworkChecks").onchange = () => {
+      latestCowQuotes = null;
+      latestCowSupport = null;
+      for (const network of Array.from(networkPanels.keys())) {
+        if (!selectedNetworkIds().includes(network)) networkPanels.delete(network);
+      }
+      renderCowIdentity();
+      renderNetworkOpportunityCards();
+      refresh().then(refreshCowSupport);
+    };
+    $("sideLimitSelect").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };
+    $("quoteLimitSelect").onchange = refreshCowSupport;
+    $("quoteAmountInput").onchange = refreshCowSupport;
+    $("autoExecuteToggle").onchange = renderNetworkOpportunityCards;
+    $("minSpreadInput").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };
+    loadCowConfig().then(() => refresh().then(refreshCowSupport));
+    refreshCowAttemptHistory();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

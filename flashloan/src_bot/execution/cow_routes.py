@@ -1,20 +1,56 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_FLOOR
 from pathlib import Path
 from typing import Any
 
 
+ETHEREUM_CHAIN_ID = 1
+GNOSIS_CHAIN_ID = 100
+ARBITRUM_ONE_CHAIN_ID = 42161
+BASE_CHAIN_ID = 8453
+POLYGON_CHAIN_ID = 137
 AVALANCHE_CHAIN_ID = 43114
-COW_AVALANCHE_QUOTE_API = "https://api.cow.fi/avalanche/api/v1/quote"
-COW_AVALANCHE_COINGECKO_TOKEN_LIST = (
-    "https://raw.githubusercontent.com/cowprotocol/token-lists/main/src/public/CoinGecko.43114.json"
-)
+BNB_CHAIN_ID = 56
+LINEA_CHAIN_ID = 59144
+PLASMA_CHAIN_ID = 9745
+INK_CHAIN_ID = 57073
+SEPOLIA_CHAIN_ID = 11155111
 DEFAULT_OWNER = "0x0000000000000000000000000000000000000001"
+NETWORK_OWNER_ENV_NAMES = {
+    "ethereum": ("COW_OWNER_ETHEREUM", "COW_OWNER_MAINNET"),
+    "gnosis": ("COW_OWNER_GNOSIS", "COW_OWNER_XDAI"),
+    "arbitrum_one": ("COW_OWNER_ARBITRUM_ONE", "COW_OWNER_ARBITRUM"),
+    "base": ("COW_OWNER_BASE",),
+    "polygon": ("COW_OWNER_POLYGON",),
+    "avalanche": ("COW_OWNER_AVALANCHE",),
+    "bnb": ("COW_OWNER_BNB", "COW_OWNER_BINANCE"),
+    "linea": ("COW_OWNER_LINEA",),
+    "plasma": ("COW_OWNER_PLASMA",),
+    "ink": ("COW_OWNER_INK",),
+    "sepolia": ("COW_OWNER_SEPOLIA",),
+}
+
+
+@dataclass(frozen=True)
+class CowNetworkConfig:
+    network: str
+    chain_id: int
+    quote_api: str
+    token_list_url: str
+    testnet: bool = False
+
+
+@dataclass(frozen=True)
+class CowAccountConfig:
+    owner: str
+    owner_source: str
+    network: str
 
 
 @dataclass(frozen=True)
@@ -23,6 +59,179 @@ class CowToken:
     address: str
     decimals: int
     source: str
+
+
+def _cow_quote_api(network_slug: str) -> str:
+    return f"https://api.cow.fi/{network_slug}/api/v1/quote"
+
+
+def _cow_coingecko_token_list(chain_id: int) -> str:
+    return f"https://raw.githubusercontent.com/cowprotocol/token-lists/main/src/public/CoinGecko.{int(chain_id)}.json"
+
+
+SUPPORTED_COW_NETWORKS = {
+    "ethereum": CowNetworkConfig(
+        network="ethereum",
+        chain_id=ETHEREUM_CHAIN_ID,
+        quote_api=_cow_quote_api("mainnet"),
+        token_list_url=_cow_coingecko_token_list(ETHEREUM_CHAIN_ID),
+    ),
+    "gnosis": CowNetworkConfig(
+        network="gnosis",
+        chain_id=GNOSIS_CHAIN_ID,
+        quote_api=_cow_quote_api("xdai"),
+        token_list_url=_cow_coingecko_token_list(GNOSIS_CHAIN_ID),
+    ),
+    "arbitrum_one": CowNetworkConfig(
+        network="arbitrum_one",
+        chain_id=ARBITRUM_ONE_CHAIN_ID,
+        quote_api=_cow_quote_api("arbitrum_one"),
+        token_list_url=_cow_coingecko_token_list(ARBITRUM_ONE_CHAIN_ID),
+    ),
+    "base": CowNetworkConfig(
+        network="base",
+        chain_id=BASE_CHAIN_ID,
+        quote_api=_cow_quote_api("base"),
+        token_list_url=_cow_coingecko_token_list(BASE_CHAIN_ID),
+    ),
+    "polygon": CowNetworkConfig(
+        network="polygon",
+        chain_id=POLYGON_CHAIN_ID,
+        quote_api=_cow_quote_api("polygon"),
+        token_list_url=_cow_coingecko_token_list(POLYGON_CHAIN_ID),
+    ),
+    "avalanche": CowNetworkConfig(
+        network="avalanche",
+        chain_id=AVALANCHE_CHAIN_ID,
+        quote_api=_cow_quote_api("avalanche"),
+        token_list_url=_cow_coingecko_token_list(AVALANCHE_CHAIN_ID),
+    ),
+    "bnb": CowNetworkConfig(
+        network="bnb",
+        chain_id=BNB_CHAIN_ID,
+        quote_api=_cow_quote_api("bnb"),
+        token_list_url=_cow_coingecko_token_list(BNB_CHAIN_ID),
+    ),
+    "linea": CowNetworkConfig(
+        network="linea",
+        chain_id=LINEA_CHAIN_ID,
+        quote_api=_cow_quote_api("linea"),
+        token_list_url=_cow_coingecko_token_list(LINEA_CHAIN_ID),
+    ),
+    "plasma": CowNetworkConfig(
+        network="plasma",
+        chain_id=PLASMA_CHAIN_ID,
+        quote_api=_cow_quote_api("plasma"),
+        token_list_url=_cow_coingecko_token_list(PLASMA_CHAIN_ID),
+    ),
+    "ink": CowNetworkConfig(
+        network="ink",
+        chain_id=INK_CHAIN_ID,
+        quote_api=_cow_quote_api("ink"),
+        token_list_url=_cow_coingecko_token_list(INK_CHAIN_ID),
+    ),
+    "sepolia": CowNetworkConfig(
+        network="sepolia",
+        chain_id=SEPOLIA_CHAIN_ID,
+        quote_api=_cow_quote_api("sepolia"),
+        token_list_url="",
+        testnet=True,
+    ),
+}
+_COW_NETWORK_ALIASES = {
+    "mainnet": "ethereum",
+    "eth": "ethereum",
+    "1": "ethereum",
+    "xdai": "gnosis",
+    "gno": "gnosis",
+    "100": "gnosis",
+    "arbitrum": "arbitrum_one",
+    "arbitrum-one": "arbitrum_one",
+    "arb": "arbitrum_one",
+    "42161": "arbitrum_one",
+    "8453": "base",
+    "matic": "polygon",
+    "polygon-pos": "polygon",
+    "137": "polygon",
+    "avax": "avalanche",
+    "avalanche-c-chain": "avalanche",
+    "avalanche-c": "avalanche",
+    "43114": "avalanche",
+    "binance": "bnb",
+    "binance-smart-chain": "bnb",
+    "bsc": "bnb",
+    "56": "bnb",
+    "59144": "linea",
+    "9745": "plasma",
+    "57073": "ink",
+    "11155111": "sepolia",
+}
+_UNSUPPORTED_COW_TESTNETS = {
+    "fuji": "Avalanche Fuji",
+    "avalanche-fuji": "Avalanche Fuji",
+    "43113": "Avalanche Fuji",
+}
+
+
+def _normalize_cow_network(value: str) -> str:
+    key = value.strip().lower().replace("_", "-")
+    if key in _UNSUPPORTED_COW_TESTNETS:
+        raise ValueError(
+            f"CoW Protocol testnet quotes only support Sepolia ({SEPOLIA_CHAIN_ID}); "
+            f"{_UNSUPPORTED_COW_TESTNETS[key]} is not supported."
+        )
+    return _COW_NETWORK_ALIASES.get(key, key)
+
+
+def cow_account_config(network: str | None = None) -> CowAccountConfig:
+    selected = ""
+    if network:
+        try:
+            selected = cow_network_config(network=network).network
+        except Exception:
+            selected = str(network).strip().lower()
+    if selected:
+        for env_name in NETWORK_OWNER_ENV_NAMES.get(selected, ()):
+            value = os.getenv(env_name, "").strip()
+            if value:
+                return CowAccountConfig(owner=value, owner_source=env_name, network=selected)
+    fallback = os.getenv("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "").strip()
+    if fallback:
+        return CowAccountConfig(owner=fallback, owner_source="LIQUIDATION_EXECUTOR_OWNER_ADDRESS", network=selected)
+    return CowAccountConfig(owner=DEFAULT_OWNER, owner_source="DEFAULT_OWNER", network=selected)
+
+
+def default_cow_owner(network: str | None = None) -> str:
+    return cow_account_config(network).owner
+
+
+def resolve_cow_owner(owner: str | None = None, *, network: str | None = None) -> str:
+    text = str(owner or "").strip()
+    return text or default_cow_owner(network)
+
+
+def cow_network_config(
+    network: str | None = None,
+    chain_id: int | str | None = None,
+    *,
+    quote_api: str | None = None,
+    token_list_url: str | None = None,
+) -> CowNetworkConfig:
+    selected = str(chain_id) if chain_id not in (None, "") else str(network or "avalanche")
+    selected = _normalize_cow_network(selected)
+    config = SUPPORTED_COW_NETWORKS.get(selected)
+    if config is None:
+        supported = ", ".join(sorted(SUPPORTED_COW_NETWORKS))
+        raise ValueError(f"unsupported CoW network: {selected}; supported networks: {supported}")
+    custom_quote_api = str(quote_api or "").strip()
+    custom_token_list_url = str(token_list_url or "").strip()
+    if custom_quote_api or custom_token_list_url:
+        config = replace(
+            config,
+            quote_api=custom_quote_api or config.quote_api,
+            token_list_url=custom_token_list_url or config.token_list_url,
+        )
+    return config
 
 
 def normalize_address(value: str) -> str:
@@ -50,6 +259,20 @@ def from_units(amount: str | int, decimals: int) -> str:
     return format(value.normalize(), "f")
 
 
+def exchange_rate(
+    *,
+    sell_amount_units: str | int,
+    sell_decimals: int,
+    buy_amount_units: str | int,
+    buy_decimals: int,
+) -> str | None:
+    sell_amount = Decimal(str(sell_amount_units)) / (Decimal(10) ** int(sell_decimals))
+    buy_amount = Decimal(str(buy_amount_units)) / (Decimal(10) ** int(buy_decimals))
+    if sell_amount <= 0:
+        return None
+    return format((buy_amount / sell_amount).normalize(), "f")
+
+
 def _token_from_mapping(item: dict[str, Any], source: str) -> CowToken | None:
     try:
         symbol = str(item.get("symbol") or item.get("token_symbol") or "").strip()
@@ -60,6 +283,16 @@ def _token_from_mapping(item: dict[str, Any], source: str) -> CowToken | None:
     if not symbol:
         return None
     return CowToken(symbol=symbol, address=address, decimals=decimals, source=source)
+
+
+def builtin_cow_tokens(config: CowNetworkConfig) -> list[CowToken]:
+    if config.network != "sepolia":
+        return []
+    return [
+        CowToken("WETH", "0xfff9976782d46cc05630d1f6ebab18b2324d6b14", 18, "cow_sepolia_builtin"),
+        CowToken("USDC", "0xbe72e441bf55620febc26715db68d3494213d8cb", 18, "cow_sepolia_builtin"),
+        CowToken("COW", "0x0625afb445c3b6b7b929342a04a22599fd5dbb59", 18, "cow_sepolia_builtin"),
+    ]
 
 
 def load_local_aave_tokens(cache_path: Path) -> list[CowToken]:
@@ -75,16 +308,25 @@ def load_local_aave_tokens(cache_path: Path) -> list[CowToken]:
     ]
 
 
-def load_cow_token_list(url: str = COW_AVALANCHE_COINGECKO_TOKEN_LIST) -> list[CowToken]:
+def load_cow_token_list(
+    url: str | None = None,
+    *,
+    network: str | None = None,
+    chain_id: int | str | None = None,
+) -> list[CowToken]:
+    config = cow_network_config(network=network, chain_id=chain_id)
+    token_list_url = url or config.token_list_url
+    if not token_list_url:
+        return builtin_cow_tokens(config)
     request = urllib.request.Request(
-        url,
+        token_list_url,
         headers={"Accept": "application/json", "User-Agent": "src_bot_cow_route_optimizer/1.0"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
     tokens = []
     for item in payload.get("tokens") or []:
-        if int(item.get("chainId") or 0) != AVALANCHE_CHAIN_ID:
+        if int(item.get("chainId") or 0) != config.chain_id:
             continue
         token = _token_from_mapping(item, "cow_token_list")
         if token is not None:
@@ -96,11 +338,14 @@ def build_token_registry(
     *,
     aave_cache_path: Path | None = None,
     include_cow_token_list: bool = True,
+    cow_network: str | None = None,
+    cow_chain_id: int | str | None = None,
 ) -> dict[str, CowToken]:
     tokens: list[CowToken] = []
+    network_config = cow_network_config(network=cow_network, chain_id=cow_chain_id)
     if include_cow_token_list:
-        tokens.extend(load_cow_token_list())
-    if aave_cache_path is not None:
+        tokens.extend(load_cow_token_list(network=network_config.network, chain_id=network_config.chain_id))
+    if aave_cache_path is not None and network_config.network == "avalanche":
         tokens.extend(load_local_aave_tokens(aave_cache_path))
 
     by_address: dict[str, CowToken] = {}
@@ -166,11 +411,14 @@ def post_cow_quote(
     sell_token: CowToken,
     buy_token: CowToken,
     sell_amount_units: str,
-    owner: str = DEFAULT_OWNER,
-    quote_api: str = COW_AVALANCHE_QUOTE_API,
+    owner: str | None = None,
+    quote_api: str | None = None,
+    cow_network: str | None = None,
     price_quality: str = "fast",
     valid_for: int = 180,
 ) -> dict[str, Any]:
+    owner = resolve_cow_owner(owner, network=cow_network)
+    config = cow_network_config(network=cow_network, quote_api=quote_api)
     body = {
         "sellToken": sell_token.address,
         "buyToken": buy_token.address,
@@ -182,7 +430,7 @@ def post_cow_quote(
         "validFor": int(valid_for),
     }
     request = urllib.request.Request(
-        quote_api,
+        config.quote_api,
         data=json.dumps(body).encode("utf-8"),
         method="POST",
         headers={
@@ -204,15 +452,41 @@ def evaluate_cow_route(
     *,
     registry: dict[str, CowToken],
     default_amount: str | int | float | Decimal,
-    owner: str = DEFAULT_OWNER,
-    quote_api: str = COW_AVALANCHE_QUOTE_API,
+    owner: str | None = None,
+    quote_api: str | None = None,
+    cow_network: str | None = None,
     price_quality: str = "fast",
     valid_for: int = 180,
 ) -> dict[str, Any]:
-    path_symbols = parse_route_path(route.get("path"))
-    tokens = [resolve_token(part, registry) for part in path_symbols]
+    owner = resolve_cow_owner(owner, network=cow_network)
     amount = route.get("amount", default_amount)
-    current_units = to_units(amount, tokens[0].decimals)
+    try:
+        path_symbols = parse_route_path(route.get("path"))
+    except Exception as exc:
+        return {
+            "name": str(route.get("name") or ""),
+            "path": [],
+            "input_amount": str(amount),
+            "input_symbol": None,
+            "final_symbol": None,
+            "viable": False,
+            "error": str(exc),
+            "hops": [],
+        }
+    try:
+        tokens = [resolve_token(part, registry) for part in path_symbols]
+        current_units = to_units(amount, tokens[0].decimals)
+    except Exception as exc:
+        return {
+            "name": str(route.get("name") or ""),
+            "path": path_symbols,
+            "input_amount": str(amount),
+            "input_symbol": path_symbols[0] if path_symbols else None,
+            "final_symbol": path_symbols[-1] if path_symbols else None,
+            "viable": False,
+            "error": str(exc),
+            "hops": [],
+        }
     hops = []
 
     for index, (sell_token, buy_token) in enumerate(zip(tokens, tokens[1:]), start=1):
@@ -223,11 +497,14 @@ def evaluate_cow_route(
                 sell_amount_units=current_units,
                 owner=owner,
                 quote_api=quote_api,
+                cow_network=cow_network,
                 price_quality=price_quality,
                 valid_for=valid_for,
             )
             quote = payload.get("quote") or {}
             buy_amount = str(quote.get("buyAmount") or "0")
+            sell_amount = str(quote.get("sellAmount") or current_units)
+            fee_amount = str(quote.get("feeAmount") or "0")
             hops.append(
                 {
                     "hop": index,
@@ -235,9 +512,18 @@ def evaluate_cow_route(
                     "buy_symbol": buy_token.symbol,
                     "sell_token": sell_token.address,
                     "buy_token": buy_token.address,
-                    "sell_amount_units": str(quote.get("sellAmount") or current_units),
+                    "sell_amount_units": sell_amount,
                     "buy_amount_units": buy_amount,
-                    "fee_amount_units": str(quote.get("feeAmount") or "0"),
+                    "fee_amount_units": fee_amount,
+                    "sell_amount": from_units(sell_amount, sell_token.decimals),
+                    "buy_amount": from_units(buy_amount, buy_token.decimals),
+                    "fee_amount": from_units(fee_amount, sell_token.decimals),
+                    "exchange_rate": exchange_rate(
+                        sell_amount_units=sell_amount,
+                        sell_decimals=sell_token.decimals,
+                        buy_amount_units=buy_amount,
+                        buy_decimals=buy_token.decimals,
+                    ),
                     "protocol_fee_bps": payload.get("protocolFeeBps"),
                 }
             )

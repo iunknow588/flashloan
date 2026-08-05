@@ -1,9 +1,31 @@
 import json
 import os
+from pathlib import Path
 
 from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
+from db.storage_cow_execution import (
+    append_cow_execution_attempts_jsonl,
+    build_cow_execution_attempts,
+    load_recent_cow_execution_attempts,
+    load_recent_cow_execution_attempts_jsonl,
+    record_cow_execution_attempts,
+)
+from market.velocity_candidates import build_velocity_candidate_pairs
+from web.binance_market_service import (
+    DEFAULT_MIN_COW_SPREAD_PERCENT,
+    build_binance_market_state,
+    build_cow_network_market_claims,
+    build_cow_route_precheck,
+    build_cow_quote_verification,
+    build_cow_supported_market_overview,
+    cost_adjusted_cow_thresholds,
+    cow_network_options,
+    load_cow_supported_token_registry,
+    refresh_cow_supported_token_cache,
+    select_binance_market_extremes,
+)
 from web.control_panel_liquidation_routes import liquidation_coverage_payload
 from tools.liquidation_observation_report import (
     build_liquidation_observation_report,
@@ -13,6 +35,8 @@ from tools.liquidation_observation_report import (
 from web.route_context import RouteContext
 
 ROUTE_CONTEXT = RouteContext()
+SRC_ROOT = Path(__file__).resolve().parents[1]
+COW_EXECUTION_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
 
 
 def panel_call(name: str, *args, **kwargs):
@@ -22,7 +46,32 @@ def panel_call(name: str, *args, **kwargs):
 def data_error_message(error: object | None) -> str | None:
     if error is None:
         return None
-    return redact_sensitive_text(error)
+    message = str(error)
+    if not message:
+        message = repr(error)
+    if message and message != repr(error):
+        message = f"{type(error).__name__}: {message}"
+    return redact_sensitive_text(message)
+
+
+def record_cow_execution_attempts_safely(
+    payload: dict,
+    *,
+    market_state: dict,
+    database_url: str | None,
+) -> dict:
+    attempts = build_cow_execution_attempts(payload, market_state=market_state)
+    if not attempts:
+        return {"recorded": 0, "source": "empty", "error": None}
+    if database_url:
+        try:
+            ids = record_cow_execution_attempts(database_url, attempts)
+            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
+        except Exception as exc:
+            file_count = append_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, attempts)
+            return {"recorded": file_count, "source": "jsonl_fallback", "error": data_error_message(exc)}
+    file_count = append_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, attempts)
+    return {"recorded": file_count, "source": "jsonl", "error": None}
 
 
 def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
@@ -49,6 +98,31 @@ def request_float_arg(name: str, default: float, *, minimum: float | None = None
     if maximum is not None:
         value = min(maximum, value)
     return value
+
+
+def request_min_cow_spread_percent() -> float:
+    return request_float_arg(
+        "min_spread_percent",
+        DEFAULT_MIN_COW_SPREAD_PERCENT,
+        minimum=0.0,
+        maximum=100.0,
+    )
+
+
+def request_cow_amount(default: str = "1000") -> str:
+    return request.args.get("amount", default).strip() or default
+
+
+def request_cow_trade_thresholds(amount: str | None = None) -> tuple[object, int, dict]:
+    arbitrage_config = arbitrage_config_from_strategy()
+    slippage_bps = read_slippage_bps()
+    thresholds = cost_adjusted_cow_thresholds(
+        requested_min_spread_percent=request_min_cow_spread_percent(),
+        amount=amount or request_cow_amount(),
+        arbitrage_config=arbitrage_config,
+        slippage_bps=slippage_bps,
+    )
+    return arbitrage_config, slippage_bps, thresholds
 
 
 def register_data_routes(app, panel) -> None:
@@ -376,6 +450,345 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/binance-extremes/latest")
     def binance_extremes_latest():
         return jsonify({"extremes": safe_latest(latest_binance_extremes)})
+
+    @app.get("/api/binance-velocity/candidates")
+    def binance_velocity_candidates():
+        side_limit = request_int_arg("side_limit", 5, minimum=1, maximum=25)
+        extremes = safe_latest(latest_binance_extremes_file)
+        payload = build_velocity_candidate_pairs(extremes, side_limit=side_limit)
+        return jsonify(payload)
+
+    @app.get("/api/binance-market/state")
+    def binance_market_state():
+        extremes = safe_latest(latest_binance_extremes_file)
+        side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
+        pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
+        amount = request_cow_amount()
+        arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
+        min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
+        min_side_change_percent = float(thresholds["min_side_change_percent"])
+        min_token_price_usd = float(thresholds["min_token_price_usd"])
+        cow_network = request.args.get("cow_network", "").strip() or None
+        database_url = panel_call("database_url_or_none")
+        token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
+        extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
+        network_token_caches = {}
+        for item in cow_network_options()["networks"]:
+            if item.get("testnet"):
+                continue
+            network = item["network"]
+            network_token_caches[network] = (
+                token_cache
+                if network == token_cache["network"]
+                else load_cow_supported_token_registry(
+                    cow_network=network,
+                    database_url=database_url,
+                    allow_live_fallback=False,
+                )
+            )
+        market_state = build_binance_market_state(
+            extremes,
+            aave_symbols=list(ASSETS.keys()),
+            arbitrage_config=arbitrage_config,
+            top_limit=side_limit,
+            bottom_limit=side_limit,
+            pair_side_limit=pair_side_limit,
+            cow_display_limit=5,
+            slippage_bps=slippage_bps,
+            cow_network=token_cache["network"],
+            min_spread_percent=min_spread_percent,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+            registry=token_cache["registry"],
+        )
+        market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
+        market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
+        market_state["cow_filter"]["cow_display_limit"] = 5
+        market_state["cow_top"] = list(market_state.get("top") or [])[:5]
+        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:5]
+        market_state["cow_network_claims"] = build_cow_network_market_claims(
+            extremes,
+            network_token_caches,
+            limit=5,
+            min_spread_percent=min_spread_percent,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+        )
+        for claim in market_state["cow_network_claims"]:
+            claim["top"] = list(claim.get("top") or [])[:5]
+            claim["bottom"] = list(claim.get("bottom") or [])[:5]
+        market_state["cow_supported_overview"] = build_cow_supported_market_overview(
+            extremes,
+            network_token_caches,
+            limit=50,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+        )
+        return jsonify(market_state)
+
+    @app.get("/api/binance-market/states")
+    def binance_market_states():
+        extremes = safe_latest(latest_binance_extremes_file)
+        side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
+        pair_side_limit = request_int_arg("pair_side_limit", 1, minimum=1, maximum=5)
+        amount = request_cow_amount()
+        arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
+        min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
+        min_side_change_percent = float(thresholds["min_side_change_percent"])
+        min_token_price_usd = float(thresholds["min_token_price_usd"])
+        requested = [
+            item.strip().lower()
+            for item in (request.args.get("cow_networks", "") or "").split(",")
+            if item.strip()
+        ]
+        mainnet_networks = [
+            item["network"]
+            for item in cow_network_options()["networks"]
+            if not item.get("testnet")
+        ]
+        if not requested:
+            requested = ["avalanche"]
+        requested = [
+            network
+            for index, network in enumerate(requested)
+            if network in mainnet_networks and network not in requested[:index]
+        ][:8]
+        if not requested:
+            return jsonify({"error": "no supported CoW mainnet networks selected", "states": {}}), 400
+        database_url = panel_call("database_url_or_none")
+        extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
+        network_token_caches = {
+            network: load_cow_supported_token_registry(
+                cow_network=network,
+                database_url=database_url,
+                allow_live_fallback=network in requested,
+            )
+            for network in mainnet_networks
+        }
+        claims = build_cow_network_market_claims(
+            extremes,
+            network_token_caches,
+            limit=5,
+            min_spread_percent=min_spread_percent,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+        )
+        for claim in claims:
+            claim["top"] = list(claim.get("top") or [])[:5]
+            claim["bottom"] = list(claim.get("bottom") or [])[:5]
+        cow_supported_overview = build_cow_supported_market_overview(
+            extremes,
+            network_token_caches,
+            limit=50,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+        )
+        states = {}
+        for network in requested:
+            token_cache = network_token_caches[network]
+            market_state = build_binance_market_state(
+                extremes,
+                aave_symbols=list(ASSETS.keys()),
+                arbitrage_config=arbitrage_config,
+                top_limit=side_limit,
+                bottom_limit=side_limit,
+                pair_side_limit=pair_side_limit,
+                cow_display_limit=1,
+                slippage_bps=slippage_bps,
+                cow_network=token_cache["network"],
+                min_spread_percent=min_spread_percent,
+                min_side_change_percent=min_side_change_percent,
+                min_token_price_usd=min_token_price_usd,
+                threshold_detail=thresholds,
+                registry=token_cache["registry"],
+            )
+            market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
+            market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
+            market_state["cow_filter"]["cow_display_limit"] = 1
+            market_state["cow_top"] = list(market_state.get("top") or [])[:1]
+            market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:1]
+            states[network] = market_state
+        return jsonify(
+            {
+                "networks": requested,
+                "states": states,
+                "cow_network_claims": claims,
+                "cow_supported_overview": cow_supported_overview,
+                "observed_at": extremes.get("observed_at") if isinstance(extremes, dict) else None,
+                "window_seconds": extremes.get("window_seconds") if isinstance(extremes, dict) else None,
+                "price_source": extremes.get("price_source") if isinstance(extremes, dict) else None,
+                "market_state_source": extremes.get("market_state_source") if isinstance(extremes, dict) else None,
+                "fallback_reason": extremes.get("fallback_reason") if isinstance(extremes, dict) else None,
+                "threshold_detail": thresholds,
+            }
+        )
+
+    @app.get("/api/binance-market/cow-config")
+    def binance_market_cow_config():
+        return jsonify(cow_network_options())
+
+    @app.get("/api/binance-market/cow-tokens")
+    def binance_market_cow_tokens():
+        cow_network = request.args.get("cow_network", "").strip() or None
+        database_url = panel_call("database_url_or_none")
+        token_cache = load_cow_supported_token_registry(
+            cow_network=cow_network,
+            database_url=database_url,
+            allow_live_fallback=False,
+        )
+        return jsonify(
+            {
+                "network": token_cache["network"],
+                "chain_id": token_cache["chain_id"],
+                "source": token_cache["source"],
+                "token_count": token_cache["token_count"],
+                "tokens": token_cache["tokens"],
+            }
+        )
+
+    @app.post("/api/binance-market/cow-tokens/refresh")
+    def binance_market_cow_tokens_refresh():
+        cow_network = request.args.get("cow_network", "").strip() or None
+        database_url = panel_call("database_url_or_none")
+        try:
+            payload = refresh_cow_supported_token_cache(
+                cow_network=cow_network,
+                database_url=database_url,
+            )
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc)}), 400
+        return jsonify(payload)
+
+    @app.get("/api/binance-market/cow-support")
+    def binance_market_cow_support():
+        extremes = safe_latest(latest_binance_extremes_file)
+        side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
+        pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
+        quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
+        amount = request_cow_amount()
+        arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
+        min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
+        min_side_change_percent = float(thresholds["min_side_change_percent"])
+        min_token_price_usd = float(thresholds["min_token_price_usd"])
+        cow_network = request.args.get("cow_network", "").strip() or None
+        database_url = panel_call("database_url_or_none")
+        token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
+        extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
+        market_state = build_binance_market_state(
+            extremes,
+            aave_symbols=list(ASSETS.keys()),
+            arbitrage_config=arbitrage_config,
+            top_limit=side_limit,
+            bottom_limit=side_limit,
+            pair_side_limit=pair_side_limit,
+            cow_display_limit=5,
+            slippage_bps=slippage_bps,
+            cow_network=token_cache["network"],
+            min_spread_percent=min_spread_percent,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+            registry=token_cache["registry"],
+        )
+        market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
+        market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
+        market_state["cow_filter"]["cow_display_limit"] = 5
+        try:
+            payload = build_cow_route_precheck(
+                market_state,
+                amount=amount,
+                quote_limit=quote_limit,
+                cow_network=token_cache["network"],
+                registry=token_cache["registry"],
+            )
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc), "market_state": market_state, "routes": []}), 400
+        return jsonify({"market_state": market_state, **payload})
+
+    @app.get("/api/binance-market/cow-quotes")
+    def binance_market_cow_quotes():
+        extremes = safe_latest(latest_binance_extremes_file)
+        side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
+        pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
+        quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
+        amount = request_cow_amount()
+        arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
+        min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
+        min_side_change_percent = float(thresholds["min_side_change_percent"])
+        min_token_price_usd = float(thresholds["min_token_price_usd"])
+        owner = request.args.get("owner", "").strip() or None
+        cow_network = request.args.get("cow_network", "").strip() or None
+        database_url = panel_call("database_url_or_none")
+        token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
+        extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
+        market_state = build_binance_market_state(
+            extremes,
+            aave_symbols=list(ASSETS.keys()),
+            arbitrage_config=arbitrage_config,
+            top_limit=side_limit,
+            bottom_limit=side_limit,
+            pair_side_limit=pair_side_limit,
+            cow_display_limit=5,
+            slippage_bps=slippage_bps,
+            cow_network=token_cache["network"],
+            min_spread_percent=min_spread_percent,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            threshold_detail=thresholds,
+            registry=token_cache["registry"],
+        )
+        market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
+        market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
+        market_state["cow_filter"]["cow_display_limit"] = 5
+        try:
+            payload = build_cow_quote_verification(
+                market_state,
+                amount=amount,
+                quote_limit=quote_limit,
+                owner=owner,
+                cow_network=token_cache["network"],
+                registry=token_cache["registry"],
+            )
+        except Exception as exc:
+            return jsonify({"error": data_error_message(exc), "market_state": market_state, "ranking": []}), 400
+        payload["history_recording"] = record_cow_execution_attempts_safely(
+            payload,
+            market_state=market_state,
+            database_url=database_url,
+        )
+        return jsonify({"market_state": market_state, **payload})
+
+    @app.get("/api/binance-market/cow-execution-attempts")
+    def binance_market_cow_execution_attempts():
+        limit = request_int_arg("limit", 50, minimum=1, maximum=200)
+        database_url = panel_call("database_url_or_none")
+        if database_url:
+            try:
+                return jsonify(
+                    {
+                        "source": "database",
+                        "attempts": load_recent_cow_execution_attempts(database_url, limit=limit),
+                    }
+                )
+            except Exception as exc:
+                return jsonify(
+                    {
+                        "source": "jsonl_fallback",
+                        "error": data_error_message(exc),
+                        "attempts": load_recent_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, limit=limit),
+                    }
+                )
+        return jsonify(
+            {
+                "source": "jsonl",
+                "attempts": load_recent_cow_execution_attempts_jsonl(COW_EXECUTION_ATTEMPT_LOG_PATH, limit=limit),
+            }
+        )
     
     
     @app.get("/api/arbitrage/latest")

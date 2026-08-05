@@ -13,6 +13,8 @@ class PriceState:
         self.lock = asyncio.Lock()
 
     async def update_binance(self, symbol: str, price: float, event_ms: int, source: str) -> None:
+        if float(price) <= 0:
+            return
         async with self.lock:
             self.binance[symbol] = {
                 "price": price,
