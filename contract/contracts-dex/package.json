@@ -19,11 +19,19 @@
     "execute:fuji-aave-payload": "hardhat run scripts/execute-aave-payload.js --network fuji",
     "execute:fuji-dynamic-signal": "hardhat run scripts/execute-dynamic-signal.js --network fuji",
     "simulate:fuji-dynamic-signal": "hardhat run scripts/simulate-dynamic-signal.js --network fuji",
+    "probe:cow-flashloans": "node scripts/probe-cow-flashloans.js",
     "verify:fuji-guards": "hardhat run scripts/verify-fuji-guards.js --network fuji"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "dotenv": "^17.2.1",
     "hardhat": "^2.26.1"
+  },
+  "dependencies": {
+    "@cowprotocol/sdk-config": "^2.4.0",
+    "@cowprotocol/sdk-flash-loans": "^3.3.3",
+    "@cowprotocol/sdk-trading": "^2.2.6",
+    "@cowprotocol/sdk-viem-adapter": "^0.3.26",
+    "viem": "^2.55.11"
   }
 }

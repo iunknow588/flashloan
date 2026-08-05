@@ -5,12 +5,14 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import os
 from pathlib import Path
 import threading
 import time
 from typing import Any
 
 from db.storage_cow_tokens import load_cow_supported_tokens, replace_cow_supported_tokens
+from execution.cow_flashloan_capabilities import assess_cow_flashloan_sdk_plan
 from execution.cow_routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
@@ -21,6 +23,7 @@ from strategy.limits import (
     DEFAULT_COW_NETWORK_DISPLAY_LIMIT,
     DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
     DEFAULT_EXECUTION_SLIPPAGE_BPS,
+    DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
     DEFAULT_MIN_COW_SPREAD_PERCENT,
     DEFAULT_MIN_SIDE_CHANGE_PERCENT,
     DEFAULT_MIN_TOKEN_PRICE_USD,
@@ -57,7 +60,6 @@ _COW_TOKEN_CACHE_LOCK = threading.Lock()
 _COW_TOKEN_MEMORY_CACHE: dict[str, dict[str, Any]] = {}
 STABLE_ROUTE_CANDIDATES = (
     ("stable_usdc_to_y_to_x_to_usdc", ("USDC", "y", "x", "USDC")),
-    ("stable_usdc_to_x_to_y_to_usdc", ("USDC", "x", "y", "USDC")),
 )
 
 
@@ -111,7 +113,7 @@ def cost_adjusted_cow_thresholds(
     route_trade_fee_percent = trade_fee_percent * Decimal(DEFAULT_COW_TRADE_FEE_SIDE_COUNT)
     route_cost_percent = route_trade_fee_percent + flashloan_fee_percent + fee_reserve_percent + configured_min_profit_percent
     adjusted_spread = max(Decimal("0"), route_cost_percent)
-    side_threshold = Decimal(str(DEFAULT_MIN_SIDE_CHANGE_PERCENT))
+    side_threshold = Decimal(str(DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT))
     return {
         "requested_min_spread_percent": _decimal_text(requested_spread),
         "adjusted_min_spread_percent": _decimal_text(adjusted_spread),
@@ -131,7 +133,7 @@ def cost_adjusted_cow_thresholds(
         "min_profit_usd": _decimal_text(min_profit_usd),
         "min_profit_percent": _decimal_text(configured_min_profit_percent),
         "route_cost_floor_percent": _decimal_text(route_cost_percent),
-        "threshold_rule": "gain - loss > dynamic_min_window_spread_percent; side display > 0.05%",
+        "threshold_rule": f"gain - loss > dynamic_min_window_spread_percent; side display > {side_threshold}%",
     }
 
 
@@ -229,6 +231,101 @@ def _selected_decimal_text(candidate: dict[str, Any] | None, value_key: str) -> 
 
 def _selected_source(candidate: dict[str, Any] | None) -> str | None:
     return str(candidate.get("source")) if candidate else None
+
+
+def _decimal_rank_analysis(
+    candidates: list[dict[str, Any]],
+    value_key: str,
+    *,
+    query_source: str = "query_quote",
+) -> dict[str, Any]:
+    valid = [
+        item
+        for item in candidates
+        if isinstance(item.get(value_key), Decimal) and item[value_key] > 0
+    ]
+    if not valid:
+        return {"source": query_source, "rank": None, "total": 0, "position": None, "ordered_sources": []}
+    ordered = sorted(valid, key=lambda item: item[value_key])
+    ordered_sources = [
+        {
+            "source": item.get("source"),
+            value_key: _decimal_text(item.get(value_key)),
+        }
+        for item in ordered
+    ]
+    query_index = next((index for index, item in enumerate(ordered) if item.get("source") == query_source), None)
+    if query_index is None:
+        return {"source": query_source, "rank": None, "total": len(ordered), "position": None, "ordered_sources": ordered_sources}
+    labels = {0: "lowest", len(ordered) - 1: "highest"}
+    return {
+        "source": query_source,
+        "rank": query_index + 1,
+        "total": len(ordered),
+        "position": labels.get(query_index, "middle"),
+        "ordered_sources": ordered_sources,
+    }
+
+
+def _query_guard_analysis(
+    *,
+    role: str,
+    query_value: Decimal | None,
+    target_value: Decimal | None,
+    acceptable_value: Decimal | None,
+) -> dict[str, Any]:
+    if query_value is None or target_value is None:
+        return {"status": "missing_query", "favorable": False, "reason": "missing query or target value"}
+    if role == "buy_price_ceiling":
+        favorable = query_value <= target_value
+        acceptable = acceptable_value is not None and query_value <= acceptable_value
+        if favorable:
+            status = "better_than_target"
+            reason = "query price is below or equal to own buy target"
+        elif acceptable:
+            status = "within_slippage_guard"
+            reason = "query price is above target but within own acceptable buy price"
+        else:
+            status = "worse_than_guard"
+            reason = "query price is above own acceptable buy price"
+    elif role == "sell_price_floor":
+        favorable = query_value >= target_value
+        acceptable = acceptable_value is not None and query_value >= acceptable_value
+        if favorable:
+            status = "better_than_target"
+            reason = "query price is above or equal to own sell target"
+        elif acceptable:
+            status = "within_slippage_guard"
+            reason = "query price is below target but within own acceptable sell price"
+        else:
+            status = "worse_than_guard"
+            reason = "query price is below own acceptable sell price"
+    elif role == "network_optimized_reference":
+        favorable = query_value >= target_value
+        acceptable = acceptable_value is not None and query_value >= acceptable_value
+        if favorable:
+            status = "better_than_target"
+            reason = "query exchange rate is above or equal to own target rate"
+        elif acceptable:
+            status = "within_slippage_guard"
+            reason = "query exchange rate is within own rate guard"
+        else:
+            status = "worse_than_guard"
+            reason = "query exchange rate is below own target rate"
+    else:
+        favorable = False
+        acceptable = True
+        status = "not_applicable"
+        reason = "stable reference step"
+    return {
+        "status": status,
+        "favorable": favorable,
+        "acceptable": acceptable,
+        "reason": reason,
+        "query_value": _decimal_text(query_value),
+        "target_value": _decimal_text(target_value),
+        "acceptable_value": _decimal_text(acceptable_value),
+    }
 
 
 def _amount_from_price_rule(
@@ -514,7 +611,7 @@ def _market_row_change_ok(row: dict[str, Any], min_side_change_percent: float, s
 def _eligible_market_rows(
     rows: list[dict[str, Any]],
     *,
-    min_side_change_percent: float = DEFAULT_MIN_SIDE_CHANGE_PERCENT,
+    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
     side: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -620,7 +717,7 @@ def _rank_supported_extremes(
     rows: list[dict[str, Any]],
     limit: int,
     *,
-    min_side_change_percent: float = DEFAULT_MIN_SIDE_CHANGE_PERCENT,
+    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     eligible_rows, _ = _eligible_market_rows(
@@ -751,7 +848,7 @@ def _binance_execution_plan(
         elif target_role == "network_optimized_reference":
             rate_candidates = _exchange_rate_candidates(from_key, to_key, rows, query_rate=None)
             target_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "max")
-            acceptable_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "median") or target_rate_candidate
+            acceptable_rate_candidate = target_rate_candidate
             target_exchange_rate = target_rate_candidate.get("rate") if target_rate_candidate else from_price / to_price
             min_exchange_rate = acceptable_rate_candidate.get("rate") if acceptable_rate_candidate else target_exchange_rate * slippage_factor
             target_output = current_amount * target_exchange_rate
@@ -903,7 +1000,7 @@ def _route_candidate(
         "estimation_available": False,
         "candidate_basis": "stablecoin_closed_route_requires_cow_or_dex_quote",
         "edge_hint_percent": edge_hint_percent,
-        "priority_reason": "buy_loser_then_gainer" if route[1:3] == ("y", "x") else "reverse_check",
+        "priority_reason": "buy_loser_then_gainer",
         "binance_execution_plan": execution_plan,
     }
 
@@ -922,7 +1019,7 @@ def _pair_quote_candidates(
     config: ArbitrageConfig,
     slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
 ) -> dict[str, Any]:
-    fallback_route = ["USDC", x["base_symbol"], y["base_symbol"], "USDC"]
+    fallback_route = ["USDC", y["base_symbol"], x["base_symbol"], "USDC"]
     row = {
         "rank": 0,
         "pair": f"{x['symbol']} / {y['symbol']}",
@@ -984,6 +1081,47 @@ def _decimal_or_none(value: Any) -> Decimal | None:
         return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
         return None
+
+
+def _cow_quote_error_info(error: Any) -> dict[str, Any]:
+    text = str(error or "").strip()
+    lowered = text.lower()
+    if not text:
+        return {"type": None, "display": None, "retryable": False, "raw": None}
+    if "403 error" in lowered and ("cloudfront" in lowered or "request blocked" in lowered):
+        return {
+            "type": "quote_api_http_403_cloudfront_request_blocked",
+            "display": "CoW quote API HTTP 403: CloudFront request blocked",
+            "retryable": True,
+            "raw": text,
+        }
+    if "timed out" in lowered or "timeout" in lowered:
+        return {
+            "type": "quote_api_timeout",
+            "display": "CoW quote API timeout",
+            "retryable": True,
+            "raw": text,
+        }
+    if "ssl" in lowered:
+        return {
+            "type": "quote_api_ssl_error",
+            "display": "CoW quote API SSL error",
+            "retryable": True,
+            "raw": text,
+        }
+    if "http" in lowered or "<html" in lowered or "<!doctype" in lowered:
+        return {
+            "type": "quote_api_http_error",
+            "display": "CoW quote API HTTP error",
+            "retryable": True,
+            "raw": text,
+        }
+    return {
+        "type": "quote_api_error",
+        "display": text[:240],
+        "retryable": True,
+        "raw": text,
+    }
 
 
 def cow_network_options() -> dict[str, Any]:
@@ -1283,7 +1421,6 @@ def _cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) 
         "current_price": pair.get("y_current_price"),
     }
     buy_loser_path = ["USDC", y, x, "USDC"]
-    reverse_path = ["USDC", x, y, "USDC"]
     return [
         {
             "name": f"{pair.get('rank', 0)}_buy_loser_{y}_then_gainer_{x}",
@@ -1294,16 +1431,6 @@ def _cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) 
             "priority_reason": "buy_loser_then_gainer",
             "edge_hint_percent": pair.get("edge_hint_percent"),
             "binance_execution_plan": _binance_execution_plan(buy_loser_path, x_row, y_row, amount, slippage_bps=slippage_bps),
-        },
-        {
-            "name": f"{pair.get('rank', 0)}_reverse_check_{x}_{y}",
-            "path": reverse_path,
-            "amount": amount,
-            "pair_rank": pair.get("rank"),
-            "pair": pair.get("pair"),
-            "priority_reason": "reverse_check",
-            "edge_hint_percent": pair.get("edge_hint_percent"),
-            "binance_execution_plan": _binance_execution_plan(reverse_path, x_row, y_row, amount, slippage_bps=slippage_bps),
         },
     ]
 
@@ -1340,6 +1467,156 @@ def _cow_min_profit_usd_for_amount(amount: Any) -> Decimal:
     if notional is None or notional <= 0:
         notional = Decimal("1000")
     return notional * DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT / Decimal("100")
+
+
+def _cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: Decimal) -> dict[str, Any]:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        return {
+            "ready": False,
+            "reason": "plan_unavailable",
+            "expected_profit_amount": None,
+            "expected_profit_percent": None,
+            "steps": [],
+        }
+    profit_amount = _decimal_value(plan.get("profit_amount"))
+    profit_percent = _decimal_value(plan.get("profit_percent"))
+    steps = []
+    missing = []
+    for step in plan.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        sdk = step.get("cow_sdk_parameters") if isinstance(step.get("cow_sdk_parameters"), dict) else {}
+        sell_amount = _decimal_value(sdk.get("sell_amount_before_fee"))
+        min_buy = _decimal_value(sdk.get("min_buy_amount_after_fee") or step.get("min_output_amount"))
+        target_buy = _decimal_value(sdk.get("target_buy_amount_after_fee") or step.get("target_output_amount"))
+        role = str(step.get("target_role") or "")
+        step_ready = sell_amount is not None and sell_amount > 0 and min_buy is not None and min_buy > 0
+        if role in {"buy_price_ceiling", "sell_price_floor", "network_optimized_reference"} and not step_ready:
+            missing.append(str(step.get("step") or len(steps) + 1))
+        steps.append(
+            {
+                "step": step.get("step"),
+                "from_symbol": step.get("from_symbol"),
+                "to_symbol": step.get("to_symbol"),
+                "target_role": role,
+                "sell_amount_before_fee": _decimal_text(sell_amount),
+                "target_buy_amount_after_fee": _decimal_text(target_buy),
+                "min_buy_amount_after_fee": _decimal_text(min_buy),
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_acceptable_source": step.get("selected_acceptable_source"),
+                "target_price_usd_per_token": step.get("selected_target_price_usd_per_token") or step.get("target_price_usd_per_token"),
+                "acceptable_price_usd_per_token": step.get("acceptable_slippage_price_usd_per_token") or step.get("acceptable_price_usd_per_token"),
+                "target_exchange_rate": step.get("selected_target_exchange_rate") or step.get("target_exchange_rate"),
+                "min_exchange_rate": step.get("acceptable_slippage_exchange_rate") or step.get("min_exchange_rate"),
+                "ready": step_ready,
+                "rule": step.get("price_compare_rule") or step.get("selection_rule"),
+            }
+        )
+    profit_ready = profit_amount is not None and profit_amount >= min_profit_usd
+    stable_final = _stable_symbol(str(plan.get("final_symbol") or ""))
+    ready = bool(steps) and not missing and profit_ready and stable_final
+    reason = "ready" if ready else (
+        "missing_limit_parameters" if missing else (
+            "own_limit_profit_below_threshold" if not profit_ready else "non_stable_final_symbol"
+        )
+    )
+    return {
+        "ready": ready,
+        "reason": reason,
+        "missing_steps": missing,
+        "expected_profit_amount": _decimal_text(profit_amount),
+        "expected_profit_percent": _decimal_text(profit_percent),
+        "min_profit_usd": _decimal_text(min_profit_usd),
+        "final_symbol": plan.get("final_symbol"),
+        "order_mode": "own_window_price_limit_intent",
+        "quote_dependency": "quote_is_analysis_only; own_limit_params_remain_authoritative",
+        "cow_sdk_boundary": "official CoW Flash Loans SDK order hooks are required before any submission",
+        "steps": steps,
+    }
+
+
+def _cow_order_submission_enabled() -> bool:
+    raw = os.getenv("COW_ORDER_SUBMISSION_ENABLED", "false").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _attach_cow_flashloan_sdk_plan(
+    result: dict[str, Any],
+    plan: dict[str, Any] | None,
+    registry: dict[str, CowToken],
+) -> None:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        result["cow_flashloan_sdk_plan"] = None
+        result["cow_flashloan_sdk_error"] = "available CoW SDK limit plan is required"
+        return
+    try:
+        route = [str(item or "").upper() for item in plan.get("route") or []]
+        tokens = []
+        for symbol in route:
+            token = resolve_token(symbol, registry)
+            tokens.append(
+                {
+                    "symbol": token.symbol,
+                    "address": token.address,
+                    "decimals": token.decimals,
+                    "source": token.source,
+                }
+            )
+        steps = [
+            {
+                "step": step.get("step") or index + 1,
+                "from_symbol": step.get("from_symbol"),
+                "to_symbol": step.get("to_symbol"),
+                "sell_amount_before_fee": (step.get("cow_sdk_parameters") or {}).get("sell_amount_before_fee")
+                or step.get("query_sell_amount_before_fee")
+                or step.get("input_amount"),
+                "target_buy_amount_after_fee": (step.get("cow_sdk_parameters") or {}).get("target_buy_amount_after_fee")
+                or step.get("target_output_amount"),
+                "min_buy_amount_after_fee": (step.get("cow_sdk_parameters") or {}).get("min_buy_amount_after_fee")
+                or step.get("min_output_amount"),
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_acceptable_source": step.get("selected_acceptable_source"),
+                "rule": step.get("selection_rule") or step.get("price_compare_rule"),
+            }
+            for index, step in enumerate(plan.get("steps") or [])
+            if isinstance(step, dict)
+        ]
+        result["cow_flashloan_sdk_plan"] = {
+            "sdk": "@cowprotocol/sdk-flash-loans",
+            "flow": "AaveCollateralSwapSdk",
+            "route": route,
+            "tokens": tokens,
+            "steps": steps,
+            "single_solver_order_count": 1 if len(steps) >= 3 and route and route[0] == route[-1] else 0,
+            "diagnostic_hop_count": len(steps),
+            "single_step_order_count": len(steps),
+            "submission_status": "not_submitted",
+            "flashloan_capability": assess_cow_flashloan_sdk_plan(
+                route=route,
+                steps=steps,
+                tokens=tokens,
+                hops=result.get("hops") or [],
+                router_address=os.getenv("COW_FLASHLOAN_ROUTER_ADDRESS", "").strip() or None,
+                lender_address=os.getenv("COW_FLASHLOAN_LENDER_ADDRESS", "").strip() or None,
+                borrower_address=os.getenv("COW_FLASHLOAN_BORROWER_ADDRESS", "").strip() or None,
+                settlement_calldata=os.getenv("COW_FLASHLOAN_SETTLEMENT_CALLDATA", "").strip() or None,
+            ),
+            "required_probe_methods": [
+                "getSwapQuoteParams",
+                "TradingSdk.getQuoteOnly",
+                "getOrderPostingSettings",
+            ],
+            "required_submission_method": (
+                "IFlashLoanRouter.flashLoanAndSettle(loans, abi.encodeCall(settle))"
+                if len(steps) >= 3 and route and route[0] == route[-1]
+                else "blocked: flashloan arbitrage requires a closed three-hop solver path"
+            ),
+            "settlement_boundary": "official CoW settlement/solver path; no custom CoW contract deployment",
+        }
+        result["cow_flashloan_sdk_error"] = None
+    except Exception as exc:
+        result["cow_flashloan_sdk_plan"] = None
+        result["cow_flashloan_sdk_error"] = str(exc)
 
 
 def _execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1450,7 +1727,7 @@ def _apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]
         elif role == "network_optimized_reference":
             rate_candidates = _exchange_rate_candidates(from_symbol, to_symbol, rows, query_rate=query_rate)
             target_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "max")
-            acceptable_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "median") or target_rate_candidate
+            acceptable_rate_candidate = target_rate_candidate
             target_value = target_rate_candidate.get("rate") if target_rate_candidate else None
             acceptable_value = acceptable_rate_candidate.get("rate") if acceptable_rate_candidate else None
             target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
@@ -1501,10 +1778,80 @@ def _apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]
     return enriched
 
 
+def _apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        return plan
+    enriched = deepcopy(plan)
+    rows = _execution_plan_rows(enriched)
+    hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
+    for index, step in enumerate(enriched.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        hop = hops[index] if index < len(hops) else None
+        role = str(step.get("target_role") or "")
+        from_symbol = str(step.get("from_symbol") or "").upper()
+        to_symbol = str(step.get("to_symbol") or "").upper()
+        sell_amount = _decimal_value(hop.get("sell_amount") if hop else None) or _decimal_value(step.get("input_amount"))
+        if sell_amount is None or sell_amount <= 0:
+            continue
+        query_price = _cow_query_price_for_step(step, hop)
+        query_rate = _cow_query_rate_for_step(step, hop)
+        price_candidates: list[dict[str, Any]] = []
+        rate_candidates: list[dict[str, Any]] = []
+        if role == "buy_price_ceiling":
+            price_candidates = _market_price_candidates(to_symbol, rows, query_price=query_price)
+            target_value = _decimal_value(step.get("target_price_usd_per_token"))
+            acceptable_value = _decimal_value(step.get("acceptable_price_usd_per_token"))
+            step["query_price_usd_per_token"] = _decimal_text(query_price)
+            step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
+            step["query_guard_analysis"] = _query_guard_analysis(
+                role=role,
+                query_value=query_price,
+                target_value=target_value,
+                acceptable_value=acceptable_value,
+            )
+        elif role == "sell_price_floor":
+            price_candidates = _market_price_candidates(from_symbol, rows, query_price=query_price)
+            target_value = _decimal_value(step.get("target_price_usd_per_token"))
+            acceptable_value = _decimal_value(step.get("acceptable_price_usd_per_token"))
+            step["query_price_usd_per_token"] = _decimal_text(query_price)
+            step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
+            step["query_guard_analysis"] = _query_guard_analysis(
+                role=role,
+                query_value=query_price,
+                target_value=target_value,
+                acceptable_value=acceptable_value,
+            )
+        elif role == "network_optimized_reference":
+            rate_candidates = _exchange_rate_candidates(from_symbol, to_symbol, rows, query_rate=query_rate)
+            target_value = _decimal_value(step.get("target_exchange_rate"))
+            acceptable_value = _decimal_value(step.get("min_exchange_rate"))
+            step["query_exchange_rate"] = _decimal_text(query_rate)
+            step["query_rate_position"] = _decimal_rank_analysis(rate_candidates, "rate")
+            step["query_guard_analysis"] = _query_guard_analysis(
+                role=role,
+                query_value=query_rate,
+                target_value=target_value,
+                acceptable_value=acceptable_value,
+            )
+        step["price_candidates"] = _serialize_decimal_candidates(price_candidates, "price")
+        step["rate_candidates"] = _serialize_decimal_candidates(rate_candidates, "rate")
+        step["query_sell_amount_before_fee"] = _decimal_text(sell_amount)
+        step["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
+        sdk_parameters = dict(step.get("cow_sdk_parameters") or {})
+        sdk_parameters["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
+        step["cow_sdk_parameters"] = sdk_parameters
+        step["cow_limit_enabled"] = True
+    enriched["quote_parameter_selection"] = "own_window_prices_guard_order_parameters; query_quote_only_for_position_analysis"
+    return enriched
+
+
 def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     plan = result.get("binance_execution_plan") if isinstance(result, dict) else None
     steps = plan.get("steps") if isinstance(plan, dict) else []
     hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
+    quote_error = _cow_quote_error_info(result.get("error"))
+    quote_error_type = quote_error.get("type")
     hop_checks = []
     for index, step in enumerate(steps or []):
         if not isinstance(step, dict):
@@ -1517,6 +1864,19 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         sell_amount = _decimal_value(sdk.get("sell_amount_before_fee") or step.get("query_sell_amount_before_fee") or step.get("input_amount"))
         price_guard_passed = actual_buy is not None and min_buy is not None and actual_buy >= min_buy
         target_met = actual_buy is not None and target_buy is not None and actual_buy >= target_buy
+        query_guard = step.get("query_guard_analysis") if isinstance(step.get("query_guard_analysis"), dict) else {}
+        failure_cause = None
+        if not price_guard_passed:
+            if actual_buy is None and quote_error_type:
+                failure_cause = quote_error_type
+            elif actual_buy is None:
+                failure_cause = "missing_query_output"
+            else:
+                failure_cause = (
+                    "query_worse_than_own_guard"
+                    if query_guard.get("status") == "worse_than_guard"
+                    else "actual_output_below_own_minimum"
+                )
         hop_checks.append(
             {
                 "hop": step.get("step") or index + 1,
@@ -1529,23 +1889,42 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
                 "min_buy_amount_after_fee": _decimal_text(min_buy),
                 "price_guard_passed": price_guard_passed,
                 "target_met": target_met,
+                "query_guard_status": query_guard.get("status"),
+                "query_guard_reason": query_guard.get("reason"),
+                "query_position": step.get("query_price_position") or step.get("query_rate_position"),
+                "failure_cause": failure_cause,
                 "selected_target_source": step.get("selected_target_source"),
                 "selected_acceptable_source": step.get("selected_acceptable_source"),
                 "rule": step.get("selection_rule") or step.get("price_compare_rule"),
-                "status": "pass" if price_guard_passed else "fail",
+                "status": "pass" if price_guard_passed else ("not_checked" if actual_buy is None else "fail"),
             }
         )
     route_supported = bool((result.get("cow_support") or {}).get("supported"))
     quote_available = bool(result.get("viable")) and bool(hops)
     final_delta = _decimal_value(result.get("final_delta_amount"))
+    input_amount = _decimal_value(result.get("input_amount"))
     min_profit_usd = _cow_min_profit_usd_for_amount(result.get("input_amount"))
+    own_limit_order_intent = _cow_own_limit_order_intent(plan, min_profit_usd=min_profit_usd)
+    cow_sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else None
+    cow_sdk_error = result.get("cow_flashloan_sdk_error")
     profit_positive = final_delta is not None and final_delta > 0
+    drawdown_amount = -final_delta if final_delta is not None and final_delta < 0 else Decimal("0")
+    drawdown_percent = (
+        drawdown_amount / input_amount * Decimal("100")
+        if input_amount is not None and input_amount > 0
+        else None
+    )
     profit_above_auto_threshold = (
         final_delta is not None
         and final_delta >= min_profit_usd
         and _stable_symbol(str(result.get("final_symbol") or ""))
     )
     price_guards_passed = bool(hop_checks) and all(item["price_guard_passed"] for item in hop_checks)
+    blocking_cause_counts: dict[str, int] = {}
+    for item in hop_checks:
+        cause = item.get("failure_cause")
+        if cause:
+            blocking_cause_counts[cause] = blocking_cause_counts.get(cause, 0) + 1
     reasons = []
     if not route_supported:
         reasons.append("CoW 不支持该路径中的一个或多个代币")
@@ -1553,15 +1932,71 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         reasons.append(result.get("error") or "尚未拿到可用 CoW 报价")
     if not price_guards_passed:
         reasons.append("至少一个 hop 的 CoW 查询输出低于按滑点价计算的最低接收量")
+    if not price_guards_passed and blocking_cause_counts:
+        reasons.append(f"主要阻断原因：{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
     if not profit_positive:
         reasons.append(f"最终 CoW 盈利不为正：{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip())
+        if drawdown_amount > 0:
+            reasons.append(
+                f"回撤检查：本次报价相对输入回撤 {_decimal_text(drawdown_amount)} "
+                f"{result.get('final_symbol') or ''} ({_decimal_text(drawdown_percent)}%)".strip()
+            )
     elif not profit_above_auto_threshold:
         reasons.append(
             f"手续费后净利润低于自动执行阈值：{result.get('final_delta_amount') or '-'} "
             f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
         )
-    checks_passed = route_supported and quote_available and price_guards_passed and profit_above_auto_threshold
-    order_submission_enabled = False
+    normalized_reasons = []
+    if not route_supported:
+        normalized_reasons.append("cow_route_has_unsupported_token")
+    if not quote_available:
+        normalized_reasons.append(quote_error.get("display") or "cow_quote_unavailable")
+        if quote_error_type:
+            normalized_reasons.append(f"quote_error_type:{quote_error_type}")
+        normalized_reasons.append("quote_missing_skip_price_profit_drawdown_checks")
+    if quote_available and not price_guards_passed:
+        normalized_reasons.append("at_least_one_hop_query_output_below_own_minimum")
+        if blocking_cause_counts:
+            normalized_reasons.append(f"primary_blocker:{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
+    if quote_available and not profit_positive:
+        normalized_reasons.append(f"cow_final_profit_not_positive:{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip())
+        if drawdown_amount > 0:
+            normalized_reasons.append(
+                f"cow_quote_drawdown:{_decimal_text(drawdown_amount)} "
+                f"{result.get('final_symbol') or ''} ({_decimal_text(drawdown_percent)}%)".strip()
+            )
+    elif quote_available and not profit_above_auto_threshold:
+        normalized_reasons.append(
+            f"profit_below_auto_threshold:{result.get('final_delta_amount') or '-'} "
+            f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
+        )
+    if normalized_reasons:
+        reasons = normalized_reasons
+    limit_intent_ready = bool(own_limit_order_intent.get("ready"))
+    flashloan_capability = (
+        cow_sdk_plan.get("flashloan_capability")
+        if isinstance(cow_sdk_plan, dict) and isinstance(cow_sdk_plan.get("flashloan_capability"), dict)
+        else {}
+    )
+    flashloan_submission_safe = bool(flashloan_capability.get("submission_safe"))
+    cow_sdk_flashloan_ready = (
+        route_supported
+        and limit_intent_ready
+        and cow_sdk_plan is not None
+        and not cow_sdk_error
+        and bool(flashloan_capability)
+        and flashloan_submission_safe
+    )
+    if cow_sdk_flashloan_ready:
+        reasons.append("cow_flashloan_sdk_intent_ready")
+    elif route_supported and limit_intent_ready:
+        capability_blockers = flashloan_capability.get("blockers") or []
+        if capability_blockers:
+            reasons.append(f"flashLoanAndSettle_required:{','.join(capability_blockers)}")
+        else:
+            reasons.append(f"cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
+    checks_passed = route_supported and limit_intent_ready and cow_sdk_flashloan_ready
+    order_submission_enabled = _cow_order_submission_enabled()
     if checks_passed and not order_submission_enabled:
         status = "checks_passed_order_disabled"
         reasons.append("报价、价格保护、盈利检查通过；真实下单模块尚未开放")
@@ -1575,8 +2010,14 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         status = "not_profitable"
     elif not profit_above_auto_threshold:
         status = "profit_below_threshold"
+    elif not cow_sdk_flashloan_ready:
+        status = "cow_flashloan_sdk_plan_required"
     else:
         status = "blocked"
+    if checks_passed:
+        status = "limit_order_ready_to_submit" if order_submission_enabled else "limit_order_ready_not_submitted"
+        if not order_submission_enabled and "own_limit_order_ready_but_submission_adapter_disabled" not in reasons:
+            reasons.append("own_limit_order_ready_but_submission_adapter_disabled")
     return {
         "status": status,
         "checks_passed": checks_passed,
@@ -1588,13 +2029,27 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "auto_execute_blocked": checks_passed and not order_submission_enabled,
         "route_supported": route_supported,
         "quote_available": quote_available,
+        "own_limit_order_ready": limit_intent_ready,
+        "own_limit_order_intent": own_limit_order_intent,
+        "cow_sdk_flashloan_ready": cow_sdk_flashloan_ready,
+        "cow_flashloan_sdk_plan": cow_sdk_plan,
+        "cow_flashloan_sdk_error": cow_sdk_error,
+        "flashloan_capability": flashloan_capability,
+        "quote_price_guards_passed": price_guards_passed,
         "price_guards_passed": price_guards_passed,
         "profit_positive": profit_positive,
         "profit_above_auto_threshold": profit_above_auto_threshold,
+        "drawdown_amount": _decimal_text(drawdown_amount),
+        "drawdown_percent": _decimal_text(drawdown_percent),
         "pure_profit_amount": result.get("final_delta_amount"),
         "final_delta_amount": result.get("final_delta_amount"),
         "final_symbol": result.get("final_symbol"),
         "hop_checks": hop_checks,
+        "blocking_cause_counts": blocking_cause_counts,
+        "quote_error_type": quote_error_type,
+        "quote_error_display": quote_error.get("display"),
+        "quote_error_retryable": quote_error.get("retryable"),
+        "quote_error_raw": quote_error.get("raw"),
         "reasons": reasons,
     }
 
@@ -1692,7 +2147,7 @@ def build_cow_network_market_claims(
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
     threshold_detail: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    min_side_change_percent = DEFAULT_MIN_SIDE_CHANGE_PERCENT
+    min_side_change_percent = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT
     market_rows = _basket_rows_from_extremes(extremes)
     eligible_market_rows, excluded_market_rows = _eligible_market_rows(
         market_rows,
@@ -1740,11 +2195,11 @@ def build_cow_supported_market_overview(
     network_token_caches: dict[str, dict[str, Any]],
     *,
     limit: int = 50,
-    min_side_change_percent: float = DEFAULT_MIN_SIDE_CHANGE_PERCENT,
+    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
     threshold_detail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    min_side_change_percent = DEFAULT_MIN_SIDE_CHANGE_PERCENT
+    min_side_change_percent = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT
     market_rows = _basket_rows_from_extremes(extremes)
     top_eligible_market_rows, top_excluded_market_rows = _eligible_market_rows(
         market_rows,
@@ -1834,11 +2289,14 @@ def build_binance_market_state(
     slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
     cow_network: str | None = None,
     min_spread_percent: float = 0.0,
-    min_side_change_percent: float = DEFAULT_MIN_SIDE_CHANGE_PERCENT,
+    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
     threshold_detail: dict[str, Any] | None = None,
     registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if cow_network:
+        pair_side_limit = 1
+        cow_display_limit = 1
     market_rows = _basket_rows_from_extremes(extremes)
     eligible_market_rows, excluded_market_rows = _eligible_market_rows(
         market_rows,
@@ -1978,6 +2436,7 @@ def build_cow_quote_verification(
     cow_network: str | None = DEFAULT_COW_TEST_NETWORK,
     price_quality: str = "fast",
     valid_for: int = 60,
+    quote_timeout_seconds: int | float = 8,
     aave_cache_path: Path = DEFAULT_AAVE_CACHE_PATH,
     registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -1987,7 +2446,7 @@ def build_cow_quote_verification(
     owner = requested_owner or account_config.owner
     owner_source = "request.owner" if requested_owner else account_config.owner_source
     ranked_pairs = list(market_state.get("pairs") or [])
-    selected_pairs = ranked_pairs
+    selected_pairs = ranked_pairs[:1]
     route_specs = [spec for pair in selected_pairs for spec in _cow_route_specs(pair, amount)]
     token_registry = registry if registry is not None else build_token_registry(
         aave_cache_path=aave_cache_path,
@@ -2014,6 +2473,7 @@ def build_cow_quote_verification(
                 cow_network=network_config.network,
                 price_quality=price_quality,
                 valid_for=valid_for,
+                quote_timeout_seconds=quote_timeout_seconds,
             )
         else:
             path = spec.get("path") or []
@@ -2039,7 +2499,8 @@ def build_cow_quote_verification(
             if final_amount is not None and input_amount is not None
             else None
         )
-        result["binance_execution_plan"] = _apply_cow_quote_targets(spec.get("binance_execution_plan"), result)
+        result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
+        _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_registry)
         result["execution_precheck"] = _cow_execution_precheck(result)
         result["costs"] = _cow_cost_summary(result, final_delta_amount=result["final_delta_amount"])
         result["quote_verified"] = True

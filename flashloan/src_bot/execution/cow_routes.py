@@ -416,6 +416,7 @@ def post_cow_quote(
     cow_network: str | None = None,
     price_quality: str = "fast",
     valid_for: int = 180,
+    timeout_seconds: int | float = 30,
 ) -> dict[str, Any]:
     owner = resolve_cow_owner(owner, network=cow_network)
     config = cow_network_config(network=cow_network, quote_api=quote_api)
@@ -440,7 +441,7 @@ def post_cow_quote(
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=max(1.0, float(timeout_seconds))) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -457,6 +458,7 @@ def evaluate_cow_route(
     cow_network: str | None = None,
     price_quality: str = "fast",
     valid_for: int = 180,
+    quote_timeout_seconds: int | float = 30,
 ) -> dict[str, Any]:
     owner = resolve_cow_owner(owner, network=cow_network)
     amount = route.get("amount", default_amount)
@@ -500,6 +502,7 @@ def evaluate_cow_route(
                 cow_network=cow_network,
                 price_quality=price_quality,
                 valid_for=valid_for,
+                timeout_seconds=quote_timeout_seconds,
             )
             quote = payload.get("quote") or {}
             buy_amount = str(quote.get("buyAmount") or "0")

@@ -26,6 +26,7 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/binance-market/cow-support" in paths
     assert "/api/binance-market/cow-quotes" in paths
     assert "/api/binance-market/cow-execution-attempts" in paths
+    assert "/api/binance-market/cow-candidate-queue" in paths
     assert "/api/execution/state" in paths
     assert "/api/liquidation-health" in paths
     assert "/api/debt-pool/decision" in paths

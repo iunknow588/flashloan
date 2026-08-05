@@ -103,6 +103,7 @@ from db.storage_liquidation_pool import (
     sync_liquidation_borrow_health_pool as db_sync_liquidation_borrow_health_pool,
 )
 from db.storage_schema import ensure_database_schema, load_schema_migrations
+from runtime.cow_arbitrage_daemon import cow_quote_daemon_enabled, ensure_cow_quote_daemon_running
 from runtime.liquidation_daemon import market_status_payload, read_daemon_status
 from runtime.liquidation_engine import LiquidationEngine, LiquidationEngineConfig, LiquidationEngineDependencies
 from runtime.liquidation_market_bridge import (
@@ -1124,6 +1125,15 @@ def initialize_liquidation_runtime() -> None:
             set_control_status("error", "读取清算数据库", redact_sensitive_text(exc), 0)
 
 
+def initialize_cow_arbitrage_runtime() -> None:
+    if not cow_quote_daemon_enabled():
+        return
+    try:
+        ensure_cow_quote_daemon_running(database_url_provider=database_url_or_none)
+    except Exception as exc:
+        set_control_status("error", "start CoW quote daemon", redact_sensitive_text(exc), 0)
+
+
 def render_control_panel() -> str:
     chart_options = "\n".join(f'<option value="{escape(symbol)}">{escape(symbol)}</option>' for symbol in ASSETS)
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -1135,4 +1145,5 @@ app = create_control_panel_app(sys.modules[__name__])
 
 if __name__ == "__main__":
     initialize_liquidation_runtime()
+    initialize_cow_arbitrage_runtime()
     app.run(host="0.0.0.0", port=parse_env_int("PORT", 5000, minimum=1)[0])

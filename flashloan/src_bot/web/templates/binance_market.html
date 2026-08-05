@@ -71,6 +71,13 @@
     .review-conclusion { border: 1px solid #e4e7ec; border-radius: 8px; padding: 10px; background: #f8fafc; color: #344054; line-height: 1.5; margin-bottom: 10px; overflow-wrap: anywhere; }
     .review-metrics { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
     .review-metrics span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 5px 8px; background: #fff; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .review-group { margin-top: 14px; }
+    .review-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .review-group-head h3 { margin: 0; font-size: 15px; color: #101828; }
+    .review-pager { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #667085; }
+    .review-pager button { width: 28px; height: 28px; border: 1px solid #d0d5dd; background: #fff; border-radius: 6px; cursor: pointer; }
+    .review-pager button:disabled { opacity: .45; cursor: default; }
+    .review-group-note { margin-bottom: 8px; font-size: 12px; color: #667085; }
     @media (max-width: 900px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } .route-grid { grid-template-columns: 1fr; } .route-cell { min-width: 300px; } .network-opportunity-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -170,6 +177,16 @@
         </table>
       </div>
     </section>
+    <section class="card" style="margin-top:18px">
+      <h2>CoW Candidate Queue</h2>
+      <div id="cowQueueStatus" class="context">waiting for queue status</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Network</th><th>Pair</th><th>Route</th><th>Status</th><th>Priority</th><th>Attempts</th></tr></thead>
+          <tbody id="cowQueueBody"></tbody>
+        </table>
+      </div>
+    </section>
     <section class="split" style="margin-top:18px">
       <div class="card">
         <h2 id="rawTopTitle">Binance 涨幅前 5</h2>
@@ -202,7 +219,46 @@
       </div>
       <div id="cowAttemptReviewConclusion" class="review-conclusion">等待复盘历史</div>
       <div id="cowAttemptReviewMetrics" class="review-metrics"></div>
-      <div class="table-wrap">
+      <div class="review-group" id="cowAttemptNotExecutableGroup">
+        <div class="review-group-head">
+          <h3>未达到执行条件</h3>
+          <div class="review-pager" id="cowAttemptNotExecutablePager"></div>
+        </div>
+        <div class="review-group-note" id="cowAttemptNotExecutableNote"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>未成功原因</th></tr></thead>
+            <tbody id="cowAttemptNotExecutableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="review-group" id="cowAttemptFailedGroup">
+        <div class="review-group-head">
+          <h3>执行失败</h3>
+          <div class="review-pager" id="cowAttemptFailedPager"></div>
+        </div>
+        <div class="review-group-note" id="cowAttemptFailedNote"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>失败原因</th></tr></thead>
+            <tbody id="cowAttemptFailedBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="review-group" id="cowAttemptSuccessGroup">
+        <div class="review-group-head">
+          <h3>执行成功</h3>
+          <div class="review-pager" id="cowAttemptSuccessPager"></div>
+        </div>
+        <div class="review-group-note" id="cowAttemptSuccessNote"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>结果</th></tr></thead>
+            <tbody id="cowAttemptSuccessBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap" style="display:none">
         <table>
           <thead>
             <tr>
@@ -231,8 +287,69 @@
     let latestCowQuotes = null;
     let latestCowSupport = null;
     let marketRefreshInFlight = false;
+    let cowQuoteRefreshInFlight = false;
+    let lastAutoCowQuoteKey = "";
+    let lastAutoCowQuoteAt = 0;
+    const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 30000;
     const DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb"];
     const networkPanels = new Map();
+    const COW_ATTEMPT_PAGE_SIZE = 10;
+    const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
+    let latestCowAttemptHistoryPayload = null;
+    /*
+    const COW_ATTEMPT_GROUP_META = {
+      not_executable: {
+        label: "未达到执行条件",
+        bodyId: "cowAttemptNotExecutableBody",
+        pagerId: "cowAttemptNotExecutablePager",
+        noteId: "cowAttemptNotExecutableNote",
+        empty: "暂无未达到执行条件的 CoW 复盘记录",
+        retention: "保留 1 天",
+      },
+      execution_failed: {
+        label: "执行失败",
+        bodyId: "cowAttemptFailedBody",
+        pagerId: "cowAttemptFailedPager",
+        noteId: "cowAttemptFailedNote",
+        empty: "暂无执行失败记录",
+        retention: "保留 7 天",
+      },
+      execution_success: {
+        label: "执行成功",
+        bodyId: "cowAttemptSuccessBody",
+        pagerId: "cowAttemptSuccessPager",
+        noteId: "cowAttemptSuccessNote",
+        empty: "暂无执行成功记录",
+        retention: "长期保留",
+      },
+    };
+    */
+    const COW_ATTEMPT_GROUP_META = {
+      not_executable: {
+        label: "Not executable",
+        bodyId: "cowAttemptNotExecutableBody",
+        pagerId: "cowAttemptNotExecutablePager",
+        noteId: "cowAttemptNotExecutableNote",
+        empty: "No not-executable CoW review records",
+        retention: "analysis 1 day | storage current+previous day buckets",
+      },
+      execution_failed: {
+        label: "Execution failed",
+        bodyId: "cowAttemptFailedBody",
+        pagerId: "cowAttemptFailedPager",
+        noteId: "cowAttemptFailedNote",
+        empty: "No failed execution records",
+        retention: "analysis 7 days | storage current+previous week buckets",
+      },
+      execution_success: {
+        label: "Execution success",
+        bodyId: "cowAttemptSuccessBody",
+        pagerId: "cowAttemptSuccessPager",
+        noteId: "cowAttemptSuccessNote",
+        empty: "No successful execution records",
+        retention: "long-term retention",
+      },
+    };
 
     const api = async path => {
       const response = await fetch(path, {headers: {"Accept": "application/json"}});
@@ -268,6 +385,10 @@
     const selectedNetworkIds = () => Array.from(document.querySelectorAll("input[name='cow_network']:checked")).map(item => item.value);
     const activeNetworkPanels = () => selectedNetworkIds().map(network => networkPanels.get(network)).filter(Boolean);
     const primaryNetwork = () => selectedNetworkIds()[0] || cowConfig?.default_network || "avalanche";
+    const quoteLimitValue = () => {
+      const value = Number($("quoteLimitSelect")?.value || 1);
+      return Number.isFinite(value) && value > 0 ? String(Math.min(9, Math.max(1, Math.floor(value)))) : "1";
+    };
     const selectedCowConfig = network => cowConfig?.networks?.find(item => item.network === (network || primaryNetwork())) || null;
     const networkLabel = network => selectedCowConfig(network)?.label || network || "-";
     const setNetworkPanel = (network, patch) => {
@@ -278,6 +399,25 @@
     const marketPairSignature = state => (state?.pairs || []).slice(0, 1).map(pair =>
       `${pair.pair || ""}:${(pair.route_results || []).map(route => (route.route || []).join(">")).join("|")}`
     ).join(";");
+    const marketQuoteCandidateSignature = data => {
+      const networks = selectedNetworkIds();
+      const states = data?.states || {};
+      const claims = data?.cow_network_claims || [];
+      const stateParts = networks.map(network => {
+        const state = states[network] || networkPanels.get(network)?.marketState || {};
+        return `${network}:${state.observed_at || data?.observed_at || ""}:${state.pair_count || 0}:${marketPairSignature(state)}`;
+      });
+      const claimParts = claims
+        .filter(claim => networks.includes(claim.network))
+        .map(claim => `${claim.network}:${claim.pair_count || 0}:${(claim.top || []).map(row => row.symbol).join(",")}:${(claim.bottom || []).map(row => row.symbol).join(",")}`);
+      return [...stateParts, ...claimParts, `amount:${$("quoteAmountInput")?.value || "1000"}`, `limit:${quoteLimitValue()}`].join(";");
+    };
+    const hasQuoteCandidates = data => {
+      const networks = selectedNetworkIds();
+      const states = data?.states || {};
+      if (networks.some(network => Number((states[network] || networkPanels.get(network)?.marketState || {}).pair_count || 0) > 0)) return true;
+      return (data?.cow_network_claims || []).some(claim => networks.includes(claim.network) && Number(claim.pair_count || 0) > 0);
+    };
     const shortAddress = value => {
       const text = String(value || "").trim();
       return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 6)}...${text.slice(-4)}` : (text || "-");
@@ -313,13 +453,90 @@
     const quoteHopText = hop => `${hop.hop || "-"}. ${hop.sell_amount || "-"} ${displaySymbol(hop.sell_symbol)} -> ${hop.buy_amount || "-"} ${displaySymbol(hop.buy_symbol)} @ ${hop.exchange_rate || "-"} | fee ${hop.fee_amount || "-"} ${displaySymbol(hop.sell_symbol)}`;
     const quoteText = quote => (quote?.hops || []).map(quoteHopText).join("\n") || quotePath(quote);
     const historyRoutePath = row => (row?.route_path || row?.quote?.path || []).map(displaySymbol).join(" -> ") || "-";
+    /*
     const historyReasons = row => (row?.blocked_reasons || row?.precheck?.reasons || []).join("；") || row?.error || "-";
+    */
+    const cowErrorSummary = value => {
+      const text = String(value || "").trim();
+      const lower = text.toLowerCase();
+      if (!text) return "";
+      if (lower.includes("403 error") && (lower.includes("cloudfront") || lower.includes("request blocked"))) return "quote_api_http_403_cloudfront_request_blocked";
+      if (lower.includes("timed out") || lower.includes("timeout")) return "quote_api_timeout";
+      if (lower.includes("ssl")) return "quote_api_ssl_error";
+      if (lower.includes("<html") || lower.includes("<!doctype") || lower.includes("http")) return "quote_api_http_error";
+      return text.length > 240 ? `${text.slice(0, 240)}...` : text;
+    };
+    const historyReasons = row => {
+      const reasons = (row?.blocked_reasons || row?.precheck?.reasons || []).map(cowErrorSummary).filter(Boolean);
+      return reasons.join("; ") || cowErrorSummary(row?.error) || "-";
+    };
     const historyPureProfit = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
+    const historyReview = row => row?.review_summary || {};
+    const historyThreshold = row => historyReview(row)?.threshold || {};
+    const historyMarketHtml = row => {
+      const review = historyReview(row);
+      const prices = review.market_prices || [];
+      const priceLines = prices.map(item =>
+        `${displaySymbol(item.symbol || item.base_symbol || "")}: ${formatPrice(item.start_price)} -> ${formatPrice(item.current_price)} (${plainPct(item.change_percent)})`
+      );
+      const threshold = historyThreshold(row);
+      const spread = review.window_spread_percent ?? row?.quote?.window_spread_percent;
+      const thresholdLine = `spread ${Number.isFinite(Number(spread)) ? Number(spread).toFixed(4) + "%" : "-"} / min ${threshold.adjusted_min_spread_percent || threshold.min_window_spread_percent || "-"}%`;
+      const sourceLine = `${review.price_source || row?.market_state?.price_source || "-"} | window ${review.window_seconds || row?.market_state?.window_seconds || "-"}s`;
+      return [thresholdLine, sourceLine, ...priceLines].map(esc).join("<br>") || "-";
+    };
+    const historyQuoteHtml = row => {
+      const quote = historyReview(row).cow_quote || {};
+      const hops = quote.hops || [];
+      if (!quote.quote_verified && !hops.length) return esc("waiting for CoW quote");
+      const hopLines = hops.map(hop =>
+        `${hop.hop || "-"}: ${hop.sell_amount || "-"} ${displaySymbol(hop.sell_symbol || "")} -> ${hop.buy_amount || "-"} ${displaySymbol(hop.buy_symbol || "")} @ ${hop.exchange_rate || "-"} fee ${hop.fee_amount || "-"}`
+      );
+      return [
+        `input ${quote.input_amount || "-"} ${displaySymbol(quote.input_symbol || "")}`,
+        `final ${quote.final_amount || "-"} ${displaySymbol(quote.final_symbol || "")}`,
+        ...hopLines,
+        quote.error ? `error ${quote.error}` : "",
+      ].filter(Boolean).map(esc).join("<br>") || "-";
+    };
+    const historyCostProfitHtml = row => {
+      const review = historyReview(row);
+      const plan = review.plan || {};
+      const costs = review.costs || {};
+      const guard = review.profit_guard || {};
+      const queryLines = (plan.steps || []).map(step => {
+        const guardInfo = step.query_guard_analysis || {};
+        const position = step.query_price_position || step.query_rate_position || {};
+        const queryValue = step.query_price_usd_per_token || step.query_exchange_rate || "-";
+        return `hop ${step.step || "-"} query ${queryValue} rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} guard ${guardInfo.status || "-"}`;
+      }).join(" | ") || "-";
+      const fees = (costs.cow_fee_amounts || []).map(item =>
+        `${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`
+      ).join(" | ") || "-";
+      return [
+        `plan profit ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)`,
+        `CoW delta ${guard.pure_profit_amount || row?.final_delta_amount || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "")}`,
+        `quote error ${guard.quote_error_type || guard.quote_error_display || "-"}`,
+        `query position ${queryLines}`,
+        `blocking ${JSON.stringify(guard.blocking_cause_counts || {})}`,
+        `drawdown ${guard.drawdown_amount || "-"} (${guard.drawdown_percent || "-"}%)`,
+        `min ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%)`,
+        `fees ${fees}`,
+        `gas quote ${costs.quote_api_gas_used ?? "-"} / submit ${costs.user_order_submission_gas_used ?? "-"} / settle ${costs.settlement_gas_payer || "-"}`,
+      ].map(esc).join("<br>");
+    };
+    const historyReviewText = row => [
+      `market: ${historyMarketHtml(row).replace(/<br>/g, " | ")}`,
+      `quote: ${historyQuoteHtml(row).replace(/<br>/g, " | ")}`,
+      `cost/profit: ${historyCostProfitHtml(row).replace(/<br>/g, " | ")}`,
+      `reason: ${historyReasons(row)}`,
+    ].join("\n");
     const historyReasonList = row => {
       const reasons = row?.blocked_reasons || row?.precheck?.reasons || [];
       if (Array.isArray(reasons) && reasons.length) return reasons.map(item => String(item || "").trim()).filter(Boolean);
       return row?.error ? [String(row.error)] : [];
     };
+    /*
     function cowAttemptReview(rows) {
       const items = Array.isArray(rows) ? rows : [];
       if (!items.length) {
@@ -361,6 +578,39 @@
           `通过但未下单 ${passedButDisabled.length} 条`,
           `阻断/失败 ${blocked.length} 条`,
           `主要原因 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
+        ],
+      };
+    }
+    */
+    function cowAttemptReview(rows) {
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        return {
+          conclusion: "No CoW execution review records yet. Market candidates, quote checks, prechecks, blocks, failures, and successes will be recorded here.",
+          metrics: ["records 0", "checks passed 0", "submittable 0", "blocked/failed 0"],
+        };
+      }
+      const passed = items.filter(row => row?.checks_passed);
+      const submittable = items.filter(row => row?.can_submit_order);
+      const success = items.filter(row => clientCowAttemptCategory(row) === "execution_success");
+      const failed = items.filter(row => clientCowAttemptCategory(row) === "execution_failed");
+      const notExecutable = items.filter(row => clientCowAttemptCategory(row) === "not_executable");
+      const topReason = cowAttemptReasonTop(items);
+      const latest = items[0] || {};
+      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${precheckStatusLabel(latest.state)} | ${historyPureProfit(latest)}`;
+      const conclusion = success.length
+        ? `Review: ${success.length} successful record(s). Latest: ${latestLine}`
+        : `Review: no successful execution in ${items.length} recent record(s). Main reason: ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}. Latest: ${latestLine}`;
+      return {
+        conclusion,
+        metrics: [
+          `records ${items.length}`,
+          `not executable ${notExecutable.length}`,
+          `execution failed ${failed.length}`,
+          `execution success ${success.length}`,
+          `checks passed ${passed.length}`,
+          `submittable ${submittable.length}`,
+          `main reason ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
         ],
       };
     }
@@ -415,6 +665,13 @@
     const rateCandidateText = step => (step.rate_candidates || []).length
       ? (step.rate_candidates || []).map(item => `${sourceLabel(item.source)} ${item.rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`).join(" | ")
       : "无比例候选";
+    const queryAnalysisText = step => {
+      const guard = step.query_guard_analysis || {};
+      const position = step.query_price_position || step.query_rate_position || {};
+      const queryValue = step.query_price_usd_per_token || step.query_exchange_rate || "-";
+      return `query ${queryValue} | rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} | guard ${guard.status || "-"} | ${guard.reason || "-"}`;
+    };
+    const queryAnalysisHtml = step => esc(queryAnalysisText(step));
     const selectionHtml = step => {
       const usesPrice = (step.price_candidates || []).length > 0;
       const target = usesPrice
@@ -445,8 +702,13 @@
     };
     const precheckStatusLabel = status => ({
       checks_passed_order_disabled: "价格/盈利通过，真实下单未开放",
+      limit_order_ready_not_submitted: "自有限价参数已准备，提交适配器未开放",
+      limit_order_ready_to_submit: "自有限价参数已准备，可提交",
+      ready_not_submitted: "已准备，未提交",
+      ready_to_submit: "已准备，可提交",
       unsupported: "代币不支持",
       quote_unavailable: "报价不可用",
+      flashloan_payload_required: "缺少原子闪电贷执行参数",
       price_guard_failed: "价格保护未通过",
       not_profitable: "不盈利",
       profit_below_threshold: "低于盈利预期",
@@ -537,7 +799,7 @@
       const excluded = Number(stats.market_excluded_symbol_count || 0);
       const reasonText = excluded > 0 && reasonCountsText(stats.market_excluded_reason_counts) === "-" ? "旧接口未返回明细" : reasonCountsText(stats.market_excluded_reason_counts);
       return [
-        `${sideLabel}要求：单边${sideLabel} > 0.05%`,
+        `${sideLabel}要求：单边${sideLabel} > ${overview?.min_side_change_percent ?? "0.3"}%`,
         `币价 >= ${overview?.min_token_price_usd ?? "0.01"}U`,
         `来源 ${stats.source_market_row_count ?? cowSupportedSourceCount(overview)} 个`,
         `通过行情过滤 ${stats.market_eligible_symbol_count ?? 0} 个`,
@@ -565,7 +827,7 @@
         <h3>${esc(claim.label || claim.network || "-")} <span class="muted">(${esc(claim.chain_id || "-")})</span></h3>
         <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</span>
       </div>
-      <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; 0.05% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
+      <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; ${esc(claim.min_side_change_percent ?? "0.3")}% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
       <div class="mini-split">
         <div>${rowsTable(claim.top || [], "涨幅")}</div>
         <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
@@ -768,7 +1030,7 @@
         `样本数量：${data.sample_count ?? "-"} / universe ${data.observation_universe_size ?? "-"}`,
         `CoW token 缓存：${cowFilter.token_cache_count ?? "-"} (${cowFilter.token_cache_source || "-"})`,
         `Binance 命中：${cowFilter.supported_symbol_count ?? 0} / 未命中 ${cowFilter.unsupported_symbol_count ?? 0}`,
-        `统计过滤：单边涨跌 > ${cowFilter.min_side_change_percent ?? "0.05"}%；价格 >= ${cowFilter.min_token_price_usd ?? "0.01"}U；过滤 ${cowFilter.market_excluded_symbol_count ?? 0} 个`,
+        `统计过滤：单边涨跌 > ${cowFilter.min_side_change_percent ?? "0.3"}%；价格 >= ${cowFilter.min_token_price_usd ?? "0.01"}U；过滤 ${cowFilter.market_excluded_symbol_count ?? 0} 个`,
         `动态交易门槛：${thresholdBreakdownText(cowFilter.threshold_detail || {})}`,
         `候选路径：${data.pair_count ?? 0}`,
         "",
@@ -846,7 +1108,7 @@
           <span>${esc(quoteInfo)}</span>
           <span>最佳纯利润 ${esc(best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
         </div>
-        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 0.05% | ${esc(thresholdBreakdownText(threshold))}</div>
+        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
         <div class="chain-routes">
           ${pair ? routeGraph(pair.route_results || [], pair, panel.network) : '<div class="muted">当前窗口没有同时满足涨幅、跌幅、价格、价差和 CoW 支持条件的一对代币。</div>'}
         </div>
@@ -910,7 +1172,7 @@
       const filterAmount = threshold.amount ?? ($("quoteAmountInput").value || "1000");
       $("cowTokenCount").textContent = tokenTotal || cowFilter.token_cache_count || "-";
       $("cowMatchCount").textContent = `Binance 命中 ${supportedTotal || cowFilter.supported_symbol_count || 0} / 未命中 ${unsupportedTotal || cowFilter.unsupported_symbol_count || 0}`;
-      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > 0.05% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | ${thresholdBreakdownText(threshold)} | amount ${filterAmount} | 复盘记录全部候选`;
+      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > ${cowFilter.min_side_change_percent ?? "0.3"}% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | ${thresholdBreakdownText(threshold)} | amount ${filterAmount} | 复盘记录全部候选`;
       $("pairCount").textContent = totalPairs;
       $("bestPair").textContent = totalPairs ? "waiting for CoW" : "-";
       $("rawTopBody").innerHTML = (data.raw_top || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw top data</td></tr>';
@@ -956,15 +1218,105 @@
       $("cowAttemptHistorySource").textContent = `source ${data?.source || "-"} | ${rows.length} rows`;
       $("cowAttemptReviewConclusion").textContent = review.conclusion;
       $("cowAttemptReviewMetrics").innerHTML = review.metrics.map(item => `<span>${esc(item)}</span>`).join("");
-      $("cowAttemptHistoryBody").innerHTML = rows.map(row => `<tr>
+      document.querySelector("#cowExecutionReviewSection thead tr").innerHTML =
+        "<th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>未成功原因</th>";
+      $("cowAttemptHistoryBody").innerHTML = rows.map(row => `<tr title="${esc(historyReviewText(row))}">
         <td>${esc(fmtTime(row.created_at))}</td>
         <td>${esc(row.network || "-")}</td>
         <td>${esc(row.pair || "-")}</td>
         <td>${esc(historyRoutePath(row))}</td>
         <td>${esc(precheckStatusLabel(row.state))}</td>
-        <td>${esc(historyPureProfit(row))}</td>
+        <td>${historyMarketHtml(row)}</td>
+        <td>${historyQuoteHtml(row)}</td>
+        <td>${historyCostProfitHtml(row)}</td>
         <td>${esc(historyReasons(row))}</td>
       </tr>`).join("") || '<tr><td colspan="7">暂无 CoW 执行复盘历史</td></tr>';
+      if (!rows.length) $("cowAttemptHistoryBody").innerHTML = '<tr><td colspan="9">No CoW execution review history</td></tr>';
+    }
+    const clientCowAttemptCategory = row => {
+      if (row?.review_category) return row.review_category;
+      const state = String(row?.state || "").toLowerCase();
+      const phase = String(row?.execution_phase || "").toLowerCase();
+      if (["confirmed_success", "settled", "executed", "execution_success", "success"].includes(state) || ["confirmed_success", "settled", "execution_success"].includes(phase)) return "execution_success";
+      if (["limit_order_ready_not_submitted", "limit_order_ready_to_submit", "ready_not_submitted", "ready_to_submit"].includes(state)) return "execution_failed";
+      if (phase === "market_candidate" || ["quote_required", "unsupported", "quote_unavailable", "flashloan_payload_required", "price_guard_failed", "profit_below_threshold", "not_profitable", "order_disabled"].includes(state)) return "not_executable";
+      if (!row?.checks_passed || !row?.can_submit_order) return "not_executable";
+      return "execution_failed";
+    };
+    const cowAttemptGroups = data => {
+      const apiGroups = data?.groups || {};
+      const groups = {
+        not_executable: [...(apiGroups.not_executable?.attempts || [])],
+        execution_failed: [...(apiGroups.execution_failed?.attempts || [])],
+        execution_success: [...(apiGroups.execution_success?.attempts || [])],
+      };
+      if (!Object.values(groups).some(rows => rows.length)) {
+        for (const row of data?.attempts || []) {
+          const category = clientCowAttemptCategory(row);
+          if (groups[category]) groups[category].push(row);
+        }
+      }
+      return groups;
+    };
+    const cowAttemptReasonTop = rows => {
+      const counts = new Map();
+      for (const row of rows || []) {
+        const reasons = historyReasonList(row);
+        for (const reason of reasons.length ? reasons : [precheckStatusLabel(row?.state)]) {
+          counts.set(reason, (counts.get(reason) || 0) + 1);
+        }
+      }
+      return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0] || null;
+    };
+    const cowAttemptGroupNote = (category, rows) => {
+      const meta = COW_ATTEMPT_GROUP_META[category];
+      if (!rows.length) return `${meta.retention} | ${meta.empty}`;
+      const topReason = cowAttemptReasonTop(rows);
+      const latest = rows[0] || {};
+      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${precheckStatusLabel(latest.state)} | ${historyPureProfit(latest)}`;
+      if (category === "execution_success") return `${meta.retention} | 成功 ${rows.length} 条 | 最近一条 ${latestLine}`;
+      if (category === "execution_failed") return `${meta.retention} | 失败 ${rows.length} 条 | 主要失败 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
+      return `${meta.retention} | 未执行 ${rows.length} 条 | 主要阻断 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
+    };
+    const cowAttemptRowHtml = row => `<tr title="${esc(historyReviewText(row))}">
+      <td>${esc(fmtTime(row.created_at))}</td>
+      <td>${esc(row.network || "-")}</td>
+      <td>${esc(row.pair || "-")}</td>
+      <td>${esc(historyRoutePath(row))}</td>
+      <td>${esc(precheckStatusLabel(row.state))}</td>
+      <td>${historyMarketHtml(row)}</td>
+      <td>${historyQuoteHtml(row)}</td>
+      <td>${historyCostProfitHtml(row)}</td>
+      <td>${esc(historyReasons(row))}</td>
+    </tr>`;
+    function renderCowAttemptGroup(category, rows) {
+      const meta = COW_ATTEMPT_GROUP_META[category];
+      const total = rows.length;
+      const pageCount = Math.max(1, Math.ceil(total / COW_ATTEMPT_PAGE_SIZE));
+      cowAttemptHistoryPages[category] = Math.min(Math.max(0, cowAttemptHistoryPages[category] || 0), pageCount - 1);
+      const page = cowAttemptHistoryPages[category];
+      const pageRows = rows.slice(page * COW_ATTEMPT_PAGE_SIZE, (page + 1) * COW_ATTEMPT_PAGE_SIZE);
+      $(meta.noteId).textContent = cowAttemptGroupNote(category, rows);
+      $(meta.bodyId).innerHTML = pageRows.map(cowAttemptRowHtml).join("") || `<tr><td colspan="9">${esc(meta.empty)}</td></tr>`;
+      $(meta.pagerId).innerHTML = `<button data-cow-attempt-page="${esc(category)}" data-page-delta="-1" ${page <= 0 ? "disabled" : ""}>‹</button><span>${total ? page + 1 : 0}/${total ? pageCount : 0} | ${total} 条</span><button data-cow-attempt-page="${esc(category)}" data-page-delta="1" ${page >= pageCount - 1 || !total ? "disabled" : ""}>›</button>`;
+    }
+    function renderCowAttemptHistory(data) {
+      latestCowAttemptHistoryPayload = data || {};
+      const groups = cowAttemptGroups(data || {});
+      const rows = Object.values(groups).flat().sort((left, right) => String(right.created_at || right.observed_at || "").localeCompare(String(left.created_at || left.observed_at || "")));
+      const review = cowAttemptReview(rows);
+      $("cowAttemptHistorySource").textContent = `source ${data?.source || "-"} | total ${rows.length} rows`;
+      $("cowAttemptReviewConclusion").textContent = review.conclusion;
+      $("cowAttemptReviewMetrics").innerHTML = [
+        `未达到执行条件 ${groups.not_executable.length}`,
+        `执行失败 ${groups.execution_failed.length}`,
+        `执行成功 ${groups.execution_success.length}`,
+        ...(review.metrics || []),
+      ].map(item => `<span>${esc(item)}</span>`).join("");
+      renderCowAttemptGroup("not_executable", groups.not_executable);
+      renderCowAttemptGroup("execution_failed", groups.execution_failed);
+      renderCowAttemptGroup("execution_success", groups.execution_success);
+      $("cowAttemptHistoryBody").innerHTML = rows.slice(0, COW_ATTEMPT_PAGE_SIZE).map(cowAttemptRowHtml).join("");
     }
     async function refreshCowAttemptHistory() {
       try {
@@ -972,7 +1324,46 @@
         const suffix = networks.length ? `&cow_networks=${encodeURIComponent(networks.join(","))}` : "";
         renderCowAttemptHistory(await api(`/api/binance-market/cow-execution-attempts?limit=300${suffix}`));
       } catch (error) {
-        $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
+        $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="9">${esc(error.message)}</td></tr>`;
+        for (const meta of Object.values(COW_ATTEMPT_GROUP_META)) {
+          $(meta.bodyId).innerHTML = `<tr><td colspan="9">${esc(error.message)}</td></tr>`;
+          $(meta.noteId).textContent = "加载失败";
+          $(meta.pagerId).innerHTML = "";
+        }
+      }
+    }
+    function renderCowCandidateQueue(data) {
+      const daemon = data?.daemon || {};
+      const queue = daemon.queue || {};
+      const counts = queue.counts || {};
+      $("cowQueueStatus").textContent = [
+        daemon.running ? "daemon running" : (daemon.enabled ? "daemon waiting" : "daemon disabled"),
+        `size ${queue.size || 0}`,
+        `pending ${counts.pending || 0}`,
+        `processing ${counts.processing || 0}`,
+        `retry ${counts.retry_wait || 0}`,
+        `ready ${counts.ready_not_submitted || 0}`,
+        `submit ${counts.ready_to_submit || 0}`,
+        `quoted ${counts.quoted || 0}`,
+        `blocked ${counts.blocked || 0}`,
+        `failed ${counts.failed || 0}`,
+      ].join(" | ");
+      const rows = (data?.items || []).map((item, index) => `<tr>
+        <td>${index + 1}</td>
+        <td>${esc(item.network || "-")}</td>
+        <td>${esc(item.pair || "-")}</td>
+        <td>${esc((item.route_path || []).join(" -> ") || "-")}</td>
+        <td>${esc(item.status || "-")}</td>
+        <td>${esc(item.priority_score || item.profit_hint || "-")}</td>
+        <td>${esc(item.attempts || 0)}</td>
+      </tr>`).join("");
+      $("cowQueueBody").innerHTML = rows || '<tr><td colspan="7">No queued CoW candidates</td></tr>';
+    }
+    async function refreshCowCandidateQueue() {
+      try {
+        renderCowCandidateQueue(await api("/api/binance-market/cow-candidate-queue?limit=100"));
+      } catch (error) {
+        $("cowQueueBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
       }
     }
     function renderCowQuotes(data, network) {
@@ -1018,6 +1409,8 @@
           if (state) renderMarket({...state, cow_network_claims: data.cow_network_claims || [], cow_supported_overview: data.cow_supported_overview || null}, network);
         }
         refreshCowAttemptHistory();
+        refreshCowCandidateQueue();
+        autoRefreshCowQuotes(data).catch(error => { $("message").textContent = error.message; });
       } catch (error) {
         $("message").textContent = error.message;
       } finally {
@@ -1025,28 +1418,43 @@
       }
     }
     async function refreshCowQuotes(network = null) {
+      if (cowQuoteRefreshInFlight) return;
+      cowQuoteRefreshInFlight = true;
       try {
         $("message").textContent = "";
         const sideLimit = $("sideLimitSelect").value || "50";
-        const quoteLimit = "1";
+        const quoteLimit = quoteLimitValue();
         const networks = network ? [network] : selectedNetworkIds();
         const amount = $("quoteAmountInput").value || "1000";
         const minSpread = minSpreadValue();
         if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
         if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
         await Promise.all(networks.map(async cowNetwork => {
-          const data = await api(`/api/binance-market/cow-quotes?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}`);
+          const data = await api(`/api/binance-market/cow-quotes?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}&quote_timeout_seconds=8`);
           renderCowQuotes(data, cowNetwork);
         }));
       } catch (error) {
         $("message").textContent = error.message;
+      } finally {
+        cowQuoteRefreshInFlight = false;
       }
+    }
+    async function autoRefreshCowQuotes(data) {
+      if (!hasQuoteCandidates(data)) return;
+      const now = Date.now();
+      const key = marketQuoteCandidateSignature(data);
+      if (key === lastAutoCowQuoteKey) return;
+      if (now - lastAutoCowQuoteAt < AUTO_COW_QUOTE_MIN_INTERVAL_MS) return;
+      lastAutoCowQuoteKey = key;
+      lastAutoCowQuoteAt = now;
+      $("quoteState").innerHTML = `<span class="badge">CoW 自动询价</span><span class="muted">fetching real quote for displayed candidates</span>`;
+      await refreshCowQuotes();
     }
     async function refreshCowSupport(network = null) {
       try {
         $("message").textContent = "";
         const sideLimit = $("sideLimitSelect").value || "50";
-        const quoteLimit = "1";
+        const quoteLimit = quoteLimitValue();
         const networks = network ? [network] : selectedNetworkIds();
         const amount = $("quoteAmountInput").value || "1000";
         const minSpread = minSpreadValue();
@@ -1095,6 +1503,13 @@
     $("quoteBtn").onclick = refreshCowQuotes;
     $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "页面信息").catch(error => { $("message").textContent = error.message; });
     $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 报价" : "页面信息").catch(error => { $("message").textContent = error.message; });
+    $("cowExecutionReviewSection").onclick = event => {
+      const button = event.target.closest("button[data-cow-attempt-page]");
+      if (!button) return;
+      const category = button.dataset.cowAttemptPage;
+      cowAttemptHistoryPages[category] = (cowAttemptHistoryPages[category] || 0) + Number(button.dataset.pageDelta || 0);
+      renderCowAttemptHistory(latestCowAttemptHistoryPayload || {});
+    };
     $("networkOpportunityCards").onclick = event => {
       const button = event.target.closest("button[data-route-action]");
       if (!button) return;
@@ -1127,7 +1542,9 @@
     $("minSpreadInput").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };
     loadCowConfig().then(() => refresh().then(refreshCowSupport));
     refreshCowAttemptHistory();
+    refreshCowCandidateQueue();
     setInterval(refresh, 3000);
+    setInterval(refreshCowCandidateQueue, 5000);
   </script>
 </body>
 </html>

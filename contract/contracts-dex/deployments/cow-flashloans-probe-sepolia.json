@@ -1,0 +1,119 @@
+{
+  "ok": false,
+  "generatedAt": "2026-08-05T21:50:00.151Z",
+  "source": "manual_route",
+  "historyPath": null,
+  "livePath": null,
+  "liveStatus": null,
+  "liveDiagnostic": null,
+  "chainId": 11155111,
+  "network": "sepolia",
+  "sdkEnv": "staging",
+  "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "rpcSource": "configured",
+  "routeCount": 1,
+  "sdkDeployments": {
+    "aavePool": "",
+    "adapterFactory": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+    "collateralAdapter": "0x29A9b0a13c81d59f13BA0f39DBDCAA1AB2adc95F",
+    "debtAdapter": "0xbE9A121bb958BBBb027dA728DEC0D5496811b7d1",
+    "repayAdapter": "0x8e25d1210FabB0fcAdE92a82C4a89568B4b10E0F"
+  },
+  "sdkDeploymentGaps": [
+    "aavePool"
+  ],
+  "sdkDeploymentCode": {
+    "aavePool": "not_configured",
+    "adapterFactory": "check_failed:RPC Request failed.",
+    "collateralAdapter": "check_failed:RPC Request failed."
+  },
+  "probeReliability": {
+    "perHopProbeOnly": true,
+    "atomicityProof": false,
+    "mustUseSingleCollateralSwapOrder": true,
+    "expectedAtomicEvidence": [
+      "single_order_uid",
+      "single_settlement_tx_hash",
+      "flashloan_metadata_in_app_data",
+      "solver_interactions_cover_three_hop_cycle_or_better",
+      "flashloan_principal_plus_fee_repaid_in_final_settlement"
+    ],
+    "unsafeInterpretation": "Sequential getQuoteOnly/getOrderPostingSettings results prove hook generation per leg only; they do not prove X->Y->Z->X settles atomically."
+  },
+  "modelConclusion": {
+    "eachLegCanGenerateFlashLoanHooks": false,
+    "singleSolverSettlementPlanned": true,
+    "testedAsOneAtomicSettlement": false,
+    "sdkDefaultDeploymentsComplete": false,
+    "deploymentGaps": [
+      "aavePool"
+    ],
+    "reason": "This probe verifies quote/settings generation per SDK collateral-swap intent. It does not submit one GPv2Settlement.settle(...) containing a multi-trade settlement, so it cannot prove all hops settle atomically.",
+    "importantBoundary": "If three conversions are posted as three ordinary CoW orders, they can fill independently. Atomic all-or-none behavior requires the trades/interactions to be included in the same settlement transaction."
+  },
+  "routes": [
+    {
+      "ok": false,
+      "network": "sepolia",
+      "pair": "manual",
+      "pairRank": null,
+      "priorityReason": "manual_route",
+      "observedAt": null,
+      "route": [
+        "USDC",
+        "WETH",
+        "COW",
+        "USDC"
+      ],
+      "amountHuman": "0.001",
+      "amountUnits": "1000000000000000",
+      "ownPlanAvailable": false,
+      "classification": "quote_or_sdk_failed",
+      "error": "Not Found",
+      "profit": null,
+      "singleSolverSettlement": {
+        "model": "single_flashloan_router_call_with_single_cow_solver_settlement",
+        "borrowedAsset": "USDC",
+        "repaidAsset": "USDC",
+        "route": [
+          "USDC",
+          "WETH",
+          "COW",
+          "USDC"
+        ],
+        "hopCount": 3,
+        "requiredMinimumHopCount": 3,
+        "threeHopRoute": true,
+        "closedCycle": true,
+        "flashLoanCount": 1,
+        "solverOrderCount": 1,
+        "settlementTransactionCount": 1,
+        "independentPerHopOrderCount": 0,
+        "diagnosticQuoteLegCount": 1,
+        "submissionMode": "one_flashLoanAndSettle_call",
+        "proofStatus": "not_proven_quote_only",
+        "requiredEvidence": [
+          "single_order_uid",
+          "single_settlement_tx_hash",
+          "flashloan_metadata_in_app_data",
+          "solver_interactions_cover_three_hop_cycle_or_better",
+          "flashloan_principal_plus_fee_repaid_in_final_settlement"
+        ]
+      },
+      "eachLegCanGenerateFlashLoanHooks": false,
+      "ownGuardFailures": 0,
+      "legs": [
+        {
+          "index": 1,
+          "ok": false,
+          "sellSymbol": "USDC",
+          "buySymbol": "WETH",
+          "inputAmount": "1000000000000000",
+          "inputAmountHuman": "0.001",
+          "error": "Not Found",
+          "ownGuard": null
+        }
+      ]
+    }
+  ]
+}

@@ -19,9 +19,14 @@ from web.binance_market_service import (
     _cow_execution_precheck,
 )
 from db.storage_cow_execution import (
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
+    _category_within_retention,
     append_cow_execution_attempts_jsonl,
     build_cow_execution_attempts,
     build_cow_market_claim_candidate_attempts,
+    build_cow_market_claim_pairs,
     build_cow_market_candidate_attempts,
     load_recent_cow_execution_attempts_jsonl,
 )
@@ -68,10 +73,10 @@ def test_binance_market_state_defaults_to_top5_bottom5_and_25_pairs():
     assert len(payload["bottom"]) == 5
     assert payload["pair_count"] == 25
     assert payload["pairs"][0]["quote_verified"] is False
-    assert payload["pairs"][0]["route_count"] == 2
-    assert payload["pairs"][0]["full_route_count"] == 2
-    assert len(payload["pairs"][0]["route_results"]) == 2
-    assert len(payload["pairs"][0]["route_results_full"]) == 2
+    assert payload["pairs"][0]["route_count"] == 1
+    assert payload["pairs"][0]["full_route_count"] == 1
+    assert len(payload["pairs"][0]["route_results"]) == 1
+    assert len(payload["pairs"][0]["route_results_full"]) == 1
     plan = payload["pairs"][0]["route_results"][0]["binance_execution_plan"]
     assert plan["available"] is True
     assert plan["initial_amount"] == "1000"
@@ -114,7 +119,7 @@ def test_binance_market_state_lists_quote_candidates_without_paper_profit():
     )
 
     pair = payload["pairs"][0]
-    assert [route["route_no"] for route in pair["route_results"]] == [1, 2]
+    assert [route["route_no"] for route in pair["route_results"]] == [1]
     assert pair["best_route_no"] is None
     assert pair["best_strategy"] is None
     assert pair["profit_usd"] is None
@@ -124,8 +129,6 @@ def test_binance_market_state_lists_quote_candidates_without_paper_profit():
     assert pair["candidate_basis"] == "binance_token_names_only"
     assert pair["route_results"][0]["route"] == ["USDC", "Y", "X", "USDC"]
     assert pair["route_results"][0]["priority_reason"] == "buy_loser_then_gainer"
-    assert pair["route_results"][1]["route"] == ["USDC", "X", "Y", "USDC"]
-    assert pair["route_results"][1]["priority_reason"] == "reverse_check"
     assert {route["initial_symbol"] for route in pair["route_results"]} == {"USDC"}
     assert pair["edge_hint_percent"] == 20.0
 
@@ -169,20 +172,19 @@ def test_binance_market_state_filters_cow_supported_tokens_before_ranking():
         registry=registry,
     )
 
-    assert [row["base_symbol"] for row in payload["top"]] == ["AAA", "CCC"]
-    assert [row["base_symbol"] for row in payload["bottom"]] == ["BBB", "DDD"]
+    assert [row["base_symbol"] for row in payload["top"]] == ["AAA"]
+    assert [row["base_symbol"] for row in payload["bottom"]] == ["BBB"]
     assert [row["base_symbol"] for row in payload["raw_top"]][:2] == ["UNSUPPORTEDTOP", "AAA"]
     assert [row["base_symbol"] for row in payload["raw_bottom"]][:2] == ["UNSUPPORTEDBOTTOM", "BBB"]
     assert payload["cow_filter"]["enabled"] is True
-    assert payload["cow_filter"]["supported_symbol_count"] == 4
+    assert payload["cow_filter"]["supported_symbol_count"] == 2
     assert payload["cow_filter"]["unsupported_symbol_count"] == 2
-    assert payload["cow_filter"]["market_excluded_symbol_count"] == 2
-    assert payload["cow_filter"]["min_side_change_percent"] == 0.05
+    assert payload["cow_filter"]["market_excluded_symbol_count"] == 4
+    assert payload["cow_filter"]["min_side_change_percent"] == 0.3
     assert payload["cow_filter"]["min_token_price_usd"] == 0.01
-    assert payload["pair_count"] == 2
+    assert payload["pair_count"] == 1
     assert [(pair["x_base_symbol"], pair["y_base_symbol"]) for pair in payload["pairs"]] == [
         ("AAA", "BBB"),
-        ("AAA", "DDD"),
     ]
     assert all(pair["window_spread_percent"] > 1.0 for pair in payload["pairs"])
 
@@ -210,7 +212,7 @@ def test_binance_market_state_can_expand_side_limit():
     assert payload["pair_count"] == 100
 
 
-def test_binance_market_state_can_keep_raw_50_but_network_display_5():
+def test_binance_market_state_can_keep_raw_50_but_network_display_top1():
     top = [_row(f"T{i}USDT", 10.0, 10.6 + i / 100) for i in range(60)]
     bottom = [_row(f"B{i}USDT", 10.0, 9.4 - i / 100) for i in range(60)]
     extremes = {"basket": [*top, *bottom], "sample_count": 120}
@@ -242,10 +244,10 @@ def test_binance_market_state_can_keep_raw_50_but_network_display_5():
 
     assert len(payload["raw_top"]) == 50
     assert len(payload["raw_bottom"]) == 50
-    assert len(payload["top"]) == 5
-    assert len(payload["bottom"]) == 5
-    assert payload["cow_filter"]["cow_display_limit"] == 5
-    assert payload["pair_count"] == 25
+    assert len(payload["top"]) == 1
+    assert len(payload["bottom"]) == 1
+    assert payload["cow_filter"]["cow_display_limit"] == 1
+    assert payload["pair_count"] == 1
 
 
 def test_binance_raw_rankings_show_window_movers_even_below_trade_threshold():
@@ -295,7 +297,7 @@ def test_cow_thresholds_use_dynamic_profit_floor_not_requested_spread():
     assert thresholds["requested_min_spread_percent"] == "1"
     assert thresholds["adjusted_min_spread_percent"] == "0.968"
     assert thresholds["min_window_spread_percent"] == "0.968"
-    assert thresholds["min_side_change_percent"] == "0.05"
+    assert thresholds["min_side_change_percent"] == "0.3"
     assert thresholds["route_cost_floor_percent"] == "0.968"
     assert thresholds["slippage_percent"] is None
     assert thresholds["slippage_model"] == "dynamic_target_minus_acceptable_price"
@@ -334,6 +336,162 @@ def test_cow_execution_precheck_uses_percent_profit_floor():
     assert precheck["profit_above_auto_threshold"] is False
     assert precheck["auto_execute_min_profit_usd"] == "6.18"
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
+
+
+def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
+    precheck = _cow_execution_precheck(
+        {
+            "input_amount": "1000",
+            "final_delta_amount": "-25",
+            "final_symbol": "USDC",
+            "viable": True,
+            "cow_support": {"supported": True},
+            "hops": [{"buy_amount": "100"}],
+            "binance_execution_plan": {
+                "steps": [
+                    {
+                        "from_symbol": "USDC",
+                        "to_symbol": "AAA",
+                        "input_amount": "1000",
+                        "cow_sdk_parameters": {
+                            "sell_amount_before_fee": "1000",
+                            "target_buy_amount_after_fee": "100",
+                            "min_buy_amount_after_fee": "99",
+                        },
+                    }
+                ]
+            },
+        }
+    )
+
+    assert precheck["status"] == "not_profitable"
+    assert precheck["profit_positive"] is False
+    assert precheck["drawdown_amount"] == "25"
+    assert precheck["drawdown_percent"] == "2.5"
+    assert any("cow_quote_drawdown" in reason for reason in precheck["reasons"])
+
+
+def test_cow_execution_precheck_rejects_three_hop_plan_without_capability_evidence():
+    precheck = _cow_execution_precheck(
+        {
+            "input_amount": "1000",
+            "final_delta_amount": "10",
+            "final_symbol": "USDC",
+            "viable": True,
+            "cow_support": {"supported": True},
+            "hops": [
+                {"buy_amount": "100"},
+                {"buy_amount": "110"},
+                {"buy_amount": "1010"},
+            ],
+            "binance_execution_plan": {
+                "available": True,
+                "route": ["USDC", "AAA", "BBB", "USDC"],
+                "initial_amount": "1000",
+                "final_symbol": "USDC",
+                "profit_amount": "10",
+                "profit_percent": "1",
+                "steps": [
+                    {
+                        "step": 1,
+                        "from_symbol": "USDC",
+                        "to_symbol": "AAA",
+                        "input_amount": "1000",
+                        "min_output_amount": "99",
+                        "target_output_amount": "100",
+                        "cow_sdk_parameters": {
+                            "sell_amount_before_fee": "1000",
+                            "target_buy_amount_after_fee": "100",
+                            "min_buy_amount_after_fee": "99",
+                        },
+                    }
+                    ,
+                    {
+                        "step": 2,
+                        "from_symbol": "AAA",
+                        "to_symbol": "BBB",
+                        "input_amount": "100",
+                        "min_output_amount": "99",
+                        "target_output_amount": "100",
+                        "cow_sdk_parameters": {
+                            "sell_amount_before_fee": "100",
+                            "target_buy_amount_after_fee": "100",
+                            "min_buy_amount_after_fee": "99",
+                        },
+                    },
+                    {
+                        "step": 3,
+                        "from_symbol": "BBB",
+                        "to_symbol": "USDC",
+                        "input_amount": "110",
+                        "min_output_amount": "1000",
+                        "target_output_amount": "1010",
+                        "cow_sdk_parameters": {
+                            "sell_amount_before_fee": "110",
+                            "target_buy_amount_after_fee": "1010",
+                            "min_buy_amount_after_fee": "1000",
+                        },
+                    },
+                ],
+            },
+            "cow_flashloan_sdk_plan": {
+                "sdk": "@cowprotocol/sdk-flash-loans",
+                "flow": "AaveCollateralSwapSdk",
+                "route": ["USDC", "AAA", "BBB", "USDC"],
+                "steps": [
+                    {"step": 1, "from_symbol": "USDC", "to_symbol": "AAA"},
+                    {"step": 2, "from_symbol": "AAA", "to_symbol": "BBB"},
+                    {"step": 3, "from_symbol": "BBB", "to_symbol": "USDC"},
+                ],
+            },
+        }
+    )
+
+    assert precheck["cow_sdk_flashloan_ready"] is False
+    assert precheck["checks_passed"] is False
+    assert precheck["status"] == "cow_flashloan_sdk_plan_required"
+    assert any("cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
+
+
+def test_cow_execution_precheck_blocks_when_official_sdk_plan_missing():
+    precheck = _cow_execution_precheck(
+        {
+            "input_amount": "1000",
+            "final_delta_amount": "10",
+            "final_symbol": "USDC",
+            "viable": True,
+            "cow_support": {"supported": True},
+            "hops": [{"buy_amount": "100"}],
+            "binance_execution_plan": {
+                "available": True,
+                "route": ["USDC", "AAA"],
+                "initial_amount": "1000",
+                "final_symbol": "USDC",
+                "profit_amount": "10",
+                "profit_percent": "1",
+                "steps": [
+                    {
+                        "step": 1,
+                        "from_symbol": "USDC",
+                        "to_symbol": "AAA",
+                        "input_amount": "1000",
+                        "min_output_amount": "99",
+                        "target_output_amount": "100",
+                        "cow_sdk_parameters": {
+                            "sell_amount_before_fee": "1000",
+                            "target_buy_amount_after_fee": "100",
+                            "min_buy_amount_after_fee": "99",
+                        },
+                    }
+                ],
+            },
+        }
+    )
+
+    assert precheck["cow_sdk_flashloan_ready"] is False
+    assert precheck["checks_passed"] is False
+    assert precheck["status"] == "cow_flashloan_sdk_plan_required"
+    assert any("cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
 
 
 def test_binance_market_state_uses_pair_spread_threshold_for_trades():
@@ -450,7 +608,7 @@ def test_cow_network_market_claims_lists_each_mainnet_support_set():
     assert [row["base_symbol"] for row in by_network["bnb"]["top"]] == ["CCC"]
     assert [row["base_symbol"] for row in by_network["bnb"]["bottom"]] == ["DDD"]
     assert by_network["bnb"]["market_excluded_symbol_count"] == 1
-    assert by_network["bnb"]["min_side_change_percent"] == 0.05
+    assert by_network["bnb"]["min_side_change_percent"] == 0.3
     assert by_network["bnb"]["pair_count"] == 1
 
 
@@ -519,7 +677,7 @@ def test_cow_supported_market_overview_lists_union_top_bottom_50_without_chain_e
     assert overview["market_excluded_reason_counts"] == {}
     assert overview["supported_symbol_count"] == 4
     assert overview["unsupported_symbol_count"] == 1
-    assert overview["min_side_change_percent"] == 0.05
+    assert overview["min_side_change_percent"] == 0.3
     assert overview["min_token_price_usd"] == 0.01
     assert [row["base_symbol"] for row in overview["top"]] == ["AAA", "CCC"]
     assert [row["base_symbol"] for row in overview["bottom"]] == ["DDD", "BBB"]
@@ -531,14 +689,14 @@ def test_cow_supported_market_overview_lists_union_top_bottom_50_without_chain_e
 def test_cow_supported_market_overview_uses_only_side_move_price_and_cow_support_filters():
     extremes = {
         "basket": [
-            _row("GAINUSDT", 10.0, 10.02),
+            _row("GAINUSDT", 10.0, 10.04),
             _row("GAINLOWMOVEUSDT", 10.0, 10.004),
             _row("GAINLOWPRICEUSDT", 0.009, 0.0092),
-            _row("GAINUNSUPPORTEDUSDT", 10.0, 10.03),
-            _row("LOSSUSDT", 10.0, 9.98),
+            _row("GAINUNSUPPORTEDUSDT", 10.0, 10.04),
+            _row("LOSSUSDT", 10.0, 9.96),
             _row("LOSSLOWMOVEUSDT", 10.0, 9.996),
             _row("LOSSLOWPRICEUSDT", 0.0092, 0.009),
-            _row("LOSSUNSUPPORTEDUSDT", 10.0, 9.97),
+            _row("LOSSUNSUPPORTEDUSDT", 10.0, 9.96),
         ],
         "observation_universe_size": 8,
         "sample_count": 8,
@@ -560,7 +718,7 @@ def test_cow_supported_market_overview_uses_only_side_move_price_and_cow_support
         threshold_detail={"min_window_spread_percent": "99"},
     )
 
-    assert overview["min_side_change_percent"] == 0.05
+    assert overview["min_side_change_percent"] == 0.3
     assert [row["base_symbol"] for row in overview["top"]] == ["GAIN"]
     assert [row["base_symbol"] for row in overview["bottom"]] == ["LOSS"]
     assert overview["top_filter"]["market_eligible_symbol_count"] == 2
@@ -776,8 +934,8 @@ def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
 
     payload = build_cow_quote_verification(market_state, quote_limit=2)
 
-    assert payload["selected_pair_count"] == 2
-    assert payload["route_count"] == 4
+    assert payload["selected_pair_count"] == 1
+    assert payload["route_count"] == 1
     assert payload["viable_count"] == 1
     assert payload["cow_network"] == "avalanche"
     assert payload["cow_chain_id"] == 43114
@@ -828,10 +986,10 @@ def test_cow_quote_verification_records_all_chain_candidates(monkeypatch):
     payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
     attempts = build_cow_execution_attempts(payload, market_state=market_state)
 
-    assert payload["selected_pair_count"] == 3
-    assert payload["route_count"] == 6
-    assert len(attempts) == 6
-    assert {attempt["pair"] for attempt in attempts} == {"AAA / BBB", "CCC / DDD", "EEE / FFF"}
+    assert payload["selected_pair_count"] == 1
+    assert payload["route_count"] == 1
+    assert len(attempts) == 1
+    assert {attempt["pair"] for attempt in attempts} == {"AAA / BBB"}
 
 
 def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(monkeypatch):
@@ -922,35 +1080,124 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
         {"source": "current_window", "price": "10"},
         {"source": "query_quote", "price": "8"},
     ]
-    assert buy_step["selected_target_source"] == "query_quote"
-    assert buy_step["selected_target_price_usd_per_token"] == "8"
-    assert buy_step["acceptable_slippage_price_usd_per_token"] == "9"
+    assert buy_step["selected_target_source"] == "previous_window"
+    assert buy_step["selected_target_price_usd_per_token"] == "9"
+    assert buy_step["acceptable_slippage_price_usd_per_token"] == "10"
+    assert buy_step["query_price_position"]["position"] == "lowest"
+    assert buy_step["query_guard_analysis"]["status"] == "better_than_target"
     assert buy_step["cow_sdk_parameters"]["sell_amount_before_fee"] == "1000"
-    assert buy_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "125"
-    assert buy_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "111.1111111111111111111111111"
+    assert buy_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "111.1111111111111111111111111"
+    assert buy_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "100"
 
-    assert middle_step["selected_target_source"] == "query_quote"
-    assert middle_step["selected_target_exchange_rate"] == "1.1"
+    assert middle_step["selected_target_source"] == "previous_window"
+    assert middle_step["selected_target_exchange_rate"] == "0.9"
     assert middle_step["acceptable_slippage_exchange_rate"] == "0.9"
-    assert middle_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "137.5"
-    assert middle_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "112.5"
+    assert middle_step["query_rate_position"]["position"] == "highest"
+    assert middle_step["query_guard_analysis"]["status"] == "better_than_target"
+    assert middle_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "90"
+    assert middle_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "90"
 
     assert sell_step["selected_target_source"] == "current_window"
     assert sell_step["selected_target_price_usd_per_token"] == "12"
-    assert sell_step["acceptable_slippage_price_usd_per_token"] == "11"
-    assert sell_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "1650"
-    assert sell_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "1512.5"
+    assert sell_step["acceptable_slippage_price_usd_per_token"] == "12"
+    assert sell_step["query_price_position"]["position"] == "middle"
+    assert sell_step["query_guard_analysis"]["status"] == "worse_than_guard"
+    assert sell_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "1080"
+    assert sell_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "1080"
     precheck = payload["ranking"][0]["execution_precheck"]
-    assert precheck["status"] == "checks_passed_order_disabled"
+    sdk_plan = precheck["cow_flashloan_sdk_plan"]
+    assert sdk_plan["single_solver_order_count"] == 1
+    assert sdk_plan["diagnostic_hop_count"] == 3
+    assert precheck["status"] == "limit_order_ready_not_submitted"
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
     assert precheck["price_guards_passed"] is True
     assert precheck["profit_positive"] is True
+    assert precheck["flashloan_capability"]["multi_step_route"] is True
+    assert precheck["flashloan_capability"]["supports_multi_step_atomic_settlement"] is True
+    assert precheck["flashloan_capability"]["quote_probe_reliability"]["per_hop_quotes_are_not_atomicity_proof"] is True
+    assert precheck["flashloan_capability"]["router_payload"]["loan_model"] == "single_flashloan_for_solver_settlement"
+    assert precheck["flashloan_capability"]["router_payload"]["loan_count"] == 1
+    assert precheck["flashloan_capability"]["router_payload"]["independent_per_hop_orders"] == 0
+    assert precheck["flashloan_capability"]["router_payload"]["solver_intermediate_symbols"] == ["BBB", "AAA"]
+    assert precheck["flashloan_capability"]["router_payload"]["closed_cycle"] is True
+    assert precheck["flashloan_capability"]["router_payload"]["loans"][0]["token_symbol"] == "USDC"
     assert [item["status"] for item in precheck["hop_checks"]] == ["pass", "pass", "pass"]
-    assert precheck["hop_checks"][0]["min_buy_amount_after_fee"] == "111.1111111111111111111111111"
+    assert precheck["hop_checks"][0]["min_buy_amount_after_fee"] == "100"
     assert payload["opportunity_count"] == 1
     assert payload["best_opportunity"]["pair"] == "AAA / BBB"
     assert payload["best"]["execution_precheck"]["checks_passed"] is True
+
+
+def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, tmp_path):
+    cloudfront_403 = """
+    <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+    <HTML><HEAD><TITLE>ERROR: The request could not be satisfied</TITLE></HEAD>
+    <BODY><H1>403 ERROR</H1><H2>The request could not be satisfied.</H2>
+    Request blocked. Generated by cloudfront (CloudFront)</BODY></HTML>
+    """
+    market_state = {
+        "observed_at": "2026-08-05T13:45:37+00:00",
+        "window_seconds": 118.613,
+        "price_source": "rest_interval",
+        "pairs": [
+            {
+                "rank": 1,
+                "pair": "SPCXBUSDT / SOXSBUSDT",
+                "x_symbol": "SPCXBUSDT",
+                "y_symbol": "SOXSBUSDT",
+                "x_base_symbol": "SPCXB",
+                "y_base_symbol": "SOXSB",
+                "x_start_price": 110.9,
+                "x_current_price": 112.77,
+                "x_change_percent": 0,
+                "y_start_price": 43.87,
+                "y_current_price": 43.65,
+                "y_change_percent": 0,
+            }
+        ],
+    }
+    registry = {
+        symbol: CowToken(symbol, "0x" + str(index) * 40, 18, "test")
+        for index, symbol in enumerate(["USDC", "SPCXB", "SOXSB"], start=1)
+    }
+    monkeypatch.setattr(
+        "web.binance_market_service.evaluate_cow_route",
+        lambda route, **kwargs: {
+            "name": route["name"],
+            "path": route["path"],
+            "input_amount": "1000",
+            "input_symbol": "USDC",
+            "final_symbol": "USDC",
+            "viable": False,
+            "error": cloudfront_403,
+            "hops": [],
+        },
+    )
+
+    payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
+    precheck = payload["ranking"][0]["execution_precheck"]
+
+    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["checks_passed"] is True
+    assert precheck["quote_available"] is False
+    assert precheck["own_limit_order_ready"] is True
+    assert precheck["quote_error_type"] == "quote_api_http_403_cloudfront_request_blocked"
+    assert "quote_error_type:quote_api_http_403_cloudfront_request_blocked" in precheck["reasons"]
+    assert "own_limit_order_ready_but_submission_adapter_disabled" in precheck["reasons"]
+    assert not any("actual_output_below_own_minimum" in reason for reason in precheck["reasons"])
+    assert set(item["failure_cause"] for item in precheck["hop_checks"]) == {"quote_api_http_403_cloudfront_request_blocked"}
+    assert set(item["status"] for item in precheck["hop_checks"]) == {"not_checked"}
+
+    attempts = build_cow_execution_attempts(payload, market_state=market_state)
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    assert append_cow_execution_attempts_jsonl(path, attempts) == 1
+    rows = load_recent_cow_execution_attempts_jsonl(path, limit=10)
+    summary = rows[0]["review_summary"]
+    assert summary["cow_quote"]["error_type"] == "quote_api_http_403_cloudfront_request_blocked"
+    assert summary["cow_quote"]["error"] == "CoW quote API HTTP 403: CloudFront request blocked"
+    assert summary["market_prices"][0]["change_percent"] != 0
+    assert summary["market_prices"][1]["change_percent"] != 0
 
 
 def test_cow_execution_attempt_history_can_fallback_to_jsonl(tmp_path):
@@ -991,7 +1238,7 @@ def test_cow_execution_attempt_history_can_fallback_to_jsonl(tmp_path):
     assert rows[0]["blocked_reasons"] == ["真实下单模块尚未开放"]
 
 
-def test_cow_market_candidate_history_records_displayed_bnb_routes():
+def test_cow_market_candidate_history_records_displayed_bnb_routes(tmp_path):
     market_state = {
         "observed_at": "2026-08-05T00:00:00+00:00",
         "window_seconds": 3,
@@ -1007,6 +1254,10 @@ def test_cow_market_candidate_history_records_displayed_bnb_routes():
                 "y_base_symbol": "BBB",
                 "x_change_percent": 2.5,
                 "y_change_percent": -1.5,
+                "x_start_price": 1.0,
+                "x_current_price": 1.025,
+                "y_start_price": 2.0,
+                "y_current_price": 1.97,
                 "window_spread_percent": 4.0,
                 "quote_required": True,
                 "candidate_basis": "binance_token_names_only",
@@ -1019,14 +1270,16 @@ def test_cow_market_candidate_history_records_displayed_bnb_routes():
                         "initial_symbol": "USDC",
                         "priority_reason": "buy_loser_then_gainer",
                         "quote_required": True,
-                    },
-                    {
-                        "route_no": 2,
-                        "route": ["USDC", "AAA", "BBB", "USDC"],
-                        "initial_amount": "1000",
-                        "initial_symbol": "USDC",
-                        "priority_reason": "reverse_check",
-                        "quote_required": True,
+                        "binance_execution_plan": {
+                            "available": True,
+                            "initial_amount": "1000",
+                            "initial_symbol": "USDC",
+                            "final_target_amount": "1012",
+                            "final_symbol": "USDC",
+                            "profit_amount": "12",
+                            "profit_percent": "1.2",
+                            "steps": [],
+                        },
                     },
                 ],
             }
@@ -1035,13 +1288,23 @@ def test_cow_market_candidate_history_records_displayed_bnb_routes():
 
     attempts = build_cow_market_candidate_attempts(market_state)
 
-    assert len(attempts) == 2
+    assert len(attempts) == 1
     assert {attempt["network"] for attempt in attempts} == {"bnb"}
     assert {attempt["chain_id"] for attempt in attempts} == {56}
     assert {attempt["execution_phase"] for attempt in attempts} == {"market_candidate"}
     assert {attempt["state"] for attempt in attempts} == {"quote_required"}
     assert attempts[0]["precheck"]["reasons"] == ["requires_cow_or_dex_quote"]
     assert attempts[0]["quote"]["window_spread_percent"] == 4.0
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    assert append_cow_execution_attempts_jsonl(path, attempts) == 1
+    rows = load_recent_cow_execution_attempts_jsonl(path, limit=10, networks=["bnb"])
+    summary = rows[0]["review_summary"]
+    assert summary["window_spread_percent"] == 4.0
+    assert summary["market_prices"][0]["start_price"] == 1.0
+    assert summary["market_prices"][1]["current_price"] == 1.97
+    assert summary["plan"]["profit_amount"] == "12"
+    assert summary["plan"]["profit_percent"] == "1.2"
+    assert summary["profit_guard"]["status"] == "quote_required"
 
 
 def test_cow_market_claim_history_records_displayed_chain_candidates():
@@ -1078,19 +1341,86 @@ def test_cow_market_claim_history_records_displayed_chain_candidates():
         price_source="binance_ws",
     )
 
-    assert len(attempts) == 2
+    assert len(attempts) == 1
     assert {attempt["network"] for attempt in attempts} == {"bnb"}
     assert attempts[0]["pair"] == "AAAUSDT / BBBUSDT"
     assert attempts[0]["execution_phase"] == "market_candidate"
     assert attempts[0]["quote"]["candidate_basis"] == "cow_network_claim_top_bottom"
     assert attempts[0]["route_path"] == ["USDC", "BBB", "AAA", "USDC"]
-    assert attempts[1]["route_path"] == ["USDC", "AAA", "BBB", "USDC"]
 
 
-def test_cow_market_candidate_jsonl_keeps_weekly_window_and_dedupes(tmp_path):
+def test_cow_market_claim_pairs_can_feed_quote_verification(monkeypatch):
+    claim = {
+        "network": "bnb",
+        "chain_id": 56,
+        "min_spread_percent": 1.0,
+        "threshold_detail": {"amount": "1000", "adjusted_min_spread_percent": "1.0"},
+        "top": [
+            {"symbol": "AAAUSDT", "base_symbol": "AAA", "change_percent": 2.5, "start_price": 1, "current_price": 1.025}
+        ],
+        "bottom": [
+            {"symbol": "BBBUSDT", "base_symbol": "BBB", "change_percent": -1.2, "start_price": 2, "current_price": 1.976}
+        ],
+    }
+
+    pairs = build_cow_market_claim_pairs(claim)
+    market_state = {"observed_at": "2026-08-05T00:00:00+00:00", "pairs": pairs}
+    registry = {
+        symbol: CowToken(symbol, "0x" + str(index) * 40, 18, "test")
+        for index, symbol in enumerate(["USDC", "AAA", "BBB"], start=1)
+    }
+    monkeypatch.setattr(
+        "web.binance_market_service.evaluate_cow_route",
+        lambda route, **kwargs: {
+            "name": route["name"],
+            "path": route["path"],
+            "input_amount": "1000",
+            "input_symbol": "USDC",
+            "final_symbol": "USDC",
+            "final_amount": "1001",
+            "viable": True,
+            "hops": [],
+        },
+    )
+    payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
+
+    assert len(pairs) == 1
+    assert pairs[0]["pair"] == "AAAUSDT / BBBUSDT"
+    assert payload["route_count"] == 1
+    assert payload["precheck"]["routes"][0]["supported"] is True
+
+
+def test_cow_market_claim_pairs_can_quote_displayed_rows_below_spread_floor():
+    claim = {
+        "network": "bnb",
+        "chain_id": 56,
+        "min_spread_percent": 1.0,
+        "threshold_detail": {"amount": "1000", "adjusted_min_spread_percent": "1.0"},
+        "top": [
+            {"symbol": "AAAUSDT", "base_symbol": "AAA", "change_percent": 0.2, "start_price": 1, "current_price": 1.002}
+        ],
+        "bottom": [
+            {"symbol": "BBBUSDT", "base_symbol": "BBB", "change_percent": -0.1, "start_price": 2, "current_price": 1.998}
+        ],
+    }
+
+    strict_pairs = build_cow_market_claim_pairs(claim)
+    quoted_display_pairs = build_cow_market_claim_pairs(
+        claim,
+        include_below_min_spread=True,
+        max_pairs=1,
+    )
+
+    assert strict_pairs == []
+    assert len(quoted_display_pairs) == 1
+    assert quoted_display_pairs[0]["candidate_basis"] == "cow_network_claim_top_bottom_below_spread"
+    assert quoted_display_pairs[0]["blocked_reasons"] == ["spread_below_dynamic_min", "requires_cow_or_dex_quote"]
+
+
+def test_cow_market_candidate_jsonl_keeps_two_day_bucket_window_and_dedupes(tmp_path):
     path = tmp_path / "cow_execution_attempts.jsonl"
-    old_created_at = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
-    recent_created_at = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    old_created_at = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    recent_created_at = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat()
     old_row = {
         "created_at": old_created_at,
         "observed_at": old_created_at,
@@ -1137,6 +1467,105 @@ def test_cow_market_candidate_jsonl_keeps_weekly_window_and_dedupes(tmp_path):
     assert [row["pair"] for row in bnb_rows] == ["AAA / BBB"]
     assert {row["network"] for row in per_network_rows} == {"bnb", "polygon"}
     assert {row["pair"] for row in all_rows} == {"AAA / BBB", "POL / ROW"}
+
+
+def test_cow_execution_attempt_jsonl_uses_category_retention(tmp_path):
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    old_not_executable = {
+        "created_at": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),
+        "observed_at": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),
+        "network": "bnb",
+        "pair": "OLD / BLOCKED",
+        "route_path": ["USDC", "OLD", "BLOCKED", "USDC"],
+        "execution_phase": "market_candidate",
+        "state": "quote_required",
+        "checks_passed": False,
+        "can_submit_order": False,
+    }
+    recent_failed = {
+        "created_at": (datetime.now(timezone.utc) - timedelta(days=6)).isoformat(),
+        "observed_at": (datetime.now(timezone.utc) - timedelta(days=6)).isoformat(),
+        "network": "bnb",
+        "pair": "RECENT / FAILED",
+        "route_path": ["USDC", "RECENT", "FAILED", "USDC"],
+        "execution_phase": "execution",
+        "state": "execution_failed",
+        "checks_passed": True,
+        "can_submit_order": True,
+    }
+    old_failed = {
+        **recent_failed,
+        "created_at": (datetime.now(timezone.utc) - timedelta(days=15)).isoformat(),
+        "observed_at": (datetime.now(timezone.utc) - timedelta(days=15)).isoformat(),
+        "pair": "OLD / FAILED",
+    }
+    old_success = {
+        "created_at": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
+        "observed_at": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
+        "network": "bnb",
+        "pair": "OLD / SUCCESS",
+        "route_path": ["USDC", "OLD", "SUCCESS", "USDC"],
+        "execution_phase": "settled",
+        "state": "settled",
+        "checks_passed": True,
+        "can_submit_order": True,
+    }
+    path.write_text(
+        "\n".join(json.dumps(row) for row in [old_not_executable, recent_failed, old_failed, old_success]) + "\n",
+        encoding="utf-8",
+    )
+
+    assert append_cow_execution_attempts_jsonl(path, []) == 0
+    assert append_cow_execution_attempts_jsonl(path, [{"network": "bnb", "pair": "NEW / BLOCKED", "execution_phase": "market_candidate", "state": "quote_required"}]) == 1
+
+    not_executable = load_recent_cow_execution_attempts_jsonl(path, limit=10, category=COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE)
+    failed = load_recent_cow_execution_attempts_jsonl(path, limit=10, category=COW_ATTEMPT_CATEGORY_EXECUTION_FAILED)
+    success = load_recent_cow_execution_attempts_jsonl(path, limit=10, category=COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS)
+    all_pairs = {row["pair"] for row in load_recent_cow_execution_attempts_jsonl(path, limit=20)}
+
+    assert [row["pair"] for row in not_executable] == ["NEW / BLOCKED"]
+    assert [row["pair"] for row in failed] == ["RECENT / FAILED"]
+    assert [row["pair"] for row in success] == ["OLD / SUCCESS"]
+    assert all_pairs == {"NEW / BLOCKED", "RECENT / FAILED", "OLD / SUCCESS"}
+    assert not_executable[0]["review_category"] == COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
+    assert failed[0]["review_category"] == COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
+    assert success[0]["review_category"] == COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+
+
+def test_cow_not_executable_retention_uses_two_local_day_buckets():
+    local_tz = timezone(timedelta(hours=8))
+    now = datetime(2026, 8, 5, 0, 1, tzinfo=local_tz)
+    previous_day_start = {
+        "created_at": datetime(2026, 8, 4, 0, 0, tzinfo=local_tz).isoformat(),
+        "execution_phase": "market_candidate",
+        "state": "quote_required",
+    }
+    before_previous_day = {
+        **previous_day_start,
+        "created_at": datetime(2026, 8, 3, 23, 59, 59, tzinfo=local_tz).isoformat(),
+    }
+
+    assert _category_within_retention(previous_day_start, now=now) is True
+    assert _category_within_retention(before_previous_day, now=now) is False
+
+
+def test_cow_failed_retention_uses_two_local_week_buckets():
+    local_tz = timezone(timedelta(hours=8))
+    now = datetime(2026, 8, 10, 0, 1, tzinfo=local_tz)
+    previous_week_start = {
+        "created_at": datetime(2026, 8, 3, 0, 0, tzinfo=local_tz).isoformat(),
+        "execution_phase": "execution",
+        "state": "execution_failed",
+        "checks_passed": True,
+        "can_submit_order": True,
+    }
+    before_previous_week = {
+        **previous_week_start,
+        "created_at": datetime(2026, 8, 2, 23, 59, 59, tzinfo=local_tz).isoformat(),
+    }
+
+    assert _category_within_retention(previous_week_start, now=now) is True
+    assert _category_within_retention(before_previous_week, now=now) is False
 
 
 def test_cow_network_options_exposes_supported_networks():
@@ -1266,9 +1695,9 @@ def test_cow_quote_verification_keeps_failed_unknown_token_routes():
         registry={},
     )
 
-    assert payload["route_count"] == 2
+    assert payload["route_count"] == 1
     assert payload["viable_count"] == 0
-    assert len(payload["ranking"]) == 2
+    assert len(payload["ranking"]) == 1
     assert {item["viable"] for item in payload["ranking"]} == {False}
     assert all("unsupported CoW tokens on avalanche" in item["error"] for item in payload["ranking"])
     assert all(item["cow_support"]["supported"] is False for item in payload["ranking"])
@@ -1297,8 +1726,8 @@ def test_cow_route_precheck_marks_unsupported_tokens_before_quote():
         registry={},
     )
 
-    assert payload["route_count"] == 2
+    assert payload["route_count"] == 1
     assert payload["supported_route_count"] == 0
-    assert payload["unsupported_route_count"] == 2
+    assert payload["unsupported_route_count"] == 1
     assert payload["routes"][0]["status"] == "unsupported_tokens"
     assert payload["routes"][0]["unsupported_tokens"] == ["USDC", "ICX", "PYR"]

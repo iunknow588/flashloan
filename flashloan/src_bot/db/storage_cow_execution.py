@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -8,6 +8,102 @@ from typing import Any
 from db.storage_common import db_connection
 
 DEFAULT_COW_EXECUTION_RETENTION_DAYS = 7
+COW_EXECUTION_RETENTION_LOCAL_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
+COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE = "not_executable"
+COW_ATTEMPT_CATEGORY_EXECUTION_FAILED = "execution_failed"
+COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS = "execution_success"
+COW_ATTEMPT_CATEGORY_RETENTION_DAYS = {
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE: 2,
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED: 14,
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS: None,
+}
+COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS = {
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE: 1,
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED: 7,
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS: None,
+}
+COW_ATTEMPT_CATEGORY_RETENTION_POLICY = {
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE: {
+        "unit": "day",
+        "active_bucket_days": 1,
+        "storage_buckets": 2,
+        "storage_days": 2,
+        "timezone": "Asia/Shanghai",
+        "description": "current and previous local-day buckets",
+    },
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED: {
+        "unit": "iso_week",
+        "active_bucket_days": 7,
+        "storage_buckets": 2,
+        "storage_days": 14,
+        "timezone": "Asia/Shanghai",
+        "description": "current and previous local ISO-week buckets",
+    },
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS: {
+        "unit": "forever",
+        "active_bucket_days": None,
+        "storage_buckets": None,
+        "storage_days": None,
+        "timezone": "Asia/Shanghai",
+        "description": "long-term retention",
+    },
+}
+COW_ATTEMPT_CATEGORY_LABELS = {
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE: "not executable",
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED: "execution failed",
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS: "execution success",
+}
+
+_SUCCESS_STATES = {
+    "confirmed_success",
+    "confirmation_success",
+    "settled",
+    "settlement_success",
+    "executed",
+    "execution_success",
+    "success",
+    "submitted_success",
+}
+_SUCCESS_PHASES = {"confirmed_success", "settled", "execution_success"}
+_NOT_EXECUTABLE_STATES = {
+    "market_candidate",
+    "quote_required",
+    "unsupported",
+    "unsupported_route",
+    "unsupported_token",
+    "missing_token",
+    "quote_unavailable",
+    "flashloan_payload_required",
+    "price_guard_failed",
+    "profit_below_threshold",
+    "not_profitable",
+    "checks_failed",
+    "order_disabled",
+}
+_FAILED_STATES = {
+    "checks_passed_order_disabled",
+    "limit_order_ready_not_submitted",
+    "limit_order_ready_to_submit",
+    "ready_not_submitted",
+    "ready_to_submit",
+    "quote_failed",
+    "submission_failed",
+    "submit_failed",
+    "order_failed",
+    "execution_failed",
+    "settlement_failed",
+    "confirmation_failed",
+    "confirmed_failed",
+    "failed",
+    "error",
+}
+_EXECUTION_PHASES = {
+    "order_submission",
+    "submission",
+    "execution",
+    "settlement",
+    "confirmation",
+}
 
 
 def _json_text(value: Any) -> str:
@@ -39,6 +135,102 @@ def _parse_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def cow_execution_attempt_category(row: dict[str, Any]) -> str:
+    state = str(row.get("state") or "").strip().lower()
+    phase = str(row.get("execution_phase") or "").strip().lower()
+    checks_passed = bool(row.get("checks_passed"))
+    can_submit_order = bool(row.get("can_submit_order"))
+    order_submission_enabled = bool(row.get("order_submission_enabled"))
+    auto_execute_requested = bool(row.get("auto_execute_requested"))
+
+    if state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if phase == "market_candidate" or state in _NOT_EXECUTABLE_STATES:
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
+    if not checks_passed or not can_submit_order:
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
+    if (
+        state in _FAILED_STATES
+        or "failed" in state
+        or "error" in state
+        or phase in _EXECUTION_PHASES
+        or order_submission_enabled
+        or auto_execute_requested
+    ):
+        return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
+    return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
+
+
+def cow_execution_attempt_retention_days(row_or_category: dict[str, Any] | str) -> int | None:
+    if isinstance(row_or_category, str):
+        category = row_or_category
+    else:
+        category = cow_execution_attempt_category(row_or_category)
+    return COW_ATTEMPT_CATEGORY_RETENTION_DAYS.get(category, DEFAULT_COW_EXECUTION_RETENTION_DAYS)
+
+
+def cow_execution_attempt_analysis_days(row_or_category: dict[str, Any] | str) -> int | None:
+    if isinstance(row_or_category, str):
+        category = row_or_category
+    else:
+        category = cow_execution_attempt_category(row_or_category)
+    return COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS.get(category, DEFAULT_COW_EXECUTION_RETENTION_DAYS)
+
+
+def cow_execution_attempt_retention_policy(row_or_category: dict[str, Any] | str) -> dict[str, Any]:
+    if isinstance(row_or_category, str):
+        category = row_or_category
+    else:
+        category = cow_execution_attempt_category(row_or_category)
+    return dict(COW_ATTEMPT_CATEGORY_RETENTION_POLICY.get(category, {}))
+
+
+def _local_midnight(value: datetime) -> datetime:
+    local = value.astimezone(COW_EXECUTION_RETENTION_LOCAL_TZ)
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _local_iso_week_start(value: datetime) -> datetime:
+    local_midnight = _local_midnight(value)
+    return local_midnight - timedelta(days=local_midnight.weekday())
+
+
+def _category_retention_cutoff(row_or_category: dict[str, Any] | str, now: datetime | None = None) -> datetime | None:
+    current = now or datetime.now(timezone.utc)
+    category = row_or_category if isinstance(row_or_category, str) else cow_execution_attempt_category(row_or_category)
+    if category == COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS:
+        return None
+    if category == COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE:
+        return _local_midnight(current) - timedelta(days=1)
+    if category == COW_ATTEMPT_CATEGORY_EXECUTION_FAILED:
+        return _local_iso_week_start(current) - timedelta(days=7)
+    days = cow_execution_attempt_retention_days(category)
+    if days is None:
+        return None
+    return current - timedelta(days=max(1, int(days)))
+
+
+def _category_within_retention(row: dict[str, Any], now: datetime | None = None) -> bool:
+    created_at = _parse_datetime(row.get("created_at") or row.get("observed_at"))
+    if created_at is None:
+        return True
+    cutoff = _category_retention_cutoff(row, now=now)
+    if cutoff is None:
+        return True
+    return created_at.astimezone(COW_EXECUTION_RETENTION_LOCAL_TZ) >= cutoff
+
+
+def _decorate_attempt_review(row: dict[str, Any]) -> dict[str, Any]:
+    category = cow_execution_attempt_category(row)
+    row["review_category"] = category
+    row["review_category_label"] = COW_ATTEMPT_CATEGORY_LABELS.get(category, category)
+    row["review_retention_days"] = cow_execution_attempt_retention_days(category)
+    row["review_analysis_days"] = cow_execution_attempt_analysis_days(category)
+    row["review_retention_policy"] = cow_execution_attempt_retention_policy(category)
+    row["review_summary"] = _build_review_summary(row)
+    return row
+
+
 def _market_state_summary(market_state: dict[str, Any]) -> dict[str, Any]:
     return {
         "observed_at": market_state.get("observed_at"),
@@ -47,6 +239,183 @@ def _market_state_summary(market_state: dict[str, Any]) -> dict[str, Any]:
         "market_state_source": market_state.get("market_state_source"),
         "fallback_reason": market_state.get("fallback_reason"),
         "cow_filter": market_state.get("cow_filter"),
+    }
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _review_decimal(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _review_change_percent(item: dict[str, Any]) -> Any:
+    raw = item.get("change_percent")
+    start = _review_decimal(item.get("start_price"))
+    current = _review_decimal(item.get("current_price"))
+    if (raw is None or raw == "" or str(raw) == "0" or str(raw) == "0.0") and start and current:
+        return (current - start) / start * 100
+    return raw
+
+
+def _review_error_summary(error: Any) -> dict[str, Any]:
+    text = str(error or "").strip()
+    lowered = text.lower()
+    if not text:
+        return {"type": None, "display": None, "raw": None}
+    if "403 error" in lowered and ("cloudfront" in lowered or "request blocked" in lowered):
+        return {
+            "type": "quote_api_http_403_cloudfront_request_blocked",
+            "display": "CoW quote API HTTP 403: CloudFront request blocked",
+            "raw": text,
+        }
+    if "timed out" in lowered or "timeout" in lowered:
+        return {"type": "quote_api_timeout", "display": "CoW quote API timeout", "raw": text}
+    if "ssl" in lowered:
+        return {"type": "quote_api_ssl_error", "display": "CoW quote API SSL error", "raw": text}
+    if "http" in lowered or "<html" in lowered or "<!doctype" in lowered:
+        return {"type": "quote_api_http_error", "display": "CoW quote API HTTP error", "raw": text}
+    return {"type": "quote_api_error", "display": text[:240], "raw": text}
+
+
+def _review_market_prices(quote: dict[str, Any]) -> list[dict[str, Any]]:
+    plan = quote.get("binance_execution_plan") if isinstance(quote.get("binance_execution_plan"), dict) else {}
+    prices = plan.get("market_prices") if isinstance(plan, dict) else None
+    if isinstance(prices, list) and prices:
+        return [{**item, "change_percent": _review_change_percent(item)} for item in prices if isinstance(item, dict)]
+    rows = []
+    for prefix in ("x", "y"):
+        symbol = quote.get(f"{prefix}_symbol") or quote.get(f"{prefix}_base_symbol")
+        if symbol:
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "base_symbol": quote.get(f"{prefix}_base_symbol"),
+                    "start_price": quote.get(f"{prefix}_start_price"),
+                    "current_price": quote.get(f"{prefix}_current_price"),
+                    "change_percent": _review_change_percent(
+                        {
+                            "start_price": quote.get(f"{prefix}_start_price"),
+                            "current_price": quote.get(f"{prefix}_current_price"),
+                            "change_percent": quote.get(f"{prefix}_change_percent"),
+                        }
+                    ),
+                }
+            )
+    return rows
+
+
+def _review_plan_steps(quote: dict[str, Any]) -> list[dict[str, Any]]:
+    plan = quote.get("binance_execution_plan") if isinstance(quote.get("binance_execution_plan"), dict) else {}
+    steps = plan.get("steps") if isinstance(plan, dict) else None
+    if not isinstance(steps, list):
+        return []
+    summaries = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        summaries.append(
+            {
+                "step": step.get("step"),
+                "from_symbol": step.get("from_symbol"),
+                "to_symbol": step.get("to_symbol"),
+                "input_amount": _first_present(step.get("query_sell_amount_before_fee"), step.get("input_amount")),
+                "query_output_amount": step.get("query_buy_amount_after_fee"),
+                "target_output_amount": step.get("target_output_amount"),
+                "min_output_amount": step.get("min_output_amount"),
+                "price_candidates": step.get("price_candidates") or [],
+                "rate_candidates": step.get("rate_candidates") or [],
+                "query_price_usd_per_token": step.get("query_price_usd_per_token"),
+                "query_exchange_rate": step.get("query_exchange_rate"),
+                "query_price_position": step.get("query_price_position"),
+                "query_rate_position": step.get("query_rate_position"),
+                "query_guard_analysis": step.get("query_guard_analysis"),
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_target_price_usd_per_token": step.get("selected_target_price_usd_per_token"),
+                "selected_target_exchange_rate": step.get("selected_target_exchange_rate"),
+                "acceptable_slippage_price_usd_per_token": step.get("acceptable_slippage_price_usd_per_token"),
+                "acceptable_slippage_exchange_rate": step.get("acceptable_slippage_exchange_rate"),
+                "slippage_bps": step.get("slippage_bps"),
+                "selection_rule": step.get("selection_rule") or step.get("price_compare_rule"),
+            }
+        )
+    return summaries
+
+
+def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
+    quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+    precheck = row.get("precheck") if isinstance(row.get("precheck"), dict) else {}
+    market_state = row.get("market_state") if isinstance(row.get("market_state"), dict) else {}
+    cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
+    threshold = cow_filter.get("threshold_detail") if isinstance(cow_filter.get("threshold_detail"), dict) else {}
+    costs = quote.get("costs") if isinstance(quote.get("costs"), dict) else {}
+    plan = quote.get("binance_execution_plan") if isinstance(quote.get("binance_execution_plan"), dict) else {}
+    error_info = _review_error_summary(quote.get("error") or row.get("error"))
+    return {
+        "phase": row.get("execution_phase"),
+        "candidate_basis": quote.get("candidate_basis"),
+        "trigger_source": quote.get("trigger_source"),
+        "window_seconds": market_state.get("window_seconds"),
+        "price_source": market_state.get("price_source"),
+        "window_spread_percent": quote.get("window_spread_percent"),
+        "edge_hint_percent": quote.get("edge_hint_percent"),
+        "market_prices": _review_market_prices(quote),
+        "plan": {
+            "available": plan.get("available"),
+            "initial_amount": plan.get("initial_amount") or quote.get("input_amount"),
+            "initial_symbol": plan.get("initial_symbol") or quote.get("input_symbol"),
+            "final_target_amount": plan.get("final_target_amount"),
+            "final_symbol": plan.get("final_symbol") or quote.get("final_symbol"),
+            "profit_amount": plan.get("profit_amount"),
+            "profit_percent": plan.get("profit_percent"),
+            "slippage_bps": plan.get("slippage_bps"),
+            "steps": _review_plan_steps(quote),
+        },
+        "cow_quote": {
+            "quote_verified": bool(quote.get("quote_verified")),
+            "viable": quote.get("viable"),
+            "input_amount": quote.get("input_amount"),
+            "input_symbol": quote.get("input_symbol"),
+            "final_amount": quote.get("final_amount"),
+            "final_symbol": quote.get("final_symbol"),
+            "final_delta_amount": quote.get("final_delta_amount") or row.get("final_delta_amount"),
+            "hops": quote.get("hops") or [],
+            "error": error_info.get("display") or quote.get("error") or row.get("error"),
+            "error_type": error_info.get("type"),
+            "error_raw": error_info.get("raw"),
+        },
+        "costs": {
+            "cow_fee_amounts": costs.get("cow_fee_amounts") or [],
+            "quote_api_gas_used": costs.get("quote_api_gas_used"),
+            "user_order_submission_gas_used": costs.get("user_order_submission_gas_used"),
+            "settlement_gas_payer": costs.get("settlement_gas_payer"),
+            "approval_gas_status": costs.get("approval_gas_status"),
+            "native_balance_source": costs.get("native_balance_source"),
+        },
+        "profit_guard": {
+            "status": precheck.get("status") or row.get("state"),
+            "checks_passed": row.get("checks_passed"),
+            "can_submit_order": row.get("can_submit_order"),
+            "pure_profit_amount": precheck.get("pure_profit_amount") or precheck.get("final_delta_amount") or row.get("final_delta_amount"),
+            "final_symbol": precheck.get("final_symbol") or row.get("final_symbol"),
+            "auto_execute_min_profit_usd": precheck.get("auto_execute_min_profit_usd") or threshold.get("min_profit_usd"),
+            "auto_execute_min_profit_percent": precheck.get("auto_execute_min_profit_percent") or threshold.get("min_profit_percent"),
+            "reasons": row.get("blocked_reasons") or precheck.get("reasons") or [],
+            "hop_checks": precheck.get("hop_checks") or [],
+            "blocking_cause_counts": precheck.get("blocking_cause_counts") or {},
+            "quote_error_type": precheck.get("quote_error_type") or error_info.get("type"),
+            "quote_error_display": precheck.get("quote_error_display") or error_info.get("display"),
+            "drawdown_amount": precheck.get("drawdown_amount"),
+            "drawdown_percent": precheck.get("drawdown_percent"),
+        },
+        "threshold": threshold,
     }
 
 
@@ -170,6 +539,7 @@ def _attempt_from_market_route(
         "trigger_source": pair.get("trigger_source"),
         "edge_hint_percent": route.get("edge_hint_percent", pair.get("edge_hint_percent")),
         "window_spread_percent": pair.get("window_spread_percent"),
+        "binance_execution_plan": route.get("binance_execution_plan") or pair.get("binance_execution_plan") or {},
         "x_symbol": pair.get("x_symbol"),
         "y_symbol": pair.get("y_symbol"),
         "x_base_symbol": pair.get("x_base_symbol"),
@@ -262,14 +632,6 @@ def _claim_route_results(x: dict[str, Any], y: dict[str, Any], amount: Any) -> l
             "priority_reason": "buy_loser_then_gainer",
             "quote_required": True,
         },
-        {
-            "route_no": 2,
-            "route": ["USDC", x_base, y_base, "USDC"],
-            "initial_amount": str(amount) if amount is not None else None,
-            "initial_symbol": "USDC",
-            "priority_reason": "reverse_check",
-            "quote_required": True,
-        },
     ]
 
 
@@ -308,6 +670,41 @@ def _claim_pair_row(x: dict[str, Any], y: dict[str, Any], rank: int, *, amount: 
     }
 
 
+def build_cow_market_claim_pairs(
+    claim: dict[str, Any],
+    *,
+    include_below_min_spread: bool = False,
+    max_pairs: int | None = None,
+) -> list[dict[str, Any]]:
+    if not isinstance(claim, dict):
+        return []
+    threshold_detail = claim.get("threshold_detail") if isinstance(claim.get("threshold_detail"), dict) else {}
+    try:
+        min_spread = float(claim.get("min_spread_percent") or threshold_detail.get("adjusted_min_spread_percent") or 0)
+    except (TypeError, ValueError):
+        min_spread = 0.0
+    amount = threshold_detail.get("amount")
+    pairs = []
+    for x in claim.get("top") or []:
+        if not isinstance(x, dict):
+            continue
+        for y in claim.get("bottom") or []:
+            if not isinstance(y, dict):
+                continue
+            pair = _claim_pair_row(x, y, len(pairs) + 1, amount=amount)
+            if not pair:
+                continue
+            if float(pair.get("window_spread_percent") or 0) <= min_spread and not include_below_min_spread:
+                continue
+            if float(pair.get("window_spread_percent") or 0) <= min_spread:
+                pair["blocked_reasons"] = ["spread_below_dynamic_min", "requires_cow_or_dex_quote"]
+                pair["candidate_basis"] = "cow_network_claim_top_bottom_below_spread"
+            pairs.append(pair)
+            if max_pairs is not None and len(pairs) >= max(1, int(max_pairs)):
+                return pairs
+    return pairs
+
+
 def build_cow_market_claim_candidate_attempts(
     network_claims: list[dict[str, Any]],
     *,
@@ -322,21 +719,7 @@ def build_cow_market_claim_candidate_attempts(
         if not isinstance(claim, dict):
             continue
         threshold_detail = claim.get("threshold_detail") if isinstance(claim.get("threshold_detail"), dict) else {}
-        min_spread = float(claim.get("min_spread_percent") or threshold_detail.get("adjusted_min_spread_percent") or 0)
-        amount = threshold_detail.get("amount")
-        pairs = []
-        for x in claim.get("top") or []:
-            if not isinstance(x, dict):
-                continue
-            for y in claim.get("bottom") or []:
-                if not isinstance(y, dict):
-                    continue
-                pair = _claim_pair_row(x, y, len(pairs) + 1, amount=amount)
-                if not pair:
-                    continue
-                if float(pair.get("window_spread_percent") or 0) <= min_spread:
-                    continue
-                pairs.append(pair)
+        pairs = build_cow_market_claim_pairs(claim)
         if not pairs:
             continue
         market_state = {
@@ -377,13 +760,57 @@ def _attempt_signature(item: dict[str, Any]) -> tuple[Any, ...]:
 
 def prune_cow_execution_attempts(database_url: str, retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS) -> int:
     ensure_cow_execution_attempts_table(database_url)
-    days = max(1, int(retention_days))
+    now = datetime.now(timezone.utc)
+    prune_scan_before = _local_midnight(now).astimezone(timezone.utc)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
-                "DELETE FROM cow_execution_attempts WHERE created_at < NOW() - (%s * INTERVAL '1 day')",
-                (days,),
+                """
+                SELECT
+                    id, observed_at, network, chain_id, owner_address,
+                    pair, pair_rank, priority_reason, route_path_json,
+                    state, execution_phase, checks_passed, can_submit_order,
+                    order_submission_enabled, auto_execute_requested,
+                    final_delta_amount, final_symbol, blocked_reasons_json,
+                    error, created_at, quote_json, precheck_json, market_state_json
+                FROM cow_execution_attempts
+                WHERE created_at < %s
+                LIMIT 5000
+                """,
+                (prune_scan_before,),
             )
+            expired_ids = []
+            for row in cursor.fetchall():
+                item = {
+                    "id": int(row[0]),
+                    "observed_at": row[1],
+                    "network": row[2],
+                    "chain_id": row[3],
+                    "owner_address": row[4],
+                    "pair": row[5],
+                    "pair_rank": row[6],
+                    "priority_reason": row[7],
+                    "route_path": _json_loads(row[8], []),
+                    "state": row[9],
+                    "execution_phase": row[10],
+                    "checks_passed": bool(row[11]),
+                    "can_submit_order": bool(row[12]),
+                    "order_submission_enabled": bool(row[13]),
+                    "auto_execute_requested": bool(row[14]),
+                    "final_delta_amount": row[15],
+                    "final_symbol": row[16],
+                    "blocked_reasons": _json_loads(row[17], []),
+                    "error": row[18],
+                    "created_at": row[19],
+                    "quote": _json_loads(row[20], {}),
+                    "precheck": _json_loads(row[21], {}),
+                    "market_state": _json_loads(row[22], {}),
+                }
+                if not _category_within_retention(item, now=now):
+                    expired_ids.append(int(row[0]))
+            if not expired_ids:
+                return 0
+            cursor.execute("DELETE FROM cow_execution_attempts WHERE id = ANY(%s)", (expired_ids,))
             return int(cursor.rowcount or 0)
 
 
@@ -494,11 +921,8 @@ def append_cow_execution_attempts_jsonl(
     if not attempts:
         return 0
     path.parent.mkdir(parents=True, exist_ok=True)
-    created_at = datetime.now(timezone.utc).isoformat()
-    cutoff = None
-    if retention_days:
-        cutoff = datetime.now(timezone.utc).timestamp() - (max(1, int(retention_days)) * 86400)
-        cutoff = datetime.fromtimestamp(cutoff, tz=timezone.utc)
+    now = datetime.now(timezone.utc)
+    created_at = now.isoformat()
     existing_rows = []
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -506,7 +930,7 @@ def append_cow_execution_attempts_jsonl(
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if isinstance(row, dict) and _within_retention(row, cutoff):
+            if isinstance(row, dict) and _category_within_retention(row, now=now):
                 existing_rows.append(row)
     market_signatures = {
         _jsonl_signature(row)
@@ -535,14 +959,13 @@ def load_recent_cow_execution_attempts_jsonl(
     *,
     networks: list[str] | None = None,
     retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS,
+    category: str | None = None,
 ) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
-    cutoff = None
-    if retention_days:
-        cutoff = datetime.now(timezone.utc).timestamp() - (max(1, int(retention_days)) * 86400)
-        cutoff = datetime.fromtimestamp(cutoff, tz=timezone.utc)
+    wanted_category = str(category or "").strip().lower()
+    now = datetime.now(timezone.utc)
     lines = path.read_text(encoding="utf-8").splitlines()
     rows = []
     network_counts: dict[str, int] = {}
@@ -556,14 +979,17 @@ def load_recent_cow_execution_attempts_jsonl(
             continue
         if wanted and str(payload.get("network") or "").lower() not in wanted:
             continue
-        if not _within_retention(payload, cutoff):
+        payload_category = cow_execution_attempt_category(payload)
+        if wanted_category and payload_category != wanted_category:
+            continue
+        if not _category_within_retention(payload, now=now):
             continue
         network = str(payload.get("network") or "").lower()
         if wanted:
             if network_counts.get(network, 0) >= global_limit:
                 continue
             network_counts[network] = network_counts.get(network, 0) + 1
-        rows.append(payload)
+        rows.append(_decorate_attempt_review(payload))
         if wanted and wanted.issubset({key for key, count in network_counts.items() if count >= global_limit}):
             break
         if not wanted and len(rows) >= global_limit:
@@ -577,15 +1003,26 @@ def load_recent_cow_execution_attempts(
     *,
     networks: list[str] | None = None,
     retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS,
+    category: str | None = None,
 ) -> list[dict[str, Any]]:
     ensure_cow_execution_attempts_table(database_url)
     wanted = [str(item).strip().lower() for item in networks or [] if str(item).strip()]
+    wanted_category = str(category or "").strip().lower()
     where = ["created_at >= NOW() - (%s * INTERVAL '1 day')"]
-    params: list[Any] = [max(1, int(retention_days))]
+    params: list[Any] = [max(1, int(retention_days or DEFAULT_COW_EXECUTION_RETENTION_DAYS))]
+    if wanted_category:
+        cutoff = _category_retention_cutoff(wanted_category)
+        if cutoff is None:
+            where = ["TRUE"]
+            params = []
+        else:
+            where = ["created_at >= %s"]
+            params = [cutoff.astimezone(timezone.utc)]
     if wanted:
         where.append("LOWER(network) = ANY(%s)")
         params.append(wanted)
-    params.append(max(1, int(limit)))
+    query_limit = max(1, int(limit))
+    params.append(query_limit * 5 if wanted_category else query_limit)
     with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             if wanted:
@@ -638,8 +1075,7 @@ def load_recent_cow_execution_attempts(
             rows = cursor.fetchall()
     result = []
     for row in rows:
-        result.append(
-            {
+        item = {
                 "id": int(row[0]),
                 "observed_at": row[1].isoformat() if row[1] else None,
                 "network": row[2],
@@ -664,5 +1100,11 @@ def load_recent_cow_execution_attempts(
                 "precheck": _json_loads(row[21], {}),
                 "market_state": _json_loads(row[22], {}),
             }
-        )
+        if wanted_category and cow_execution_attempt_category(item) != wanted_category:
+            continue
+        if not _category_within_retention(item):
+            continue
+        result.append(_decorate_attempt_review(item))
+        if len(result) >= query_limit:
+            break
     return result

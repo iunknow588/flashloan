@@ -66,6 +66,7 @@ contract AaveSequentialFlashLoanExecutor is IAaveFlashLoanReceiverLike {
     error DeadlineExpired();
     error ApproveFailed();
     error TransferFailed();
+    error MinProfitNotMet();
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PausedSet(bool paused);
@@ -95,6 +96,8 @@ contract AaveSequentialFlashLoanExecutor is IAaveFlashLoanReceiverLike {
     struct ExecutionPlan {
         SwapStep[] steps;
         uint256 deadline;
+        address profitToken;
+        uint256 minProfitAmount;
     }
 
     uint256 public constant USE_FULL_BALANCE = type(uint256).max;
@@ -211,6 +214,7 @@ contract AaveSequentialFlashLoanExecutor is IAaveFlashLoanReceiverLike {
             _executeStep(i, plan.steps[i], plan.deadline);
         }
 
+        _enforceMinProfit(plan, asset, amountOwed);
         _forceApprove(asset, pool, amountOwed);
         emit FlashLoanExecuted(asset, amount, premium);
 
@@ -237,6 +241,7 @@ contract AaveSequentialFlashLoanExecutor is IAaveFlashLoanReceiverLike {
             _executeStep(i, plan.steps[i], plan.deadline);
         }
 
+        _enforceBatchMinProfit(plan, assets, amounts, premiums);
         for (uint256 i = 0; i < assets.length; i++) {
             if (assets[i] == address(0) || amounts[i] == 0) revert InvalidPlan();
             _forceApprove(assets[i], pool, amounts[i] + premiums[i]);
@@ -285,6 +290,32 @@ contract AaveSequentialFlashLoanExecutor is IAaveFlashLoanReceiverLike {
             step.amountOutMin,
             amounts[amounts.length - 1]
         );
+    }
+
+    function _enforceMinProfit(ExecutionPlan memory plan, address asset, uint256 amountOwed) private view {
+        if (plan.profitToken == address(0) && plan.minProfitAmount == 0) return;
+        if (plan.profitToken == address(0)) revert InvalidPlan();
+        uint256 reserved = plan.profitToken == asset ? amountOwed : 0;
+        uint256 balance = IERC20Minimal(plan.profitToken).balanceOf(address(this));
+        if (balance < reserved + plan.minProfitAmount) revert MinProfitNotMet();
+    }
+
+    function _enforceBatchMinProfit(
+        ExecutionPlan memory plan,
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums
+    ) private view {
+        if (plan.profitToken == address(0) && plan.minProfitAmount == 0) return;
+        if (plan.profitToken == address(0)) revert InvalidPlan();
+        uint256 reserved = 0;
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (assets[i] == plan.profitToken) {
+                reserved += amounts[i] + premiums[i];
+            }
+        }
+        uint256 balance = IERC20Minimal(plan.profitToken).balanceOf(address(this));
+        if (balance < reserved + plan.minProfitAmount) revert MinProfitNotMet();
     }
 
     function _forceApprove(address token, address spender, uint256 amount) private {

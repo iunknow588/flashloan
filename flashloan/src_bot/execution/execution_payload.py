@@ -17,6 +17,7 @@ USE_FULL_BALANCE = str(2**256 - 1)
 class PayloadConfig:
     min_profit_usdc: float = 0.0
     deadline_seconds: int = 600
+    min_step_count: int = 3
 
 
 def build_execution_payload(execution_plan: dict, quote: dict, config: PayloadConfig | None = None) -> dict:
@@ -41,7 +42,10 @@ def build_execution_payload(execution_plan: dict, quote: dict, config: PayloadCo
         steps.append(exact_in_swap_step(router_address, step, "max_input_amount", "output_amount"))
 
     usdc = quote_token("USDC")
+    if len(steps) < max(2, int(config.min_step_count)):
+        raise ValueError("flashloan execution payload requires a multi-step closed route")
     aave_compatible, aave_reason = aave_usdc_compatibility(steps, usdc.token_address)
+    min_profit_units = str(to_units(config.min_profit_usdc, usdc.decimals)) if config.min_profit_usdc > 0 else "0"
 
     return {
         "version": 1,
@@ -51,7 +55,7 @@ def build_execution_payload(execution_plan: dict, quote: dict, config: PayloadCo
             "mockFundedExecutor": {
                 "steps": steps,
                 "profitToken": Web3.to_checksum_address(usdc.token_address),
-                "minProfit": str(to_units(config.min_profit_usdc, usdc.decimals)) if config.min_profit_usdc > 0 else "0",
+                "minProfit": min_profit_units,
                 "deadlineSeconds": int(config.deadline_seconds),
             },
             "aaveSequentialFlashLoanExecutor": {
@@ -62,6 +66,8 @@ def build_execution_payload(execution_plan: dict, quote: dict, config: PayloadCo
                 "plan": {
                     "steps": steps,
                     "deadlineSeconds": int(config.deadline_seconds),
+                    "profitToken": Web3.to_checksum_address(usdc.token_address),
+                    "minProfitAmount": min_profit_units,
                 } if aave_compatible else None,
             },
         },

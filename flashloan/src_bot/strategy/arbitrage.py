@@ -55,12 +55,6 @@ STABLE_BORROW_STRATEGY_ROUTES = {
         "route": (STABLE_SYMBOL, "y", "x", STABLE_SYMBOL),
         "price_phases": ("end", "start", "end"),
     },
-    "strategy_4_stable_usdc_to_x_to_y_to_usdc": {
-        "base_strategy": "strategy_4",
-        "direction": "stable_reverse",
-        "route": (STABLE_SYMBOL, "x", "y", STABLE_SYMBOL),
-        "price_phases": ("start", "end", "start"),
-    },
 }
 
 ALL_STRATEGY_ROUTES = {**STRATEGY_ROUTES, **STABLE_BORROW_STRATEGY_ROUTES}

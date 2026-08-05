@@ -56,6 +56,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "/api/binance-market/cow-tokens/refresh" in binance_market_panel
     assert "/api/binance-market/cow-support" in binance_market_panel
     assert "/api/binance-market/cow-execution-attempts" in binance_market_panel
+    assert "/api/binance-market/cow-candidate-queue" in binance_market_panel
     assert "cowNetworkChecks" in binance_market_panel
     assert "networkOpportunityCards" in binance_market_panel
     assert 'name="cow_network"' in binance_market_panel
@@ -73,6 +74,10 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "cowAttemptReviewConclusion" in binance_market_panel
     assert "cowAttemptReviewMetrics" in binance_market_panel
     assert "cowAttemptHistoryBody" in binance_market_panel
+    assert "cowAttemptNotExecutableBody" in binance_market_panel
+    assert "cowAttemptFailedBody" in binance_market_panel
+    assert "cowAttemptSuccessBody" in binance_market_panel
+    assert "COW_ATTEMPT_PAGE_SIZE = 10" in binance_market_panel
     assert "cowAttemptReview" in binance_market_panel
     assert "refreshCowAttemptHistory" in binance_market_panel
     assert "复制摘要" in binance_market_panel
@@ -101,7 +106,9 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'value="50" selected' in binance_market_panel
     assert "pair_side_limit=1" in binance_market_panel
     assert 'value="1" selected' in binance_market_panel
-    assert 'const quoteLimit = "1"' in binance_market_panel
+    assert "const quoteLimit = quoteLimitValue()" in binance_market_panel
+    assert "autoRefreshCowQuotes" in binance_market_panel
+    assert "AUTO_COW_QUOTE_MIN_INTERVAL_MS" in binance_market_panel
     assert "autoExecuteToggle" in binance_market_panel
     assert "自动执行检查关闭" in binance_market_panel
     assert "rawTopBody" in binance_market_panel

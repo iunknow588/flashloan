@@ -52,7 +52,7 @@ def main() -> int:
         require_dependencies()
         port = read_port()
 
-        from web.control_panel import app, initialize_liquidation_runtime
+        from web.control_panel import app, initialize_cow_arbitrage_runtime, initialize_liquidation_runtime
 
     except Exception as exc:
         print(f"startup failed: {redact_sensitive_text(exc)}", file=sys.stderr)
@@ -64,6 +64,14 @@ def main() -> int:
         except Exception as exc:
             print(
                 f"liquidation runtime initialization failed: {redact_sensitive_text(exc)}",
+                file=sys.stderr,
+                flush=True,
+            )
+        try:
+            initialize_cow_arbitrage_runtime()
+        except Exception as exc:
+            print(
+                f"CoW arbitrage runtime initialization failed: {redact_sensitive_text(exc)}",
                 file=sys.stderr,
                 flush=True,
             )

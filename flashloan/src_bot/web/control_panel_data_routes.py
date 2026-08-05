@@ -6,15 +6,29 @@ from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
 from db.storage_cow_execution import (
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
+    COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
+    COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
+    COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
     append_cow_execution_attempts_jsonl,
     build_cow_execution_attempts,
     build_cow_market_claim_candidate_attempts,
+    build_cow_market_claim_pairs,
     build_cow_market_candidate_attempts,
     load_recent_cow_execution_attempts,
     load_recent_cow_execution_attempts_jsonl,
     record_cow_execution_attempts,
 )
 from market.velocity_candidates import build_velocity_candidate_pairs
+from runtime.cow_arbitrage_daemon import (
+    cow_candidate_queue_snapshot,
+    cow_quote_daemon_enabled,
+    cow_quote_daemon_status,
+    enqueue_cow_candidate_attempts,
+    ensure_cow_quote_daemon_running,
+)
 from web.binance_market_service import (
     DEFAULT_MIN_COW_SPREAD_PERCENT,
     build_binance_market_state,
@@ -40,6 +54,11 @@ ROUTE_CONTEXT = RouteContext()
 SRC_ROOT = Path(__file__).resolve().parents[1]
 COW_EXECUTION_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
 COW_EXECUTION_RETENTION_DAYS = 7
+COW_EXECUTION_REVIEW_CATEGORIES = [
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
+]
 
 
 def panel_call(name: str, *args, **kwargs):
@@ -63,6 +82,21 @@ def _request_networks_arg() -> list[str]:
         item.strip().lower()
         for item in raw.split(",")
         if item.strip()
+    ]
+
+
+def _filter_network_claims(claims: list[dict], networks: list[str]) -> list[dict]:
+    selected = {
+        str(network or "").strip().lower()
+        for network in networks
+        if str(network or "").strip()
+    }
+    if not selected:
+        return list(claims or [])
+    return [
+        claim
+        for claim in claims or []
+        if str(claim.get("network") or "").strip().lower() in selected
     ]
 
 
@@ -108,6 +142,36 @@ def record_cow_execution_attempts_safely(
     )
 
 
+def _cow_execution_attempt_groups(
+    loader,
+    *,
+    limit: int,
+    networks: list[str],
+) -> dict[str, dict]:
+    groups = {}
+    for category in COW_EXECUTION_REVIEW_CATEGORIES:
+        rows = loader(limit=limit, networks=networks, category=category)
+        groups[category] = {
+            "attempts": rows,
+            "count": len(rows),
+            "retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS.get(category),
+            "analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS.get(category),
+            "retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY.get(category),
+            "page_size": 10,
+        }
+    return groups
+
+
+def _flatten_cow_execution_groups(groups: dict[str, dict], limit: int) -> list[dict]:
+    rows = [
+        row
+        for group in groups.values()
+        for row in group.get("attempts", [])
+    ]
+    rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)
+    return rows[: max(1, int(limit))]
+
+
 def record_cow_market_candidates_safely(
     market_states: list[dict],
     *,
@@ -134,7 +198,13 @@ def record_cow_market_candidates_safely(
             fallback_reason=fallback_reason,
         )
     )
-    return record_cow_attempt_list_safely(attempts, database_url=database_url)
+    recording = record_cow_attempt_list_safely(attempts, database_url=database_url)
+    queue_result = enqueue_cow_candidate_attempts(attempts, source="binance_market_candidates")
+    daemon_result = cow_quote_daemon_status()
+    if cow_quote_daemon_enabled() and attempts:
+        daemon = ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+        daemon_result = daemon.status()
+    return {**recording, "queue": queue_result, "daemon": daemon_result}
 
 
 def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
@@ -526,6 +596,7 @@ def register_data_routes(app, panel) -> None:
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
         pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
+        pair_side_limit = 1
         amount = request_cow_amount()
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
@@ -556,7 +627,7 @@ def register_data_routes(app, panel) -> None:
             top_limit=side_limit,
             bottom_limit=side_limit,
             pair_side_limit=pair_side_limit,
-            cow_display_limit=5,
+            cow_display_limit=1,
             slippage_bps=slippage_bps,
             cow_network=token_cache["network"],
             min_spread_percent=min_spread_percent,
@@ -567,21 +638,21 @@ def register_data_routes(app, panel) -> None:
         )
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-        market_state["cow_filter"]["cow_display_limit"] = 5
-        market_state["cow_top"] = list(market_state.get("top") or [])[:5]
-        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:5]
+        market_state["cow_filter"]["cow_display_limit"] = 1
+        market_state["cow_top"] = list(market_state.get("top") or [])[:1]
+        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:1]
         market_state["cow_network_claims"] = build_cow_network_market_claims(
             extremes,
             network_token_caches,
-            limit=5,
+            limit=1,
             min_spread_percent=min_spread_percent,
             min_side_change_percent=min_side_change_percent,
             min_token_price_usd=min_token_price_usd,
             threshold_detail=thresholds,
         )
         for claim in market_state["cow_network_claims"]:
-            claim["top"] = list(claim.get("top") or [])[:5]
-            claim["bottom"] = list(claim.get("bottom") or [])[:5]
+            claim["top"] = list(claim.get("top") or [])[:1]
+            claim["bottom"] = list(claim.get("bottom") or [])[:1]
         market_state["cow_supported_overview"] = build_cow_supported_market_overview(
             extremes,
             network_token_caches,
@@ -592,7 +663,10 @@ def register_data_routes(app, panel) -> None:
         )
         market_state["history_recording"] = record_cow_market_candidates_safely(
             [market_state],
-            network_claims=market_state.get("cow_network_claims") or [],
+            network_claims=_filter_network_claims(
+                market_state.get("cow_network_claims") or [],
+                [token_cache["network"]],
+            ),
             observed_at=market_state.get("observed_at"),
             window_seconds=market_state.get("window_seconds"),
             price_source=market_state.get("price_source"),
@@ -644,15 +718,15 @@ def register_data_routes(app, panel) -> None:
         claims = build_cow_network_market_claims(
             extremes,
             network_token_caches,
-            limit=5,
+            limit=1,
             min_spread_percent=min_spread_percent,
             min_side_change_percent=min_side_change_percent,
             min_token_price_usd=min_token_price_usd,
             threshold_detail=thresholds,
         )
         for claim in claims:
-            claim["top"] = list(claim.get("top") or [])[:5]
-            claim["bottom"] = list(claim.get("bottom") or [])[:5]
+            claim["top"] = list(claim.get("top") or [])[:1]
+            claim["bottom"] = list(claim.get("bottom") or [])[:1]
         cow_supported_overview = build_cow_supported_market_overview(
             extremes,
             network_token_caches,
@@ -690,7 +764,7 @@ def register_data_routes(app, panel) -> None:
             market_states_for_history.append(market_state)
         history_recording = record_cow_market_candidates_safely(
             market_states_for_history,
-            network_claims=claims,
+            network_claims=_filter_network_claims(claims, requested),
             observed_at=extremes.get("observed_at") if isinstance(extremes, dict) else None,
             window_seconds=extremes.get("window_seconds") if isinstance(extremes, dict) else None,
             price_source=extremes.get("price_source") if isinstance(extremes, dict) else None,
@@ -755,9 +829,11 @@ def register_data_routes(app, panel) -> None:
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
         pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
-        pair_side_limit = max(pair_side_limit, 5)
+        pair_side_limit = 1
         quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
+        quote_limit = 1
         amount = request_cow_amount()
+        quote_timeout_seconds = request_float_arg("quote_timeout_seconds", 8.0, minimum=1.0, maximum=30.0)
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
         min_side_change_percent = float(thresholds["min_side_change_percent"])
@@ -802,9 +878,11 @@ def register_data_routes(app, panel) -> None:
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
         pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
-        pair_side_limit = max(pair_side_limit, 5)
+        pair_side_limit = 1
         quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
+        quote_limit = 1
         amount = request_cow_amount()
+        quote_timeout_seconds = request_float_arg("quote_timeout_seconds", 8.0, minimum=1.0, maximum=30.0)
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
         min_side_change_percent = float(thresholds["min_side_change_percent"])
@@ -833,6 +911,30 @@ def register_data_routes(app, panel) -> None:
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
         market_state["cow_filter"]["cow_display_limit"] = 5
+        if not market_state.get("pairs"):
+            network_claims = build_cow_network_market_claims(
+                extremes,
+                {token_cache["network"]: token_cache},
+                limit=5,
+                min_spread_percent=min_spread_percent,
+                min_side_change_percent=min_side_change_percent,
+                min_token_price_usd=min_token_price_usd,
+                threshold_detail=thresholds,
+            )
+            fallback_pairs = [
+                pair
+                for claim in network_claims
+                if claim.get("network") == token_cache["network"]
+                for pair in build_cow_market_claim_pairs(
+                    claim,
+                    include_below_min_spread=True,
+                    max_pairs=1,
+                )
+            ]
+            if fallback_pairs:
+                market_state["pairs"] = fallback_pairs
+                market_state["pair_count"] = len(fallback_pairs)
+                market_state["quote_candidate_source"] = "cow_network_claim_top_bottom"
         try:
             payload = build_cow_quote_verification(
                 market_state,
@@ -840,6 +942,7 @@ def register_data_routes(app, panel) -> None:
                 quote_limit=quote_limit,
                 owner=owner,
                 cow_network=token_cache["network"],
+                quote_timeout_seconds=quote_timeout_seconds,
                 registry=token_cache["registry"],
             )
         except Exception as exc:
@@ -858,47 +961,78 @@ def register_data_routes(app, panel) -> None:
         database_url = panel_call("database_url_or_none")
         if database_url:
             try:
+                groups = _cow_execution_attempt_groups(
+                    lambda **kwargs: load_recent_cow_execution_attempts(
+                        database_url,
+                        retention_days=COW_EXECUTION_RETENTION_DAYS,
+                        **kwargs,
+                    ),
+                    limit=limit,
+                    networks=networks,
+                )
                 return jsonify(
                     {
                         "source": "database",
                         "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                        "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
+                        "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
+                        "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
                         "networks": networks,
-                        "attempts": load_recent_cow_execution_attempts(
-                            database_url,
-                            limit=limit,
-                            networks=networks,
-                            retention_days=COW_EXECUTION_RETENTION_DAYS,
-                        ),
+                        "groups": groups,
+                        "attempts": _flatten_cow_execution_groups(groups, limit),
                     }
                 )
             except Exception as exc:
+                groups = _cow_execution_attempt_groups(
+                    lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
+                        COW_EXECUTION_ATTEMPT_LOG_PATH,
+                        retention_days=COW_EXECUTION_RETENTION_DAYS,
+                        **kwargs,
+                    ),
+                    limit=limit,
+                    networks=networks,
+                )
                 return jsonify(
                     {
                         "source": "jsonl_fallback",
                         "error": data_error_message(exc),
                         "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                        "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
+                        "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
+                        "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
                         "networks": networks,
-                        "attempts": load_recent_cow_execution_attempts_jsonl(
-                            COW_EXECUTION_ATTEMPT_LOG_PATH,
-                            limit=limit,
-                            networks=networks,
-                            retention_days=COW_EXECUTION_RETENTION_DAYS,
-                        ),
+                        "groups": groups,
+                        "attempts": _flatten_cow_execution_groups(groups, limit),
                     }
                 )
+        groups = _cow_execution_attempt_groups(
+            lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
+                COW_EXECUTION_ATTEMPT_LOG_PATH,
+                retention_days=COW_EXECUTION_RETENTION_DAYS,
+                **kwargs,
+            ),
+            limit=limit,
+            networks=networks,
+        )
         return jsonify(
             {
                 "source": "jsonl",
                 "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
+                "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
+                "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
                 "networks": networks,
-                "attempts": load_recent_cow_execution_attempts_jsonl(
-                    COW_EXECUTION_ATTEMPT_LOG_PATH,
-                    limit=limit,
-                    networks=networks,
-                    retention_days=COW_EXECUTION_RETENTION_DAYS,
-                ),
+                "groups": groups,
+                "attempts": _flatten_cow_execution_groups(groups, limit),
             }
         )
+
+    @app.get("/api/binance-market/cow-candidate-queue")
+    def binance_market_cow_candidate_queue():
+        limit = request_int_arg("limit", 100, minimum=1, maximum=500)
+        if cow_quote_daemon_enabled():
+            ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+        return jsonify(cow_candidate_queue_snapshot(limit=limit))
     
     
     @app.get("/api/arbitrage/latest")

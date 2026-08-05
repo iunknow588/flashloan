@@ -38,6 +38,8 @@ function emptyPlan(deadline) {
   return {
     steps: [],
     deadline,
+    profitToken: ethers.ZeroAddress,
+    minProfitAmount: 0,
   };
 }
 
@@ -112,6 +114,30 @@ describe("AaveSequentialFlashLoanExecutor", function () {
       .to.be.revertedWithCustomError(ctx.usdc, "InsufficientBalance");
   });
 
+  it("enforces minimum profit after reserving flashloan repayment", async function () {
+    const ctx = await deployAaveFixture();
+    const amount = 1_000n * ONE_USDC;
+    const premium = (amount * 5n) / 10000n;
+    const deadline = await futureDeadline();
+    const plan = {
+      ...emptyPlan(deadline),
+      profitToken: ctx.usdcAddress,
+      minProfitAmount: 101n * ONE_USDC,
+    };
+
+    await expect(ctx.executor.requestFlashLoan(ctx.usdcAddress, amount, plan))
+      .to.be.revertedWithCustomError(ctx.executor, "MinProfitNotMet");
+
+    const passPlan = {
+      ...emptyPlan(deadline),
+      profitToken: ctx.usdcAddress,
+      minProfitAmount: 99n * ONE_USDC,
+    };
+    await expect(ctx.executor.requestFlashLoan(ctx.usdcAddress, amount, passPlan))
+      .to.emit(ctx.executor, "FlashLoanExecuted")
+      .withArgs(ctx.usdcAddress, amount, premium);
+  });
+
   it("rejects non-owner requests", async function () {
     const ctx = await deployAaveFixture();
     const deadline = await futureDeadline();
@@ -126,7 +152,7 @@ describe("AaveSequentialFlashLoanExecutor", function () {
     const deadline = await futureDeadline();
     const encodedPlan = ethers.AbiCoder.defaultAbiCoder().encode(
       [
-        "tuple(tuple(address router,address tokenIn,address tokenOut,uint256 amountIn,uint256 amountOutMin,address[] path)[] steps,uint256 deadline)",
+        "tuple(tuple(address router,address tokenIn,address tokenOut,uint256 amountIn,uint256 amountOutMin,address[] path)[] steps,uint256 deadline,address profitToken,uint256 minProfitAmount)",
       ],
       [emptyPlan(deadline)]
     );

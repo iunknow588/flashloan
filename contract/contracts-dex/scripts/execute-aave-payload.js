@@ -44,6 +44,8 @@ function reportSummary({ payloadFile, aavePayload, steps, latest, deadline, exec
     blockTimestamp: latest.timestamp,
     deadline: deadline.toString(),
     deadlineSeconds: Number(aavePayload.plan.deadlineSeconds || 600),
+    profitToken: aavePayload.plan.profitToken || null,
+    minProfitAmount: String(aavePayload.plan.minProfitAmount || "0"),
     borrowAsset: aavePayload.borrowAsset,
     borrowAmount: String(aavePayload.borrowAmount),
     quoteAgeSeconds: aavePayload.quoteAgeSeconds ?? aavePayload.quote_age_seconds ?? null,
@@ -76,7 +78,12 @@ async function run({ hreLike = hre, env = process.env } = {}) {
   const latest = await hreLike.ethers.provider.getBlock("latest");
   const deadline = BigInt(latest.timestamp + Number(aavePayload.plan.deadlineSeconds || 600));
   const steps = buildSteps(aavePayload);
-  const plan = { steps, deadline };
+  const plan = {
+    steps,
+    deadline,
+    profitToken: aavePayload.plan.profitToken || hreLike.ethers.ZeroAddress,
+    minProfitAmount: BigInt(aavePayload.plan.minProfitAmount || 0),
+  };
   const ownerGate = await ownerMatchesSigner(hreLike, executor, env);
   const startedAt = new Date().toISOString();
 

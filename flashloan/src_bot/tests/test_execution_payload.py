@@ -67,6 +67,8 @@ def test_build_payload_marks_plan_as_aave_compatible_when_it_returns_to_borrowed
     assert payload["contract"]["mockFundedExecutor"]["minProfit"] == "250000"
     assert payload["contract"]["aaveSequentialFlashLoanExecutor"]["compatible"] is True
     assert payload["contract"]["aaveSequentialFlashLoanExecutor"]["borrowAsset"] == "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7"
+    assert payload["contract"]["aaveSequentialFlashLoanExecutor"]["plan"]["profitToken"] == USDC
+    assert payload["contract"]["aaveSequentialFlashLoanExecutor"]["plan"]["minProfitAmount"] == "250000"
 
 
 def test_build_payload_rejects_non_viable_quote():
@@ -74,5 +76,35 @@ def test_build_payload_rejects_non_viable_quote():
         build_execution_payload({}, {"viable": False, "errors": []})
     except ValueError as exc:
         assert "execution_plan is required" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_build_payload_rejects_single_step_routes():
+    quote = {
+        "dex_name": "Trader Joe V2",
+        "router_address": "0x60aE616a2155Ee3d9A68541Ba4544862310933d4",
+        "slippage_bps": 50,
+        "errors": [],
+        "viable": True,
+        "buy_steps": [
+            {
+                "rank": 1,
+                "action": "single_swap",
+                "from_symbol": "USDC",
+                "to_symbol": "AVAXUSDT",
+                "input_amount": 1.0,
+                "min_output_amount": 0.01,
+                "path": [USDC, "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7"],
+            }
+        ],
+        "sell_steps": [],
+        "repay_steps": [],
+    }
+
+    try:
+        build_execution_payload({"version": 1, "mode": "test"}, quote)
+    except ValueError as exc:
+        assert "multi-step closed route" in str(exc)
     else:
         raise AssertionError("expected ValueError")

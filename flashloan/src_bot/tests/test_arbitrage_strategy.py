@@ -52,9 +52,9 @@ def test_simulate_pair_applies_signed_two_strategy_rule():
     assert pair["best_strategy"] == "strategy_3_stable_usdc_to_y_to_x_to_usdc"
     assert pair["borrow_symbol"] == "USDC"
     assert pair["route_symbols"] == ["USDC", "Y", "X", "USDC"]
-    assert len(pair["candidate_strategies"]) == 2
+    assert len(pair["candidate_strategies"]) == 1
     assert pair["m1_profit_usd"] > 0
-    assert pair["m2_profit_usd"] > 0
+    assert pair["m2_profit_usd"] == 0
     assert pair["profit_usd"] > 0
 
 
@@ -94,7 +94,7 @@ def test_simulate_basket_reports_grid_counts_and_closed_execution_route():
     result = simulate_basket(extremes, config)
 
     assert result["candidate_pair_count"] == 4
-    assert result["evaluated_strategy_count"] == 8
+    assert result["evaluated_strategy_count"] == 4
     assert result["signal"] is True
     assert result["borrow_symbol"] == "USDC"
     assert result["route_symbols"][0] == "USDC"

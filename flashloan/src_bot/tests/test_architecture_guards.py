@@ -76,6 +76,7 @@ def test_web_route_registration_smoke():
     assert "/api/binance-market/cow-support" in paths
     assert "/api/binance-market/cow-quotes" in paths
     assert "/api/binance-market/cow-execution-attempts" in paths
+    assert "/api/binance-market/cow-candidate-queue" in paths
     assert "/api/binance-velocity/candidates" in paths
     assert "/api/liquidation-health" in paths
     assert "/api/liquidation/borrow-pool/scan" in paths
@@ -94,3 +95,15 @@ def test_page_status_enums_do_not_include_cross_page_route_nodes():
     }
 
     assert status_values.isdisjoint(route_nodes)
+
+
+def test_cow_quotes_route_defines_quote_timeout_before_use():
+    source = (SRC_ROOT / "web/control_panel_data_routes.py").read_text(encoding="utf-8")
+    function_start = source.index("def binance_market_cow_quotes():")
+    function_end = source.index("@app.get(\"/api/binance-market/cow-execution-attempts\")", function_start)
+    body = source[function_start:function_end]
+
+    assignment_at = body.index("quote_timeout_seconds = request_float_arg")
+    use_at = body.index("quote_timeout_seconds=quote_timeout_seconds")
+
+    assert assignment_at < use_at
