@@ -327,16 +327,31 @@ def test_cow_thresholds_use_dynamic_profit_floor_not_requested_spread():
     assert thresholds["min_profit_percent"] == "0.618"
 
 
-def test_cow_execution_precheck_uses_percent_profit_floor():
+def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
     precheck = _cow_execution_precheck(
         {
             "input_amount": "1000",
             "final_delta_amount": "1",
+            "final_amount": "1001",
             "final_symbol": "USDC",
             "viable": True,
             "cow_support": {"supported": True},
             "hops": [{"buy_amount": "100"}],
+            "cow_flashloan_intent": {
+                "enabled": True,
+                "ready": True,
+                "control_mode": "intent",
+                "min_final_amount": "1005",
+                "min_pure_profit_amount": "5",
+            },
+            "cow_flashloan_sdk_plan": {
+                "flashloan_capability": {"submission_safe": True},
+            },
             "binance_execution_plan": {
+                "available": True,
+                "final_symbol": "USDC",
+                "profit_amount": "1",
+                "profit_percent": "0.1",
                 "steps": [
                     {
                         "from_symbol": "USDC",
@@ -353,9 +368,12 @@ def test_cow_execution_precheck_uses_percent_profit_floor():
         }
     )
 
-    assert precheck["status"] == "profit_below_threshold"
+    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["checks_passed"] is True
     assert precheck["profit_positive"] is True
     assert precheck["profit_above_auto_threshold"] is False
+    assert precheck["local_profit_gate_enforced"] is False
+    assert precheck["local_profit_diagnostic_reasons"]
     assert precheck["auto_execute_min_profit_usd"] == "6.18"
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
 
