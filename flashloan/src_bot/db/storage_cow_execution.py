@@ -193,8 +193,6 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
     phase = str(row.get("execution_phase") or "").strip().lower()
     checks_passed = bool(row.get("checks_passed"))
     can_submit_order = bool(row.get("can_submit_order"))
-    order_submission_enabled = bool(row.get("order_submission_enabled"))
-    auto_execute_requested = bool(row.get("auto_execute_requested"))
     sdk = _cow_sdk_result_from_attempt(row)
     sdk_status = _cow_sdk_status_from_attempt(row)
     submission_attempted = bool(
@@ -205,21 +203,33 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
 
     if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
         return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
-    if sdk_status in _FAILED_STATES or "failed" in sdk_status or "error" in sdk_status:
+    terminal_failure_states = {
+        "quote_failed",
+        "submission_failed",
+        "submit_failed",
+        "order_failed",
+        "execution_failed",
+        "settlement_failed",
+        "confirmation_failed",
+        "confirmed_failed",
+        "failed",
+        "error",
+    }
+    if (
+        sdk_status in terminal_failure_states
+        or state in terminal_failure_states
+        or "failed" in sdk_status
+        or "error" in sdk_status
+    ):
         return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
     if phase == "market_candidate" or state in _NOT_EXECUTABLE_STATES:
         return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     if not checks_passed or not can_submit_order:
         return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    if sdk_status in {"quote_precheck", "quote_required", "not_submitted", "ready_not_submitted", "limit_order_ready_not_submitted", "limit_order_ready_to_submit", "ready_to_submit"} and not submission_attempted:
+    if sdk_status in {"", "quote_precheck", "quote_required", "not_submitted", "ready_not_submitted", "limit_order_ready_not_submitted", "limit_order_ready_to_submit", "ready_to_submit"}:
         return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    if (
-        phase in _EXECUTION_PHASES
-        or order_submission_enabled
-        or auto_execute_requested
-        or submission_attempted
-    ):
-        return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
+    if submission_attempted:
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
 
 
