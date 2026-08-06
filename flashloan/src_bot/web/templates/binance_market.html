@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DEX 濂楀埄 | CoW SDK</title>
+  <title>DEX 套利 | CoW SDK</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
@@ -78,12 +78,16 @@
     .review-pager button { width: 28px; height: 28px; border: 1px solid #d0d5dd; background: #fff; border-radius: 6px; cursor: pointer; }
     .review-pager button:disabled { opacity: .45; cursor: default; }
     .review-group-note { margin-bottom: 8px; font-size: 12px; color: #667085; }
+    .cow-pause-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 10px; }
+    .cow-pause-note { font-size: 12px; color: #667085; line-height: 1.45; }
+    .cow-pause-state { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .cow-pause-state span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 5px 8px; background: #fff; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
     @media (max-width: 900px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } .route-grid { grid-template-columns: 1fr; } .route-cell { min-width: 300px; } .network-opportunity-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>DEX 濂楀埄 | CoW SDK</h1>
+    <h1>DEX 套利 | CoW SDK</h1>
     <nav>
       <a href="/liquidation">娓呯畻</a>
       <a href="/account-scan">璐︽埛鎵弿</a>
@@ -97,12 +101,12 @@
   </header>
   <main>
     <div class="toolbar">
-      <button class="primary" id="refreshBtn">鍒锋柊瑙﹀彂琛屾儏</button>
-      <button id="refreshTokensBtn">鍒锋柊鏀寔浠ｅ竵</button>
-      <button id="supportBtn">CoW 鏀寔妫€鏌?/button>
-      <button id="quoteBtn">CoW SDK 鎶ヤ环楠岃瘉</button>
-      <button id="copySummaryBtn">澶嶅埗鎽樿</button>
-      <button id="copyQuotesBtn">澶嶅埗鎶ヤ环</button>
+      <button class="primary" id="refreshBtn">刷新触发行情</button>
+      <button id="refreshTokensBtn">刷新支持代币</button>
+      <button id="supportBtn">CoW 支持检查</button>
+      <button id="quoteBtn">CoW SDK 报价验证</button>
+      <button id="copySummaryBtn">复制摘要</button>
+      <button id="copyQuotesBtn">复制报价</button>
       <select id="sideLimitSelect">
         <option value="5">鍓?5 鍚?/option>
         <option value="10">鍓?10 鍚?/option>
@@ -113,9 +117,10 @@
         <option value="1" selected>姣忛摼 1 缁?/option>
       </select>
       <div id="cowNetworkChecks" class="network-checks" title="閫夋嫨瑕佸悓鏃跺睍绀哄拰鎶ヤ环鐨?CoW 缃戠粶"></div>
-      <label class="auto-toggle" title="鍑€鍒╂鼎杈惧埌鍔ㄦ€侀槇鍊兼椂杩涘叆鑷姩鎵ц妫€鏌ワ紱鐪熷疄涓嬪崟浠嶅彈鍚庣涓嬪崟妯″潡鎺у埗">
+      <label class="auto-toggle" title="满足意图条件后进入自动执行检查；真实下单仍受后端提交模块和暂停窗口控制">
         <input id="autoExecuteToggle" type="checkbox" checked>
-        鍑€鍒╂鼎杈惧埌鍔ㄦ€侀槇鍊兼椂鑷姩鎵ц妫€鏌?      </label>
+        自动执行检查
+      </label>
       <input id="quoteAmountInput" inputmode="decimal" min="0" step="0.000001" type="number" value="1000" title="CoW quote amount">
       <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="0" title="棰濆鎵嬪姩浠峰樊 %">
       <span id="cowQuoteContext" class="context">CoW -</span>
@@ -124,13 +129,13 @@
     <section class="grid">
       <div class="card"><small>瑙傚療绐楀彛</small><strong id="windowSeconds">-</strong><span id="observedAt">-</span></div>
       <div class="card"><small>鏍锋湰鏁伴噺</small><strong id="sampleCount">-</strong><span id="universeSize">-</span></div>
-      <div class="card"><small>CoW 鏀寔杩囨护</small><strong id="cowTokenCount">-</strong><span id="cowMatchCount">-</span><span id="cowFilterMeta">-</span></div>
+      <div class="card"><small>CoW 支持过滤</small><strong id="cowTokenCount">-</strong><span id="cowMatchCount">-</span><span id="cowFilterMeta">-</span></div>
       <div class="card"><small>濂楀埄鍊欓€夎矾寰?/small><strong id="pairCount">-</strong><span id="bestPair">-</span></div>
       <div class="card"><small>鏈€浣?CoW 缁撴灉</small><strong id="notionalUsd">-</strong><span id="quoteState">绛夊緟鎶ヤ环</span></div>
     </section>
     <section class="split">
       <div class="card">
-        <h2 id="cowSupportedTopTitle">鎵€鏈?CoW 鏀寔浠ｅ竵娑ㄥ箙鍓?50</h2>
+        <h2 id="cowSupportedTopTitle">所有 CoW 支持代币涨幅前 50</h2>
         <div id="cowSupportedTopMeta" class="context">绛夊緟杩囨护鏉′欢</div>
         <div class="table-wrap">
           <table>
@@ -140,7 +145,7 @@
         </div>
       </div>
       <div class="card">
-        <h2 id="cowSupportedBottomTitle">鎵€鏈?CoW 鏀寔浠ｅ竵璺屽箙鍓?50</h2>
+        <h2 id="cowSupportedBottomTitle">所有 CoW 支持代币跌幅前 50</h2>
         <div id="cowSupportedBottomMeta" class="context">绛夊緟杩囨护鏉′欢</div>
         <div class="table-wrap">
           <table>
@@ -151,25 +156,25 @@
       </div>
     </section>
     <section class="card" style="margin-bottom:18px">
-      <h2>閫変腑 CoW 缃戠粶鍊欓€夐摼璺?/h2>
+      <h2>选中 CoW 网络候选链路</h2>
       <div id="networkOpportunityCards" class="network-opportunity-grid"></div>
     </section>
     <section class="card" style="margin-bottom:18px">
-      <h2>鍚?CoW 缃戠粶鏀寔 Top/Bottom 5</h2>
+      <h2>各 CoW 网络支持 Top/Bottom 5</h2>
       <div id="networkClaims" class="network-claims"></div>
     </section>
     <section class="card">
       <h2 id="pairTitle">澶氶摼绋冲畾甯侀棴鐜鍒╁€欓€夎矾寰?/h2>
-      <div class="muted">Binance 琛屾儏鍏堢粰鍑虹患鍚堟帓鍚嶏紱姣忔潯閾句粠鑷繁鐨?CoW 鏀寔浠ｅ竵閲岀嫭绔嬭棰嗘渶楂樻定骞呭拰鏈€楂樿穼骞咃紝鍚屼竴涓唬甯佸彲浠ュ悓鏃跺嚭鐜板湪澶氭潯閾俱€?/div>
+      <div class="muted">Binance 行情先给出综合排名；每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅，同一个代币可以同时出现在多条链。</div>
       <div class="muted">姣忎釜閾惧崱鐗囧唴灞曠ず U-X-Y-U 涓?U-Y-X-U 璺緞銆佷笁浠锋潵婧愩€佺洰鏍囦环銆佹粦鐐硅竟鐣屻€佸噣鍒╂鼎鍜屾墽琛岀姸鎬併€?/div>
     </section>
     <section class="card" style="margin-top:18px">
-      <h2>CoW SDK 濂楀埄鎶ヤ环楠岃瘉</h2>
+      <h2>CoW SDK 报价验证</h2>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>#</th><th>鍏戞崲瀵?/th><th>鍒濆鏁伴噺</th><th>CoW 鎶ヤ环娴佺▼</th><th>CoW 鎶ヤ环姣斾緥</th><th>CoW 棰勮缁撴灉</th><th>宸</th><th>鐘舵€?/th>
+              <th>#</th><th>兑换对</th><th>初始数量</th><th>CoW 报价流程</th><th>CoW 报价比例</th><th>CoW 预计结果</th><th>差额</th><th>状态</th>
             </tr>
           </thead>
           <tbody id="cowQuoteBody"></tbody>
@@ -186,9 +191,25 @@
         </table>
       </div>
     </section>
+    <section class="card" style="margin-top:18px">
+      <h2>CoW 自动流程暂停窗口</h2>
+      <div class="cow-pause-actions">
+        <button id="cowSubmissionPauseToggleBtn" class="primary">暂停自动流程</button>
+        <button id="cowSubmissionPauseClearBtn">恢复自动流程</button>
+        <button id="cowSubmissionPauseRefreshBtn">刷新状态</button>
+        <span id="cowSubmissionPauseMessage" class="context">waiting for pause state</span>
+      </div>
+      <div class="cow-pause-note">暂停后，页面行情仍可刷新；CoW 候选入队、复盘写库/写 JSONL、后台自动报价和真实提交都会停止。</div>
+      <div class="cow-pause-state">
+        <span id="cowSubmissionPauseStatus">-</span>
+        <span id="cowSubmissionPauseReason">-</span>
+        <span id="cowSubmissionPauseUpdatedAt">-</span>
+        <span id="cowSubmissionPauseLastChange">-</span>
+      </div>
+    </section>
     <section class="split" style="margin-top:18px">
       <div class="card">
-        <h2 id="rawTopTitle">Binance 娑ㄥ箙鍓?5</h2>
+        <h2 id="rawTopTitle">Binance 原始涨幅前 5</h2>
         <div class="context">鍘熷绐楀彛鎺掑簭锛氫粎鎺掗櫎浠锋牸浣庝簬 0.01U銆?/div>
         <div class="table-wrap">
           <table>
@@ -198,7 +219,7 @@
         </div>
       </div>
       <div class="card">
-        <h2 id="rawBottomTitle">Binance 璺屽箙鍓?5</h2>
+        <h2 id="rawBottomTitle">Binance 原始跌幅前 5</h2>
         <div class="context">鍘熷绐楀彛鎺掑簭锛氫粎鎺掗櫎浠锋牸浣庝簬 0.01U銆?/div>
         <div class="table-wrap">
           <table>
@@ -211,8 +232,8 @@
     <section class="review-section" id="cowExecutionReviewSection">
       <div class="review-head">
         <div>
-          <h2>CoW 鎵ц澶嶇洏鍘嗗彶</h2>
-          <div class="muted">璁板綍婊¤冻鍊欓€夋潯浠跺悗鐨勬姤浠枫€侀妫€銆侀樆鏂師鍥犲拰鏈€缁堢姸鎬侊紝鐢ㄤ簬浜嬪悗澶嶇洏銆?/div>
+          <h2>CoW 执行复盘历史</h2>
+          <div class="muted">记录满足候选条件后的报价、预检、阻断原因和最终状态，用于事后复盘。</div>
         </div>
         <div id="cowAttemptHistorySource" class="review-source">source -</div>
       </div>
@@ -220,39 +241,39 @@
       <div id="cowAttemptReviewMetrics" class="review-metrics"></div>
       <div class="review-group" id="cowAttemptNotExecutableGroup">
         <div class="review-group-head">
-          <h3>绛夊緟 CoW quote / SDK 杩斿洖</h3>
+          <h3>等待 CoW quote / SDK 返回</h3>
           <div class="review-pager" id="cowAttemptNotExecutablePager"></div>
         </div>
         <div class="review-group-note" id="cowAttemptNotExecutableNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>褰撳墠绛夊緟椤?/th></tr></thead>
+            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>SDK/绛夊緟鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>当前等待状态</th></tr></thead>
             <tbody id="cowAttemptNotExecutableBody"></tbody>
           </table>
         </div>
       </div>
       <div class="review-group" id="cowAttemptFailedGroup">
         <div class="review-group-head">
-          <h3>鎵ц澶辫触</h3>
+          <h3>SDK 执行失败</h3>
           <div class="review-pager" id="cowAttemptFailedPager"></div>
         </div>
         <div class="review-group-note" id="cowAttemptFailedNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>澶辫触鍘熷洜</th></tr></thead>
+            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>SDK/绛夊緟鐘舵€?/th><th>琛屶儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>失败原因</th></tr></thead>
             <tbody id="cowAttemptFailedBody"></tbody>
           </table>
         </div>
       </div>
       <div class="review-group" id="cowAttemptSuccessGroup">
         <div class="review-group-head">
-          <h3>鎵ц鎴愬姛</h3>
+          <h3>SDK 执行成功</h3>
           <div class="review-pager" id="cowAttemptSuccessPager"></div>
         </div>
         <div class="review-group-note" id="cowAttemptSuccessNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>缁撴灉</th></tr></thead>
+            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>SDK/绛夊緟鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>结果</th></tr></thead>
             <tbody id="cowAttemptSuccessBody"></tbody>
           </table>
         </div>
@@ -269,7 +290,7 @@
       </div>
     </section>
     <section class="card" style="margin-top:18px">
-      <h2>琛屾儏瑙﹀彂璧勪骇</h2>
+      <h2>行情触发资产</h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>浠ｅ竵</th><th>娑ㄨ穼骞?/th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>绐楀彛</th><th>鐘舵€?/th></tr></thead>
@@ -295,6 +316,7 @@
     const COW_ATTEMPT_PAGE_SIZE = 10;
     const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
     let latestCowAttemptHistoryPayload = null;
+    let latestCowSubmissionPausePayload = null;
     /*
     const COW_ATTEMPT_GROUP_META = {
       not_executable: {
@@ -325,28 +347,28 @@
     */
     const COW_ATTEMPT_GROUP_META = {
       not_executable: {
-        label: "Not executable",
+        label: "报价等待 / 报价失败 / 提交暂停 / SDK 等待",
         bodyId: "cowAttemptNotExecutableBody",
         pagerId: "cowAttemptNotExecutablePager",
         noteId: "cowAttemptNotExecutableNote",
-        empty: "No not-executable CoW review records",
-        retention: "analysis 1 day | storage current+previous day buckets",
+        empty: "暂无报价等待、报价失败、提交暂停或 SDK 等待记录",
+        retention: "分析 1 天 | 存储当前与前一自然日",
       },
       execution_failed: {
-        label: "Execution failed",
+        label: "SDK 执行失败",
         bodyId: "cowAttemptFailedBody",
         pagerId: "cowAttemptFailedPager",
         noteId: "cowAttemptFailedNote",
-        empty: "No failed execution records",
-        retention: "analysis 7 days | storage current+previous week buckets",
+        empty: "暂无 SDK 确认失败记录",
+        retention: "分析 7 天 | 存储当前与前一周",
       },
       execution_success: {
-        label: "Execution success",
+        label: "SDK 执行成功",
         bodyId: "cowAttemptSuccessBody",
         pagerId: "cowAttemptSuccessPager",
         noteId: "cowAttemptSuccessNote",
-        empty: "No successful execution records",
-        retention: "long-term retention",
+        empty: "暂无 SDK 确认成功记录",
+        retention: "长期保留",
       },
     };
 
@@ -465,14 +487,21 @@
       if (lower.includes("<html") || lower.includes("<!doctype") || lower.includes("http")) return "quote_api_http_error";
       return text.length > 240 ? `${text.slice(0, 240)}...` : text;
     };
+    const nonFailureReason = reason => new Set([
+      "cow_flashloan_sdk_intent_ready",
+      "limit_order_ready_to_submit",
+      "ready_to_submit",
+      "checks_passed",
+    ]).has(String(reason || "").trim().toLowerCase());
     const historyReasons = row => {
       const sdk = historyCowSdk(row);
       const sdkStatus = historyCowSdkStatus(row);
       const reasons = (row?.blocked_reasons || row?.precheck?.reasons || []).map(cowErrorSummary).filter(Boolean);
       const sdkReason = sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "";
-      if (sdkStatus) reasons.unshift(historyCowSdkSubmitted(row) ? `sdk_status:${sdkStatus}` : `sdk_pending:${sdkStatus}`);
       if (sdkReason) reasons.unshift(cowErrorSummary(sdkReason));
-      return reasons.join("; ") || cowErrorSummary(row?.error) || "-";
+      if (sdkStatus && historyCowSdkSubmitted(row)) reasons.unshift(`sdk_status:${sdkStatus}`);
+      if (sdkStatus && historySdkWaiting(row)) reasons.unshift(`sdk_pending:${sdkStatus}`);
+      return reasons.filter(reason => !nonFailureReason(reason)).join("; ") || cowErrorSummary(row?.error) || "-";
     };
     const historyPureProfit = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
     const historyReview = row => row?.review_summary || {};
@@ -482,14 +511,40 @@
     };
     const historyCowSdkStatus = row => String(historyCowSdk(row)?.submission_status || historyCowSdk(row)?.status || "").trim().toLowerCase();
     const historyCowSdkSubmitted = row => Boolean(historyCowSdk(row)?.submission_attempted || historyCowSdk(row)?.submission_order_id || historyCowSdk(row)?.submission_tx_hash);
+    const historyCowSdkHasResult = row => {
+      const sdk = historyCowSdk(row);
+      return Boolean(
+        sdk?.submission_attempted
+        || sdk?.submission_order_id
+        || sdk?.submission_tx_hash
+        || sdk?.submission_status
+        || sdk?.status
+        || sdk?.submission_error
+        || sdk?.error
+      );
+    };
+    const historyQuoteWaiting = row => {
+      const state = String(row?.state || "").trim().toLowerCase();
+      const sdkStatus = historyCowSdkStatus(row);
+      return !historyCowSdkSubmitted(row) && (["quote_required", "quote_unavailable", "market_candidate"].includes(state) || ["quote_required", "quote_unavailable", "not_submitted", "ready_not_submitted"].includes(sdkStatus));
+    };
+    const historySdkWaiting = row => {
+      const sdkStatus = historyCowSdkStatus(row);
+      const state = String(row?.state || "").trim().toLowerCase();
+      const pendingStates = new Set(["submission_pending", "submitted", "order_pending", "settlement_pending", "confirmation_pending", "pending"]);
+      return historyCowSdkHasResult(row)
+        && !historyCowSdkSubmitted(row)
+        && (pendingStates.has(sdkStatus) || pendingStates.has(state));
+    };
     const historyAttemptState = row => {
       const sdkStatus = historyCowSdkStatus(row);
       const state = String(row?.state || "").trim().toLowerCase();
-      if (sdkStatus) return historyCowSdkSubmitted(row) ? `sdk:${sdkStatus}` : `sdk_pending:${sdkStatus}`;
+       if (sdkStatus) return historyCowSdkSubmitted(row) ? `sdk:${sdkStatus}` : `waiting:${sdkStatus}`;
+      if (["quote_required", "quote_unavailable", "market_candidate", "submission_paused"].includes(state)) return `waiting:${state}`;
       return state || "-";
     };
     const sdkSuccessStates = new Set(["submitted_success", "confirmed_success", "settled", "settlement_success", "executed", "execution_success", "success"]);
-    const sdkFailureStates = new Set(["submission_failed", "submit_failed", "quote_failed", "order_failed", "execution_failed", "settlement_failed", "confirmation_failed", "confirmed_failed", "failed", "error"]);
+    const sdkFailureStates = new Set(["submission_failed", "submit_failed", "order_failed", "execution_failed", "settlement_failed", "confirmation_failed", "confirmed_failed", "failed", "error"]);
     const historyThreshold = row => historyReview(row)?.threshold || {};
     const historyMarketHtml = row => {
       const review = historyReview(row);
@@ -572,9 +627,19 @@
       `reason: ${historyReasons(row)}`,
     ].join("\n");
     const historyReasonList = row => {
+      const sdk = historyCowSdk(row);
+      const sdkStatus = historyCowSdkStatus(row);
+      const sdkReason = cowErrorSummary(sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "");
+      if (sdkReason) return [sdkReason];
+      if (historyCowSdkSubmitted(row) && sdkStatus) return [`sdk_status:${sdkStatus}`];
+      if (historySdkWaiting(row) && sdkStatus) return [`sdk_pending:${sdkStatus}`];
       const reasons = row?.blocked_reasons || row?.precheck?.reasons || [];
-      if (Array.isArray(reasons) && reasons.length) return reasons.map(item => String(item || "").trim()).filter(Boolean);
-      return row?.error ? [String(row.error)] : [];
+      if (Array.isArray(reasons) && reasons.length) {
+        return reasons
+          .map(item => cowErrorSummary(item))
+          .filter(reason => reason && !nonFailureReason(reason));
+      }
+      return row?.error ? [cowErrorSummary(row.error)] : [];
     };
     /*
     function cowAttemptReview(rows) {
@@ -626,63 +691,67 @@
       const items = Array.isArray(rows) ? rows : [];
       if (!items.length) {
         return {
-          conclusion: "No CoW execution review records yet. Market candidates, quote checks, prechecks, blocks, failures, and successes will be recorded here.",
-          metrics: ["records 0", "checks passed 0", "submittable 0", "blocked/failed 0"],
+          conclusion: "暂无 CoW 执行复盘记录。行情候选、报价检查、预检、暂停、SDK 失败和成功都会记录在这里。",
+          metrics: ["记录 0", "报价等待 0", "SDK 等待 0", "SDK 失败 0", "SDK 成功 0"],
         };
       }
       const precheckPassed = items.filter(row => row?.checks_passed);
       const sdkSuccess = items.filter(row => sdkSuccessStates.has(historyCowSdkStatus(row)) && historyCowSdkSubmitted(row));
       const sdkFailed = items.filter(row => sdkFailureStates.has(historyCowSdkStatus(row)) && historyCowSdkSubmitted(row));
-      const sdkPending = items.filter(row => !historyCowSdkSubmitted(row) && !sdkSuccessStates.has(historyCowSdkStatus(row)) && !sdkFailureStates.has(historyCowSdkStatus(row)));
+      const quoteWaiting = items.filter(historyQuoteWaiting);
+      const sdkPending = items.filter(historySdkWaiting);
       const notExecutable = items.filter(row => clientCowAttemptCategory(row) === "not_executable");
-      const topReasonRows = sdkFailed.length ? sdkFailed : (sdkPending.length ? sdkPending : items);
+      const topReasonRows = sdkFailed.length ? sdkFailed : (sdkPending.length ? sdkPending : quoteWaiting.length ? quoteWaiting : items);
       const topReason = cowAttemptReasonTop(topReasonRows);
       const latest = items[0] || {};
       const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyPureProfit(latest)}`;
       const conclusion = sdkSuccess.length
-        ? `Review: ${sdkSuccess.length} SDK-confirmed success record(s). Latest: ${latestLine}`
+        ? `复盘结论：有 ${sdkSuccess.length} 条 SDK 确认成功记录。最近一条：${latestLine}`
         : sdkFailed.length
-          ? `Review: ${sdkFailed.length} SDK-confirmed failure record(s) in ${items.length} recent record(s). Main reason: ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}. Latest: ${latestLine}`
-          : `Review: ${sdkPending.length} record(s) still waiting for CoW quote or SDK return in ${items.length} recent record(s). Main reason: ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}. Latest: ${latestLine}`;
+          ? `复盘结论：最近 ${items.length} 条中有 ${sdkFailed.length} 条 SDK 确认失败。主要失败项：${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}。最近一条：${latestLine}`
+          : quoteWaiting.length
+            ? `复盘结论：最近 ${items.length} 条中有 ${quoteWaiting.length} 条仍在等待 CoW 报价，不属于 SDK pending。最近一条：${latestLine}`
+            : `复盘结论：最近 ${items.length} 条中有 ${sdkPending.length} 条仍在等待 SDK 返回。最近一条：${latestLine}`;
       return {
         conclusion,
         metrics: [
-          `records ${items.length}`,
-          `sdk success ${sdkSuccess.length}`,
-          `sdk failure ${sdkFailed.length}`,
-          `sdk pending ${sdkPending.length}`,
-          `precheck passed ${precheckPassed.length}`,
-          `not executable ${notExecutable.length}`,
-          `main reason ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
+          `记录 ${items.length}`,
+          `SDK 成功 ${sdkSuccess.length}`,
+          `SDK 失败 ${sdkFailed.length}`,
+          `报价等待 ${quoteWaiting.length}`,
+          `SDK 等待 ${sdkPending.length}`,
+          `预检通过 ${precheckPassed.length}`,
+          `未进入 SDK 终态 ${notExecutable.length}`,
+          `主要状态 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
         ],
       };
     }
     const costText = (quote, plan) => {
       const costs = quote?.costs || {};
-      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "绛夊緟 CoW SDK 鎶ヤ环";
+      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
       return [
-        `鍘熺敓甯佷綑棰濓細before ${costs.native_balance_before ?? "鏈鏌?} / after ${costs.native_balance_after ?? "鏈鏌?} (${costs.native_balance_source || "quote_stage"})`,
-        `Gas锛歲uote ${costs.quote_api_gas_used ?? 0}锛涗笅鍗?${costs.user_order_submission_gas_used ?? 0}锛涚粨绠?${costs.settlement_gas_payer || "solver"}锛涙巿鏉?${costs.approval_gas_status || "寰呮鏌?}`,
-        `鎵嬬画璐癸細${feeLines(costs)}`,
-        `鐩橀潰鐩堝埄锛?{planProfit(plan)}`,
-        `CoW 鐩稿 Binance 浼扮畻锛?{quoteVsPlan(quote, plan)}`,
-        `CoW 鐩堝埄锛?{actualProfit}`,
+        `原生币余额：before ${costs.native_balance_before ?? "未检查"} / after ${costs.native_balance_after ?? "未检查"} (${costs.native_balance_source || "quote_stage"})`,
+        `Gas：quote ${costs.quote_api_gas_used ?? 0}；下单 ${costs.user_order_submission_gas_used ?? 0}；结算 ${costs.settlement_gas_payer || "solver"}；授权 ${costs.approval_gas_status || "待检查"}`,
+        `手续费：${feeLines(costs)}`,
+        `盘面盈利：${planProfit(plan)}`,
+        `CoW 相对 Binance 估算：${quoteVsPlan(quote, plan)}`,
+        `CoW 盈利：${actualProfit}`,
       ].join("\n");
     };
     const supportText = support => {
-      if (!support) return "CoW 鏀寔锛氭湭妫€鏌?;
+      if (!support) return "CoW 支持：未检查";
       return support.supported
-        ? `CoW 鏀寔锛?{support.cow_network} 鍙瘑鍒玚
-        : `CoW 鏀寔锛氫笉鏀寔 ${support.unsupported_tokens?.join(", ") || "-"}`;
+        ? `CoW 支持：${support.cow_network} 可识别`
+        : `CoW 支持：不支持 ${support.unsupported_tokens?.join(", ") || "-"}`;
     };
     const planInitial = plan => plan?.available ? `${plan.initial_amount || "-"} ${displaySymbol(plan.initial_symbol || "")}` : "-";
     const planFinal = plan => plan?.available ? `${plan.final_target_amount || "-"} ${displaySymbol(plan.final_symbol || "")}` : "-";
     const planProfit = plan => plan?.available ? `${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
     const basisLabel = basis => ({
-      current_binance_buy_low: "褰撳墠鐩橀潰涔板叆",
-      pre_change_binance_cross: "鍙樺寲鍓嶄环鏍兼崲绁?,
-      current_binance_sell_high: "褰撳墠鐩橀潰鍗栧嚭",
-      stable_reference: "绋冲畾甯佸弬鑰?,
+      current_binance_buy_low: "当前盘面买入",
+      pre_change_binance_cross: "变化前价格换票",
+      current_binance_sell_high: "当前盘面卖出",
+      stable_reference: "稳定币参考",
     }[basis] || basis || "-");
     const planMarketPrices = plan => plan?.available ? (plan.market_prices || []).map(item =>
       `${displaySymbol(item.symbol)} | 鍓嶆湡浠?${item.start_price || "-"} | 瀹炴椂浠?${item.current_price || "-"} | 娑ㄨ穼 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
@@ -698,16 +767,16 @@
     const pricedToken = step => step.from_symbol === "USDC" ? step.to_symbol : step.from_symbol;
     const priceCandidateHtml = step => (step.price_candidates || []).length
       ? (step.price_candidates || []).map(item => `${esc(sourceLabel(item.source))} ${esc(item.price || "-")} USDC/${esc(displaySymbol(pricedToken(step)))}`).join(" | ")
-      : "鏃犱环鏍煎€欓€?;
+      : "无价格候选";
     const priceCandidateText = step => (step.price_candidates || []).length
       ? (step.price_candidates || []).map(item => `${sourceLabel(item.source)} ${item.price || "-"} USDC/${displaySymbol(pricedToken(step))}`).join(" | ")
-      : "鏃犱环鏍煎€欓€?;
+      : "无价格候选";
     const rateCandidateHtml = step => (step.rate_candidates || []).length
       ? (step.rate_candidates || []).map(item => `${esc(sourceLabel(item.source))} ${esc(item.rate || "-")} ${esc(displaySymbol(step.to_symbol))}/${esc(displaySymbol(step.from_symbol))}`).join(" | ")
-      : "鏃犳瘮渚嬪€欓€?;
+      : "无比例候选";
     const rateCandidateText = step => (step.rate_candidates || []).length
       ? (step.rate_candidates || []).map(item => `${sourceLabel(item.source)} ${item.rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`).join(" | ")
-      : "鏃犳瘮渚嬪€欓€?;
+      : "无比例候选";
     const queryAnalysisText = step => {
       const guard = step.query_guard_analysis || {};
       const position = step.query_price_position || step.query_rate_position || {};
@@ -723,7 +792,7 @@
       const acceptable = usesPrice
         ? `${step.acceptable_slippage_price_usd_per_token || step.acceptable_price_usd_per_token || "-"} USDC/${displaySymbol(pricedToken(step))}`
         : `${step.acceptable_slippage_exchange_rate || step.min_exchange_rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`;
-      return `鐩爣锛?{esc(target)} (${esc(sourceLabel(step.selected_target_source))}) | 鍙帴鍙楁粦鐐逛环/姣斾緥锛?{esc(acceptable)} (${esc(sourceLabel(step.selected_acceptable_source))})`;
+      return `目标：${esc(target)} (${esc(sourceLabel(step.selected_target_source))}) | 可接受滑点价格/比例：${esc(acceptable)} (${esc(sourceLabel(step.selected_acceptable_source))})`;
     };
     const selectionText = step => {
       const usesPrice = (step.price_candidates || []).length > 0;
@@ -733,79 +802,81 @@
       const acceptable = usesPrice
         ? `${step.acceptable_slippage_price_usd_per_token || step.acceptable_price_usd_per_token || "-"} USDC/${displaySymbol(pricedToken(step))}`
         : `${step.acceptable_slippage_exchange_rate || step.min_exchange_rate || "-"} ${displaySymbol(step.to_symbol)}/${displaySymbol(step.from_symbol)}`;
-      return `鐩爣锛?{target} (${sourceLabel(step.selected_target_source)}) | 鍙帴鍙楁粦鐐逛环/姣斾緥锛?{acceptable} (${sourceLabel(step.selected_acceptable_source)})`;
+      return `目标：${target} (${sourceLabel(step.selected_target_source)}) | 可接受滑点价格/比例：${acceptable} (${sourceLabel(step.selected_acceptable_source)})`;
     };
     const sdkParamsHtml = step => {
       const sdk = step.cow_sdk_parameters || {};
-      return `浼犵粰 CoW SDK锛歬ind=${esc(sdk.quote_kind || "sell")} | sellToken=${esc(displaySymbol(sdk.sell_token_symbol || step.from_symbol))} | buyToken=${esc(displaySymbol(sdk.buy_token_symbol || step.to_symbol))} | sellAmountBeforeFee=${esc(sdk.sell_amount_before_fee || "-")} | targetBuyAmountAfterFee=${esc(sdk.target_buy_amount_after_fee || "-")} | minBuyAmountAfterFee=${esc(sdk.min_buy_amount_after_fee || "-")}`;
+      return `传给 CoW SDK：kind=${esc(sdk.quote_kind || "sell")} | sellToken=${esc(displaySymbol(sdk.sell_token_symbol || step.from_symbol))} | buyToken=${esc(displaySymbol(sdk.buy_token_symbol || step.to_symbol))} | sellAmountBeforeFee=${esc(sdk.sell_amount_before_fee || "-")} | targetBuyAmountAfterFee=${esc(sdk.target_buy_amount_after_fee || "-")} | minBuyAmountAfterFee=${esc(sdk.min_buy_amount_after_fee || "-")}`;
     };
     const sdkParamsText = step => {
       const sdk = step.cow_sdk_parameters || {};
-      return `浼犵粰 CoW SDK锛歬ind=${sdk.quote_kind || "sell"} | sellToken=${displaySymbol(sdk.sell_token_symbol || step.from_symbol)} | buyToken=${displaySymbol(sdk.buy_token_symbol || step.to_symbol)} | sellAmountBeforeFee=${sdk.sell_amount_before_fee || "-"} | targetBuyAmountAfterFee=${sdk.target_buy_amount_after_fee || "-"} | minBuyAmountAfterFee=${sdk.min_buy_amount_after_fee || "-"}`;
+      return `传给 CoW SDK：kind=${sdk.quote_kind || "sell"} | sellToken=${displaySymbol(sdk.sell_token_symbol || step.from_symbol)} | buyToken=${displaySymbol(sdk.buy_token_symbol || step.to_symbol)} | sellAmountBeforeFee=${sdk.sell_amount_before_fee || "-"} | targetBuyAmountAfterFee=${sdk.target_buy_amount_after_fee || "-"} | minBuyAmountAfterFee=${sdk.min_buy_amount_after_fee || "-"}`;
     };
     const precheckStatusLabel = status => ({
-      checks_passed_order_disabled: "浠锋牸/鐩堝埄閫氳繃锛岀湡瀹炰笅鍗曟湭寮€鏀?,
-      limit_order_ready_not_submitted: "鑷湁闄愪环鍙傛暟宸插噯澶囷紝鎻愪氦閫傞厤鍣ㄦ湭寮€鏀?,
-      limit_order_ready_to_submit: "鑷湁闄愪环鍙傛暟宸插噯澶囷紝鍙彁浜?,
-      ready_not_submitted: "宸插噯澶囷紝鏈彁浜?,
-      ready_to_submit: "宸插噯澶囷紝鍙彁浜?,
-      unsupported: "浠ｅ竵涓嶆敮鎸?,
-      quote_unavailable: "鎶ヤ环涓嶅彲鐢?,
-      flashloan_payload_required: "缂哄皯鍘熷瓙闂數璐锋墽琛屽弬鏁?,
-      price_guard_failed: "浠锋牸淇濇姢鏈€氳繃",
-      not_profitable: "鏈湴鍒╂鼎璇婃柇锛氫笉鐩堝埄",
-      profit_below_threshold: "鏈湴鍒╂鼎璇婃柇锛氫綆浜庢棫闃堝€?,
-      blocked: "涓嶈兘涓嬪崟",
-    }[status] || status || "鏈鏌?);
+      checks_passed_order_disabled: "意图和报价通过，真实下单未开放",
+      limit_order_ready_not_submitted: "限价参数已准备，提交适配器未开放",
+      limit_order_ready_to_submit: "限价参数已准备，可提交",
+      ready_not_submitted: "已准备，未提交",
+      ready_to_submit: "已准备，可提交",
+      submission_paused: "提交已暂停",
+      unsupported: "代币不支持",
+      quote_required: "等待 CoW quote",
+      quote_unavailable: "报价不可用",
+      flashloan_payload_required: "缺少闪电贷执行参数",
+      price_guard_failed: "价格保护未通过",
+      not_profitable: "本地盈利诊断：不盈利",
+      profit_below_threshold: "本地盈利诊断：低于旧阈值",
+      blocked: "不能下单",
+    }[status] || status || "未检查");
     const precheckLine = item => `${item.price_guard_passed ? "閫氳繃" : "澶辫触"} ${item.path || "-"} | 鏌ヨ杈撳嚭 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 鏈€浣庢帴鏀?${item.min_buy_amount_after_fee || "-"} | 鐩爣 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
     const precheckHtml = quote => {
       const check = quote?.execution_precheck;
-      if (!check) return "涓嬪崟鏉′欢锛氱瓑寰呮煡璇㈢湡瀹炴姤浠?;
+      if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic floor ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.can_submit_order ? "鍙彁浜? : "鐪熷疄涓嬪崟鏈惎鐢?}`;
-      return `涓嬪崟鏉′欢锛?{esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>閫愭妫€鏌ワ細<br>${hops}<br>鍘熷洜/闄愬埗锛?br>${reasons}`;
+      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
       const check = quote?.execution_precheck;
-      if (!check) return "涓嬪崟鏉′欢锛氱瓑寰呮煡璇㈢湡瀹炴姤浠?;
+      if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic floor ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.can_submit_order ? "鍙彁浜? : "鐪熷疄涓嬪崟鏈惎鐢?}`;
-      return `涓嬪崟鏉′欢锛?{precheckStatusLabel(check.status)}\n${autoLine}\n閫愭妫€鏌ワ細\n${hops}\n鍘熷洜/闄愬埗锛歕n${reasons}`;
+      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
-      `杈撳叆鏁伴噺 ${esc(step.query_sell_amount_before_fee || step.input_amount || "-")} ${esc(displaySymbol(step.from_symbol))} | CoW 鏌ヨ杈撳嚭 ${esc(step.query_buy_amount_after_fee || "绛夊緟鏌ヨ")} ${esc(displaySymbol(step.to_symbol))}<br>` +
-      `鍊欓€変环鏍硷細${priceCandidateHtml(step)}<br>鍊欓€夊厬鎹㈡瘮渚嬶細${rateCandidateHtml(step)}<br>` +
-      `${selectionHtml(step)} | 淇濆簳浠峰姩鎬佺敓鎴愶紱鍏滃簳鍙傛暟 ${esc(step.slippage_bps ?? "-")}bps (${esc(step.slippage_percent || "-")}%)<br>` +
-      `鐩爣鏁伴噺 ${esc(step.target_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))} | 鏈€浣庢帴鏀?${esc(step.min_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))}<br>` +
-      `${sdkParamsHtml(step)}<br>瑙勫垯锛?{esc(step.selection_rule || step.price_compare_rule || "-")}`;
+      `输入数量 ${esc(step.query_sell_amount_before_fee || step.input_amount || "-")} ${esc(displaySymbol(step.from_symbol))} | CoW 查询输出 ${esc(step.query_buy_amount_after_fee || "等待查询")} ${esc(displaySymbol(step.to_symbol))}<br>` +
+      `候选价格：${priceCandidateHtml(step)}<br>候选兑换比例：${rateCandidateHtml(step)}<br>` +
+      `${selectionHtml(step)} | 保底价动态生成；保底参数 ${esc(step.slippage_bps ?? "-")}bps (${esc(step.slippage_percent || "-")}%)<br>` +
+      `目标数量 ${esc(step.target_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))} | 最低接收 ${esc(step.min_output_amount || "-")} ${esc(displaySymbol(step.to_symbol))}<br>` +
+      `${sdkParamsHtml(step)}<br>规则：${esc(step.selection_rule || step.price_compare_rule || "-")}`;
     const executionStepText = step => `${step.step || "-"}. ${displaySymbol(step.from_symbol)} -> ${displaySymbol(step.to_symbol)} | ${basisLabel(step.price_basis)}\n` +
-      `杈撳叆鏁伴噺 ${step.query_sell_amount_before_fee || step.input_amount || "-"} ${displaySymbol(step.from_symbol)} | CoW 鏌ヨ杈撳嚭 ${step.query_buy_amount_after_fee || "绛夊緟鏌ヨ"} ${displaySymbol(step.to_symbol)}\n` +
-      `鍊欓€変环鏍硷細${priceCandidateText(step)}\n鍊欓€夊厬鎹㈡瘮渚嬶細${rateCandidateText(step)}\n` +
-      `${selectionText(step)} | 淇濆簳浠峰姩鎬佺敓鎴愶紱鍏滃簳鍙傛暟 ${step.slippage_bps ?? "-"}bps (${step.slippage_percent || "-"}%)\n` +
-      `鐩爣鏁伴噺 ${step.target_output_amount || "-"} ${displaySymbol(step.to_symbol)} | 鏈€浣庢帴鏀?${step.min_output_amount || "-"} ${displaySymbol(step.to_symbol)}\n` +
-      `${sdkParamsText(step)}\n瑙勫垯锛?{step.selection_rule || step.price_compare_rule || "-"}`;
-    const executionParams = plan => plan?.available ? `<div>Binance 琛屾儏浠锋牸锛?br>${planMarketPrices(plan)}</div><div>鍏戞崲鍙傛暟锛?br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>鏈€缁?Binance 浼扮畻锛?{esc(planFinal(plan))} | 淇濆簳浠?姣斾緥鎸夌洰鏍囦笌涓棿浠峰姩鎬佺敓鎴愶紱鍏滃簳鍙傛暟 ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%)</div>` : `璁″垝涓嶅彲鐢細${esc(plan?.reason || "-")}`;
+      `输入数量 ${step.query_sell_amount_before_fee || step.input_amount || "-"} ${displaySymbol(step.from_symbol)} | CoW 查询输出 ${step.query_buy_amount_after_fee || "等待查询"} ${displaySymbol(step.to_symbol)}\n` +
+      `候选价格：${priceCandidateText(step)}\n候选兑换比例：${rateCandidateText(step)}\n` +
+      `${selectionText(step)} | 保底价动态生成；保底参数 ${step.slippage_bps ?? "-"}bps (${step.slippage_percent || "-"}%)\n` +
+      `目标数量 ${step.target_output_amount || "-"} ${displaySymbol(step.to_symbol)} | 最低接收 ${step.min_output_amount || "-"} ${displaySymbol(step.to_symbol)}\n` +
+      `${sdkParamsText(step)}\n规则：${step.selection_rule || step.price_compare_rule || "-"}`;
+    const executionParams = plan => plan?.available ? `<div>Binance 行情价格：<br>${planMarketPrices(plan)}</div><div>兑换参数：<br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>最终 Binance 估算：${esc(planFinal(plan))} | slip ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%)</div>` : `计划不可用：${esc(plan?.reason || "-")}`;
     const executionParamsText = plan => plan?.available ? [
-      "Binance 琛屾儏浠锋牸锛?,
+      "Binance 行情价格：",
       planMarketPricesText(plan),
-      "鍏戞崲鍙傛暟锛?,
+      "兑换参数：",
       ...((plan.steps || []).map(executionStepText)),
-      `鏈€缁?Binance 浼扮畻锛?{planFinal(plan)} | 淇濆簳浠?姣斾緥鎸夌洰鏍囦笌涓棿浠峰姩鎬佺敓鎴愶紱鍏滃簳鍙傛暟 ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
-    ].join("\n") : `璁″垝涓嶅彲鐢細${plan?.reason || "-"}`;
+      `最终 Binance 估算：${planFinal(plan)} | slip ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
+    ].join("\n") : `计划不可用：${plan?.reason || "-"}`;
     const planStepLine = executionStepLine;
     const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `璁″垝涓嶅彲鐢細${esc(plan?.reason || "-")}`;
     const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `hop ${item.hop || "-"} ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
     const costDetail = (quote, plan) => {
       const costs = quote?.costs || {};
-      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "绛夊緟 CoW SDK 鎶ヤ环";
-      return `<div>鍘熺敓甯佷綑棰濓細before ${esc(costs.native_balance_before ?? "鏈鏌?)} / after ${esc(costs.native_balance_after ?? "鏈鏌?)} (${esc(costs.native_balance_source || "quote_stage")})</div>
-        <div>Gas锛歲uote ${esc(costs.quote_api_gas_used ?? 0)}锛涗笅鍗?${esc(costs.user_order_submission_gas_used ?? 0)}锛涚粨绠?${esc(costs.settlement_gas_payer || "solver")}锛涙巿鏉?${esc(costs.approval_gas_status || "寰呮鏌?)}</div>
-        <div>鎵嬬画璐癸細${esc(feeLines(costs))}</div>
-        <div>鐩橀潰鐩堝埄锛?{esc(planProfit(plan))}</div>
-        <div>CoW 鐩稿 Binance 浼扮畻锛?{esc(quoteVsPlan(quote, plan))}</div>
-        <div>CoW 鐩堝埄锛?{esc(actualProfit)}</div>`;
+      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
+      return `<div>原生币余额：before ${esc(costs.native_balance_before ?? "未检查")} / after ${esc(costs.native_balance_after ?? "未检查")} (${esc(costs.native_balance_source || "quote_stage")})</div>
+        <div>Gas：quote ${esc(costs.quote_api_gas_used ?? 0)}；下单 ${esc(costs.user_order_submission_gas_used ?? 0)}；结算 ${esc(costs.settlement_gas_payer || "solver")}；授权 ${esc(costs.approval_gas_status || "待检查")}</div>
+        <div>手续费：${esc(feeLines(costs))}</div>
+        <div>盘面盈利：${esc(planProfit(plan))}</div>
+        <div>CoW 相对 Binance 估算：${esc(quoteVsPlan(quote, plan))}</div>
+        <div>CoW 盈利：${esc(actualProfit)}</div>`;
     };
 
     const rowHtml = (row, index) => `<tr>
@@ -826,8 +897,8 @@
     const thresholdBreakdownText = threshold => {
       const t = threshold || {};
       const dynamic = t.min_window_spread_percent ?? t.adjusted_min_spread_percent ?? "-";
-      const minProfit = t.min_profit_usd != null && t.amount != null && t.min_profit_percent != null ? `${t.min_profit_usd}U/${t.amount}U=${t.min_profit_percent}%` : "鍔ㄦ€佽绠?;
-      return `鍔ㄦ€佽瘖鏂?${dynamic}% = 鍙屽悜鎵嬬画璐?${t.route_trade_fee_percent ?? "-"}% + 闂數璐峰埄鎭?${t.flashloan_fee_percent ?? "-"}% + gas/璐圭敤棰勭暀 ${t.fee_reserve_percent ?? "0"}% + 鏈湴鍒╂鼎璇婃柇 ${minProfit}锛涚湡瀹炴墽琛岀敱 CoW 鎰忓浘鍜?SDK 缁撴灉鎺у埗`;
+      const minProfit = t.min_profit_usd != null && t.amount != null && t.min_profit_percent != null ? `${t.min_profit_usd}U/${t.amount}U=${t.min_profit_percent}%` : "诊断值";
+      return `动态诊断 ${dynamic}% = 双向手续费 ${t.route_trade_fee_percent ?? "-"}% + 闪电贷利息 ${t.flashloan_fee_percent ?? "-"}% + gas/费用预留 ${t.fee_reserve_percent ?? "0"}% + 本地盈利诊断 ${minProfit}；真实执行由 CoW 意图和 SDK 结果控制`;
     };
     const cowSupportedSourceCount = overview => {
       const direct = Number(overview?.source_market_row_count);
@@ -837,52 +908,52 @@
       return eligible + excluded;
     };
     const cowSupportedOverviewMeta = (overview, sideLabel) => {
-      const sideFilter = sideLabel === "娑ㄥ箙" ? overview?.top_filter : overview?.bottom_filter;
+      const sideFilter = sideLabel === "涨幅" ? overview?.top_filter : overview?.bottom_filter;
       const stats = sideFilter || overview || {};
       const excluded = Number(stats.market_excluded_symbol_count || 0);
-      const reasonText = excluded > 0 && reasonCountsText(stats.market_excluded_reason_counts) === "-" ? "鏃ф帴鍙ｆ湭杩斿洖鏄庣粏" : reasonCountsText(stats.market_excluded_reason_counts);
+      const reasonText = excluded > 0 && reasonCountsText(stats.market_excluded_reason_counts) === "-" ? "旧接口未返回明细" : reasonCountsText(stats.market_excluded_reason_counts);
       return [
-        `${sideLabel}瑕佹眰锛氬崟杈?{sideLabel} > ${overview?.min_side_change_percent ?? "0.3"}%`,
-        `甯佷环 >= ${overview?.min_token_price_usd ?? "0.01"}U`,
-        `鏉ユ簮 ${stats.source_market_row_count ?? cowSupportedSourceCount(overview)} 涓猔,
-        `閫氳繃琛屾儏杩囨护 ${stats.market_eligible_symbol_count ?? 0} 涓猔,
-        `CoW 鍛戒腑 ${stats.supported_symbol_count ?? 0} / 鏈懡涓?${stats.unsupported_symbol_count ?? 0}`,
-        `琛屾儏杩囨护鎺掗櫎 ${stats.market_excluded_symbol_count ?? 0} 涓?${reasonText})`,
+        `${sideLabel}要求：单边 ${sideLabel} > ${overview?.min_side_change_percent ?? "0.3"}%`,
+        `币价 >= ${overview?.min_token_price_usd ?? "0.01"}U`,
+        `来源 ${stats.source_market_row_count ?? cowSupportedSourceCount(overview)} 个`,
+        `通过行情过滤 ${stats.market_eligible_symbol_count ?? 0} 个`,
+        `CoW 命中 ${stats.supported_symbol_count ?? 0} / 未命中 ${stats.unsupported_symbol_count ?? 0}`,
+        `行情过滤排除 ${stats.market_excluded_symbol_count ?? 0} 个 (${reasonText})`,
       ].join(" | ");
     };
     const renderCowSupportedOverview = overview => {
       const top = overview?.top || [];
       const bottom = overview?.bottom || [];
       const limit = overview?.limit || 50;
-      $("cowSupportedTopTitle").textContent = `鎵€鏈?CoW 鏀寔浠ｅ竵娑ㄥ箙鍓?${limit}`;
-      $("cowSupportedBottomTitle").textContent = `鎵€鏈?CoW 鏀寔浠ｅ竵璺屽箙鍓?${limit}`;
-      $("cowSupportedTopMeta").textContent = cowSupportedOverviewMeta(overview, "娑ㄥ箙");
-      $("cowSupportedBottomMeta").textContent = cowSupportedOverviewMeta(overview, "璺屽箙");
+      $("cowSupportedTopTitle").textContent = `所有 CoW 支持代币涨幅前 ${limit}`;
+      $("cowSupportedBottomTitle").textContent = `所有 CoW 支持代币跌幅前 ${limit}`;
+      $("cowSupportedTopMeta").textContent = cowSupportedOverviewMeta(overview, "涨幅");
+      $("cowSupportedBottomMeta").textContent = cowSupportedOverviewMeta(overview, "跌幅");
       $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported top data</td></tr>';
       $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported bottom data</td></tr>';
     };
     const rowsTable = (rows, sideLabel) => `<div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>浠ｅ竵</th><th>${esc(sideLabel)}</th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>鏉ユ簮</th></tr></thead>
+      <thead><tr><th>#</th><th>代币</th><th>${esc(sideLabel)}</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
       <tbody>${(rows || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No data</td></tr>'}</tbody>
     </table></div>`;
     const networkClaimHtml = claim => `<div class="network-claim">
       <div class="network-claim-head">
         <h3>${esc(claim.label || claim.network || "-")} <span class="muted">(${esc(claim.chain_id || "-")})</span></h3>
-        <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 鍛戒腑 ${esc(claim.supported_symbol_count ?? 0)} | 鍊欓€?${esc(claim.pair_count ?? 0)}</span>
+        <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</span>
       </div>
       <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; ${esc(claim.min_side_change_percent ?? "0.3")}% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
       <div class="mini-split">
-        <div>${rowsTable(claim.top || [], "娑ㄥ箙")}</div>
-        <div>${rowsTable(claim.bottom || [], "璺屽箙")}</div>
+        <div>${rowsTable(claim.top || [], "涨幅")}</div>
+        <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
       </div>
     </div>`;
     const renderNetworkClaims = claims => {
       $("networkClaims").innerHTML = (claims || []).map(networkClaimHtml).join("") || '<div class="muted">No CoW network support data</div>';
     };
     const networkClaimText = claim => [
-      `${claim.label || claim.network || "-"} (${claim.chain_id || "-"}) | token ${claim.token_cache_count ?? "-"} | 鍛戒腑 ${claim.supported_symbol_count ?? 0} | 鍊欓€?${claim.pair_count ?? 0}`,
-      tableText(`娑ㄥ箙鍓?${(claim.top || []).length || 5}`, claim.top || []),
-      tableText(`璺屽箙鍓?${(claim.bottom || []).length || 5}`, claim.bottom || []),
+      `${claim.label || claim.network || "-"} (${claim.chain_id || "-"}) | token ${claim.token_cache_count ?? "-"} | 命中 ${claim.supported_symbol_count ?? 0} | 候选 ${claim.pair_count ?? 0}`,
+      tableText(`涨幅前 ${(claim.top || []).length || 5}`, claim.top || []),
+      tableText(`跌幅前 ${(claim.bottom || []).length || 5}`, claim.bottom || []),
     ].join("\n");
 
     function routeBox(route, pair, network) {
@@ -894,49 +965,49 @@
       const priorityReason = route.priority_reason || "";
       const pairName = pair?.pair || "";
       const quoteBadge = quote
-        ? `<span class="badge">${quote.viable ? "宸叉姤浠锋湭涓嬪崟" : "鎶ヤ环澶辫触"}</span>`
+        ? `<span class="badge">${quote.viable ? "已报价未下单" : "报价失败"}</span>`
         : support
-          ? `<span class="badge">${support.supported ? "鏀寔" : "涓嶆敮鎸?}</span>`
-        : '<span class="badge">鏈姤浠?/span>';
+          ? `<span class="badge">${support.supported ? "支持" : "不支持"}</span>`
+        : '<span class="badge">未报价</span>';
       const quoteMeta = quote
         ? `final ${quote.final_amount || "-"} | delta ${quote.final_delta_amount || "-"}`
-        : "绛夊緟鏌ヨ CoW 閾句笂鎶ヤ环";
+        : "等待查询 CoW 链上报价";
       const check = quote?.execution_precheck || null;
       const pureProfit = check?.pure_profit_amount || quote?.final_delta_amount || "-";
       const autoReady = Boolean(check?.auto_execute_requested);
       const canSubmit = Boolean(check?.can_submit_order);
       const autoSwitchOn = Boolean($("autoExecuteToggle")?.checked);
-      const minProfitLabel = check?.auto_execute_min_profit_usd ? `${check.auto_execute_min_profit_usd}U` : "鍔ㄦ€侀槇鍊?;
+      const minProfitLabel = "意图条件";
       const executeLabel = !autoSwitchOn
-        ? "鑷姩鎵ц妫€鏌ュ叧闂?
+        ? "自动执行检查关闭"
         : autoReady
-        ? (canSubmit ? "鑷姩鎵ц宸插氨缁? : `鍑€鍒╂鼎>${minProfitLabel}锛屼笅鍗曟湭鍚敤`)
-        : `鍑€鍒╂鼎鏈揪 ${minProfitLabel}`;
+        ? (canSubmit ? "可提交" : "等待提交/已暂停")
+        : `等待${minProfitLabel}`;
       const detail = quote
         ? `<div class="route-detail">
-            <div>鍒濆鏁伴噺锛?{esc(quoteInitial(quote))}</div>
-            <div>Binance 浼扮畻鐩爣锛?{esc(planFinal(plan))}</div>
-            <div>Binance/CoW 鍏戞崲鍙傛暟锛?{executionParams(plan)}</div>
-            <div>CoW 閾句笂瀹炴椂鎶ヤ环娴佺▼锛?{quoteFlow(quote)}</div>
+            <div>初始数量：${esc(quoteInitial(quote))}</div>
+            <div>Binance 估算目标：${esc(planFinal(plan))}</div>
+            <div>Binance/CoW 兑换参数：${executionParams(plan)}</div>
+            <div>CoW 链上实时报价流程：${quoteFlow(quote)}</div>
             <div>${esc(supportText(support))}</div>
-            <div>CoW 瀹炴椂鎶ヤ环姣斾緥锛?{esc(quoteRates(quote))}</div>
-            <div>CoW 棰勮缁撴灉锛?{esc(quoteFinal(quote))}</div>
-            <div>棰勬湡鏀剁泭锛?{esc(planProfit(plan))}</div>
+            <div>CoW 实时报价比例：${esc(quoteRates(quote))}</div>
+            <div>CoW 预计结果：${esc(quoteFinal(quote))}</div>
+            <div>预期收益：${esc(planProfit(plan))}</div>
             <div>绾埄娑︼細${esc(pureProfit)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
             <div>${precheckHtml(quote)}</div>
             ${costDetail(quote, plan)}
-            ${quote.viable ? "" : `<div>澶辫触鍘熷洜锛?{esc(quote.error || "-")}</div>`}
+            ${quote.viable ? "" : `<div>报价失败原因：${esc(quote.error || "-")}</div>`}
           </div>`
         : `<div class="route-detail">
-            <div>鍒濆鏁伴噺锛?{esc(planInitial(plan))}</div>
-            <div>Binance 浼扮畻鐩爣锛?{esc(planFinal(plan))}</div>
-            <div>Binance/CoW 鍏戞崲鍙傛暟锛?{executionParams(plan)}</div>
-            <div>CoW 閾句笂鎶ヤ环璺緞锛?{esc(routePath(route))}</div>
+            <div>初始数量：${esc(planInitial(plan))}</div>
+            <div>Binance 估算目标：${esc(planFinal(plan))}</div>
+            <div>Binance/CoW 兑换参数：${executionParams(plan)}</div>
+            <div>CoW 链上报价路径：${esc(routePath(route))}</div>
             <div>${esc(supportText(support))}</div>
-            <div>CoW 瀹炴椂鎶ヤ环姣斾緥锛氱瓑寰呮煡璇?/div>
-            <div>CoW 棰勮缁撴灉锛氱瓑寰呮煡璇?/div>
-            <div>棰勬湡鏀剁泭锛?{esc(planProfit(plan))}</div>
-            <div>绾埄娑︼細绛夊緟 CoW SDK 鎶ヤ环</div>
+            <div>CoW 实时报价比例：等待查询</div>
+            <div>CoW 预计结果：等待查询</div>
+            <div>预期收益：${esc(planProfit(plan))}</div>
+            <div>纯利润：等待 CoW SDK 报价</div>
             ${costDetail(null, plan)}
           </div>`;
       return `<div class="route-box">
@@ -945,8 +1016,8 @@
         <div class="route-meta">start ${esc(displaySymbol(route.initial_symbol || "USDC"))}<br>${esc(quoteMeta)}</div>
         ${detail}
         <div class="route-actions">
-          <button data-route-action="quote" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}">鏌ヨ鐪熷疄鎶ヤ环</button>
-          <button data-route-action="execute-check" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}">妫€鏌ヤ笅鍗曟潯浠?/button>
+          <button data-route-action="quote" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}">查询真实报价</button>
+          <button data-route-action="execute-check" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}">检查下单条件</button>
           <button class="execute-button ${autoSwitchOn && autoReady && canSubmit ? "ready" : ""}" data-route-action="auto-execute" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}" ${autoSwitchOn && canSubmit ? "" : "disabled"}>${esc(executeLabel)}</button>
         </div>
       </div>`;
@@ -1001,7 +1072,7 @@
         return Promise.resolve(false);
       }
       const finish = () => {
-        $("message").textContent = `${label}宸插鍒禶;
+        $("message").textContent = `${label}已复制`;
         return true;
       };
       if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value).then(finish);
@@ -1014,7 +1085,7 @@
       area.select();
       const ok = document.execCommand("copy");
       document.body.removeChild(area);
-      if (!ok) throw new Error("娴忚鍣ㄦ嫆缁濆鍒讹紝璇锋墜鍔ㄩ€夋嫨椤甸潰鏂囨湰澶嶅埗");
+      if (!ok) throw new Error("浏览器拒绝复制，请手动选择页面文本复制");
       return Promise.resolve(finish());
     }
     function routeText(route, pair) {
@@ -1024,18 +1095,18 @@
       const reason = route.priority_reason === "buy_loser_then_gainer" ? "priority" : "reverse";
       return [
         `Route ${route.route_no || "-"} | ${reason} | ${pair?.pair || "-"}`,
-        `璺緞锛?{routePath(route)}`,
-        `鍒濆鏁伴噺锛?{quote ? quoteInitial(quote) : planInitial(plan)}`,
-        `Binance 浼扮畻鐩爣锛?{planFinal(plan)}`,
-        "Binance/CoW 鍏戞崲鍙傛暟锛?,
+        `路径：${routePath(route)}`,
+        `初始数量：${quote ? quoteInitial(quote) : planInitial(plan)}`,
+        `Binance 估算目标：${planFinal(plan)}`,
+        "Binance/CoW 兑换参数：",
         executionParamsText(plan),
-        `CoW 鏀寔锛?{supportText(support)}`,
-        `CoW 閾句笂鎶ヤ环璺緞锛?{quote ? quotePath(quote) : routePath(route)}`,
-        `CoW 瀹炴椂鎶ヤ环姣斾緥锛?{quote ? quoteRates(quote) : "绛夊緟鏌ヨ"}`,
-        `CoW 棰勮缁撴灉锛?{quote ? quoteFinal(quote) : "绛夊緟鏌ヨ"}`,
+        `CoW 支持：${supportText(support)}`,
+        `CoW 链上报价路径：${quote ? quotePath(quote) : routePath(route)}`,
+        `CoW 实时报价比例：${quote ? quoteRates(quote) : "等待查询"}`,
+        `CoW 预计结果：${quote ? quoteFinal(quote) : "等待查询"}`,
         precheckText(quote),
         costText(quote, plan),
-        quote && quote.error ? `澶辫触鍘熷洜锛?{quote.error}` : "",
+        quote && quote.error ? `失败原因：${quote.error}` : "",
       ].filter(Boolean).join("\n");
     }
     function pairText(pair) {
@@ -1048,15 +1119,15 @@
       const plan = row.binance_execution_plan || null;
       return [
         `#${index + 1} ${row.pair || "-"} | ${row.viable ? "quotable" : "failed"}`,
-        `璺緞锛?{quotePath(row)}`,
-        `鍒濆鏁伴噺锛?{quoteInitial(row)}`,
-        `CoW 閾句笂鎶ヤ环娴佺▼锛歚,
+        `路径：${quotePath(row)}`,
+        `初始数量：${quoteInitial(row)}`,
+        "CoW 链上报价流程：",
         quoteText(row),
-        `CoW 瀹炴椂鎶ヤ环姣斾緥锛?{quoteRates(row)}`,
-        `CoW 棰勮缁撴灉锛?{quoteFinal(row)}`,
-        `宸锛?{row.final_delta_amount || "-"}`,
+        `CoW 实时报价比例：${quoteRates(row)}`,
+        `CoW 预计结果：${quoteFinal(row)}`,
+        `差额：${row.final_delta_amount || "-"}`,
         costText(row, plan),
-        row.error ? `閿欒锛?{row.error}` : "",
+        row.error ? `错误：${row.error}` : "",
       ].filter(Boolean).join("\n");
     }
     function marketCopyText(includeQuotes) {
@@ -1064,40 +1135,40 @@
       const primaryPanel = networkPanels.get(primaryNetwork()) || {};
       const cowFilter = (primaryPanel.marketState || data).cow_filter || {};
       const lines = [
-        "DEX 濂楀埄 | CoW SDK 椤甸潰淇℃伅",
-        `澶嶅埗鏃堕棿锛?{new Date().toLocaleString([], {hour12: false})}`,
-        `CoW 缃戠粶锛?{selectedNetworkIds().join(", ") || "-"}`,
-        `Owner锛?{selectedCowConfig(primaryNetwork())?.owner_source || "-"} | ${selectedCowConfig(primaryNetwork())?.owner || "-"}`,
-        `瑙傚療绐楀彛锛?{Number.isFinite(Number(data.window_seconds)) ? `${Number(data.window_seconds).toFixed(3)}s` : "-"}`,
-        `瑙傚療鏃堕棿锛?{fmtTime(data.observed_at)}`,
-        `鏍锋湰鏁伴噺锛?{data.sample_count ?? "-"} / universe ${data.observation_universe_size ?? "-"}`,
-        `CoW token 缂撳瓨锛?{cowFilter.token_cache_count ?? "-"} (${cowFilter.token_cache_source || "-"})`,
-        `Binance 鍛戒腑锛?{cowFilter.supported_symbol_count ?? 0} / 鏈懡涓?${cowFilter.unsupported_symbol_count ?? 0}`,
-        `缁熻杩囨护锛氬崟杈规定璺?> ${cowFilter.min_side_change_percent ?? "0.3"}%锛涗环鏍?>= ${cowFilter.min_token_price_usd ?? "0.01"}U锛涜繃婊?${cowFilter.market_excluded_symbol_count ?? 0} 涓猔,
-        `鍔ㄦ€佷氦鏄撻棬妲涳細${thresholdBreakdownText(cowFilter.threshold_detail || {})}`,
-        `鍊欓€夎矾寰勶細${data.pair_count ?? 0}`,
+        "DEX 套利 | CoW SDK 页面信息",
+        `复制时间：${new Date().toLocaleString([], {hour12: false})}`,
+        `CoW 网络：${selectedNetworkIds().join(", ") || "-"}`,
+        `Owner：${selectedCowConfig(primaryNetwork())?.owner_source || "-"} | ${selectedCowConfig(primaryNetwork())?.owner || "-"}`,
+        `观察窗口：${Number.isFinite(Number(data.window_seconds)) ? `${Number(data.window_seconds).toFixed(3)}s` : "-"}`,
+        `观察时间：${fmtTime(data.observed_at)}`,
+        `样本数量：${data.sample_count ?? "-"} / universe ${data.observation_universe_size ?? "-"}`,
+        `CoW token 缓存：${cowFilter.token_cache_count ?? "-"} (${cowFilter.token_cache_source || "-"})`,
+        `Binance 命中：${cowFilter.supported_symbol_count ?? 0} / 未命中 ${cowFilter.unsupported_symbol_count ?? 0}`,
+        `统计过滤：单边涨跌 > ${cowFilter.min_side_change_percent ?? "0.3"}%；价格 >= ${cowFilter.min_token_price_usd ?? "0.01"}U；过滤 ${cowFilter.market_excluded_symbol_count ?? 0} 个`,
+        `动态交易门槛：${thresholdBreakdownText(cowFilter.threshold_detail || {})}`,
+        `候选路径：${data.pair_count ?? 0}`,
         "",
-        tableText(`Binance 鍘熷娑ㄥ箙鍓?${data.top_limit || 5}`, data.raw_top || []),
+        tableText(`Binance 原始涨幅前 ${data.top_limit || 5}`, data.raw_top || []),
         "",
-        tableText(`Binance 鍘熷璺屽箙鍓?${data.bottom_limit || 5}`, data.raw_bottom || []),
+        tableText(`Binance 原始跌幅前 ${data.bottom_limit || 5}`, data.raw_bottom || []),
         "",
-        cowSupportedText(`鎵€鏈?CoW 鏀寔浠ｅ竵娑ㄥ箙鍓?${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.top || []),
+        cowSupportedText(`所有 CoW 支持代币涨幅前 ${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.top || []),
         "",
-        cowSupportedText(`鎵€鏈?CoW 鏀寔浠ｅ竵璺屽箙鍓?${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.bottom || []),
+        cowSupportedText(`所有 CoW 支持代币跌幅前 ${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.bottom || []),
         "",
-        "鍚?CoW 缃戠粶鏀寔 Top/Bottom 5锛?,
+        "各 CoW 网络支持 Top/Bottom 5：",
         ...((data.cow_network_claims || []).map(networkClaimText)),
         "",
-        "閫変腑閾惧€欓€夎矾绾匡細",
+        "选中链候选路线：",
         ...activeNetworkPanels().map(panel => [
-          `缃戠粶锛?{networkLabel(panel.network)} (${panel.network})`,
+          `网络：${networkLabel(panel.network)} (${panel.network})`,
           ...((pairsWithQuotes(panel.marketState?.pairs || [], panel.quotes, panel.support)).map(pairText)),
         ].join("\n")),
       ];
       if (includeQuotes) {
         lines.push(
           "",
-          "CoW 鎶ヤ环楠岃瘉锛?,
+          "CoW 报价验证：",
           "",
           ...activeNetworkPanels().flatMap(panel => (panel.quotes?.ranking || []).map((row, index) => `${networkLabel(panel.network)}\n${quoteRowText(row, index)}`))
         );
@@ -1125,7 +1196,7 @@
     }
     function routeCountText(panel) {
       const state = panel?.marketState || {};
-      return `${state.pair_count ?? 0} 缁勫€欓€夛紝褰撳墠灞曠ず ${Math.min(1, Number(state.pair_count || 0))} 缁刞;
+      return `${state.pair_count ?? 0} 组候选，当前展示 ${Math.min(1, Number(state.pair_count || 0))} 组`;
     }
     function networkOpportunityCard(panel) {
       const state = panel?.marketState || {};
@@ -1134,10 +1205,10 @@
       const pair = pairs[0] || null;
       const best = (panel?.quotes?.opportunities || panel?.quotes?.ranking || []).find(row => row?.execution_precheck?.checks_passed) || null;
       const quoteInfo = panel?.quotes
-        ? `${panel.quotes.viable_count || 0}/${panel.quotes.route_count || 0} 宸叉姤浠穈
+        ? `${panel.quotes.viable_count || 0}/${panel.quotes.route_count || 0} 已报价`
         : panel?.support
-          ? `${panel.support.supported_route_count || 0}/${panel.support.route_count || 0} 鏀寔`
-          : "绛夊緟妫€鏌?;
+          ? `${panel.support.supported_route_count || 0}/${panel.support.route_count || 0} 支持`
+          : "等待检查";
       const threshold = filter.threshold_detail || {};
       return `<div class="chain-card" data-chain-card="${esc(panel.network || "")}">
         <div class="chain-card-head">
@@ -1145,22 +1216,22 @@
           <span class="context">${esc(panel.network || "-")} | ${esc(shortAddress(selectedCowConfig(panel.network)?.owner))}</span>
         </div>
         <div class="chain-summary">
-          <span>鏈€楂樻定骞咃細${esc(displaySymbol(state.top?.[0]?.symbol || "-"))} ${esc(pct(state.top?.[0]?.change_percent))}</span>
-          <span>鏈€楂樿穼骞咃細${esc(displaySymbol(state.bottom?.[0]?.symbol || "-"))} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
+          <span>最高涨幅：${esc(displaySymbol(state.top?.[0]?.symbol || "-"))} ${esc(pct(state.top?.[0]?.change_percent))}</span>
+          <span>最高跌幅：${esc(displaySymbol(state.bottom?.[0]?.symbol || "-"))} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
           <span>${esc(routeCountText(panel))}</span>
           <span>${esc(quoteInfo)}</span>
-          <span>鏈€浣崇函鍒╂鼎 ${esc(best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
+          <span>最佳纯利润 ${esc(best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
         </div>
-        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 鍛戒腑 ${esc(filter.supported_symbol_count ?? 0)} | 杩囨护 ${esc(filter.market_excluded_symbol_count ?? 0)} | 鍗曡竟 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
+        <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
         <div class="chain-routes">
-          ${pair ? routeGraph(pair.route_results || [], pair, panel.network) : '<div class="muted">褰撳墠绐楀彛娌℃湁鍚屾椂婊¤冻娑ㄥ箙銆佽穼骞呫€佷环鏍笺€佷环宸拰 CoW 鏀寔鏉′欢鐨勪竴瀵逛唬甯併€?/div>'}
+          ${pair ? routeGraph(pair.route_results || [], pair, panel.network) : '<div class="muted">当前窗口没有同时满足涨幅、跌幅、价格、价差和 CoW 支持条件的一对代币。</div>'}
         </div>
       </div>`;
     }
     function renderNetworkOpportunityCards() {
       const selected = selectedNetworkIds();
       const panels = selected.map(network => networkPanels.get(network) || {network});
-      $("networkOpportunityCards").innerHTML = panels.map(networkOpportunityCard).join("") || '<div class="muted">璇烽€夋嫨鑷冲皯涓€鏉?CoW 缃戠粶</div>';
+      $("networkOpportunityCards").innerHTML = panels.map(networkOpportunityCard).join("") || '<div class="muted">请选择至少一条 CoW 网络</div>';
     }
     async function quoteRouteGroup(network, pairRank) {
       $("message").textContent = `姝ｅ湪鏌ヨ ${networkLabel(network)} 绗?${pairRank || "1"} 缁?CoW 閾句笂鐪熷疄鎶ヤ环`;
@@ -1176,16 +1247,16 @@
     function executePrecheck(button) {
       const quote = routeQuoteForButton(button);
       if (!quote) {
-        $("message").textContent = "璇峰厛鐐瑰嚮鈥滄煡璇㈢湡瀹炴姤浠封€濓紝鎷垮埌 CoW 閾句笂鎶ヤ环鍚庡啀妫€鏌ユ槸鍚﹁兘涓嬪崟";
+        $("message").textContent = "请先点击“查询真实报价”，拿到 CoW 链上报价后再检查是否能进入 SDK 提交。";
         return;
       }
       const check = quote.execution_precheck || null;
       if (!check) {
-        $("message").textContent = "涓嶈兘鍏戞崲锛氱己灏戝悗绔笅鍗曟潯浠舵鏌ョ粨鏋滐紝璇烽噸鏂版煡璇㈢湡瀹炴姤浠?;
+        $("message").textContent = "缺少后端下单条件检查结果，请重新查询真实报价。";
         return;
       }
-      const reasons = (check.reasons || []).join("锛?) || "-";
-      $("message").textContent = `${precheckStatusLabel(check.status)}锛?{reasons}`;
+      const reasons = (check.reasons || []).join("；") || "-";
+      $("message").textContent = `${precheckStatusLabel(check.status)}：${reasons}`;
     }
     function renderMarket(data, network) {
       currentMarketState = data || null;
@@ -1214,17 +1285,17 @@
       const threshold = cowFilter.threshold_detail || {};
       const filterAmount = threshold.amount ?? ($("quoteAmountInput").value || "1000");
       $("cowTokenCount").textContent = tokenTotal || cowFilter.token_cache_count || "-";
-      $("cowMatchCount").textContent = `Binance 鍛戒腑 ${supportedTotal || cowFilter.supported_symbol_count || 0} / 鏈懡涓?${unsupportedTotal || cowFilter.unsupported_symbol_count || 0}`;
-      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > ${cowFilter.min_side_change_percent ?? "0.3"}% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | ${thresholdBreakdownText(threshold)} | amount ${filterAmount} | 澶嶇洏璁板綍鍏ㄩ儴鍊欓€塦;
+      $("cowMatchCount").textContent = `Binance 命中 ${supportedTotal || cowFilter.supported_symbol_count || 0} / 未命中 ${unsupportedTotal || cowFilter.unsupported_symbol_count || 0}`;
+      $("cowFilterMeta").textContent = `selected ${selectedNetworkIds().join(", ") || "-"} | side > ${cowFilter.min_side_change_percent ?? "0.3"}% | price >= ${cowFilter.min_token_price_usd ?? "0.01"}U | ${thresholdBreakdownText(threshold)} | amount ${filterAmount} | 复盘记录全部候选`;
       $("pairCount").textContent = totalPairs;
       $("bestPair").textContent = totalPairs ? "waiting for CoW" : "-";
       $("rawTopBody").innerHTML = (data.raw_top || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw top data</td></tr>';
       $("rawBottomBody").innerHTML = (data.raw_bottom || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw bottom data</td></tr>';
-      $("rawTopTitle").textContent = `Binance 鍘熷娑ㄥ箙鍓?${data.top_limit || 5}`;
-      $("rawBottomTitle").textContent = `Binance 鍘熷璺屽箙鍓?${data.bottom_limit || 5}`;
+      $("rawTopTitle").textContent = `Binance 原始涨幅前 ${data.top_limit || 5}`;
+      $("rawBottomTitle").textContent = `Binance 原始跌幅前 ${data.bottom_limit || 5}`;
       renderCowSupportedOverview(data.cow_supported_overview || null);
       renderNetworkClaims(data.cow_network_claims || []);
-      $("pairTitle").textContent = `姣忔潯閫変腑閾句粎灞曠ず 1 缁?CoW 鏀寔绋冲畾甯侀棴鐜鍒╁€欓€夎矾寰刞;
+      $("pairTitle").textContent = "每条选中链仅展示 1 组 CoW 支持稳定币闭环套利候选路径";
       $("aaveBody").innerHTML = (data.aave_rows || []).map(row => `<tr>
         <td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
         <td>${num(row.start_price)}</td><td>${num(row.current_price)}</td><td>${row.window_ready ? "ready" : "waiting"}</td><td>${row.tracked ? "tracked" : "not tracked"}</td>
@@ -1233,7 +1304,7 @@
       renderCowIdentity();
       if (!Array.from(networkPanels.values()).some(panel => panel?.quotes)) {
         $("notionalUsd").textContent = "-";
-        $("quoteState").textContent = "绛夊緟 CoW SDK 鎶ヤ环";
+        $("quoteState").textContent = "等待 CoW SDK 报价";
       }
       $("refreshMeta").textContent = `updated ${fmtTime(data.observed_at)} | ${data.market_state_source || data.price_source || "-"}${data.fallback_reason ? ` | ${data.fallback_reason}` : ""}`;
     }
@@ -1245,7 +1316,7 @@
       const rows = opportunities.map((row, index) => `<tr>
         <td>${index + 1}</td><td>${esc(networkLabel(row.display_network))}<br>${esc(row.pair || "-")}</td><td>${esc(quoteInitial(row))}</td>
         <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
-        <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "鍙嚜鍔ㄦ墽琛? : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
+        <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "可提交" : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
       </tr>`).join("");
       $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">鏆傛棤鍙睍绀虹殑 CoW 鎶ヤ环锛涘€欓€変細缁х画鎸夋剰鍥炬ā寮忚嚜鍔ㄨ浠?/td></tr>';
       const best = opportunities[0] || null;
@@ -1297,7 +1368,7 @@
       const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyPureProfit(latest)}`;
       if (category === "execution_success") return `${meta.retention} | 成功 ${rows.length} 条 | 最近一条 ${latestLine}`;
       if (category === "execution_failed") return `${meta.retention} | SDK 失败 ${rows.length} 条 | 主要失败项 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
-      return `${meta.retention} | 当前等待 ${rows.length} 条 | 当前等待项 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
+      return `${meta.retention} | 当前等待 ${rows.length} 条 | 当前等待状态 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
     };
     const cowAttemptRowHtml = row => `<tr title="${esc(historyReviewText(row))}">
       <td>${esc(fmtTime(row.created_at))}</td>
@@ -1329,9 +1400,9 @@
       $("cowAttemptHistorySource").textContent = `source ${data?.source || "-"} | total ${rows.length} rows`;
       $("cowAttemptReviewConclusion").textContent = review.conclusion;
       $("cowAttemptReviewMetrics").innerHTML = [
-        `waiting ${groups.not_executable.length}`,
-        `sdk failure ${groups.execution_failed.length}`,
-        `sdk success ${groups.execution_success.length}`,
+        `等待/暂停 ${groups.not_executable.length}`,
+        `SDK 失败 ${groups.execution_failed.length}`,
+        `SDK 成功 ${groups.execution_success.length}`,
         ...(review.metrics || []),
       ].map(item => `<span>${esc(item)}</span>`).join("");
       renderCowAttemptGroup("not_executable", groups.not_executable);
@@ -1386,6 +1457,60 @@
       } catch (error) {
         $("cowQueueBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
       }
+    }
+    function renderCowSubmissionPause(data) {
+      latestCowSubmissionPausePayload = data || null;
+      const paused = Boolean(data?.paused);
+      $("cowSubmissionPauseStatus").textContent = paused ? "paused" : "running";
+      $("cowSubmissionPauseStatus").className = paused ? "negative" : "positive";
+      $("cowSubmissionPauseReason").textContent = data?.pause_reason || "manual control";
+      $("cowSubmissionPauseUpdatedAt").textContent = `updated ${fmtTime(data?.updated_at)}`;
+      $("cowSubmissionPauseLastChange").textContent = paused ? `paused at ${fmtTime(data?.last_paused_at || data?.updated_at)}` : `resumed at ${fmtTime(data?.last_resumed_at || data?.updated_at)}`;
+      $("cowSubmissionPauseMessage").textContent = paused ? "CoW 自动流程已暂停" : "CoW 自动流程运行中";
+      $("cowSubmissionPauseToggleBtn").textContent = paused ? "恢复自动流程" : "暂停自动流程";
+    }
+    async function refreshCowSubmissionPause() {
+      try {
+        renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause"));
+      } catch (error) {
+        $("cowSubmissionPauseMessage").textContent = error.message;
+      }
+    }
+    async function setCowSubmissionPause(paused, reason = null) {
+      const btn = $("cowSubmissionPauseToggleBtn");
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = paused ? "暂停中" : "恢复中";
+      try {
+        renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({paused, reason}),
+        }));
+      } catch (error) {
+        $("cowSubmissionPauseMessage").textContent = error.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    }
+    async function clearCowSubmissionPause() {
+      const btn = $("cowSubmissionPauseClearBtn");
+      const old = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "恢复中";
+      try {
+        renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause/clear", {method: "POST", body: "{}"}));
+      } catch (error) {
+        $("cowSubmissionPauseMessage").textContent = error.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
+    }
+    async function toggleCowSubmissionPause() {
+      const paused = !Boolean(latestCowSubmissionPausePayload?.paused);
+      return setCowSubmissionPause(paused, paused ? "manual_automation_pause" : null);
     }
     function renderCowQuotes(data, network) {
       latestCowQuotes = data || null;
@@ -1522,6 +1647,9 @@
     $("refreshTokensBtn").onclick = refreshCowTokens;
     $("supportBtn").onclick = refreshCowSupport;
     $("quoteBtn").onclick = refreshCowQuotes;
+    $("cowSubmissionPauseToggleBtn").onclick = toggleCowSubmissionPause;
+    $("cowSubmissionPauseClearBtn").onclick = clearCowSubmissionPause;
+    $("cowSubmissionPauseRefreshBtn").onclick = refreshCowSubmissionPause;
     $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "椤甸潰淇℃伅").catch(error => { $("message").textContent = error.message; });
     $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 鎶ヤ环" : "椤甸潰淇℃伅").catch(error => { $("message").textContent = error.message; });
     $("cowExecutionReviewSection").onclick = event => {
@@ -1564,8 +1692,10 @@
     loadCowConfig().then(() => refresh().then(refreshCowSupport));
     refreshCowAttemptHistory();
     refreshCowCandidateQueue();
+    refreshCowSubmissionPause();
     setInterval(refresh, 1000);
     setInterval(refreshCowCandidateQueue, 5000);
+    setInterval(refreshCowSubmissionPause, 5000);
   </script>
 </body>
 </html>

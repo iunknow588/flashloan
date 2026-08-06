@@ -5,6 +5,11 @@ from pathlib import Path
 from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
+from db.storage_common import (
+    database_unavailable_reason,
+    is_database_unavailable_error,
+    mark_database_unavailable,
+)
 from db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
     COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
@@ -28,6 +33,11 @@ from runtime.cow_arbitrage_daemon import (
     cow_quote_daemon_status,
     enqueue_cow_candidate_attempts,
     ensure_cow_quote_daemon_running,
+)
+from web.control_panel_cow_pause import (
+    clear_cow_submission_pause_guard,
+    cow_submission_pause_guard_status,
+    set_cow_submission_pause_guard,
 )
 from web.binance_market_service import (
     DEFAULT_MIN_COW_SPREAD_PERCENT,
@@ -107,7 +117,23 @@ def record_cow_attempt_list_safely(
 ) -> dict:
     if not attempts:
         return {"recorded": 0, "source": "empty", "error": None}
+    pause_guard = cow_submission_pause_guard_status()
+    if pause_guard.get("paused"):
+        return {
+            "recorded": 0,
+            "source": "paused",
+            "error": None,
+            "pause_guard": pause_guard,
+        }
     if database_url:
+        unavailable = database_unavailable_reason(database_url)
+        if unavailable:
+            file_count = append_cow_execution_attempts_jsonl(
+                COW_EXECUTION_ATTEMPT_LOG_PATH,
+                attempts,
+                retention_days=COW_EXECUTION_RETENTION_DAYS,
+            )
+            return {"recorded": file_count, "source": "jsonl_fallback", "error": unavailable}
         try:
             ids = record_cow_execution_attempts(
                 database_url,
@@ -116,6 +142,8 @@ def record_cow_attempt_list_safely(
             )
             return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
         except Exception as exc:
+            if is_database_unavailable_error(exc):
+                mark_database_unavailable(database_url, exc)
             file_count = append_cow_execution_attempts_jsonl(
                 COW_EXECUTION_ATTEMPT_LOG_PATH,
                 attempts,
@@ -151,6 +179,8 @@ def _cow_execution_attempt_groups(
     groups = {}
     for category in COW_EXECUTION_REVIEW_CATEGORIES:
         rows = loader(limit=limit, networks=networks, category=category)
+        rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)
+        rows = rows[: max(1, int(limit))]
         groups[category] = {
             "attempts": rows,
             "count": len(rows),
@@ -183,6 +213,16 @@ def record_cow_market_candidates_safely(
     fallback_reason: object = None,
     database_url: str | None,
 ) -> dict:
+    pause_guard = cow_submission_pause_guard_status()
+    if pause_guard.get("paused"):
+        return {
+            "recorded": 0,
+            "source": "paused",
+            "error": None,
+            "pause_guard": pause_guard,
+            "queue": {"accepted": 0, "skipped": "cow_automation_paused"},
+            "daemon": cow_quote_daemon_status(),
+        }
     attempts = [
         attempt
         for market_state in market_states
@@ -199,6 +239,12 @@ def record_cow_market_candidates_safely(
         )
     )
     recording = record_cow_attempt_list_safely(attempts, database_url=database_url)
+    if recording.get("source") == "paused":
+        return {
+            **recording,
+            "queue": {"accepted": 0, "skipped": "cow_automation_paused"},
+            "daemon": cow_quote_daemon_status(),
+        }
     queue_result = enqueue_cow_candidate_attempts(attempts, source="binance_market_candidates")
     daemon_result = cow_quote_daemon_status()
     if cow_quote_daemon_enabled() and attempts:
@@ -955,6 +1001,30 @@ def register_data_routes(app, panel) -> None:
         networks = _request_networks_arg()
         database_url = panel_call("database_url_or_none")
         if database_url:
+            unavailable = database_unavailable_reason(database_url)
+            if unavailable:
+                groups = _cow_execution_attempt_groups(
+                    lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
+                        COW_EXECUTION_ATTEMPT_LOG_PATH,
+                        retention_days=COW_EXECUTION_RETENTION_DAYS,
+                        **kwargs,
+                    ),
+                    limit=limit,
+                    networks=networks,
+                )
+                return jsonify(
+                    {
+                        "source": "jsonl_fallback",
+                        "error": unavailable,
+                        "retention_days": COW_EXECUTION_RETENTION_DAYS,
+                        "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
+                        "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
+                        "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
+                        "networks": networks,
+                        "groups": groups,
+                        "attempts": _flatten_cow_execution_groups(groups, limit),
+                    }
+                )
             try:
                 groups = _cow_execution_attempt_groups(
                     lambda **kwargs: load_recent_cow_execution_attempts(
@@ -978,6 +1048,8 @@ def register_data_routes(app, panel) -> None:
                     }
                 )
             except Exception as exc:
+                if is_database_unavailable_error(exc):
+                    mark_database_unavailable(database_url, exc)
                 groups = _cow_execution_attempt_groups(
                     lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
                         COW_EXECUTION_ATTEMPT_LOG_PATH,
@@ -1028,6 +1100,21 @@ def register_data_routes(app, panel) -> None:
         if cow_quote_daemon_enabled():
             ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
         return jsonify(cow_candidate_queue_snapshot(limit=limit))
+
+    @app.get("/api/binance-market/cow-submission-pause")
+    def binance_market_cow_submission_pause():
+        return jsonify(cow_submission_pause_guard_status())
+
+    @app.post("/api/binance-market/cow-submission-pause")
+    def binance_market_cow_submission_pause_update():
+        payload = request.get_json(silent=True) or {}
+        paused = bool(payload.get("paused"))
+        reason = payload.get("reason")
+        return jsonify(set_cow_submission_pause_guard(paused=paused, reason=reason))
+
+    @app.post("/api/binance-market/cow-submission-pause/clear")
+    def binance_market_cow_submission_pause_clear():
+        return jsonify(clear_cow_submission_pause_guard())
     
     
     @app.get("/api/arbitrage/latest")

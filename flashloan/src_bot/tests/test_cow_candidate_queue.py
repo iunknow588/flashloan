@@ -2,6 +2,15 @@ from execution.cow_routes import CowToken
 from execution.cow_order_submission import cow_order_submission_network_supported
 from runtime.cow_arbitrage_daemon import CowQuoteDaemon, default_quote_candidate
 from runtime.cow_candidate_queue import CowCandidateQueue
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _cow_submission_pause_off(monkeypatch):
+    monkeypatch.setattr(
+        "runtime.cow_arbitrage_daemon.cow_submission_pause_guard_status",
+        lambda: {"configured": True, "paused": False, "pause_reason": None},
+    )
 
 
 def _candidate(pair: str = "APEUSDT / PYRUSDT", route=None, rank: int = 1) -> dict:
@@ -261,6 +270,10 @@ def test_default_quote_candidate_submits_when_precheck_enters_live_submit_state(
     owner = "0x" + "9" * 40
     monkeypatch.setenv("COW_OWNER_BNB", owner)
     monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+    monkeypatch.setattr(
+        "runtime.cow_arbitrage_daemon.cow_submission_pause_guard_status",
+        lambda: {"configured": True, "paused": False, "pause_reason": None},
+    )
 
     usdc = CowToken("USDC", "0x" + "1" * 40, 6, "test")
     ape = CowToken("APE", "0x" + "2" * 40, 18, "test")
@@ -317,3 +330,62 @@ def test_default_quote_candidate_submits_when_precheck_enters_live_submit_state(
     assert quote["cow_sdk_result"]["submission_order_id"] == "0xorder"
     assert result["attempts"][0]["execution_phase"] == "order_submission"
     assert result["attempts"][0]["state"] == "submitted_success"
+
+
+def test_default_quote_candidate_respects_submission_pause_guard(monkeypatch):
+    owner = "0x" + "9" * 40
+    monkeypatch.setenv("COW_OWNER_BNB", owner)
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+
+    usdc = CowToken("USDC", "0x" + "1" * 40, 6, "test")
+    ape = CowToken("APE", "0x" + "2" * 40, 18, "test")
+    pyr = CowToken("PYR", "0x" + "3" * 40, 18, "test")
+    registry = {token.symbol: token for token in [usdc, ape, pyr]}
+    registry.update({token.address: token for token in [usdc, ape, pyr]})
+
+    monkeypatch.setattr(
+        "web.binance_market_service.load_cow_supported_token_registry",
+        lambda **kwargs: {"network": "bnb", "chain_id": 56, "registry": registry},
+    )
+    monkeypatch.setattr(
+        "execution.cow_routes.post_cow_quote",
+        lambda **kwargs: {
+            "quote": {
+                "buyAmount": "1010000000",
+                "sellAmount": kwargs["sell_amount_units"],
+                "feeAmount": "0",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "web.binance_market_service._cow_execution_precheck",
+        lambda result: {
+            "status": "limit_order_ready_to_submit",
+            "checks_passed": True,
+            "can_submit_order": True,
+            "order_submission_enabled": True,
+            "auto_execute_requested": True,
+            "reasons": ["cow_flashloan_sdk_intent_ready"],
+        },
+    )
+    monkeypatch.setattr(
+        "runtime.cow_arbitrage_daemon.cow_submission_pause_guard_status",
+        lambda: {"configured": True, "paused": True, "pause_reason": "manual_pause"},
+    )
+    called = {}
+    monkeypatch.setattr(
+        "execution.cow_order_submission.submit_cow_flashloan_order",
+        lambda **kwargs: called.setdefault("called", True),
+    )
+
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many([_candidate()], source="test")
+    candidate = queue.claim_next()
+
+    result = default_quote_candidate(candidate, database_url=None)
+    quote = result["payload"]["ranking"][0]
+
+    assert called == {}
+    assert quote["execution_precheck"]["status"] == "submission_paused"
+    assert quote["execution_precheck"]["can_submit_order"] is False
+    assert quote["cow_sdk_result"]["submission_status"] == "submission_paused"

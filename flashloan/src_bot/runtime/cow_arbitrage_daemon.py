@@ -9,6 +9,7 @@ from typing import Any, Callable
 from core.sensitive_data import redact_sensitive_text
 from db.storage_cow_execution import build_cow_execution_attempts
 from runtime.cow_candidate_queue import CowCandidateQueue
+from web.control_panel_cow_pause import cow_submission_pause_guard_status
 
 
 DatabaseUrlProvider = Callable[[], str | None]
@@ -34,6 +35,16 @@ def get_cow_candidate_queue() -> CowCandidateQueue:
 
 
 def enqueue_cow_candidate_attempts(attempts: list[dict[str, Any]], *, source: str = "") -> dict[str, Any]:
+    pause_guard = cow_submission_pause_guard_status()
+    if pause_guard.get("paused"):
+        return {
+            "accepted": 0,
+            "enqueued": 0,
+            "skipped": len(attempts or []),
+            "source": source,
+            "status": "paused",
+            "pause_guard": pause_guard,
+        }
     return _QUEUE.enqueue_many(attempts, source=source)
 
 
@@ -63,11 +74,24 @@ def _env_int(name: str, default: int, *, minimum: int | None = None, maximum: in
 
 def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | None) -> dict[str, Any]:
     from db.storage_cow_execution import append_cow_execution_attempts_jsonl, record_cow_execution_attempts
+    from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
     from web.control_panel_data_routes import COW_EXECUTION_ATTEMPT_LOG_PATH, COW_EXECUTION_RETENTION_DAYS, data_error_message
 
     if not attempts:
         return {"recorded": 0, "source": "empty", "error": None}
+    pause_guard = cow_submission_pause_guard_status()
+    if pause_guard.get("paused"):
+        return {"recorded": 0, "source": "paused", "error": None, "pause_guard": pause_guard}
     if database_url:
+        unavailable = database_unavailable_reason(database_url)
+        if unavailable:
+            count = append_cow_execution_attempts_jsonl(
+                COW_EXECUTION_ATTEMPT_LOG_PATH,
+                attempts,
+                retention_days=COW_EXECUTION_RETENTION_DAYS,
+                dedupe_market_candidates=False,
+            )
+            return {"recorded": count, "source": "jsonl_fallback", "error": unavailable}
         try:
             ids = record_cow_execution_attempts(
                 database_url,
@@ -77,6 +101,8 @@ def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | 
             )
             return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
         except Exception as exc:
+            if is_database_unavailable_error(exc):
+                mark_database_unavailable(database_url, exc)
             count = append_cow_execution_attempts_jsonl(
                 COW_EXECUTION_ATTEMPT_LOG_PATH,
                 attempts,
@@ -213,7 +239,35 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])
     result["execution_precheck"] = _cow_execution_precheck(result)
-    if (result.get("execution_precheck") or {}).get("can_submit_order"):
+    pause_guard = cow_submission_pause_guard_status()
+    if (result.get("execution_precheck") or {}).get("can_submit_order") and pause_guard.get("paused"):
+        precheck = dict(result.get("execution_precheck") or {})
+        existing_reasons = list(precheck.get("reasons") or [])
+        if "cow_submission_paused" not in existing_reasons:
+            existing_reasons.append("cow_submission_paused")
+        precheck.update(
+            {
+                "status": "submission_paused",
+                "checks_passed": True,
+                "can_submit_order": False,
+                "auto_execute_requested": True,
+                "auto_execute_blocked": True,
+                "submission_attempted": False,
+                "submission_status": "submission_paused",
+                "submission_pause_guard": pause_guard,
+                "reasons": existing_reasons,
+            }
+        )
+        result["execution_precheck"] = precheck
+        result["cow_submission_result"] = {
+            "ok": False,
+            "submitted": False,
+            "status": "submission_paused",
+            "blocked_reason": "cow_submission_paused",
+            "error": pause_guard.get("pause_reason"),
+            "pause_guard": pause_guard,
+        }
+    elif (result.get("execution_precheck") or {}).get("can_submit_order"):
         submission = submit_cow_flashloan_order(
             quote_payload=result,
             opportunity={
@@ -360,9 +414,12 @@ class CowQuoteDaemon:
 
     def status(self) -> dict[str, Any]:
         thread = self._thread
+        pause_guard = cow_submission_pause_guard_status()
         return {
             "enabled": cow_quote_daemon_enabled(),
             "running": bool(thread and thread.is_alive()),
+            "paused": bool(pause_guard.get("paused")),
+            "pause_guard": pause_guard,
             "sort_key": self.sort_key,
             "max_attempts": self.max_attempts,
             "retry_delay_seconds": self.retry_delay_seconds,
@@ -380,6 +437,10 @@ class CowQuoteDaemon:
                 time.sleep(self.poll_interval_seconds)
 
     def process_once(self) -> bool:
+        pause_guard = cow_submission_pause_guard_status()
+        if pause_guard.get("paused"):
+            self._last_error = "cow_automation_paused"
+            return False
         candidate = self.queue.claim_next(sort_key=self.sort_key)
         if not candidate:
             return False

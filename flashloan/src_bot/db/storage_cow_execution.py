@@ -68,6 +68,7 @@ _SUCCESS_PHASES = {"confirmed_success", "settled", "execution_success"}
 _NOT_EXECUTABLE_STATES = {
     "market_candidate",
     "quote_required",
+    "quote_failed",
     "unsupported",
     "unsupported_route",
     "unsupported_token",
@@ -75,6 +76,7 @@ _NOT_EXECUTABLE_STATES = {
     "quote_unavailable",
     "flashloan_payload_required",
     "price_guard_failed",
+    "submission_paused",
     "profit_below_threshold",
     "not_profitable",
     "checks_failed",
@@ -86,7 +88,6 @@ _FAILED_STATES = {
     "limit_order_ready_to_submit",
     "ready_not_submitted",
     "ready_to_submit",
-    "quote_failed",
     "submission_failed",
     "submit_failed",
     "order_failed",
@@ -203,8 +204,9 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
 
     if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
         return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if not submission_attempted and (sdk_status in {"quote_failed", "quote_unavailable"} or state in {"quote_failed", "quote_unavailable"}):
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     terminal_failure_states = {
-        "quote_failed",
         "submission_failed",
         "submit_failed",
         "order_failed",

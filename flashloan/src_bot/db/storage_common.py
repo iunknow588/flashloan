@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import os
 import threading
+import time
 from typing import Iterator
 
 from core.config_schema import parse_env_int
@@ -50,6 +51,8 @@ EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA
 
 _POOL_LOCK = threading.Lock()
 _POOLS: dict[str, object] = {}
+_DATABASE_UNAVAILABLE_LOCK = threading.Lock()
+_DATABASE_UNAVAILABLE_UNTIL: dict[str, tuple[float, str]] = {}
 
 
 def require_psycopg():
@@ -134,6 +137,48 @@ def _is_connection_termination_error(exc: BaseException) -> bool:
         "ssl connection has been closed unexpectedly",
     )
     return any(marker in text for marker in markers)
+
+
+def is_database_unavailable_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "the endpoint has been disabled",
+        "enable it using the api and retry",
+        "server closed the connection unexpectedly",
+        "terminating connection due to administrator command",
+        "connection already closed",
+        "connection is closed",
+        "could not receive data from server",
+        "could not send data to server",
+        "ssl connection has been closed unexpectedly",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _database_unavailable_cooldown_seconds() -> int:
+    return parse_env_int("DATABASE_UNAVAILABLE_COOLDOWN_SECONDS", 300, minimum=30, maximum=3600)[0]
+
+
+def mark_database_unavailable(database_url: str, exc: BaseException | str) -> None:
+    reason = str(exc).splitlines()[0][:240] if exc else "database unavailable"
+    until = time.monotonic() + _database_unavailable_cooldown_seconds()
+    with _DATABASE_UNAVAILABLE_LOCK:
+        _DATABASE_UNAVAILABLE_UNTIL[database_url] = (until, reason)
+    _drop_connection_pool(database_url)
+
+
+def database_unavailable_reason(database_url: str | None) -> str | None:
+    if not database_url:
+        return None
+    with _DATABASE_UNAVAILABLE_LOCK:
+        cached = _DATABASE_UNAVAILABLE_UNTIL.get(database_url)
+        if not cached:
+            return None
+        until, reason = cached
+        if until <= time.monotonic():
+            _DATABASE_UNAVAILABLE_UNTIL.pop(database_url, None)
+            return None
+        return reason or "database temporarily unavailable"
 
 
 @contextmanager
