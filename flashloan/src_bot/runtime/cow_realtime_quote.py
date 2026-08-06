@@ -73,6 +73,47 @@ def _epoch_ms(value: Any) -> float | None:
         return None
 
 
+def _current_ms() -> float:
+    return time.time() * 1000.0
+
+
+def _max_age_seconds() -> float:
+    return _env_float("COW_REALTIME_QUOTE_MAX_AGE_SECONDS", 0.2, minimum=0.0)
+
+
+def _age_ms(value: Any) -> float | None:
+    event_ms = _epoch_ms(value)
+    if event_ms is None:
+        return None
+    return max(0.0, _current_ms() - event_ms)
+
+
+def _freshness_status(*, extremes: dict[str, Any], simulation: dict[str, Any]) -> dict[str, Any]:
+    max_age_ms = max(0.0, _max_age_seconds() * 1000.0)
+    extremes_age_ms = _age_ms(extremes.get("observed_at"))
+    signal_age_ms = _age_ms((simulation.get("signal_timing") or {}).get("signal_detected_at"))
+    if extremes_age_ms is not None and extremes_age_ms > max_age_ms:
+        return {
+            "fresh": False,
+            "reason": "extremes_stale",
+            "age_ms": round(extremes_age_ms, 3),
+            "max_age_ms": round(max_age_ms, 3),
+        }
+    if signal_age_ms is not None and signal_age_ms > max_age_ms:
+        return {
+            "fresh": False,
+            "reason": "signal_stale",
+            "age_ms": round(signal_age_ms, 3),
+            "max_age_ms": round(max_age_ms, 3),
+        }
+    return {
+        "fresh": True,
+        "reason": "fresh",
+        "age_ms": round(extremes_age_ms if extremes_age_ms is not None else signal_age_ms or 0.0, 3),
+        "max_age_ms": round(max_age_ms, 3),
+    }
+
+
 def _window_end_ms(quote: dict[str, Any]) -> float | None:
     event_ends = [
         _epoch_ms(quote.get("x_end_ms")),
@@ -341,6 +382,12 @@ def trigger_realtime_cow_quote(
         return {"started": False, "reason": "disabled"}
     if not isinstance(simulation, dict) or not simulation.get("signal"):
         return {"started": False, "reason": "no_signal"}
+    if not isinstance(extremes, dict):
+        return {"started": False, "reason": "missing_extremes"}
+
+    freshness = _freshness_status(extremes=extremes, simulation=simulation)
+    if not freshness["fresh"]:
+        return {"started": False, "reason": freshness["reason"], "freshness": freshness}
 
     from execution.cow_routes import cow_network_config
 
@@ -405,4 +452,5 @@ def trigger_realtime_cow_quote(
         "routes": [item["attempt"].get("route_path") for item in started_routes],
         "blocked_routes": blocked_routes,
         "mode": "immediate_same_observer_cycle",
+        "freshness": freshness,
     }

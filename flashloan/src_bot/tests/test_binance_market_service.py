@@ -477,12 +477,14 @@ def test_cow_execution_precheck_route_hop_mode_enforces_hop_constraints(monkeypa
 def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
     monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+    monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
 
     precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
 
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is True
     assert precheck["order_submission_enabled"] is True
+    assert precheck["order_submission_signer_ready"] is True
     assert precheck["status"] == "limit_order_ready_to_submit"
 
 

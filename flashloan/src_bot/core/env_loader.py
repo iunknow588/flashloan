@@ -55,8 +55,10 @@ def load_env_files(
         for key, value in values.items():
             if override:
                 os.environ[key] = value
+            elif key not in os.environ or str(os.environ.get(key) or "").strip() == "":
+                os.environ[key] = value
             else:
-                os.environ.setdefault(key, value)
+                continue
         loaded.append(env_path)
     return loaded
 

@@ -13,7 +13,13 @@ from typing import Any
 
 from db.storage_cow_tokens import load_cow_supported_tokens, replace_cow_supported_tokens
 from execution.cow_flashloan_capabilities import assess_cow_flashloan_sdk_plan
-from execution.cow_order_submission import cow_order_submission_adapter_available, cow_order_submission_enabled, cow_order_submission_network_supported
+from execution.cow_order_submission import (
+    cow_order_submission_adapter_available,
+    cow_order_submission_enabled,
+    cow_order_submission_network_supported,
+    cow_order_submission_signer_ready,
+    cow_order_submission_signer_status,
+)
 from execution.cow_routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
@@ -2311,7 +2317,14 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     order_submission_network_supported = cow_order_submission_network_supported(
         result.get("cow_network") or result.get("network") or DEFAULT_COW_TEST_NETWORK
     )
-    order_submission_enabled = order_submission_requested and order_submission_adapter_available and order_submission_network_supported
+    order_submission_signer_ready = cow_order_submission_signer_ready()
+    order_submission_signer_status = cow_order_submission_signer_status()
+    order_submission_enabled = (
+        order_submission_requested
+        and order_submission_adapter_available
+        and order_submission_network_supported
+        and order_submission_signer_ready
+    )
     if route_hop_constraints_enforced and not route_hop_constraints_passed:
         cow_sdk_flashloan_ready = False
     if checks_passed and not order_submission_enabled:
@@ -2347,6 +2360,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "order_submission_enabled": order_submission_enabled,
         "order_submission_adapter_available": order_submission_adapter_available,
         "order_submission_network_supported": order_submission_network_supported,
+        "order_submission_signer_ready": order_submission_signer_ready,
+        "order_submission_signer_status": order_submission_signer_status,
         "auto_execute_requested": checks_passed,
         "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
         "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),

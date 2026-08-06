@@ -17,6 +17,12 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 COW_CONTRACTS_DX_DIR = REPO_ROOT / "contract" / "contracts-dex"
 COW_SUBMISSION_SCRIPT = COW_CONTRACTS_DX_DIR / "scripts" / "submit-cow-flashloan-order.js"
 LIVE_COW_SUBMISSION_NETWORKS = {"ethereum", "avalanche", "bnb", "polygon", "base"}
+COW_ORDER_SIGNER_ENV_NAMES = (
+    "COW_ORDER_SIGNER_PRIVATE_KEY",
+    "COW_FLASHLOAN_PROBE_PRIVATE_KEY",
+    "LIQUIDATION_EXECUTION_PRIVATE_KEY",
+    "LIQUIDATION_SELF_FUNDED_PRIVATE_KEY",
+)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -45,12 +51,56 @@ def cow_order_submission_network_supported(network: str | None) -> bool:
     return str(network or "").strip().lower() in LIVE_COW_SUBMISSION_NETWORKS
 
 
+def _normalized_private_key(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw or raw == "0x...":
+        return ""
+    key = raw if raw.startswith("0x") else f"0x{raw}"
+    if len(key) != 66 or not key.startswith("0x"):
+        return ""
+    try:
+        int(key[2:], 16)
+    except ValueError:
+        return ""
+    return key
+
+
+def cow_order_submission_signer_status() -> dict[str, Any]:
+    invalid_sources: list[str] = []
+    for name in COW_ORDER_SIGNER_ENV_NAMES:
+        raw = os.getenv(name, "")
+        if not str(raw or "").strip():
+            continue
+        if _normalized_private_key(raw):
+            return {
+                "ready": True,
+                "source": name,
+                "reason": "signer_private_key_configured",
+                "invalid_sources": invalid_sources,
+            }
+        invalid_sources.append(name)
+    reason = "signer_private_key_invalid" if invalid_sources else "signer_private_key_missing"
+    return {
+        "ready": False,
+        "source": None,
+        "reason": reason,
+        "invalid_sources": invalid_sources,
+    }
+
+
+def cow_order_submission_signer_ready() -> bool:
+    return bool(cow_order_submission_signer_status()["ready"])
+
+
 def submission_script_ready() -> dict[str, Any]:
     node = shutil.which("node") or shutil.which("node.exe")
+    signer = cow_order_submission_signer_status()
     return {
         "requested": cow_order_submission_requested(),
         "adapter_available": cow_order_submission_adapter_available(),
         "enabled": cow_order_submission_enabled(),
+        "signer_ready": signer["ready"],
+        "signer_status": signer,
         "node": node,
         "script": str(COW_SUBMISSION_SCRIPT),
         "script_exists": COW_SUBMISSION_SCRIPT.exists(),
