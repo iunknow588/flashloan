@@ -237,6 +237,26 @@ function parseHumanUnits(amount, decimals) {
   return (BigInt(whole || "0") * pow10(decimals) + BigInt(padded || "0")).toString();
 }
 
+function parseDecimalScaled(value, scale = 1000000n) {
+  const text = String(value ?? "0").trim();
+  if (!/^(?:\d+)(?:\.\d+)?$/.test(text)) {
+    throw new Error(`invalid non-negative decimal: ${value}`);
+  }
+  const [whole, fractional = ""] = text.split(".");
+  const scaleDigits = String(scale).length - 1;
+  const fractionText = `${fractional}${"0".repeat(scaleDigits)}`.slice(0, scaleDigits);
+  return BigInt(whole) * scale + BigInt(fractionText || "0");
+}
+
+function percentageOfUnits(amountUnits, percentHuman) {
+  const scale = 1000000n;
+  const percentScaled = parseDecimalScaled(percentHuman, scale);
+  const denominator = 100n * scale;
+  if (percentScaled === 0n || amountUnits === 0n) return 0n;
+  // Round up so the configured pure-profit floor can never be underfunded.
+  return (amountUnits * percentScaled + denominator - 1n) / denominator;
+}
+
 function formatUnits(amount, decimals) {
   if (amount == null || amount === "") return null;
   const value = BigInt(String(amount));
@@ -745,6 +765,512 @@ async function loadLiveRouteSpecs({ network, registry }) {
   return { livePath, status: last.reason, routes: [], diagnostic: last };
 }
 
+function pureIntentCandidateUniverse(extremes, registry, limit = 3) {
+  const collect = (side, rows) =>
+    (Array.isArray(rows) ? rows : []).slice(0, Math.max(1, limit)).map((row, index) => {
+      const symbol = baseSymbol(row);
+      const token = registry.get(tokenKey(symbol)) || null;
+      return {
+        side,
+        rank: index + 1,
+        symbol: row.symbol || `${symbol}USDT`,
+        baseSymbol: symbol,
+        address: token?.address || null,
+        decimals: token?.decimals ?? null,
+        cowSupported: Boolean(token),
+        changePercent: numberOrNull(row.change_percent),
+        startPrice: numberOrNull(row.start_price),
+        currentPrice: numberOrNull(row.current_price ?? row.end_price),
+        endPrice: numberOrNull(row.end_price ?? row.current_price),
+        startMs: row.start_ms ?? null,
+        endMs: row.end_ms ?? null,
+      };
+    });
+  const gainers = collect("gainer", extremes?.top);
+  const losers = collect("loser", extremes?.bottom);
+  const bySymbol = new Map();
+  for (const item of [...gainers, ...losers]) {
+    if (item.baseSymbol && !bySymbol.has(item.baseSymbol)) bySymbol.set(item.baseSymbol, item);
+  }
+  return {
+    limit,
+    gainers,
+    losers,
+    tokens: Array.from(bySymbol.values()),
+    supportedTokenCount: Array.from(bySymbol.values()).filter((item) => item.cowSupported).length,
+    unsupportedTokenCount: Array.from(bySymbol.values()).filter((item) => !item.cowSupported).length,
+    source: "binance_200ms_top_bottom",
+  };
+}
+
+function effectiveRouteTradeFeePercent(tradeFeePercent, routeTradeFeeHops) {
+  const feeRate = Math.max(0.0, Number(tradeFeePercent) || 0) / 100.0;
+  const hops = Math.max(1, Number(routeTradeFeeHops) || 1);
+  return (1.0 - (1.0 - feeRate) ** hops) * 100.0;
+}
+
+function pureIntentMinWindowSpreadPercent() {
+  const tradeFeePercent = Number(envFirst("ARBITRAGE_TRADE_FEE_PERCENT") || "0.10");
+  const flashloanFeePercent = Number(envFirst("ARBITRAGE_FLASHLOAN_FEE_PERCENT") || envFirst("COW_FLASHLOAN_FEE_PERCENT") || "0.05");
+  const targetProfitPercent = Number(envFirst("ARBITRAGE_TARGET_PROFIT_PERCENT") || "0.618");
+  const routeTradeFeeHops = Number(envFirst("ARBITRAGE_ROUTE_TRADE_FEE_HOPS") || "3");
+  return (
+    effectiveRouteTradeFeePercent(tradeFeePercent, routeTradeFeeHops) +
+    Math.max(0, flashloanFeePercent) +
+    Math.max(0, targetProfitPercent)
+  );
+}
+
+function firstChangePercent(row) {
+  return row == null ? null : decimalNumber(row.change_percent);
+}
+
+function pureIntentSpecFromExtremes({
+  extremes,
+  network,
+  registry,
+  amountHuman,
+  minProfitPercentHuman,
+  gasReserveHuman,
+  otherKnownCostsHuman,
+  candidateLimit,
+}) {
+  if (!extremes || typeof extremes !== "object") {
+    return { routeSpec: null, reason: "latest_extremes_missing" };
+  }
+  const observedMs = parseObservedAt(extremes.observed_at);
+  const freshnessSeconds = observedMs == null ? null : (Date.now() - observedMs) / 1000;
+  const maxAgeSeconds = Number(envFirst("COW_FLASHLOAN_LIVE_MAX_AGE_SECONDS") || "30");
+  if (freshnessSeconds == null) {
+    return { routeSpec: null, reason: "latest_extremes_observed_at_missing" };
+  }
+  if (freshnessSeconds > maxAgeSeconds) {
+    return {
+      routeSpec: null,
+      reason: "latest_extremes_stale",
+      freshnessSeconds,
+      maxAgeSeconds,
+      observedAt: extremes.observed_at,
+    };
+  }
+  const candidateUniverse = pureIntentCandidateUniverse(extremes, registry, candidateLimit);
+  const gainer = candidateUniverse.gainers[0] || null;
+  const loser = candidateUniverse.losers[0] || null;
+  const gainerChangePercent = firstChangePercent(gainer);
+  const loserChangePercent = firstChangePercent(loser);
+  const windowSpreadPercent =
+    gainerChangePercent != null && loserChangePercent != null ? gainerChangePercent - loserChangePercent : null;
+  const minWindowSpreadPercent = pureIntentMinWindowSpreadPercent();
+  const spreadOk =
+    windowSpreadPercent != null &&
+    gainerChangePercent != null &&
+    loserChangePercent != null &&
+    loserChangePercent < 0 &&
+    windowSpreadPercent > minWindowSpreadPercent;
+  const usdc = requireToken(registry, "USDC");
+  if (!spreadOk) {
+    return {
+      routeSpec: null,
+      reason: !gainer || !loser
+        ? "latest_extremes_top_bottom_missing"
+        : "latest_extremes_below_dynamic_profit_threshold",
+      windowSpreadPercent,
+      minWindowSpreadPercent,
+      gainerChangePercent,
+      loserChangePercent,
+      candidateUniverse,
+      observedAt: extremes.observed_at,
+    };
+  }
+  return {
+    routeSpec: {
+      network,
+      route: ["USDC", "USDC"],
+      amountHuman,
+      amountUnits: parseHumanUnits(amountHuman, usdc.decimals),
+      pair: "USDC pure intent",
+      pairRank: 1,
+      routeDirection: "pure_intent_same_asset",
+      priorityReason: "pure_intent_net_profit_floor",
+      observedAt: extremes.observed_at,
+      candidateUniverse,
+      windowSpreadPercent,
+      minWindowSpreadPercent,
+      pureIntent: {
+        initialSymbol: "USDC",
+        finalSymbol: "USDC",
+        initialAmountHuman: amountHuman,
+        minProfitPercentHuman,
+        gasReserveHuman,
+        otherKnownCostsHuman,
+        candidateUniverse,
+        windowSpreadPercent,
+        minWindowSpreadPercent,
+        semantics:
+          "buy_at_least_initial_plus_flashloan_fee_plus_gas_reserve_plus_other_known_costs_plus_initial_amount_percentage_profit",
+      },
+      liveSignal: {
+        freshnessSeconds,
+        observedAt: extremes.observed_at,
+        windowSeconds: extremes.window_seconds ?? null,
+        windowSpreadPercent,
+        minWindowSpreadPercent,
+        spreadOk,
+        gainerChangePercent,
+        loserChangePercent,
+        candidateUniverse,
+      },
+    },
+    reason: "live_pure_intent_candidate_found",
+    freshnessSeconds,
+    candidateUniverse,
+  };
+}
+
+async function loadLivePureIntentSpec({ network, registry }) {
+  const livePath = envFirst("COW_FLASHLOAN_LIVE_EXTREMES_PATH") || DEFAULT_LIVE_EXTREMES_PATH;
+  const waitSeconds = Math.max(0, Number(envFirst("COW_FLASHLOAN_LIVE_WAIT_SECONDS") || "0"));
+  const pollSeconds = Math.max(0.2, Number(envFirst("COW_FLASHLOAN_LIVE_POLL_SECONDS") || "0.5"));
+  const amountHuman = envFirst("COW_FLASHLOAN_PROBE_AMOUNT") || "1000";
+  const minProfitPercentHuman = envFirst("COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT") || "0.618";
+  const gasReserveHuman = envFirst("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC") || "0";
+  const otherKnownCostsHuman = envFirst("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC") || "0";
+  const candidateLimit = Math.max(1, Number(envFirst("COW_FLASHLOAN_PURE_INTENT_CANDIDATE_LIMIT") || "3"));
+  const started = Date.now();
+  let last = { routeSpec: null, reason: "not_checked" };
+  while (Date.now() - started <= waitSeconds * 1000) {
+    const extremes = fs.existsSync(livePath) ? loadJson(livePath) : null;
+    last = pureIntentSpecFromExtremes({
+      extremes,
+      network,
+      registry,
+      amountHuman,
+      minProfitPercentHuman,
+      gasReserveHuman,
+      otherKnownCostsHuman,
+      candidateLimit,
+    });
+    if (last.routeSpec) {
+      return {
+        livePath,
+        status: last.reason,
+        routes: [last.routeSpec],
+        diagnostic: last,
+      };
+    }
+    if (waitSeconds <= 0) break;
+    await sleep(pollSeconds * 1000);
+  }
+  return { livePath, status: last.reason, routes: [], diagnostic: last };
+}
+
+function manualPureIntentSpec(network, registry) {
+  const usdc = requireToken(registry, "USDC");
+  const amountHuman = envFirst("COW_FLASHLOAN_PROBE_AMOUNT") || "1000";
+  const minProfitPercentHuman = envFirst("COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT") || "0.618";
+  const gasReserveHuman = envFirst("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC") || "0";
+  const otherKnownCostsHuman = envFirst("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC") || "0";
+  return {
+    network,
+    route: ["USDC", "USDC"],
+    amountHuman,
+    amountUnits: parseHumanUnits(amountHuman, usdc.decimals),
+    pair: "USDC pure intent",
+    pairRank: 1,
+    routeDirection: "pure_intent_same_asset",
+    priorityReason: "pure_intent_net_profit_floor",
+    observedAt: null,
+    candidateUniverse: {
+      limit: Math.max(1, Number(envFirst("COW_FLASHLOAN_PURE_INTENT_CANDIDATE_LIMIT") || "3")),
+      gainers: [],
+      losers: [],
+      tokens: [],
+      source: "manual",
+    },
+    pureIntent: {
+      initialSymbol: "USDC",
+      finalSymbol: "USDC",
+      initialAmountHuman: amountHuman,
+      minProfitPercentHuman,
+      gasReserveHuman,
+      otherKnownCostsHuman,
+      candidateUniverse: null,
+      semantics:
+        "buy_at_least_initial_plus_flashloan_fee_plus_gas_reserve_plus_other_known_costs_plus_initial_amount_percentage_profit",
+    },
+  };
+}
+
+function pureIntentAppData({
+  slippageBps,
+  candidateUniverse,
+  minProfitPercentHuman,
+  gasReserveHuman,
+  otherKnownCostsHuman,
+}) {
+  return {
+    metadata: {
+      quote: { slippageBips: slippageBps },
+      orderClass: { orderClass: "limit" },
+      intent: {
+        kind: "pure_profit",
+        minProfitPercent: String(minProfitPercentHuman),
+        gasReserveUsdc: String(gasReserveHuman),
+        otherKnownCostsUsdc: String(otherKnownCostsHuman),
+        candidateUniverse,
+      },
+    },
+  };
+}
+
+async function probePureIntent({
+  routeSpec,
+  registry,
+  tradingSdk,
+  flashSdk,
+  chainId,
+  owner,
+  flashLoanFeePercent,
+  slippageBps,
+}) {
+  const usdc = requireToken(registry, "USDC");
+  const principalUnits = BigInt(routeSpec.amountUnits);
+  const flashLoanFeeBps = Math.round(flashLoanFeePercent * 100);
+  const { flashLoanFeeAmount } = flashSdk.calculateFlashLoanAmounts({
+    sellAmount: principalUnits,
+    flashLoanFeeBps,
+  });
+  const minProfitUnits = percentageOfUnits(
+    principalUnits,
+    routeSpec.pureIntent.minProfitPercentHuman
+  );
+  const gasReserveUnits = BigInt(parseHumanUnits(routeSpec.pureIntent.gasReserveHuman, usdc.decimals));
+  const otherKnownCostsUnits = BigInt(
+    parseHumanUnits(routeSpec.pureIntent.otherKnownCostsHuman, usdc.decimals)
+  );
+  const knownCostsUnits = flashLoanFeeAmount + gasReserveUnits + otherKnownCostsUnits;
+  const targetBuyUnits = principalUnits + knownCostsUnits + minProfitUnits;
+  const validTo = Math.ceil(Date.now() / 1000) + 300;
+  const quoteParams = {
+    chainId,
+    owner,
+    kind: OrderKind.BUY,
+    sellToken: usdc.address,
+    sellTokenDecimals: usdc.decimals,
+    buyToken: usdc.address,
+    buyTokenDecimals: usdc.decimals,
+    amount: targetBuyUnits.toString(),
+    validTo,
+    slippageBps,
+    flashLoanFeeAmount,
+  };
+  const customAppData = pureIntentAppData({
+    slippageBps,
+    candidateUniverse: routeSpec.candidateUniverse,
+    minProfitPercentHuman: routeSpec.pureIntent.minProfitPercentHuman,
+    gasReserveHuman: routeSpec.pureIntent.gasReserveHuman,
+    otherKnownCostsHuman: routeSpec.pureIntent.otherKnownCostsHuman,
+  });
+  let quote = null;
+  let appDataAttempt = "custom_intent";
+  let customAppDataError = null;
+  let error = null;
+  try {
+    quote = await tradingSdk.getQuoteOnly(quoteParams, {
+      appData: customAppData,
+      allowIntermediateEqSellToken: true,
+    });
+  } catch (firstError) {
+    customAppDataError = firstError?.message || String(firstError);
+    appDataAttempt = "standard_fallback";
+    try {
+      quote = await tradingSdk.getQuoteOnly(quoteParams, {
+        allowIntermediateEqSellToken: true,
+      });
+    } catch (secondError) {
+      error = `custom_app_data: ${customAppDataError}; standard_fallback: ${secondError?.message || String(secondError)}`;
+    }
+  }
+  if (error || !quote?.orderToSign) {
+    return {
+      ok: false,
+      network: routeSpec.network,
+      pair: routeSpec.pair,
+      pairRank: routeSpec.pairRank,
+      routeDirection: routeSpec.routeDirection,
+      priorityReason: routeSpec.priorityReason,
+      observedAt: routeSpec.observedAt,
+      route: routeSpec.route,
+      amountHuman: routeSpec.amountHuman,
+      classification: "pure_intent_quote_failed",
+      error: error || "pure intent quote returned no order",
+      intent: {
+        ...routeSpec.pureIntent,
+        targetBuyAmountHuman: formatUnits(targetBuyUnits, usdc.decimals),
+        minPureProfitHuman: formatUnits(minProfitUnits, usdc.decimals),
+        flashLoanFeeHuman: formatUnits(flashLoanFeeAmount, usdc.decimals),
+        gasReserveHuman: formatUnits(gasReserveUnits, usdc.decimals),
+        otherKnownCostsHuman: formatUnits(otherKnownCostsUnits, usdc.decimals),
+        knownCostsHuman: formatUnits(knownCostsUnits, usdc.decimals),
+        appDataAttempt,
+        customAppDataAccepted: false,
+        customAppDataError,
+      },
+      candidateUniverse: routeSpec.candidateUniverse,
+      legs: [],
+      profit: null,
+      netProfit: null,
+      costAnalysis: {
+        pureIntent: true,
+        minProfitPercent: routeSpec.pureIntent.minProfitPercentHuman,
+        requiredMinPureProfitHuman: formatUnits(minProfitUnits, usdc.decimals),
+        knownCostsHuman: formatUnits(knownCostsUnits, usdc.decimals),
+        error,
+      },
+      singleSolverSettlement: {
+        model: "pure_intent_single_solver_settlement",
+        testedSemantics: "quote_only",
+        proofStatus: "not_proven_quote_only",
+      },
+    };
+  }
+  let posting = null;
+  try {
+    posting = await flashSdk.getOrderPostingSettings(
+      AaveFlashLoanType.CollateralSwap,
+      quoteParams,
+      {
+        flashLoanAmount: principalUnits,
+        orderToSign: quote.orderToSign,
+      }
+    );
+  } catch (postingError) {
+    error = postingError?.message || String(postingError);
+  }
+  const order = quote.orderToSign;
+  const protectedBuyUnits = BigInt(order.buyAmount);
+  const requiredSellUnits = BigInt(order.sellAmount);
+  const maxSellUnits = principalUnits > knownCostsUnits ? principalUnits - knownCostsUnits : 0n;
+  const grossDeltaUnits = protectedBuyUnits - principalUnits;
+  const netDeltaUnits = grossDeltaUnits - knownCostsUnits;
+  const sellBudgetPassed = requiredSellUnits <= maxSellUnits;
+  const sellBudgetExcessUnits = requiredSellUnits > maxSellUnits ? requiredSellUnits - maxSellUnits : 0n;
+  const profitBudgetMet = netDeltaUnits >= minProfitUnits;
+  const feasible = !error && Boolean(quote?.orderToSign);
+  const protectedBuyHuman = formatUnits(protectedBuyUnits, usdc.decimals);
+  const netProfitHuman = formatUnits(netDeltaUnits, usdc.decimals);
+  const postingMetadata = posting?.swapSettings?.appData?.metadata || {};
+  const quoteAppData = appDataSummary(quote.appDataInfo, postingMetadata);
+  const quoteReport = {
+    tradeParameters: {
+      kind: "buy",
+      sellToken: usdc.symbol,
+      buyToken: usdc.symbol,
+      targetBuyAmountHuman: formatUnits(targetBuyUnits, usdc.decimals),
+      requiredSellAmountHuman: formatUnits(requiredSellUnits, usdc.decimals),
+      maxSellAmountHuman: formatUnits(maxSellUnits, usdc.decimals),
+      sellBudgetExcessHuman: formatUnits(sellBudgetExcessUnits, usdc.decimals),
+    },
+    orderToSign: orderToSignSummary(order),
+    quoteResponse: quoteResponseSummary(quote.quoteResponse),
+    amountsAndCosts: jsonFriendly(quote.amountsAndCosts || null),
+    appData: quoteAppData,
+    postingAppDataMetadataKeys: Object.keys(postingMetadata),
+    customAppDataAccepted: appDataAttempt === "custom_intent" && !customAppDataError,
+  };
+  return {
+    ok: feasible,
+    network: routeSpec.network,
+    pair: routeSpec.pair,
+    pairRank: routeSpec.pairRank,
+    routeDirection: routeSpec.routeDirection,
+    priorityReason: routeSpec.priorityReason,
+    observedAt: routeSpec.observedAt,
+    liveSignal: routeSpec.liveSignal || null,
+    route: routeSpec.route,
+    amountHuman: routeSpec.amountHuman,
+    amountUnits: routeSpec.amountUnits,
+    classification: feasible ? "pure_intent_quote_returned" : "pure_intent_quote_failed",
+    error,
+    candidateUniverse: routeSpec.candidateUniverse,
+    intent: {
+      ...routeSpec.pureIntent,
+      targetBuyAmountHuman: formatUnits(targetBuyUnits, usdc.decimals),
+      minPureProfitHuman: formatUnits(minProfitUnits, usdc.decimals),
+      protectedBuyAmountHuman: protectedBuyHuman,
+      requiredSellAmountHuman: formatUnits(requiredSellUnits, usdc.decimals),
+      maxSellAmountHuman: formatUnits(maxSellUnits, usdc.decimals),
+      flashLoanFeeHuman: formatUnits(flashLoanFeeAmount, usdc.decimals),
+      gasReserveHuman: formatUnits(gasReserveUnits, usdc.decimals),
+      otherKnownCostsHuman: formatUnits(otherKnownCostsUnits, usdc.decimals),
+      knownCostsHuman: formatUnits(knownCostsUnits, usdc.decimals),
+      sellBudgetCapHuman: formatUnits(maxSellUnits, usdc.decimals),
+      sellBudgetExcessHuman: formatUnits(sellBudgetExcessUnits, usdc.decimals),
+      sellBudgetPassed,
+      profitBudgetMet,
+      appDataAttempt,
+      customAppDataAccepted: appDataAttempt === "custom_intent" && !customAppDataError,
+      customAppDataError,
+    },
+    quote: quoteReport,
+    profit: {
+      inputAmount: routeSpec.amountHuman,
+      finalAmount: protectedBuyHuman,
+      deltaAmount: formatUnits(grossDeltaUnits, usdc.decimals),
+      deltaPercent: String(Number(grossDeltaUnits) / Number(principalUnits) * 100),
+      symbol: usdc.symbol,
+    },
+    netProfit: {
+      inputAmount: routeSpec.amountHuman,
+      finalAmount: netProfitHuman,
+      deltaAmount: netProfitHuman,
+      deltaPercent: String(Number(netDeltaUnits) / Number(principalUnits) * 100),
+      symbol: usdc.symbol,
+    },
+    costAnalysis: {
+      pureIntent: true,
+      grossProfitBeforeFlashLoanAndGas: formatUnits(grossDeltaUnits, usdc.decimals),
+      netProfitAfterAllCosts: {
+        inputAmount: routeSpec.amountHuman,
+        finalAmount: netProfitHuman,
+        deltaAmount: netProfitHuman,
+        deltaPercent: String(Number(netDeltaUnits) / Number(principalUnits) * 100),
+        symbol: usdc.symbol,
+      },
+      minProfitPercent: routeSpec.pureIntent.minProfitPercentHuman,
+      requiredMinPureProfitHuman: formatUnits(minProfitUnits, usdc.decimals),
+      flashLoanFeeHuman: formatUnits(flashLoanFeeAmount, usdc.decimals),
+      gasReserveHuman: formatUnits(gasReserveUnits, usdc.decimals),
+      otherKnownCostsHuman: formatUnits(otherKnownCostsUnits, usdc.decimals),
+      knownCostsHuman: formatUnits(knownCostsUnits, usdc.decimals),
+      sellBudgetCapHuman: formatUnits(maxSellUnits, usdc.decimals),
+      sellBudgetExcessHuman: formatUnits(sellBudgetExcessUnits, usdc.decimals),
+      protectedBuyAmountHuman: protectedBuyHuman,
+      requiredSellAmountHuman: formatUnits(requiredSellUnits, usdc.decimals),
+      maxSellAmountHuman: formatUnits(maxSellUnits, usdc.decimals),
+      sellBudgetPassed,
+      profitBudgetMet,
+      appData: quoteReport.appData,
+    },
+    legs: [],
+    singleSolverSettlement: {
+      model: "pure_intent_single_solver_settlement",
+      requestedSemantics: "one_starting_asset_one_flashloan_one_cow_solver_settlement",
+      testedSemantics: "single_intent_quote_only",
+      borrowedAsset: usdc.symbol,
+      repaidAsset: usdc.symbol,
+      route: routeSpec.route,
+      hopCount: 0,
+      singleStartingAsset: true,
+      borrowedAndRepaidSameAsset: true,
+      flashLoanCount: 1,
+      solverOrderCount: 1,
+      settlementTransactionCount: 1,
+      proofStatus: "not_proven_quote_only",
+    },
+  };
+}
+
 function ownStepAnalysis(step, leg) {
   if (!step) return null;
   const actual = leg.buyAmountHuman;
@@ -923,16 +1449,34 @@ function routeProfit(routeSpec, tokens, legs, outputKey = "buyAmountHuman") {
 }
 
 function routeSelection(routes) {
-  const minProfit = decimalNumber(envFirst("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC", "COW_AUTO_EXECUTE_MIN_PROFIT_USD")) ?? 0;
+  const pureIntentEnabled = envBool("COW_FLASHLOAN_PURE_INTENT_ENABLED", true);
+  const pureIntentMinProfitPercent =
+    decimalNumber(envFirst("COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT")) ?? 0.618;
+  const absoluteMinProfit =
+    decimalNumber(envFirst("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC", "COW_AUTO_EXECUTE_MIN_PROFIT_USD")) ?? 0;
   const ranking = routes
     .map((route, index) => {
       const protectedProfit = route.profit || route.costAnalysis?.protectedProfitAfterSlippageFloor || null;
+      const netProfit = route.netProfit || route.costAnalysis?.netProfitAfterAllCosts || null;
       const expectedProfit = route.costAnalysis?.expectedProfitBeforeSlippageFloor || null;
       const finalAmount = decimalNumber(protectedProfit?.finalAmount);
-      const deltaAmount = decimalNumber(protectedProfit?.deltaAmount);
+      const deltaAmount = decimalNumber(netProfit?.deltaAmount ?? protectedProfit?.deltaAmount);
       const expectedFinalAmount = decimalNumber(expectedProfit?.finalAmount);
       const expectedDeltaAmount = decimalNumber(expectedProfit?.deltaAmount);
-      const quoteAvailable = Boolean(route.ok && finalAmount != null);
+      const inputAmount = decimalNumber(route.amountHuman ?? protectedProfit?.inputAmount);
+      const minProfit =
+        pureIntentEnabled
+          ? decimalNumber(
+              route.intent?.minPureProfitHuman ??
+                route.costAnalysis?.requiredMinPureProfitHuman
+            ) ??
+            (inputAmount == null ? null : inputAmount * pureIntentMinProfitPercent / 100)
+          : absoluteMinProfit;
+      const quoteAvailable = Boolean(finalAmount != null && (route.ok || route.quote));
+      const profitFloorMet = quoteAvailable && deltaAmount != null && minProfit != null && deltaAmount >= minProfit;
+      const sellBudgetPassed =
+        route.intent?.sellBudgetPassed ?? route.costAnalysis?.sellBudgetPassed ?? null;
+      const executionBudgetMet = Boolean(route.ok && profitFloorMet);
       return {
         sourceIndex: index + 1,
         ok: Boolean(route.ok),
@@ -944,13 +1488,27 @@ function routeSelection(routes) {
         route: route.route,
         classification: route.classification,
         finalAmount: protectedProfit?.finalAmount ?? null,
-        deltaAmount: protectedProfit?.deltaAmount ?? null,
-        deltaPercent: protectedProfit?.deltaPercent ?? null,
+        deltaAmount: netProfit?.deltaAmount ?? protectedProfit?.deltaAmount ?? null,
+        deltaPercent: netProfit?.deltaPercent ?? protectedProfit?.deltaPercent ?? null,
+        grossDeltaAmount: protectedProfit?.deltaAmount ?? null,
+        netProfitAfterAllCosts: netProfit?.deltaAmount ?? null,
         expectedFinalAmountBeforeSlippageFloor: expectedProfit?.finalAmount ?? null,
         expectedDeltaAmountBeforeSlippageFloor: expectedProfit?.deltaAmount ?? null,
         expectedDeltaPercentBeforeSlippageFloor: expectedProfit?.deltaPercent ?? null,
-        profitBudgetMet: quoteAvailable && deltaAmount != null && deltaAmount >= minProfit,
-        minProfitHuman: String(minProfit),
+        profitFloorMet,
+        sellBudgetPassed,
+        profitBudgetMet: executionBudgetMet,
+        blockingReason:
+          !quoteAvailable
+            ? "quote_unavailable"
+            : !profitFloorMet
+              ? "net_profit_below_percentage_floor"
+              : !route.ok
+                ? "route_not_feasible"
+                : null,
+        budgetWarning: sellBudgetPassed === false ? "required_sell_exceeds_available_budget" : null,
+        minProfitHuman: minProfit == null ? null : String(minProfit),
+        minProfitPercent: pureIntentEnabled ? String(pureIntentMinProfitPercent) : null,
         slippageRecommendation: route.costAnalysis?.slippageRecommendation || null,
         finalLossDominantCause: route.costAnalysis?.finalLossDominantCause || null,
         binanceWindowVerdict: route.binanceWindowAnalysis?.threeHopVerdict || null,
@@ -1001,7 +1559,9 @@ function routeSelection(routes) {
     }));
   const best = ranking[0] || null;
   return {
-    minProfitHuman: String(minProfit),
+    minProfitHuman: best?.minProfitHuman ?? null,
+    minProfitPercent: pureIntentEnabled ? String(pureIntentMinProfitPercent) : null,
+    minProfitRule: pureIntentEnabled ? "input_amount_times_percent" : "absolute_usdc",
     minProfitSymbol: "USDC",
     candidateCount: routes.length,
     quotedCandidateCount: routes.filter((route) => route.ok).length,
@@ -1350,6 +1910,7 @@ async function main() {
 
   const registry = loadTokenRegistry(config.network);
   const sourceMode = tokenKey(envFirst("COW_FLASHLOAN_PROBE_SOURCE") || "manual").toLowerCase();
+  const pureIntentEnabled = envBool("COW_FLASHLOAN_PURE_INTENT_ENABLED", true);
   const fromHistory = envBool("COW_FLASHLOAN_PROBE_FROM_HISTORY", false) || sourceMode === "history";
   if (fromHistory && !envBool("COW_FLASHLOAN_PROBE_ALLOW_HISTORY", false)) {
     throw new Error("history candidates are disabled for live execution tests; set COW_FLASHLOAN_PROBE_SOURCE=live and wait for a fresh signal");
@@ -1357,14 +1918,21 @@ async function main() {
   const limit = Math.max(1, Number(envFirst("COW_FLASHLOAN_PROBE_LIMIT") || "1"));
   const onlyTop1 = envBool("COW_FLASHLOAN_PROBE_ONLY_TOP1", true);
   const history = fromHistory ? loadHistoryRoutes({ network: config.network, limit, onlyTop1 }) : null;
-  const live = sourceMode === "live" ? await loadLiveRouteSpecs({ network: config.network, registry }) : null;
+  const live =
+    sourceMode === "live"
+      ? pureIntentEnabled
+        ? await loadLivePureIntentSpec({ network: config.network, registry })
+        : await loadLiveRouteSpecs({ network: config.network, registry })
+      : null;
   let routeSpecs = [];
   if (live) {
     routeSpecs = live.routes;
   } else if (history) {
-    routeSpecs = history.routes.map((item) => withUnits(item, registry));
+    routeSpecs = pureIntentEnabled
+      ? [manualPureIntentSpec(config.network, registry)]
+      : history.routes.map((item) => withUnits(item, registry));
   } else {
-    routeSpecs = [manualRouteSpec(config.network, registry)];
+    routeSpecs = [pureIntentEnabled ? manualPureIntentSpec(config.network, registry) : manualRouteSpec(config.network, registry)];
   }
 
   const client = createPublicClient({ chain: config.chain, transport: http(rpc) });
@@ -1391,16 +1959,27 @@ async function main() {
 
   const routes = [];
   for (const routeSpec of routeSpecs) {
-    const route = await probeRoute({
-      routeSpec,
-      registry,
-      tradingSdk,
-      flashSdk,
-      chainId: config.chainId,
-      owner,
-      flashLoanFeePercent,
-      slippageBps,
-    });
+    const route = pureIntentEnabled
+      ? await probePureIntent({
+          routeSpec,
+          registry,
+          tradingSdk,
+          flashSdk,
+          chainId: config.chainId,
+          owner,
+          flashLoanFeePercent,
+          slippageBps,
+        })
+      : await probeRoute({
+          routeSpec,
+          registry,
+          tradingSdk,
+          flashSdk,
+          chainId: config.chainId,
+          owner,
+          flashLoanFeePercent,
+          slippageBps,
+        });
     routes.push(route);
     if (sourceMode === "live" && route.ok && envBool("COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE", false)) {
       break;
@@ -1416,6 +1995,12 @@ async function main() {
     outputPath,
     executionMode: "quote_only",
     orderSubmissionAttempted: false,
+    strategyMode: pureIntentEnabled ? "pure_intent" : "three_hop_route_probe",
+    pureIntentEnabled,
+    pureIntentMinProfitPercent: envFirst("COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT") || "0.618",
+    pureIntentGasReserveUsdc: envFirst("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC") || "0",
+    pureIntentOtherKnownCostsUsdc:
+      envFirst("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC") || "0",
     source: live ? "live_latest_extremes" : fromHistory ? "history_jsonl_for_forensics_only" : "manual_route",
     historyPath: history?.historyPath || null,
     livePath: live?.livePath || null,
@@ -1441,7 +2026,7 @@ async function main() {
       collateralAdapter: await codeStatus(client, deployments.collateralAdapter),
     },
     probeReliability: {
-      perHopProbeOnly: true,
+      perHopProbeOnly: !pureIntentEnabled,
       atomicityProof: false,
       mustUseSingleCollateralSwapOrder: true,
       expectedAtomicEvidence: [
@@ -1452,10 +2037,14 @@ async function main() {
         "flashloan_principal_plus_fee_repaid_in_final_settlement",
       ],
       unsafeInterpretation:
-        "Sequential getQuoteOnly/getOrderPostingSettings results prove hook generation per leg only; they do not prove X->Y->Z->X settles atomically.",
+        pureIntentEnabled
+          ? "A pure intent quote proves only that the SDK/orderbook accepted the single intent and generated flash-loan hooks; it does not prove a solver will settle the intended hidden path atomically."
+          : "Sequential getQuoteOnly/getOrderPostingSettings results prove hook generation per leg only; they do not prove X->Y->Z->X settles atomically.",
     },
     modelConclusion: {
-      eachLegCanGenerateFlashLoanHooks: routes.every((route) => route.eachLegCanGenerateFlashLoanHooks),
+      eachLegCanGenerateFlashLoanHooks: pureIntentEnabled
+        ? routes.every((route) => route.ok && route.quote?.appData)
+        : routes.every((route) => route.eachLegCanGenerateFlashLoanHooks),
       singleSolverSettlementPlanned: routes.every(
         (route) => route.singleSolverSettlement?.solverOrderCount === 1
       ),
@@ -1463,7 +2052,9 @@ async function main() {
       sdkDefaultDeploymentsComplete: deploymentGaps.length === 0,
       deploymentGaps,
       reason:
-        "This probe verifies quote/settings generation per SDK collateral-swap intent. It does not submit one GPv2Settlement.settle(...) containing a multi-trade settlement, so it cannot prove all hops settle atomically.",
+        pureIntentEnabled
+          ? "This probe verifies a single pure-profit intent quote and flash-loan posting settings. It does not submit or prove a solver settlement."
+          : "This probe verifies quote/settings generation per SDK collateral-swap intent. It does not submit one GPv2Settlement.settle(...) containing a multi-trade settlement, so it cannot prove all hops settle atomically.",
       importantBoundary:
         "If three conversions are posted as three ordinary CoW orders, they can fill independently. Atomic all-or-none behavior requires the trades/interactions to be included in the same settlement transaction.",
     },

@@ -117,6 +117,16 @@ def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "COW_FLASHLOAN_MIN_SPREAD_PERCENT": str(args.min_spread_percent),
             "COW_FLASHLOAN_PROBE_SLIPPAGE_BPS": str(args.slippage_bps),
             "COW_FLASHLOAN_PROBE_OUTPUT": str(args.output),
+            "COW_FLASHLOAN_PURE_INTENT_ENABLED": env.get("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true"),
+            "COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT": env.get(
+                "COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT", "0.618"
+            ),
+            "COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC": env.get(
+                "COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC", "0"
+            ),
+            "COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC": env.get(
+                "COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC", "0"
+            ),
             "COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE": "false",
             "COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC": env.get("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC")
             or env.get("COW_AUTO_EXECUTE_MIN_PROFIT_USD")
@@ -152,13 +162,29 @@ def _summary(report: dict[str, Any]) -> dict[str, Any]:
     selection = report.get("routeSelection") if isinstance(report.get("routeSelection"), dict) else {}
     selected = selection.get("selectedRoute") if isinstance(selection.get("selectedRoute"), dict) else None
     best = selection.get("bestRouteEvenIfBlocked") if isinstance(selection.get("bestRouteEvenIfBlocked"), dict) else None
+    live_signal = first.get("liveSignal") if isinstance(first.get("liveSignal"), dict) else {}
+    intent = first.get("intent") if isinstance(first.get("intent"), dict) else {}
+    candidate_universe = first.get("candidateUniverse") if isinstance(first.get("candidateUniverse"), dict) else {}
     return {
         "ok": report.get("ok"),
         "network": report.get("network"),
         "sdkEnv": report.get("sdkEnv"),
+        "strategyMode": report.get("strategyMode"),
+        "pureIntentEnabled": report.get("pureIntentEnabled"),
+        "pureIntentMinProfitPercent": report.get("pureIntentMinProfitPercent"),
+        "pureIntentGasReserveUsdc": report.get("pureIntentGasReserveUsdc"),
+        "pureIntentOtherKnownCostsUsdc": report.get("pureIntentOtherKnownCostsUsdc"),
         "liveStatus": report.get("liveStatus"),
         "routeCount": report.get("routeCount"),
         "quotedRouteCount": report.get("quotedRouteCount"),
+        "liveWindowSpreadPercent": live_signal.get("windowSpreadPercent"),
+        "liveMinWindowSpreadPercent": live_signal.get("minWindowSpreadPercent"),
+        "liveSpreadOk": live_signal.get("spreadOk"),
+        "liveGainerChangePercent": live_signal.get("gainerChangePercent"),
+        "liveLoserChangePercent": live_signal.get("loserChangePercent"),
+        "liveCandidateCount": len(candidate_universe.get("tokens") or []),
+        "intentMinPureProfitHuman": intent.get("minPureProfitHuman"),
+        "intentMinProfitPercent": intent.get("minProfitPercentHuman"),
         "selectionStatus": selection.get("status"),
         "selectedRoute": " -> ".join(selected.get("route") or []) if selected else None,
         "selectedDeltaAmount": selected.get("deltaAmount") if selected else None,
@@ -176,7 +202,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--network", default="avalanche")
     parser.add_argument("--sdk-env", default="prod", choices=["prod", "staging"])
-    parser.add_argument("--amount", default="1")
+    parser.add_argument("--amount", default="1000")
     parser.add_argument("--wait-seconds", type=int, default=60)
     parser.add_argument("--max-age-seconds", type=int, default=180)
     parser.add_argument("--observer-seconds", type=int, default=75)

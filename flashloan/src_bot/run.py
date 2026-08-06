@@ -15,6 +15,10 @@ load_env_files(__file__, override=False)
 os.environ.setdefault("COW_REALTIME_QUOTE_ENABLED", "true")
 os.environ.setdefault("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25")
 os.environ.setdefault("COW_REALTIME_QUOTE_MAX_INFLIGHT", "2")
+os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true")
+os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT", "0.618")
+os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC", "0")
+os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC", "0")
 os.environ["BINANCE_SCAN_PROFILE"] = "200ms"
 os.environ["BINANCE_CHANGE_WINDOW_SECONDS"] = "0.2"
 os.environ["SAMPLE_SECONDS"] = "0.2"
