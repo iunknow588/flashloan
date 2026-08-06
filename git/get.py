@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import subprocess
 import sys
 from pathlib import Path
@@ -77,6 +78,15 @@ def has_unmerged_paths(root: Path) -> bool:
     return bool(result.stdout.strip())
 
 
+def current_rebase_subject(root: Path) -> str:
+    result = run_git(root, "show", "-s", "--format=%s", "REBASE_HEAD", capture=True, check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def is_bootstrap_initial_subject(subject: str) -> bool:
+    return subject.strip().lower() in {"initial commit", "# initial commit"}
+
+
 def remove_index_lock_if_requested(root: Path, cleanup_stale_lock: bool) -> None:
     lock_path = get_git_dir(root) / "index.lock"
     if not lock_path.exists():
@@ -95,6 +105,11 @@ def continue_rebase_if_possible(root: Path) -> None:
     if not has_rebase_in_progress(root):
         return
     if has_unmerged_paths(root):
+        subject = current_rebase_subject(root)
+        if is_bootstrap_initial_subject(subject):
+            print("Bootstrap initial commit rebase has conflicts. Aborting it before syncing from origin.")
+            run_git(root, "rebase", "--abort")
+            return
         raise RuntimeError(
             "A rebase is in progress and has conflicts. Resolve them, run `git add ...`, then rerun this script."
         )
@@ -130,6 +145,60 @@ def resolve_repo_root(create_if_missing: bool = False) -> Path:
 
 def head_exists(root: Path) -> bool:
     return run_git(root, "rev-parse", "--verify", "HEAD", capture=True, check=False).returncode == 0
+
+
+def working_tree_status(root: Path) -> str:
+    return run_git(root, "status", "--porcelain", capture=True).stdout.strip()
+
+
+def local_commit_count(root: Path, branch: str) -> int:
+    result = run_git(root, "rev-list", "--count", branch, capture=True, check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    return int(result.stdout.strip())
+
+
+def commit_subject(root: Path, ref: str) -> str:
+    result = run_git(root, "log", "-1", "--format=%s", ref, capture=True, check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def is_bootstrap_initial_branch(root: Path, branch: str, *, ahead: int, behind: int) -> bool:
+    if ahead != 1 or behind <= 0:
+        return False
+    if local_commit_count(root, branch) != 1:
+        return False
+    return is_bootstrap_initial_subject(commit_subject(root, branch))
+
+
+def stash_worktree_if_needed(root: Path, message: str) -> bool:
+    if not working_tree_status(root):
+        return False
+    result = run_git(root, "stash", "push", "-u", "-m", message, capture=True, check=False)
+    output = f"{result.stdout}\n{result.stderr}".lower()
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Could not stash local working-tree changes before bootstrap sync.\n"
+            f"{result.stderr or result.stdout}"
+        )
+    return "no local changes" not in output
+
+
+def reset_bootstrap_initial_branch(root: Path, branch: str, behind: int) -> None:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    backup_branch = f"backup/bootstrap-initial-{timestamp}"
+    stash_created = stash_worktree_if_needed(root, f"get.py bootstrap sync {timestamp}")
+    run_git(root, "branch", backup_branch, branch)
+    run_git(root, "reset", "--hard", f"origin/{branch}")
+    print(f"Replaced bootstrap initial commit with origin/{branch} ({behind} commits). Backup branch: {backup_branch}")
+    if stash_created:
+        result = run_git(root, "stash", "pop", capture=True, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Synced to origin, but reapplying stashed local changes needs manual resolution.\n"
+                f"{result.stderr or result.stdout}"
+            )
+        print("Reapplied local working-tree changes after bootstrap sync.")
 
 
 def initialize_repository_if_missing(root: Path) -> bool:
@@ -254,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
         branch = current_or_default_branch(root)
         ensure_local_branch_name(root, branch)
 
-        status = run_git(root, "status", "--porcelain", capture=True).stdout.strip()
+        status = working_tree_status(root)
         if status and not args.allow_dirty and args.no_autostash:
             raise RuntimeError("Working tree is dirty. Commit/stash changes first, or rerun with --allow-dirty.")
 
@@ -271,6 +340,10 @@ def main(argv: list[str] | None = None) -> int:
         if not head_exists(root) and behind > 0:
             run_git(root, "checkout", "-f", "-b", branch, f"origin/{branch}")
             print(f"Initialised local branch {branch} from origin/{branch} ({behind} commits)")
+            return 0
+
+        if is_bootstrap_initial_branch(root, branch, ahead=ahead, behind=behind):
+            reset_bootstrap_initial_branch(root, branch, behind)
             return 0
 
         if ahead > 0 and behind > 0 and not args.rebase and not args.merge:
