@@ -261,6 +261,27 @@ function compareHuman(actual, expected) {
   return "below";
 }
 
+function decimalDifference(a, b) {
+  const left = decimalNumber(a);
+  const right = decimalNumber(b);
+  if (left == null || right == null) return null;
+  return left - right;
+}
+
+function decimalPercent(numerator, denominator) {
+  const top = decimalNumber(numerator);
+  const bottom = decimalNumber(denominator);
+  if (top == null || bottom == null || bottom === 0) return null;
+  return (top / bottom) * 100;
+}
+
+function decimalPercentDelta(actual, expected) {
+  const left = decimalNumber(actual);
+  const right = decimalNumber(expected);
+  if (left == null || right == null || right === 0) return null;
+  return ((left - right) / right) * 100;
+}
+
 function bigintText(value) {
   return typeof value === "bigint" ? value.toString() : String(value ?? "");
 }
@@ -361,8 +382,12 @@ function buildSingleSolverSettlementIntent(routeSpec, tokens, legs) {
   const closedCycle = route.length >= 2 && route[0] === route[route.length - 1];
   const threeHopRoute = hopCount >= 3;
   const supported = threeHopRoute && closedCycle;
+  const singleStartingAsset = new Set([route[0]].filter(Boolean)).size === 1;
+  const borrowedAndRepaidSameAsset = closedCycle && route[0] === route[route.length - 1];
   return {
     model: "single_flashloan_router_call_with_single_cow_solver_settlement",
+    requestedSemantics: "one_starting_asset_one_flashloan_one_cow_solver_settlement",
+    testedSemantics: "sequential_quote_only_per_hop_sdk_probe",
     borrowedAsset: tokens[0]?.symbol || route[0] || null,
     repaidAsset: tokens[tokens.length - 1]?.symbol || route[route.length - 1] || null,
     route,
@@ -370,6 +395,9 @@ function buildSingleSolverSettlementIntent(routeSpec, tokens, legs) {
     requiredMinimumHopCount: 3,
     threeHopRoute,
     closedCycle,
+    startingAssetCount: singleStartingAsset ? 1 : 0,
+    singleStartingAsset,
+    borrowedAndRepaidSameAsset,
     flashLoanCount: supported ? 1 : 0,
     solverOrderCount: supported ? 1 : 0,
     settlementTransactionCount: supported ? 1 : 0,
@@ -379,6 +407,8 @@ function buildSingleSolverSettlementIntent(routeSpec, tokens, legs) {
       ? "one_flashLoanAndSettle_call"
       : "blocked_requires_closed_three_hop_solver_path",
     proofStatus: "not_proven_quote_only",
+    proofGap:
+      "current probe quotes each hop separately; proof requires a submitted single order and one settlement tx carrying the whole cycle",
     requiredEvidence: [
       "single_order_uid",
       "single_settlement_tx_hash",
@@ -521,18 +551,50 @@ function buildLiveRouteFromExtremes({ extremes, network, registry, amountHuman, 
       if (!symbolSupported(registry, row.base_symbol)) return false;
       return true;
     });
-  const top = eligible.filter((row) => row.change_percent > 0).sort((a, b) => b.change_percent - a.change_percent)[0];
-  const bottom = eligible.filter((row) => row.change_percent < 0).sort((a, b) => a.change_percent - b.change_percent)[0];
+  const positiveCandidates = eligible.filter((row) => row.change_percent > 0).sort((a, b) => b.change_percent - a.change_percent);
+  const negativeCandidates = eligible.filter((row) => row.change_percent < 0).sort((a, b) => a.change_percent - b.change_percent);
+  const top = positiveCandidates[0];
+  const bottom = negativeCandidates[0];
+  const routeLimit = Math.max(1, Number(envFirst("COW_FLASHLOAN_LIVE_ROUTE_LIMIT") || "5"));
+  const candidateSummary = (items) =>
+    items.slice(0, 10).map((row) => ({
+      symbol: row.symbol,
+      baseSymbol: row.base_symbol,
+      changePercent: row.change_percent,
+      currentPrice: row.current_price,
+      startPrice: row.start_price,
+    }));
   if (!top || !bottom) {
     return {
       routeSpec: null,
       reason: "live_top_bottom_not_available",
       eligibleCount: eligible.length,
+      supportedPositiveCount: positiveCandidates.length,
+      supportedNegativeCount: negativeCandidates.length,
+      topCandidates: candidateSummary(positiveCandidates),
+      bottomCandidates: candidateSummary(negativeCandidates),
+      minSideChangePercent,
+      minSpreadPercent,
       observedAt: extremes.observed_at,
       freshnessSeconds,
     };
   }
   const spread = top.change_percent - bottom.change_percent;
+  const routeSpecs = [];
+  for (const loser of negativeCandidates) {
+    for (const gainer of positiveCandidates) {
+      if (loser.base_symbol === gainer.base_symbol) continue;
+      const candidateSpread = gainer.change_percent - loser.change_percent;
+      if (candidateSpread <= minSpreadPercent) continue;
+      routeSpecs.push({
+        top: gainer,
+        bottom: loser,
+        spreadPercent: candidateSpread,
+        route: ["USDC", loser.base_symbol, gainer.base_symbol, "USDC"],
+      });
+    }
+  }
+  routeSpecs.sort((a, b) => b.spreadPercent - a.spreadPercent);
   if (spread <= minSpreadPercent) {
     return {
       routeSpec: null,
@@ -541,6 +603,10 @@ function buildLiveRouteFromExtremes({ extremes, network, registry, amountHuman, 
       minSpreadPercent,
       observedAt: extremes.observed_at,
       freshnessSeconds,
+      supportedPositiveCount: positiveCandidates.length,
+      supportedNegativeCount: negativeCandidates.length,
+      topCandidates: candidateSummary(positiveCandidates),
+      bottomCandidates: candidateSummary(negativeCandidates),
       top,
       bottom,
     };
@@ -587,6 +653,48 @@ function buildLiveRouteFromExtremes({ extremes, network, registry, amountHuman, 
         bottom,
       },
     },
+    routes: routeSpecs.slice(0, routeLimit).map((item, index) => ({
+      network,
+      route: item.route,
+      amountHuman,
+      pair: `${item.top.symbol || item.top.base_symbol} / ${item.bottom.symbol || item.bottom.base_symbol}`,
+      pairRank: index + 1,
+      priorityReason: "buy_loser_then_gainer_live_supported_queue",
+      observedAt: extremes.observed_at,
+      ownPlan: {
+        available: true,
+        initial_amount: amountHuman,
+        initial_symbol: "USDC",
+        final_symbol: "USDC",
+        route: item.route,
+        market_prices: [
+          {
+            symbol: item.top.base_symbol,
+            start_price: item.top.start_price,
+            current_price: item.top.current_price,
+            change_percent: item.top.change_percent,
+            role: "gainer_sell_high",
+          },
+          {
+            symbol: item.bottom.base_symbol,
+            start_price: item.bottom.start_price,
+            current_price: item.bottom.current_price,
+            change_percent: item.bottom.change_percent,
+            role: "loser_buy_low",
+          },
+        ],
+        steps: [],
+      },
+      liveSignal: {
+        spreadPercent: item.spreadPercent,
+        minSpreadPercent,
+        minSideChangePercent,
+        freshnessSeconds,
+        top: item.top,
+        bottom: item.bottom,
+      },
+    })),
+    candidateRouteCount: routeSpecs.length,
     reason: "live_top1_candidate_found",
   };
 }
@@ -610,7 +718,10 @@ async function loadLiveRouteSpecs({ network, registry }) {
       minSideChangePercent,
       minSpreadPercent,
     });
-    if (last.routeSpec) return { livePath, status: last.reason, routes: [withUnits(last.routeSpec, registry)] };
+    if (Array.isArray(last.routes) && last.routes.length) {
+      return { livePath, status: last.reason, routes: last.routes.map((item) => withUnits(item, registry)), diagnostic: last };
+    }
+    if (last.routeSpec) return { livePath, status: last.reason, routes: [withUnits(last.routeSpec, registry)], diagnostic: last };
     if (waitSeconds <= 0) break;
     await sleep(pollSeconds * 1000);
   }
@@ -635,7 +746,37 @@ function ownStepAnalysis(step, leg) {
   };
 }
 
-async function quoteLeg({ tradingSdk, flashSdk, chainId, owner, sell, buy, amount, flashLoanFeePercent, ownStep }) {
+function legCostAnalysis({ leg, sell, buy, quoteParams, quote }) {
+  const costs = quote.amountsAndCosts || {};
+  const beforeAll = costs.beforeAllFees || {};
+  const afterNetwork = costs.afterNetworkCosts || {};
+  const afterSlippage = costs.afterSlippage || {};
+  const quoteBuyHuman = formatUnits(quote.quoteResponse?.quote?.buyAmount, buy.decimals);
+  const beforeAllBuyHuman = formatUnits(beforeAll.buyAmount, buy.decimals);
+  const afterNetworkBuyHuman = formatUnits(afterNetwork.buyAmount, buy.decimals);
+  const afterSlippageBuyHuman = formatUnits(afterSlippage.buyAmount, buy.decimals);
+  const networkFeeSellHuman = formatUnits(costs.costs?.networkFee?.amountInSellCurrency, sell.decimals);
+  const protocolFeeBuyHuman = formatUnits(costs.costs?.protocolFee?.amount, buy.decimals);
+  const slippageLossBuy = decimalDifference(afterNetworkBuyHuman, afterSlippageBuyHuman);
+  return {
+    configuredSlippageBps: leg.configuredSlippageBps,
+    suggestedSlippageBps: quote.suggestedSlippageBps ?? null,
+    signedSellAfterFlashLoanFeeHuman: formatUnits(quoteParams.amount, sell.decimals),
+    flashLoanFeeHuman: formatUnits(quoteParams.flashLoanFeeAmount, sell.decimals),
+    quoteBuyBeforeSlippageHuman: quoteBuyHuman,
+    beforeAllFeesBuyHuman: beforeAllBuyHuman,
+    afterNetworkCostsBuyHuman: afterNetworkBuyHuman,
+    afterSlippageBuyHuman: afterSlippageBuyHuman,
+    networkFeeSellHuman,
+    protocolFeeBuyHuman,
+    slippageLossBuyHuman: slippageLossBuy == null ? null : String(slippageLossBuy),
+    slippageLossPercentOfAfterNetwork: decimalPercent(slippageLossBuy, afterNetworkBuyHuman),
+    networkFeePercentOfSell: decimalPercent(networkFeeSellHuman, formatUnits(quoteParams.amount, sell.decimals)),
+    protocolFeePercentOfBuy: decimalPercent(protocolFeeBuyHuman, beforeAllBuyHuman),
+  };
+}
+
+async function quoteLeg({ tradingSdk, flashSdk, chainId, owner, sell, buy, amount, flashLoanFeePercent, slippageBps, ownStep }) {
   const tradeParameters = {
     kind: OrderKind.SELL,
     owner,
@@ -645,6 +786,7 @@ async function quoteLeg({ tradingSdk, flashSdk, chainId, owner, sell, buy, amoun
     buyTokenDecimals: buy.decimals,
     amount: String(amount),
     validFor: 300,
+    slippageBps,
   };
   const params = {
     chainId,
@@ -677,12 +819,15 @@ async function quoteLeg({ tradingSdk, flashSdk, chainId, owner, sell, buy, amoun
     buyDecimals: buy.decimals,
     inputAmount: String(amount),
     inputAmountHuman: formatUnits(amount, sell.decimals),
+    configuredSlippageBps: slippageBps,
     signedSellAmountAfterFlashLoanFee: quoteParams.amount,
     signedSellAmountAfterFlashLoanFeeHuman: formatUnits(quoteParams.amount, sell.decimals),
     flashLoanFeeAmount: bigintText(quoteParams.flashLoanFeeAmount),
     flashLoanFeeAmountHuman: formatUnits(quoteParams.flashLoanFeeAmount, sell.decimals),
     buyAmount: quote.orderToSign.buyAmount,
     buyAmountHuman: formatUnits(quote.orderToSign.buyAmount, buy.decimals),
+    quoteBuyAmount: quote.quoteResponse?.quote?.buyAmount,
+    quoteBuyAmountHuman: formatUnits(quote.quoteResponse?.quote?.buyAmount, buy.decimals),
     sellAmount: quote.orderToSign.sellAmount,
     validTo: quote.orderToSign.validTo,
     orderToSign: orderToSignSummary(quote.orderToSign),
@@ -701,6 +846,7 @@ async function quoteLeg({ tradingSdk, flashSdk, chainId, owner, sell, buy, amoun
       sellTokenReserveLiquidity: sell.aaveReserveLiquidity ?? null,
     },
   };
+  leg.costAnalysis = legCostAnalysis({ leg, sell, buy, quoteParams, quote });
   return {
     ...leg,
     ownGuard: ownStepAnalysis(ownStep, leg),
@@ -724,13 +870,31 @@ function classifyRoute(routeSpec, tokens, legs, error) {
   return "quote_hooks_ok_profit_unknown";
 }
 
-function routeProfit(routeSpec, tokens, legs) {
+function enrichLiveSignalWithQuote(routeSpec, tokens, legs) {
+  if (!routeSpec?.liveSignal || !legs.length) return routeSpec?.liveSignal || null;
+  const expected = routeProfit(routeSpec, tokens, legs, "quoteBuyAmountHuman");
+  const protectedFloor = routeProfit(routeSpec, tokens, legs, "buyAmountHuman");
+  return {
+    ...routeSpec.liveSignal,
+    quoteComparison: {
+      binanceWindowSpreadPercent: routeSpec.liveSignal.spreadPercent,
+      expectedQuoteDeltaPercent: expected?.deltaPercent ?? null,
+      protectedFloorDeltaPercent: protectedFloor?.deltaPercent ?? null,
+      verdict:
+        decimalNumber(expected?.deltaAmount) != null && decimalNumber(expected.deltaAmount) < 0
+          ? "solver_price_not_matching_binance_window_edge"
+          : "solver_quote_preserves_or_improves_binance_edge",
+    },
+  };
+}
+
+function routeProfit(routeSpec, tokens, legs, outputKey = "buyAmountHuman") {
   if (!legs.length) return null;
   const first = tokens[0];
   const last = tokens[tokens.length - 1];
   if (first.address.toLowerCase() !== last.address.toLowerCase()) return null;
   const input = decimalNumber(formatUnits(routeSpec.amountUnits, first.decimals));
-  const output = decimalNumber(legs[legs.length - 1].buyAmountHuman);
+  const output = decimalNumber(legs[legs.length - 1][outputKey]);
   if (input == null || output == null || input === 0) return null;
   return {
     inputAmount: String(input),
@@ -741,7 +905,243 @@ function routeProfit(routeSpec, tokens, legs) {
   };
 }
 
-async function probeRoute({ routeSpec, registry, tradingSdk, flashSdk, chainId, owner, flashLoanFeePercent }) {
+function routeCostAnalysis(routeSpec, tokens, legs) {
+  const protectedProfit = routeProfit(routeSpec, tokens, legs, "buyAmountHuman");
+  const expectedProfit = routeProfit(routeSpec, tokens, legs, "quoteBuyAmountHuman");
+  const totalFlashFees = legs
+    .map((leg) => decimalNumber(leg.flashLoanFeeAmountHuman))
+    .filter((value) => value != null)
+    .reduce((sum, value) => sum + value, 0);
+  const totalNetworkFeeInLegSellAssets = legs
+    .map((leg) => decimalNumber(leg.costAnalysis?.networkFeeSellHuman))
+    .filter((value) => value != null)
+    .reduce((sum, value) => sum + value, 0);
+  const finalDelta = decimalNumber(protectedProfit?.deltaAmount);
+  const expectedDelta = decimalNumber(expectedProfit?.deltaAmount);
+  const expectedFinal = decimalNumber(expectedProfit?.finalAmount);
+  const protectedFinal = decimalNumber(protectedProfit?.finalAmount);
+  const slippageFloorLoss =
+    expectedFinal != null && protectedFinal != null ? expectedFinal - protectedFinal : null;
+  const slippageRecommendation =
+    expectedDelta != null && expectedDelta < 0
+      ? "do_not_widen_slippage; solver_price_edge_is_already_negative"
+      : expectedDelta != null && expectedDelta > 0 && finalDelta != null && finalDelta <= 0
+        ? "keep_or_reduce_slippage; protected_floor_removes_expected_profit"
+        : "slippage_within_profitability_budget";
+  return {
+    finalProfit: protectedProfit,
+    expectedProfitBeforeSlippageFloor: expectedProfit,
+    protectedProfitAfterSlippageFloor: protectedProfit,
+    slippageFloorLossInFinalAsset: slippageFloorLoss == null ? null : String(slippageFloorLoss),
+    slippageFloorLossPercentOfExpected: decimalPercent(slippageFloorLoss, expectedFinal),
+    slippageRecommendation,
+    finalLossDominantCause:
+      finalDelta != null && finalDelta < 0
+        ? "solver_quote_prices_plus_network_protocol_fees_exceed_binance_window_edge"
+        : expectedDelta != null && expectedDelta > 0 && finalDelta != null && finalDelta <= 0
+          ? "slippage_floor_turns_expected_profit_into_unprofitable_protected_floor"
+          : expectedDelta != null && expectedDelta > 0
+            ? "profitable_before_slippage_floor"
+            : "unknown",
+    flashLoanFeePercentConfigured: null,
+    totalFlashLoanFeesInNativeLegUnits: String(totalFlashFees),
+    totalNetworkFeesInMixedSellAssetUnits: String(totalNetworkFeeInLegSellAssets),
+    slippageBpsConsistent: legs.every((leg) => leg.configuredSlippageBps === legs[0]?.configuredSlippageBps),
+    configuredSlippageBps: legs[0]?.configuredSlippageBps ?? null,
+    legCount: legs.length,
+  };
+}
+
+function stablePrice(symbol) {
+  return ["USDC", "USDT", "DAI"].includes(tokenKey(symbol)) ? 1 : null;
+}
+
+function priceRowsFromRoute(routeSpec) {
+  const rows = [];
+  const addRow = (row, source) => {
+    if (!row || typeof row !== "object") return;
+    const symbol = tokenKey(row.base_symbol || row.symbol);
+    if (!symbol) return;
+    rows.push({
+      symbol: symbol.replace(/USDT$/, ""),
+      startPrice: numberOrNull(row.start_price),
+      endPrice: numberOrNull(row.end_price ?? row.current_price),
+      currentPrice: numberOrNull(row.current_price ?? row.end_price),
+      changePercent: numberOrNull(row.change_percent),
+      role: row.role || null,
+      source,
+    });
+  };
+  for (const row of routeSpec?.ownPlan?.market_prices || []) addRow(row, "ownPlan.market_prices");
+  addRow(routeSpec?.liveSignal?.top, "liveSignal.top");
+  addRow(routeSpec?.liveSignal?.bottom, "liveSignal.bottom");
+  return rows;
+}
+
+function tokenWindowPrice(symbol, routeSpec) {
+  const stable = stablePrice(symbol);
+  if (stable != null) {
+    return {
+      symbol: tokenKey(symbol),
+      startPrice: stable,
+      endPrice: stable,
+      currentPrice: stable,
+      changePercent: 0,
+      role: "stable_reference",
+      source: "stable_reference",
+    };
+  }
+  const wanted = tokenKey(symbol);
+  const row = priceRowsFromRoute(routeSpec).find((item) => item.symbol === wanted);
+  if (!row || row.startPrice == null || row.endPrice == null || row.startPrice <= 0 || row.endPrice <= 0) {
+    return null;
+  }
+  return row;
+}
+
+function binanceRateForWindow(sellPrice, buyPrice) {
+  if (sellPrice == null || buyPrice == null || buyPrice === 0) return null;
+  return sellPrice / buyPrice;
+}
+
+function classifyRateTiming(actualRate, previousRate, nextRate) {
+  if (actualRate == null || previousRate == null || nextRate == null) return null;
+  const previousDistance = Math.abs(actualRate - previousRate);
+  const nextDistance = Math.abs(actualRate - nextRate);
+  const closerTo = previousDistance <= nextDistance ? "previous_window" : "next_window";
+  const movement = nextRate - previousRate;
+  let timing = "flat_window";
+  if (Math.abs(movement) > Math.max(Math.abs(previousRate), Math.abs(nextRate), 1) * 1e-12) {
+    if (movement > 0) {
+      timing = actualRate < nextRate ? "lagging_vs_next_window" : "leading_vs_next_window";
+    } else {
+      timing = actualRate > nextRate ? "lagging_vs_next_window" : "leading_vs_next_window";
+    }
+  }
+  return {
+    closerTo,
+    timing,
+    previousDistancePercent: decimalPercentDelta(actualRate, previousRate),
+    nextDistancePercent: decimalPercentDelta(actualRate, nextRate),
+  };
+}
+
+function legWindowPriceAnalysis(routeSpec, leg, outputKey) {
+  if (!leg?.ok) return null;
+  const sell = tokenWindowPrice(leg.sellSymbol, routeSpec);
+  const buy = tokenWindowPrice(leg.buySymbol, routeSpec);
+  const sellAmount = decimalNumber(leg.signedSellAmountAfterFlashLoanFeeHuman || leg.inputAmountHuman);
+  const buyAmount = decimalNumber(leg[outputKey]);
+  if (!sell || !buy || sellAmount == null || buyAmount == null || sellAmount <= 0) {
+    return {
+      available: false,
+      reason: "binance_window_price_missing_or_invalid",
+      sellSymbol: leg.sellSymbol,
+      buySymbol: leg.buySymbol,
+      sellPrice: sell,
+      buyPrice: buy,
+    };
+  }
+  const actualRate = buyAmount / sellAmount;
+  const previousRate = binanceRateForWindow(sell.startPrice, buy.startPrice);
+  const nextRate = binanceRateForWindow(sell.endPrice, buy.endPrice);
+  const timing = classifyRateTiming(actualRate, previousRate, nextRate);
+  const impliedBuyPriceAtNextSell = actualRate > 0 ? sell.endPrice / actualRate : null;
+  return {
+    available: true,
+    outputBasis: outputKey === "quoteBuyAmountHuman" ? "quote_before_slippage_floor" : "protected_min_buy_after_slippage_floor",
+    sellSymbol: leg.sellSymbol,
+    buySymbol: leg.buySymbol,
+    sellAmountHuman: String(sellAmount),
+    buyAmountHuman: String(buyAmount),
+    actualBuyPerSell: String(actualRate),
+    binancePreviousWindowBuyPerSell: previousRate == null ? null : String(previousRate),
+    binanceNextWindowBuyPerSell: nextRate == null ? null : String(nextRate),
+    actualOutputAtBinancePreviousWindow: previousRate == null ? null : String(sellAmount * previousRate),
+    actualOutputAtBinanceNextWindow: nextRate == null ? null : String(sellAmount * nextRate),
+    quoteVsPreviousWindowPercent: decimalPercentDelta(actualRate, previousRate),
+    quoteVsNextWindowPercent: decimalPercentDelta(actualRate, nextRate),
+    closerToWindow: timing?.closerTo || null,
+    timingVsBinanceNextWindow: timing?.timing || null,
+    impliedBuyTokenUsdtPriceUsingNextSellPrice:
+      impliedBuyPriceAtNextSell == null ? null : String(impliedBuyPriceAtNextSell),
+    sellPriceWindow: sell,
+    buyPriceWindow: buy,
+  };
+}
+
+function routeWindowAnalysis(routeSpec, tokens, legs) {
+  if (!legs.length) return null;
+  const previous = legs.map((leg) => legWindowPriceAnalysis(routeSpec, leg, "quoteBuyAmountHuman"));
+  const protectedFloor = legs.map((leg) => legWindowPriceAnalysis(routeSpec, leg, "buyAmountHuman"));
+  const routeQuote = routeProfit(routeSpec, tokens, legs, "quoteBuyAmountHuman");
+  const routeProtected = routeProfit(routeSpec, tokens, legs, "buyAmountHuman");
+  const input = decimalNumber(routeQuote?.inputAmount || routeProtected?.inputAmount);
+  const spread = decimalNumber(routeSpec?.liveSignal?.spreadPercent);
+  const quoteFinal = decimalNumber(routeQuote?.finalAmount);
+  const protectedFinal = decimalNumber(routeProtected?.finalAmount);
+  const binanceWindowEdgeFinal = input != null && spread != null ? input * (1 + spread / 100) : null;
+  const routeRateQuote = input && quoteFinal != null ? quoteFinal / input : null;
+  const routeRateProtected = input && protectedFinal != null ? protectedFinal / input : null;
+  const edgeRate = spread != null ? 1 + spread / 100 : null;
+  const quoteTiming = classifyRateTiming(routeRateQuote, 1, edgeRate);
+  const protectedTiming = classifyRateTiming(routeRateProtected, 1, edgeRate);
+  return {
+    available: previous.every((item) => item?.available),
+    binanceExpectedModel:
+      "previous_window_roundtrip_rate_is_1; next_window_edge_rate_uses_top_change_minus_bottom_change_as the optimistic trigger edge",
+    binanceWindowSpreadPercent: spread == null ? null : String(spread),
+    binanceWindowEdgeExpectedFinalAmount: binanceWindowEdgeFinal == null ? null : String(binanceWindowEdgeFinal),
+    quoteFinalAmountBeforeSlippageFloor: routeQuote?.finalAmount ?? null,
+    protectedFinalAmountAfterSlippageFloor: routeProtected?.finalAmount ?? null,
+    quoteGapVsBinanceWindowEdgePercent: decimalPercentDelta(quoteFinal, binanceWindowEdgeFinal),
+    protectedGapVsBinanceWindowEdgePercent: decimalPercentDelta(protectedFinal, binanceWindowEdgeFinal),
+    quoteCloserToWindow: quoteTiming?.closerTo || null,
+    protectedCloserToWindow: protectedTiming?.closerTo || null,
+    quoteTimingVsBinanceEdge: quoteTiming?.timing || null,
+    protectedTimingVsBinanceEdge: protectedTiming?.timing || null,
+    threeHopVerdict:
+      protectedFinal != null && input != null && protectedFinal <= input
+        ? "three_hop_cow_quote_lags_expected_binance_edge_and_is_unprofitable"
+        : quoteFinal != null && binanceWindowEdgeFinal != null && quoteFinal < binanceWindowEdgeFinal
+          ? "three_hop_cow_quote_lags_expected_binance_edge"
+          : "three_hop_cow_quote_matches_or_leads_expected_binance_edge",
+    legs: previous.map((item, index) => ({
+      index: legs[index]?.index ?? index + 1,
+      quoteBeforeSlippageFloor: item,
+      protectedAfterSlippageFloor: protectedFloor[index],
+    })),
+  };
+}
+
+function legSlippageControl(leg) {
+  const afterNetwork = decimalNumber(leg.costAnalysis?.afterNetworkCostsBuyHuman);
+  const afterSlippage = decimalNumber(leg.costAnalysis?.afterSlippageBuyHuman);
+  const configured = decimalNumber(leg.configuredSlippageBps);
+  if (afterNetwork == null || afterSlippage == null || afterNetwork <= 0 || configured == null) {
+    return { available: false, reason: "slippage_amounts_missing" };
+  }
+  const observedBps = ((afterNetwork - afterSlippage) / afterNetwork) * 10000;
+  const expectedFloor = afterNetwork * (1 - configured / 10000);
+  const floorDiffBps = observedBps - configured;
+  return {
+    available: true,
+    configuredSlippageBps: configured,
+    suggestedSlippageBps: leg.costAnalysis?.suggestedSlippageBps ?? null,
+    observedSlippageBps: String(observedBps),
+    expectedMinBuyFromConfiguredBps: String(expectedFloor),
+    actualMinBuyAfterSlippage: String(afterSlippage),
+    floorDifferenceBps: String(floorDiffBps),
+    verdict:
+      Math.abs(floorDiffBps) <= 0.05
+        ? "matches_configured_slippage_bps"
+        : floorDiffBps > 0
+          ? "protected_floor_is_wider_than_configured_slippage"
+          : "protected_floor_is_tighter_than_configured_slippage",
+  };
+}
+
+async function probeRoute({ routeSpec, registry, tradingSdk, flashSdk, chainId, owner, flashLoanFeePercent, slippageBps }) {
   const tokens = routeSpec.route.map((symbol) => requireToken(registry, symbol));
   const ownSteps = Array.isArray(routeSpec.ownPlan?.steps) ? routeSpec.ownPlan.steps : [];
   const legs = [];
@@ -758,6 +1158,7 @@ async function probeRoute({ routeSpec, registry, tradingSdk, flashSdk, chainId, 
         buy: tokens[index + 1],
         amount,
         flashLoanFeePercent,
+        slippageBps,
         ownStep: ownSteps[index],
       });
       legs.push({ index: index + 1, ok: true, ...result });
@@ -778,6 +1179,12 @@ async function probeRoute({ routeSpec, registry, tradingSdk, flashSdk, chainId, 
       break;
     }
   }
+  const windowAnalysis = routeWindowAnalysis(routeSpec, tokens, legs);
+  const analyzedLegs = legs.map((leg, index) => ({
+    ...leg,
+    slippageControl: leg.ok ? legSlippageControl(leg) : null,
+    binanceWindowPriceAnalysis: windowAnalysis?.legs?.[index] || null,
+  }));
   return {
     ok: !error,
     network: routeSpec.network,
@@ -785,17 +1192,20 @@ async function probeRoute({ routeSpec, registry, tradingSdk, flashSdk, chainId, 
     pairRank: routeSpec.pairRank,
     priorityReason: routeSpec.priorityReason,
     observedAt: routeSpec.observedAt,
+    liveSignal: enrichLiveSignalWithQuote(routeSpec, tokens, analyzedLegs),
     route: routeSpec.route,
     amountHuman: routeSpec.amountHuman,
     amountUnits: routeSpec.amountUnits,
     ownPlanAvailable: Boolean(routeSpec.ownPlan),
     classification: classifyRoute(routeSpec, tokens, legs, error),
     error,
-    profit: routeProfit(routeSpec, tokens, legs),
-    singleSolverSettlement: buildSingleSolverSettlementIntent(routeSpec, tokens, legs),
-    eachLegCanGenerateFlashLoanHooks: legs.every((leg) => leg.ok && leg.hasFlashloanMetadata && leg.hasHooksMetadata),
-    ownGuardFailures: legs.filter((leg) => leg.ownGuard?.actualVsMin === "below").length,
-    legs,
+    profit: routeProfit(routeSpec, tokens, analyzedLegs),
+    costAnalysis: routeCostAnalysis(routeSpec, tokens, analyzedLegs),
+    binanceWindowAnalysis: windowAnalysis,
+    singleSolverSettlement: buildSingleSolverSettlementIntent(routeSpec, tokens, analyzedLegs),
+    eachLegCanGenerateFlashLoanHooks: analyzedLegs.every((leg) => leg.ok && leg.hasFlashloanMetadata && leg.hasHooksMetadata),
+    ownGuardFailures: analyzedLegs.filter((leg) => leg.ownGuard?.actualVsMin === "below").length,
+    legs: analyzedLegs,
   };
 }
 
@@ -849,27 +1259,41 @@ async function main() {
   });
   const flashSdk = new AaveCollateralSwapSdk({ env: sdkEnv });
   const flashLoanFeePercent = Number(envFirst("COW_FLASHLOAN_FEE_PERCENT") || "0.05");
+  const slippageBps = Number(
+    envFirst("COW_FLASHLOAN_PROBE_SLIPPAGE_BPS", "COW_FLASHLOAN_SLIPPAGE_BPS") || "50"
+  );
+  if (!Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > 5000) {
+    throw new Error(`slippageBps must be an integer between 0 and 5000, got ${slippageBps}`);
+  }
   const deployments = sdkDeploymentSummary(config);
   const deploymentGaps = sdkDeploymentGaps(deployments);
 
   const routes = [];
   for (const routeSpec of routeSpecs) {
-    routes.push(
-      await probeRoute({
-        routeSpec,
-        registry,
-        tradingSdk,
-        flashSdk,
-        chainId: config.chainId,
-        owner,
-        flashLoanFeePercent,
-      })
-    );
+    const route = await probeRoute({
+      routeSpec,
+      registry,
+      tradingSdk,
+      flashSdk,
+      chainId: config.chainId,
+      owner,
+      flashLoanFeePercent,
+      slippageBps,
+    });
+    routes.push(route);
+    if (sourceMode === "live" && route.ok && envBool("COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE", true)) {
+      break;
+    }
   }
+  const quotedRoutes = routes.filter((route) => route.ok);
 
+  const outputPath = path.resolve(envFirst("COW_FLASHLOAN_PROBE_OUTPUT") || DEFAULT_OUTPUT_PATH);
   const report = {
-    ok: routes.length > 0 && routes.every((route) => route.ok),
+    ok: quotedRoutes.length > 0 && (sourceMode === "live" || routes.every((route) => route.ok)),
     generatedAt: new Date().toISOString(),
+    outputPath,
+    executionMode: "quote_only",
+    orderSubmissionAttempted: false,
     source: live ? "live_latest_extremes" : fromHistory ? "history_jsonl_for_forensics_only" : "manual_route",
     historyPath: history?.historyPath || null,
     livePath: live?.livePath || null,
@@ -880,7 +1304,11 @@ async function main() {
     sdkEnv,
     owner,
     rpcSource: "configured",
+    slippageBps,
+    flashLoanFeePercent,
     routeCount: routes.length,
+    quotedRouteCount: quotedRoutes.length,
+    failedRouteCount: routes.length - quotedRoutes.length,
     sdkDeployments: deployments,
     sdkDeploymentGaps: deploymentGaps,
     sdkDeploymentCode: {
@@ -917,7 +1345,6 @@ async function main() {
     },
     routes,
   };
-  const outputPath = path.resolve(envFirst("COW_FLASHLOAN_PROBE_OUTPUT") || DEFAULT_OUTPUT_PATH);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));

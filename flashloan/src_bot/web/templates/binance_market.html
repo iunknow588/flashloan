@@ -486,7 +486,12 @@
       return [thresholdLine, sourceLine, ...priceLines].map(esc).join("<br>") || "-";
     };
     const historyQuoteHtml = row => {
-      const quote = historyReview(row).cow_quote || {};
+      const review = historyReview(row);
+      const quote = review.cow_quote || {};
+      const timing = review.timing || {};
+      const quoteTiming = timing.quote || {};
+      const signalTiming = timing.signal || {};
+      const windowTiming = timing.binance_window || {};
       const hops = quote.hops || [];
       if (!quote.quote_verified && !hops.length) return esc("waiting for CoW quote");
       const hopLines = hops.map(hop =>
@@ -495,9 +500,23 @@
       return [
         `input ${quote.input_amount || "-"} ${displaySymbol(quote.input_symbol || "")}`,
         `final ${quote.final_amount || "-"} ${displaySymbol(quote.final_symbol || "")}`,
+        `timing signal->quote ${quoteTiming.signal_to_quote_start_ms ?? "-"}ms | quote latency ${quoteTiming.quote_latency_ms ?? "-"}ms | window age ${quoteTiming.binance_window_age_at_quote_start_ms ?? "-"}ms`,
+        `window end ${quoteTiming.binance_window_end_ms ?? windowTiming.x_end_ms ?? windowTiming.y_end_ms ?? signalTiming.binance_window_end_ms ?? "-"} | signal ${signalTiming.signal_detected_at || "-"}`,
         ...hopLines,
         quote.error ? `error ${quote.error}` : "",
       ].filter(Boolean).map(esc).join("<br>") || "-";
+    };
+    const slippageGuardText = step => {
+      const actual = Number(step.query_output_amount || step.query_buy_amount_after_fee);
+      const minimum = Number(step.min_output_amount);
+      const ratio = Number.isFinite(actual) && Number.isFinite(minimum) && minimum > 0
+        ? `${((actual / minimum - 1) * 10000).toFixed(2)}bps`
+        : "-";
+      return `configured ${step.slippage_bps ?? "-"}bps | actual output vs minimum ${ratio}`;
+    };
+    const windowTimingText = timing => {
+      const value = timing || {};
+      return `closer ${value.closer_to || "-"} | vs current ${value.timing_vs_current_window || "-"} | prev ${value.query_vs_previous_percent || "-"}% | current ${value.query_vs_current_percent || "-"}%`;
     };
     const historyCostProfitHtml = row => {
       const review = historyReview(row);
@@ -508,7 +527,7 @@
         const guardInfo = step.query_guard_analysis || {};
         const position = step.query_price_position || step.query_rate_position || {};
         const queryValue = step.query_price_usd_per_token || step.query_exchange_rate || "-";
-        return `hop ${step.step || "-"} query ${queryValue} rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} guard ${guardInfo.status || "-"}`;
+        return `hop ${step.step || "-"} query ${queryValue} rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} guard ${guardInfo.status || "-"} | ${windowTimingText(step.query_window_timing)} | ${slippageGuardText(step)}`;
       }).join(" | ") || "-";
       const fees = (costs.cow_fee_amounts || []).map(item =>
         `${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`
@@ -516,6 +535,7 @@
       return [
         `plan profit ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)`,
         `CoW delta ${guard.pure_profit_amount || row?.final_delta_amount || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "")}`,
+        `profit budget ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%) | budget check ${guard.profit_above_auto_threshold ? "pass" : "fail"}`,
         `quote error ${guard.quote_error_type || guard.quote_error_display || "-"}`,
         `query position ${queryLines}`,
         `blocking ${JSON.stringify(guard.blocking_cause_counts || {})}`,
@@ -669,7 +689,7 @@
       const guard = step.query_guard_analysis || {};
       const position = step.query_price_position || step.query_rate_position || {};
       const queryValue = step.query_price_usd_per_token || step.query_exchange_rate || "-";
-      return `query ${queryValue} | rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} | guard ${guard.status || "-"} | ${guard.reason || "-"}`;
+      return `query ${queryValue} | rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} | ${windowTimingText(step.query_window_timing)} | guard ${guard.status || "-"} | ${slippageGuardText(step)} | ${guard.reason || "-"}`;
     };
     const queryAnalysisHtml = step => esc(queryAnalysisText(step));
     const selectionHtml = step => {

@@ -267,6 +267,70 @@ def _decimal_rank_analysis(
     }
 
 
+def _decimal_percent_delta(actual: Decimal | None, expected: Decimal | None) -> str | None:
+    if actual is None or expected is None or expected == 0:
+        return None
+    return _decimal_text((actual - expected) / expected * Decimal("100"))
+
+
+def _query_window_timing(
+    candidates: list[dict[str, Any]],
+    value_key: str,
+    *,
+    query_value: Decimal | None,
+) -> dict[str, Any]:
+    previous = next(
+        (
+            item.get(value_key)
+            for item in candidates
+            if item.get("source") == "previous_window" and isinstance(item.get(value_key), Decimal)
+        ),
+        None,
+    )
+    current = next(
+        (
+            item.get(value_key)
+            for item in candidates
+            if item.get("source") == "current_window" and isinstance(item.get(value_key), Decimal)
+        ),
+        None,
+    )
+    if query_value is None or previous is None or current is None:
+        return {
+            "available": False,
+            "basis": value_key,
+            "reason": "missing_query_or_window_value",
+            "closer_to": None,
+            "timing_vs_current_window": None,
+        }
+    previous_distance = abs(query_value - previous)
+    current_distance = abs(query_value - current)
+    closer_to = "previous_window" if previous_distance <= current_distance else "current_window"
+    if current == previous:
+        timing = "flat_window"
+    elif current > previous:
+        timing = "lagging" if query_value < current else "leading"
+    else:
+        timing = "lagging" if query_value > current else "leading"
+    return {
+        "available": True,
+        "basis": value_key,
+        "previous_window": _decimal_text(previous),
+        "current_window": _decimal_text(current),
+        "query_quote": _decimal_text(query_value),
+        "closer_to": closer_to,
+        "timing_vs_current_window": timing,
+        "query_vs_previous_percent": _decimal_percent_delta(query_value, previous),
+        "query_vs_current_percent": _decimal_percent_delta(query_value, current),
+        "previous_to_current_percent": _decimal_percent_delta(current, previous),
+        "interpretation": (
+            "CoW quote is closer to the earlier Binance window"
+            if closer_to == "previous_window"
+            else "CoW quote is closer to the current Binance window"
+        ),
+    }
+
+
 def _query_guard_analysis(
     *,
     role: str,
@@ -1804,6 +1868,7 @@ def _apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any
             acceptable_value = _decimal_value(step.get("acceptable_price_usd_per_token"))
             step["query_price_usd_per_token"] = _decimal_text(query_price)
             step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
+            step["query_window_timing"] = _query_window_timing(price_candidates, "price", query_value=query_price)
             step["query_guard_analysis"] = _query_guard_analysis(
                 role=role,
                 query_value=query_price,
@@ -1816,6 +1881,7 @@ def _apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any
             acceptable_value = _decimal_value(step.get("acceptable_price_usd_per_token"))
             step["query_price_usd_per_token"] = _decimal_text(query_price)
             step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
+            step["query_window_timing"] = _query_window_timing(price_candidates, "price", query_value=query_price)
             step["query_guard_analysis"] = _query_guard_analysis(
                 role=role,
                 query_value=query_price,
@@ -1828,6 +1894,7 @@ def _apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any
             acceptable_value = _decimal_value(step.get("min_exchange_rate"))
             step["query_exchange_rate"] = _decimal_text(query_rate)
             step["query_rate_position"] = _decimal_rank_analysis(rate_candidates, "rate")
+            step["query_window_timing"] = _query_window_timing(rate_candidates, "rate", query_value=query_rate)
             step["query_guard_analysis"] = _query_guard_analysis(
                 role=role,
                 query_value=query_rate,
@@ -1995,7 +2062,14 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
             reasons.append(f"flashLoanAndSettle_required:{','.join(capability_blockers)}")
         else:
             reasons.append(f"cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
-    checks_passed = route_supported and limit_intent_ready and cow_sdk_flashloan_ready
+    checks_passed = (
+        route_supported
+        and quote_available
+        and price_guards_passed
+        and profit_above_auto_threshold
+        and limit_intent_ready
+        and cow_sdk_flashloan_ready
+    )
     order_submission_enabled = _cow_order_submission_enabled()
     if checks_passed and not order_submission_enabled:
         status = "checks_passed_order_disabled"

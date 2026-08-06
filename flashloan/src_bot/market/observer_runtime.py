@@ -47,6 +47,7 @@ from market.observer_common import (
     write_json_atomic,
 )
 from market.observer_state import PriceState
+from runtime.cow_realtime_quote import trigger_realtime_cow_quote
 from strategy.arbitrage import simulate_basket
 async def binance_listener(symbols: Iterable[str], ws_bases: Iterable[str], state: PriceState, stop: asyncio.Event) -> None:
     symbol_list, base_list, base_index, delay = list(symbols), list(ws_bases), 0, 1.0
@@ -226,6 +227,20 @@ async def extreme_and_arbitrage_reporter(config: ObserverConfig, state: PriceSta
             if should_compute_conversion_profits(simulation_extremes, config.market_divergence_trigger_min)
             else None
         )
+        if simulation and simulation.get("signal"):
+            realtime_quote = await asyncio.to_thread(
+                trigger_realtime_cow_quote,
+                simulation_extremes,
+                simulation,
+                database_url=config.database_url,
+            )
+            if realtime_quote.get("started"):
+                LOG.info(
+                    "cow realtime quote started route=%s observed_at=%s mode=%s",
+                    " -> ".join(realtime_quote.get("route") or []),
+                    realtime_quote.get("observed_at"),
+                    realtime_quote.get("mode"),
+                )
         if extremes["top"] or extremes["bottom"] or extremes.get("basket"):
             write_json_atomic(LATEST_EXTREMES_PATH, extremes)
         if simulation:

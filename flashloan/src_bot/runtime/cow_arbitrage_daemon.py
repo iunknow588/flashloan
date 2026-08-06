@@ -165,6 +165,17 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     result["pair_rank"] = spec["pair_rank"]
     result["priority_reason"] = spec["priority_reason"]
     result["edge_hint_percent"] = spec["edge_hint_percent"]
+    for timing_key in (
+        "signal_timing",
+        "quote_trigger",
+        "binance_window",
+        "x_start_ms",
+        "x_end_ms",
+        "y_start_ms",
+        "y_end_ms",
+    ):
+        if quote.get(timing_key) is not None:
+            result[timing_key] = quote.get(timing_key)
     result["cow_support"] = support
     result["queue_signature"] = candidate.get("signature")
     final_amount = result.get("final_amount")

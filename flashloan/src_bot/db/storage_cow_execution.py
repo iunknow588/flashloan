@@ -336,6 +336,7 @@ def _review_plan_steps(quote: dict[str, Any]) -> list[dict[str, Any]]:
                 "query_exchange_rate": step.get("query_exchange_rate"),
                 "query_price_position": step.get("query_price_position"),
                 "query_rate_position": step.get("query_rate_position"),
+                "query_window_timing": step.get("query_window_timing"),
                 "query_guard_analysis": step.get("query_guard_analysis"),
                 "selected_target_source": step.get("selected_target_source"),
                 "selected_target_price_usd_per_token": step.get("selected_target_price_usd_per_token"),
@@ -390,6 +391,21 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "error": error_info.get("display") or quote.get("error") or row.get("error"),
             "error_type": error_info.get("type"),
             "error_raw": error_info.get("raw"),
+        },
+        "timing": {
+            "quote": quote.get("quote_timing") or {},
+            "signal": quote.get("signal_timing") or market_state.get("signal_timing") or {},
+            "binance_window": quote.get("binance_window") or {},
+            "three_hop_window_analysis": [
+                {
+                    "step": step.get("step"),
+                    "from_symbol": step.get("from_symbol"),
+                    "to_symbol": step.get("to_symbol"),
+                    "query_window_timing": step.get("query_window_timing") or {},
+                }
+                for step in _review_plan_steps(quote)
+                if isinstance(step, dict)
+            ],
         },
         "costs": {
             "cow_fee_amounts": costs.get("cow_fee_amounts") or [],
@@ -548,8 +564,17 @@ def _attempt_from_market_route(
         "y_change_percent": pair.get("y_change_percent"),
         "x_start_price": pair.get("x_start_price"),
         "x_current_price": pair.get("x_current_price"),
+        "x_end_price": pair.get("x_end_price", pair.get("x_current_price")),
+        "x_start_ms": pair.get("x_start_ms"),
+        "x_end_ms": pair.get("x_end_ms"),
+        "x_price_source": pair.get("x_price_source"),
+        "y_start_ms": pair.get("y_start_ms"),
+        "y_end_ms": pair.get("y_end_ms"),
+        "y_price_source": pair.get("y_price_source"),
         "y_start_price": pair.get("y_start_price"),
         "y_current_price": pair.get("y_current_price"),
+        "y_end_price": pair.get("y_end_price", pair.get("y_current_price")),
+        "signal_timing": pair.get("signal_timing") or market_state.get("signal_timing"),
         "route": route,
     }
     return {
@@ -658,8 +683,16 @@ def _claim_pair_row(x: dict[str, Any], y: dict[str, Any], rank: int, *, amount: 
         "y_change_percent": y_change,
         "x_start_price": x.get("start_price"),
         "x_current_price": x.get("current_price"),
+        "x_end_price": x.get("end_price", x.get("current_price")),
+        "x_start_ms": x.get("start_ms"),
+        "x_end_ms": x.get("end_ms"),
+        "x_price_source": x.get("price_source"),
         "y_start_price": y.get("start_price"),
         "y_current_price": y.get("current_price"),
+        "y_end_price": y.get("end_price", y.get("current_price")),
+        "y_start_ms": y.get("start_ms"),
+        "y_end_ms": y.get("end_ms"),
+        "y_price_source": y.get("price_source"),
         "window_spread_percent": x_change - y_change,
         "candidate_basis": "cow_network_claim_top_bottom",
         "trigger_source": "cow_network_claim",

@@ -10,6 +10,17 @@ from core.sensitive_data import redact_sensitive_text
 
 load_env_files(__file__, override=False)
 
+# Quote-only CoW analysis starts from the same observer cycle as the Binance
+# signal. Order submission remains separately guarded and disabled by default.
+os.environ.setdefault("COW_REALTIME_QUOTE_ENABLED", "true")
+os.environ.setdefault("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25")
+os.environ.setdefault("COW_REALTIME_QUOTE_MAX_INFLIGHT", "1")
+os.environ["BINANCE_SCAN_PROFILE"] = "200ms"
+os.environ["BINANCE_CHANGE_WINDOW_SECONDS"] = "0.2"
+os.environ["SAMPLE_SECONDS"] = "0.2"
+os.environ["BINANCE_EXTREME_WRITE_SECONDS"] = "0.2"
+os.environ["BINANCE_PAIR_PRICE_WRITE_SECONDS"] = "0.2"
+
 
 REQUIRED_MODULES = {
     "flask": "flask",
@@ -84,6 +95,13 @@ def main() -> int:
 
     print(f"opportunity console listening on 0.0.0.0:{port}", flush=True)
     print(f"control panel: http://127.0.0.1:{port}", flush=True)
+    print(
+        "CoW realtime quote: "
+        f"enabled={os.getenv('COW_REALTIME_QUOTE_ENABLED')} "
+        f"cooldown={os.getenv('COW_REALTIME_QUOTE_COOLDOWN_SECONDS')}s "
+        f"max_inflight={os.getenv('COW_REALTIME_QUOTE_MAX_INFLIGHT')}",
+        flush=True,
+    )
     app.run(host="0.0.0.0", port=port, threaded=True, use_reloader=False)
     return 0
 

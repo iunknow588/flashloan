@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from execution.cow_routes import CowToken
 from strategy.arbitrage import ArbitrageConfig
@@ -17,6 +18,7 @@ from web.binance_market_service import (
     select_binance_market_extremes,
     needs_binance_rest_snapshot,
     _cow_execution_precheck,
+    _query_window_timing,
 )
 from db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
@@ -42,6 +44,22 @@ def _row(symbol: str, start: float, end: float) -> dict:
         "price_source": "ws",
         "window_ready": True,
     }
+
+
+def test_query_window_timing_identifies_previous_window_and_lagging_quote():
+    timing = _query_window_timing(
+        [
+            {"source": "previous_window", "price": Decimal("10")},
+            {"source": "current_window", "price": Decimal("12")},
+            {"source": "query_quote", "price": Decimal("10.5")},
+        ],
+        "price",
+        query_value=Decimal("10.5"),
+    )
+
+    assert timing["closer_to"] == "previous_window"
+    assert timing["timing_vs_current_window"] == "lagging"
+    assert timing["previous_to_current_percent"] == "20"
 
 
 def test_binance_market_state_defaults_to_top5_bottom5_and_25_pairs():

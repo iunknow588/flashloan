@@ -20,6 +20,14 @@ def configure_market_observer_env() -> dict[str, str]:
         "BINANCE_WS_CHUNK_SIZE": os.getenv("BINANCE_WS_CHUNK_SIZE", "200"),
         "AAVE_VERIFICATION_ENABLED": os.getenv("AAVE_VERIFICATION_ENABLED", "true"),
         "REPORT_ONLY_ALERTS": os.getenv("REPORT_ONLY_ALERTS", "true"),
+        "COW_REALTIME_QUOTE_ENABLED": "true",
+        "COW_REALTIME_QUOTE_COOLDOWN_SECONDS": os.getenv("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25"),
+        "COW_REALTIME_QUOTE_MAX_INFLIGHT": os.getenv("COW_REALTIME_QUOTE_MAX_INFLIGHT", "1"),
+        "BINANCE_SCAN_PROFILE": "200ms",
+        "BINANCE_CHANGE_WINDOW_SECONDS": "0.2",
+        "SAMPLE_SECONDS": "0.2",
+        "BINANCE_EXTREME_WRITE_SECONDS": "0.2",
+        "BINANCE_PAIR_PRICE_WRITE_SECONDS": "0.2",
     }
     os.environ.update(updates)
     return updates

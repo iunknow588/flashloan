@@ -1,0 +1,549 @@
+{
+  "ok": true,
+  "generatedAt": "2026-08-05T22:04:39.325Z",
+  "source": "live_latest_extremes",
+  "historyPath": null,
+  "livePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\state\\latest_extremes.json",
+  "liveStatus": "live_top1_candidate_found",
+  "liveDiagnostic": null,
+  "chainId": 43114,
+  "network": "avalanche",
+  "sdkEnv": "prod",
+  "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "rpcSource": "configured",
+  "routeCount": 1,
+  "sdkDeployments": {
+    "aavePool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+    "adapterFactory": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+    "collateralAdapter": "0x29A9b0a13c81d59f13BA0f39DBDCAA1AB2adc95F",
+    "debtAdapter": "0xbE9A121bb958BBBb027dA728DEC0D5496811b7d1",
+    "repayAdapter": "0x8e25d1210FabB0fcAdE92a82C4a89568B4b10E0F"
+  },
+  "sdkDeploymentGaps": [],
+  "sdkDeploymentCode": {
+    "aavePool": "deployed",
+    "adapterFactory": "deployed",
+    "collateralAdapter": "deployed"
+  },
+  "probeReliability": {
+    "perHopProbeOnly": true,
+    "atomicityProof": false,
+    "mustUseSingleCollateralSwapOrder": true,
+    "expectedAtomicEvidence": [
+      "single_order_uid",
+      "single_settlement_tx_hash",
+      "flashloan_metadata_in_app_data",
+      "solver_interactions_cover_three_hop_cycle_or_better",
+      "flashloan_principal_plus_fee_repaid_in_final_settlement"
+    ],
+    "unsafeInterpretation": "Sequential getQuoteOnly/getOrderPostingSettings results prove hook generation per leg only; they do not prove X->Y->Z->X settles atomically."
+  },
+  "modelConclusion": {
+    "eachLegCanGenerateFlashLoanHooks": true,
+    "singleSolverSettlementPlanned": true,
+    "testedAsOneAtomicSettlement": false,
+    "sdkDefaultDeploymentsComplete": true,
+    "deploymentGaps": [],
+    "reason": "This probe verifies quote/settings generation per SDK collateral-swap intent. It does not submit one GPv2Settlement.settle(...) containing a multi-trade settlement, so it cannot prove all hops settle atomically.",
+    "importantBoundary": "If three conversions are posted as three ordinary CoW orders, they can fill independently. Atomic all-or-none behavior requires the trades/interactions to be included in the same settlement transaction."
+  },
+  "routes": [
+    {
+      "ok": true,
+      "network": "avalanche",
+      "pair": "SYNUSDT / AIUSDT",
+      "pairRank": 1,
+      "priorityReason": "buy_loser_then_gainer_live_top1",
+      "observedAt": "2026-08-05T22:01:58.164+00:00",
+      "route": [
+        "USDC",
+        "AI",
+        "SYN",
+        "USDC"
+      ],
+      "amountHuman": "1",
+      "amountUnits": "1000000",
+      "ownPlanAvailable": true,
+      "classification": "not_profitable_after_sequential_quotes",
+      "error": null,
+      "profit": {
+        "inputAmount": "1",
+        "finalAmount": "0.003284",
+        "deltaAmount": "-0.996716",
+        "deltaPercent": "-99.6716",
+        "symbol": "USDC"
+      },
+      "singleSolverSettlement": {
+        "model": "single_flashloan_router_call_with_single_cow_solver_settlement",
+        "borrowedAsset": "USDC",
+        "repaidAsset": "USDC",
+        "route": [
+          "USDC",
+          "AI",
+          "SYN",
+          "USDC"
+        ],
+        "hopCount": 3,
+        "requiredMinimumHopCount": 3,
+        "threeHopRoute": true,
+        "closedCycle": true,
+        "flashLoanCount": 1,
+        "solverOrderCount": 1,
+        "settlementTransactionCount": 1,
+        "independentPerHopOrderCount": 0,
+        "diagnosticQuoteLegCount": 3,
+        "submissionMode": "one_flashLoanAndSettle_call",
+        "proofStatus": "not_proven_quote_only",
+        "requiredEvidence": [
+          "single_order_uid",
+          "single_settlement_tx_hash",
+          "flashloan_metadata_in_app_data",
+          "solver_interactions_cover_three_hop_cycle_or_better",
+          "flashloan_principal_plus_fee_repaid_in_final_settlement"
+        ]
+      },
+      "eachLegCanGenerateFlashLoanHooks": true,
+      "ownGuardFailures": 0,
+      "legs": [
+        {
+          "index": 1,
+          "ok": true,
+          "sellSymbol": "USDC",
+          "buySymbol": "AI",
+          "sellToken": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+          "buyToken": "0x2598c30330d5771ae9f983979209486ae26de875",
+          "sellDecimals": 6,
+          "buyDecimals": 18,
+          "inputAmount": "1000000",
+          "inputAmountHuman": "1",
+          "signedSellAmountAfterFlashLoanFee": "999500",
+          "signedSellAmountAfterFlashLoanFeeHuman": "0.9995",
+          "flashLoanFeeAmount": "500",
+          "flashLoanFeeAmountHuman": "0.0005",
+          "buyAmount": "1267454201193271029266464",
+          "buyAmountHuman": "1267454.201193271029266464",
+          "sellAmount": "999500",
+          "validTo": 1785967774,
+          "orderToSign": {
+            "sellToken": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+            "buyToken": "0x2598c30330d5771ae9f983979209486ae26de875",
+            "receiver": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+            "sellAmount": "999500",
+            "buyAmount": "1267454201193271029266464",
+            "validTo": 1785967774,
+            "appData": "0x4cdb3c46251a2b71abdfcd910f5d4f1533dec1d9519ed13cc25649329756450f",
+            "feeAmount": "0",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+          },
+          "quoteResponse": {
+            "id": 6415242,
+            "verified": true,
+            "solver": null,
+            "quote": {
+              "sellAmount": "996992",
+              "buyAmount": "1275489786850428730267147",
+              "feeAmount": "2508",
+              "gasAmount": "440666",
+              "validTo": 1785967774,
+              "appData": "{\"appCode\":\"flashloan-composite-arb-probe\",\"metadata\":{\"orderClass\":{\"orderClass\":\"market\"},\"quote\":{\"slippageBips\":50},\"utm\":{\"utmCampaign\":\"developer-cohort\",\"utmContent\":\"\",\"utmMedium\":\"cow-sdk@9.2.6\",\"utmSource\":\"cowmunity\",\"utmTerm\":\"js\"}},\"version\":\"1.15.0\"}",
+              "kind": "sell",
+              "partiallyFillable": false
+            }
+          },
+          "amountsAndCosts": {
+            "isSell": true,
+            "costs": {
+              "networkFee": {
+                "amountInSellCurrency": "2508",
+                "amountInBuyCurrency": "3208579793439541396029"
+              },
+              "partnerFee": {
+                "amount": "0",
+                "bps": 0
+              },
+              "protocolFee": {
+                "amount": "255148987167519249903",
+                "bps": 2
+              }
+            },
+            "beforeAllFees": {
+              "sellAmount": "999500",
+              "buyAmount": "1278953515631035790913079"
+            },
+            "beforeNetworkCosts": {
+              "sellAmount": "999500",
+              "buyAmount": "1278698366643868271663176"
+            },
+            "afterProtocolFees": {
+              "sellAmount": "999500",
+              "buyAmount": "1278698366643868271663176"
+            },
+            "afterNetworkCosts": {
+              "sellAmount": "996992",
+              "buyAmount": "1275489786850428730267147"
+            },
+            "afterPartnerFees": {
+              "sellAmount": "996992",
+              "buyAmount": "1275489786850428730267147"
+            },
+            "afterSlippage": {
+              "sellAmount": "996992",
+              "buyAmount": "1267454201193271029266464"
+            },
+            "amountsToSign": {
+              "sellAmount": "999500",
+              "buyAmount": "1267454201193271029266464"
+            }
+          },
+          "appData": {
+            "appDataKeccak256": "0x4cdb3c46251a2b71abdfcd910f5d4f1533dec1d9519ed13cc25649329756450f",
+            "fullAppDataPresent": true,
+            "docVersion": "1.15.0",
+            "orderClass": "market",
+            "metadataKeys": [
+              "quote",
+              "orderClass",
+              "partnerFee",
+              "utm"
+            ],
+            "generatedMetadataKeys": [
+              "flashloan",
+              "hooks"
+            ]
+          },
+          "instanceAddress": "0x804001802c577A88bB3A7759D3A419E8AcFC4624",
+          "hasFlashloanMetadata": true,
+          "flashloanMetadata": {
+            "amount": "1000000",
+            "receiver": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+            "liquidityProvider": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+            "protocolAdapter": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+            "token": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
+          },
+          "hasHooksMetadata": true,
+          "hookKeys": [
+            "pre",
+            "post"
+          ],
+          "hooks": {
+            "pre": [
+              {
+                "target": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+                "gasLimit": "300000",
+                "callDataBytes": 420
+              }
+            ],
+            "post": [
+              {
+                "target": "0x804001802c577A88bB3A7759D3A419E8AcFC4624",
+                "gasLimit": "600000",
+                "callDataBytes": 164
+              }
+            ]
+          },
+          "aaveLiquidityHint": {
+            "sellTokenDepthScoreUsd": 781.2322572238626,
+            "sellTokenAvailableLiquidity": 781417375,
+            "sellTokenReserveLiquidity": 361663113
+          },
+          "ownGuard": null
+        },
+        {
+          "index": 2,
+          "ok": true,
+          "sellSymbol": "AI",
+          "buySymbol": "SYN",
+          "sellToken": "0x2598c30330d5771ae9f983979209486ae26de875",
+          "buyToken": "0x1f1e7c893855525b303f99bdf5c3c05be09ca251",
+          "sellDecimals": 18,
+          "buyDecimals": 18,
+          "inputAmount": "1267454201193271029266464",
+          "inputAmountHuman": "1267454.201193271029266464",
+          "signedSellAmountAfterFlashLoanFee": "1266820474092674393751830",
+          "signedSellAmountAfterFlashLoanFeeHuman": "1266820.47409267439375183",
+          "flashLoanFeeAmount": "633727100596635514634",
+          "flashLoanFeeAmountHuman": "633.727100596635514634",
+          "buyAmount": "6967846768725006303",
+          "buyAmountHuman": "6.967846768725006303",
+          "sellAmount": "1266820474092674393751830",
+          "validTo": 1785967777,
+          "orderToSign": {
+            "sellToken": "0x2598c30330d5771ae9f983979209486ae26de875",
+            "buyToken": "0x1f1e7c893855525b303f99bdf5c3c05be09ca251",
+            "receiver": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+            "sellAmount": "1266820474092674393751830",
+            "buyAmount": "6967846768725006303",
+            "validTo": 1785967777,
+            "appData": "0x9585c1cc2f8c3363cf8a3eeb7a9eb123d1fd54b32fa0ee2f3a043870d8a6196d",
+            "feeAmount": "0",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+          },
+          "quoteResponse": {
+            "id": 6415244,
+            "verified": true,
+            "solver": null,
+            "quote": {
+              "sellAmount": "1263709110132053395030294",
+              "buyAmount": "7011316933714033309",
+              "feeAmount": "3111363960620998721536",
+              "gasAmount": "430502",
+              "validTo": 1785967777,
+              "appData": "{\"appCode\":\"flashloan-composite-arb-probe\",\"metadata\":{\"orderClass\":{\"orderClass\":\"market\"},\"quote\":{\"slippageBips\":50},\"utm\":{\"utmCampaign\":\"developer-cohort\",\"utmContent\":\"\",\"utmMedium\":\"cow-sdk@9.2.6\",\"utmSource\":\"cowmunity\",\"utmTerm\":\"js\"}},\"version\":\"1.15.0\"}",
+              "kind": "sell",
+              "partiallyFillable": false
+            }
+          },
+          "amountsAndCosts": {
+            "isSell": true,
+            "costs": {
+              "networkFee": {
+                "amountInSellCurrency": "3111363960620998721536",
+                "amountInBuyCurrency": "17262484419195174"
+              },
+              "partnerFee": {
+                "amount": "0",
+                "bps": 0
+              },
+              "protocolFee": {
+                "amount": "1402543895521911",
+                "bps": 2
+              }
+            },
+            "beforeAllFees": {
+              "sellAmount": "1266820474092674393751830",
+              "buyAmount": "7029981962028750394"
+            },
+            "beforeNetworkCosts": {
+              "sellAmount": "1266820474092674393751830",
+              "buyAmount": "7028579418133228483"
+            },
+            "afterProtocolFees": {
+              "sellAmount": "1266820474092674393751830",
+              "buyAmount": "7028579418133228483"
+            },
+            "afterNetworkCosts": {
+              "sellAmount": "1263709110132053395030294",
+              "buyAmount": "7011316933714033309"
+            },
+            "afterPartnerFees": {
+              "sellAmount": "1263709110132053395030294",
+              "buyAmount": "7011316933714033309"
+            },
+            "afterSlippage": {
+              "sellAmount": "1263709110132053395030294",
+              "buyAmount": "6967846768725006303"
+            },
+            "amountsToSign": {
+              "sellAmount": "1266820474092674393751830",
+              "buyAmount": "6967846768725006303"
+            }
+          },
+          "appData": {
+            "appDataKeccak256": "0x9585c1cc2f8c3363cf8a3eeb7a9eb123d1fd54b32fa0ee2f3a043870d8a6196d",
+            "fullAppDataPresent": true,
+            "docVersion": "1.15.0",
+            "orderClass": "market",
+            "metadataKeys": [
+              "quote",
+              "orderClass",
+              "partnerFee",
+              "utm"
+            ],
+            "generatedMetadataKeys": [
+              "flashloan",
+              "hooks"
+            ]
+          },
+          "instanceAddress": "0x69ba95A5432765dce00E60b5732d37FA2dad661c",
+          "hasFlashloanMetadata": true,
+          "flashloanMetadata": {
+            "amount": "1267454201193271029266464",
+            "receiver": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+            "liquidityProvider": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+            "protocolAdapter": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+            "token": "0x2598c30330d5771ae9f983979209486ae26de875"
+          },
+          "hasHooksMetadata": true,
+          "hookKeys": [
+            "pre",
+            "post"
+          ],
+          "hooks": {
+            "pre": [
+              {
+                "target": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+                "gasLimit": "300000",
+                "callDataBytes": 420
+              }
+            ],
+            "post": [
+              {
+                "target": "0x69ba95A5432765dce00E60b5732d37FA2dad661c",
+                "gasLimit": "600000",
+                "callDataBytes": 164
+              }
+            ]
+          },
+          "aaveLiquidityHint": {
+            "sellTokenDepthScoreUsd": null,
+            "sellTokenAvailableLiquidity": null,
+            "sellTokenReserveLiquidity": null
+          },
+          "ownGuard": null
+        },
+        {
+          "index": 3,
+          "ok": true,
+          "sellSymbol": "SYN",
+          "buySymbol": "USDC",
+          "sellToken": "0x1f1e7c893855525b303f99bdf5c3c05be09ca251",
+          "buyToken": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+          "sellDecimals": 18,
+          "buyDecimals": 6,
+          "inputAmount": "6967846768725006303",
+          "inputAmountHuman": "6.967846768725006303",
+          "signedSellAmountAfterFlashLoanFee": "6964362845340643799",
+          "signedSellAmountAfterFlashLoanFeeHuman": "6.964362845340643799",
+          "flashLoanFeeAmount": "3483923384362504",
+          "flashLoanFeeAmountHuman": "0.003483923384362504",
+          "buyAmount": "3284",
+          "buyAmountHuman": "0.003284",
+          "sellAmount": "6964362845340643799",
+          "validTo": 1785967778,
+          "orderToSign": {
+            "sellToken": "0x1f1e7c893855525b303f99bdf5c3c05be09ca251",
+            "buyToken": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+            "receiver": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+            "sellAmount": "6964362845340643799",
+            "buyAmount": "3284",
+            "validTo": 1785967778,
+            "appData": "0xd653ca984bf94bd2befa0a4aeee7a203fca28caf165a85e4a69b4fff781eb8f6",
+            "feeAmount": "0",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+          },
+          "quoteResponse": {
+            "id": 6415246,
+            "verified": true,
+            "solver": null,
+            "quote": {
+              "sellAmount": "6948972886338818335",
+              "buyAmount": "3304",
+              "feeAmount": "15389959001825464",
+              "gasAmount": "381035",
+              "validTo": 1785967778,
+              "appData": "{\"appCode\":\"flashloan-composite-arb-probe\",\"metadata\":{\"orderClass\":{\"orderClass\":\"market\"},\"quote\":{\"slippageBips\":50},\"utm\":{\"utmCampaign\":\"developer-cohort\",\"utmContent\":\"\",\"utmMedium\":\"cow-sdk@9.2.6\",\"utmSource\":\"cowmunity\",\"utmTerm\":\"js\"}},\"version\":\"1.15.0\"}",
+              "kind": "sell",
+              "partiallyFillable": false
+            }
+          },
+          "amountsAndCosts": {
+            "isSell": true,
+            "costs": {
+              "networkFee": {
+                "amountInSellCurrency": "15389959001825464",
+                "amountInBuyCurrency": "7"
+              },
+              "partnerFee": {
+                "amount": "0",
+                "bps": 0
+              },
+              "protocolFee": {
+                "amount": "0",
+                "bps": 2
+              }
+            },
+            "beforeAllFees": {
+              "sellAmount": "6964362845340643799",
+              "buyAmount": "3311"
+            },
+            "beforeNetworkCosts": {
+              "sellAmount": "6964362845340643799",
+              "buyAmount": "3311"
+            },
+            "afterProtocolFees": {
+              "sellAmount": "6964362845340643799",
+              "buyAmount": "3311"
+            },
+            "afterNetworkCosts": {
+              "sellAmount": "6948972886338818335",
+              "buyAmount": "3304"
+            },
+            "afterPartnerFees": {
+              "sellAmount": "6948972886338818335",
+              "buyAmount": "3304"
+            },
+            "afterSlippage": {
+              "sellAmount": "6948972886338818335",
+              "buyAmount": "3284"
+            },
+            "amountsToSign": {
+              "sellAmount": "6964362845340643799",
+              "buyAmount": "3284"
+            }
+          },
+          "appData": {
+            "appDataKeccak256": "0xd653ca984bf94bd2befa0a4aeee7a203fca28caf165a85e4a69b4fff781eb8f6",
+            "fullAppDataPresent": true,
+            "docVersion": "1.15.0",
+            "orderClass": "market",
+            "metadataKeys": [
+              "quote",
+              "orderClass",
+              "partnerFee",
+              "utm"
+            ],
+            "generatedMetadataKeys": [
+              "flashloan",
+              "hooks"
+            ]
+          },
+          "instanceAddress": "0x4d4c86f4Fdc82FEFE3547B5a7ea188E5b216a8f7",
+          "hasFlashloanMetadata": true,
+          "flashloanMetadata": {
+            "amount": "6967846768725006303",
+            "receiver": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+            "liquidityProvider": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+            "protocolAdapter": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+            "token": "0x1f1e7c893855525b303f99bdf5c3c05be09ca251"
+          },
+          "hasHooksMetadata": true,
+          "hookKeys": [
+            "pre",
+            "post"
+          ],
+          "hooks": {
+            "pre": [
+              {
+                "target": "0x43c658Ea38bBfD897706fDb35e2468ef5D8F6927",
+                "gasLimit": "300000",
+                "callDataBytes": 420
+              }
+            ],
+            "post": [
+              {
+                "target": "0x4d4c86f4Fdc82FEFE3547B5a7ea188E5b216a8f7",
+                "gasLimit": "600000",
+                "callDataBytes": 164
+              }
+            ]
+          },
+          "aaveLiquidityHint": {
+            "sellTokenDepthScoreUsd": null,
+            "sellTokenAvailableLiquidity": null,
+            "sellTokenReserveLiquidity": null
+          },
+          "ownGuard": null
+        }
+      ]
+    }
+  ]
+}
