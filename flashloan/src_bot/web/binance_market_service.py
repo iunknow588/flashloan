@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
@@ -13,6 +13,7 @@ from typing import Any
 
 from db.storage_cow_tokens import load_cow_supported_tokens, replace_cow_supported_tokens
 from execution.cow_flashloan_capabilities import assess_cow_flashloan_sdk_plan
+from execution.cow_order_submission import cow_order_submission_adapter_available, cow_order_submission_enabled, cow_order_submission_network_supported
 from execution.cow_routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
@@ -35,6 +36,7 @@ DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "state" / "binance
 DEFAULT_COW_TOKEN_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "cow_supported_tokens.json"
 DEFAULT_COW_TEST_NETWORK = "avalanche"
 DEFAULT_COW_FLASHLOAN_INTENT_INITIAL_USDC = Decimal("1000")
+DEFAULT_COW_FLASHLOAN_CONTROL_MODE = "intent"
 DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS = 120.0
 COW_NETWORK_LABELS = {
     "ethereum": "Ethereum",
@@ -100,6 +102,19 @@ def _decimal_text(value: Decimal | None) -> str | None:
     if value is None:
         return None
     return format(value.normalize(), "f")
+
+
+def _cow_flashloan_control_mode() -> str:
+    raw = os.getenv("COW_FLASHLOAN_CONTROL_MODE", DEFAULT_COW_FLASHLOAN_CONTROL_MODE).strip().lower()
+    aliases = {
+        "intent": "intent",
+        "pure_intent": "intent",
+        "route_hop": "route_hop",
+        "route": "route_hop",
+        "hop": "route_hop",
+        "hop_constraints": "route_hop",
+    }
+    return aliases.get(raw, DEFAULT_COW_FLASHLOAN_CONTROL_MODE)
 
 
 def cost_adjusted_cow_thresholds(
@@ -1209,6 +1224,7 @@ def cow_network_options() -> dict[str, Any]:
                 "label": COW_NETWORK_LABELS.get(name, name),
                 "chain_id": config.chain_id,
                 "testnet": config.testnet,
+                "submission_supported": cow_order_submission_network_supported(config.network),
                 "quote_api": config.quote_api,
                 "owner": account.owner,
                 "owner_source": account.owner_source,
@@ -1612,6 +1628,7 @@ def _cow_pure_profit_intent(
     threshold_detail: dict[str, Any] | None,
     market_state: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    control_mode = _cow_flashloan_control_mode()
     requested_amount = _decimal_value(amount)
     initial_amount = DEFAULT_COW_FLASHLOAN_INTENT_INITIAL_USDC
     threshold = threshold_detail if isinstance(threshold_detail, dict) else {}
@@ -1627,10 +1644,12 @@ def _cow_pure_profit_intent(
         else Decimal("0")
     )
     x_percent = trade_fee_percent + flashloan_fee_percent + fee_reserve_percent + min_profit_percent + fixed_cost_percent
+    baseline_percent = Decimal("100")
+    total_required_percent = baseline_percent + x_percent
     x_ratio = x_percent / Decimal("100")
     min_pure_profit = initial_amount * min_profit_percent / Decimal("100")
     min_total_profit = initial_amount * x_ratio
-    min_final_amount = initial_amount * (Decimal("1") + x_ratio)
+    min_final_amount = initial_amount * total_required_percent / Decimal("100")
     state = market_state if isinstance(market_state, dict) else {}
     rising_tokens = _intent_market_rows(state.get("cow_top") or state.get("top") or [])
     falling_tokens = _intent_market_rows(state.get("cow_bottom") or state.get("bottom") or [])
@@ -1641,6 +1660,7 @@ def _cow_pure_profit_intent(
     return {
         "version": 2,
         "mode": "pure_profit_final_amount_intent",
+        "control_mode": control_mode,
         "enabled": os.getenv("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"},
         "controller": "upper_layer_intent_only",
         "success_controller": "cow_sdk",
@@ -1649,10 +1669,12 @@ def _cow_pure_profit_intent(
         "initial_symbol": str(input_symbol or "USDC"),
         "final_symbol": str(final_symbol or input_symbol or "USDC"),
         "requested_quote_amount": _decimal_text(requested_amount),
-        "formula": "final_amount >= 1000 * (1 + x)",
-        "x_definition": "x = all configured fee points + fixed USDC cost reserve + guaranteed profit point",
+        "formula": "final_amount >= 1000 * (100% + x%)",
+        "x_definition": "x = all configured fee points + fixed USDC cost reserve + guaranteed profit point, added on top of the original 100% base",
+        "baseline_percent": _decimal_text(baseline_percent),
         "x_ratio": _decimal_text(x_ratio),
         "x_percent": _decimal_text(x_percent),
+        "total_required_percent": _decimal_text(total_required_percent),
         "min_final_amount": _decimal_text(min_final_amount),
         "min_pure_profit_amount": _decimal_text(min_pure_profit),
         "min_total_profit_amount": _decimal_text(min_total_profit),
@@ -1666,6 +1688,7 @@ def _cow_pure_profit_intent(
             "guaranteed_profit_percent": _decimal_text(min_profit_percent),
             "fixed_cost_percent": _decimal_text(fixed_cost_percent),
             "all_in_fee_plus_profit_percent": _decimal_text(x_percent),
+            "required_total_percent": _decimal_text(total_required_percent),
             "cow_solver_fee_mode": "controlled_by_cow_sdk_and_reflected_in_sdk_result",
         },
         "cow_sdk_order_intent": {
@@ -1685,6 +1708,13 @@ def _cow_pure_profit_intent(
             "max_rising_tokens": 5,
             "max_falling_tokens": 5,
             "role": "advisory_decision_support_only",
+        },
+        "control_surface": {
+            "default_mode": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
+            "current_mode": control_mode,
+            "intent_mode": "intent",
+            "route_hop_mode": "route_hop",
+            "route_hop_constraints_enforced": control_mode != "intent",
         },
         "submission_boundary": "caller_provides_market_hints_and_min_final_amount; cow_sdk_controls_success_failure_and_swap_path",
         "ready": initial_amount > 0 and str(input_symbol or "") and str(final_symbol or ""),
@@ -1757,9 +1787,44 @@ def _cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: 
     }
 
 
-def _cow_order_submission_enabled() -> bool:
+def _cow_sdk_result_snapshot(result: dict[str, Any], precheck: dict[str, Any]) -> dict[str, Any]:
+    intent = result.get("cow_flashloan_intent") if isinstance(result.get("cow_flashloan_intent"), dict) else {}
+    submission = result.get("cow_submission_result") if isinstance(result.get("cow_submission_result"), dict) else {}
+    control_mode = str(precheck.get("control_mode") or intent.get("control_mode") or _cow_flashloan_control_mode())
+    return {
+        "status": str(precheck.get("status") or "quote_precheck"),
+        "controller": "cow_sdk",
+        "control_mode": control_mode,
+        "route_hop_constraints_enforced": bool(precheck.get("route_hop_constraints_enforced")),
+        "route_hop_constraints_passed": bool(precheck.get("route_hop_constraints_passed")),
+        "ready": bool(precheck.get("checks_passed")),
+        "intent_ready": bool(precheck.get("intent_mode_ready")),
+        "quote_available": bool(precheck.get("quote_available")),
+        "route_supported": bool(precheck.get("route_supported")),
+        "quote_error_type": precheck.get("quote_error_type"),
+        "quote_error_display": precheck.get("quote_error_display"),
+        "quote_error_raw": precheck.get("quote_error_raw"),
+        "reason_count": len(precheck.get("reasons") or []),
+        "submission_attempted": bool(precheck.get("submission_attempted") or submission.get("submitted") or submission.get("order_id")),
+        "submission_status": submission.get("status") or precheck.get("submission_status"),
+        "submission_order_id": submission.get("order_id") or precheck.get("submission_order_id"),
+        "submission_tx_hash": submission.get("tx_hash") or precheck.get("submission_tx_hash"),
+        "submission_error": submission.get("error"),
+        "submission_blocked_reason": submission.get("blocked_reason"),
+    }
+
+
+def _cow_order_submission_requested() -> bool:
     raw = os.getenv("COW_ORDER_SUBMISSION_ENABLED", "false").strip().lower()
     return raw in {"1", "true", "yes", "on"}
+
+
+def _cow_order_submission_adapter_available() -> bool:
+    return cow_order_submission_adapter_available()
+
+
+def _cow_order_submission_enabled() -> bool:
+    return cow_order_submission_enabled()
 
 
 def _attach_cow_flashloan_sdk_plan(
@@ -2075,6 +2140,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     plan = result.get("binance_execution_plan") if isinstance(result, dict) else None
     steps = plan.get("steps") if isinstance(plan, dict) else []
     hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
+    control_mode = _cow_flashloan_control_mode()
     quote_error = _cow_quote_error_info(result.get("error"))
     quote_error_type = quote_error.get("type")
     pure_intent = result.get("cow_flashloan_intent") if isinstance(result.get("cow_flashloan_intent"), dict) else {}
@@ -2137,6 +2203,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     own_limit_order_intent = _cow_own_limit_order_intent(plan, min_profit_usd=min_profit_usd)
     cow_sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else None
     cow_sdk_error = result.get("cow_flashloan_sdk_error")
+    route_hop_constraints_enforced = control_mode != "intent"
     profit_positive = final_delta is not None and final_delta > 0
     drawdown_amount = -final_delta if final_delta is not None and final_delta < 0 else Decimal("0")
     drawdown_percent = (
@@ -2152,8 +2219,9 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     intent_final_amount_met = profit_above_auto_threshold
     if min_final_amount is not None:
         intent_final_amount_met = final_amount is not None and final_amount >= min_final_amount
-    pure_intent_ready = bool(pure_intent.get("ready"))
-    price_guards_passed = bool(hop_checks) and all(item["price_guard_passed"] for item in hop_checks)
+    pure_intent_ready = bool(pure_intent.get("enabled", True)) and bool(pure_intent.get("ready"))
+    route_hop_constraints_passed = bool(hop_checks) and all(item["price_guard_passed"] for item in hop_checks)
+    price_guards_passed = route_hop_constraints_passed
     blocking_cause_counts: dict[str, int] = {}
     for item in hop_checks:
         cause = item.get("failure_cause")
@@ -2164,9 +2232,9 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         reasons.append("CoW 不支持该路径中的一个或多个代币")
     if not quote_available:
         reasons.append(result.get("error") or "尚未拿到可用 CoW 报价")
-    if not price_guards_passed:
+    if route_hop_constraints_enforced and not price_guards_passed:
         reasons.append("至少一个 hop 的 CoW 查询输出低于按滑点价计算的最低接收量")
-    if not price_guards_passed and blocking_cause_counts:
+    if route_hop_constraints_enforced and not price_guards_passed and blocking_cause_counts:
         reasons.append(f"主要阻断原因：{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
     if not profit_positive:
         reasons.append(f"最终 CoW 盈利不为正：{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip())
@@ -2188,7 +2256,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         if quote_error_type:
             normalized_reasons.append(f"quote_error_type:{quote_error_type}")
         normalized_reasons.append("quote_missing_skip_price_profit_drawdown_checks")
-    if quote_available and not price_guards_passed:
+    if route_hop_constraints_enforced and quote_available and not price_guards_passed:
         normalized_reasons.append("at_least_one_hop_query_output_below_own_minimum")
         if blocking_cause_counts:
             normalized_reasons.append(f"primary_blocker:{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
@@ -2229,30 +2297,23 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
             reasons.append(f"flashLoanAndSettle_required:{','.join(capability_blockers)}")
         else:
             reasons.append(f"cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
-    checks_passed = (
+    intent_mode_ready = (
         route_supported
         and quote_available
         and intent_final_amount_met
         and pure_intent_ready
         and cow_sdk_flashloan_ready
     )
-    order_submission_enabled = _cow_order_submission_enabled()
-    if pure_intent_ready:
-        cow_sdk_flashloan_ready = (
-            route_supported
-            and pure_intent_ready
-            and cow_sdk_plan is not None
-            and not cow_sdk_error
-            and bool(flashloan_capability)
-            and flashloan_submission_safe
-        )
-        checks_passed = (
-            route_supported
-            and quote_available
-            and intent_final_amount_met
-            and pure_intent_ready
-            and cow_sdk_flashloan_ready
-        )
+    route_hop_mode_ready = intent_mode_ready and route_hop_constraints_passed
+    checks_passed = route_hop_mode_ready if route_hop_constraints_enforced else intent_mode_ready
+    order_submission_requested = _cow_order_submission_requested()
+    order_submission_adapter_available = _cow_order_submission_adapter_available()
+    order_submission_network_supported = cow_order_submission_network_supported(
+        result.get("cow_network") or result.get("network") or DEFAULT_COW_TEST_NETWORK
+    )
+    order_submission_enabled = order_submission_requested and order_submission_adapter_available and order_submission_network_supported
+    if route_hop_constraints_enforced and not route_hop_constraints_passed:
+        cow_sdk_flashloan_ready = False
     if checks_passed and not order_submission_enabled:
         status = "checks_passed_order_disabled"
         reasons.append("报价、价格保护、盈利检查通过；真实下单模块尚未开放")
@@ -2266,6 +2327,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         status = "profit_below_threshold"
     elif not intent_final_amount_met:
         status = "price_guard_failed"
+    elif route_hop_constraints_enforced and not route_hop_constraints_passed:
+        status = "price_guard_failed"
     elif not cow_sdk_flashloan_ready:
         status = "cow_flashloan_sdk_plan_required"
     else:
@@ -2275,10 +2338,15 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         if not order_submission_enabled and "own_limit_order_ready_but_submission_adapter_disabled" not in reasons:
             reasons.append("own_limit_order_ready_but_submission_adapter_disabled")
     return {
+        "control_mode": control_mode,
+        "control_mode_default": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
         "status": status,
         "checks_passed": checks_passed,
         "can_submit_order": checks_passed and order_submission_enabled,
+        "order_submission_requested": order_submission_requested,
         "order_submission_enabled": order_submission_enabled,
+        "order_submission_adapter_available": order_submission_adapter_available,
+        "order_submission_network_supported": order_submission_network_supported,
         "auto_execute_requested": checks_passed,
         "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
         "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),
@@ -2288,6 +2356,10 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "route_supported": route_supported,
         "quote_available": quote_available,
         "pure_intent_ready": pure_intent_ready,
+        "intent_mode_ready": intent_mode_ready,
+        "route_hop_mode_ready": route_hop_mode_ready,
+        "route_hop_constraints_enforced": route_hop_constraints_enforced,
+        "route_hop_constraints_passed": route_hop_constraints_passed,
         "cow_flashloan_intent": pure_intent,
         "own_limit_order_ready": limit_intent_ready,
         "own_limit_order_intent": own_limit_order_intent,
@@ -2780,7 +2852,9 @@ def build_cow_quote_verification(
         )
         result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
         _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_registry)
+        result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, {})
         result["execution_precheck"] = _cow_execution_precheck(result)
+        result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, result["execution_precheck"])
         result["costs"] = _cow_cost_summary(result, final_delta_amount=result["final_delta_amount"])
         result["quote_verified"] = True
         results.append(result)
@@ -2814,3 +2888,4 @@ def build_cow_quote_verification(
         "opportunities": opportunities,
         "ranking": ranking,
     }
+

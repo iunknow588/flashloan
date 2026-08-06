@@ -11,7 +11,7 @@ from core.sensitive_data import redact_sensitive_text
 load_env_files(__file__, override=False)
 
 # Quote-only CoW analysis starts from the same observer cycle as the Binance
-# signal. Order submission remains separately guarded and disabled by default.
+# signal. Real order submission readiness is enabled by default.
 os.environ.setdefault("COW_REALTIME_QUOTE_ENABLED", "true")
 os.environ.setdefault("COW_ORDER_SUBMISSION_ENABLED", "true")
 os.environ.setdefault("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25")

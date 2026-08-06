@@ -12,6 +12,7 @@ from web.binance_market_service import (
     build_cow_route_precheck,
     build_cow_quote_verification,
     _cow_pure_profit_intent,
+    _cow_order_submission_enabled,
     load_cow_supported_token_registry,
     cost_adjusted_cow_thresholds,
     read_binance_market_snapshot,
@@ -359,7 +360,8 @@ def test_cow_execution_precheck_uses_percent_profit_floor():
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
 
 
-def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hints():
+def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hints(monkeypatch):
+    monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
     market_state = {
         "top": [
             {"symbol": f"T{i}USDT", "base_symbol": f"T{i}", "change_percent": 1 + i, "start_price": 10, "current_price": 10.5}
@@ -389,7 +391,11 @@ def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hin
     )
 
     assert intent["initial_amount"] == "1000"
-    assert intent["formula"] == "final_amount >= 1000 * (1 + x)"
+    assert intent["control_mode"] == "intent"
+    assert intent["control_surface"]["route_hop_constraints_enforced"] is False
+    assert intent["formula"] == "final_amount >= 1000 * (100% + x%)"
+    assert intent["baseline_percent"] == "100"
+    assert intent["total_required_percent"] == "100.968"
     assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "1000"
     assert intent["market_hints"]["max_rising_tokens"] == 5
     assert intent["market_hints"]["max_falling_tokens"] == 5
@@ -398,6 +404,86 @@ def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hin
     assert intent["market_hints"]["rising_tokens"][0]["base_symbol"] == "T0"
     assert intent["market_hints"]["falling_tokens"][0]["base_symbol"] == "B0"
     assert intent["min_final_amount"] == "1009.68"
+
+
+def _route_hop_constraint_precheck_payload() -> dict:
+    return {
+        "input_amount": "1000",
+        "final_amount": "1010",
+        "final_delta_amount": "10",
+        "final_symbol": "USDC",
+        "viable": True,
+        "cow_support": {"supported": True},
+        "cow_flashloan_intent": {
+            "enabled": True,
+            "ready": True,
+            "control_mode": "intent",
+            "min_final_amount": "1005",
+            "min_pure_profit_amount": "5",
+        },
+        "hops": [{"buy_amount": "90"}],
+        "cow_flashloan_sdk_plan": {
+            "flashloan_capability": {"submission_safe": True},
+        },
+        "binance_execution_plan": {
+            "available": True,
+            "route": ["USDC", "AAA", "BBB", "USDC"],
+            "final_symbol": "USDC",
+            "profit_amount": "10",
+            "profit_percent": "1",
+            "steps": [
+                {
+                    "step": 1,
+                    "from_symbol": "USDC",
+                    "to_symbol": "AAA",
+                    "input_amount": "1000",
+                    "min_output_amount": "99",
+                    "target_output_amount": "100",
+                    "cow_sdk_parameters": {
+                        "sell_amount_before_fee": "1000",
+                        "target_buy_amount_after_fee": "100",
+                        "min_buy_amount_after_fee": "99",
+                    },
+                }
+            ],
+        },
+    }
+
+
+def test_cow_execution_precheck_default_intent_mode_keeps_hop_constraints_diagnostic(monkeypatch):
+    monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
+
+    precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
+
+    assert precheck["control_mode"] == "intent"
+    assert precheck["route_hop_constraints_enforced"] is False
+    assert precheck["route_hop_constraints_passed"] is False
+    assert precheck["checks_passed"] is True
+    assert precheck["intent_mode_ready"] is True
+
+
+def test_cow_execution_precheck_route_hop_mode_enforces_hop_constraints(monkeypatch):
+    monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "route_hop")
+
+    precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
+
+    assert precheck["control_mode"] == "route_hop"
+    assert precheck["route_hop_constraints_enforced"] is True
+    assert precheck["route_hop_constraints_passed"] is False
+    assert precheck["checks_passed"] is False
+    assert precheck["status"] == "price_guard_failed"
+
+
+def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
+    monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+
+    precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
+
+    assert precheck["checks_passed"] is True
+    assert precheck["can_submit_order"] is True
+    assert precheck["order_submission_enabled"] is True
+    assert precheck["status"] == "limit_order_ready_to_submit"
 
 
 def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
@@ -1192,6 +1278,19 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert payload["opportunity_count"] == 1
     assert payload["best_opportunity"]["pair"] == "AAA / BBB"
     assert payload["best"]["execution_precheck"]["checks_passed"] is True
+
+
+def test_cow_order_submission_enabled_when_requested_by_default(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+
+    assert _cow_order_submission_enabled() is True
+
+
+def test_cow_order_submission_can_be_explicitly_disabled(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ADAPTER_ENABLED", "false")
+
+    assert _cow_order_submission_enabled() is False
 
 
 def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, tmp_path):

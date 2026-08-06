@@ -117,6 +117,50 @@ def _json_loads(value: Any, fallback: Any) -> Any:
         return fallback
 
 
+def _cow_intent_from_attempt(item: dict[str, Any]) -> dict[str, Any]:
+    quote = item.get("quote") if isinstance(item.get("quote"), dict) else {}
+    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
+    for value in (
+        item.get("cow_flashloan_intent"),
+        quote.get("cow_flashloan_intent"),
+        precheck.get("cow_flashloan_intent"),
+    ):
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _cow_sdk_result_from_attempt(item: dict[str, Any]) -> dict[str, Any]:
+    quote = item.get("quote") if isinstance(item.get("quote"), dict) else {}
+    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
+    for value in (
+        item.get("cow_sdk_result"),
+        quote.get("cow_sdk_result"),
+        precheck.get("cow_sdk_result"),
+    ):
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def _cow_control_mode_from_attempt(item: dict[str, Any]) -> str | None:
+    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
+    intent = _cow_intent_from_attempt(item)
+    for value in (item.get("control_mode"), precheck.get("control_mode"), intent.get("control_mode")):
+        text = str(value or "").strip()
+        if text:
+            return text
+    return None
+
+
+def _route_hop_constraints_enforced_from_attempt(item: dict[str, Any]) -> bool:
+    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
+    value = item.get("route_hop_constraints_enforced")
+    if value is None:
+        value = precheck.get("route_hop_constraints_enforced")
+    return bool(value)
+
+
 def _parse_datetime(value: Any) -> datetime | None:
     if not value:
         return None
@@ -361,6 +405,8 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
     error_info = _review_error_summary(quote.get("error") or row.get("error"))
     return {
         "phase": row.get("execution_phase"),
+        "control_mode": row.get("control_mode") or precheck.get("control_mode") or (quote.get("cow_flashloan_intent") or {}).get("control_mode"),
+        "route_hop_constraints_enforced": bool(row.get("route_hop_constraints_enforced") or precheck.get("route_hop_constraints_enforced")),
         "candidate_basis": quote.get("candidate_basis"),
         "trigger_source": quote.get("trigger_source"),
         "window_seconds": market_state.get("window_seconds"),
@@ -391,6 +437,10 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "error": error_info.get("display") or quote.get("error") or row.get("error"),
             "error_type": error_info.get("type"),
             "error_raw": error_info.get("raw"),
+        },
+        "cow_sdk": {
+            "result": row.get("cow_sdk_result") or quote.get("cow_sdk_result") or {},
+            "intent": row.get("cow_flashloan_intent") or quote.get("cow_flashloan_intent") or {},
         },
         "timing": {
             "quote": quote.get("quote_timing") or {},
@@ -458,9 +508,13 @@ def ensure_cow_execution_attempts_table(database_url: str) -> None:
                     can_submit_order BOOLEAN NOT NULL DEFAULT FALSE,
                     order_submission_enabled BOOLEAN NOT NULL DEFAULT FALSE,
                     auto_execute_requested BOOLEAN NOT NULL DEFAULT FALSE,
+                    control_mode TEXT,
+                    route_hop_constraints_enforced BOOLEAN NOT NULL DEFAULT FALSE,
                     final_delta_amount TEXT,
                     final_symbol TEXT,
                     blocked_reasons_json TEXT,
+                    cow_flashloan_intent_json TEXT,
+                    cow_sdk_result_json TEXT,
                     quote_json TEXT,
                     precheck_json TEXT,
                     market_state_json TEXT,
@@ -477,6 +531,13 @@ def ensure_cow_execution_attempts_table(database_url: str) -> None:
                 "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_state_time "
                 "ON cow_execution_attempts(state, created_at DESC)"
             )
+            cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS control_mode TEXT")
+            cursor.execute(
+                "ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS "
+                "route_hop_constraints_enforced BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+            cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_flashloan_intent_json TEXT")
+            cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_sdk_result_json TEXT")
 
 
 def _attempt_from_quote(
@@ -490,6 +551,12 @@ def _attempt_from_quote(
     precheck = quote.get("execution_precheck") or {}
     reasons = precheck.get("reasons") if isinstance(precheck, dict) else []
     state = str(precheck.get("status") or ("quote_failed" if quote.get("error") else "quoted"))
+    execution_phase = str(
+        precheck.get("execution_phase")
+        or ("order_submission" if state in {"submitted_success", "submission_failed"} else "quote_precheck")
+    )
+    cow_intent = quote.get("cow_flashloan_intent") if isinstance(quote.get("cow_flashloan_intent"), dict) else precheck.get("cow_flashloan_intent") if isinstance(precheck, dict) else {}
+    cow_sdk_result = quote.get("cow_sdk_result") if isinstance(quote.get("cow_sdk_result"), dict) else {}
     return {
         "observed_at": market_state.get("observed_at"),
         "network": cow_network,
@@ -500,14 +567,18 @@ def _attempt_from_quote(
         "priority_reason": quote.get("priority_reason"),
         "route_path": quote.get("path") or [],
         "state": state,
-        "execution_phase": "quote_precheck",
+        "execution_phase": execution_phase,
         "checks_passed": bool(precheck.get("checks_passed")),
         "can_submit_order": bool(precheck.get("can_submit_order")),
         "order_submission_enabled": bool(precheck.get("order_submission_enabled")),
         "auto_execute_requested": bool(precheck.get("auto_execute_requested")),
+        "control_mode": precheck.get("control_mode") or (cow_intent or {}).get("control_mode"),
+        "route_hop_constraints_enforced": bool(precheck.get("route_hop_constraints_enforced")),
         "final_delta_amount": quote.get("final_delta_amount"),
         "final_symbol": quote.get("final_symbol"),
         "blocked_reasons": reasons if isinstance(reasons, list) else [str(reasons)],
+        "cow_flashloan_intent": cow_intent or {},
+        "cow_sdk_result": cow_sdk_result or {},
         "quote": quote,
         "precheck": precheck,
         "market_state": _market_state_summary(market_state),
@@ -907,10 +978,12 @@ def record_cow_execution_attempts(
                         pair, pair_rank, priority_reason, route_path_json,
                         state, execution_phase, checks_passed, can_submit_order,
                         order_submission_enabled, auto_execute_requested,
+                        control_mode, route_hop_constraints_enforced,
                         final_delta_amount, final_symbol, blocked_reasons_json,
+                        cow_flashloan_intent_json, cow_sdk_result_json,
                         quote_json, precheck_json, market_state_json, error, created_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     RETURNING id
                     """,
                     (
@@ -928,9 +1001,13 @@ def record_cow_execution_attempts(
                         bool(item.get("can_submit_order")),
                         bool(item.get("order_submission_enabled")),
                         bool(item.get("auto_execute_requested")),
+                        _cow_control_mode_from_attempt(item),
+                        _route_hop_constraints_enforced_from_attempt(item),
                         item.get("final_delta_amount"),
                         item.get("final_symbol"),
                         _json_text(item.get("blocked_reasons") or []),
+                        _json_text(_cow_intent_from_attempt(item)),
+                        _json_text(_cow_sdk_result_from_attempt(item)),
                         _json_text(item.get("quote") or {}),
                         _json_text(item.get("precheck") or {}),
                         _json_text(item.get("market_state") or {}),
@@ -1076,7 +1153,9 @@ def load_recent_cow_execution_attempts(
                         pair, pair_rank, priority_reason, route_path_json,
                         state, execution_phase, checks_passed, can_submit_order,
                         order_submission_enabled, auto_execute_requested,
+                        control_mode, route_hop_constraints_enforced,
                         final_delta_amount, final_symbol, blocked_reasons_json,
+                        cow_flashloan_intent_json, cow_sdk_result_json,
                         error, created_at, quote_json, precheck_json, market_state_json
                     FROM (
                         SELECT
@@ -1084,7 +1163,9 @@ def load_recent_cow_execution_attempts(
                             pair, pair_rank, priority_reason, route_path_json,
                             state, execution_phase, checks_passed, can_submit_order,
                             order_submission_enabled, auto_execute_requested,
+                            control_mode, route_hop_constraints_enforced,
                             final_delta_amount, final_symbol, blocked_reasons_json,
+                            cow_flashloan_intent_json, cow_sdk_result_json,
                             error, created_at, quote_json, precheck_json, market_state_json,
                             ROW_NUMBER() OVER (
                                 PARTITION BY LOWER(network)
@@ -1106,7 +1187,9 @@ def load_recent_cow_execution_attempts(
                         pair, pair_rank, priority_reason, route_path_json,
                         state, execution_phase, checks_passed, can_submit_order,
                         order_submission_enabled, auto_execute_requested,
+                        control_mode, route_hop_constraints_enforced,
                         final_delta_amount, final_symbol, blocked_reasons_json,
+                        cow_flashloan_intent_json, cow_sdk_result_json,
                         error, created_at, quote_json, precheck_json, market_state_json
                     FROM cow_execution_attempts
                     WHERE {" AND ".join(where)}
@@ -1134,14 +1217,18 @@ def load_recent_cow_execution_attempts(
                 "can_submit_order": bool(row[12]),
                 "order_submission_enabled": bool(row[13]),
                 "auto_execute_requested": bool(row[14]),
-                "final_delta_amount": row[15],
-                "final_symbol": row[16],
-                "blocked_reasons": _json_loads(row[17], []),
-                "error": row[18],
-                "created_at": row[19].isoformat() if row[19] else None,
-                "quote": _json_loads(row[20], {}),
-                "precheck": _json_loads(row[21], {}),
-                "market_state": _json_loads(row[22], {}),
+                "control_mode": row[15],
+                "route_hop_constraints_enforced": bool(row[16]),
+                "final_delta_amount": row[17],
+                "final_symbol": row[18],
+                "blocked_reasons": _json_loads(row[19], []),
+                "cow_flashloan_intent": _json_loads(row[20], {}),
+                "cow_sdk_result": _json_loads(row[21], {}),
+                "error": row[22],
+                "created_at": row[23].isoformat() if row[23] else None,
+                "quote": _json_loads(row[24], {}),
+                "precheck": _json_loads(row[25], {}),
+                "market_state": _json_loads(row[26], {}),
             }
         if wanted_category and cow_execution_attempt_category(item) != wanted_category:
             continue

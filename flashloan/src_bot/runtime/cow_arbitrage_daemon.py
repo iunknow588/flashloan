@@ -94,11 +94,13 @@ def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | 
 
 
 def default_quote_candidate(candidate: dict[str, Any], database_url: str | None) -> dict[str, Any]:
+    from execution.cow_order_submission import submit_cow_flashloan_order
     from execution.cow_routes import cow_account_config, cow_network_config, evaluate_cow_route, rank_cow_routes
     from web.binance_market_service import (
         _apply_cow_quote_analysis,
         _attach_cow_flashloan_sdk_plan,
         _cow_pure_profit_intent,
+        _cow_sdk_result_snapshot,
         _binance_execution_plan,
         _cow_cost_summary,
         _cow_execution_precheck,
@@ -161,12 +163,19 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
             "final_symbol": path[-1] if path else None,
             "viable": False,
             "error": support.get("error") or "CoW token support precheck failed",
+            "cow_sdk_result": {
+                "status": "not_called",
+                "reason": support.get("error") or "CoW token support precheck failed",
+                "controller": "cow_sdk",
+            },
             "hops": [],
         }
     result["pair"] = spec["pair"]
     result["pair_rank"] = spec["pair_rank"]
     result["priority_reason"] = spec["priority_reason"]
     result["edge_hint_percent"] = spec["edge_hint_percent"]
+    result["cow_network"] = network_config.network
+    result["cow_chain_id"] = network_config.chain_id
     for timing_key in (
         "signal_timing",
         "quote_trigger",
@@ -204,6 +213,38 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])
     result["execution_precheck"] = _cow_execution_precheck(result)
+    if (result.get("execution_precheck") or {}).get("can_submit_order"):
+        submission = submit_cow_flashloan_order(
+            quote_payload=result,
+            opportunity={
+                "attempt": attempt,
+                "market_state": market_state,
+                "queue_signature": candidate.get("signature"),
+            },
+        )
+        result["cow_submission_result"] = submission
+        sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else {}
+        if sdk_plan:
+            sdk_plan["submission_status"] = submission.get("status")
+            sdk_plan["order_id"] = submission.get("order_id")
+            sdk_plan["tx_hash"] = submission.get("tx_hash")
+        precheck = dict(result.get("execution_precheck") or {})
+        existing_reasons = list(precheck.get("reasons") or [])
+        precheck["execution_phase"] = "order_submission"
+        precheck["submission_attempted"] = True
+        precheck["submission_status"] = submission.get("status")
+        precheck["submission_order_id"] = submission.get("order_id")
+        precheck["submission_tx_hash"] = submission.get("tx_hash")
+        if submission.get("submitted"):
+            precheck["status"] = "submitted_success"
+            precheck["reasons"] = [*existing_reasons, "cow_order_submitted_successfully"]
+        else:
+            precheck["status"] = "submission_failed"
+            error = submission.get("error") or submission.get("blocked_reason") or "cow_order_submission_failed"
+            precheck["reasons"] = [*existing_reasons, str(error)]
+            result["error"] = str(error)
+        result["execution_precheck"] = precheck
+    result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, result["execution_precheck"])
     result["costs"] = _cow_cost_summary(result, final_delta_amount=result.get("final_delta_amount"))
     result["quote_verified"] = True
     payload = {
