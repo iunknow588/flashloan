@@ -595,8 +595,7 @@ def register_data_routes(app, panel) -> None:
     def binance_market_state():
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
-        pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
-        pair_side_limit = 1
+        pair_side_limit = request_int_arg("pair_side_limit", 5, minimum=1, maximum=5)
         amount = request_cow_amount()
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
@@ -627,7 +626,7 @@ def register_data_routes(app, panel) -> None:
             top_limit=side_limit,
             bottom_limit=side_limit,
             pair_side_limit=pair_side_limit,
-            cow_display_limit=1,
+            cow_display_limit=5,
             slippage_bps=slippage_bps,
             cow_network=token_cache["network"],
             min_spread_percent=min_spread_percent,
@@ -638,21 +637,21 @@ def register_data_routes(app, panel) -> None:
         )
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-        market_state["cow_filter"]["cow_display_limit"] = 1
-        market_state["cow_top"] = list(market_state.get("top") or [])[:1]
-        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:1]
+        market_state["cow_filter"]["cow_display_limit"] = 5
+        market_state["cow_top"] = list(market_state.get("top") or [])[:5]
+        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:5]
         market_state["cow_network_claims"] = build_cow_network_market_claims(
             extremes,
             network_token_caches,
-            limit=1,
+            limit=5,
             min_spread_percent=min_spread_percent,
             min_side_change_percent=min_side_change_percent,
             min_token_price_usd=min_token_price_usd,
             threshold_detail=thresholds,
         )
         for claim in market_state["cow_network_claims"]:
-            claim["top"] = list(claim.get("top") or [])[:1]
-            claim["bottom"] = list(claim.get("bottom") or [])[:1]
+            claim["top"] = list(claim.get("top") or [])[:5]
+            claim["bottom"] = list(claim.get("bottom") or [])[:5]
         market_state["cow_supported_overview"] = build_cow_supported_market_overview(
             extremes,
             network_token_caches,
@@ -680,7 +679,7 @@ def register_data_routes(app, panel) -> None:
     def binance_market_states():
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
-        pair_side_limit = request_int_arg("pair_side_limit", 1, minimum=1, maximum=5)
+        pair_side_limit = request_int_arg("pair_side_limit", 5, minimum=1, maximum=5)
         amount = request_cow_amount()
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
@@ -718,15 +717,15 @@ def register_data_routes(app, panel) -> None:
         claims = build_cow_network_market_claims(
             extremes,
             network_token_caches,
-            limit=1,
+            limit=5,
             min_spread_percent=min_spread_percent,
             min_side_change_percent=min_side_change_percent,
             min_token_price_usd=min_token_price_usd,
             threshold_detail=thresholds,
         )
         for claim in claims:
-            claim["top"] = list(claim.get("top") or [])[:1]
-            claim["bottom"] = list(claim.get("bottom") or [])[:1]
+            claim["top"] = list(claim.get("top") or [])[:5]
+            claim["bottom"] = list(claim.get("bottom") or [])[:5]
         cow_supported_overview = build_cow_supported_market_overview(
             extremes,
             network_token_caches,
@@ -746,7 +745,7 @@ def register_data_routes(app, panel) -> None:
                 top_limit=side_limit,
                 bottom_limit=side_limit,
                 pair_side_limit=pair_side_limit,
-                cow_display_limit=1,
+                cow_display_limit=5,
                 slippage_bps=slippage_bps,
                 cow_network=token_cache["network"],
                 min_spread_percent=min_spread_percent,
@@ -757,9 +756,9 @@ def register_data_routes(app, panel) -> None:
             )
             market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
             market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-            market_state["cow_filter"]["cow_display_limit"] = 1
-            market_state["cow_top"] = list(market_state.get("top") or [])[:1]
-            market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:1]
+            market_state["cow_filter"]["cow_display_limit"] = 5
+            market_state["cow_top"] = list(market_state.get("top") or [])[:5]
+            market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:5]
             states[network] = market_state
             market_states_for_history.append(market_state)
         history_recording = record_cow_market_candidates_safely(
@@ -828,10 +827,8 @@ def register_data_routes(app, panel) -> None:
     def binance_market_cow_support():
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
-        pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
-        pair_side_limit = 1
-        quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
-        quote_limit = 1
+        pair_side_limit = request_int_arg("pair_side_limit", 5, minimum=1, maximum=5)
+        quote_limit = request_int_arg("quote_limit", 5, minimum=1, maximum=5)
         amount = request_cow_amount()
         quote_timeout_seconds = request_float_arg("quote_timeout_seconds", 8.0, minimum=1.0, maximum=30.0)
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)
@@ -877,10 +874,8 @@ def register_data_routes(app, panel) -> None:
     def binance_market_cow_quotes():
         extremes = safe_latest(latest_binance_extremes_file)
         side_limit = request_int_arg("side_limit", 50, minimum=1, maximum=50)
-        pair_side_limit = request_int_arg("pair_side_limit", 3, minimum=1, maximum=5)
-        pair_side_limit = 1
-        quote_limit = request_int_arg("quote_limit", 3, minimum=1, maximum=9)
-        quote_limit = 1
+        pair_side_limit = request_int_arg("pair_side_limit", 5, minimum=1, maximum=5)
+        quote_limit = request_int_arg("quote_limit", 5, minimum=1, maximum=5)
         amount = request_cow_amount()
         quote_timeout_seconds = request_float_arg("quote_timeout_seconds", 8.0, minimum=1.0, maximum=30.0)
         arbitrage_config, slippage_bps, thresholds = request_cow_trade_thresholds(amount)

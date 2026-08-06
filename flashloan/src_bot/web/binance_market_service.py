@@ -34,6 +34,7 @@ DEFAULT_AAVE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "aave_reserve_assets.
 DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "state" / "binance_market_snapshot.json"
 DEFAULT_COW_TOKEN_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "cow_supported_tokens.json"
 DEFAULT_COW_TEST_NETWORK = "avalanche"
+DEFAULT_COW_FLASHLOAN_INTENT_INITIAL_USDC = Decimal("1000")
 DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS = 120.0
 COW_NETWORK_LABELS = {
     "ethereum": "Ethereum",
@@ -1548,6 +1549,148 @@ def _cow_min_profit_usd_for_amount(amount: Any) -> Decimal:
     return notional * DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT / Decimal("100")
 
 
+def _env_decimal(name: str, default: str = "0") -> Decimal:
+    value = _decimal_value(os.getenv(name, default))
+    return value if value is not None and value >= 0 else Decimal(str(default))
+
+
+def _intent_market_rows(rows: Any) -> list[dict[str, Any]]:
+    result = []
+    seen = set()
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        symbol = row.get("symbol")
+        base_symbol = row.get("base_symbol") or row.get("x_base_symbol") or row.get("y_base_symbol")
+        key = str(base_symbol or symbol or "").strip().upper()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(
+            {
+                "symbol": symbol,
+                "base_symbol": base_symbol,
+                "change_percent": row.get("change_percent"),
+                "start_price": row.get("start_price"),
+                "current_price": row.get("current_price"),
+                "price_source": row.get("price_source"),
+            }
+        )
+        if len(result) >= 5:
+            break
+    return result
+
+
+def _intent_market_rows_from_pairs(pairs: Any, *, side: str) -> list[dict[str, Any]]:
+    rows = []
+    prefix = "x" if side == "rising" else "y"
+    for pair in pairs or []:
+        if not isinstance(pair, dict):
+            continue
+        rows.append(
+            {
+                "symbol": pair.get(f"{prefix}_symbol"),
+                "base_symbol": pair.get(f"{prefix}_base_symbol"),
+                "change_percent": pair.get(f"{prefix}_change_percent"),
+                "start_price": pair.get(f"{prefix}_start_price"),
+                "current_price": pair.get(f"{prefix}_current_price"),
+                "price_source": pair.get(f"{prefix}_price_source"),
+            }
+        )
+    return _intent_market_rows(rows)
+
+
+def _cow_pure_profit_intent(
+    *,
+    amount: Any,
+    input_symbol: Any,
+    final_symbol: Any,
+    path: Any,
+    owner: str | None,
+    cow_network: str,
+    cow_chain_id: int,
+    threshold_detail: dict[str, Any] | None,
+    market_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    requested_amount = _decimal_value(amount)
+    initial_amount = DEFAULT_COW_FLASHLOAN_INTENT_INITIAL_USDC
+    threshold = threshold_detail if isinstance(threshold_detail, dict) else {}
+    trade_fee_percent = _decimal_value(threshold.get("route_trade_fee_percent")) or Decimal("0")
+    flashloan_fee_percent = _decimal_value(threshold.get("flashloan_fee_percent")) or Decimal("0")
+    fee_reserve_percent = _decimal_value(threshold.get("fee_reserve_percent")) or Decimal("0")
+    min_profit_percent = _decimal_value(threshold.get("min_profit_percent")) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT
+    gas_reserve = _env_decimal("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC")
+    other_known_costs = _env_decimal("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC")
+    fixed_cost_percent = (
+        (gas_reserve + other_known_costs) / initial_amount * Decimal("100")
+        if initial_amount > 0
+        else Decimal("0")
+    )
+    x_percent = trade_fee_percent + flashloan_fee_percent + fee_reserve_percent + min_profit_percent + fixed_cost_percent
+    x_ratio = x_percent / Decimal("100")
+    min_pure_profit = initial_amount * min_profit_percent / Decimal("100")
+    min_total_profit = initial_amount * x_ratio
+    min_final_amount = initial_amount * (Decimal("1") + x_ratio)
+    state = market_state if isinstance(market_state, dict) else {}
+    rising_tokens = _intent_market_rows(state.get("cow_top") or state.get("top") or [])
+    falling_tokens = _intent_market_rows(state.get("cow_bottom") or state.get("bottom") or [])
+    if not rising_tokens:
+        rising_tokens = _intent_market_rows_from_pairs(state.get("pairs") or [], side="rising")
+    if not falling_tokens:
+        falling_tokens = _intent_market_rows_from_pairs(state.get("pairs") or [], side="falling")
+    return {
+        "version": 2,
+        "mode": "pure_profit_final_amount_intent",
+        "enabled": os.getenv("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"},
+        "controller": "upper_layer_intent_only",
+        "success_controller": "cow_sdk",
+        "swap_flow_controller": "cow_sdk_solver",
+        "initial_amount": _decimal_text(initial_amount),
+        "initial_symbol": str(input_symbol or "USDC"),
+        "final_symbol": str(final_symbol or input_symbol or "USDC"),
+        "requested_quote_amount": _decimal_text(requested_amount),
+        "formula": "final_amount >= 1000 * (1 + x)",
+        "x_definition": "x = all configured fee points + fixed USDC cost reserve + guaranteed profit point",
+        "x_ratio": _decimal_text(x_ratio),
+        "x_percent": _decimal_text(x_percent),
+        "min_final_amount": _decimal_text(min_final_amount),
+        "min_pure_profit_amount": _decimal_text(min_pure_profit),
+        "min_total_profit_amount": _decimal_text(min_total_profit),
+        "principal_source": "fixed_1000u_intent_principal",
+        "fee_components": {
+            "route_trade_fee_percent": _decimal_text(trade_fee_percent),
+            "flashloan_fee_percent": _decimal_text(flashloan_fee_percent),
+            "fee_reserve_percent": _decimal_text(fee_reserve_percent),
+            "gas_reserve_usdc": _decimal_text(gas_reserve),
+            "other_known_costs_usdc": _decimal_text(other_known_costs),
+            "guaranteed_profit_percent": _decimal_text(min_profit_percent),
+            "fixed_cost_percent": _decimal_text(fixed_cost_percent),
+            "all_in_fee_plus_profit_percent": _decimal_text(x_percent),
+            "cow_solver_fee_mode": "controlled_by_cow_sdk_and_reflected_in_sdk_result",
+        },
+        "cow_sdk_order_intent": {
+            "sell_amount_before_fee": _decimal_text(initial_amount),
+            "sell_symbol": str(input_symbol or "USDC"),
+            "minimum_final_buy_amount_after_all_costs": _decimal_text(min_final_amount),
+            "buy_symbol": str(final_symbol or input_symbol or "USDC"),
+        },
+        "owner": owner,
+        "cow_network": cow_network,
+        "cow_chain_id": cow_chain_id,
+        "route_path_hint": [str(item or "").upper() for item in path or []],
+        "route_path_hint_role": "advisory_only",
+        "market_hints": {
+            "rising_tokens": rising_tokens,
+            "falling_tokens": falling_tokens,
+            "max_rising_tokens": 5,
+            "max_falling_tokens": 5,
+            "role": "advisory_decision_support_only",
+        },
+        "submission_boundary": "caller_provides_market_hints_and_min_final_amount; cow_sdk_controls_success_failure_and_swap_path",
+        "ready": initial_amount > 0 and str(input_symbol or "") and str(final_symbol or ""),
+    }
+
+
 def _cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: Decimal) -> dict[str, Any]:
     if not isinstance(plan, dict) or not plan.get("available"):
         return {
@@ -1934,6 +2077,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
     quote_error = _cow_quote_error_info(result.get("error"))
     quote_error_type = quote_error.get("type")
+    pure_intent = result.get("cow_flashloan_intent") if isinstance(result.get("cow_flashloan_intent"), dict) else {}
     hop_checks = []
     for index, step in enumerate(steps or []):
         if not isinstance(step, dict):
@@ -1984,8 +2128,12 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     route_supported = bool((result.get("cow_support") or {}).get("supported"))
     quote_available = bool(result.get("viable")) and bool(hops)
     final_delta = _decimal_value(result.get("final_delta_amount"))
+    final_amount = _decimal_value(result.get("final_amount"))
     input_amount = _decimal_value(result.get("input_amount"))
-    min_profit_usd = _cow_min_profit_usd_for_amount(result.get("input_amount"))
+    if final_amount is None and input_amount is not None and final_delta is not None:
+        final_amount = input_amount + final_delta
+    min_profit_usd = _decimal_value(pure_intent.get("min_pure_profit_amount")) or _cow_min_profit_usd_for_amount(result.get("input_amount"))
+    min_final_amount = _decimal_value(pure_intent.get("min_final_amount"))
     own_limit_order_intent = _cow_own_limit_order_intent(plan, min_profit_usd=min_profit_usd)
     cow_sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else None
     cow_sdk_error = result.get("cow_flashloan_sdk_error")
@@ -2001,6 +2149,10 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         and final_delta >= min_profit_usd
         and _stable_symbol(str(result.get("final_symbol") or ""))
     )
+    intent_final_amount_met = profit_above_auto_threshold
+    if min_final_amount is not None:
+        intent_final_amount_met = final_amount is not None and final_amount >= min_final_amount
+    pure_intent_ready = bool(pure_intent.get("ready"))
     price_guards_passed = bool(hop_checks) and all(item["price_guard_passed"] for item in hop_checks)
     blocking_cause_counts: dict[str, int] = {}
     for item in hop_checks:
@@ -2080,12 +2232,27 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     checks_passed = (
         route_supported
         and quote_available
-        and price_guards_passed
-        and profit_above_auto_threshold
-        and limit_intent_ready
+        and intent_final_amount_met
+        and pure_intent_ready
         and cow_sdk_flashloan_ready
     )
     order_submission_enabled = _cow_order_submission_enabled()
+    if pure_intent_ready:
+        cow_sdk_flashloan_ready = (
+            route_supported
+            and pure_intent_ready
+            and cow_sdk_plan is not None
+            and not cow_sdk_error
+            and bool(flashloan_capability)
+            and flashloan_submission_safe
+        )
+        checks_passed = (
+            route_supported
+            and quote_available
+            and intent_final_amount_met
+            and pure_intent_ready
+            and cow_sdk_flashloan_ready
+        )
     if checks_passed and not order_submission_enabled:
         status = "checks_passed_order_disabled"
         reasons.append("报价、价格保护、盈利检查通过；真实下单模块尚未开放")
@@ -2093,12 +2260,12 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         status = "unsupported"
     elif not quote_available:
         status = "quote_unavailable"
-    elif not price_guards_passed:
-        status = "price_guard_failed"
     elif not profit_positive:
         status = "not_profitable"
     elif not profit_above_auto_threshold:
         status = "profit_below_threshold"
+    elif not intent_final_amount_met:
+        status = "price_guard_failed"
     elif not cow_sdk_flashloan_ready:
         status = "cow_flashloan_sdk_plan_required"
     else:
@@ -2115,9 +2282,13 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "auto_execute_requested": checks_passed,
         "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
         "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),
+        "min_final_amount": _decimal_text(min_final_amount),
+        "intent_final_amount_met": intent_final_amount_met,
         "auto_execute_blocked": checks_passed and not order_submission_enabled,
         "route_supported": route_supported,
         "quote_available": quote_available,
+        "pure_intent_ready": pure_intent_ready,
+        "cow_flashloan_intent": pure_intent,
         "own_limit_order_ready": limit_intent_ready,
         "own_limit_order_intent": own_limit_order_intent,
         "cow_sdk_flashloan_ready": cow_sdk_flashloan_ready,
@@ -2383,9 +2554,11 @@ def build_binance_market_state(
     threshold_detail: dict[str, Any] | None = None,
     registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if cow_network:
-        pair_side_limit = 1
-        cow_display_limit = 1
+    pair_side_limit = max(1, min(int(pair_side_limit), 5))
+    top_limit = max(1, min(int(top_limit), 5))
+    bottom_limit = max(1, min(int(bottom_limit), 5))
+    if cow_display_limit is not None:
+        cow_display_limit = max(1, min(int(cow_display_limit), 5))
     market_rows = _basket_rows_from_extremes(extremes)
     eligible_market_rows, excluded_market_rows = _eligible_market_rows(
         market_rows,
@@ -2535,7 +2708,7 @@ def build_cow_quote_verification(
     owner = requested_owner or account_config.owner
     owner_source = "request.owner" if requested_owner else account_config.owner_source
     ranked_pairs = list(market_state.get("pairs") or [])
-    selected_pairs = ranked_pairs[:1]
+    selected_pairs = ranked_pairs[: max(1, min(int(quote_limit), 5))]
     route_specs = [spec for pair in selected_pairs for spec in _cow_route_specs(pair, amount)]
     token_registry = registry if registry is not None else build_token_registry(
         aave_cache_path=aave_cache_path,
@@ -2574,6 +2747,11 @@ def build_cow_quote_verification(
                 "final_symbol": path[-1] if path else None,
                 "viable": False,
                 "error": support.get("error") or "CoW token support precheck failed",
+                "cow_sdk_result": {
+                    "status": "not_called",
+                    "reason": support.get("error") or "CoW token support precheck failed",
+                    "controller": "cow_sdk",
+                },
                 "hops": [],
             }
         result["pair"] = spec.get("pair")
@@ -2587,6 +2765,18 @@ def build_cow_quote_verification(
             str(final_amount - input_amount)
             if final_amount is not None and input_amount is not None
             else None
+        )
+        cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
+        result["cow_flashloan_intent"] = _cow_pure_profit_intent(
+            amount=result.get("input_amount") or amount,
+            input_symbol=result.get("input_symbol"),
+            final_symbol=result.get("final_symbol"),
+            path=result.get("path") or spec.get("path") or [],
+            owner=owner,
+            cow_network=network_config.network,
+            cow_chain_id=network_config.chain_id,
+            threshold_detail=cow_filter.get("threshold_detail") if isinstance(cow_filter, dict) else {},
+            market_state=market_state,
         )
         result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
         _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_registry)

@@ -21,6 +21,7 @@ def configure_market_observer_env() -> dict[str, str]:
         "AAVE_VERIFICATION_ENABLED": os.getenv("AAVE_VERIFICATION_ENABLED", "true"),
         "REPORT_ONLY_ALERTS": os.getenv("REPORT_ONLY_ALERTS", "true"),
         "COW_REALTIME_QUOTE_ENABLED": "true",
+        "COW_ORDER_SUBMISSION_ENABLED": os.getenv("COW_ORDER_SUBMISSION_ENABLED", "true"),
         "COW_REALTIME_QUOTE_COOLDOWN_SECONDS": os.getenv("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25"),
         "COW_REALTIME_QUOTE_MAX_INFLIGHT": os.getenv("COW_REALTIME_QUOTE_MAX_INFLIGHT", "2"),
         "COW_FLASHLOAN_PURE_INTENT_ENABLED": os.getenv("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true"),
@@ -33,11 +34,11 @@ def configure_market_observer_env() -> dict[str, str]:
         "COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC": os.getenv(
             "COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC", "0"
         ),
-        "BINANCE_SCAN_PROFILE": "200ms",
-        "BINANCE_CHANGE_WINDOW_SECONDS": "0.2",
-        "SAMPLE_SECONDS": "0.2",
-        "BINANCE_EXTREME_WRITE_SECONDS": "0.2",
-        "BINANCE_PAIR_PRICE_WRITE_SECONDS": "0.2",
+        "BINANCE_SCAN_PROFILE": "1000ms",
+        "BINANCE_CHANGE_WINDOW_SECONDS": "1.0",
+        "SAMPLE_SECONDS": "1.0",
+        "BINANCE_EXTREME_WRITE_SECONDS": "1.0",
+        "BINANCE_PAIR_PRICE_WRITE_SECONDS": "1.0",
     }
     os.environ.update(updates)
     return updates

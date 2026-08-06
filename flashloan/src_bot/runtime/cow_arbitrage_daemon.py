@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import os
 import threading
 import time
@@ -97,6 +98,7 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     from web.binance_market_service import (
         _apply_cow_quote_analysis,
         _attach_cow_flashloan_sdk_plan,
+        _cow_pure_profit_intent,
         _binance_execution_plan,
         _cow_cost_summary,
         _cow_execution_precheck,
@@ -114,7 +116,7 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
         database_url=database_url,
         allow_live_fallback=True,
     )
-    amount = quote.get("input_amount") or route_detail.get("initial_amount") or os.getenv("COW_ARBITRAGE_DEFAULT_AMOUNT", "1000")
+    amount = "1000"
     spec = {
         "name": f"queued_{attempt.get('pair_rank') or 0}_{attempt.get('priority_reason') or 'route'}",
         "path": attempt.get("route_path") or quote.get("path") or [],
@@ -183,16 +185,27 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     try:
         if final_amount is not None and input_amount is not None:
             from decimal import Decimal
-
             result["final_delta_amount"] = str(Decimal(str(final_amount)) - Decimal(str(input_amount)))
     except Exception:
-            result["final_delta_amount"] = result.get("final_delta_amount")
+        result["final_delta_amount"] = result.get("final_delta_amount")
+    market_state = attempt.get("market_state") if isinstance(attempt.get("market_state"), dict) else {}
+    cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
+    result["cow_flashloan_intent"] = _cow_pure_profit_intent(
+        amount=result.get("input_amount") or amount,
+        input_symbol=result.get("input_symbol"),
+        final_symbol=result.get("final_symbol"),
+        path=result.get("path") or spec.get("path") or [],
+        owner=account_config.owner,
+        cow_network=network_config.network,
+        cow_chain_id=network_config.chain_id,
+        threshold_detail=cow_filter.get("threshold_detail") if isinstance(cow_filter, dict) else {},
+        market_state=market_state,
+    )
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])
     result["execution_precheck"] = _cow_execution_precheck(result)
     result["costs"] = _cow_cost_summary(result, final_delta_amount=result.get("final_delta_amount"))
     result["quote_verified"] = True
-    market_state = attempt.get("market_state") if isinstance(attempt.get("market_state"), dict) else {}
     payload = {
         "observed_at": attempt.get("observed_at"),
         "amount": str(amount),
@@ -213,6 +226,56 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     }
     attempts = build_cow_execution_attempts(payload, market_state=market_state)
     return {"payload": payload, "attempts": attempts, "result": result}
+
+
+def _failed_attempt_from_candidate(candidate: dict[str, Any], message: str) -> dict[str, Any]:
+    attempt = candidate.get("candidate") if isinstance(candidate.get("candidate"), dict) else candidate
+    failed = deepcopy(attempt) if isinstance(attempt, dict) else {}
+    quote = failed.get("quote") if isinstance(failed.get("quote"), dict) else {}
+    precheck = failed.get("precheck") if isinstance(failed.get("precheck"), dict) else {}
+    route_path = failed.get("route_path") or quote.get("path") or []
+    error = str(message or "cow quote failed")
+    blocked_reasons = failed.get("blocked_reasons")
+    if isinstance(blocked_reasons, list):
+        reasons = [str(item) for item in blocked_reasons if item]
+    elif blocked_reasons:
+        reasons = [str(blocked_reasons)]
+    else:
+        reasons = []
+    quote.update(
+        {
+            "quote_verified": False,
+            "viable": False,
+            "error": error,
+            "cow_sdk_result": {
+                "status": "quote_failed",
+                "error": error,
+                "controller": "cow_sdk",
+            },
+        }
+    )
+    precheck.update(
+        {
+            "status": "quote_failed",
+            "checks_passed": False,
+            "can_submit_order": False,
+            "order_submission_enabled": False,
+            "auto_execute_requested": False,
+            "reasons": [error],
+        }
+    )
+    failed.update(
+        {
+            "state": "quote_failed",
+            "execution_phase": "quote_precheck",
+            "route_path": route_path,
+            "quote": quote,
+            "precheck": precheck,
+            "error": error,
+            "blocked_reasons": list(dict.fromkeys([*reasons, error])),
+        }
+    )
+    return failed
 
 
 class CowQuoteDaemon:
@@ -302,11 +365,16 @@ class CowQuoteDaemon:
             return True
         except Exception as exc:
             message = redact_sensitive_text(exc)
+            failed_attempt = _failed_attempt_from_candidate(candidate, message)
+            try:
+                recording = self.record_attempts([failed_attempt], database_url)
+            except Exception as record_exc:
+                recording = {"recorded": 0, "source": "record_failed", "error": redact_sensitive_text(record_exc)}
             attempts = int(candidate.get("attempts") or 0)
             if attempts < self.max_attempts:
                 self.queue.requeue(signature, error=message, delay_seconds=self.retry_delay_seconds)
             else:
-                self.queue.complete(signature, status="failed", error=message)
+                self.queue.complete(signature, status="failed", error=message, result={"recording": recording, "quote": failed_attempt})
             self._last_error = message
             self._last_activity_at = time.time()
             return True

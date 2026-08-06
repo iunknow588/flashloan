@@ -528,6 +528,8 @@ def evaluate_cow_route(
                         buy_decimals=buy_token.decimals,
                     ),
                     "protocol_fee_bps": payload.get("protocolFeeBps"),
+                    "cow_sdk_response": payload,
+                    "cow_sdk_status": "quote_success",
                 }
             )
             current_units = buy_amount
@@ -540,6 +542,13 @@ def evaluate_cow_route(
                 "final_symbol": tokens[-1].symbol,
                 "viable": False,
                 "error": str(exc),
+                "cow_sdk_result": {
+                    "status": "quote_failed",
+                    "error": str(exc),
+                    "successful_hop_count": len(hops),
+                    "failed_hop": len(hops) + 1,
+                    "controller": "cow_sdk",
+                },
                 "hops": hops,
             }
 
@@ -556,6 +565,11 @@ def evaluate_cow_route(
         "final_amount_units": str(current_units),
         "final_amount": final_amount,
         "viable": Decimal(str(current_units or "0")) > 0,
+        "cow_sdk_result": {
+            "status": "quote_success",
+            "successful_hop_count": len(hops),
+            "controller": "cow_sdk",
+        },
         "hops": hops,
     }
 

@@ -167,6 +167,36 @@ def test_cow_quote_daemon_retries_transient_quote_failures():
     assert queue.stats()["failed"] == 1
 
 
+def test_cow_quote_daemon_records_failed_attempt_when_quote_candidate_raises():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many([_candidate()], source="test")
+    recorded = {}
+
+    def fail_quote(candidate, database_url):
+        raise RuntimeError("temporary quote timeout")
+
+    def record_attempts(attempts, database_url):
+        recorded["attempts"] = attempts
+        recorded["database_url"] = database_url
+        return {"recorded": len(attempts), "source": "test", "error": None}
+
+    daemon = CowQuoteDaemon(
+        queue,
+        database_url_provider=lambda: "postgres://example",
+        quote_candidate=fail_quote,
+        record_attempts=record_attempts,
+        poll_interval_seconds=0.2,
+        max_attempts=1,
+    )
+
+    assert daemon.process_once() is True
+    assert recorded["database_url"] == "postgres://example"
+    assert recorded["attempts"][0]["state"] == "quote_failed"
+    assert recorded["attempts"][0]["execution_phase"] == "quote_precheck"
+    assert recorded["attempts"][0]["quote"]["cow_sdk_result"]["status"] == "quote_failed"
+    assert queue.stats()["failed"] == 1
+
+
 def test_default_quote_candidate_rebuilds_execution_plan_and_support(monkeypatch):
     owner = "0x" + "9" * 40
     monkeypatch.setenv("COW_OWNER_BNB", owner)

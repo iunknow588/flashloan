@@ -68,13 +68,13 @@ def _run_observer_window(seconds: int, min_side_change_percent: str) -> bool:
             "BINANCE_SYMBOL_SELECTION": env.get("BINANCE_SYMBOL_SELECTION", "velocity"),
             "BINANCE_TOP_SYMBOL_LIMIT": env.get("BINANCE_TOP_SYMBOL_LIMIT", "0"),
             "BINANCE_VELOCITY_SIDE_LIMIT": env.get("BINANCE_VELOCITY_SIDE_LIMIT", "100"),
-            "BINANCE_SCAN_PROFILE": "200ms",
-            "BINANCE_CHANGE_WINDOW_SECONDS": "0.2",
+            "BINANCE_SCAN_PROFILE": "1000ms",
+            "BINANCE_CHANGE_WINDOW_SECONDS": "1.0",
             "BINANCE_VELOCITY_MIN_CHANGE_PERCENT": str(min_side_change_percent),
-            "SAMPLE_SECONDS": "0.2",
-            "BINANCE_EXTREME_WRITE_SECONDS": "0.2",
-            "BINANCE_PAIR_PRICE_WRITE_SECONDS": "0.2",
-            "COW_ORDER_SUBMISSION_ENABLED": "false",
+            "SAMPLE_SECONDS": "1.0",
+            "BINANCE_EXTREME_WRITE_SECONDS": "1.0",
+            "BINANCE_PAIR_PRICE_WRITE_SECONDS": "1.0",
+            "COW_ORDER_SUBMISSION_ENABLED": env.get("COW_ORDER_SUBMISSION_ENABLED", "true"),
         }
     )
     process = subprocess.Popen(
@@ -131,7 +131,7 @@ def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC": env.get("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC")
             or env.get("COW_AUTO_EXECUTE_MIN_PROFIT_USD")
             or "0",
-            "COW_ORDER_SUBMISSION_ENABLED": "false",
+            "COW_ORDER_SUBMISSION_ENABLED": env.get("COW_ORDER_SUBMISSION_ENABLED", "true"),
         }
     )
     npm = shutil.which("npm.cmd") or shutil.which("npm")

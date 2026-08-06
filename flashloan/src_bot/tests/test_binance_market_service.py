@@ -11,6 +11,7 @@ from web.binance_market_service import (
     build_binance_rest_market_snapshot,
     build_cow_route_precheck,
     build_cow_quote_verification,
+    _cow_pure_profit_intent,
     load_cow_supported_token_registry,
     cost_adjusted_cow_thresholds,
     read_binance_market_snapshot,
@@ -209,7 +210,7 @@ def test_binance_market_state_filters_cow_supported_tokens_before_ranking():
     assert all(pair["window_spread_percent"] > 1.0 for pair in payload["pairs"])
 
 
-def test_binance_market_state_can_expand_side_limit():
+def test_binance_market_state_caps_side_limit_at_five_for_cow_intent_hints():
     rows = [_row(f"T{i}USDT", 100.0, 101.0 + i / 10) for i in range(20)]
     losers = [_row(f"B{i}USDT", 100.0, 99.0 - i / 10) for i in range(20)]
     config = ArbitrageConfig(
@@ -227,12 +228,12 @@ def test_binance_market_state_can_expand_side_limit():
         pair_side_limit=10,
     )
 
-    assert len(payload["top"]) == 10
-    assert len(payload["bottom"]) == 10
-    assert payload["pair_count"] == 100
+    assert len(payload["top"]) == 5
+    assert len(payload["bottom"]) == 5
+    assert payload["pair_count"] == 25
 
 
-def test_binance_market_state_can_keep_raw_50_but_network_display_top1():
+def test_binance_market_state_caps_raw_and_network_display_at_five():
     top = [_row(f"T{i}USDT", 10.0, 10.6 + i / 100) for i in range(60)]
     bottom = [_row(f"B{i}USDT", 10.0, 9.4 - i / 100) for i in range(60)]
     extremes = {"basket": [*top, *bottom], "sample_count": 120}
@@ -262,12 +263,12 @@ def test_binance_market_state_can_keep_raw_50_but_network_display_top1():
         min_spread_percent=1.0,
     )
 
-    assert len(payload["raw_top"]) == 50
-    assert len(payload["raw_bottom"]) == 50
-    assert len(payload["top"]) == 1
-    assert len(payload["bottom"]) == 1
-    assert payload["cow_filter"]["cow_display_limit"] == 1
-    assert payload["pair_count"] == 1
+    assert len(payload["raw_top"]) == 5
+    assert len(payload["raw_bottom"]) == 5
+    assert len(payload["top"]) == 5
+    assert len(payload["bottom"]) == 5
+    assert payload["cow_filter"]["cow_display_limit"] == 5
+    assert payload["pair_count"] == 25
 
 
 def test_binance_raw_rankings_show_window_movers_even_below_trade_threshold():
@@ -356,6 +357,47 @@ def test_cow_execution_precheck_uses_percent_profit_floor():
     assert precheck["profit_above_auto_threshold"] is False
     assert precheck["auto_execute_min_profit_usd"] == "6.18"
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
+
+
+def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hints():
+    market_state = {
+        "top": [
+            {"symbol": f"T{i}USDT", "base_symbol": f"T{i}", "change_percent": 1 + i, "start_price": 10, "current_price": 10.5}
+            for i in range(8)
+        ],
+        "bottom": [
+            {"symbol": f"B{i}USDT", "base_symbol": f"B{i}", "change_percent": -(1 + i), "start_price": 10, "current_price": 9.5}
+            for i in range(8)
+        ],
+    }
+
+    intent = _cow_pure_profit_intent(
+        amount="2500",
+        input_symbol="USDC",
+        final_symbol="USDC",
+        path=["USDC", "AAA", "BBB", "USDC"],
+        owner="0x" + "1" * 40,
+        cow_network="bnb",
+        cow_chain_id=56,
+        threshold_detail={
+            "route_trade_fee_percent": "0.2",
+            "flashloan_fee_percent": "0.05",
+            "fee_reserve_percent": "0.1",
+            "min_profit_percent": "0.618",
+        },
+        market_state=market_state,
+    )
+
+    assert intent["initial_amount"] == "1000"
+    assert intent["formula"] == "final_amount >= 1000 * (1 + x)"
+    assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "1000"
+    assert intent["market_hints"]["max_rising_tokens"] == 5
+    assert intent["market_hints"]["max_falling_tokens"] == 5
+    assert len(intent["market_hints"]["rising_tokens"]) == 5
+    assert len(intent["market_hints"]["falling_tokens"]) == 5
+    assert intent["market_hints"]["rising_tokens"][0]["base_symbol"] == "T0"
+    assert intent["market_hints"]["falling_tokens"][0]["base_symbol"] == "B0"
+    assert intent["min_final_amount"] == "1009.68"
 
 
 def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
@@ -954,8 +996,8 @@ def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
 
     payload = build_cow_quote_verification(market_state, quote_limit=2)
 
-    assert payload["selected_pair_count"] == 1
-    assert payload["route_count"] == 2
+    assert payload["selected_pair_count"] == 2
+    assert payload["route_count"] == 4
     assert payload["viable_count"] == 1
     assert payload["cow_network"] == "avalanche"
     assert payload["cow_chain_id"] == 43114
@@ -964,6 +1006,7 @@ def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
     assert payload["owner_source"] == "COW_OWNER_AVALANCHE"
     assert quoted_paths[0] == ["USDC", "BBB", "AAA", "USDC"]
     assert quoted_paths[1] == ["USDC", "AAA", "BBB", "USDC"]
+    assert len(quoted_paths) == 4
     assert set(quoted_networks) == {"avalanche"}
     assert set(quoted_owners) == {"0x" + "8" * 40}
     assert payload["best"]["path"][1] == "BBB"
@@ -1014,6 +1057,7 @@ def test_cow_quote_verification_records_all_chain_candidates(monkeypatch):
 
 
 def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "false")
     market_state = {
         "observed_at": "2026-08-04T00:00:00+00:00",
         "pairs": [

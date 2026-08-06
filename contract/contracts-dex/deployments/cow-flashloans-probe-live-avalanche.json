@@ -1,6 +1,6 @@
 {
   "ok": false,
-  "generatedAt": "2026-08-06T05:13:15.119Z",
+  "generatedAt": "2026-08-06T05:24:28.902Z",
   "outputPath": "E:\\2026OPC大赛\\flashLoan\\contract\\contracts-dex\\deployments\\cow-flashloans-probe-live-avalanche.json",
   "executionMode": "quote_only",
   "orderSubmissionAttempted": false,
@@ -12,23 +12,12 @@
   "source": "live_latest_extremes",
   "historyPath": null,
   "livePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\state\\latest_extremes.json",
-  "liveStatus": "latest_extremes_top_bottom_missing",
+  "liveStatus": "latest_extremes_stale",
   "liveDiagnostic": {
     "routeSpec": null,
-    "reason": "latest_extremes_top_bottom_missing",
-    "windowSpreadPercent": null,
-    "minWindowSpreadPercent": 0.9677000999999998,
-    "gainerChangePercent": null,
-    "loserChangePercent": null,
-    "candidateUniverse": {
-      "limit": 3,
-      "gainers": [],
-      "losers": [],
-      "tokens": [],
-      "supportedTokenCount": 0,
-      "unsupportedTokenCount": 0,
-      "source": "binance_200ms_top_bottom"
-    },
+    "reason": "latest_extremes_stale",
+    "freshnessSeconds": 2969.938,
+    "maxAgeSeconds": 180,
     "observedAt": "2026-08-06T04:34:58.447+00:00"
   },
   "chainId": 43114,

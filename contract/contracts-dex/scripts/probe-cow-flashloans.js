@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
 const { createPublicClient, http } = require("viem");
+const { privateKeyToAccount } = require("viem/accounts");
 const viemChains = require("viem/chains");
 const { setGlobalAdapter } = require("@cowprotocol/sdk-common");
 const { ViemAdapter } = require("@cowprotocol/sdk-viem-adapter");
@@ -114,6 +115,47 @@ function envBool(name, fallback = false) {
   const raw = envFirst(name);
   if (!raw) return fallback;
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
+}
+
+function normalizedPrivateKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const key = raw.startsWith("0x") ? raw : `0x${raw}`;
+  return /^0x[0-9a-fA-F]{64}$/.test(key) ? key : "";
+}
+
+function resolveOrderSigner(owner) {
+  const privateKey = normalizedPrivateKey(
+    envFirst(
+      "COW_ORDER_SIGNER_PRIVATE_KEY",
+      "COW_FLASHLOAN_PROBE_PRIVATE_KEY",
+      "LIQUIDATION_EXECUTION_PRIVATE_KEY",
+      "LIQUIDATION_SELF_FUNDED_PRIVATE_KEY"
+    )
+  );
+  if (!privateKey) {
+    return {
+      available: false,
+      reason: "signer_private_key_missing",
+      signerAddress: null,
+    };
+  }
+  const account = privateKeyToAccount(privateKey);
+  const signerAddress = account.address;
+  if (owner && signerAddress.toLowerCase() !== String(owner).toLowerCase()) {
+    return {
+      available: false,
+      reason: "signer_owner_mismatch",
+      signerAddress,
+      owner,
+    };
+  }
+  return {
+    available: true,
+    reason: "signer_ready",
+    signerAddress,
+    privateKey,
+  };
 }
 
 function loadJson(file) {
@@ -314,6 +356,19 @@ function jsonFriendly(value) {
       return item;
     })
   );
+}
+
+function bigintFrom(value, fallback = 0n) {
+  try {
+    if (value === null || value === undefined || value === "") return fallback;
+    return BigInt(String(value));
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function quoteAmountHuman(amount, decimals) {
+  return formatUnits(amount, decimals);
 }
 
 function orderToSignSummary(order) {
@@ -1021,6 +1076,245 @@ function pureIntentAppData({
       },
     },
   };
+}
+
+function mergeFlashloanAppData(baseAppData, postingAppData) {
+  return {
+    metadata: {
+      ...((baseAppData && baseAppData.metadata) || {}),
+      ...((postingAppData && postingAppData.metadata) || {}),
+    },
+  };
+}
+
+async function submitPureIntentOrder({
+  enabled,
+  routeSpec,
+  tradingSdk,
+  flashSdk,
+  chainId,
+  owner,
+  quoteParams,
+  customAppData,
+  principalUnits,
+  minProfitUnits,
+  intentFeeReserveUnits = 0n,
+}) {
+  const base = {
+    enabled,
+    attempted: false,
+    submitted: false,
+    orderId: null,
+    signerAddress: null,
+    blockedReason: null,
+    error: null,
+    quoteCall: null,
+    postingCall: null,
+    submitCall: null,
+    analysis: null,
+    startedAt: null,
+    finishedAt: null,
+  };
+  if (!enabled) {
+    return { ...base, blockedReason: "order_submission_disabled" };
+  }
+  const signer = resolveOrderSigner(owner);
+  if (!signer.available) {
+    return {
+      ...base,
+      blockedReason: signer.reason,
+      signerAddress: signer.signerAddress,
+    };
+  }
+
+  const startedAt = new Date().toISOString();
+  const quoteDecimals = Number(quoteParams.buyTokenDecimals ?? quoteParams.sellTokenDecimals ?? 6);
+  try {
+    const quoteCall = {
+      method: "tradingSdk.getQuote",
+      startedAt,
+      finishedAt: null,
+      ok: false,
+      error: null,
+      input: {
+        chainId,
+        owner,
+        kind: quoteParams.kind,
+        sellToken: quoteParams.sellToken,
+        buyToken: quoteParams.buyToken,
+        amount: quoteParams.amount,
+        slippageBps: quoteParams.slippageBps,
+        validTo: quoteParams.validTo,
+      },
+      result: null,
+    };
+    const quoteAndPost = await tradingSdk.getQuote(
+      {
+        ...quoteParams,
+        signer: signer.privateKey,
+        owner,
+      },
+      {
+        appData: customAppData,
+        allowIntermediateEqSellToken: true,
+      }
+    );
+    quoteCall.ok = true;
+    quoteCall.finishedAt = new Date().toISOString();
+    quoteCall.result = {
+      quoteResults: jsonFriendly(quoteAndPost?.quoteResults || null),
+      quoteResultKeys: Object.keys(quoteAndPost?.quoteResults || {}),
+      hasPostSwapOrderFromQuote: typeof quoteAndPost?.postSwapOrderFromQuote === "function",
+    };
+
+    const quoteResults = quoteAndPost?.quoteResults || {};
+    const orderToSign = quoteResults.orderToSign || null;
+    const quoteAmounts = quoteResults.amountsAndCosts || {};
+    const afterSlippageBuyUnits = bigintFrom(
+      quoteAmounts.afterSlippage?.buyAmount ?? orderToSign?.buyAmount ?? 0n
+    );
+    const quotedNetworkFeeBuyUnits = bigintFrom(
+      quoteAmounts.costs?.networkFee?.amountInBuyCurrency ?? 0n
+    );
+    const flashLoanFeeUnits = bigintFrom(quoteParams.flashLoanFeeAmount ?? 0n);
+    const totalFeeReserveUnits = quotedNetworkFeeBuyUnits + flashLoanFeeUnits + bigintFrom(intentFeeReserveUnits);
+    const netProfitUnits = afterSlippageBuyUnits - principalUnits - totalFeeReserveUnits;
+    const requiredSellUnits = bigintFrom(orderToSign?.sellAmount ?? 0n);
+    const maxSellUnits = principalUnits > totalFeeReserveUnits ? principalUnits - totalFeeReserveUnits : 0n;
+    const sellBudgetPassed = requiredSellUnits <= maxSellUnits;
+    const profitBudgetMet = netProfitUnits >= minProfitUnits;
+    const submissionAnalysis = {
+      principalUnits: String(principalUnits),
+      afterSlippageBuyUnits: String(afterSlippageBuyUnits),
+      quotedNetworkFeeBuyUnits: String(quotedNetworkFeeBuyUnits),
+      flashLoanFeeUnits: String(flashLoanFeeUnits),
+      intentFeeReserveUnits: String(intentFeeReserveUnits),
+      totalFeeReserveUnits: String(totalFeeReserveUnits),
+      requiredSellUnits: String(requiredSellUnits),
+      maxSellUnits: String(maxSellUnits),
+      netProfitUnits: String(netProfitUnits),
+      principalHuman: quoteAmountHuman(principalUnits, quoteDecimals),
+      afterSlippageBuyHuman: quoteAmountHuman(afterSlippageBuyUnits, quoteDecimals),
+      quotedNetworkFeeBuyHuman: quoteAmountHuman(quotedNetworkFeeBuyUnits, quoteDecimals),
+      flashLoanFeeHuman: quoteAmountHuman(flashLoanFeeUnits, quoteDecimals),
+      intentFeeReserveHuman: quoteAmountHuman(intentFeeReserveUnits, quoteDecimals),
+      totalFeeReserveHuman: quoteAmountHuman(totalFeeReserveUnits, quoteDecimals),
+      requiredSellHuman: quoteAmountHuman(requiredSellUnits, quoteDecimals),
+      maxSellHuman: quoteAmountHuman(maxSellUnits, quoteDecimals),
+      netProfitHuman: quoteAmountHuman(netProfitUnits, quoteDecimals),
+      minProfitHuman: quoteAmountHuman(minProfitUnits, quoteDecimals),
+      profitBudgetMet,
+      sellBudgetPassed,
+      blockedReason: !profitBudgetMet
+        ? "net_profit_below_percentage_floor"
+        : !sellBudgetPassed
+          ? "sell_budget_exceeds_principal_after_costs"
+          : null,
+    };
+    if (!orderToSign) {
+      return {
+        ...base,
+        attempted: false,
+        signerAddress: signer.signerAddress,
+        blockedReason: "submission_quote_missing_order",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        quoteCall,
+        analysis: submissionAnalysis,
+      };
+    }
+    if (!profitBudgetMet || !sellBudgetPassed) {
+      return {
+        ...base,
+        attempted: false,
+        signerAddress: signer.signerAddress,
+        blockedReason: submissionAnalysis.blockedReason,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        quoteCall,
+        analysis: submissionAnalysis,
+      };
+    }
+
+    const posting = await flashSdk.getOrderPostingSettings(
+      AaveFlashLoanType.CollateralSwap,
+      quoteParams,
+      {
+        flashLoanAmount: principalUnits,
+        orderToSign,
+      }
+    );
+    const postingCall = {
+      method: "flashSdk.getOrderPostingSettings",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      ok: true,
+      error: null,
+      input: {
+        flashLoanAmount: String(principalUnits),
+        chainId,
+        owner,
+      },
+      result: jsonFriendly(posting || null),
+    };
+    const swapSettings = {
+      ...posting.swapSettings,
+      appData: mergeFlashloanAppData(customAppData, posting.swapSettings?.appData),
+    };
+    const submitStartedAt = new Date().toISOString();
+    let result = null;
+    let submitError = null;
+    try {
+      result = await quoteAndPost.postSwapOrderFromQuote(swapSettings);
+    } catch (error) {
+      submitError = error;
+    }
+    const submitCall = {
+      method: "quoteAndPost.postSwapOrderFromQuote",
+      startedAt: submitStartedAt,
+      finishedAt: new Date().toISOString(),
+      ok: !submitError,
+      error: submitError ? (submitError?.message || String(submitError)) : null,
+      result: jsonFriendly(result || null),
+    };
+    return {
+      ...base,
+      attempted: true,
+      submitted: Boolean(result?.orderId),
+      orderId: result?.orderId || null,
+      signerAddress: signer.signerAddress,
+      blockedReason: submitError
+        ? "order_submission_failed"
+        : result?.orderId
+          ? null
+          : "order_submission_returned_no_order_id",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      quoteCall,
+      postingCall,
+      submitCall,
+      analysis: submissionAnalysis,
+      route: routeSpec.route,
+    };
+  } catch (submitError) {
+    return {
+      ...base,
+      attempted: true,
+      signerAddress: signer.signerAddress,
+      blockedReason: "order_submission_failed",
+      error: submitError?.message || String(submitError),
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      quoteCall: {
+        method: "tradingSdk.getQuote",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        ok: false,
+        error: submitError?.message || String(submitError),
+        result: null,
+      },
+    };
+  }
 }
 
 async function probePureIntent({
