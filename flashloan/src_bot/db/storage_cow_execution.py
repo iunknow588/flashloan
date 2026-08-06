@@ -143,6 +143,15 @@ def _cow_sdk_result_from_attempt(item: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+def _cow_sdk_status_from_attempt(item: dict[str, Any]) -> str:
+    sdk = _cow_sdk_result_from_attempt(item)
+    for value in (sdk.get("submission_status"), sdk.get("status")):
+        text = str(value or "").strip().lower()
+        if text:
+            return text
+    return ""
+
+
 def _cow_control_mode_from_attempt(item: dict[str, Any]) -> str | None:
     precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
     intent = _cow_intent_from_attempt(item)
@@ -186,20 +195,29 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
     can_submit_order = bool(row.get("can_submit_order"))
     order_submission_enabled = bool(row.get("order_submission_enabled"))
     auto_execute_requested = bool(row.get("auto_execute_requested"))
+    sdk = _cow_sdk_result_from_attempt(row)
+    sdk_status = _cow_sdk_status_from_attempt(row)
+    submission_attempted = bool(
+        sdk.get("submission_attempted")
+        or sdk.get("submission_order_id")
+        or sdk.get("submission_tx_hash")
+    )
 
-    if state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
+    if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
         return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if sdk_status in _FAILED_STATES or "failed" in sdk_status or "error" in sdk_status:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
     if phase == "market_candidate" or state in _NOT_EXECUTABLE_STATES:
         return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     if not checks_passed or not can_submit_order:
         return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
+    if sdk_status in {"quote_precheck", "quote_required", "not_submitted", "ready_not_submitted", "limit_order_ready_not_submitted", "limit_order_ready_to_submit", "ready_to_submit"} and not submission_attempted:
+        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
     if (
-        state in _FAILED_STATES
-        or "failed" in state
-        or "error" in state
-        or phase in _EXECUTION_PHASES
+        phase in _EXECUTION_PHASES
         or order_submission_enabled
         or auto_execute_requested
+        or submission_attempted
     ):
         return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
     return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
@@ -471,6 +489,8 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "can_submit_order": row.get("can_submit_order"),
             "price_guards_passed": precheck.get("price_guards_passed"),
             "profit_above_auto_threshold": precheck.get("profit_above_auto_threshold"),
+            "local_profit_gate_enforced": precheck.get("local_profit_gate_enforced"),
+            "local_profit_diagnostic_reasons": precheck.get("local_profit_diagnostic_reasons") or [],
             "pure_profit_amount": precheck.get("pure_profit_amount") or precheck.get("final_delta_amount") or row.get("final_delta_amount"),
             "final_symbol": precheck.get("final_symbol") or row.get("final_symbol"),
             "auto_execute_min_profit_usd": precheck.get("auto_execute_min_profit_usd") or threshold.get("min_profit_usd"),

@@ -290,7 +290,7 @@
     let cowQuoteRefreshInFlight = false;
     let lastAutoCowQuoteKey = "";
     let lastAutoCowQuoteAt = 0;
-    const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 30000;
+    const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 1000;
     const DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb"];
     const networkPanels = new Map();
     const COW_ATTEMPT_PAGE_SIZE = 10;
@@ -467,11 +467,30 @@
       return text.length > 240 ? `${text.slice(0, 240)}...` : text;
     };
     const historyReasons = row => {
+      const sdk = historyCowSdk(row);
+      const sdkStatus = historyCowSdkStatus(row);
       const reasons = (row?.blocked_reasons || row?.precheck?.reasons || []).map(cowErrorSummary).filter(Boolean);
+      const sdkReason = sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "";
+      if (sdkStatus) reasons.unshift(historyCowSdkSubmitted(row) ? `sdk_status:${sdkStatus}` : `sdk_pending:${sdkStatus}`);
+      if (sdkReason) reasons.unshift(cowErrorSummary(sdkReason));
       return reasons.join("; ") || cowErrorSummary(row?.error) || "-";
     };
     const historyPureProfit = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
     const historyReview = row => row?.review_summary || {};
+    const historyCowSdk = row => {
+      const review = historyReview(row);
+      return row?.cow_sdk_result || review.cow_sdk?.result || row?.quote?.cow_sdk_result || row?.precheck?.cow_sdk_result || {};
+    };
+    const historyCowSdkStatus = row => String(historyCowSdk(row)?.submission_status || historyCowSdk(row)?.status || "").trim().toLowerCase();
+    const historyCowSdkSubmitted = row => Boolean(historyCowSdk(row)?.submission_attempted || historyCowSdk(row)?.submission_order_id || historyCowSdk(row)?.submission_tx_hash);
+    const historyAttemptState = row => {
+      const sdkStatus = historyCowSdkStatus(row);
+      const state = String(row?.state || "").trim().toLowerCase();
+      if (sdkStatus) return historyCowSdkSubmitted(row) ? `sdk:${sdkStatus}` : `sdk_pending:${sdkStatus}`;
+      return state || "-";
+    };
+    const sdkSuccessStates = new Set(["submitted_success", "confirmed_success", "settled", "settlement_success", "executed", "execution_success", "success"]);
+    const sdkFailureStates = new Set(["submission_failed", "submit_failed", "quote_failed", "order_failed", "execution_failed", "settlement_failed", "confirmation_failed", "confirmed_failed", "failed", "error"]);
     const historyThreshold = row => historyReview(row)?.threshold || {};
     const historyMarketHtml = row => {
       const review = historyReview(row);
@@ -535,7 +554,9 @@
       return [
         `plan profit ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)`,
         `CoW delta ${guard.pure_profit_amount || row?.final_delta_amount || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "")}`,
-        `profit budget ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%) | budget check ${guard.profit_above_auto_threshold ? "pass" : "fail"}`,
+        `SDK status ${historyCowSdkStatus(row) || "-"}`,
+        `local profit gate ${guard.local_profit_gate_enforced ? "on" : "off"} | diagnostic floor ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%) | threshold ${guard.profit_above_auto_threshold ? "pass" : "diagnostic only"}`,
+        `local profit diagnostics ${(guard.local_profit_diagnostic_reasons || []).join("; ") || "-"}`,
         `quote error ${guard.quote_error_type || guard.quote_error_display || "-"}`,
         `query position ${queryLines}`,
         `blocking ${JSON.stringify(guard.blocking_cause_counts || {})}`,
@@ -610,26 +631,29 @@
           metrics: ["records 0", "checks passed 0", "submittable 0", "blocked/failed 0"],
         };
       }
-      const passed = items.filter(row => row?.checks_passed);
-      const submittable = items.filter(row => row?.can_submit_order);
-      const success = items.filter(row => clientCowAttemptCategory(row) === "execution_success");
-      const failed = items.filter(row => clientCowAttemptCategory(row) === "execution_failed");
+      const precheckPassed = items.filter(row => row?.checks_passed);
+      const sdkSuccess = items.filter(row => sdkSuccessStates.has(historyCowSdkStatus(row)) && historyCowSdkSubmitted(row));
+      const sdkFailed = items.filter(row => sdkFailureStates.has(historyCowSdkStatus(row)) && historyCowSdkSubmitted(row));
+      const sdkPending = items.filter(row => !historyCowSdkSubmitted(row) && !sdkSuccessStates.has(historyCowSdkStatus(row)) && !sdkFailureStates.has(historyCowSdkStatus(row)));
       const notExecutable = items.filter(row => clientCowAttemptCategory(row) === "not_executable");
-      const topReason = cowAttemptReasonTop(items);
+      const topReasonRows = sdkFailed.length ? sdkFailed : (sdkPending.length ? sdkPending : items);
+      const topReason = cowAttemptReasonTop(topReasonRows);
       const latest = items[0] || {};
-      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${precheckStatusLabel(latest.state)} | ${historyPureProfit(latest)}`;
-      const conclusion = success.length
-        ? `Review: ${success.length} successful record(s). Latest: ${latestLine}`
-        : `Review: no successful execution in ${items.length} recent record(s). Main reason: ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}. Latest: ${latestLine}`;
+      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyPureProfit(latest)}`;
+      const conclusion = sdkSuccess.length
+        ? `Review: ${sdkSuccess.length} SDK-confirmed success record(s). Latest: ${latestLine}`
+        : sdkFailed.length
+          ? `Review: ${sdkFailed.length} SDK-confirmed failure record(s) in ${items.length} recent record(s). Main reason: ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}. Latest: ${latestLine}`
+          : `Review: ${sdkPending.length} record(s) still waiting for CoW quote or SDK return in ${items.length} recent record(s). Main reason: ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}. Latest: ${latestLine}`;
       return {
         conclusion,
         metrics: [
           `records ${items.length}`,
+          `sdk success ${sdkSuccess.length}`,
+          `sdk failure ${sdkFailed.length}`,
+          `sdk pending ${sdkPending.length}`,
+          `precheck passed ${precheckPassed.length}`,
           `not executable ${notExecutable.length}`,
-          `execution failed ${failed.length}`,
-          `execution success ${success.length}`,
-          `checks passed ${passed.length}`,
-          `submittable ${submittable.length}`,
           `main reason ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
         ],
       };
@@ -730,8 +754,8 @@
       quote_unavailable: "报价不可用",
       flashloan_payload_required: "缺少原子闪电贷执行参数",
       price_guard_failed: "价格保护未通过",
-      not_profitable: "不盈利",
-      profit_below_threshold: "低于盈利预期",
+      not_profitable: "本地利润诊断：不盈利",
+      profit_below_threshold: "本地利润诊断：低于旧阈值",
       blocked: "不能下单",
     }[status] || status || "未检查");
     const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
@@ -740,7 +764,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 盈利下限 ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
+      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic floor ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
       return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
@@ -748,7 +772,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `手续费后净利润 ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | 盈利下限 ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.auto_execute_requested ? "达到自动执行条件" : "未达到自动执行条件"} | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
+      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic floor ${check.auto_execute_min_profit_usd || "-"}U (${check.auto_execute_min_profit_percent || "0.618"}%) | ${check.can_submit_order ? "可提交" : "真实下单未启用"}`;
       return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
@@ -804,7 +828,7 @@
       const t = threshold || {};
       const dynamic = t.min_window_spread_percent ?? t.adjusted_min_spread_percent ?? "-";
       const minProfit = t.min_profit_usd != null && t.amount != null && t.min_profit_percent != null ? `${t.min_profit_usd}U/${t.amount}U=${t.min_profit_percent}%` : "动态计算";
-      return `动态门槛 ${dynamic}% = 双向手续费 ${t.route_trade_fee_percent ?? "-"}% + 闪电贷利息 ${t.flashloan_fee_percent ?? "-"}% + gas/费用预留 ${t.fee_reserve_percent ?? "0"}% + 盈利下限 ${minProfit}；滑点按每条 CoW 路径的目标价与保底价动态校验`;
+      return `动态诊断 ${dynamic}% = 双向手续费 ${t.route_trade_fee_percent ?? "-"}% + 闪电贷利息 ${t.flashloan_fee_percent ?? "-"}% + gas/费用预留 ${t.fee_reserve_percent ?? "0"}% + 本地利润诊断 ${minProfit}；真实执行由 CoW 意图和 SDK 结果控制`;
     };
     const cowSupportedSourceCount = overview => {
       const direct = Number(overview?.source_market_row_count);
@@ -1224,7 +1248,7 @@
         <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
         <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "可自动执行" : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
       </tr>`).join("");
-      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">没有满足价格保护、动态盈利下限且 CoW 支持条件的交易机会</td></tr>';
+      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">暂无可展示的 CoW 报价；候选会继续按意图模式自动询价</td></tr>';
       const best = opportunities[0] || null;
       $("notionalUsd").textContent = best?.final_delta_amount || "-";
       $("notionalUsd").title = best ? `${networkLabel(best.display_network)} | ${best.pair || "-"} | ${(best.path || []).join(" -> ")}` : "";
@@ -1244,7 +1268,7 @@
         <td>${esc(row.network || "-")}</td>
         <td>${esc(row.pair || "-")}</td>
         <td>${esc(historyRoutePath(row))}</td>
-        <td>${esc(precheckStatusLabel(row.state))}</td>
+        <td>${esc(historyAttemptState(row))}</td>
         <td>${historyMarketHtml(row)}</td>
         <td>${historyQuoteHtml(row)}</td>
         <td>${historyCostProfitHtml(row)}</td>
@@ -1254,11 +1278,14 @@
     }
     const clientCowAttemptCategory = row => {
       if (row?.review_category) return row.review_category;
+      const sdkStatus = historyCowSdkStatus(row);
+      const sdkSubmitted = historyCowSdkSubmitted(row);
       const state = String(row?.state || "").toLowerCase();
       const phase = String(row?.execution_phase || "").toLowerCase();
-      if (["confirmed_success", "settled", "executed", "execution_success", "success"].includes(state) || ["confirmed_success", "settled", "execution_success"].includes(phase)) return "execution_success";
-      if (["limit_order_ready_not_submitted", "limit_order_ready_to_submit", "ready_not_submitted", "ready_to_submit"].includes(state)) return "execution_failed";
+      if (sdkSuccessStates.has(sdkStatus) || ["confirmed_success", "settled", "executed", "execution_success", "success"].includes(state) || ["confirmed_success", "settled", "execution_success"].includes(phase)) return "execution_success";
+      if (sdkSubmitted && sdkFailureStates.has(sdkStatus)) return "execution_failed";
       if (phase === "market_candidate" || ["quote_required", "unsupported", "quote_unavailable", "flashloan_payload_required", "price_guard_failed", "profit_below_threshold", "not_profitable", "order_disabled"].includes(state)) return "not_executable";
+      if (!sdkSubmitted) return "not_executable";
       if (!row?.checks_passed || !row?.can_submit_order) return "not_executable";
       return "execution_failed";
     };
@@ -1292,7 +1319,7 @@
       if (!rows.length) return `${meta.retention} | ${meta.empty}`;
       const topReason = cowAttemptReasonTop(rows);
       const latest = rows[0] || {};
-      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${precheckStatusLabel(latest.state)} | ${historyPureProfit(latest)}`;
+      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyPureProfit(latest)}`;
       if (category === "execution_success") return `${meta.retention} | 成功 ${rows.length} 条 | 最近一条 ${latestLine}`;
       if (category === "execution_failed") return `${meta.retention} | 失败 ${rows.length} 条 | 主要失败 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
       return `${meta.retention} | 未执行 ${rows.length} 条 | 主要阻断 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
@@ -1302,7 +1329,7 @@
       <td>${esc(row.network || "-")}</td>
       <td>${esc(row.pair || "-")}</td>
       <td>${esc(historyRoutePath(row))}</td>
-      <td>${esc(precheckStatusLabel(row.state))}</td>
+      <td>${esc(historyAttemptState(row))}</td>
       <td>${historyMarketHtml(row)}</td>
       <td>${historyQuoteHtml(row)}</td>
       <td>${historyCostProfitHtml(row)}</td>
@@ -1330,6 +1357,12 @@
         `未达到执行条件 ${groups.not_executable.length}`,
         `执行失败 ${groups.execution_failed.length}`,
         `执行成功 ${groups.execution_success.length}`,
+        ...(review.metrics || []),
+      ].map(item => `<span>${esc(item)}</span>`).join("");
+      $("cowAttemptReviewMetrics").innerHTML = [
+        `not executable ${groups.not_executable.length}`,
+        `sdk failure ${groups.execution_failed.length}`,
+        `sdk success ${groups.execution_success.length}`,
         ...(review.metrics || []),
       ].map(item => `<span>${esc(item)}</span>`).join("");
       renderCowAttemptGroup("not_executable", groups.not_executable);
@@ -1562,7 +1595,7 @@
     loadCowConfig().then(() => refresh().then(refreshCowSupport));
     refreshCowAttemptHistory();
     refreshCowCandidateQueue();
-    setInterval(refresh, 3000);
+    setInterval(refresh, 1000);
     setInterval(refreshCowCandidateQueue, 5000);
   </script>
 </body>

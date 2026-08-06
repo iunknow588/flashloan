@@ -2239,18 +2239,22 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         reasons.append("至少一个 hop 的 CoW 查询输出低于按滑点价计算的最低接收量")
     if route_hop_constraints_enforced and not price_guards_passed and blocking_cause_counts:
         reasons.append(f"主要阻断原因：{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
-    if not profit_positive:
-        reasons.append(f"最终 CoW 盈利不为正：{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip())
+    if quote_available and not profit_positive:
+        local_profit_diagnostic_reasons = [
+            f"cow_final_profit_not_positive:{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip()
+        ]
         if drawdown_amount > 0:
-            reasons.append(
-                f"回撤检查：本次报价相对输入回撤 {_decimal_text(drawdown_amount)} "
+            local_profit_diagnostic_reasons.append(
+                f"cow_quote_drawdown:{_decimal_text(drawdown_amount)} "
                 f"{result.get('final_symbol') or ''} ({_decimal_text(drawdown_percent)}%)".strip()
             )
-    elif not profit_above_auto_threshold:
-        reasons.append(
-            f"手续费后净利润低于自动执行阈值：{result.get('final_delta_amount') or '-'} "
+    elif quote_available and not profit_above_auto_threshold:
+        local_profit_diagnostic_reasons = [
+            f"profit_below_auto_threshold:{result.get('final_delta_amount') or '-'} "
             f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
-        )
+        ]
+    else:
+        local_profit_diagnostic_reasons = []
     normalized_reasons = []
     if not route_supported:
         normalized_reasons.append("cow_route_has_unsupported_token")
@@ -2263,22 +2267,6 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         normalized_reasons.append("at_least_one_hop_query_output_below_own_minimum")
         if blocking_cause_counts:
             normalized_reasons.append(f"primary_blocker:{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
-    local_profit_diagnostic_reasons = []
-    if quote_available and not profit_positive:
-        normalized_reasons.append(f"cow_final_profit_not_positive:{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip())
-        local_profit_diagnostic_reasons.append(normalized_reasons[-1])
-        if drawdown_amount > 0:
-            normalized_reasons.append(
-                f"cow_quote_drawdown:{_decimal_text(drawdown_amount)} "
-                f"{result.get('final_symbol') or ''} ({_decimal_text(drawdown_percent)}%)".strip()
-            )
-            local_profit_diagnostic_reasons.append(normalized_reasons[-1])
-    elif quote_available and not profit_above_auto_threshold:
-        normalized_reasons.append(
-            f"profit_below_auto_threshold:{result.get('final_delta_amount') or '-'} "
-            f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
-        )
-        local_profit_diagnostic_reasons.append(normalized_reasons[-1])
     if normalized_reasons:
         reasons = normalized_reasons
     limit_intent_ready = bool(own_limit_order_intent.get("ready"))
@@ -2334,10 +2322,12 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         status = "unsupported"
     elif not quote_available:
         status = "quote_unavailable"
-    elif not pure_intent_ready:
-        status = "intent_not_ready"
     elif route_hop_constraints_enforced and not route_hop_constraints_passed:
         status = "price_guard_failed"
+    elif not cow_sdk_flashloan_ready and limit_intent_ready:
+        status = "cow_flashloan_sdk_plan_required"
+    elif not pure_intent_ready:
+        status = "intent_not_ready"
     elif not cow_sdk_flashloan_ready:
         status = "cow_flashloan_sdk_plan_required"
     else:

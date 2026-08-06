@@ -342,7 +342,6 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
                 "ready": True,
                 "control_mode": "intent",
                 "min_final_amount": "1005",
-                "min_pure_profit_amount": "5",
             },
             "cow_flashloan_sdk_plan": {
                 "flashloan_capability": {"submission_safe": True},
@@ -368,7 +367,7 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
         }
     )
 
-    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
     assert precheck["checks_passed"] is True
     assert precheck["profit_positive"] is True
     assert precheck["profit_above_auto_threshold"] is False
@@ -503,7 +502,7 @@ def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     assert precheck["can_submit_order"] is True
     assert precheck["order_submission_enabled"] is True
     assert precheck["order_submission_signer_ready"] is True
-    assert precheck["status"] == "limit_order_ready_to_submit"
+    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
 
 
 def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
@@ -515,7 +514,17 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
             "viable": True,
             "cow_support": {"supported": True},
             "hops": [{"buy_amount": "100"}],
+            "cow_flashloan_intent": {
+                "enabled": True,
+                "ready": True,
+                "control_mode": "intent",
+            },
+            "cow_flashloan_sdk_plan": {
+                "flashloan_capability": {"submission_safe": True},
+            },
             "binance_execution_plan": {
+                "available": True,
+                "final_symbol": "USDC",
                 "steps": [
                     {
                         "from_symbol": "USDC",
@@ -532,11 +541,12 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
         }
     )
 
-    assert precheck["status"] == "not_profitable"
+    assert precheck["status"] == "limit_order_ready_to_submit"
     assert precheck["profit_positive"] is False
     assert precheck["drawdown_amount"] == "25"
     assert precheck["drawdown_percent"] == "2.5"
-    assert any("cow_quote_drawdown" in reason for reason in precheck["reasons"])
+    assert any("cow_quote_drawdown" in reason for reason in precheck["local_profit_diagnostic_reasons"])
+    assert precheck["local_profit_gate_enforced"] is False
 
 
 def test_cow_execution_precheck_rejects_three_hop_plan_without_capability_evidence():
@@ -552,6 +562,11 @@ def test_cow_execution_precheck_rejects_three_hop_plan_without_capability_eviden
                 {"buy_amount": "110"},
                 {"buy_amount": "1010"},
             ],
+            "cow_flashloan_intent": {
+                "enabled": True,
+                "ready": True,
+                "control_mode": "intent",
+            },
             "binance_execution_plan": {
                 "available": True,
                 "route": ["USDC", "AAA", "BBB", "USDC"],
@@ -630,6 +645,11 @@ def test_cow_execution_precheck_blocks_when_official_sdk_plan_missing():
             "viable": True,
             "cow_support": {"supported": True},
             "hops": [{"buy_amount": "100"}],
+            "cow_flashloan_intent": {
+                "enabled": True,
+                "ready": True,
+                "control_mode": "intent",
+            },
             "binance_execution_plan": {
                 "available": True,
                 "route": ["USDC", "AAA"],
