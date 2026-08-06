@@ -124,4 +124,8 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any("idx_cow_supported_tokens_network_symbol" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS cow_execution_attempts" in query for query in queries)
     assert any("idx_cow_execution_attempts_network_time" in query for query in queries)
+    assert any("control_mode TEXT" in query for query in queries)
+    assert any("route_hop_constraints_enforced BOOLEAN" in query for query in queries)
+    assert any("cow_flashloan_intent_json TEXT" in query for query in queries)
+    assert any("cow_sdk_result_json TEXT" in query for query in queries)
     assert "pg_advisory_unlock" in queries[-1]
