@@ -91,10 +91,10 @@ def test_binance_market_state_defaults_to_top5_bottom5_and_25_pairs():
     assert len(payload["bottom"]) == 5
     assert payload["pair_count"] == 25
     assert payload["pairs"][0]["quote_verified"] is False
-    assert payload["pairs"][0]["route_count"] == 1
-    assert payload["pairs"][0]["full_route_count"] == 1
-    assert len(payload["pairs"][0]["route_results"]) == 1
-    assert len(payload["pairs"][0]["route_results_full"]) == 1
+    assert payload["pairs"][0]["route_count"] == 2
+    assert payload["pairs"][0]["full_route_count"] == 2
+    assert len(payload["pairs"][0]["route_results"]) == 2
+    assert len(payload["pairs"][0]["route_results_full"]) == 2
     plan = payload["pairs"][0]["route_results"][0]["binance_execution_plan"]
     assert plan["available"] is True
     assert plan["initial_amount"] == "1000"
@@ -137,7 +137,7 @@ def test_binance_market_state_lists_quote_candidates_without_paper_profit():
     )
 
     pair = payload["pairs"][0]
-    assert [route["route_no"] for route in pair["route_results"]] == [1]
+    assert [route["route_no"] for route in pair["route_results"]] == [1, 2]
     assert pair["best_route_no"] is None
     assert pair["best_strategy"] is None
     assert pair["profit_usd"] is None
@@ -147,6 +147,8 @@ def test_binance_market_state_lists_quote_candidates_without_paper_profit():
     assert pair["candidate_basis"] == "binance_token_names_only"
     assert pair["route_results"][0]["route"] == ["USDC", "Y", "X", "USDC"]
     assert pair["route_results"][0]["priority_reason"] == "buy_loser_then_gainer"
+    assert pair["route_results"][1]["route"] == ["USDC", "X", "Y", "USDC"]
+    assert pair["route_results"][1]["priority_reason"] == "reverse_check"
     assert {route["initial_symbol"] for route in pair["route_results"]} == {"USDC"}
     assert pair["edge_hint_percent"] == 20.0
 
@@ -953,7 +955,7 @@ def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
     payload = build_cow_quote_verification(market_state, quote_limit=2)
 
     assert payload["selected_pair_count"] == 1
-    assert payload["route_count"] == 1
+    assert payload["route_count"] == 2
     assert payload["viable_count"] == 1
     assert payload["cow_network"] == "avalanche"
     assert payload["cow_chain_id"] == 43114
@@ -961,6 +963,7 @@ def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
     assert payload["owner"] == "0x" + "8" * 40
     assert payload["owner_source"] == "COW_OWNER_AVALANCHE"
     assert quoted_paths[0] == ["USDC", "BBB", "AAA", "USDC"]
+    assert quoted_paths[1] == ["USDC", "AAA", "BBB", "USDC"]
     assert set(quoted_networks) == {"avalanche"}
     assert set(quoted_owners) == {"0x" + "8" * 40}
     assert payload["best"]["path"][1] == "BBB"
@@ -1005,8 +1008,8 @@ def test_cow_quote_verification_records_all_chain_candidates(monkeypatch):
     attempts = build_cow_execution_attempts(payload, market_state=market_state)
 
     assert payload["selected_pair_count"] == 1
-    assert payload["route_count"] == 1
-    assert len(attempts) == 1
+    assert payload["route_count"] == 2
+    assert len(attempts) == 2
     assert {attempt["pair"] for attempt in attempts} == {"AAA / BBB"}
 
 
@@ -1196,21 +1199,23 @@ def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, 
     payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
     precheck = payload["ranking"][0]["execution_precheck"]
 
-    assert precheck["status"] == "limit_order_ready_not_submitted"
-    assert precheck["checks_passed"] is True
+    assert precheck["status"] == "quote_unavailable"
+    assert precheck["checks_passed"] is False
+    assert precheck["can_submit_order"] is False
     assert precheck["quote_available"] is False
     assert precheck["own_limit_order_ready"] is True
     assert precheck["quote_error_type"] == "quote_api_http_403_cloudfront_request_blocked"
     assert "quote_error_type:quote_api_http_403_cloudfront_request_blocked" in precheck["reasons"]
-    assert "own_limit_order_ready_but_submission_adapter_disabled" in precheck["reasons"]
+    assert "cow_flashloan_sdk_intent_ready" in precheck["reasons"]
     assert not any("actual_output_below_own_minimum" in reason for reason in precheck["reasons"])
     assert set(item["failure_cause"] for item in precheck["hop_checks"]) == {"quote_api_http_403_cloudfront_request_blocked"}
     assert set(item["status"] for item in precheck["hop_checks"]) == {"not_checked"}
 
     attempts = build_cow_execution_attempts(payload, market_state=market_state)
     path = tmp_path / "cow_execution_attempts.jsonl"
-    assert append_cow_execution_attempts_jsonl(path, attempts) == 1
+    assert append_cow_execution_attempts_jsonl(path, attempts) == 2
     rows = load_recent_cow_execution_attempts_jsonl(path, limit=10)
+    assert {row["priority_reason"] for row in rows} == {"buy_loser_then_gainer", "reverse_check"}
     summary = rows[0]["review_summary"]
     assert summary["cow_quote"]["error_type"] == "quote_api_http_403_cloudfront_request_blocked"
     assert summary["cow_quote"]["error"] == "CoW quote API HTTP 403: CloudFront request blocked"
@@ -1359,12 +1364,15 @@ def test_cow_market_claim_history_records_displayed_chain_candidates():
         price_source="binance_ws",
     )
 
-    assert len(attempts) == 1
+    assert len(attempts) == 2
     assert {attempt["network"] for attempt in attempts} == {"bnb"}
-    assert attempts[0]["pair"] == "AAAUSDT / BBBUSDT"
-    assert attempts[0]["execution_phase"] == "market_candidate"
-    assert attempts[0]["quote"]["candidate_basis"] == "cow_network_claim_top_bottom"
-    assert attempts[0]["route_path"] == ["USDC", "BBB", "AAA", "USDC"]
+    assert {attempt["pair"] for attempt in attempts} == {"AAAUSDT / BBBUSDT"}
+    assert {attempt["execution_phase"] for attempt in attempts} == {"market_candidate"}
+    assert {attempt["quote"]["candidate_basis"] for attempt in attempts} == {"cow_network_claim_top_bottom"}
+    assert {tuple(attempt["route_path"]) for attempt in attempts} == {
+        ("USDC", "BBB", "AAA", "USDC"),
+        ("USDC", "AAA", "BBB", "USDC"),
+    }
 
 
 def test_cow_market_claim_pairs_can_feed_quote_verification(monkeypatch):
@@ -1404,8 +1412,8 @@ def test_cow_market_claim_pairs_can_feed_quote_verification(monkeypatch):
 
     assert len(pairs) == 1
     assert pairs[0]["pair"] == "AAAUSDT / BBBUSDT"
-    assert payload["route_count"] == 1
-    assert payload["precheck"]["routes"][0]["supported"] is True
+    assert payload["route_count"] == 2
+    assert all(route["supported"] is True for route in payload["precheck"]["routes"])
 
 
 def test_cow_market_claim_pairs_can_quote_displayed_rows_below_spread_floor():
@@ -1713,9 +1721,9 @@ def test_cow_quote_verification_keeps_failed_unknown_token_routes():
         registry={},
     )
 
-    assert payload["route_count"] == 1
+    assert payload["route_count"] == 2
     assert payload["viable_count"] == 0
-    assert len(payload["ranking"]) == 1
+    assert len(payload["ranking"]) == 2
     assert {item["viable"] for item in payload["ranking"]} == {False}
     assert all("unsupported CoW tokens on avalanche" in item["error"] for item in payload["ranking"])
     assert all(item["cow_support"]["supported"] is False for item in payload["ranking"])
@@ -1744,8 +1752,11 @@ def test_cow_route_precheck_marks_unsupported_tokens_before_quote():
         registry={},
     )
 
-    assert payload["route_count"] == 1
+    assert payload["route_count"] == 2
     assert payload["supported_route_count"] == 0
-    assert payload["unsupported_route_count"] == 1
-    assert payload["routes"][0]["status"] == "unsupported_tokens"
-    assert payload["routes"][0]["unsupported_tokens"] == ["USDC", "ICX", "PYR"]
+    assert payload["unsupported_route_count"] == 2
+    assert {route["status"] for route in payload["routes"]} == {"unsupported_tokens"}
+    assert {tuple(route["unsupported_tokens"]) for route in payload["routes"]} == {
+        ("USDC", "ICX", "PYR"),
+        ("USDC", "PYR", "ICX"),
+    }

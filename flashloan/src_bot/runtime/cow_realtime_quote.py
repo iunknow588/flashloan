@@ -155,7 +155,8 @@ def _build_market_state(
     x_base = _base_symbol(x_row.get("base_symbol") or x_row.get("symbol") or x_symbol)
     y_base = _base_symbol(y_row.get("base_symbol") or y_row.get("symbol") or y_symbol)
     observed_at = extremes.get("observed_at") or _now_iso()
-    route = ["USDC", y_base, x_base, "USDC"]
+    forward_route = ["USDC", y_base, x_base, "USDC"]
+    reverse_route = ["USDC", x_base, y_base, "USDC"]
     pair = {
         "rank": 1,
         "pair": f"{x_symbol} / {y_symbol}",
@@ -184,12 +185,20 @@ def _build_market_state(
         "route_results": [
             {
                 "route_no": 1,
-                "route": route,
+                "route": forward_route,
                 "initial_amount": amount,
                 "initial_symbol": "USDC",
                 "priority_reason": "buy_loser_then_gainer_realtime",
                 "quote_required": True,
-            }
+            },
+            {
+                "route_no": 2,
+                "route": reverse_route,
+                "initial_amount": amount,
+                "initial_symbol": "USDC",
+                "priority_reason": "reverse_check_realtime",
+                "quote_required": True,
+            },
         ],
     }
     return {
@@ -352,32 +361,45 @@ def trigger_realtime_cow_quote(
     if not attempts:
         return {"started": False, "reason": "no_candidate_attempt"}
 
-    attempt = attempts[0]
-    route_key = candidate_signature(attempt)
     now = time.monotonic()
     cooldown = _env_float("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", 0.25)
-    max_inflight = _env_int("COW_REALTIME_QUOTE_MAX_INFLIGHT", 1)
+    max_inflight = _env_int("COW_REALTIME_QUOTE_MAX_INFLIGHT", 2)
+    started_routes = []
+    blocked_routes = []
     with _LOCK:
         global _IN_FLIGHT
-        last_started = _LAST_STARTED_BY_ROUTE.get(route_key)
-        if last_started is not None and now - last_started < cooldown:
-            return {"started": False, "reason": "route_cooldown", "route_key": route_key}
-        if _IN_FLIGHT >= max_inflight:
-            return {"started": False, "reason": "max_inflight", "route_key": route_key}
-        _LAST_STARTED_BY_ROUTE[route_key] = now
-        _IN_FLIGHT += 1
+        for attempt in attempts:
+            route_key = candidate_signature(attempt)
+            last_started = _LAST_STARTED_BY_ROUTE.get(route_key)
+            if last_started is not None and now - last_started < cooldown:
+                blocked_routes.append({"reason": "route_cooldown", "route_key": route_key})
+                continue
+            if _IN_FLIGHT >= max_inflight:
+                blocked_routes.append({"reason": "max_inflight", "route_key": route_key})
+                continue
+            _LAST_STARTED_BY_ROUTE[route_key] = now
+            _IN_FLIGHT += 1
+            started_routes.append({"attempt": attempt, "route_key": route_key})
 
-    thread = threading.Thread(
-        target=_quote_one_attempt,
-        args=(attempt, database_url, route_key),
-        name="cow-realtime-quote",
-        daemon=True,
-    )
-    thread.start()
+    for item in started_routes:
+        thread = threading.Thread(
+            target=_quote_one_attempt,
+            args=(item["attempt"], database_url, item["route_key"]),
+            name="cow-realtime-quote",
+            daemon=True,
+        )
+        thread.start()
+
+    if not started_routes:
+        reason = blocked_routes[0]["reason"] if blocked_routes else "no_route_started"
+        return {"started": False, "reason": reason, "blocked_routes": blocked_routes}
     return {
         "started": True,
-        "route_key": route_key,
+        "started_count": len(started_routes),
+        "blocked_count": len(blocked_routes),
+        "route_keys": [item["route_key"] for item in started_routes],
         "observed_at": market_state.get("observed_at"),
-        "route": attempt.get("route_path"),
+        "routes": [item["attempt"].get("route_path") for item in started_routes],
+        "blocked_routes": blocked_routes,
         "mode": "immediate_same_observer_cycle",
     }

@@ -45,8 +45,17 @@ def _latest_extremes_age(path: Path = LATEST_EXTREMES_PATH) -> float | None:
     return None if observed_ts is None else max(0.0, datetime.now(timezone.utc).timestamp() - observed_ts)
 
 
-def _run_observer_window(seconds: int) -> None:
+def _latest_extremes_observed_ts(path: Path = LATEST_EXTREMES_PATH) -> float | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return _parse_observed_at(payload.get("observed_at"))
+
+
+def _run_observer_window(seconds: int, min_side_change_percent: str) -> bool:
     env = os.environ.copy()
+    started_ts = datetime.now(timezone.utc).timestamp()
     env.update(
         {
             "RUN_SECONDS": str(max(1, int(seconds))),
@@ -59,8 +68,13 @@ def _run_observer_window(seconds: int) -> None:
             "BINANCE_SYMBOL_SELECTION": env.get("BINANCE_SYMBOL_SELECTION", "velocity"),
             "BINANCE_TOP_SYMBOL_LIMIT": env.get("BINANCE_TOP_SYMBOL_LIMIT", "0"),
             "BINANCE_VELOCITY_SIDE_LIMIT": env.get("BINANCE_VELOCITY_SIDE_LIMIT", "100"),
-            "BINANCE_CHANGE_WINDOW_SECONDS": env.get("BINANCE_CHANGE_WINDOW_SECONDS", "5"),
-            "BINANCE_EXTREME_WRITE_SECONDS": env.get("BINANCE_EXTREME_WRITE_SECONDS", "1"),
+            "BINANCE_SCAN_PROFILE": "200ms",
+            "BINANCE_CHANGE_WINDOW_SECONDS": "0.2",
+            "BINANCE_VELOCITY_MIN_CHANGE_PERCENT": str(min_side_change_percent),
+            "SAMPLE_SECONDS": "0.2",
+            "BINANCE_EXTREME_WRITE_SECONDS": "0.2",
+            "BINANCE_PAIR_PRICE_WRITE_SECONDS": "0.2",
+            "COW_ORDER_SUBMISSION_ENABLED": "false",
         }
     )
     process = subprocess.Popen(
@@ -70,15 +84,23 @@ def _run_observer_window(seconds: int) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    deadline = time.monotonic() + max(1, int(seconds))
     try:
-        process.wait(timeout=max(5, seconds + 30))
-    except subprocess.TimeoutExpired:
+        while time.monotonic() < deadline:
+            observed_ts = _latest_extremes_observed_ts()
+            if observed_ts is not None and observed_ts >= started_ts - 1:
+                return True
+            if process.poll() is not None:
+                break
+            time.sleep(0.25)
+        return False
+    finally:
         process.terminate()
         try:
-            process.wait(timeout=10)
+            process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait(timeout=10)
+            process.wait(timeout=5)
 
 
 def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
@@ -95,6 +117,11 @@ def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "COW_FLASHLOAN_MIN_SPREAD_PERCENT": str(args.min_spread_percent),
             "COW_FLASHLOAN_PROBE_SLIPPAGE_BPS": str(args.slippage_bps),
             "COW_FLASHLOAN_PROBE_OUTPUT": str(args.output),
+            "COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE": "false",
+            "COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC": env.get("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC")
+            or env.get("COW_AUTO_EXECUTE_MIN_PROFIT_USD")
+            or "0",
+            "COW_ORDER_SUBMISSION_ENABLED": "false",
         }
     )
     npm = shutil.which("npm.cmd") or shutil.which("npm")
@@ -122,14 +149,22 @@ def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
 def _summary(report: dict[str, Any]) -> dict[str, Any]:
     routes = report.get("routes") if isinstance(report.get("routes"), list) else []
     first = routes[0] if routes and isinstance(routes[0], dict) else {}
+    selection = report.get("routeSelection") if isinstance(report.get("routeSelection"), dict) else {}
+    selected = selection.get("selectedRoute") if isinstance(selection.get("selectedRoute"), dict) else None
+    best = selection.get("bestRouteEvenIfBlocked") if isinstance(selection.get("bestRouteEvenIfBlocked"), dict) else None
     return {
         "ok": report.get("ok"),
         "network": report.get("network"),
         "sdkEnv": report.get("sdkEnv"),
         "liveStatus": report.get("liveStatus"),
-        "route": " -> ".join(first.get("route") or []),
-        "routeOk": first.get("ok"),
-        "classification": first.get("classification"),
+        "routeCount": report.get("routeCount"),
+        "quotedRouteCount": report.get("quotedRouteCount"),
+        "selectionStatus": selection.get("status"),
+        "selectedRoute": " -> ".join(selected.get("route") or []) if selected else None,
+        "selectedDeltaAmount": selected.get("deltaAmount") if selected else None,
+        "bestRouteEvenIfBlocked": " -> ".join(best.get("route") or []) if best else " -> ".join(first.get("route") or []),
+        "bestClassification": best.get("classification") if best else first.get("classification"),
+        "bestDeltaAmount": best.get("deltaAmount") if best else None,
         "error": first.get("error"),
         "singleSolverSettlement": first.get("singleSolverSettlement"),
         "atomicityProof": (report.get("probeReliability") or {}).get("atomicityProof"),
@@ -164,7 +199,7 @@ def main() -> int:
 
     age = _latest_extremes_age()
     if not args.skip_observer and (age is None or age > args.max_age_seconds):
-        _run_observer_window(args.observer_seconds)
+        _run_observer_window(args.observer_seconds, args.min_side_change_percent)
     report = _run_probe(args)
     summary = _summary(report)
     print(json.dumps(summary, ensure_ascii=True, indent=2))

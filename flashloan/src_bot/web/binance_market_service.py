@@ -59,7 +59,16 @@ WRAPPED_SYMBOL_ALIASES = {
 _COW_TOKEN_CACHE_LOCK = threading.Lock()
 _COW_TOKEN_MEMORY_CACHE: dict[str, dict[str, Any]] = {}
 STABLE_ROUTE_CANDIDATES = (
-    ("stable_usdc_to_y_to_x_to_usdc", ("USDC", "y", "x", "USDC")),
+    (
+        "stable_usdc_to_y_to_x_to_usdc",
+        ("USDC", "y", "x", "USDC"),
+        "buy_loser_then_gainer",
+    ),
+    (
+        "stable_usdc_to_x_to_y_to_usdc",
+        ("USDC", "x", "y", "USDC"),
+        "reverse_check",
+    ),
 )
 
 
@@ -1035,6 +1044,7 @@ def _candidate_route_symbols(route: tuple[str, ...], x: dict[str, Any], y: dict[
 def _route_candidate(
     strategy: str,
     route: tuple[str, ...],
+    priority_reason: str,
     x: dict[str, Any],
     y: dict[str, Any],
     route_no: int,
@@ -1064,7 +1074,7 @@ def _route_candidate(
         "estimation_available": False,
         "candidate_basis": "stablecoin_closed_route_requires_cow_or_dex_quote",
         "edge_hint_percent": edge_hint_percent,
-        "priority_reason": "buy_loser_then_gainer",
+        "priority_reason": priority_reason,
         "binance_execution_plan": execution_plan,
     }
 
@@ -1123,8 +1133,8 @@ def _pair_quote_candidates(
         "blocked_reasons": ["requires_cow_or_dex_quote"],
     }
     route_results = [
-        _route_candidate(strategy, route, x, y, index, config.notional_usd, slippage_bps=slippage_bps)
-        for index, (strategy, route) in enumerate(STABLE_ROUTE_CANDIDATES, start=1)
+        _route_candidate(strategy, route, priority_reason, x, y, index, config.notional_usd, slippage_bps=slippage_bps)
+        for index, (strategy, route, priority_reason) in enumerate(STABLE_ROUTE_CANDIDATES, start=1)
     ]
     row.update(
         {
@@ -1484,19 +1494,24 @@ def _cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) 
         "start_price": pair.get("y_start_price"),
         "current_price": pair.get("y_current_price"),
     }
-    buy_loser_path = ["USDC", y, x, "USDC"]
-    return [
-        {
-            "name": f"{pair.get('rank', 0)}_buy_loser_{y}_then_gainer_{x}",
-            "path": buy_loser_path,
-            "amount": amount,
-            "pair_rank": pair.get("rank"),
-            "pair": pair.get("pair"),
-            "priority_reason": "buy_loser_then_gainer",
-            "edge_hint_percent": pair.get("edge_hint_percent"),
-            "binance_execution_plan": _binance_execution_plan(buy_loser_path, x_row, y_row, amount, slippage_bps=slippage_bps),
-        },
-    ]
+    specs = []
+    for strategy, route_template, priority_reason in STABLE_ROUTE_CANDIDATES:
+        path = _candidate_route_symbols(route_template, x_row, y_row)
+        if not path:
+            continue
+        specs.append(
+            {
+                "name": f"{pair.get('rank', 0)}_{strategy}_{'_'.join(path)}",
+                "path": path,
+                "amount": amount,
+                "pair_rank": pair.get("rank"),
+                "pair": pair.get("pair"),
+                "priority_reason": priority_reason,
+                "edge_hint_percent": pair.get("edge_hint_percent"),
+                "binance_execution_plan": _binance_execution_plan(path, x_row, y_row, amount, slippage_bps=slippage_bps),
+            }
+        )
+    return specs
 
 
 def _cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None) -> dict[str, Any]:

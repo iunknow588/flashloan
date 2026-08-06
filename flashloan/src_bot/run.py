@@ -14,7 +14,7 @@ load_env_files(__file__, override=False)
 # signal. Order submission remains separately guarded and disabled by default.
 os.environ.setdefault("COW_REALTIME_QUOTE_ENABLED", "true")
 os.environ.setdefault("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25")
-os.environ.setdefault("COW_REALTIME_QUOTE_MAX_INFLIGHT", "1")
+os.environ.setdefault("COW_REALTIME_QUOTE_MAX_INFLIGHT", "2")
 os.environ["BINANCE_SCAN_PROFILE"] = "200ms"
 os.environ["BINANCE_CHANGE_WINDOW_SECONDS"] = "0.2"
 os.environ["SAMPLE_SECONDS"] = "0.2"

@@ -580,21 +580,20 @@ function buildLiveRouteFromExtremes({ extremes, network, registry, amountHuman, 
     };
   }
   const spread = top.change_percent - bottom.change_percent;
-  const routeSpecs = [];
+  const pairSpecs = [];
   for (const loser of negativeCandidates) {
     for (const gainer of positiveCandidates) {
       if (loser.base_symbol === gainer.base_symbol) continue;
       const candidateSpread = gainer.change_percent - loser.change_percent;
       if (candidateSpread <= minSpreadPercent) continue;
-      routeSpecs.push({
+      pairSpecs.push({
         top: gainer,
         bottom: loser,
         spreadPercent: candidateSpread,
-        route: ["USDC", loser.base_symbol, gainer.base_symbol, "USDC"],
       });
     }
   }
-  routeSpecs.sort((a, b) => b.spreadPercent - a.spreadPercent);
+  pairSpecs.sort((a, b) => b.spreadPercent - a.spreadPercent);
   if (spread <= minSpreadPercent) {
     return {
       routeSpec: null,
@@ -618,6 +617,7 @@ function buildLiveRouteFromExtremes({ extremes, network, registry, amountHuman, 
       amountHuman,
       pair: `${top.symbol || top.base_symbol} / ${bottom.symbol || bottom.base_symbol}`,
       pairRank: 1,
+      routeDirection: "forward_buy_loser_then_gainer",
       priorityReason: "buy_loser_then_gainer_live_top1",
       observedAt: extremes.observed_at,
       ownPlan: {
@@ -653,48 +653,65 @@ function buildLiveRouteFromExtremes({ extremes, network, registry, amountHuman, 
         bottom,
       },
     },
-    routes: routeSpecs.slice(0, routeLimit).map((item, index) => ({
-      network,
-      route: item.route,
-      amountHuman,
-      pair: `${item.top.symbol || item.top.base_symbol} / ${item.bottom.symbol || item.bottom.base_symbol}`,
-      pairRank: index + 1,
-      priorityReason: "buy_loser_then_gainer_live_supported_queue",
-      observedAt: extremes.observed_at,
-      ownPlan: {
-        available: true,
-        initial_amount: amountHuman,
-        initial_symbol: "USDC",
-        final_symbol: "USDC",
-        route: item.route,
-        market_prices: [
-          {
-            symbol: item.top.base_symbol,
-            start_price: item.top.start_price,
-            current_price: item.top.current_price,
-            change_percent: item.top.change_percent,
-            role: "gainer_sell_high",
-          },
-          {
-            symbol: item.bottom.base_symbol,
-            start_price: item.bottom.start_price,
-            current_price: item.bottom.current_price,
-            change_percent: item.bottom.change_percent,
-            role: "loser_buy_low",
-          },
-        ],
-        steps: [],
-      },
-      liveSignal: {
-        spreadPercent: item.spreadPercent,
-        minSpreadPercent,
-        minSideChangePercent,
-        freshnessSeconds,
-        top: item.top,
-        bottom: item.bottom,
-      },
-    })),
-    candidateRouteCount: routeSpecs.length,
+    routes: pairSpecs.slice(0, routeLimit).flatMap((item, index) => {
+      const directions = [
+        {
+          route: ["USDC", item.bottom.base_symbol, item.top.base_symbol, "USDC"],
+          routeDirection: "forward_buy_loser_then_gainer",
+          priorityReason: "buy_loser_then_gainer_live_supported_queue",
+        },
+        {
+          route: ["USDC", item.top.base_symbol, item.bottom.base_symbol, "USDC"],
+          routeDirection: "reverse_buy_gainer_then_loser",
+          priorityReason: "reverse_check_live_supported_queue",
+        },
+      ];
+      return directions.map((direction) => ({
+        network,
+        route: direction.route,
+        amountHuman,
+        pair: `${item.top.symbol || item.top.base_symbol} / ${item.bottom.symbol || item.bottom.base_symbol}`,
+        pairRank: index + 1,
+        routeDirection: direction.routeDirection,
+        priorityReason: direction.priorityReason,
+        observedAt: extremes.observed_at,
+        ownPlan: {
+          available: true,
+          initial_amount: amountHuman,
+          initial_symbol: "USDC",
+          final_symbol: "USDC",
+          route: direction.route,
+          market_prices: [
+            {
+              symbol: item.top.base_symbol,
+              start_price: item.top.start_price,
+              current_price: item.top.current_price,
+              change_percent: item.top.change_percent,
+              role: "gainer_sell_high",
+            },
+            {
+              symbol: item.bottom.base_symbol,
+              start_price: item.bottom.start_price,
+              current_price: item.bottom.current_price,
+              change_percent: item.bottom.change_percent,
+              role: "loser_buy_low",
+            },
+          ],
+          steps: [],
+        },
+        liveSignal: {
+          spreadPercent: item.spreadPercent,
+          minSpreadPercent,
+          minSideChangePercent,
+          freshnessSeconds,
+          top: item.top,
+          bottom: item.bottom,
+          routeDirection: direction.routeDirection,
+        },
+      }));
+    }),
+    candidatePairCount: pairSpecs.length,
+    candidateRouteCount: pairSpecs.length * 2,
     reason: "live_top1_candidate_found",
   };
 }
@@ -902,6 +919,109 @@ function routeProfit(routeSpec, tokens, legs, outputKey = "buyAmountHuman") {
     deltaAmount: String(output - input),
     deltaPercent: String(((output - input) / input) * 100),
     symbol: first.symbol,
+  };
+}
+
+function routeSelection(routes) {
+  const minProfit = decimalNumber(envFirst("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC", "COW_AUTO_EXECUTE_MIN_PROFIT_USD")) ?? 0;
+  const ranking = routes
+    .map((route, index) => {
+      const protectedProfit = route.profit || route.costAnalysis?.protectedProfitAfterSlippageFloor || null;
+      const expectedProfit = route.costAnalysis?.expectedProfitBeforeSlippageFloor || null;
+      const finalAmount = decimalNumber(protectedProfit?.finalAmount);
+      const deltaAmount = decimalNumber(protectedProfit?.deltaAmount);
+      const expectedFinalAmount = decimalNumber(expectedProfit?.finalAmount);
+      const expectedDeltaAmount = decimalNumber(expectedProfit?.deltaAmount);
+      const quoteAvailable = Boolean(route.ok && finalAmount != null);
+      return {
+        sourceIndex: index + 1,
+        ok: Boolean(route.ok),
+        quoteAvailable,
+        pair: route.pair,
+        pairRank: route.pairRank,
+        routeDirection: route.routeDirection || null,
+        priorityReason: route.priorityReason,
+        route: route.route,
+        classification: route.classification,
+        finalAmount: protectedProfit?.finalAmount ?? null,
+        deltaAmount: protectedProfit?.deltaAmount ?? null,
+        deltaPercent: protectedProfit?.deltaPercent ?? null,
+        expectedFinalAmountBeforeSlippageFloor: expectedProfit?.finalAmount ?? null,
+        expectedDeltaAmountBeforeSlippageFloor: expectedProfit?.deltaAmount ?? null,
+        expectedDeltaPercentBeforeSlippageFloor: expectedProfit?.deltaPercent ?? null,
+        profitBudgetMet: quoteAvailable && deltaAmount != null && deltaAmount >= minProfit,
+        minProfitHuman: String(minProfit),
+        slippageRecommendation: route.costAnalysis?.slippageRecommendation || null,
+        finalLossDominantCause: route.costAnalysis?.finalLossDominantCause || null,
+        binanceWindowVerdict: route.binanceWindowAnalysis?.threeHopVerdict || null,
+        quoteCloserToWindow: route.binanceWindowAnalysis?.quoteCloserToWindow || null,
+        protectedCloserToWindow: route.binanceWindowAnalysis?.protectedCloserToWindow || null,
+        threeHopRatios: (route.legs || []).map((leg) => ({
+          index: leg.index,
+          sellSymbol: leg.sellSymbol,
+          buySymbol: leg.buySymbol,
+          quoteActualBuyPerSell:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.actualBuyPerSell ?? null,
+          protectedActualBuyPerSell:
+            leg.binanceWindowPriceAnalysis?.protectedAfterSlippageFloor?.actualBuyPerSell ?? null,
+          binancePreviousWindowBuyPerSell:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.binancePreviousWindowBuyPerSell ?? null,
+          binanceNextWindowBuyPerSell:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.binanceNextWindowBuyPerSell ?? null,
+          quoteVsPreviousWindowPercent:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.quoteVsPreviousWindowPercent ?? null,
+          quoteVsNextWindowPercent:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.quoteVsNextWindowPercent ?? null,
+          closerToWindow:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.closerToWindow ?? null,
+          timingVsBinanceNextWindow:
+            leg.binanceWindowPriceAnalysis?.quoteBeforeSlippageFloor?.timingVsBinanceNextWindow ?? null,
+        })),
+        _sortFinalAmount: quoteAvailable ? finalAmount : Number.NEGATIVE_INFINITY,
+        _sortExpectedFinalAmount:
+          route.ok && expectedFinalAmount != null ? expectedFinalAmount : Number.NEGATIVE_INFINITY,
+        _sortDeltaAmount:
+          route.ok && deltaAmount != null ? deltaAmount : Number.NEGATIVE_INFINITY,
+        _sortExpectedDeltaAmount:
+          route.ok && expectedDeltaAmount != null ? expectedDeltaAmount : Number.NEGATIVE_INFINITY,
+      };
+    })
+    .sort((a, b) => {
+      if (a.quoteAvailable !== b.quoteAvailable) return a.quoteAvailable ? -1 : 1;
+      if (a.profitBudgetMet !== b.profitBudgetMet) return a.profitBudgetMet ? -1 : 1;
+      if (a._sortFinalAmount !== b._sortFinalAmount) return b._sortFinalAmount - a._sortFinalAmount;
+      if (a._sortExpectedFinalAmount !== b._sortExpectedFinalAmount) {
+        return b._sortExpectedFinalAmount - a._sortExpectedFinalAmount;
+      }
+      return b._sortDeltaAmount - a._sortDeltaAmount;
+    })
+    .map(({ _sortFinalAmount, _sortExpectedFinalAmount, _sortDeltaAmount, _sortExpectedDeltaAmount, ...item }, rank) => ({
+      rank: rank + 1,
+      ...item,
+    }));
+  const best = ranking[0] || null;
+  return {
+    minProfitHuman: String(minProfit),
+    minProfitSymbol: "USDC",
+    candidateCount: routes.length,
+    quotedCandidateCount: routes.filter((route) => route.ok).length,
+    selectedRoute:
+      best && best.profitBudgetMet
+        ? {
+            rank: best.rank,
+            sourceIndex: best.sourceIndex,
+            pair: best.pair,
+            routeDirection: best.routeDirection,
+            priorityReason: best.priorityReason,
+            route: best.route,
+            finalAmount: best.finalAmount,
+            deltaAmount: best.deltaAmount,
+            deltaPercent: best.deltaPercent,
+          }
+        : null,
+    status: best?.profitBudgetMet ? "selected_profit_budget_passed" : "no_route_above_profit_budget",
+    bestRouteEvenIfBlocked: best,
+    ranking,
   };
 }
 
@@ -1190,6 +1310,7 @@ async function probeRoute({ routeSpec, registry, tradingSdk, flashSdk, chainId, 
     network: routeSpec.network,
     pair: routeSpec.pair,
     pairRank: routeSpec.pairRank,
+    routeDirection: routeSpec.routeDirection || null,
     priorityReason: routeSpec.priorityReason,
     observedAt: routeSpec.observedAt,
     liveSignal: enrichLiveSignalWithQuote(routeSpec, tokens, analyzedLegs),
@@ -1281,11 +1402,12 @@ async function main() {
       slippageBps,
     });
     routes.push(route);
-    if (sourceMode === "live" && route.ok && envBool("COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE", true)) {
+    if (sourceMode === "live" && route.ok && envBool("COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE", false)) {
       break;
     }
   }
   const quotedRoutes = routes.filter((route) => route.ok);
+  const selection = routeSelection(routes);
 
   const outputPath = path.resolve(envFirst("COW_FLASHLOAN_PROBE_OUTPUT") || DEFAULT_OUTPUT_PATH);
   const report = {
@@ -1306,9 +1428,11 @@ async function main() {
     rpcSource: "configured",
     slippageBps,
     flashLoanFeePercent,
+    stopAfterFirstQuotedRoute: envBool("COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE", false),
     routeCount: routes.length,
     quotedRouteCount: quotedRoutes.length,
     failedRouteCount: routes.length - quotedRoutes.length,
+    routeSelection: selection,
     sdkDeployments: deployments,
     sdkDeploymentGaps: deploymentGaps,
     sdkDeploymentCode: {

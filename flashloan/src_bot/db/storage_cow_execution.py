@@ -419,6 +419,8 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "status": precheck.get("status") or row.get("state"),
             "checks_passed": row.get("checks_passed"),
             "can_submit_order": row.get("can_submit_order"),
+            "price_guards_passed": precheck.get("price_guards_passed"),
+            "profit_above_auto_threshold": precheck.get("profit_above_auto_threshold"),
             "pure_profit_amount": precheck.get("pure_profit_amount") or precheck.get("final_delta_amount") or row.get("final_delta_amount"),
             "final_symbol": precheck.get("final_symbol") or row.get("final_symbol"),
             "auto_execute_min_profit_usd": precheck.get("auto_execute_min_profit_usd") or threshold.get("min_profit_usd"),
@@ -655,6 +657,14 @@ def _claim_route_results(x: dict[str, Any], y: dict[str, Any], amount: Any) -> l
             "initial_amount": str(amount) if amount is not None else None,
             "initial_symbol": "USDC",
             "priority_reason": "buy_loser_then_gainer",
+            "quote_required": True,
+        },
+        {
+            "route_no": 2,
+            "route": ["USDC", x_base, y_base, "USDC"],
+            "initial_amount": str(amount) if amount is not None else None,
+            "initial_symbol": "USDC",
+            "priority_reason": "reverse_check",
             "quote_required": True,
         },
     ]

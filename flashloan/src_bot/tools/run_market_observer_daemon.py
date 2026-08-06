@@ -22,7 +22,7 @@ def configure_market_observer_env() -> dict[str, str]:
         "REPORT_ONLY_ALERTS": os.getenv("REPORT_ONLY_ALERTS", "true"),
         "COW_REALTIME_QUOTE_ENABLED": "true",
         "COW_REALTIME_QUOTE_COOLDOWN_SECONDS": os.getenv("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25"),
-        "COW_REALTIME_QUOTE_MAX_INFLIGHT": os.getenv("COW_REALTIME_QUOTE_MAX_INFLIGHT", "1"),
+        "COW_REALTIME_QUOTE_MAX_INFLIGHT": os.getenv("COW_REALTIME_QUOTE_MAX_INFLIGHT", "2"),
         "BINANCE_SCAN_PROFILE": "200ms",
         "BINANCE_CHANGE_WINDOW_SECONDS": "0.2",
         "SAMPLE_SECONDS": "0.2",

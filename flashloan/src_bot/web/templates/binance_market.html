@@ -1217,7 +1217,6 @@
     function renderCowQuoteTable() {
       const opportunities = activeNetworkPanels().flatMap(panel =>
         (panel?.quotes?.ranking || [])
-          .filter(row => row?.execution_precheck?.checks_passed)
           .map(row => ({...row, display_network: panel.network}))
       );
       const rows = opportunities.map((row, index) => `<tr>
