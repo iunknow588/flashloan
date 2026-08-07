@@ -982,38 +982,6 @@ def register_data_routes(app, panel) -> None:
             market_state["pairs"] = fallback_pairs
             market_state["pair_count"] = len(fallback_pairs)
             market_state["quote_candidate_source"] = "cow_network_claim_top_bottom"
-        pause_guard = cow_submission_pause_guard_status()
-        if pause_guard.get("paused"):
-            return jsonify(
-                {
-                    "market_state": market_state,
-                    "observed_at": market_state.get("observed_at"),
-                    "amount": str(amount),
-                    "owner": owner,
-                    "owner_source": "request.owner" if owner else None,
-                    "cow_network": token_cache["network"],
-                    "selected_pair_count": 0,
-                    "route_count": 0,
-                    "supported_route_count": 0,
-                    "unsupported_route_count": 0,
-                    "viable_count": 0,
-                    "opportunity_count": 0,
-                    "status": "submission_paused",
-                    "blocked_reason": "cow_submission_paused",
-                    "pause_guard": pause_guard,
-                    "precheck": {"routes": []},
-                    "best": None,
-                    "best_opportunity": None,
-                    "opportunities": [],
-                    "ranking": [],
-                    "history_recording": {
-                        "recorded": 0,
-                        "source": "paused",
-                        "error": None,
-                        "pause_guard": pause_guard,
-                    },
-                }
-            )
         try:
             payload = build_cow_quote_verification(
                 market_state,
@@ -1026,6 +994,45 @@ def register_data_routes(app, panel) -> None:
             )
         except Exception as exc:
             return jsonify({"error": data_error_message(exc), "market_state": market_state, "ranking": []}), 400
+        pause_guard = cow_submission_pause_guard_status()
+        if pause_guard.get("paused"):
+            for item in payload.get("ranking") or []:
+                if not isinstance(item, dict):
+                    continue
+                precheck = dict(item.get("execution_precheck") or {})
+                reasons = list(precheck.get("reasons") or [])
+                if "cow_submission_paused" not in reasons:
+                    reasons.append("cow_submission_paused")
+                precheck.update(
+                    {
+                        "status": "submission_paused",
+                        "checks_passed": True,
+                        "can_submit_order": False,
+                        "auto_execute_blocked": True,
+                        "submission_attempted": False,
+                        "submission_status": "submission_paused",
+                        "submission_pause_guard": pause_guard,
+                        "reasons": reasons,
+                    }
+                )
+                item["execution_precheck"] = precheck
+                sdk_result = dict(item.get("cow_sdk_result") or {})
+                sdk_result.update(
+                    {
+                        "status": "submission_paused",
+                        "submitted": False,
+                        "blocked_reason": "cow_submission_paused",
+                        "pause_guard": pause_guard,
+                    }
+                )
+                item["cow_sdk_result"] = sdk_result
+            payload.update(
+                {
+                    "status": "submission_paused",
+                    "blocked_reason": "cow_submission_paused",
+                    "pause_guard": pause_guard,
+                }
+            )
         payload["history_recording"] = record_cow_execution_attempts_safely(
             payload,
             market_state=market_state,

@@ -99,6 +99,19 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "cowSupportedBottomBody" in binance_market_panel
     assert "renderCowSupportedOverview" in binance_market_panel
     assert "cow_supported_overview" in binance_market_panel
+    assert '<button id="quoteBtn">CoW SDK 报价验证</button>' in binance_market_panel
+    assert "cowSubmissionEnabledCheckbox" in binance_market_panel
+    assert "允许 CoW SDK 交易" in binance_market_panel
+    assert "updateCowSubmissionFromCheckbox" in binance_market_panel
+    assert 'latestCowSubmissionPausePayload = {paused: true, pause_reason: "ui_initial_fail_closed"}' in binance_market_panel
+    assert "latestCowSubmissionPausePayload?.paused !== false" in binance_market_panel
+    assert "async function bootDexArbitragePanel()" in binance_market_panel
+    assert "await refreshCowSubmissionPause();\n      await loadCowConfig();" in binance_market_panel
+    assert "const quoteButtonDisabled = false;" in binance_market_panel
+    assert "const checkButtonDisabled = !quote;" in binance_market_panel
+    assert "cowSubmissionPauseToggleBtn" not in binance_market_panel
+    assert "cowSubmissionPauseClearBtn" not in binance_market_panel
+    assert "cowSubmissionPauseRefreshBtn" not in binance_market_panel
     assert "选中 CoW 网络候选链路" in binance_market_panel
     assert "每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅" in binance_market_panel
     assert "各 CoW 网络支持 Top/Bottom 5" in binance_market_panel
@@ -111,10 +124,11 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "const quoteLimit = quoteLimitValue()" in binance_market_panel
     assert "autoRefreshCowQuotes" in binance_market_panel
     assert "cowAutomationPaused()" in binance_market_panel
-    assert "未请求 CoW SDK 报价" in binance_market_panel
+    assert "CoW SDK 交易关闭：报价和界面照常显示，不会提交交易" in binance_market_panel
     assert "AUTO_COW_QUOTE_MIN_INTERVAL_MS" in binance_market_panel
-    assert "autoExecuteToggle" in binance_market_panel
-    assert "自动执行检查关闭" in binance_market_panel
+    assert "autoExecuteToggle" not in binance_market_panel
+    assert 'data-route-action="auto-execute"' not in binance_market_panel
+    assert "自动执行检查" not in binance_market_panel
     assert "rawTopBody" in binance_market_panel
     assert "rawBottomBody" in binance_market_panel
     assert "formatPrice" in binance_market_panel
@@ -132,7 +146,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "CoW 相对 Binance 估算" in binance_market_panel
     assert "CoW 盈利" in binance_market_panel
     assert "当前盘面买入" in binance_market_panel
-    assert "变化前价格换票" in binance_market_panel
+    assert "变化前价格换算" in binance_market_panel
     assert "当前盘面卖出" in binance_market_panel
     assert "slip" in binance_market_panel
     assert "currentMarketState = data || null;\n      latestCowQuotes = null" not in binance_market_panel

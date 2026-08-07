@@ -52,8 +52,10 @@
     .network-claim h3 { margin: 0; font-size: 14px; }
     .mini-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .network-checks { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 720px; }
-    .network-check, .auto-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 10px; background: #fff; font-weight: 700; }
-    .network-check input, .auto-toggle input { min-width: auto; min-height: auto; width: 16px; height: 16px; padding: 0; }
+    .network-check, .cow-trading-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 10px; background: #fff; font-weight: 700; }
+    .network-check input, .cow-trading-switch input { min-width: auto; min-height: auto; width: 16px; height: 16px; padding: 0; }
+    .cow-trading-switch.enabled { border-color: #15803d; color: #15803d; background: #f0fdf4; }
+    .cow-trading-switch.disabled { border-color: #b42318; color: #b42318; background: #fff5f5; }
     .network-opportunity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 12px; }
     .chain-card { border: 1px solid #cfd6e2; border-radius: 8px; background: #fff; padding: 12px; }
     .chain-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
@@ -78,10 +80,6 @@
     .review-pager button { width: 28px; height: 28px; border: 1px solid #d0d5dd; background: #fff; border-radius: 6px; cursor: pointer; }
     .review-pager button:disabled { opacity: .45; cursor: default; }
     .review-group-note { margin-bottom: 8px; font-size: 12px; color: #667085; }
-    .cow-pause-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 10px; }
-    .cow-pause-note { font-size: 12px; color: #667085; line-height: 1.45; }
-    .cow-pause-state { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    .cow-pause-state span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 5px 8px; background: #fff; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
     @media (max-width: 900px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } .route-grid { grid-template-columns: 1fr; } .route-cell { min-width: 300px; } .network-opportunity-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -89,13 +87,13 @@
   <header>
     <h1>DEX 套利 | CoW SDK</h1>
     <nav>
-      <a href="/liquidation">娓呯畻</a>
-      <a href="/account-scan">璐︽埛鎵弿</a>
-      <a href="/market-observation">甯傚満瑙傚療</a>
-      <a href="/dex-arbitrage">DEX 濂楀埄</a>
-      <a href="/exchange-matrix">鍏戞崲鐭╅樀</a>
-      <a href="/execution">鎵ц</a>
-      <a href="/config">閰嶇疆</a>
+      <a href="/liquidation">清算</a>
+      <a href="/account-scan">账户扫描</a>
+      <a href="/market-observation">市场观察</a>
+      <a href="/dex-arbitrage">DEX 套利</a>
+      <a href="/exchange-matrix">兑换矩阵</a>
+      <a href="/execution">执行</a>
+      <a href="/config">配置</a>
     </nav>
     <div id="message"></div>
   </header>
@@ -107,6 +105,11 @@
       <button id="quoteBtn">CoW SDK 报价验证</button>
       <button id="copySummaryBtn">复制摘要</button>
       <button id="copyQuotesBtn">复制报价</button>
+      <label id="cowTradingSwitchLabel" class="cow-trading-switch disabled" title="勾选后才允许 CoW SDK 报价、候选入队和交易提交">
+        <input id="cowSubmissionEnabledCheckbox" type="checkbox">
+        允许 CoW SDK 交易
+      </label>
+      <span id="cowSubmissionPauseMessage" class="context">交易开关状态加载中</span>
       <select id="sideLimitSelect">
         <option value="5">前 5 名</option>
         <option value="10">前 10 名</option>
@@ -116,40 +119,36 @@
       <select id="quoteLimitSelect">
         <option value="1" selected>每链 1 组</option>
       </select>
-      <div id="cowNetworkChecks" class="network-checks" title="閫夋嫨瑕佸悓鏃跺睍绀哄拰鎶ヤ环鐨?CoW 缃戠粶"></div>
-      <label class="auto-toggle" title="满足意图条件后进入自动执行检查；真实下单仍受后端提交模块和暂停窗口控制">
-        <input id="autoExecuteToggle" type="checkbox" checked>
-        自动执行检查
-      </label>
+      <div id="cowNetworkChecks" class="network-checks" title="选择要同时展示和报价的 CoW 网络"></div>
       <input id="quoteAmountInput" inputmode="decimal" min="0" step="0.000001" type="number" value="1000" title="CoW quote amount">
-      <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="0" title="棰濆鎵嬪姩浠峰樊 %">
+      <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="0" title="额外手动价差 %">
       <span id="cowQuoteContext" class="context">CoW -</span>
-      <span id="refreshMeta" class="muted">绛夊緟鏁版嵁</span>
+      <span id="refreshMeta" class="muted">等待数据</span>
     </div>
     <section class="grid">
-      <div class="card"><small>瑙傚療绐楀彛</small><strong id="windowSeconds">-</strong><span id="observedAt">-</span></div>
-      <div class="card"><small>鏍锋湰鏁伴噺</small><strong id="sampleCount">-</strong><span id="universeSize">-</span></div>
+      <div class="card"><small>观察窗口</small><strong id="windowSeconds">-</strong><span id="observedAt">-</span></div>
+      <div class="card"><small>样本数量</small><strong id="sampleCount">-</strong><span id="universeSize">-</span></div>
       <div class="card"><small>CoW 支持过滤</small><strong id="cowTokenCount">-</strong><span id="cowMatchCount">-</span><span id="cowFilterMeta">-</span></div>
-      <div class="card"><small>濂楀埄鍊欓€夎矾寰?/small><strong id="pairCount">-</strong><span id="bestPair">-</span></div>
-      <div class="card"><small>鏈€浣?CoW 缁撴灉</small><strong id="notionalUsd">-</strong><span id="quoteState">绛夊緟鎶ヤ环</span></div>
+      <div class="card"><small>套利候选路径</small><strong id="pairCount">-</strong><span id="bestPair">-</span></div>
+      <div class="card"><small>最佳 CoW 结果</small><strong id="notionalUsd">-</strong><span id="quoteState">等待报价</span></div>
     </section>
     <section class="split">
       <div class="card">
         <h2 id="cowSupportedTopTitle">所有 CoW 支持代币涨幅前 50</h2>
-        <div id="cowSupportedTopMeta" class="context">绛夊緟杩囨护鏉′欢</div>
+        <div id="cowSupportedTopMeta" class="context">等待过滤条件</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>浠ｅ竵</th><th>娑ㄥ箙</th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>鏀寔閾?/th><th>鏉ユ簮</th></tr></thead>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
             <tbody id="cowSupportedTopBody"></tbody>
           </table>
         </div>
       </div>
       <div class="card">
         <h2 id="cowSupportedBottomTitle">所有 CoW 支持代币跌幅前 50</h2>
-        <div id="cowSupportedBottomMeta" class="context">绛夊緟杩囨护鏉′欢</div>
+        <div id="cowSupportedBottomMeta" class="context">等待过滤条件</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>浠ｅ竵</th><th>璺屽箙</th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>鏀寔閾?/th><th>鏉ユ簮</th></tr></thead>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
             <tbody id="cowSupportedBottomBody"></tbody>
           </table>
         </div>
@@ -164,9 +163,9 @@
       <div id="networkClaims" class="network-claims"></div>
     </section>
     <section class="card">
-      <h2 id="pairTitle">澶氶摼绋冲畾甯侀棴鐜鍒╁€欓€夎矾寰?/h2>
+      <h2 id="pairTitle">多链稳定币闭环套利候选路径</h2>
       <div class="muted">Binance 行情先给出综合排名；每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅，同一个代币可以同时出现在多条链。</div>
-      <div class="muted">姣忎釜閾惧崱鐗囧唴灞曠ず U-X-Y-U 涓?U-Y-X-U 璺緞銆佷笁浠锋潵婧愩€佺洰鏍囦环銆佹粦鐐硅竟鐣屻€佸噣鍒╂鼎鍜屾墽琛岀姸鎬併€?/div>
+      <div class="muted">每个链卡片展示 U-X-Y-U 与 U-Y-X-U 路径、报价来源、目标价、滑点边界、净利润和执行状态。</div>
     </section>
     <section class="card" style="margin-top:18px">
       <h2>CoW SDK 报价验证</h2>
@@ -183,47 +182,31 @@
     </section>
     <section class="card" style="margin-top:18px">
       <h2>CoW Candidate Queue</h2>
-      <div id="cowQueueStatus" class="context">waiting for queue status</div>
+      <div id="cowQueueStatus" class="context">等待队列状态</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Network</th><th>Pair</th><th>Route</th><th>Status</th><th>Priority</th><th>Attempts</th></tr></thead>
+          <thead><tr><th>#</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>优先级</th><th>尝试次数</th></tr></thead>
           <tbody id="cowQueueBody"></tbody>
         </table>
-      </div>
-    </section>
-    <section class="card" style="margin-top:18px">
-      <h2>CoW 交易开关</h2>
-      <div class="cow-pause-actions">
-        <button id="cowSubmissionPauseToggleBtn" class="primary">开启 CoW 交易</button>
-        <button id="cowSubmissionPauseClearBtn">开启 CoW 交易</button>
-        <button id="cowSubmissionPauseRefreshBtn">刷新状态</button>
-        <span id="cowSubmissionPauseMessage" class="context">waiting for pause state</span>
-      </div>
-      <div class="cow-pause-note">系统启动时默认关闭；只有手动开启后，CoW 候选入队、后台报价和真实交易提交才会执行。</div>
-      <div class="cow-pause-state">
-        <span id="cowSubmissionPauseStatus">-</span>
-        <span id="cowSubmissionPauseReason">-</span>
-        <span id="cowSubmissionPauseUpdatedAt">-</span>
-        <span id="cowSubmissionPauseLastChange">-</span>
       </div>
     </section>
     <section class="split" style="margin-top:18px">
       <div class="card">
         <h2 id="rawTopTitle">Binance 原始涨幅前 50</h2>
-        <div class="context">鍘熷绐楀彛鎺掑簭锛氫粎鎺掗櫎浠锋牸浣庝簬 0.01U銆?/div>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U 的代币。</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>浠ｅ竵</th><th>娑ㄥ箙</th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>鏉ユ簮</th></tr></thead>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
             <tbody id="rawTopBody"></tbody>
           </table>
         </div>
       </div>
       <div class="card">
         <h2 id="rawBottomTitle">Binance 原始跌幅前 50</h2>
-        <div class="context">鍘熷绐楀彛鎺掑簭锛氫粎鎺掗櫎浠锋牸浣庝簬 0.01U銆?/div>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U 的代币。</div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>浠ｅ竵</th><th>璺屽箙</th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>鏉ユ簮</th></tr></thead>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
             <tbody id="rawBottomBody"></tbody>
           </table>
         </div>
@@ -235,19 +218,19 @@
           <h2>CoW 执行复盘历史</h2>
           <div class="muted">记录满足候选条件后的报价、预检、阻断原因和最终状态，用于事后复盘。</div>
         </div>
-        <div id="cowAttemptHistorySource" class="review-source">source -</div>
+        <div id="cowAttemptHistorySource" class="review-source">来源 -</div>
       </div>
-      <div id="cowAttemptReviewConclusion" class="review-conclusion">绛夊緟澶嶇洏鍘嗗彶</div>
+      <div id="cowAttemptReviewConclusion" class="review-conclusion">等待复盘历史</div>
       <div id="cowAttemptReviewMetrics" class="review-metrics"></div>
       <div class="review-group" id="cowAttemptNotExecutableGroup">
         <div class="review-group-head">
-          <h3>等待 CoW quote / SDK 返回</h3>
+          <h3>等待 CoW 报价 / SDK 返回</h3>
           <div class="review-pager" id="cowAttemptNotExecutablePager"></div>
         </div>
         <div class="review-group-note" id="cowAttemptNotExecutableNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>SDK/绛夊緟鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>当前等待状态</th></tr></thead>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>当前等待状态</th></tr></thead>
             <tbody id="cowAttemptNotExecutableBody"></tbody>
           </table>
         </div>
@@ -260,7 +243,7 @@
         <div class="review-group-note" id="cowAttemptFailedNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>SDK/绛夊緟鐘舵€?/th><th>琛屶儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>失败原因</th></tr></thead>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>失败原因</th></tr></thead>
             <tbody id="cowAttemptFailedBody"></tbody>
           </table>
         </div>
@@ -273,7 +256,7 @@
         <div class="review-group-note" id="cowAttemptSuccessNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>SDK/绛夊緟鐘舵€?/th><th>琛屾儏绐楀彛</th><th>CoW 鏌ヨ</th><th>璐圭敤/鍒╂鼎</th><th>结果</th></tr></thead>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>结果</th></tr></thead>
             <tbody id="cowAttemptSuccessBody"></tbody>
           </table>
         </div>
@@ -282,7 +265,7 @@
         <table>
           <thead>
             <tr>
-              <th>鏃堕棿</th><th>缃戠粶</th><th>鍏戞崲瀵?/th><th>璺緞</th><th>鐘舵€?/th><th>绾埄娑?/th><th>鏈垚鍔熷師鍥?/th>
+              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>纯利润</th><th>未成功原因</th>
             </tr>
           </thead>
           <tbody id="cowAttemptHistoryBody"></tbody>
@@ -293,7 +276,7 @@
       <h2>行情触发资产</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>浠ｅ竵</th><th>娑ㄨ穼骞?/th><th>璧峰浠?/th><th>褰撳墠浠?/th><th>绐楀彛</th><th>鐘舵€?/th></tr></thead>
+          <thead><tr><th>代币</th><th>涨跌幅</th><th>起始价</th><th>当前价</th><th>窗口</th><th>状态</th></tr></thead>
           <tbody id="aaveBody"></tbody>
         </table>
       </div>
@@ -316,35 +299,7 @@
     const COW_ATTEMPT_PAGE_SIZE = 10;
     const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
     let latestCowAttemptHistoryPayload = null;
-    let latestCowSubmissionPausePayload = null;
-    /*
-    const COW_ATTEMPT_GROUP_META = {
-      not_executable: {
-        label: "鏈揪鍒版墽琛屾潯浠?,
-        bodyId: "cowAttemptNotExecutableBody",
-        pagerId: "cowAttemptNotExecutablePager",
-        noteId: "cowAttemptNotExecutableNote",
-        empty: "鏆傛棤鏈揪鍒版墽琛屾潯浠剁殑 CoW 澶嶇洏璁板綍",
-        retention: "淇濈暀 1 澶?,
-      },
-      execution_failed: {
-        label: "鎵ц澶辫触",
-        bodyId: "cowAttemptFailedBody",
-        pagerId: "cowAttemptFailedPager",
-        noteId: "cowAttemptFailedNote",
-        empty: "鏆傛棤鎵ц澶辫触璁板綍",
-        retention: "淇濈暀 7 澶?,
-      },
-      execution_success: {
-        label: "鎵ц鎴愬姛",
-        bodyId: "cowAttemptSuccessBody",
-        pagerId: "cowAttemptSuccessPager",
-        noteId: "cowAttemptSuccessNote",
-        empty: "鏆傛棤鎵ц鎴愬姛璁板綍",
-        retention: "闀挎湡淇濈暀",
-      },
-    };
-    */
+    let latestCowSubmissionPausePayload = {paused: true, pause_reason: "ui_initial_fail_closed"};
     const COW_ATTEMPT_GROUP_META = {
       not_executable: {
         label: "报价等待 / 报价失败 / 提交暂停 / SDK 等待",
@@ -554,8 +509,8 @@
       );
       const threshold = historyThreshold(row);
       const spread = review.window_spread_percent ?? row?.quote?.window_spread_percent;
-      const thresholdLine = `spread ${Number.isFinite(Number(spread)) ? Number(spread).toFixed(4) + "%" : "-"} / min ${threshold.adjusted_min_spread_percent || threshold.min_window_spread_percent || "-"}%`;
-      const sourceLine = `${review.price_source || row?.market_state?.price_source || "-"} | window ${review.window_seconds || row?.market_state?.window_seconds || "-"}s`;
+      const thresholdLine = `价差 ${Number.isFinite(Number(spread)) ? Number(spread).toFixed(4) + "%" : "-"} / 最低 ${threshold.adjusted_min_spread_percent || threshold.min_window_spread_percent || "-"}%`;
+      const sourceLine = `${review.price_source || row?.market_state?.price_source || "-"} | 窗口 ${review.window_seconds || row?.market_state?.window_seconds || "-"}s`;
       return [thresholdLine, sourceLine, ...priceLines].map(esc).join("<br>") || "-";
     };
     const historyQuoteHtml = row => {
@@ -566,7 +521,7 @@
       const signalTiming = timing.signal || {};
       const windowTiming = timing.binance_window || {};
       const hops = quote.hops || [];
-      if (!quote.quote_verified && !hops.length) return esc("waiting for CoW quote");
+      if (!quote.quote_verified && !hops.length) return esc("等待 CoW 报价");
       const hopLines = hops.map(hop =>
         `${hop.hop || "-"}: ${hop.sell_amount || "-"} ${displaySymbol(hop.sell_symbol || "")} -> ${hop.buy_amount || "-"} ${displaySymbol(hop.buy_symbol || "")} @ ${hop.exchange_rate || "-"} fee ${hop.fee_amount || "-"}`
       );
@@ -641,52 +596,6 @@
       }
       return row?.error ? [cowErrorSummary(row.error)] : [];
     };
-    /*
-    function cowAttemptReview(rows) {
-      const items = Array.isArray(rows) ? rows : [];
-      if (!items.length) {
-        return {
-          conclusion: "鏆傛棤鏈€杩?7 澶╁鐩樿褰曘€傝鎯呭€欓€夈€侀摼绾у€欓€夊拰 CoW 鎶ヤ环/鎵ц棰勬閮戒細鍐欏叆杩欓噷锛涜嫢瀹炴椂鍖哄凡鏈夊€欓€変絾杩欓噷浠嶄负绌猴紝璇烽噸鍚帶鍒跺彴鏈嶅姟璁╁悗绔矾鐢卞姞杞芥渶鏂颁唬鐮併€?,
-          metrics: ["璁板綍 0 鏉?, "閫氳繃妫€鏌?0 鏉?, "鍙彁浜?0 鏉?, "闃绘柇 0 鏉?],
-        };
-      }
-      const passed = items.filter(row => row?.checks_passed);
-      const submittable = items.filter(row => row?.can_submit_order);
-      const passedButDisabled = items.filter(row => row?.checks_passed && !row?.can_submit_order);
-      const blocked = items.filter(row => !row?.can_submit_order);
-      const reasonCounts = new Map();
-      for (const row of blocked) {
-        const reasons = historyReasonList(row);
-        for (const reason of reasons.length ? reasons : [precheckStatusLabel(row?.state)]) {
-          reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
-        }
-      }
-      const topReason = Array.from(reasonCounts.entries()).sort((a, b) => b[1] - a[1])[0] || null;
-      const latest = items[0];
-      const latestLine = `${fmtTime(latest?.created_at)} | ${networkLabel(latest?.network) || latest?.network || "-"} | ${latest?.pair || "-"} | ${precheckStatusLabel(latest?.state)} | ${historyPureProfit(latest)}`;
-      let conclusion = "";
-      if (submittable.length) {
-        conclusion = `澶嶇洏缁撹锛氭渶杩?${items.length} 鏉′腑鏈?${submittable.length} 鏉¤揪鍒板彲鎻愪氦鐘舵€侊紝闇€瑕侀噸鐐规牳瀵瑰疄闄呰鍗曟彁浜ゅ拰鎴愪氦鍥炴墽銆傛渶杩戜竴鏉★細${latestLine}`;
-      } else if (passedButDisabled.length) {
-        conclusion = `澶嶇洏缁撹锛氭渶杩?${items.length} 鏉′腑鏈?${passedButDisabled.length} 鏉℃姤浠枫€佷环鏍间繚鎶ゅ拰鍑€鍒╂鼎妫€鏌ラ€氳繃锛屼絾鐪熷疄涓嬪崟妯″潡浠嶅叧闂紝鎵€浠ユ病鏈夊疄鐩樻垚浜ゃ€傛渶杩戜竴鏉★細${latestLine}`;
-      } else if (topReason) {
-        conclusion = `澶嶇洏缁撹锛氭渶杩?${items.length} 鏉℃病鏈夊彲鎻愪氦浜ゆ槗锛屼富瑕侀樆鏂師鍥犳槸鈥?{topReason[0]}鈥濓紙${topReason[1]} 娆★級銆傛渶杩戜竴鏉★細${latestLine}`;
-      } else {
-        conclusion = `澶嶇洏缁撹锛氭渶杩?${items.length} 鏉℃病鏈夊彲鎻愪氦浜ゆ槗锛屼富瑕佸師鍥犻渶瑕佹煡鐪嬫槑缁嗙姸鎬併€傛渶杩戜竴鏉★細${latestLine}`;
-      }
-      return {
-        conclusion,
-        metrics: [
-          `璁板綍 ${items.length} 鏉,
-          `閫氳繃妫€鏌?${passed.length} 鏉,
-          `鍙彁浜?${submittable.length} 鏉,
-          `閫氳繃浣嗘湭涓嬪崟 ${passedButDisabled.length} 鏉,
-          `闃绘柇/澶辫触 ${blocked.length} 鏉,
-          `涓昏鍘熷洜 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"}`,
-        ],
-      };
-    }
-    */
     function cowAttemptReview(rows) {
       const items = Array.isArray(rows) ? rows : [];
       if (!items.length) {
@@ -741,7 +650,7 @@
     const supportText = support => {
       if (!support) return "CoW 支持：未检查";
       return support.supported
-        ? `CoW 支持：${support.cow_network} 可识别`
+        ? `CoW 支持：${support.cow_network} 已识别`
         : `CoW 支持：不支持 ${support.unsupported_tokens?.join(", ") || "-"}`;
     };
     const planInitial = plan => plan?.available ? `${plan.initial_amount || "-"} ${displaySymbol(plan.initial_symbol || "")}` : "-";
@@ -749,21 +658,21 @@
     const planProfit = plan => plan?.available ? `${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
     const basisLabel = basis => ({
       current_binance_buy_low: "当前盘面买入",
-      pre_change_binance_cross: "变化前价格换票",
+      pre_change_binance_cross: "变化前价格换算",
       current_binance_sell_high: "当前盘面卖出",
       stable_reference: "稳定币参考",
     }[basis] || basis || "-");
     const planMarketPrices = plan => plan?.available ? (plan.market_prices || []).map(item =>
-      `${displaySymbol(item.symbol)} | 鍓嶆湡浠?${item.start_price || "-"} | 瀹炴椂浠?${item.current_price || "-"} | 娑ㄨ穼 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
+      `${displaySymbol(item.symbol)} | 起始价 ${item.start_price || "-"} | 当前价 ${item.current_price || "-"} | 涨跌 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
     ).join("<br>") : "-";
     const planMarketPricesText = plan => plan?.available ? (plan.market_prices || []).map(item =>
-      `${displaySymbol(item.symbol)} | 鍓嶆湡浠?${item.start_price || "-"} | 瀹炴椂浠?${item.current_price || "-"} | 娑ㄨ穼 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
+      `${displaySymbol(item.symbol)} | 起始价 ${item.start_price || "-"} | 当前价 ${item.current_price || "-"} | 涨跌 ${plainPct(item.change_percent)} | ${item.price_source || "-"}`
     ).join("\n") : "-";
     const sourceLabel = source => ({
-      previous_window: "鍓嶆湡绐楀彛",
-      current_window: "褰撳墠绐楀彛",
-      query_quote: "CoW 鏌ヨ鎶ヤ环",
-    }[source] || source || "绛夊緟鏌ヨ");
+      previous_window: "前期窗口",
+      current_window: "当前窗口",
+      query_quote: "CoW 查询报价",
+    }[source] || source || "等待查询");
     const pricedToken = step => step.from_symbol === "USDC" ? step.to_symbol : step.from_symbol;
     const priceCandidateHtml = step => (step.price_candidates || []).length
       ? (step.price_candidates || []).map(item => `${esc(sourceLabel(item.source))} ${esc(item.price || "-")} USDC/${esc(displaySymbol(pricedToken(step)))}`).join(" | ")
@@ -828,7 +737,7 @@
       profit_below_threshold: "本地盈利诊断：低于旧阈值",
       blocked: "不能下单",
     }[status] || status || "未检查");
-    const precheckLine = item => `${item.price_guard_passed ? "閫氳繃" : "澶辫触"} ${item.path || "-"} | 鏌ヨ杈撳嚭 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 鏈€浣庢帴鏀?${item.min_buy_amount_after_fee || "-"} | 鐩爣 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
+    const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
     const precheckHtml = quote => {
       const check = quote?.execution_precheck;
       if (!check) return "下单条件：等待查询真实报价";
@@ -866,7 +775,7 @@
       `最终 Binance 估算：${planFinal(plan)} | slip ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
     ].join("\n") : `计划不可用：${plan?.reason || "-"}`;
     const planStepLine = executionStepLine;
-    const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `璁″垝涓嶅彲鐢細${esc(plan?.reason || "-")}`;
+    const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `计划不可用：${esc(plan?.reason || "-")}`;
     const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `hop ${item.hop || "-"} ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
     const costDetail = (quote, plan) => {
       const costs = quote?.costs || {};
@@ -929,26 +838,26 @@
       $("cowSupportedBottomTitle").textContent = `所有 CoW 支持代币跌幅前 ${limit}`;
       $("cowSupportedTopMeta").textContent = cowSupportedOverviewMeta(overview, "涨幅");
       $("cowSupportedBottomMeta").textContent = cowSupportedOverviewMeta(overview, "跌幅");
-      $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported top data</td></tr>';
-      $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">No CoW supported bottom data</td></tr>';
+      $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币涨幅数据</td></tr>';
+      $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币跌幅数据</td></tr>';
     };
     const rowsTable = (rows, sideLabel) => `<div class="table-wrap"><table>
       <thead><tr><th>#</th><th>代币</th><th>${esc(sideLabel)}</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
-      <tbody>${(rows || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No data</td></tr>'}</tbody>
+      <tbody>${(rows || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">暂无数据</td></tr>'}</tbody>
     </table></div>`;
     const networkClaimHtml = claim => `<div class="network-claim">
       <div class="network-claim-head">
         <h3>${esc(claim.label || claim.network || "-")} <span class="muted">(${esc(claim.chain_id || "-")})</span></h3>
         <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</span>
       </div>
-      <div class="context">source ${esc(claim.token_cache_source || "-")} | side &gt; ${esc(claim.min_side_change_percent ?? "0.3")}% | price &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | filtered ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
+      <div class="context">来源 ${esc(claim.token_cache_source || "-")} | 单边 &gt; ${esc(claim.min_side_change_percent ?? "0.3")}% | 价格 &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | 已过滤 ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
       <div class="mini-split">
         <div>${rowsTable(claim.top || [], "涨幅")}</div>
         <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
       </div>
     </div>`;
     const renderNetworkClaims = claims => {
-      $("networkClaims").innerHTML = (claims || []).map(networkClaimHtml).join("") || '<div class="muted">No CoW network support data</div>';
+      $("networkClaims").innerHTML = (claims || []).map(networkClaimHtml).join("") || '<div class="muted">暂无 CoW 网络支持数据</div>';
     };
     const networkClaimText = claim => [
       `${claim.label || claim.network || "-"} (${claim.chain_id || "-"}) | token ${claim.token_cache_count ?? "-"} | 命中 ${claim.supported_symbol_count ?? 0} | 候选 ${claim.pair_count ?? 0}`,
@@ -957,32 +866,26 @@
     ].join("\n");
 
     function routeBox(route, pair, network) {
-      const reason = route.priority_reason === "buy_loser_then_gainer" ? "priority" : "reverse";
+      const paused = cowAutomationPaused();
+      const reason = route.priority_reason === "buy_loser_then_gainer" ? "优先" : "逆向";
       const quote = route.cow_quote || null;
       const support = route.cow_support || quote?.cow_support || null;
       const plan = quote?.binance_execution_plan || route.binance_execution_plan || null;
       const pairRank = pair?.rank || route.pair_rank || "";
       const priorityReason = route.priority_reason || "";
       const pairName = pair?.pair || "";
+      const quoteButtonDisabled = false;
+      const checkButtonDisabled = !quote;
       const quoteBadge = quote
         ? `<span class="badge">${quote.viable ? "已报价未下单" : "报价失败"}</span>`
         : support
           ? `<span class="badge">${support.supported ? "支持" : "不支持"}</span>`
         : '<span class="badge">未报价</span>';
       const quoteMeta = quote
-        ? `final ${quote.final_amount || "-"} | delta ${quote.final_delta_amount || "-"}`
+        ? `最终数量 ${quote.final_amount || "-"} | 差额 ${quote.final_delta_amount || "-"}`
         : "等待查询 CoW 链上报价";
       const check = quote?.execution_precheck || null;
       const pureProfit = check?.pure_profit_amount || quote?.final_delta_amount || "-";
-      const autoReady = Boolean(check?.auto_execute_requested);
-      const canSubmit = Boolean(check?.can_submit_order);
-      const autoSwitchOn = Boolean($("autoExecuteToggle")?.checked);
-      const minProfitLabel = "意图条件";
-      const executeLabel = !autoSwitchOn
-        ? "自动执行检查关闭"
-        : autoReady
-        ? (canSubmit ? "可提交" : "等待提交/已暂停")
-        : `等待${minProfitLabel}`;
       const detail = quote
         ? `<div class="route-detail">
             <div>初始数量：${esc(quoteInitial(quote))}</div>
@@ -993,7 +896,7 @@
             <div>CoW 实时报价比例：${esc(quoteRates(quote))}</div>
             <div>CoW 预计结果：${esc(quoteFinal(quote))}</div>
             <div>预期收益：${esc(planProfit(plan))}</div>
-            <div>绾埄娑︼細${esc(pureProfit)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
+            <div>纯利润：${esc(pureProfit)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
             <div>${precheckHtml(quote)}</div>
             ${costDetail(quote, plan)}
             ${quote.viable ? "" : `<div>报价失败原因：${esc(quote.error || "-")}</div>`}
@@ -1011,14 +914,13 @@
             ${costDetail(null, plan)}
           </div>`;
       return `<div class="route-box">
-        <div class="route-top"><span class="route-no">Route ${esc(route.route_no || "-")} | ${reason}</span>${quoteBadge}</div>
+        <div class="route-top"><span class="route-no">链路 ${esc(route.route_no || "-")} | ${reason}</span>${quoteBadge}</div>
         <div class="route-path">${esc(routePath(route))}</div>
-        <div class="route-meta">start ${esc(displaySymbol(route.initial_symbol || "USDC"))}<br>${esc(quoteMeta)}</div>
+        <div class="route-meta">起始 ${esc(displaySymbol(route.initial_symbol || "USDC"))}<br>${esc(quoteMeta)}</div>
         ${detail}
         <div class="route-actions">
-          <button data-route-action="quote" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}">查询真实报价</button>
-          <button data-route-action="execute-check" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}">检查下单条件</button>
-          <button class="execute-button ${autoSwitchOn && autoReady && canSubmit ? "ready" : ""}" data-route-action="auto-execute" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}" ${autoSwitchOn && canSubmit ? "" : "disabled"}>${esc(executeLabel)}</button>
+          <button data-route-action="quote" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" ${quoteButtonDisabled ? "disabled" : ""}>查询真实报价</button>
+          <button data-route-action="execute-check" data-cow-network="${esc(network || "")}" data-pair-rank="${esc(pairRank)}" data-priority-reason="${esc(priorityReason)}" data-pair="${esc(pairName)}" ${checkButtonDisabled ? "disabled" : ""}>检查下单条件</button>
         </div>
       </div>`;
     }
@@ -1049,7 +951,7 @@
         const checked = selectedSet.has(item.network) ? " checked" : "";
         return `<label class="network-check"><input type="checkbox" name="cow_network" value="${esc(item.network)}"${checked}>${esc(label)}</label>`;
       }).join("");
-      $("refreshMeta").textContent = selectedSet.size ? `CoW 澶氶摼 ${Array.from(selectedSet).join(", ")}` : "CoW -";
+      $("refreshMeta").textContent = selectedSet.size ? `CoW 多链 ${Array.from(selectedSet).join(", ")}` : "CoW -";
       renderCowIdentity(selectedCowConfig(primaryNetwork()));
     }
     function quoteKey(pairRank, priorityReason, pair) {
@@ -1068,7 +970,7 @@
     function copyText(text, label) {
       const value = String(text || "").trim();
       if (!value) {
-        $("message").textContent = "娌℃湁鍙鍒剁殑鍐呭";
+        $("message").textContent = "没有可复制的内容";
         return Promise.resolve(false);
       }
       const finish = () => {
@@ -1092,9 +994,9 @@
       const quote = route.cow_quote || null;
       const support = route.cow_support || quote?.cow_support || null;
       const plan = quote?.binance_execution_plan || route.binance_execution_plan || null;
-      const reason = route.priority_reason === "buy_loser_then_gainer" ? "priority" : "reverse";
+      const reason = route.priority_reason === "buy_loser_then_gainer" ? "优先" : "逆向";
       return [
-        `Route ${route.route_no || "-"} | ${reason} | ${pair?.pair || "-"}`,
+        `链路 ${route.route_no || "-"} | ${reason} | ${pair?.pair || "-"}`,
         `路径：${routePath(route)}`,
         `初始数量：${quote ? quoteInitial(quote) : planInitial(plan)}`,
         `Binance 估算目标：${planFinal(plan)}`,
@@ -1111,14 +1013,14 @@
     }
     function pairText(pair) {
       return [
-        `#${pair.rank || "-"} ${displaySymbol(pair.x_symbol)} / ${displaySymbol(pair.y_symbol)} | spread ${pair.window_spread_percent ?? "-"}`,
+        `#${pair.rank || "-"} ${displaySymbol(pair.x_symbol)} / ${displaySymbol(pair.y_symbol)} | 价差 ${pair.window_spread_percent ?? "-"}`,
         ...((pair.route_results || []).map(route => routeText(route, pair))),
       ].join("\n");
     }
     function quoteRowText(row, index) {
       const plan = row.binance_execution_plan || null;
       return [
-        `#${index + 1} ${row.pair || "-"} | ${row.viable ? "quotable" : "failed"}`,
+        `#${index + 1} ${row.pair || "-"} | ${row.viable ? "可报价" : "失败"}`,
         `路径：${quotePath(row)}`,
         `初始数量：${quoteInitial(row)}`,
         "CoW 链上报价流程：",
@@ -1234,7 +1136,7 @@
       $("networkOpportunityCards").innerHTML = panels.map(networkOpportunityCard).join("") || '<div class="muted">请选择至少一条 CoW 网络</div>';
     }
     async function quoteRouteGroup(network, pairRank) {
-      $("message").textContent = `姝ｅ湪鏌ヨ ${networkLabel(network)} 绗?${pairRank || "1"} 缁?CoW 閾句笂鐪熷疄鎶ヤ环`;
+      $("message").textContent = `正在查询 ${networkLabel(network)} 第 ${pairRank || "1"} 组 CoW 链上真实报价`;
       await refreshCowQuotes(network);
     }
     function routeQuoteForButton(button) {
@@ -1306,7 +1208,7 @@
         $("notionalUsd").textContent = "-";
         $("quoteState").textContent = "等待 CoW SDK 报价";
       }
-      $("refreshMeta").textContent = `updated ${fmtTime(data.observed_at)} | ${data.market_state_source || data.price_source || "-"}${data.fallback_reason ? ` | ${data.fallback_reason}` : ""}`;
+      $("refreshMeta").textContent = `更新 ${fmtTime(data.observed_at)} | ${data.market_state_source || data.price_source || "-"}${data.fallback_reason ? ` | ${data.fallback_reason}` : ""}`;
     }
     function renderCowQuoteTable() {
       const opportunities = activeNetworkPanels().flatMap(panel =>
@@ -1318,12 +1220,12 @@
         <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
         <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "可提交" : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
       </tr>`).join("");
-      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">鏆傛棤鍙睍绀虹殑 CoW 鎶ヤ环锛涘€欓€変細缁х画鎸夋剰鍥炬ā寮忚嚜鍔ㄨ浠?/td></tr>';
+      $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">暂无可展示的 CoW 报价；候选会按意图模式继续自动检查。</td></tr>';
       const best = opportunities[0] || null;
       $("notionalUsd").textContent = best?.final_delta_amount || "-";
       $("notionalUsd").title = best ? `${networkLabel(best.display_network)} | ${best.pair || "-"} | ${(best.path || []).join(" -> ")}` : "";
       const quotedRoutes = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.quotes?.route_count || 0), 0);
-      $("quoteState").innerHTML = `<span class="badge">CoW 澶氶摼</span><span class="muted">${esc(opportunities.length)} opportunity | ${esc(quotedRoutes)} routes quoted</span>`;
+      $("quoteState").innerHTML = `<span class="badge">CoW 多链</span><span class="muted">${esc(opportunities.length)} 个机会 | ${esc(quotedRoutes)} 条路由已报价</span>`;
     }
     const clientCowAttemptCategory = row => {
       if (row?.review_category) return row.review_category;
@@ -1390,14 +1292,14 @@
       const pageRows = rows.slice(page * COW_ATTEMPT_PAGE_SIZE, (page + 1) * COW_ATTEMPT_PAGE_SIZE);
       $(meta.noteId).textContent = cowAttemptGroupNote(category, rows);
       $(meta.bodyId).innerHTML = pageRows.map(cowAttemptRowHtml).join("") || `<tr><td colspan="9">${esc(meta.empty)}</td></tr>`;
-      $(meta.pagerId).innerHTML = `<button data-cow-attempt-page="${esc(category)}" data-page-delta="-1" ${page <= 0 ? "disabled" : ""}>Prev</button><span>${total ? page + 1 : 0}/${total ? pageCount : 0} | ${total} 条</span><button data-cow-attempt-page="${esc(category)}" data-page-delta="1" ${page >= pageCount - 1 || !total ? "disabled" : ""}>Next</button>`;
+      $(meta.pagerId).innerHTML = `<button data-cow-attempt-page="${esc(category)}" data-page-delta="-1" ${page <= 0 ? "disabled" : ""}>上一页</button><span>${total ? page + 1 : 0}/${total ? pageCount : 0} | ${total} 条</span><button data-cow-attempt-page="${esc(category)}" data-page-delta="1" ${page >= pageCount - 1 || !total ? "disabled" : ""}>下一页</button>`;
     }
     function renderCowAttemptHistory(data) {
       latestCowAttemptHistoryPayload = data || {};
       const groups = cowAttemptGroups(data || {});
       const rows = Object.values(groups).flat().sort((left, right) => String(right.created_at || right.observed_at || "").localeCompare(String(left.created_at || left.observed_at || "")));
       const review = cowAttemptReview(rows);
-      $("cowAttemptHistorySource").textContent = `source ${data?.source || "-"} | total ${rows.length} rows`;
+      $("cowAttemptHistorySource").textContent = `来源 ${data?.source || "-"} | 共 ${rows.length} 条`;
       $("cowAttemptReviewConclusion").textContent = review.conclusion;
       $("cowAttemptReviewMetrics").innerHTML = [
         `等待/暂停 ${groups.not_executable.length}`,
@@ -1419,7 +1321,7 @@
         $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="9">${esc(error.message)}</td></tr>`;
         for (const meta of Object.values(COW_ATTEMPT_GROUP_META)) {
           $(meta.bodyId).innerHTML = `<tr><td colspan="9">${esc(error.message)}</td></tr>`;
-          $(meta.noteId).textContent = "鍔犺浇澶辫触";
+          $(meta.noteId).textContent = "加载失败";
           $(meta.pagerId).innerHTML = "";
         }
       }
@@ -1429,16 +1331,16 @@
       const queue = daemon.queue || {};
       const counts = queue.counts || {};
       $("cowQueueStatus").textContent = [
-        daemon.running ? "daemon running" : (daemon.enabled ? "daemon waiting" : "daemon disabled"),
-        `size ${queue.size || 0}`,
-        `pending ${counts.pending || 0}`,
-        `processing ${counts.processing || 0}`,
-        `retry ${counts.retry_wait || 0}`,
-        `ready ${counts.ready_not_submitted || 0}`,
-        `submit ${counts.ready_to_submit || 0}`,
-        `quoted ${counts.quoted || 0}`,
-        `blocked ${counts.blocked || 0}`,
-        `failed ${counts.failed || 0}`,
+        daemon.running ? "守护线程运行中" : (daemon.enabled ? "守护线程等待中" : "守护线程已关闭"),
+        `队列 ${queue.size || 0}`,
+        `待处理 ${counts.pending || 0}`,
+        `处理中 ${counts.processing || 0}`,
+        `重试等待 ${counts.retry_wait || 0}`,
+        `已准备未提交 ${counts.ready_not_submitted || 0}`,
+        `可提交 ${counts.ready_to_submit || 0}`,
+        `已报价 ${counts.quoted || 0}`,
+        `已阻断 ${counts.blocked || 0}`,
+        `失败 ${counts.failed || 0}`,
       ].join(" | ");
       const rows = (data?.items || []).map((item, index) => `<tr>
         <td>${index + 1}</td>
@@ -1449,7 +1351,7 @@
         <td>${esc(item.priority_score || item.profit_hint || "-")}</td>
         <td>${esc(item.attempts || 0)}</td>
       </tr>`).join("");
-      $("cowQueueBody").innerHTML = rows || '<tr><td colspan="7">No queued CoW candidates</td></tr>';
+      $("cowQueueBody").innerHTML = rows || '<tr><td colspan="7">暂无排队的 CoW 候选</td></tr>';
     }
     async function refreshCowCandidateQueue() {
       try {
@@ -1460,31 +1362,36 @@
     }
     function renderCowSubmissionPause(data) {
       latestCowSubmissionPausePayload = data || null;
-      const paused = Boolean(data?.paused);
-      $("cowSubmissionPauseStatus").textContent = paused ? "paused" : "running";
-      $("cowSubmissionPauseStatus").className = paused ? "negative" : "positive";
-      $("cowSubmissionPauseReason").textContent = data?.pause_reason || "manual control";
-      $("cowSubmissionPauseUpdatedAt").textContent = `updated ${fmtTime(data?.updated_at)}`;
-      $("cowSubmissionPauseLastChange").textContent = paused ? `paused at ${fmtTime(data?.last_paused_at || data?.updated_at)}` : `resumed at ${fmtTime(data?.last_resumed_at || data?.updated_at)}`;
-      $("cowSubmissionPauseMessage").textContent = paused ? "CoW 交易已关闭" : "CoW 交易已开启";
-      $("cowSubmissionPauseToggleBtn").textContent = paused ? "开启 CoW 交易" : "关闭 CoW 交易";
-      $("quoteBtn").disabled = paused;
+      const paused = data?.paused !== false;
+      $("cowSubmissionEnabledCheckbox").checked = !paused;
+      $("cowSubmissionEnabledCheckbox").disabled = false;
+      $("cowTradingSwitchLabel").classList.toggle("enabled", !paused);
+      $("cowTradingSwitchLabel").classList.toggle("disabled", paused);
+      $("cowSubmissionPauseMessage").textContent = paused
+        ? "CoW SDK 交易关闭：报价和界面照常显示，不会提交交易"
+        : "CoW SDK 交易开启：允许提交前检查和交易提交";
+      $("quoteBtn").disabled = false;
+      renderNetworkOpportunityCards();
     }
     function cowAutomationPaused() {
-      return Boolean(latestCowSubmissionPausePayload?.paused);
+      return latestCowSubmissionPausePayload?.paused !== false;
     }
     async function refreshCowSubmissionPause() {
       try {
         renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause"));
       } catch (error) {
-        $("cowSubmissionPauseMessage").textContent = error.message;
+        latestCowSubmissionPausePayload = {paused: true, pause_reason: "pause_status_unavailable"};
+        $("cowSubmissionEnabledCheckbox").checked = false;
+        $("quoteBtn").disabled = false;
+        $("cowTradingSwitchLabel").classList.toggle("enabled", false);
+        $("cowTradingSwitchLabel").classList.toggle("disabled", true);
+        renderNetworkOpportunityCards();
+        $("cowSubmissionPauseMessage").textContent = `开关状态读取失败，默认保持关闭：${error.message}`;
       }
     }
     async function setCowSubmissionPause(paused, reason = null) {
-      const btn = $("cowSubmissionPauseToggleBtn");
-      const old = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = paused ? "开启中" : "关闭中";
+      const checkbox = $("cowSubmissionEnabledCheckbox");
+      checkbox.disabled = true;
       try {
         renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause", {
           method: "POST",
@@ -1493,28 +1400,14 @@
         }));
       } catch (error) {
         $("cowSubmissionPauseMessage").textContent = error.message;
+        await refreshCowSubmissionPause();
       } finally {
-        btn.disabled = false;
-        btn.textContent = old;
+        checkbox.disabled = false;
       }
     }
-    async function clearCowSubmissionPause() {
-      const btn = $("cowSubmissionPauseClearBtn");
-      const old = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "开启中";
-      try {
-        renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause/clear", {method: "POST", body: "{}"}));
-      } catch (error) {
-        $("cowSubmissionPauseMessage").textContent = error.message;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = old;
-      }
-    }
-    async function toggleCowSubmissionPause() {
-      const paused = !Boolean(latestCowSubmissionPausePayload?.paused);
-      return setCowSubmissionPause(paused, paused ? "manual_automation_pause" : null);
+    async function updateCowSubmissionFromCheckbox() {
+      const enabled = Boolean($("cowSubmissionEnabledCheckbox").checked);
+      return setCowSubmissionPause(!enabled, enabled ? null : "manual_automation_pause");
     }
     function renderCowQuotes(data, network) {
       latestCowQuotes = data || null;
@@ -1529,7 +1422,7 @@
       renderNetworkOpportunityCards();
       renderCowQuoteTable();
       refreshCowAttemptHistory();
-      $("cowQuoteContext").textContent = `CoW ${selectedNetworkIds().join(", ") || "-"} | 榛樿璐︽埛`;
+      $("cowQuoteContext").textContent = `CoW ${selectedNetworkIds().join(", ") || "-"} | 默认账户`;
       $("cowQuoteContext").title = selectedNetworkIds().map(item => `${item}: ${selectedCowConfig(item)?.owner || "-"}`).join("\n");
     }
     async function loadCowConfig() {
@@ -1550,7 +1443,7 @@
         const amount = $("quoteAmountInput").value || "1000";
         if (!networks.length) {
           renderNetworkOpportunityCards();
-          throw new Error("璇疯嚦灏戦€夋嫨涓€鏉?CoW 缃戠粶");
+          throw new Error("请至少选择一条 CoW 网络");
         }
         if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
         const data = await api(`/api/binance-market/states?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&cow_networks=${encodeURIComponent(networks.join(","))}&min_spread_percent=${encodeURIComponent(minSpread)}&amount=${encodeURIComponent(amount)}`);
@@ -1560,11 +1453,7 @@
         }
         refreshCowAttemptHistory();
         refreshCowCandidateQueue();
-        if (cowAutomationPaused()) {
-          $("quoteState").innerHTML = `<span class="badge">CoW 交易关闭</span><span class="muted">waiting for manual switch</span>`;
-        } else {
-          autoRefreshCowQuotes(data).catch(error => { $("message").textContent = error.message; });
-        }
+        autoRefreshCowQuotes(data).catch(error => { $("message").textContent = error.message; });
       } catch (error) {
         $("message").textContent = error.message;
       } finally {
@@ -1573,11 +1462,6 @@
     }
     async function refreshCowQuotes(network = null) {
       if (cowQuoteRefreshInFlight) return;
-      if (cowAutomationPaused()) {
-        $("message").textContent = "CoW 交易开关关闭，未请求 CoW SDK 报价";
-        $("quoteState").innerHTML = `<span class="badge">CoW 交易关闭</span><span class="muted">waiting for manual switch</span>`;
-        return;
-      }
       cowQuoteRefreshInFlight = true;
       try {
         $("message").textContent = "";
@@ -1586,7 +1470,7 @@
         const networks = network ? [network] : selectedNetworkIds();
         const amount = $("quoteAmountInput").value || "1000";
         const minSpread = minSpreadValue();
-        if (!networks.length) throw new Error("璇疯嚦灏戦€夋嫨涓€鏉?CoW 缃戠粶");
+        if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
         if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
         await Promise.all(networks.map(async cowNetwork => {
           const data = await api(`/api/binance-market/cow-quotes?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}&quote_timeout_seconds=8`);
@@ -1606,7 +1490,7 @@
       if (now - lastAutoCowQuoteAt < AUTO_COW_QUOTE_MIN_INTERVAL_MS) return;
       lastAutoCowQuoteKey = key;
       lastAutoCowQuoteAt = now;
-      $("quoteState").innerHTML = `<span class="badge">CoW 鑷姩璇环</span><span class="muted">fetching real quote for displayed candidates</span>`;
+      $("quoteState").innerHTML = `<span class="badge">CoW 自动报价</span><span class="muted">正在为显示的候选获取真实报价</span>`;
       await refreshCowQuotes();
     }
     async function refreshCowSupport(network = null) {
@@ -1617,7 +1501,7 @@
         const networks = network ? [network] : selectedNetworkIds();
         const amount = $("quoteAmountInput").value || "1000";
         const minSpread = minSpreadValue();
-        if (!networks.length) throw new Error("璇疯嚦灏戦€夋嫨涓€鏉?CoW 缃戠粶");
+        if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
         if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
         await Promise.all(networks.map(async cowNetwork => {
           const data = await api(`/api/binance-market/cow-support?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}`);
@@ -1630,7 +1514,7 @@
         }));
         const supportedRoutes = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.support?.supported_route_count || 0), 0);
         const routeCount = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.support?.route_count || 0), 0);
-        $("quoteState").innerHTML = `<span class="badge">CoW 澶氶摼</span><span class="muted">${esc(supportedRoutes)} / ${esc(routeCount)} supported</span>`;
+        $("quoteState").innerHTML = `<span class="badge">CoW 多链</span><span class="muted">${esc(supportedRoutes)} / ${esc(routeCount)} 条路由支持</span>`;
       } catch (error) {
         $("message").textContent = error.message;
       }
@@ -1639,7 +1523,7 @@
       try {
         const networks = (cowConfig?.networks || []).filter(item => !item.testnet).map(item => item.network);
         const targets = networks.length ? networks : selectedNetworkIds();
-        $("message").textContent = `姝ｅ湪鍒锋柊 ${targets.length} 涓?CoW 涓荤綉鏀寔浠ｅ竵`;
+        $("message").textContent = `正在刷新 ${targets.length} 个 CoW 主网支持代币`;
         const refreshed = [];
         for (const network of targets) {
           const response = await fetch(`/api/binance-market/cow-tokens/refresh?cow_network=${encodeURIComponent(network)}`, {method: "POST", headers: {"Accept": "application/json"}});
@@ -1649,7 +1533,7 @@
         }
         latestCowQuotes = null;
         latestCowSupport = null;
-        $("message").textContent = `CoW 涓荤綉鏀寔浠ｅ竵宸插埛鏂帮細${refreshed.join(" | ")}`;
+        $("message").textContent = `CoW 主网支持代币已刷新：${refreshed.join(" | ")}`;
         await refresh();
         await refreshCowSupport();
       } catch (error) {
@@ -1660,11 +1544,9 @@
     $("refreshTokensBtn").onclick = refreshCowTokens;
     $("supportBtn").onclick = refreshCowSupport;
     $("quoteBtn").onclick = refreshCowQuotes;
-    $("cowSubmissionPauseToggleBtn").onclick = toggleCowSubmissionPause;
-    $("cowSubmissionPauseClearBtn").onclick = clearCowSubmissionPause;
-    $("cowSubmissionPauseRefreshBtn").onclick = refreshCowSubmissionPause;
-    $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "椤甸潰淇℃伅").catch(error => { $("message").textContent = error.message; });
-    $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 鎶ヤ环" : "椤甸潰淇℃伅").catch(error => { $("message").textContent = error.message; });
+    $("cowSubmissionEnabledCheckbox").onchange = updateCowSubmissionFromCheckbox;
+    $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "页面信息").catch(error => { $("message").textContent = error.message; });
+    $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 报价" : "页面信息").catch(error => { $("message").textContent = error.message; });
     $("cowExecutionReviewSection").onclick = event => {
       const button = event.target.closest("button[data-cow-attempt-page]");
       if (!button) return;
@@ -1678,12 +1560,6 @@
       if (button.dataset.routeAction === "quote") {
         quoteRouteGroup(button.dataset.cowNetwork, button.dataset.pairRank).catch(error => { $("message").textContent = error.message; });
       } else if (button.dataset.routeAction === "execute-check") {
-        executePrecheck(button);
-      } else if (button.dataset.routeAction === "auto-execute") {
-        if (!$("autoExecuteToggle").checked) {
-          $("message").textContent = "鑷姩鎵ц妫€鏌ュ凡鍏抽棴";
-          return;
-        }
         executePrecheck(button);
       }
     };
@@ -1700,12 +1576,16 @@
     $("sideLimitSelect").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };
     $("quoteLimitSelect").onchange = refreshCowSupport;
     $("quoteAmountInput").onchange = refreshCowSupport;
-    $("autoExecuteToggle").onchange = renderNetworkOpportunityCards;
     $("minSpreadInput").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };
-    loadCowConfig().then(() => refresh().then(refreshCowSupport));
+    async function bootDexArbitragePanel() {
+      await refreshCowSubmissionPause();
+      await loadCowConfig();
+      await refresh();
+      await refreshCowSupport();
+    }
+    bootDexArbitragePanel().catch(error => { $("message").textContent = error.message; });
     refreshCowAttemptHistory();
     refreshCowCandidateQueue();
-    refreshCowSubmissionPause();
     setInterval(refresh, 1000);
     setInterval(refreshCowCandidateQueue, 5000);
     setInterval(refreshCowSubmissionPause, 5000);

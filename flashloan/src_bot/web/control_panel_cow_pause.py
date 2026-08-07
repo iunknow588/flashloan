@@ -10,8 +10,8 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 COW_SUBMISSION_PAUSE_GUARD_PATH = SRC_ROOT / "runtime" / "cache" / "cow_submission_pause_guard.json"
 
 _DEFAULT_STATE: dict[str, Any] = {
-    "paused": False,
-    "pause_reason": None,
+    "paused": True,
+    "pause_reason": "startup_transaction_switch_off",
     "updated_at": None,
     "last_paused_at": None,
     "last_resumed_at": None,
