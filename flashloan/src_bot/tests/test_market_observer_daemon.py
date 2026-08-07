@@ -9,4 +9,4 @@ def test_market_observer_daemon_uses_full_binance_velocity_mode(monkeypatch):
 
     assert updates["BINANCE_SYMBOL_SELECTION"] == "velocity"
     assert updates["BINANCE_TOP_SYMBOL_LIMIT"] == "0"
-    assert updates["BINANCE_VELOCITY_SIDE_LIMIT"] == "5"
+    assert updates["BINANCE_VELOCITY_SIDE_LIMIT"] == "50"

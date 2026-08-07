@@ -54,6 +54,17 @@ def cow_submission_paused(path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH) -> bool:
     return bool(load_cow_submission_pause_guard(path).get("paused"))
 
 
+def disable_cow_submission_for_startup(
+    path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+) -> dict[str, Any]:
+    """Require an explicit UI action before the CoW flow can submit orders."""
+    return set_cow_submission_pause_guard(
+        paused=True,
+        reason="startup_transaction_switch_off",
+        path=path,
+    )
+
+
 def set_cow_submission_pause_guard(
     *,
     paused: bool,

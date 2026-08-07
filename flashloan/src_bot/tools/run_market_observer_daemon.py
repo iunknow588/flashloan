@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+from strategy.limits import DEFAULT_BINANCE_RAW_SIDE_LIMIT
+
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
@@ -15,8 +17,14 @@ def configure_market_observer_env() -> dict[str, str]:
     updates = {
         "BINANCE_SYMBOL_SELECTION": "velocity",
         "BINANCE_TOP_SYMBOL_LIMIT": "0",
-        "BINANCE_VELOCITY_SIDE_LIMIT": os.getenv("BINANCE_VELOCITY_SIDE_LIMIT", "5"),
-        "BINANCE_CANDIDATE_DB_SIDE_LIMIT": os.getenv("BINANCE_CANDIDATE_DB_SIDE_LIMIT", "5"),
+        "BINANCE_VELOCITY_SIDE_LIMIT": os.getenv(
+            "BINANCE_VELOCITY_SIDE_LIMIT",
+            str(DEFAULT_BINANCE_RAW_SIDE_LIMIT),
+        ),
+        "BINANCE_CANDIDATE_DB_SIDE_LIMIT": os.getenv(
+            "BINANCE_CANDIDATE_DB_SIDE_LIMIT",
+            "10",
+        ),
         "BINANCE_WS_CHUNK_SIZE": os.getenv("BINANCE_WS_CHUNK_SIZE", "200"),
         "AAVE_VERIFICATION_ENABLED": os.getenv("AAVE_VERIFICATION_ENABLED", "true"),
         "REPORT_ONLY_ALERTS": os.getenv("REPORT_ONLY_ALERTS", "true"),

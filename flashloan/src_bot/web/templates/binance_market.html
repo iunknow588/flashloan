@@ -192,14 +192,14 @@
       </div>
     </section>
     <section class="card" style="margin-top:18px">
-      <h2>CoW 自动流程暂停窗口</h2>
+      <h2>CoW 交易开关</h2>
       <div class="cow-pause-actions">
-        <button id="cowSubmissionPauseToggleBtn" class="primary">暂停自动流程</button>
-        <button id="cowSubmissionPauseClearBtn">恢复自动流程</button>
+        <button id="cowSubmissionPauseToggleBtn" class="primary">开启 CoW 交易</button>
+        <button id="cowSubmissionPauseClearBtn">开启 CoW 交易</button>
         <button id="cowSubmissionPauseRefreshBtn">刷新状态</button>
         <span id="cowSubmissionPauseMessage" class="context">waiting for pause state</span>
       </div>
-      <div class="cow-pause-note">暂停后，页面行情仍可刷新；CoW 候选入队、复盘写库/写 JSONL、后台自动报价和真实提交都会停止。</div>
+      <div class="cow-pause-note">系统启动时默认关闭；只有手动开启后，CoW 候选入队、后台报价和真实交易提交才会执行。</div>
       <div class="cow-pause-state">
         <span id="cowSubmissionPauseStatus">-</span>
         <span id="cowSubmissionPauseReason">-</span>
@@ -209,7 +209,7 @@
     </section>
     <section class="split" style="margin-top:18px">
       <div class="card">
-        <h2 id="rawTopTitle">Binance 原始涨幅前 5</h2>
+        <h2 id="rawTopTitle">Binance 原始涨幅前 50</h2>
         <div class="context">鍘熷绐楀彛鎺掑簭锛氫粎鎺掗櫎浠锋牸浣庝簬 0.01U銆?/div>
         <div class="table-wrap">
           <table>
@@ -219,7 +219,7 @@
         </div>
       </div>
       <div class="card">
-        <h2 id="rawBottomTitle">Binance 原始跌幅前 5</h2>
+        <h2 id="rawBottomTitle">Binance 原始跌幅前 50</h2>
         <div class="context">鍘熷绐楀彛鎺掑簭锛氫粎鎺掗櫎浠锋牸浣庝簬 0.01U銆?/div>
         <div class="table-wrap">
           <table>
@@ -1148,9 +1148,9 @@
         `动态交易门槛：${thresholdBreakdownText(cowFilter.threshold_detail || {})}`,
         `候选路径：${data.pair_count ?? 0}`,
         "",
-        tableText(`Binance 原始涨幅前 ${data.top_limit || 5}`, data.raw_top || []),
+        tableText(`Binance 原始涨幅前 ${data.top_limit || 50}`, data.raw_top || []),
         "",
-        tableText(`Binance 原始跌幅前 ${data.bottom_limit || 5}`, data.raw_bottom || []),
+        tableText(`Binance 原始跌幅前 ${data.bottom_limit || 50}`, data.raw_bottom || []),
         "",
         cowSupportedText(`所有 CoW 支持代币涨幅前 ${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.top || []),
         "",
@@ -1291,8 +1291,8 @@
       $("bestPair").textContent = totalPairs ? "waiting for CoW" : "-";
       $("rawTopBody").innerHTML = (data.raw_top || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw top data</td></tr>';
       $("rawBottomBody").innerHTML = (data.raw_bottom || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">No raw bottom data</td></tr>';
-      $("rawTopTitle").textContent = `Binance 原始涨幅前 ${data.top_limit || 5}`;
-      $("rawBottomTitle").textContent = `Binance 原始跌幅前 ${data.bottom_limit || 5}`;
+      $("rawTopTitle").textContent = `Binance 原始涨幅前 ${data.top_limit || 50}`;
+      $("rawBottomTitle").textContent = `Binance 原始跌幅前 ${data.bottom_limit || 50}`;
       renderCowSupportedOverview(data.cow_supported_overview || null);
       renderNetworkClaims(data.cow_network_claims || []);
       $("pairTitle").textContent = "每条选中链仅展示 1 组 CoW 支持稳定币闭环套利候选路径";
@@ -1466,8 +1466,8 @@
       $("cowSubmissionPauseReason").textContent = data?.pause_reason || "manual control";
       $("cowSubmissionPauseUpdatedAt").textContent = `updated ${fmtTime(data?.updated_at)}`;
       $("cowSubmissionPauseLastChange").textContent = paused ? `paused at ${fmtTime(data?.last_paused_at || data?.updated_at)}` : `resumed at ${fmtTime(data?.last_resumed_at || data?.updated_at)}`;
-      $("cowSubmissionPauseMessage").textContent = paused ? "CoW 自动流程已暂停" : "CoW 自动流程运行中";
-      $("cowSubmissionPauseToggleBtn").textContent = paused ? "恢复自动流程" : "暂停自动流程";
+      $("cowSubmissionPauseMessage").textContent = paused ? "CoW 交易已关闭" : "CoW 交易已开启";
+      $("cowSubmissionPauseToggleBtn").textContent = paused ? "开启 CoW 交易" : "关闭 CoW 交易";
     }
     async function refreshCowSubmissionPause() {
       try {
@@ -1480,7 +1480,7 @@
       const btn = $("cowSubmissionPauseToggleBtn");
       const old = btn.textContent;
       btn.disabled = true;
-      btn.textContent = paused ? "暂停中" : "恢复中";
+      btn.textContent = paused ? "开启中" : "关闭中";
       try {
         renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause", {
           method: "POST",
@@ -1498,7 +1498,7 @@
       const btn = $("cowSubmissionPauseClearBtn");
       const old = btn.textContent;
       btn.disabled = true;
-      btn.textContent = "恢复中";
+      btn.textContent = "开启中";
       try {
         renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause/clear", {method: "POST", body: "{}"}));
       } catch (error) {

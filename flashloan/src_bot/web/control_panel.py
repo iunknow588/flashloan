@@ -70,6 +70,7 @@ import web.control_panel_liquidation_scan as liquidation_scan_module
 import web.control_panel_liquidation_execute as liquidation_execute
 import web.control_panel_market as market_panel
 from web.control_panel_app import create_control_panel_app
+from web.control_panel_cow_pause import disable_cow_submission_for_startup
 from web.observer_runtime_service import ObserverRuntimeService
 
 for _module in (
@@ -172,7 +173,7 @@ observer_start_progress = observer_runtime_service.observer_start_progress
 control_status = observer_runtime_service.control_status
 
 VELOCITY_SIDE_LIMIT = 100
-SUMMARY_SIDE_LIMIT = 5
+SUMMARY_SIDE_LIMIT = 50
 SUMMARY_INITIAL_AMOUNT = 100.0
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
 OBSERVER_START_TIMEOUT_SECONDS = parse_env_int("OBSERVER_START_TIMEOUT_SECONDS", 60, minimum=1)[0]
@@ -1144,6 +1145,7 @@ app = create_control_panel_app(sys.modules[__name__])
 
 
 if __name__ == "__main__":
+    disable_cow_submission_for_startup()
     initialize_liquidation_runtime()
     initialize_cow_arbitrage_runtime()
     app.run(host="0.0.0.0", port=parse_env_int("PORT", 5000, minimum=1)[0])

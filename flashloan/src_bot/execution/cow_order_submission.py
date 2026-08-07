@@ -131,6 +131,9 @@ def submit_cow_flashloan_order(
     timeout_seconds: int | float | None = None,
 ) -> dict[str, Any]:
     readiness = submission_script_ready()
+    from web.control_panel_cow_pause import cow_submission_pause_guard_status
+
+    pause_guard = cow_submission_pause_guard_status()
     base: dict[str, Any] = {
         "ok": False,
         "submitted": False,
@@ -147,9 +150,19 @@ def submit_cow_flashloan_order(
         "submit_call": None,
         "submission": None,
         "readiness": readiness,
+        "pause_guard": pause_guard,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "finished_at": None,
     }
+    if pause_guard.get("paused"):
+        base.update(
+            {
+                "status": "submission_paused",
+                "blocked_reason": "cow_submission_paused",
+                "error": pause_guard.get("pause_reason"),
+            }
+        )
+        return base
     if not readiness["enabled"]:
         if not readiness["requested"]:
             base["blocked_reason"] = "order_submission_disabled"

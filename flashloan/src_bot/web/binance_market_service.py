@@ -34,6 +34,7 @@ from strategy.limits import (
     DEFAULT_MIN_COW_SPREAD_PERCENT,
     DEFAULT_MIN_SIDE_CHANGE_PERCENT,
     DEFAULT_MIN_TOKEN_PRICE_USD,
+    DEFAULT_BINANCE_RAW_SIDE_LIMIT,
 )
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
@@ -1346,7 +1347,7 @@ async def _build_window_extremes_from_rows(
 
 def build_binance_rest_market_snapshot(
     *,
-    side_limit: int = 5,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
     previous_snapshot: dict[str, Any] | None = None,
     current_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -1385,7 +1386,11 @@ def _market_basket_symbol_count(extremes: dict[str, Any] | None) -> int:
     return len(seen)
 
 
-def needs_binance_rest_snapshot(extremes: dict[str, Any] | None, *, side_limit: int = 5) -> bool:
+def needs_binance_rest_snapshot(
+    extremes: dict[str, Any] | None,
+    *,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+) -> bool:
     if not isinstance(extremes, dict):
         return True
     if extremes.get("price_source") == "binance_rest_24h":
@@ -1450,7 +1455,7 @@ def _previous_window_snapshot(
 def select_binance_market_extremes(
     realtime_extremes: dict[str, Any] | None,
     *,
-    side_limit: int = 5,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
     snapshot_path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
     current_rows: list[dict[str, Any]] | None = None,
     persist_snapshot: bool = True,
@@ -2617,8 +2622,8 @@ def build_binance_market_state(
     *,
     aave_symbols: list[str],
     arbitrage_config: ArbitrageConfig,
-    top_limit: int = 5,
-    bottom_limit: int = 5,
+    top_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+    bottom_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
     pair_side_limit: int = 5,
     cow_display_limit: int | None = None,
     slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
@@ -2630,10 +2635,10 @@ def build_binance_market_state(
     registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     pair_side_limit = max(1, min(int(pair_side_limit), 5))
-    top_limit = max(1, min(int(top_limit), 5))
-    bottom_limit = max(1, min(int(bottom_limit), 5))
+    top_limit = max(1, min(int(top_limit), DEFAULT_BINANCE_RAW_SIDE_LIMIT))
+    bottom_limit = max(1, min(int(bottom_limit), DEFAULT_BINANCE_RAW_SIDE_LIMIT))
     if cow_display_limit is not None:
-        cow_display_limit = max(1, min(int(cow_display_limit), 5))
+        cow_display_limit = max(1, min(int(cow_display_limit), DEFAULT_BINANCE_RAW_SIDE_LIMIT))
     market_rows = _basket_rows_from_extremes(extremes)
     eligible_market_rows, excluded_market_rows = _eligible_market_rows(
         market_rows,

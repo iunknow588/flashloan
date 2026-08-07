@@ -55,6 +55,7 @@ from strategy.limits import (
     DEFAULT_ARBITRAGE_ROUTE_TRADE_FEE_HOPS,
     DEFAULT_ARBITRAGE_TARGET_PROFIT_PERCENT,
     DEFAULT_ARBITRAGE_TRADE_FEE_PERCENT,
+    DEFAULT_BINANCE_RAW_SIDE_LIMIT,
     DEFAULT_BINANCE_VELOCITY_MIN_CHANGE_PERCENT,
     resolve_min_paper_profit_usd,
 )
@@ -550,7 +551,7 @@ def load_config() -> ObserverConfig:
             minimum=0.2,
         ),
         binance_velocity_min_change_percent=max(0.0, env_float("BINANCE_VELOCITY_MIN_CHANGE_PERCENT", DEFAULT_BINANCE_VELOCITY_MIN_CHANGE_PERCENT)),
-        binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", 10))),
+        binance_velocity_side_limit=max(1, int(env_float("BINANCE_VELOCITY_SIDE_LIMIT", DEFAULT_BINANCE_RAW_SIDE_LIMIT))),
         binance_extreme_write_seconds=profile_seconds(
             scan_profile,
             "binance_extreme_write_seconds",

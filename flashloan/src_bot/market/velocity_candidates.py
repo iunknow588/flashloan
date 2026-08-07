@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from strategy.limits import DEFAULT_BINANCE_RAW_SIDE_LIMIT
+
 
 QUOTE_SUFFIXES = ("USDT", "USDC", "FDUSD", "BUSD", "TUSD")
 
@@ -63,7 +65,10 @@ def _rows_from_compact_extremes(extremes: dict[str, Any], side: str, side_limit:
     return rows[:side_limit]
 
 
-def top_bottom_from_extremes(extremes: dict[str, Any] | None, side_limit: int = 5) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def top_bottom_from_extremes(
+    extremes: dict[str, Any] | None,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not isinstance(extremes, dict):
         return [], []
     limit = max(1, int(side_limit))
@@ -115,7 +120,10 @@ def _unique_by_symbol(rows: list[dict[str, Any]], side: str, limit: int) -> list
     return selected
 
 
-def build_velocity_candidate_pairs(extremes: dict[str, Any] | None, side_limit: int = 5) -> dict[str, Any]:
+def build_velocity_candidate_pairs(
+    extremes: dict[str, Any] | None,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+) -> dict[str, Any]:
     top, bottom = top_bottom_from_extremes(extremes, side_limit=side_limit)
     pairs = []
     for x in top:

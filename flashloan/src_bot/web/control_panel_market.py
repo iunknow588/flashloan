@@ -58,7 +58,7 @@ AAVE_RESERVE_CACHE_PATH = CACHE_DIR / "aave_reserve_assets.json"
 DEX_BORROW_TARGET_CACHE_PATH = CACHE_DIR / "dex_borrow_targets.json"
 LIQUIDATION_SAMPLE_LIBRARY_PATH = RUNTIME_DIR / "samples" / "liquidation_candidates" / "index.json"
 
-SUMMARY_SIDE_LIMIT = 5
+SUMMARY_SIDE_LIMIT = 50
 SUMMARY_INITIAL_AMOUNT = 100.0
 VELOCITY_SIDE_LIMIT = 100
 AAVE_RESERVE_SYMBOL_LIMIT = 1000
@@ -372,7 +372,7 @@ def build_velocity_summary(snapshot: dict, side_limit: int = SUMMARY_SIDE_LIMIT)
         "initial_amount": SUMMARY_INITIAL_AMOUNT,
         "aave_row_count": aave_row_count,
         "aave_symbols": sorted(aave_symbols),
-        "summary_note": None if aave_row_count else "当前时间点的前后5组币种没有Aave映射，所以结果为NULL。",
+        "summary_note": None if aave_row_count else "当前时间点的前后50组币种没有Aave映射，所以结果为NULL。",
     }
 
 

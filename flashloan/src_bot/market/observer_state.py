@@ -5,6 +5,9 @@ from itertools import combinations
 from typing import Deque, Iterable
 
 from market.observer_common import now_iso, utc_from_ms
+from strategy.limits import DEFAULT_BINANCE_RAW_SIDE_LIMIT
+
+
 class PriceState:
     def __init__(self) -> None:
         self.binance: dict[str, dict] = {}
@@ -39,7 +42,7 @@ class PriceState:
         self,
         symbols: Iterable[str],
         window_seconds: float,
-        limit: int = 5,
+        limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
         source: str | None = None,
         min_change_percent: float = 0.0,
     ) -> dict:

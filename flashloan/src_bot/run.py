@@ -11,7 +11,7 @@ from core.sensitive_data import redact_sensitive_text
 load_env_files(__file__, override=False)
 
 # CoW analysis starts from the same observer cycle as the Binance signal.
-# Real order submission readiness is enabled by default.
+# Real order submission is additionally gated by the UI transaction switch.
 os.environ.setdefault("COW_REALTIME_QUOTE_ENABLED", "true")
 os.environ.setdefault("COW_ORDER_SUBMISSION_ENABLED", "true")
 os.environ.setdefault("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25")
@@ -71,6 +71,8 @@ def main() -> int:
         port = read_port()
 
         from web.control_panel import app, initialize_cow_arbitrage_runtime, initialize_liquidation_runtime
+        from web.control_panel_cow_pause import disable_cow_submission_for_startup
+        disable_cow_submission_for_startup()
 
     except Exception as exc:
         print(f"startup failed: {redact_sensitive_text(exc)}", file=sys.stderr)

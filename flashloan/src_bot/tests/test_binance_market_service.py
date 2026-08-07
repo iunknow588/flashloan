@@ -64,14 +64,14 @@ def test_query_window_timing_identifies_previous_window_and_lagging_quote():
     assert timing["previous_to_current_percent"] == "20"
 
 
-def test_binance_market_state_defaults_to_top5_bottom5_and_25_pairs():
+def test_binance_market_state_defaults_to_top50_bottom50_and_keeps_pair_hints_at_5():
     top = [_row(f"T{i}USDT", 100.0, 101.0 + i / 10) for i in range(50)]
-    bottom = [_row(f"B{i}USDT", 100.0, 99.0 - i / 10) for i in range(5)]
+    bottom = [_row(f"B{i}USDT", 100.0, 99.0 - i / 10) for i in range(50)]
     extremes = {
         "observed_at": "2026-08-04T00:00:00+00:00",
         "window_seconds": 1.0,
-        "sample_count": 55,
-        "observation_universe_size": 55,
+        "sample_count": 100,
+        "observation_universe_size": 100,
         "price_source": "ws",
         "top": top,
         "bottom": bottom,
@@ -89,8 +89,8 @@ def test_binance_market_state_defaults_to_top5_bottom5_and_25_pairs():
         arbitrage_config=config,
     )
 
-    assert len(payload["top"]) == 5
-    assert len(payload["bottom"]) == 5
+    assert len(payload["top"]) == 50
+    assert len(payload["bottom"]) == 50
     assert payload["pair_count"] == 25
     assert payload["pairs"][0]["quote_verified"] is False
     assert payload["pairs"][0]["route_count"] == 2
@@ -211,7 +211,7 @@ def test_binance_market_state_filters_cow_supported_tokens_before_ranking():
     assert all(pair["window_spread_percent"] > 1.0 for pair in payload["pairs"])
 
 
-def test_binance_market_state_caps_side_limit_at_five_for_cow_intent_hints():
+def test_binance_market_state_honors_requested_raw_side_limit_up_to_50():
     rows = [_row(f"T{i}USDT", 100.0, 101.0 + i / 10) for i in range(20)]
     losers = [_row(f"B{i}USDT", 100.0, 99.0 - i / 10) for i in range(20)]
     config = ArbitrageConfig(
@@ -229,12 +229,12 @@ def test_binance_market_state_caps_side_limit_at_five_for_cow_intent_hints():
         pair_side_limit=10,
     )
 
-    assert len(payload["top"]) == 5
-    assert len(payload["bottom"]) == 5
+    assert len(payload["top"]) == 10
+    assert len(payload["bottom"]) == 10
     assert payload["pair_count"] == 25
 
 
-def test_binance_market_state_caps_raw_and_network_display_at_five():
+def test_binance_market_state_keeps_raw_50_separate_from_explicit_network_display_5():
     top = [_row(f"T{i}USDT", 10.0, 10.6 + i / 100) for i in range(60)]
     bottom = [_row(f"B{i}USDT", 10.0, 9.4 - i / 100) for i in range(60)]
     extremes = {"basket": [*top, *bottom], "sample_count": 120}
@@ -264,8 +264,8 @@ def test_binance_market_state_caps_raw_and_network_display_at_five():
         min_spread_percent=1.0,
     )
 
-    assert len(payload["raw_top"]) == 5
-    assert len(payload["raw_bottom"]) == 5
+    assert len(payload["raw_top"]) == 50
+    assert len(payload["raw_bottom"]) == 50
     assert len(payload["top"]) == 5
     assert len(payload["bottom"]) == 5
     assert payload["cow_filter"]["cow_display_limit"] == 5

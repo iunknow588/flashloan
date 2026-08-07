@@ -1,5 +1,6 @@
 from execution.cow_routes import CowToken
 from execution.cow_order_submission import cow_order_submission_network_supported
+from execution.cow_order_submission import submit_cow_flashloan_order
 from runtime.cow_arbitrage_daemon import CowQuoteDaemon, default_quote_candidate
 from runtime.cow_candidate_queue import CowCandidateQueue
 import pytest
@@ -389,3 +390,27 @@ def test_default_quote_candidate_respects_submission_pause_guard(monkeypatch):
     assert quote["execution_precheck"]["status"] == "submission_paused"
     assert quote["execution_precheck"]["can_submit_order"] is False
     assert quote["cow_sdk_result"]["submission_status"] == "submission_paused"
+
+
+def test_cow_order_submission_has_a_final_pause_guard(monkeypatch):
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "paused": True,
+            "pause_reason": "startup_transaction_switch_off",
+        },
+    )
+    monkeypatch.setattr(
+        "execution.cow_order_submission.submission_script_ready",
+        lambda: {"enabled": True, "requested": True},
+    )
+
+    result = submit_cow_flashloan_order(
+        quote_payload={"cow_network": "bnb", "cow_chain_id": 56},
+        opportunity={},
+    )
+
+    assert result["submitted"] is False
+    assert result["status"] == "submission_paused"
+    assert result["blocked_reason"] == "cow_submission_paused"

@@ -40,6 +40,7 @@ from web.control_panel_cow_pause import (
     set_cow_submission_pause_guard,
 )
 from web.binance_market_service import (
+    DEFAULT_BINANCE_RAW_SIDE_LIMIT,
     DEFAULT_MIN_COW_SPREAD_PERCENT,
     build_binance_market_state,
     build_cow_network_market_claims,
@@ -632,7 +633,12 @@ def register_data_routes(app, panel) -> None:
 
     @app.get("/api/binance-velocity/candidates")
     def binance_velocity_candidates():
-        side_limit = request_int_arg("side_limit", 5, minimum=1, maximum=25)
+        side_limit = request_int_arg(
+            "side_limit",
+            DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+            minimum=1,
+            maximum=DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+        )
         extremes = safe_latest(latest_binance_extremes_file)
         payload = build_velocity_candidate_pairs(extremes, side_limit=side_limit)
         return jsonify(payload)
@@ -672,7 +678,7 @@ def register_data_routes(app, panel) -> None:
             top_limit=side_limit,
             bottom_limit=side_limit,
             pair_side_limit=pair_side_limit,
-            cow_display_limit=5,
+            cow_display_limit=DEFAULT_BINANCE_RAW_SIDE_LIMIT,
             slippage_bps=slippage_bps,
             cow_network=token_cache["network"],
             min_spread_percent=min_spread_percent,
@@ -683,9 +689,9 @@ def register_data_routes(app, panel) -> None:
         )
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-        market_state["cow_filter"]["cow_display_limit"] = 5
-        market_state["cow_top"] = list(market_state.get("top") or [])[:5]
-        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:5]
+        market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
+        market_state["cow_top"] = list(market_state.get("top") or [])[:DEFAULT_BINANCE_RAW_SIDE_LIMIT]
+        market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:DEFAULT_BINANCE_RAW_SIDE_LIMIT]
         market_state["cow_network_claims"] = build_cow_network_market_claims(
             extremes,
             network_token_caches,
@@ -791,7 +797,7 @@ def register_data_routes(app, panel) -> None:
                 top_limit=side_limit,
                 bottom_limit=side_limit,
                 pair_side_limit=pair_side_limit,
-                cow_display_limit=5,
+                cow_display_limit=DEFAULT_BINANCE_RAW_SIDE_LIMIT,
                 slippage_bps=slippage_bps,
                 cow_network=token_cache["network"],
                 min_spread_percent=min_spread_percent,
@@ -802,9 +808,9 @@ def register_data_routes(app, panel) -> None:
             )
             market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
             market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-            market_state["cow_filter"]["cow_display_limit"] = 5
-            market_state["cow_top"] = list(market_state.get("top") or [])[:5]
-            market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:5]
+            market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
+            market_state["cow_top"] = list(market_state.get("top") or [])[:DEFAULT_BINANCE_RAW_SIDE_LIMIT]
+            market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:DEFAULT_BINANCE_RAW_SIDE_LIMIT]
             states[network] = market_state
             market_states_for_history.append(market_state)
         history_recording = record_cow_market_candidates_safely(
@@ -892,7 +898,7 @@ def register_data_routes(app, panel) -> None:
             top_limit=side_limit,
             bottom_limit=side_limit,
             pair_side_limit=pair_side_limit,
-            cow_display_limit=5,
+            cow_display_limit=DEFAULT_BINANCE_RAW_SIDE_LIMIT,
             slippage_bps=slippage_bps,
             cow_network=token_cache["network"],
             min_spread_percent=min_spread_percent,
@@ -903,7 +909,7 @@ def register_data_routes(app, panel) -> None:
         )
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-        market_state["cow_filter"]["cow_display_limit"] = 5
+        market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
         try:
             payload = build_cow_route_precheck(
                 market_state,
@@ -940,7 +946,7 @@ def register_data_routes(app, panel) -> None:
             top_limit=side_limit,
             bottom_limit=side_limit,
             pair_side_limit=pair_side_limit,
-            cow_display_limit=5,
+            cow_display_limit=DEFAULT_BINANCE_RAW_SIDE_LIMIT,
             slippage_bps=slippage_bps,
             cow_network=token_cache["network"],
             min_spread_percent=min_spread_percent,
@@ -951,7 +957,7 @@ def register_data_routes(app, panel) -> None:
         )
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-        market_state["cow_filter"]["cow_display_limit"] = 5
+        market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
         if not market_state.get("pairs"):
             network_claims = build_cow_network_market_claims(
                 extremes,
