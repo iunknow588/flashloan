@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 import threading
@@ -9,6 +8,18 @@ from typing import Optional
 
 from flask import Flask
 from web3 import Web3
+from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
+from web.parameter_config import (
+    LIQUIDATION_CONFIG_PAGE,
+    LEGACY_LIQUIDATION_CONFIG_PATHS,
+    LIQUIDATION_CONFIG_PATH,
+    LIQUIDATION_PAUSE_GUARD_PATH,
+    read_json_parameter,
+    write_json_parameter,
+    load_page_parameter_map,
+    save_page_parameter_map,
+    sync_page_parameter_file,
+)
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = SRC_ROOT
@@ -39,10 +50,6 @@ from db.storage import (
 
 load_env_files(__file__, override=False)
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
-CONFIG_DIR = RUNTIME_DIR / "config"
-CACHE_DIR = RUNTIME_DIR / "cache"
-LIQUIDATION_CONFIG_PATH = CONFIG_DIR / "liquidation_config.json"
-LIQUIDATION_PAUSE_GUARD_PATH = CACHE_DIR / "liquidation_pause_guard.json"
 LIQUIDATION_ACCOUNTS_PATH = resolve_env_path("LIQUIDATION_ACCOUNTS_FILE", "runtime/cache/liquidation_accounts.txt", APP_DIR)
 DEFAULT_AAVE_RPC_CANDIDATES = [
     "https://api.avax.network/ext/bc/C/rpc",
@@ -89,13 +96,9 @@ DEFAULT_LIQUIDATION_SCAN_VERSION = "2026-08-03.1"
 
 def liquidation_runtime_config() -> dict[str, float]:
     config = dict(DEFAULT_LIQUIDATION_CONFIG)
-    if LIQUIDATION_CONFIG_PATH.exists():
-        try:
-            raw = json.loads(LIQUIDATION_CONFIG_PATH.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                config.update({key: raw[key] for key in config if key in raw})
-        except Exception:
-            pass
+    raw = read_liquidation_runtime_config_parameters()
+    if isinstance(raw, dict):
+        config.update({key: raw[key] for key in config if key in raw})
     for key in config:
         if os.getenv(key) is not None:
             value, error = parse_env_float(key, config[key])
@@ -119,11 +122,56 @@ def write_liquidation_runtime_config(values: dict) -> dict[str, float]:
         current["LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS"] = max(30.0, float(values.get("high_frequency_refresh_seconds") or 300))
     if "core_opportunity_refresh_seconds" in values:
         current["LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS"] = max(1.0, float(values.get("core_opportunity_refresh_seconds") or 1))
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    LIQUIDATION_CONFIG_PATH.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+    if not save_liquidation_runtime_config_parameters(current):
+        write_json_parameter(LIQUIDATION_CONFIG_PATH, current)
     for key, value in current.items():
         os.environ[str(key)] = str(value)
     return current
+
+
+def read_liquidation_runtime_config_parameters() -> dict:
+    database_url = database_url_or_none()
+    file_values: dict[str, float] = {}
+    raw = read_json_parameter(LIQUIDATION_CONFIG_PATH, legacy_paths=LEGACY_LIQUIDATION_CONFIG_PATHS) or {}
+    if isinstance(raw, dict):
+        file_values = {key: raw[key] for key in DEFAULT_LIQUIDATION_CONFIG if key in raw}
+    if database_url and not database_unavailable_reason(database_url):
+        try:
+            stored = load_page_parameter_map(database_url, LIQUIDATION_CONFIG_PAGE)
+            if stored:
+                try:
+                    sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, stored)
+                except Exception:
+                    pass
+                return stored
+            if file_values:
+                save_page_parameter_map(database_url, LIQUIDATION_CONFIG_PAGE, file_values)
+                try:
+                    sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, file_values)
+                except Exception:
+                    pass
+                return file_values
+        except Exception as exc:
+            if is_database_unavailable_error(exc):
+                mark_database_unavailable(database_url, exc)
+    return file_values
+
+
+def save_liquidation_runtime_config_parameters(values: dict) -> bool:
+    database_url = database_url_or_none()
+    if not database_url or database_unavailable_reason(database_url):
+        return False
+    try:
+        save_page_parameter_map(database_url, LIQUIDATION_CONFIG_PAGE, values)
+        try:
+            sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, values)
+        except Exception:
+            pass
+        return True
+    except Exception as exc:
+        if is_database_unavailable_error(exc):
+            mark_database_unavailable(database_url, exc)
+        return False
 
 
 def liquidation_scan_version() -> str:
@@ -400,6 +448,7 @@ def liquidation_execution_controls() -> dict:
         LIQUIDATION_PAUSE_GUARD_PATH,
         enabled=env_bool("LIQUIDATION_AUTO_PAUSE_ENABLED", True),
         threshold=auto_pause_threshold,
+        database_url=database_url_or_none(),
     )
     return {
         "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", True),

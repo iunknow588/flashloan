@@ -1,7 +1,7 @@
 from web import control_panel
 from web.page_state import ExecutionStatus, PageName
 from web.page_state_service import execution_state_payload, store_page_state
-from web.page_state_store import PAGE_STATE_STORE
+from web.page_state_store import PAGE_STATE_STORE, PageStateStore
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -66,6 +66,38 @@ def test_execution_state_payload_reflects_recorded_state():
     assert payload["status"] == "READY_TO_SUBMIT"
     assert payload["message"] == "ready"
     assert payload["context"]["tx_hash"] == "0xabc"
+
+
+def test_page_state_store_syncs_to_database_parameter_map(monkeypatch):
+    from web import page_state_store as state_store
+
+    database_url = "postgresql://example"
+    stored = {}
+
+    def fake_load(database_url_arg):
+        return dict(stored)
+
+    def fake_save(database_url_arg, values):
+        stored.clear()
+        stored.update(values)
+        return dict(values)
+
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr(state_store, "load_page_state_parameter_map", fake_load)
+    monkeypatch.setattr(state_store, "save_page_state_parameter_map", fake_save)
+
+    store = PageStateStore()
+    state = store.set(
+        PageName.EXECUTION.value,
+        ExecutionStatus.READY_TO_SUBMIT.value,
+        message="ready",
+        context={"tx_hash": "0xabc"},
+    )
+
+    assert stored[PageName.EXECUTION.value]["status"] == ExecutionStatus.READY_TO_SUBMIT.value
+    assert state.status == ExecutionStatus.READY_TO_SUBMIT.value
+    loaded = PageStateStore().get(PageName.EXECUTION.value, ExecutionStatus.IDLE.value)
+    assert loaded.status == ExecutionStatus.READY_TO_SUBMIT.value
 
 
 def test_execution_state_progress_can_be_recorded(monkeypatch):

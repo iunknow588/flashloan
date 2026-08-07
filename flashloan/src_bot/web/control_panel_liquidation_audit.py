@@ -16,10 +16,9 @@ from web.control_panel_liquidation_pause import (
     load_pause_guard_state,
     record_pause_guard_event,
 )
+from web.parameter_config import LIQUIDATION_PAUSE_GUARD_PATH
 from web.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 from execution.liquidation_preflight import SOFT_BLOCK_REASONS
-
-LIQUIDATION_PAUSE_GUARD_PATH = None
 
 
 def _safe_error_message(error: object | None) -> str | None:
@@ -211,16 +210,22 @@ def liquidation_failure_samples_for_account(
 
 
 def liquidation_pause_guard_status() -> dict:
-    if LIQUIDATION_PAUSE_GUARD_PATH is None:
-        return {"configured": False, "paused": False}
-    state = load_pause_guard_state(LIQUIDATION_PAUSE_GUARD_PATH)
-    return {"configured": True, **state}
+    database_url = database_url_or_none()
+    state = load_pause_guard_state(LIQUIDATION_PAUSE_GUARD_PATH, database_url=database_url)
+    return {
+        "configured": bool(database_url),
+        "database_configured": bool(database_url),
+        **state,
+    }
 
 
 def clear_liquidation_pause_guard_status() -> dict:
-    if LIQUIDATION_PAUSE_GUARD_PATH is None:
-        return {"configured": False, "paused": False}
-    return {"configured": True, **clear_pause_guard(LIQUIDATION_PAUSE_GUARD_PATH)}
+    database_url = database_url_or_none()
+    return {
+        "configured": bool(database_url),
+        "database_configured": bool(database_url),
+        **clear_pause_guard(LIQUIDATION_PAUSE_GUARD_PATH, database_url=database_url),
+    }
 
 
 def empty_execution_attempt_stats() -> dict[str, int]:
@@ -317,6 +322,7 @@ def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | N
         return
     if state == "submission_blocked" and not failure_retryable(state, blocked_reasons, error):
         return
+    database_url = database_url_or_none()
     try:
         import os
 
@@ -329,6 +335,7 @@ def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | N
             error=error,
             enabled=enabled,
             threshold=threshold,
+            database_url=database_url,
         )
     except Exception:
         pass

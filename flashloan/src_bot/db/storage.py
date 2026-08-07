@@ -7,6 +7,13 @@
     require_psycopg,
     utc_from_ms,
 )
+from db.storage_control_parameters import (
+    ensure_control_panel_parameters_table,
+    load_control_panel_parameter,
+    load_control_panel_parameter_map,
+    save_control_panel_parameter,
+    save_control_panel_parameter_map,
+)
 from db.storage_liquidation import (
     liquidation_account_registry_stats,
     liquidation_execution_attempt_stats,
@@ -69,6 +76,7 @@ __all__ = [
     "append_observations",
     "close_connection_pools",
     "db_connection",
+    "ensure_control_panel_parameters_table",
     "ensure_database_schema",
     "ensure_deduplication_constraints",
     "ensure_schema_columns",
@@ -90,6 +98,8 @@ __all__ = [
     "load_liquidation_pool_counts",
     "load_liquidation_accounts",
     "load_liquidation_accounts_page",
+    "load_control_panel_parameter",
+    "load_control_panel_parameter_map",
     "load_schema_migrations",
     "prune_liquidation_accounts",
     "record_liquidation_account_scan",
@@ -102,6 +112,8 @@ __all__ = [
     "record_liquidation_scan_config_snapshot",
     "record_schema_migrations",
     "require_psycopg",
+    "save_control_panel_parameter",
+    "save_control_panel_parameter_map",
     "try_acquire_observer_lock",
     "sync_liquidation_borrow_health_pool",
     "upsert_liquidation_accounts",

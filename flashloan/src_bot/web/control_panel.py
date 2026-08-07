@@ -42,6 +42,7 @@ from web.control_panel_config import (
     unified_sampling_profile,
     write_strategy_config as save_strategy_config,
 )
+from web.parameter_config import LIQUIDATION_CONFIG_PATH, STRATEGY_CONFIG_PATH
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
     borrow_target_universe as read_borrow_target_universe,
@@ -131,7 +132,6 @@ load_env_files(__file__, override=False)
 
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
-CONFIG_DIR = RUNTIME_DIR / "config"
 CACHE_DIR = RUNTIME_DIR / "cache"
 LOG_DIR = RUNTIME_DIR / "logs"
 OBSERVER_PATH = APP_DIR / "market" / "observer.py"
@@ -149,8 +149,6 @@ DEX_BORROW_TARGET_CACHE_PATH = CACHE_DIR / "dex_borrow_targets.json"
 LIQUIDATION_SAMPLE_LIBRARY_PATH = RUNTIME_DIR / "samples" / "liquidation_candidates" / "index.json"
 LIQUIDATION_ACCOUNTS_PATH = resolve_env_path("LIQUIDATION_ACCOUNTS_FILE", "runtime/cache/liquidation_accounts.txt", APP_DIR)
 OBSERVER_PID_PATH = RUNTIME_DIR / "observer.pid"
-STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
-LIQUIDATION_CONFIG_PATH = CONFIG_DIR / "liquidation_config.json"
 REPO_ROOT = APP_DIR.parents[1]
 
 observer_process: Optional[subprocess.Popen] = None

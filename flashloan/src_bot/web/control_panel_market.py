@@ -19,6 +19,7 @@ from web.control_panel_config import (
     strategy_config as read_strategy_config,
     write_strategy_config as save_strategy_config,
 )
+from web.parameter_config import STRATEGY_CONFIG_PATH
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
     borrow_target_universe as read_borrow_target_universe,
@@ -48,9 +49,7 @@ WEB_DIR = Path(__file__).resolve().parent
 load_env_files(__file__, override=False)
 RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
-CONFIG_DIR = RUNTIME_DIR / "config"
 CACHE_DIR = RUNTIME_DIR / "cache"
-STRATEGY_CONFIG_PATH = CONFIG_DIR / "strategy_config.json"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
 LATEST_EXECUTABLE_SIGNAL_PATH = STATE_DIR / "latest_executable_signal.json"
 LATEST_EXTREMES_PATH = STATE_DIR / "latest_extremes.json"
@@ -83,7 +82,6 @@ def strategy_config() -> dict:
 
 
 def write_strategy_config(payload: dict) -> dict:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     return save_strategy_config(STRATEGY_CONFIG_PATH, payload)
 
 

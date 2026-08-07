@@ -76,6 +76,27 @@ def panel_call(name: str, *args, **kwargs):
     return ROUTE_CONTEXT.call(name, *args, **kwargs)
 
 
+def _cow_submission_pause_guard(*, database_url: str | None = None) -> dict:
+    try:
+        return cow_submission_pause_guard_status(database_url=database_url)
+    except TypeError:
+        return cow_submission_pause_guard_status()
+
+
+def _set_cow_submission_pause_guard(*, paused: bool, reason: str | None = None, database_url: str | None = None) -> dict:
+    try:
+        return set_cow_submission_pause_guard(paused=paused, reason=reason, database_url=database_url)
+    except TypeError:
+        return set_cow_submission_pause_guard(paused=paused, reason=reason)
+
+
+def _clear_cow_submission_pause_guard(*, database_url: str | None = None) -> dict:
+    try:
+        return clear_cow_submission_pause_guard(database_url=database_url)
+    except TypeError:
+        return clear_cow_submission_pause_guard()
+
+
 def data_error_message(error: object | None) -> str | None:
     if error is None:
         return None
@@ -118,7 +139,7 @@ def record_cow_attempt_list_safely(
 ) -> dict:
     if not attempts:
         return {"recorded": 0, "source": "empty", "error": None}
-    pause_guard = cow_submission_pause_guard_status()
+    pause_guard = _cow_submission_pause_guard(database_url=database_url)
     if pause_guard.get("paused"):
         return {
             "recorded": 0,
@@ -214,7 +235,7 @@ def record_cow_market_candidates_safely(
     fallback_reason: object = None,
     database_url: str | None,
 ) -> dict:
-    pause_guard = cow_submission_pause_guard_status()
+    pause_guard = _cow_submission_pause_guard(database_url=database_url)
     if pause_guard.get("paused"):
         return {
             "recorded": 0,
@@ -1150,25 +1171,25 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/binance-market/cow-candidate-queue")
     def binance_market_cow_candidate_queue():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
-        pause_guard = cow_submission_pause_guard_status()
+        pause_guard = _cow_submission_pause_guard(database_url=panel_call("database_url_or_none"))
         if not pause_guard.get("paused") and cow_quote_daemon_enabled():
             ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
         return jsonify(cow_candidate_queue_snapshot(limit=limit))
 
     @app.get("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause():
-        return jsonify(cow_submission_pause_guard_status())
+        return jsonify(_cow_submission_pause_guard(database_url=panel_call("database_url_or_none")))
 
     @app.post("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause_update():
         payload = request.get_json(silent=True) or {}
         paused = bool(payload.get("paused"))
         reason = payload.get("reason")
-        return jsonify(set_cow_submission_pause_guard(paused=paused, reason=reason))
+        return jsonify(_set_cow_submission_pause_guard(paused=paused, reason=reason, database_url=panel_call("database_url_or_none")))
 
     @app.post("/api/binance-market/cow-submission-pause/clear")
     def binance_market_cow_submission_pause_clear():
-        return jsonify(clear_cow_submission_pause_guard())
+        return jsonify(_clear_cow_submission_pause_guard(database_url=panel_call("database_url_or_none")))
     
     
     @app.get("/api/arbitrage/latest")

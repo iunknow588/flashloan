@@ -337,6 +337,17 @@ def ensure_database_schema(database_url: str) -> None:
                     )
                     """
                 )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS control_panel_parameters (
+                        namespace TEXT NOT NULL,
+                        parameter_key TEXT NOT NULL,
+                        value_json TEXT NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (namespace, parameter_key)
+                    )
+                    """
+                )
                 create_liquidation_failure_sample_schema(cursor)
                 ensure_schema_columns(cursor)
                 ensure_liquidation_market_indexes(cursor)
@@ -381,6 +392,10 @@ def ensure_database_schema(database_url: str) -> None:
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_state_time "
                     "ON cow_execution_attempts(state, created_at DESC)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_control_panel_parameters_namespace "
+                    "ON control_panel_parameters(namespace, updated_at DESC)"
                 )
                 record_schema_migrations(cursor)
             finally:
@@ -649,6 +664,12 @@ def ensure_schema_columns(cursor) -> None:
             "market_state_json": "TEXT",
             "error": "TEXT",
             "created_at": "TIMESTAMPTZ",
+        },
+        "control_panel_parameters": {
+            "namespace": "TEXT",
+            "parameter_key": "TEXT",
+            "value_json": "TEXT",
+            "updated_at": "TIMESTAMPTZ",
         },
         "liquidation_failure_samples": LIQUIDATION_FAILURE_SAMPLE_COLUMNS,
     }

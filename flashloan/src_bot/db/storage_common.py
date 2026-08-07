@@ -46,6 +46,10 @@ SCHEMA_MIGRATIONS = (
         "20260805_cow_execution_attempts",
         "Record CoW quote and execution-precheck outcomes for DEX arbitrage review.",
     ),
+    (
+        "20260807_control_panel_parameters",
+        "Persist UI/runtime control parameters in the application database.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 
@@ -156,7 +160,8 @@ def is_database_unavailable_error(exc: BaseException) -> bool:
 
 
 def _database_unavailable_cooldown_seconds() -> int:
-    return parse_env_int("DATABASE_UNAVAILABLE_COOLDOWN_SECONDS", 300, minimum=30, maximum=3600)[0]
+    value, _ = parse_env_int("DATABASE_UNAVAILABLE_COOLDOWN_SECONDS", 300, minimum=30)
+    return max(30, min(int(value), 3600))
 
 
 def mark_database_unavailable(database_url: str, exc: BaseException | str) -> None:

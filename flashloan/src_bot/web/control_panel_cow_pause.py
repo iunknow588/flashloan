@@ -1,13 +1,22 @@
 from __future__ import annotations
 
-import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
+from web.parameter_config import (
+    COW_SUBMISSION_PAUSE_GUARD_PATH,
+    COW_SUBMISSION_PAGE,
+    LEGACY_COW_SUBMISSION_PAUSE_GUARD_PATHS,
+    load_page_parameter_map as load_control_panel_parameter_map,
+    read_json_parameter,
+    save_page_parameter_map as save_control_panel_parameter_map,
+    write_json_parameter,
+    sync_page_parameter_file,
+)
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
-COW_SUBMISSION_PAUSE_GUARD_PATH = SRC_ROOT / "runtime" / "cache" / "cow_submission_pause_guard.json"
 
 _DEFAULT_STATE: dict[str, Any] = {
     "paused": True,
@@ -22,48 +31,140 @@ def cow_pause_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def load_cow_submission_pause_guard(path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH) -> dict[str, Any]:
+def _database_url_or_none(database_url: str | None = None) -> str | None:
+    return str(database_url or os.getenv("DATABASE_URL", "")).strip() or None
+
+
+def _normalized_state(raw: dict[str, Any] | None, *, source: str) -> dict[str, Any]:
+    state = dict(_DEFAULT_STATE)
+    if isinstance(raw, dict):
+        state.update({key: raw.get(key) for key in state if key in raw})
+    state["paused"] = bool(state.get("paused"))
+    state["source"] = source
+    return state
+
+
+def _load_cow_submission_pause_guard_file(path: Path) -> dict[str, Any]:
     try:
-        if path.exists():
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                state = dict(_DEFAULT_STATE)
-                state.update(raw)
-                return state
+        raw = read_json_parameter(path, legacy_paths=LEGACY_COW_SUBMISSION_PAUSE_GUARD_PATHS)
+        if isinstance(raw, dict):
+            return _normalized_state(raw, source="file")
     except Exception:
         pass
-    return dict(_DEFAULT_STATE)
+    return _normalized_state(
+        {
+            "paused": True,
+            "pause_reason": "startup_transaction_switch_off",
+        },
+        source="default",
+    )
+
+
+def _load_cow_submission_pause_guard_db(database_url: str) -> dict[str, Any] | None:
+    values = load_control_panel_parameter_map(database_url, COW_SUBMISSION_PAGE)
+    if not values:
+        return None
+    try:
+        sync_page_parameter_file(COW_SUBMISSION_PAGE, values)
+    except Exception:
+        pass
+    return _normalized_state(values, source="database")
+
+
+def _save_cow_submission_pause_guard_db(database_url: str, state: dict[str, Any]) -> dict[str, Any]:
+    values = {key: state.get(key) for key in _DEFAULT_STATE}
+    save_control_panel_parameter_map(database_url, COW_SUBMISSION_PAGE, values)
+    try:
+        sync_page_parameter_file(COW_SUBMISSION_PAGE, values)
+    except Exception:
+        pass
+    return _normalized_state(values, source="database")
+
+
+def load_cow_submission_pause_guard(
+    path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    resolved_database_url = _database_url_or_none(database_url)
+    if resolved_database_url and not database_unavailable_reason(resolved_database_url):
+        try:
+            state = _load_cow_submission_pause_guard_db(resolved_database_url)
+            if state is not None:
+                return state
+            had_file = path.exists()
+            file_state = _load_cow_submission_pause_guard_file(path)
+            migrated = _save_cow_submission_pause_guard_db(resolved_database_url, file_state)
+            migrated["source"] = "database_migrated_from_file" if had_file else "database_initialized"
+            return migrated
+        except Exception as exc:
+            if is_database_unavailable_error(exc):
+                mark_database_unavailable(resolved_database_url, exc)
+            fallback = _load_cow_submission_pause_guard_file(path)
+            fallback["source"] = "file_fallback"
+            fallback["database_error"] = str(exc)
+            return fallback
+    return _load_cow_submission_pause_guard_file(path)
 
 
 def save_cow_submission_pause_guard(
     state: dict[str, Any],
     path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    *,
+    database_url: str | None = None,
 ) -> dict[str, Any]:
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = dict(_DEFAULT_STATE)
     payload.update(state)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return payload
+    resolved_database_url = _database_url_or_none(database_url)
+    if resolved_database_url and not database_unavailable_reason(resolved_database_url):
+        try:
+            return _save_cow_submission_pause_guard_db(resolved_database_url, payload)
+        except Exception as exc:
+            if is_database_unavailable_error(exc):
+                mark_database_unavailable(resolved_database_url, exc)
+            payload["source"] = "file_fallback"
+            payload["database_error"] = str(exc)
+    else:
+        payload["source"] = "file"
+    write_json_parameter(path, payload)
+    return _normalized_state(payload, source=str(payload.get("source") or "file"))
 
 
-def cow_submission_pause_guard_status(path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH) -> dict[str, Any]:
-    return {"configured": True, **load_cow_submission_pause_guard(path)}
+def cow_submission_pause_guard_status(
+    path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    resolved_database_url = _database_url_or_none(database_url)
+    return {
+        "configured": bool(resolved_database_url),
+        "database_configured": bool(resolved_database_url),
+        **load_cow_submission_pause_guard(path, database_url=resolved_database_url),
+    }
 
 
-def cow_submission_paused(path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH) -> bool:
-    return bool(load_cow_submission_pause_guard(path).get("paused"))
+def cow_submission_paused(
+    path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    *,
+    database_url: str | None = None,
+) -> bool:
+    return bool(load_cow_submission_pause_guard(path, database_url=database_url).get("paused"))
 
 
 def disable_cow_submission_for_startup(
     path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    *,
+    database_url: str | None = None,
 ) -> dict[str, Any]:
     """Initialize the CoW switch once without overwriting an existing user choice."""
-    if path.exists():
-        return {"configured": True, **load_cow_submission_pause_guard(path)}
+    existing = load_cow_submission_pause_guard(path, database_url=database_url)
+    if existing.get("updated_at") or existing.get("source") in {"database", "database_migrated_from_file", "file"}:
+        return {"configured": bool(_database_url_or_none(database_url)), **existing}
     return set_cow_submission_pause_guard(
         paused=True,
         reason="startup_transaction_switch_off",
         path=path,
+        database_url=database_url,
     )
 
 
@@ -72,8 +173,9 @@ def set_cow_submission_pause_guard(
     paused: bool,
     reason: str | None = None,
     path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    database_url: str | None = None,
 ) -> dict[str, Any]:
-    state = load_cow_submission_pause_guard(path)
+    state = load_cow_submission_pause_guard(path, database_url=database_url)
     now = cow_pause_now()
     clean_reason = str(reason or "").strip() or ("manual_pause" if paused else None)
     state.update(
@@ -87,8 +189,16 @@ def set_cow_submission_pause_guard(
         state["last_paused_at"] = now
     else:
         state["last_resumed_at"] = now
-    return {"configured": True, **save_cow_submission_pause_guard(state, path)}
+    return {
+        "configured": bool(_database_url_or_none(database_url)),
+        "database_configured": bool(_database_url_or_none(database_url)),
+        **save_cow_submission_pause_guard(state, path, database_url=database_url),
+    }
 
 
-def clear_cow_submission_pause_guard(path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH) -> dict[str, Any]:
-    return set_cow_submission_pause_guard(paused=False, reason=None, path=path)
+def clear_cow_submission_pause_guard(
+    path: Path = COW_SUBMISSION_PAUSE_GUARD_PATH,
+    *,
+    database_url: str | None = None,
+) -> dict[str, Any]:
+    return set_cow_submission_pause_guard(paused=False, reason=None, path=path, database_url=database_url)

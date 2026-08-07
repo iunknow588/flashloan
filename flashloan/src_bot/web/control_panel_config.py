@@ -1,8 +1,18 @@
-import json
 import os
 from pathlib import Path
 
 from core.config_schema import parse_env_float
+from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
+from web.parameter_config import (
+    LEGACY_STRATEGY_CONFIG_PATHS,
+    STRATEGY_CONFIG_PATH,
+    STRATEGY_CONFIG_PAGE,
+    read_json_parameter,
+    write_json_parameter,
+    load_page_parameter_map,
+    save_page_parameter_map,
+    sync_page_parameter_file,
+)
 from strategy.limits import strategy_defaults
 from strategy.movement_thresholds import enforce_min_paper_profit_usd
 
@@ -10,6 +20,10 @@ from strategy.movement_thresholds import enforce_min_paper_profit_usd
 STRATEGY_DEFAULTS = strategy_defaults()
 
 MIN_SAMPLING_SECONDS = 0.2
+
+
+def _database_url_or_none() -> str | None:
+    return os.getenv("DATABASE_URL", "").strip() or None
 
 
 def unified_sampling_profile(config: dict) -> dict:
@@ -28,7 +42,7 @@ def unified_sampling_profile(config: dict) -> dict:
 
 def strategy_config(config_path: Path) -> dict:
     config = dict(STRATEGY_DEFAULTS)
-    saved = read_json(config_path) or {}
+    saved = read_strategy_config_parameters(config_path)
     for key, default in STRATEGY_DEFAULTS.items():
         if key in saved:
             try:
@@ -49,8 +63,52 @@ def write_strategy_config(config_path: Path, payload: dict) -> dict:
         if key in payload:
             current[key] = payload[key]
     sanitized = sanitize_strategy_config(current)
-    config_path.write_text(json.dumps(sanitized, ensure_ascii=True, indent=2), encoding="utf-8")
+    if not save_strategy_config_parameters(sanitized):
+        write_json_parameter(config_path, sanitized)
     return sanitized
+
+
+def read_strategy_config_parameters(config_path: Path) -> dict:
+    database_url = _database_url_or_none()
+    legacy_paths = LEGACY_STRATEGY_CONFIG_PATHS if config_path == STRATEGY_CONFIG_PATH else ()
+    file_values = read_json_parameter(config_path, legacy_paths=legacy_paths) or {}
+    if database_url and not database_unavailable_reason(database_url):
+        try:
+            stored = load_page_parameter_map(database_url, STRATEGY_CONFIG_PAGE)
+            if stored:
+                try:
+                    sync_page_parameter_file(STRATEGY_CONFIG_PAGE, stored)
+                except Exception:
+                    pass
+                return stored
+            if file_values:
+                save_page_parameter_map(database_url, STRATEGY_CONFIG_PAGE, file_values)
+                try:
+                    sync_page_parameter_file(STRATEGY_CONFIG_PAGE, file_values)
+                except Exception:
+                    pass
+                return file_values
+        except Exception as exc:
+            if is_database_unavailable_error(exc):
+                mark_database_unavailable(database_url, exc)
+    return file_values
+
+
+def save_strategy_config_parameters(values: dict) -> bool:
+    database_url = _database_url_or_none()
+    if not database_url or database_unavailable_reason(database_url):
+        return False
+    try:
+        save_page_parameter_map(database_url, STRATEGY_CONFIG_PAGE, values)
+        try:
+            sync_page_parameter_file(STRATEGY_CONFIG_PAGE, values)
+        except Exception:
+            pass
+        return True
+    except Exception as exc:
+        if is_database_unavailable_error(exc):
+            mark_database_unavailable(database_url, exc)
+        return False
 
 
 def sanitize_strategy_config(values: dict) -> dict:
@@ -72,11 +130,4 @@ def sanitize_strategy_config(values: dict) -> dict:
 
 
 def read_json(path: Path) -> dict | None:
-    try:
-        if not path.exists():
-            return None
-        with path.open("r", encoding="utf-8") as file:
-            data = json.load(file)
-        return data if isinstance(data, dict) else None
-    except (OSError, json.JSONDecodeError):
-        return None
+    return read_json_parameter(path)
