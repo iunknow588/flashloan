@@ -33,14 +33,35 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def cow_order_submission_requested() -> bool:
-    return _env_bool("COW_ORDER_SUBMISSION_ENABLED", False)
+    try:
+        from web.control_panel_cow_pause import cow_submission_pause_guard_status
+
+        guard = cow_submission_pause_guard_status()
+        source = str(guard.get("source") or "")
+        if bool(guard.get("database_configured")) or source in {
+            "database",
+            "database_migrated_from_file",
+            "database_initialized",
+            "file_fallback",
+            "file",
+        }:
+            requested = guard.get("order_submission_enabled")
+            if requested is None:
+                requested = not bool(guard.get("paused"))
+            return bool(requested) and not bool(guard.get("paused"))
+    except Exception:
+        pass
+    raw_requested = os.getenv("COW_ORDER_SUBMISSION_ENABLED")
+    if raw_requested is not None and str(raw_requested).strip() != "":
+        return str(raw_requested).strip().lower() in {"1", "true", "yes", "on"}
+    return False
 
 
 def cow_order_submission_adapter_available() -> bool:
     raw = os.getenv("COW_ORDER_SUBMISSION_ADAPTER_ENABLED", "").strip().lower()
     if raw:
         return raw in {"1", "true", "yes", "on"}
-    return cow_order_submission_requested() and bool(shutil.which("node") or shutil.which("node.exe")) and COW_SUBMISSION_SCRIPT.exists()
+    return bool(shutil.which("node") or shutil.which("node.exe")) and COW_SUBMISSION_SCRIPT.exists()
 
 
 def cow_order_submission_enabled() -> bool:

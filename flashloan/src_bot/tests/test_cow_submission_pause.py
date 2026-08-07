@@ -1,3 +1,4 @@
+from execution.cow_order_submission import cow_order_submission_requested
 from web.control_panel_cow_pause import (
     disable_cow_submission_for_startup,
     load_cow_submission_pause_guard,
@@ -63,5 +64,58 @@ def test_cow_transaction_switch_syncs_to_database_parameter_map(monkeypatch, tmp
 
     assert state["paused"] is False
     assert state["source"] == "database"
+    assert state["order_submission_enabled"] is True
     assert stored["paused"] is False
     assert stored["pause_reason"] is None
+    assert stored["order_submission_enabled"] is True
+
+
+def test_cow_order_submission_requested_prefers_persisted_switch_state(monkeypatch):
+    monkeypatch.delenv("COW_ORDER_SUBMISSION_ENABLED", raising=False)
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
+
+    assert cow_order_submission_requested() is True
+
+
+def test_cow_order_submission_requested_keeps_env_separate_from_page_switch(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": True,
+            "order_submission_enabled": False,
+            "pause_reason": "manual_pause",
+        },
+    )
+
+    assert cow_order_submission_requested() is False
+
+
+def test_cow_order_submission_requested_keeps_env_separate_from_file_mirror(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": False,
+            "database_configured": False,
+            "source": "file",
+            "paused": True,
+            "order_submission_enabled": False,
+            "pause_reason": "manual_pause",
+        },
+    )
+
+    assert cow_order_submission_requested() is False

@@ -451,10 +451,21 @@ class CowQuoteDaemon:
             attempts = result.get("attempts") if isinstance(result, dict) else []
             recording = self.record_attempts(attempts or [], database_url)
             state = "quoted"
+            quote_result = result.get("result") if isinstance(result, dict) else {}
+            submission = quote_result.get("cow_submission_result") if isinstance(quote_result, dict) else {}
             ranking = ((result.get("payload") or {}).get("ranking") if isinstance(result, dict) else []) or []
+            if isinstance(submission, dict) and submission:
+                if submission.get("submitted") or str(submission.get("status") or "") == "submitted_success" or submission.get("order_id"):
+                    state = "submitted_success"
+                elif str(submission.get("status") or "") in {"submission_paused", "adapter_unavailable", "order_submission_disabled"}:
+                    state = "ready_not_submitted"
+                else:
+                    state = "submission_failed"
             if ranking:
                 precheck = ranking[0].get("execution_precheck") if isinstance(ranking[0], dict) else {}
-                if precheck.get("can_submit_order"):
+                if state in {"submitted_success", "submission_failed", "ready_not_submitted"}:
+                    pass
+                elif precheck.get("can_submit_order"):
                     state = "ready_to_submit"
                 elif precheck.get("checks_passed"):
                     state = "ready_not_submitted"

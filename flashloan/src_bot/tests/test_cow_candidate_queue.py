@@ -153,6 +153,85 @@ def test_cow_quote_daemon_marks_passed_checks_without_submit_ready_not_submitted
     assert queue.stats()["ready_not_submitted"] == 1
 
 
+def test_cow_quote_daemon_marks_submission_success_after_live_submission():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many([_candidate()], source="test")
+
+    def fake_quote(candidate, database_url):
+        return {
+            "payload": {
+                "ranking": [
+                    {
+                        "execution_precheck": {
+                            "checks_passed": True,
+                            "can_submit_order": True,
+                        }
+                    }
+                ]
+            },
+            "result": {
+                "cow_submission_result": {
+                    "submitted": True,
+                    "status": "submitted_success",
+                    "order_id": "0xorder",
+                    "tx_hash": "0xtx",
+                }
+            },
+            "attempts": [{"state": "submitted_success"}],
+        }
+
+    daemon = CowQuoteDaemon(
+        queue,
+        quote_candidate=fake_quote,
+        record_attempts=lambda attempts, database_url: {"recorded": len(attempts), "source": "test", "error": None},
+        poll_interval_seconds=0.2,
+    )
+
+    assert daemon.process_once() is True
+    assert queue.stats()["submitted_success"] == 1
+    assert queue.snapshot(limit=1)[0]["status"] == "submitted_success"
+
+
+def test_cow_quote_daemon_marks_submission_failed_after_submission_attempt():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many([_candidate()], source="test")
+
+    def fake_quote(candidate, database_url):
+        return {
+            "payload": {
+                "ranking": [
+                    {
+                        "execution_precheck": {
+                            "checks_passed": True,
+                            "can_submit_order": True,
+                        }
+                    }
+                ]
+            },
+            "result": {
+                "cow_submission_result": {
+                    "submitted": False,
+                    "status": "submission_failed",
+                    "blocked_reason": "submission_failed",
+                    "error": "broadcast rejected",
+                }
+            },
+            "attempts": [{"state": "submission_failed"}],
+        }
+
+    daemon = CowQuoteDaemon(
+        queue,
+        quote_candidate=fake_quote,
+        record_attempts=lambda attempts, database_url: {"recorded": len(attempts), "source": "test", "error": None},
+        poll_interval_seconds=0.2,
+    )
+
+    assert daemon.process_once() is True
+    assert queue.stats()["submission_failed"] == 1
+    assert queue.stats()["failed"] == 1
+    assert queue.snapshot(limit=1)[0]["status"] == "submission_failed"
+
+
 def test_cow_quote_daemon_retries_transient_quote_failures():
     queue = CowCandidateQueue(max_size=10)
     queue.enqueue_many([_candidate()], source="test")

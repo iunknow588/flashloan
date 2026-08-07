@@ -492,8 +492,18 @@ def test_cow_execution_precheck_route_hop_mode_enforces_hop_constraints(monkeypa
 
 def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
-    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
     monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
 
     precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
 
@@ -504,7 +514,20 @@ def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
 
 
-def test_cow_execution_precheck_records_drawdown_when_quote_loses_money():
+def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
+
     precheck = _cow_execution_precheck(
         {
             "input_amount": "1000",
@@ -1182,7 +1205,6 @@ def test_cow_quote_verification_records_all_chain_candidates(monkeypatch):
 
 
 def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(monkeypatch):
-    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "false")
     market_state = {
         "observed_at": "2026-08-04T00:00:00+00:00",
         "pairs": [
@@ -1260,6 +1282,7 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
 
     monkeypatch.setattr("web.binance_market_service.evaluate_cow_route", fake_evaluate)
     monkeypatch.setattr("web.binance_market_service.rank_cow_routes", lambda items: items)
+    monkeypatch.setattr("web.binance_market_service._cow_order_submission_adapter_available", lambda: False)
 
     payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
 
@@ -1319,15 +1342,37 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert payload["best"]["execution_precheck"]["checks_passed"] is True
 
 
-def test_cow_order_submission_enabled_when_requested_by_default(monkeypatch):
-    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+def test_cow_order_submission_enabled_when_page_switch_is_on(monkeypatch):
+    monkeypatch.delenv("COW_ORDER_SUBMISSION_ENABLED", raising=False)
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
 
     assert _cow_order_submission_enabled() is True
 
 
 def test_cow_order_submission_can_be_explicitly_disabled(monkeypatch):
-    monkeypatch.setenv("COW_ORDER_SUBMISSION_ENABLED", "true")
+    monkeypatch.delenv("COW_ORDER_SUBMISSION_ENABLED", raising=False)
     monkeypatch.setenv("COW_ORDER_SUBMISSION_ADAPTER_ENABLED", "false")
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
 
     assert _cow_order_submission_enabled() is False
 

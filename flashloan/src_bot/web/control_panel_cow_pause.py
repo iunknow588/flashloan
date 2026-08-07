@@ -20,6 +20,7 @@ from web.parameter_config import (
 
 _DEFAULT_STATE: dict[str, Any] = {
     "paused": True,
+    "order_submission_enabled": False,
     "pause_reason": "startup_transaction_switch_off",
     "updated_at": None,
     "last_paused_at": None,
@@ -40,8 +41,14 @@ def _normalized_state(raw: dict[str, Any] | None, *, source: str) -> dict[str, A
     if isinstance(raw, dict):
         state.update({key: raw.get(key) for key in state if key in raw})
     state["paused"] = bool(state.get("paused"))
+    state["order_submission_enabled"] = not state["paused"]
     state["source"] = source
     return state
+
+
+def _state_payload(state: dict[str, Any]) -> dict[str, Any]:
+    normalized = _normalized_state(state, source=str(state.get("source") or "memory"))
+    return {key: normalized.get(key) for key in _DEFAULT_STATE}
 
 
 def _load_cow_submission_pause_guard_file(path: Path) -> dict[str, Any]:
@@ -64,15 +71,22 @@ def _load_cow_submission_pause_guard_db(database_url: str) -> dict[str, Any] | N
     values = load_control_panel_parameter_map(database_url, COW_SUBMISSION_PAGE)
     if not values:
         return None
+    normalized = _normalized_state(values, source="database")
+    payload = _state_payload(normalized)
+    if any(values.get(key) != payload.get(key) for key in payload):
+        try:
+            save_control_panel_parameter_map(database_url, COW_SUBMISSION_PAGE, payload)
+        except Exception:
+            pass
     try:
-        sync_page_parameter_file(COW_SUBMISSION_PAGE, values)
+        sync_page_parameter_file(COW_SUBMISSION_PAGE, payload)
     except Exception:
         pass
-    return _normalized_state(values, source="database")
+    return normalized
 
 
 def _save_cow_submission_pause_guard_db(database_url: str, state: dict[str, Any]) -> dict[str, Any]:
-    values = {key: state.get(key) for key in _DEFAULT_STATE}
+    values = _state_payload(state)
     save_control_panel_parameter_map(database_url, COW_SUBMISSION_PAGE, values)
     try:
         sync_page_parameter_file(COW_SUBMISSION_PAGE, values)
@@ -181,6 +195,7 @@ def set_cow_submission_pause_guard(
     state.update(
         {
             "paused": bool(paused),
+            "order_submission_enabled": not bool(paused),
             "pause_reason": clean_reason if paused else None,
             "updated_at": now,
         }

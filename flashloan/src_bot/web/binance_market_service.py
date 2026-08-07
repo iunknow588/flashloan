@@ -17,6 +17,7 @@ from execution.cow_order_submission import (
     cow_order_submission_adapter_available,
     cow_order_submission_enabled,
     cow_order_submission_network_supported,
+    cow_order_submission_requested,
     cow_order_submission_signer_ready,
     cow_order_submission_signer_status,
 )
@@ -1814,8 +1815,7 @@ def _cow_sdk_result_snapshot(result: dict[str, Any], precheck: dict[str, Any]) -
 
 
 def _cow_order_submission_requested() -> bool:
-    raw = os.getenv("COW_ORDER_SUBMISSION_ENABLED", "false").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return cow_order_submission_requested()
 
 
 def _cow_order_submission_adapter_available() -> bool:
