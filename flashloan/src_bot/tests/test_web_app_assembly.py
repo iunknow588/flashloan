@@ -50,6 +50,8 @@ def test_system_info_endpoint_owns_scan_version(monkeypatch):
     data = app.test_client().get("/api/system-info").get_json()
 
     assert data["version"] == "test-version"
+    assert data["build"]["app"] == "flashloan-src-bot"
+    assert "git_commit_short" in data["build"]
     assert data["scan_policy"]["core_opportunity_refresh_seconds"] == 1.0
     assert data["scan_policy"]["high_frequency_refresh_seconds"] == 300.0
     assert data["scan_policy"]["borrow_health_refresh_seconds"] == 1800.0
@@ -88,6 +90,7 @@ def test_status_endpoint_includes_system_info(monkeypatch):
     data = app.test_client().get("/api/status").get_json()
 
     assert data["system_info"]["version"] == "status-version"
+    assert data["system_info"]["build"]["app"] == "flashloan-src-bot"
     assert data["system_info"]["scan_policy"]["strategy"] == "core_every_base_cycle_high_frequency_after_5m_borrow_health_after_30m"
     assert "scan_version" not in data
 

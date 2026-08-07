@@ -107,3 +107,15 @@ def test_cow_quotes_route_defines_quote_timeout_before_use():
     use_at = body.index("quote_timeout_seconds=quote_timeout_seconds")
 
     assert assignment_at < use_at
+
+
+def test_cow_quotes_route_checks_pause_guard_before_sdk_quote_verification():
+    source = (SRC_ROOT / "web/control_panel_data_routes.py").read_text(encoding="utf-8")
+    function_start = source.index("def binance_market_cow_quotes():")
+    function_end = source.index("@app.get(\"/api/binance-market/cow-execution-attempts\")", function_start)
+    body = source[function_start:function_end]
+
+    pause_at = body.index("pause_guard = cow_submission_pause_guard_status()")
+    verification_at = body.index("payload = build_cow_quote_verification(")
+
+    assert pause_at < verification_at

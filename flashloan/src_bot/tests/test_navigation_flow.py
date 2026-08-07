@@ -104,10 +104,14 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "各 CoW 网络支持 Top/Bottom 5" in binance_market_panel
     assert "networkClaims" in binance_market_panel
     assert 'value="50" selected' in binance_market_panel
+    assert "前 50 名" in binance_market_panel
+    assert "每链 1 组" in binance_market_panel
     assert "pair_side_limit=1" in binance_market_panel
     assert 'value="1" selected' in binance_market_panel
     assert "const quoteLimit = quoteLimitValue()" in binance_market_panel
     assert "autoRefreshCowQuotes" in binance_market_panel
+    assert "cowAutomationPaused()" in binance_market_panel
+    assert "未请求 CoW SDK 报价" in binance_market_panel
     assert "AUTO_COW_QUOTE_MIN_INTERVAL_MS" in binance_market_panel
     assert "autoExecuteToggle" in binance_market_panel
     assert "自动执行检查关闭" in binance_market_panel

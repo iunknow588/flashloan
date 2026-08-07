@@ -978,10 +978,42 @@ def register_data_routes(app, panel) -> None:
                     max_pairs=1,
                 )
             ]
-            if fallback_pairs:
-                market_state["pairs"] = fallback_pairs
-                market_state["pair_count"] = len(fallback_pairs)
-                market_state["quote_candidate_source"] = "cow_network_claim_top_bottom"
+        if fallback_pairs:
+            market_state["pairs"] = fallback_pairs
+            market_state["pair_count"] = len(fallback_pairs)
+            market_state["quote_candidate_source"] = "cow_network_claim_top_bottom"
+        pause_guard = cow_submission_pause_guard_status()
+        if pause_guard.get("paused"):
+            return jsonify(
+                {
+                    "market_state": market_state,
+                    "observed_at": market_state.get("observed_at"),
+                    "amount": str(amount),
+                    "owner": owner,
+                    "owner_source": "request.owner" if owner else None,
+                    "cow_network": token_cache["network"],
+                    "selected_pair_count": 0,
+                    "route_count": 0,
+                    "supported_route_count": 0,
+                    "unsupported_route_count": 0,
+                    "viable_count": 0,
+                    "opportunity_count": 0,
+                    "status": "submission_paused",
+                    "blocked_reason": "cow_submission_paused",
+                    "pause_guard": pause_guard,
+                    "precheck": {"routes": []},
+                    "best": None,
+                    "best_opportunity": None,
+                    "opportunities": [],
+                    "ranking": [],
+                    "history_recording": {
+                        "recorded": 0,
+                        "source": "paused",
+                        "error": None,
+                        "pause_guard": pause_guard,
+                    },
+                }
+            )
         try:
             payload = build_cow_quote_verification(
                 market_state,

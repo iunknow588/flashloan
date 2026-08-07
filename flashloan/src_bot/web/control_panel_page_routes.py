@@ -2,6 +2,7 @@ from pathlib import Path
 
 from flask import Response, jsonify
 
+from core.build_info import build_info_payload
 from web.account_pool_state_service import account_pool_state_payload
 from web.page_state_service import (
     account_scan_state_payload,
@@ -31,6 +32,7 @@ def register_page_routes(app, panel) -> None:
         )
         return {
             "version": scan_version,
+            "build": build_info_payload(),
             "scan_policy": {
                 "strategy": "core_every_base_cycle_high_frequency_after_5m_borrow_health_after_30m",
                 "core_opportunity_refresh_seconds": refresh_profile.get("core_opportunity_refresh_seconds", 1.0),

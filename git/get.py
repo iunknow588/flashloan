@@ -78,6 +78,11 @@ def has_unmerged_paths(root: Path) -> bool:
     return bool(result.stdout.strip())
 
 
+def unmerged_paths(root: Path) -> list[str]:
+    result = run_git(root, "diff", "--name-only", "--diff-filter=U", capture=True, check=False)
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def current_rebase_subject(root: Path) -> str:
     result = run_git(root, "show", "-s", "--format=%s", "REBASE_HEAD", capture=True, check=False)
     return result.stdout.strip() if result.returncode == 0 else ""
@@ -201,6 +206,29 @@ def reset_bootstrap_initial_branch(root: Path, branch: str, behind: int) -> None
         print("Reapplied local working-tree changes after bootstrap sync.")
 
 
+def reset_conflicted_worktree_to_origin(root: Path, branch: str) -> None:
+    run_git(root, "rebase", "--abort", capture=True, check=False)
+    run_git(root, "merge", "--abort", capture=True, check=False)
+    fetch_origin(root, branch)
+    run_git(root, "reset", "--hard", f"origin/{branch}")
+    print(f"Discarded conflicted local state and reset {branch} to origin/{branch}.")
+
+
+def unresolved_conflict_message(root: Path) -> str:
+    paths = unmerged_paths(root)
+    path_text = "\n".join(f"  - {path}" for path in paths[:20]) or "  - unknown"
+    if len(paths) > 20:
+        path_text += f"\n  - ... {len(paths) - 20} more"
+    return (
+        "Git has unresolved merge conflicts, so pulling the latest GitHub version is blocked.\n"
+        f"Repository: {root}\n"
+        f"Conflicted files:\n{path_text}\n\n"
+        "If these Replit-local conflicted edits are not needed, rerun:\n"
+        "  python git/get.py --discard-local-conflicts\n\n"
+        "If they must be preserved, resolve each file, run `git add ...`, commit, then rerun this script."
+    )
+
+
 def initialize_repository_if_missing(root: Path) -> bool:
     if (root / ".git").exists():
         return False
@@ -303,6 +331,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-dirty", action="store_true", help="Allow pulling with a dirty working tree.")
     parser.add_argument("--no-autostash", action="store_true", help="Do not pass --autostash to git pull --rebase/--merge.")
     parser.add_argument(
+        "--discard-local-conflicts",
+        action="store_true",
+        help="Abort any unfinished merge/rebase and reset the local worktree to origin/<branch>.",
+    )
+    parser.add_argument(
         "--cleanup-stale-lock",
         action="store_true",
         help="Remove .git/index.lock before syncing. Use only after confirming no other git process is running.",
@@ -318,10 +351,15 @@ def main(argv: list[str] | None = None) -> int:
         load_env_values(root)
         initialize_repository_if_missing(root)
         remove_index_lock_if_requested(root, args.cleanup_stale_lock)
-        continue_rebase_if_possible(root)
         ensure_origin_remote(root)
         branch = current_or_default_branch(root)
         ensure_local_branch_name(root, branch)
+        if args.discard_local_conflicts:
+            reset_conflicted_worktree_to_origin(root, branch)
+            return 0
+        continue_rebase_if_possible(root)
+        if has_unmerged_paths(root):
+            raise RuntimeError(unresolved_conflict_message(root))
 
         status = working_tree_status(root)
         if status and not args.allow_dirty and args.no_autostash:

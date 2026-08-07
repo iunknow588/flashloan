@@ -20,10 +20,17 @@ def test_replit_config_runs_active_src_bot_entrypoint():
     gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     launcher = _load_module("test_run_replit", REPO_ROOT / "run_replit.py")
 
-    assert 'run = "python run_replit.py"' in config
+    assert 'run = "python3 run_replit.py"' in config
+    assert 'run = ["python3", "run_replit.py"]' in config
     assert ".replit" not in [line.strip() for line in gitignore]
     assert launcher.SRC_BOT_DIR == SRC_ROOT
     assert launcher.SRC_BOT_RUN == SRC_ROOT / "run.py"
+
+
+def test_replit_nix_installs_python_runtime():
+    config = (REPO_ROOT / "replit.nix").read_text(encoding="utf-8")
+
+    assert "pkgs.python311" in config
 
 
 def test_legacy_srcs_dex_launcher_delegates_to_active_src_bot_entrypoint():

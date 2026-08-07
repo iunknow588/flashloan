@@ -108,13 +108,13 @@
       <button id="copySummaryBtn">复制摘要</button>
       <button id="copyQuotesBtn">复制报价</button>
       <select id="sideLimitSelect">
-        <option value="5">鍓?5 鍚?/option>
-        <option value="10">鍓?10 鍚?/option>
-        <option value="20">鍓?20 鍚?/option>
-        <option value="50" selected>鍓?50 鍚?/option>
+        <option value="5">前 5 名</option>
+        <option value="10">前 10 名</option>
+        <option value="20">前 20 名</option>
+        <option value="50" selected>前 50 名</option>
       </select>
       <select id="quoteLimitSelect">
-        <option value="1" selected>姣忛摼 1 缁?/option>
+        <option value="1" selected>每链 1 组</option>
       </select>
       <div id="cowNetworkChecks" class="network-checks" title="閫夋嫨瑕佸悓鏃跺睍绀哄拰鎶ヤ环鐨?CoW 缃戠粶"></div>
       <label class="auto-toggle" title="满足意图条件后进入自动执行检查；真实下单仍受后端提交模块和暂停窗口控制">
@@ -1468,6 +1468,10 @@
       $("cowSubmissionPauseLastChange").textContent = paused ? `paused at ${fmtTime(data?.last_paused_at || data?.updated_at)}` : `resumed at ${fmtTime(data?.last_resumed_at || data?.updated_at)}`;
       $("cowSubmissionPauseMessage").textContent = paused ? "CoW 交易已关闭" : "CoW 交易已开启";
       $("cowSubmissionPauseToggleBtn").textContent = paused ? "开启 CoW 交易" : "关闭 CoW 交易";
+      $("quoteBtn").disabled = paused;
+    }
+    function cowAutomationPaused() {
+      return Boolean(latestCowSubmissionPausePayload?.paused);
     }
     async function refreshCowSubmissionPause() {
       try {
@@ -1556,7 +1560,11 @@
         }
         refreshCowAttemptHistory();
         refreshCowCandidateQueue();
-        autoRefreshCowQuotes(data).catch(error => { $("message").textContent = error.message; });
+        if (cowAutomationPaused()) {
+          $("quoteState").innerHTML = `<span class="badge">CoW 交易关闭</span><span class="muted">waiting for manual switch</span>`;
+        } else {
+          autoRefreshCowQuotes(data).catch(error => { $("message").textContent = error.message; });
+        }
       } catch (error) {
         $("message").textContent = error.message;
       } finally {
@@ -1565,6 +1573,11 @@
     }
     async function refreshCowQuotes(network = null) {
       if (cowQuoteRefreshInFlight) return;
+      if (cowAutomationPaused()) {
+        $("message").textContent = "CoW 交易开关关闭，未请求 CoW SDK 报价";
+        $("quoteState").innerHTML = `<span class="badge">CoW 交易关闭</span><span class="muted">waiting for manual switch</span>`;
+        return;
+      }
       cowQuoteRefreshInFlight = true;
       try {
         $("message").textContent = "";

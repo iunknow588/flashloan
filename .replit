@@ -1,10 +1,10 @@
 entrypoint = "run_replit.py"
-run = "python run_replit.py"
+run = "python3 run_replit.py"
 
 [env]
 PYTHONUNBUFFERED = "1"
 PIP_DISABLE_PIP_VERSION_CHECK = "1"
 
 [deployment]
-run = ["python", "run_replit.py"]
+run = ["python3", "run_replit.py"]
 deploymentTarget = "cloudrun"
