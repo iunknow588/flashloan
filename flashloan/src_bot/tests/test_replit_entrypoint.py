@@ -21,6 +21,9 @@ def test_replit_config_runs_active_src_bot_entrypoint():
     launcher = _load_module("test_run_replit", REPO_ROOT / "run_replit.py")
 
     assert 'run = "python3 run_replit.py"' in config
+    assert 'modules = ["python-3.11"]' in config
+    assert 'language = "python3"' in config
+    assert 'requiredFiles = [".replit", "replit.nix"]' in config
     assert 'run = ["python3", "run_replit.py"]' in config
     assert ".replit" not in [line.strip() for line in gitignore]
     assert launcher.SRC_BOT_DIR == SRC_ROOT
