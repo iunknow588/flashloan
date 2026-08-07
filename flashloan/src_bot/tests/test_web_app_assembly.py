@@ -384,6 +384,118 @@ def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch
             assert debt_pool["context"]["account_pool"]["reason"]
 
 
+def test_cow_quotes_route_keeps_display_but_skips_recording_when_submission_paused(monkeypatch):
+    from web import control_panel_data_routes as routes
+
+    captured = {}
+
+    monkeypatch.setattr(routes, "panel_call", lambda name, *args, **kwargs: None)
+    monkeypatch.setattr(routes, "safe_latest", lambda loader: {"observed_at": "2026-08-04T00:00:00+00:00", "window_seconds": 1, "price_source": "test", "market_state_source": "test"})
+    monkeypatch.setattr(routes, "select_binance_market_extremes", lambda extremes, side_limit=50: {"observed_at": "2026-08-04T00:00:00+00:00"})
+    monkeypatch.setattr(
+        routes,
+        "request_cow_trade_thresholds",
+        lambda amount=None: ({}, 50, {"adjusted_min_spread_percent": "0", "min_side_change_percent": "0", "min_token_price_usd": "0.01"}),
+    )
+    monkeypatch.setattr(
+        routes,
+        "load_cow_supported_token_registry",
+        lambda **kwargs: {"network": "bnb", "chain_id": 56, "registry": {}, "source": "memory", "token_count": 0},
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_binance_market_state",
+        lambda *args, **kwargs: {
+            "observed_at": "2026-08-04T00:00:00+00:00",
+            "pairs": [{"rank": 1, "pair": "AAA / BBB", "x_base_symbol": "AAA", "y_base_symbol": "BBB"}],
+            "cow_filter": {},
+        },
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_cow_quote_verification",
+        lambda *args, **kwargs: {
+            "observed_at": "2026-08-04T00:00:00+00:00",
+            "amount": "1000",
+            "owner": "0x" + "1" * 40,
+            "owner_source": "request.owner",
+            "cow_network": "bnb",
+            "cow_chain_id": 56,
+            "cow_testnet": False,
+            "price_quality": "fast",
+            "valid_for": 60,
+            "selected_pair_count": 1,
+            "route_count": 1,
+            "supported_route_count": 1,
+            "unsupported_route_count": 0,
+            "viable_count": 1,
+            "opportunity_count": 1,
+            "precheck": {"routes": []},
+            "best": {"pair": "AAA / BBB"},
+            "best_opportunity": {"pair": "AAA / BBB"},
+            "opportunities": [{"pair": "AAA / BBB"}],
+            "ranking": [
+                {
+                    "pair": "AAA / BBB",
+                    "pair_rank": 1,
+                    "priority_reason": "reverse_check",
+                    "execution_precheck": {"status": "limit_order_ready_to_submit", "checks_passed": True, "can_submit_order": True, "reasons": []},
+                    "cow_sdk_result": {"status": "ready"},
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True, "pause_reason": "manual_pause"})
+    monkeypatch.setattr(
+        routes,
+        "record_cow_execution_attempts_safely",
+        lambda *args, **kwargs: captured.setdefault("record_called", True),
+    )
+
+    client = app.test_client()
+    response = client.get("/api/binance-market/cow-quotes?cow_network=bnb&quote_limit=1&amount=1000")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert captured == {}
+    assert data["history_recording"]["source"] == "paused"
+    assert data["history_recording"]["recorded"] == 0
+    assert data["ranking"][0]["execution_precheck"]["status"] == "submission_paused"
+    assert data["ranking"][0]["execution_precheck"]["can_submit_order"] is False
+    assert data["ranking"][0]["cow_sdk_result"]["status"] == "submission_paused"
+
+
+def test_cow_candidate_queue_does_not_start_daemon_when_submission_paused(monkeypatch):
+    from web import control_panel_data_routes as routes
+
+    captured = {}
+
+    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True, "pause_reason": "manual_pause"})
+    monkeypatch.setattr(routes, "cow_quote_daemon_enabled", lambda: True)
+    monkeypatch.setattr(
+        routes,
+        "ensure_cow_quote_daemon_running",
+        lambda **kwargs: captured.setdefault("started", True),
+    )
+    monkeypatch.setattr(
+        routes,
+        "cow_candidate_queue_snapshot",
+        lambda limit=100: {
+            "daemon": {"enabled": True, "running": False, "paused": True},
+            "items": [],
+        },
+    )
+
+    client = app.test_client()
+    response = client.get("/api/binance-market/cow-candidate-queue?limit=100")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert captured == {}
+    assert data["daemon"]["paused"] is True
+    assert data["items"] == []
+
+
 def test_account_scan_page_preserves_debt_pool_return_intent():
     client = app.test_client()
 

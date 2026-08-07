@@ -506,12 +506,15 @@ def ensure_cow_quote_daemon_running(
 
 
 def cow_quote_daemon_status() -> dict[str, Any]:
+    pause_guard = cow_submission_pause_guard_status()
     with _DAEMON_LOCK:
         daemon = _DAEMON
     if daemon is None:
         return {
             "enabled": cow_quote_daemon_enabled(),
             "running": False,
+            "paused": bool(pause_guard.get("paused")),
+            "pause_guard": pause_guard,
             "queue": _QUEUE.stats(),
             "processed": 0,
             "last_error": None,

@@ -105,7 +105,7 @@
       <button id="quoteBtn">CoW SDK 报价验证</button>
       <button id="copySummaryBtn">复制摘要</button>
       <button id="copyQuotesBtn">复制报价</button>
-      <label id="cowTradingSwitchLabel" class="cow-trading-switch disabled" title="勾选后才允许 CoW SDK 报价、候选入队和交易提交">
+      <label id="cowTradingSwitchLabel" class="cow-trading-switch disabled" title="勾选后才允许 CoW SDK 交易提交、候选入队和数据库写入">
         <input id="cowSubmissionEnabledCheckbox" type="checkbox">
         允许 CoW SDK 交易
       </label>
@@ -866,7 +866,6 @@
     ].join("\n");
 
     function routeBox(route, pair, network) {
-      const paused = cowAutomationPaused();
       const reason = route.priority_reason === "buy_loser_then_gainer" ? "优先" : "逆向";
       const quote = route.cow_quote || null;
       const support = route.cow_support || quote?.cow_support || null;
@@ -1331,7 +1330,7 @@
       const queue = daemon.queue || {};
       const counts = queue.counts || {};
       $("cowQueueStatus").textContent = [
-        daemon.running ? "守护线程运行中" : (daemon.enabled ? "守护线程等待中" : "守护线程已关闭"),
+        daemon.paused ? "交易关闭，仅显示队列" : (daemon.running ? "守护线程运行中" : (daemon.enabled ? "守护线程等待中" : "守护线程已关闭")),
         `队列 ${queue.size || 0}`,
         `待处理 ${counts.pending || 0}`,
         `处理中 ${counts.processing || 0}`,
@@ -1368,7 +1367,7 @@
       $("cowTradingSwitchLabel").classList.toggle("enabled", !paused);
       $("cowTradingSwitchLabel").classList.toggle("disabled", paused);
       $("cowSubmissionPauseMessage").textContent = paused
-        ? "CoW SDK 交易关闭：报价和界面照常显示，不会提交交易"
+        ? "CoW SDK 交易关闭：报价和界面照常显示，不会提交交易，也不会写库"
         : "CoW SDK 交易开启：允许提交前检查和交易提交";
       $("quoteBtn").disabled = false;
       renderNetworkOpportunityCards();

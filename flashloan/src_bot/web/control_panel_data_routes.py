@@ -958,6 +958,7 @@ def register_data_routes(app, panel) -> None:
         market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
         market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
         market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
+        fallback_pairs = []
         if not market_state.get("pairs"):
             network_claims = build_cow_network_market_claims(
                 extremes,
@@ -1033,11 +1034,18 @@ def register_data_routes(app, panel) -> None:
                     "pause_guard": pause_guard,
                 }
             )
-        payload["history_recording"] = record_cow_execution_attempts_safely(
-            payload,
-            market_state=market_state,
-            database_url=database_url,
-        )
+            payload["history_recording"] = {
+                "recorded": 0,
+                "source": "paused",
+                "error": None,
+                "pause_guard": pause_guard,
+            }
+        else:
+            payload["history_recording"] = record_cow_execution_attempts_safely(
+                payload,
+                market_state=market_state,
+                database_url=database_url,
+            )
         return jsonify({"market_state": market_state, **payload})
 
     @app.get("/api/binance-market/cow-execution-attempts")
@@ -1142,7 +1150,8 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/binance-market/cow-candidate-queue")
     def binance_market_cow_candidate_queue():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
-        if cow_quote_daemon_enabled():
+        pause_guard = cow_submission_pause_guard_status()
+        if not pause_guard.get("paused") and cow_quote_daemon_enabled():
             ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
         return jsonify(cow_candidate_queue_snapshot(limit=limit))
 
