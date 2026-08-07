@@ -5,15 +5,24 @@ from web.control_panel_cow_pause import (
 )
 
 
-def test_startup_always_turns_cow_transaction_switch_off(tmp_path):
+def test_startup_initializes_missing_cow_transaction_switch_off(tmp_path):
     path = tmp_path / "cow_submission_pause_guard.json"
-    set_cow_submission_pause_guard(paused=False, path=path)
-
     state = disable_cow_submission_for_startup(path)
 
     assert state["paused"] is True
     assert state["pause_reason"] == "startup_transaction_switch_off"
     assert load_cow_submission_pause_guard(path)["paused"] is True
+
+
+def test_startup_does_not_overwrite_existing_enabled_choice(tmp_path):
+    path = tmp_path / "cow_submission_pause_guard.json"
+    set_cow_submission_pause_guard(paused=False, reason="manual_resume", path=path)
+
+    state = disable_cow_submission_for_startup(path)
+
+    assert state["paused"] is False
+    assert state["pause_reason"] is None
+    assert load_cow_submission_pause_guard(path)["paused"] is False
 
 
 def test_missing_cow_transaction_switch_state_defaults_to_off(tmp_path):

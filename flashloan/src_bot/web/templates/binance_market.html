@@ -1379,13 +1379,15 @@
       try {
         renderCowSubmissionPause(await api("/api/binance-market/cow-submission-pause"));
       } catch (error) {
-        latestCowSubmissionPausePayload = {paused: true, pause_reason: "pause_status_unavailable"};
-        $("cowSubmissionEnabledCheckbox").checked = false;
+        if (latestCowSubmissionPausePayload?.paused !== false) {
+          latestCowSubmissionPausePayload = {paused: true, pause_reason: "pause_status_unavailable"};
+          $("cowSubmissionEnabledCheckbox").checked = false;
+          $("cowTradingSwitchLabel").classList.toggle("enabled", false);
+          $("cowTradingSwitchLabel").classList.toggle("disabled", true);
+        }
         $("quoteBtn").disabled = false;
-        $("cowTradingSwitchLabel").classList.toggle("enabled", false);
-        $("cowTradingSwitchLabel").classList.toggle("disabled", true);
         renderNetworkOpportunityCards();
-        $("cowSubmissionPauseMessage").textContent = `开关状态读取失败，默认保持关闭：${error.message}`;
+        $("cowSubmissionPauseMessage").textContent = `开关状态读取失败，保留当前状态：${error.message}`;
       }
     }
     async function setCowSubmissionPause(paused, reason = null) {

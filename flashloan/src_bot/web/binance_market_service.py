@@ -1627,6 +1627,40 @@ def _intent_market_rows_from_pairs(pairs: Any, *, side: str) -> list[dict[str, A
     return _intent_market_rows(rows)
 
 
+def _intent_token_scope(input_symbol: Any, final_symbol: Any, market_state: dict[str, Any] | None) -> dict[str, Any]:
+    state = market_state if isinstance(market_state, dict) else {}
+    token_rows = _intent_market_rows(state.get("cow_top") or state.get("top") or [])
+    if not token_rows:
+        token_rows = _intent_market_rows_from_pairs(state.get("pairs") or [], side="rising")
+    if len(token_rows) < 5:
+        extra_rows = _intent_market_rows(state.get("cow_bottom") or state.get("bottom") or [])
+        if not extra_rows:
+            extra_rows = _intent_market_rows_from_pairs(state.get("pairs") or [], side="falling")
+        token_rows.extend(extra_rows)
+    scope_tokens: list[str] = []
+    for row in token_rows:
+        for symbol in (
+            str(row.get("base_symbol") or "").strip().upper(),
+            str(row.get("symbol") or "").strip().upper(),
+        ):
+            if symbol and symbol not in scope_tokens:
+                scope_tokens.append(symbol)
+    for symbol in (
+        str(input_symbol or "").strip().upper(),
+        str(final_symbol or input_symbol or "").strip().upper(),
+    ):
+        if symbol and symbol not in scope_tokens:
+            scope_tokens.append(symbol)
+    scope_tokens = scope_tokens[:10]
+    return {
+        "input_symbol": str(input_symbol or "").strip().upper() or None,
+        "output_symbol": str(final_symbol or input_symbol or "").strip().upper() or None,
+        "tokens": scope_tokens,
+        "token_count": len(scope_tokens),
+        "scope_role": "solver_owned_token_universe_only",
+    }
+
+
 def _cow_pure_profit_intent(
     *,
     amount: Any,
@@ -1642,32 +1676,8 @@ def _cow_pure_profit_intent(
     control_mode = _cow_flashloan_control_mode()
     requested_amount = _decimal_value(amount)
     initial_amount = DEFAULT_COW_FLASHLOAN_INTENT_INITIAL_USDC
-    threshold = threshold_detail if isinstance(threshold_detail, dict) else {}
-    trade_fee_percent = _decimal_value(threshold.get("route_trade_fee_percent")) or Decimal("0")
-    flashloan_fee_percent = _decimal_value(threshold.get("flashloan_fee_percent")) or Decimal("0")
-    fee_reserve_percent = _decimal_value(threshold.get("fee_reserve_percent")) or Decimal("0")
-    min_profit_percent = _decimal_value(threshold.get("min_profit_percent")) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT
-    gas_reserve = _env_decimal("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC")
-    other_known_costs = _env_decimal("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC")
-    fixed_cost_percent = (
-        (gas_reserve + other_known_costs) / initial_amount * Decimal("100")
-        if initial_amount > 0
-        else Decimal("0")
-    )
-    x_percent = trade_fee_percent + flashloan_fee_percent + fee_reserve_percent + min_profit_percent + fixed_cost_percent
-    baseline_percent = Decimal("100")
-    total_required_percent = baseline_percent + x_percent
-    x_ratio = x_percent / Decimal("100")
-    min_pure_profit = initial_amount * min_profit_percent / Decimal("100")
-    min_total_profit = initial_amount * x_ratio
-    min_final_amount = initial_amount * total_required_percent / Decimal("100")
-    state = market_state if isinstance(market_state, dict) else {}
-    rising_tokens = _intent_market_rows(state.get("cow_top") or state.get("top") or [])
-    falling_tokens = _intent_market_rows(state.get("cow_bottom") or state.get("bottom") or [])
-    if not rising_tokens:
-        rising_tokens = _intent_market_rows_from_pairs(state.get("pairs") or [], side="rising")
-    if not falling_tokens:
-        falling_tokens = _intent_market_rows_from_pairs(state.get("pairs") or [], side="falling")
+    token_scope = _intent_token_scope(input_symbol, final_symbol, market_state)
+    min_final_amount = initial_amount
     return {
         "version": 2,
         "mode": "pure_profit_final_amount_intent",
@@ -1680,27 +1690,16 @@ def _cow_pure_profit_intent(
         "initial_symbol": str(input_symbol or "USDC"),
         "final_symbol": str(final_symbol or input_symbol or "USDC"),
         "requested_quote_amount": _decimal_text(requested_amount),
-        "formula": "final_amount >= 1000 * (100% + x%)",
-        "x_definition": "x = all configured fee points + fixed USDC cost reserve + guaranteed profit point, added on top of the original 100% base",
-        "baseline_percent": _decimal_text(baseline_percent),
-        "x_ratio": _decimal_text(x_ratio),
-        "x_percent": _decimal_text(x_percent),
-        "total_required_percent": _decimal_text(total_required_percent),
+        "formula": "solver_owned_token_scope_only",
+        "x_definition": "solver receives only the token scope and order bounds; route shape is left to the solver",
+        "baseline_percent": "100",
+        "x_ratio": "0",
+        "x_percent": "0",
+        "total_required_percent": "100",
         "min_final_amount": _decimal_text(min_final_amount),
-        "min_pure_profit_amount": _decimal_text(min_pure_profit),
-        "min_total_profit_amount": _decimal_text(min_total_profit),
         "principal_source": "fixed_1000u_intent_principal",
         "fee_components": {
-            "route_trade_fee_percent": _decimal_text(trade_fee_percent),
-            "flashloan_fee_percent": _decimal_text(flashloan_fee_percent),
-            "fee_reserve_percent": _decimal_text(fee_reserve_percent),
-            "gas_reserve_usdc": _decimal_text(gas_reserve),
-            "other_known_costs_usdc": _decimal_text(other_known_costs),
-            "guaranteed_profit_percent": _decimal_text(min_profit_percent),
-            "fixed_cost_percent": _decimal_text(fixed_cost_percent),
-            "all_in_fee_plus_profit_percent": _decimal_text(x_percent),
-            "required_total_percent": _decimal_text(total_required_percent),
-            "cow_solver_fee_mode": "controlled_by_cow_sdk_and_reflected_in_sdk_result",
+            "cow_solver_fee_mode": "solver_owned_token_scope_only",
         },
         "cow_sdk_order_intent": {
             "sell_amount_before_fee": _decimal_text(initial_amount),
@@ -1708,18 +1707,10 @@ def _cow_pure_profit_intent(
             "minimum_final_buy_amount_after_all_costs": _decimal_text(min_final_amount),
             "buy_symbol": str(final_symbol or input_symbol or "USDC"),
         },
+        "token_scope": token_scope,
         "owner": owner,
         "cow_network": cow_network,
         "cow_chain_id": cow_chain_id,
-        "route_path_hint": [str(item or "").upper() for item in path or []],
-        "route_path_hint_role": "advisory_only",
-        "market_hints": {
-            "rising_tokens": rising_tokens,
-            "falling_tokens": falling_tokens,
-            "max_rising_tokens": 5,
-            "max_falling_tokens": 5,
-            "role": "advisory_decision_support_only",
-        },
         "control_surface": {
             "default_mode": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
             "current_mode": control_mode,
@@ -1727,7 +1718,7 @@ def _cow_pure_profit_intent(
             "route_hop_mode": "route_hop",
             "route_hop_constraints_enforced": control_mode != "intent",
         },
-        "submission_boundary": "caller_provides_market_hints_and_min_final_amount; cow_sdk_controls_success_failure_and_swap_path",
+        "submission_boundary": "caller_provides_token_scope_and_min_final_amount; cow_sdk_controls_success_failure_and_swap_path",
         "ready": initial_amount > 0 and str(input_symbol or "") and str(final_symbol or ""),
     }
 

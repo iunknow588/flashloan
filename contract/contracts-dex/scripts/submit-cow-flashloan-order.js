@@ -248,17 +248,41 @@ function jsonFriendly(value) {
   );
 }
 
-function pureIntentAppData({ slippageBps, candidateUniverse, minProfitPercentHuman, gasReserveHuman, otherKnownCostsHuman }) {
+function normalizeTokenScope(intent) {
+  const tokenScope = intent.token_scope && typeof intent.token_scope === "object" ? intent.token_scope : {};
+  const rawTokens = Array.isArray(tokenScope.tokens) && tokenScope.tokens.length ? tokenScope.tokens : [];
+  const uniqueTokens = [];
+  for (const item of rawTokens) {
+    const symbol = tokenKey(item);
+    if (symbol && !uniqueTokens.includes(symbol)) uniqueTokens.push(symbol);
+  }
+  const inputSymbol = tokenKey(tokenScope.input_symbol || tokenScope.inputToken || intent.initial_symbol || intent.cow_sdk_order_intent?.sell_symbol || "USDC");
+  const outputSymbol = tokenKey(tokenScope.output_symbol || tokenScope.outputToken || intent.final_symbol || intent.cow_sdk_order_intent?.buy_symbol || inputSymbol);
+  const orderedTokens = [];
+  for (const symbol of [inputSymbol, outputSymbol, ...uniqueTokens]) {
+    if (symbol && !orderedTokens.includes(symbol)) orderedTokens.push(symbol);
+  }
+  return {
+    inputSymbol,
+    outputSymbol,
+    tokens: orderedTokens,
+    tokenCount: orderedTokens.length,
+    scopeRole: tokenScope.scope_role || "solver_owned_token_universe_only",
+  };
+}
+
+function pureIntentAppData({ slippageBps, tokenScope, principalHuman, minFinalAmountHuman }) {
   return {
     metadata: {
       quote: { slippageBips: slippageBps },
       orderClass: { orderClass: "limit" },
       intent: {
         kind: "pure_profit",
-        minProfitPercent: String(minProfitPercentHuman),
-        gasReserveUsdc: String(gasReserveHuman),
-        otherKnownCostsUsdc: String(otherKnownCostsHuman),
-        candidateUniverse,
+        orderBounds: {
+          inputAmount: String(principalHuman),
+          minimumFinalAmount: String(minFinalAmountHuman),
+        },
+        tokenScope,
       },
     },
   };
@@ -310,28 +334,15 @@ async function submitOne() {
   const principalUnits = parseHumanUnits(principalHuman, usdc.decimals);
   const minFinalAmountHuman = String(intent.min_final_amount || intent.cow_sdk_order_intent?.minimum_final_buy_amount_after_all_costs || "0");
   const minFinalAmountUnits = parseHumanUnits(minFinalAmountHuman, usdc.decimals);
-  const minProfitPercentHuman = String(intent.fee_components?.guaranteed_profit_percent || intent.min_profit_percent || "0.618");
-  const gasReserveHuman = String(intent.fee_components?.gas_reserve_usdc || "0");
-  const otherKnownCostsHuman = String(intent.fee_components?.other_known_costs_usdc || "0");
-  const candidateUniverse = {
-    rising_tokens: intent.market_hints?.rising_tokens || [],
-    falling_tokens: intent.market_hints?.falling_tokens || [],
-    max_rising_tokens: intent.market_hints?.max_rising_tokens || 5,
-    max_falling_tokens: intent.market_hints?.max_falling_tokens || 5,
-  };
   const flashLoanFeePercent = Number(envFirst("COW_FLASHLOAN_FEE_PERCENT") || "0.05");
   const flashLoanFeeBps = Math.round(flashLoanFeePercent * 100);
   const slippageBps = Number(envFirst("COW_FLASHLOAN_PROBE_SLIPPAGE_BPS", "COW_FLASHLOAN_SLIPPAGE_BPS") || "50");
-  const minProfitUnits = percentageOfUnits(principalUnits, minProfitPercentHuman);
+  const tokenScope = normalizeTokenScope(intent);
   const { flashLoanFeeAmount } = new AaveCollateralSwapSdk({ env: envFirst("COW_FLASHLOAN_PROBE_ENV", "COW_SDK_ENV") || "prod" }).calculateFlashLoanAmounts({
     sellAmount: principalUnits,
     flashLoanFeeBps,
   });
-  const totalFeeReserveUnits =
-    bigintFrom(flashLoanFeeAmount) +
-    parseHumanUnits(gasReserveHuman, usdc.decimals) +
-    parseHumanUnits(otherKnownCostsHuman, usdc.decimals);
-  const targetBuyUnits = minFinalAmountUnits || principalUnits + totalFeeReserveUnits;
+  const targetBuyUnits = minFinalAmountUnits || principalUnits;
   const validTo = Math.ceil(Date.now() / 1000) + 300;
   const quoteParams = {
     chainId: network.chainId,
@@ -348,10 +359,9 @@ async function submitOne() {
   };
   const customAppData = pureIntentAppData({
     slippageBps,
-    candidateUniverse,
-    minProfitPercentHuman,
-    gasReserveHuman,
-    otherKnownCostsHuman,
+    tokenScope,
+    principalHuman,
+    minFinalAmountHuman,
   });
   const client = createPublicClient({ chain: network.chain, transport: http(rpc) });
   setGlobalAdapter(new ViemAdapter({ provider: client }));
@@ -426,19 +436,16 @@ async function submitOne() {
   const quoteAmounts = quoteResults.amountsAndCosts || {};
   const afterSlippageBuyUnits = bigintFrom(quoteAmounts.afterSlippage?.buyAmount ?? orderToSign?.buyAmount ?? 0n);
   const quotedNetworkFeeBuyUnits = bigintFrom(quoteAmounts.costs?.networkFee?.amountInBuyCurrency ?? 0n);
-  const totalFeeUnits = quotedNetworkFeeBuyUnits + bigintFrom(flashLoanFeeAmount) + parseHumanUnits(gasReserveHuman, usdc.decimals) + parseHumanUnits(otherKnownCostsHuman, usdc.decimals);
   const requiredSellUnits = bigintFrom(orderToSign?.sellAmount ?? 0n);
-  const maxSellUnits = principalUnits > totalFeeUnits ? principalUnits - totalFeeUnits : 0n;
-  const sellBudgetPassed = requiredSellUnits <= maxSellUnits;
-  const profitBudgetMet = afterSlippageBuyUnits - principalUnits - totalFeeUnits >= minProfitUnits;
+  const sellBudgetPassed = requiredSellUnits <= principalUnits;
+  const profitBudgetMet = afterSlippageBuyUnits >= minFinalAmountUnits;
   const analysis = {
     principalUnits: String(principalUnits),
     afterSlippageBuyUnits: String(afterSlippageBuyUnits),
     quotedNetworkFeeBuyUnits: String(quotedNetworkFeeBuyUnits),
     flashLoanFeeUnits: String(flashLoanFeeAmount),
-    totalFeeReserveUnits: String(totalFeeUnits),
     requiredSellUnits: String(requiredSellUnits),
-    maxSellUnits: String(maxSellUnits),
+    minimumFinalAmountUnits: String(minFinalAmountUnits),
     sellBudgetPassed,
     profitBudgetMet,
   };
@@ -463,8 +470,8 @@ async function submitOne() {
       ok: false,
       submitted: false,
       status: "submission_failed",
-      blockedReason: !profitBudgetMet ? "net_profit_below_percentage_floor" : "sell_budget_exceeds_principal_after_costs",
-      error: !profitBudgetMet ? "net_profit_below_percentage_floor" : "sell_budget_exceeds_principal_after_costs",
+      blockedReason: !profitBudgetMet ? "final_amount_below_minimum_bound" : "sell_budget_exceeds_principal",
+      error: !profitBudgetMet ? "final_amount_below_minimum_bound" : "sell_budget_exceeds_principal",
       owner: signer.signerAddress,
       network: network.network,
       chainId: network.chainId,

@@ -858,6 +858,33 @@ function pureIntentCandidateUniverse(extremes, registry, limit = 3) {
   };
 }
 
+function pureIntentTokenScope(routeSpec) {
+  const candidateUniverse = routeSpec?.candidateUniverse && typeof routeSpec.candidateUniverse === "object" ? routeSpec.candidateUniverse : {};
+  const tokenRows = Array.isArray(candidateUniverse.tokens) ? candidateUniverse.tokens : [];
+  const rawTokens = [];
+  const route = Array.isArray(routeSpec?.route) ? routeSpec.route : [];
+  for (const token of tokenRows) {
+    if (!token || typeof token !== "object") continue;
+    rawTokens.push(token.baseSymbol || token.symbol);
+  }
+  const scopeTokens = [];
+  for (const symbol of [
+    routeSpec?.pureIntent?.initialSymbol,
+    routeSpec?.pureIntent?.finalSymbol,
+    ...rawTokens,
+  ]) {
+    const key = tokenKey(symbol);
+    if (key && !scopeTokens.includes(key)) scopeTokens.push(key);
+  }
+  return {
+    input_symbol: tokenKey(routeSpec?.pureIntent?.initialSymbol || route[0] || "USDC"),
+    output_symbol: tokenKey(routeSpec?.pureIntent?.finalSymbol || route[route.length - 1] || routeSpec?.pureIntent?.initialSymbol || "USDC"),
+    tokens: scopeTokens,
+    token_count: scopeTokens.length,
+    scope_role: "solver_owned_token_universe_only",
+  };
+}
+
 function effectiveRouteTradeFeePercent(tradeFeePercent, routeTradeFeeHops) {
   const feeRate = Math.max(0.0, Number(tradeFeePercent) || 0) / 100.0;
   const hops = Math.max(1, Number(routeTradeFeeHops) || 1);
@@ -958,11 +985,10 @@ function pureIntentSpecFromExtremes({
         minProfitPercentHuman,
         gasReserveHuman,
         otherKnownCostsHuman,
-        candidateUniverse,
+        tokenScope: pureIntentTokenScope({ candidateUniverse, pureIntent: { initialSymbol: "USDC", finalSymbol: "USDC" }, route: ["USDC", "USDC"] }),
         windowSpreadPercent,
         minWindowSpreadPercent,
-        semantics:
-          "buy_at_least_initial_plus_flashloan_fee_plus_gas_reserve_plus_other_known_costs_plus_initial_amount_percentage_profit",
+        semantics: "solver_owned_token_scope_only",
       },
       liveSignal: {
         freshnessSeconds,
@@ -1049,30 +1075,24 @@ function manualPureIntentSpec(network, registry) {
       minProfitPercentHuman,
       gasReserveHuman,
       otherKnownCostsHuman,
-      candidateUniverse: null,
-      semantics:
-        "buy_at_least_initial_plus_flashloan_fee_plus_gas_reserve_plus_other_known_costs_plus_initial_amount_percentage_profit",
+      tokenScope: pureIntentTokenScope({ pureIntent: { initialSymbol: "USDC", finalSymbol: "USDC" }, route: ["USDC", "USDC"] }),
+      semantics: "solver_owned_token_scope_only",
     },
   };
 }
 
-function pureIntentAppData({
-  slippageBps,
-  candidateUniverse,
-  minProfitPercentHuman,
-  gasReserveHuman,
-  otherKnownCostsHuman,
-}) {
+function pureIntentAppData({ slippageBps, tokenScope, principalHuman, minFinalAmountHuman }) {
   return {
     metadata: {
       quote: { slippageBips: slippageBps },
       orderClass: { orderClass: "limit" },
       intent: {
         kind: "pure_profit",
-        minProfitPercent: String(minProfitPercentHuman),
-        gasReserveUsdc: String(gasReserveHuman),
-        otherKnownCostsUsdc: String(otherKnownCostsHuman),
-        candidateUniverse,
+        orderBounds: {
+          inputAmount: String(principalHuman),
+          minimumFinalAmount: String(minFinalAmountHuman),
+        },
+        tokenScope,
       },
     },
   };
@@ -1360,10 +1380,9 @@ async function probePureIntent({
   };
   const customAppData = pureIntentAppData({
     slippageBps,
-    candidateUniverse: routeSpec.candidateUniverse,
-    minProfitPercentHuman: routeSpec.pureIntent.minProfitPercentHuman,
-    gasReserveHuman: routeSpec.pureIntent.gasReserveHuman,
-    otherKnownCostsHuman: routeSpec.pureIntent.otherKnownCostsHuman,
+    tokenScope: routeSpec.pureIntent.tokenScope || pureIntentTokenScope(routeSpec),
+    principalHuman: routeSpec.pureIntent.initialAmountHuman,
+    minFinalAmountHuman: routeSpec.pureIntent.initialAmountHuman,
   });
   let quote = null;
   let appDataAttempt = "custom_intent";
@@ -1410,7 +1429,7 @@ async function probePureIntent({
         customAppDataAccepted: false,
         customAppDataError,
       },
-      candidateUniverse: routeSpec.candidateUniverse,
+      tokenScope: routeSpec.pureIntent.tokenScope,
       legs: [],
       profit: null,
       netProfit: null,
@@ -1486,7 +1505,7 @@ async function probePureIntent({
     amountUnits: routeSpec.amountUnits,
     classification: feasible ? "pure_intent_quote_returned" : "pure_intent_quote_failed",
     error,
-    candidateUniverse: routeSpec.candidateUniverse,
+    tokenScope: routeSpec.pureIntent.tokenScope,
     intent: {
       ...routeSpec.pureIntent,
       targetBuyAmountHuman: formatUnits(targetBuyUnits, usdc.decimals),

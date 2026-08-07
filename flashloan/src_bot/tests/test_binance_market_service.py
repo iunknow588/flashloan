@@ -377,16 +377,14 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
 
 
-def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hints(monkeypatch):
+def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_token_scope_only(monkeypatch):
     monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
     market_state = {
         "top": [
-            {"symbol": f"T{i}USDT", "base_symbol": f"T{i}", "change_percent": 1 + i, "start_price": 10, "current_price": 10.5}
-            for i in range(8)
+            {"symbol": "T0USDT", "base_symbol": "T0", "change_percent": 1, "start_price": 10, "current_price": 10.5},
         ],
         "bottom": [
-            {"symbol": f"B{i}USDT", "base_symbol": f"B{i}", "change_percent": -(1 + i), "start_price": 10, "current_price": 9.5}
-            for i in range(8)
+            {"symbol": "B0USDT", "base_symbol": "B0", "change_percent": -1, "start_price": 10, "current_price": 9.5},
         ],
     }
 
@@ -410,17 +408,18 @@ def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_limits_market_hin
     assert intent["initial_amount"] == "1000"
     assert intent["control_mode"] == "intent"
     assert intent["control_surface"]["route_hop_constraints_enforced"] is False
-    assert intent["formula"] == "final_amount >= 1000 * (100% + x%)"
+    assert intent["formula"] == "solver_owned_token_scope_only"
     assert intent["baseline_percent"] == "100"
-    assert intent["total_required_percent"] == "100.968"
+    assert intent["total_required_percent"] == "100"
     assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "1000"
-    assert intent["market_hints"]["max_rising_tokens"] == 5
-    assert intent["market_hints"]["max_falling_tokens"] == 5
-    assert len(intent["market_hints"]["rising_tokens"]) == 5
-    assert len(intent["market_hints"]["falling_tokens"]) == 5
-    assert intent["market_hints"]["rising_tokens"][0]["base_symbol"] == "T0"
-    assert intent["market_hints"]["falling_tokens"][0]["base_symbol"] == "B0"
-    assert intent["min_final_amount"] == "1009.68"
+    assert intent["min_final_amount"] == "1000"
+    assert intent["token_scope"]["input_symbol"] == "USDC"
+    assert intent["token_scope"]["output_symbol"] == "USDC"
+    assert intent["token_scope"]["tokens"] == ["T0", "T0USDT", "B0", "B0USDT", "USDC"]
+    assert intent["token_scope"]["token_count"] == 5
+    assert intent["token_scope"]["scope_role"] == "solver_owned_token_universe_only"
+    assert "market_hints" not in intent
+    assert "route_path_hint" not in intent
 
 
 def _route_hop_constraint_precheck_payload() -> dict:
