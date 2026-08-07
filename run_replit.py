@@ -7,7 +7,8 @@ from pathlib import Path
 from types import ModuleType
 
 
-SRC_BOT_DIR = Path(__file__).resolve().parents[1] / "src_bot"
+REPO_ROOT = Path(__file__).resolve().parent
+SRC_BOT_DIR = REPO_ROOT / "flashloan" / "src_bot"
 SRC_BOT_RUN = SRC_BOT_DIR / "run.py"
 
 
@@ -25,11 +26,6 @@ def load_src_bot_run_module() -> ModuleType:
 
 
 def main() -> int:
-    print(
-        "flashloan/srcs_dex/run.py is a compatibility launcher; "
-        "starting flashloan/src_bot/run.py",
-        flush=True,
-    )
     module = load_src_bot_run_module()
     return int(module.main())
 
