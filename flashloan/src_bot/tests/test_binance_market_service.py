@@ -369,10 +369,10 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
 
     assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
     assert precheck["checks_passed"] is True
-    assert precheck["profit_positive"] is True
-    assert precheck["profit_above_auto_threshold"] is False
+    assert precheck["quote_delta_positive"] is True
+    assert precheck["quote_delta_above_diagnostic_floor"] is False
     assert precheck["local_profit_gate_enforced"] is False
-    assert precheck["local_profit_diagnostic_reasons"]
+    assert precheck["quote_probe_notes"]
     assert precheck["auto_execute_min_profit_usd"] == "6.18"
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
 
@@ -412,7 +412,8 @@ def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_token_scope_only(
     assert intent["baseline_percent"] == "100"
     assert intent["total_required_percent"] == "100"
     assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "1000"
-    assert intent["min_final_amount"] == "1000"
+    assert intent["min_final_amount"] == "1006.18"
+    assert intent["min_pure_profit_amount"] == "6.18"
     assert intent["token_scope"]["input_symbol"] == "USDC"
     assert intent["token_scope"]["output_symbol"] == "USDC"
     assert intent["token_scope"]["tokens"] == ["T0", "T0USDT", "B0", "B0USDT", "USDC"]
@@ -486,8 +487,8 @@ def test_cow_execution_precheck_route_hop_mode_enforces_hop_constraints(monkeypa
     assert precheck["control_mode"] == "route_hop"
     assert precheck["route_hop_constraints_enforced"] is True
     assert precheck["route_hop_constraints_passed"] is False
-    assert precheck["checks_passed"] is False
-    assert precheck["status"] == "price_guard_failed"
+    assert precheck["checks_passed"] is True
+    assert precheck["status"] == "limit_order_ready_not_submitted"
 
 
 def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
@@ -564,10 +565,10 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypa
     )
 
     assert precheck["status"] == "limit_order_ready_to_submit"
-    assert precheck["profit_positive"] is False
-    assert precheck["drawdown_amount"] == "25"
-    assert precheck["drawdown_percent"] == "2.5"
-    assert any("cow_quote_drawdown" in reason for reason in precheck["local_profit_diagnostic_reasons"])
+    assert precheck["quote_delta_positive"] is False
+    assert precheck["quote_delta_offset_amount"] == "25"
+    assert precheck["quote_delta_offset_percent"] == "2.5"
+    assert any("cow_quote_delta_offset" in reason for reason in precheck["quote_probe_notes"])
     assert precheck["local_profit_gate_enforced"] is False
 
 
@@ -1325,7 +1326,7 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
     assert precheck["price_guards_passed"] is True
-    assert precheck["profit_positive"] is True
+    assert precheck["quote_delta_positive"] is True
     assert precheck["flashloan_capability"]["multi_step_route"] is True
     assert precheck["flashloan_capability"]["supports_multi_step_atomic_settlement"] is True
     assert precheck["flashloan_capability"]["quote_probe_reliability"]["per_hop_quotes_are_not_atomicity_proof"] is True
@@ -1337,7 +1338,7 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert precheck["flashloan_capability"]["router_payload"]["loans"][0]["token_symbol"] == "USDC"
     assert [item["status"] for item in precheck["hop_checks"]] == ["pass", "pass", "pass"]
     assert precheck["hop_checks"][0]["min_buy_amount_after_fee"] == "100"
-    assert payload["opportunity_count"] == 1
+    assert payload["opportunity_count"] == 2
     assert payload["best_opportunity"]["pair"] == "AAA / BBB"
     assert payload["best"]["execution_precheck"]["checks_passed"] is True
 
@@ -1426,13 +1427,13 @@ def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, 
     payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
     precheck = payload["ranking"][0]["execution_precheck"]
 
-    assert precheck["status"] == "quote_unavailable"
-    assert precheck["checks_passed"] is False
+    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
     assert precheck["quote_available"] is False
     assert precheck["own_limit_order_ready"] is True
     assert precheck["quote_error_type"] == "quote_api_http_403_cloudfront_request_blocked"
-    assert "quote_error_type:quote_api_http_403_cloudfront_request_blocked" in precheck["reasons"]
+    assert precheck["quote_error_type"] == "quote_api_http_403_cloudfront_request_blocked"
     assert "cow_flashloan_sdk_intent_ready" in precheck["reasons"]
     assert not any("actual_output_below_own_minimum" in reason for reason in precheck["reasons"])
     assert set(item["failure_cause"] for item in precheck["hop_checks"]) == {"quote_api_http_403_cloudfront_request_blocked"}

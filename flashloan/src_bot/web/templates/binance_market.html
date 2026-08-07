@@ -165,7 +165,7 @@
     <section class="card">
       <h2 id="pairTitle">多链稳定币闭环套利候选路径</h2>
       <div class="muted">Binance 行情先给出综合排名；每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅，同一个代币可以同时出现在多条链。</div>
-      <div class="muted">每个链卡片展示 U-X-Y-U 与 U-Y-X-U 路径、报价来源、目标价、滑点边界、净利润和执行状态。</div>
+      <div class="muted">每个链卡片展示 U-X-Y-U 与 U-Y-X-U 路径、报价来源、目标价、滑点边界、报价结果和执行状态。</div>
     </section>
     <section class="card" style="margin-top:18px">
       <h2>CoW SDK 报价验证</h2>
@@ -230,7 +230,7 @@
         <div class="review-group-note" id="cowAttemptNotExecutableNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>当前等待状态</th></tr></thead>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/结果</th><th>当前等待状态</th></tr></thead>
             <tbody id="cowAttemptNotExecutableBody"></tbody>
           </table>
         </div>
@@ -243,7 +243,7 @@
         <div class="review-group-note" id="cowAttemptFailedNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>失败原因</th></tr></thead>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/结果</th><th>失败原因</th></tr></thead>
             <tbody id="cowAttemptFailedBody"></tbody>
           </table>
         </div>
@@ -256,7 +256,7 @@
         <div class="review-group-note" id="cowAttemptSuccessNote"></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/利润</th><th>结果</th></tr></thead>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/结果</th><th>结果</th></tr></thead>
             <tbody id="cowAttemptSuccessBody"></tbody>
           </table>
         </div>
@@ -265,7 +265,7 @@
         <table>
           <thead>
             <tr>
-              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>纯利润</th><th>未成功原因</th>
+              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>报价差额</th><th>未成功原因</th>
             </tr>
           </thead>
           <tbody id="cowAttemptHistoryBody"></tbody>
@@ -461,7 +461,7 @@
       if (sdkStatus && historySdkWaiting(row)) reasons.unshift(`sdk_pending:${sdkStatus}`);
       return reasons.filter(reason => !nonFailureReason(reason)).join("; ") || cowErrorSummary(row?.error) || "-";
     };
-    const historyPureProfit = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
+    const historyQuoteDelta = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
     const historyReview = row => row?.review_summary || {};
     const historyCowSdk = row => {
       const review = historyReview(row);
@@ -549,7 +549,7 @@
       const value = timing || {};
       return `closer ${value.closer_to || "-"} | vs current ${value.timing_vs_current_window || "-"} | prev ${value.query_vs_previous_percent || "-"}% | current ${value.query_vs_current_percent || "-"}%`;
     };
-    const historyCostProfitHtml = row => {
+    const historyCostQuoteHtml = row => {
       const review = historyReview(row);
       const plan = review.plan || {};
       const costs = review.costs || {};
@@ -564,15 +564,15 @@
         `${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`
       ).join(" | ") || "-";
       return [
-        `plan profit ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)`,
-        `CoW delta ${guard.pure_profit_amount || row?.final_delta_amount || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "")}`,
+        `plan delta ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)`,
+        `CoW quote delta ${guard.quote_delta_amount || guard.pure_profit_amount || row?.final_delta_amount || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "")}`,
         `SDK status ${historyCowSdkStatus(row) || "-"}`,
-        `local profit gate ${guard.local_profit_gate_enforced ? "on" : "off"} | diagnostic floor ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%) | threshold ${guard.profit_above_auto_threshold ? "pass" : "diagnostic only"}`,
-        `local profit diagnostics ${(guard.local_profit_diagnostic_reasons || []).join("; ") || "-"}`,
+        `quote result gate ${guard.quote_result_gate_enforced ? "on" : "off"} | diagnostic floor ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%) | threshold ${guard.quote_delta_above_diagnostic_floor ? "pass" : "diagnostic only"}`,
+        `quote probe notes ${(guard.quote_probe_notes || guard.local_profit_diagnostic_reasons || []).join("; ") || "-"}`,
         `quote error ${guard.quote_error_type || guard.quote_error_display || "-"}`,
         `query position ${queryLines}`,
         `blocking ${JSON.stringify(guard.blocking_cause_counts || {})}`,
-        `drawdown ${guard.drawdown_amount || "-"} (${guard.drawdown_percent || "-"}%)`,
+        `quote delta offset ${guard.quote_delta_offset_amount || guard.drawdown_amount || "-"} (${guard.quote_delta_offset_percent || guard.drawdown_percent || "-"}%)`,
         `min ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%)`,
         `fees ${fees}`,
         `gas quote ${costs.quote_api_gas_used ?? "-"} / submit ${costs.user_order_submission_gas_used ?? "-"} / settle ${costs.settlement_gas_payer || "-"}`,
@@ -581,7 +581,7 @@
     const historyReviewText = row => [
       `market: ${historyMarketHtml(row).replace(/<br>/g, " | ")}`,
       `quote: ${historyQuoteHtml(row).replace(/<br>/g, " | ")}`,
-      `cost/profit: ${historyCostProfitHtml(row).replace(/<br>/g, " | ")}`,
+      `cost/quote: ${historyCostQuoteHtml(row).replace(/<br>/g, " | ")}`,
       `reason: ${historyReasons(row)}`,
     ].join("\n");
     const historyReasonList = row => {
@@ -616,7 +616,7 @@
       const topReasonRows = sdkFailed.length ? sdkFailed : (sdkPending.length ? sdkPending : quoteWaiting.length ? quoteWaiting : items);
       const topReason = cowAttemptReasonTop(topReasonRows);
       const latest = items[0] || {};
-      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyPureProfit(latest)}`;
+      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyQuoteDelta(latest)}`;
       const conclusion = sdkSuccess.length
         ? `复盘结论：有 ${sdkSuccess.length} 条 SDK 确认成功记录。最近一条：${latestLine}`
         : sdkFailed.length
@@ -640,14 +640,14 @@
     }
     const costText = (quote, plan) => {
       const costs = quote?.costs || {};
-      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
+      const quoteDelta = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
       return [
         `原生币余额：before ${costs.native_balance_before ?? "未检查"} / after ${costs.native_balance_after ?? "未检查"} (${costs.native_balance_source || "quote_stage"})`,
         `Gas：quote ${costs.quote_api_gas_used ?? 0}；下单 ${costs.user_order_submission_gas_used ?? 0}；结算 ${costs.settlement_gas_payer || "solver"}；授权 ${costs.approval_gas_status || "待检查"}`,
         `手续费：${feeLines(costs)}`,
-        `盘面盈利：${planProfit(plan)}`,
+        `盘面估算差额：${planDelta(plan)}`,
         `CoW 相对 Binance 估算：${quoteVsPlan(quote, plan)}`,
-        `CoW 盈利：${actualProfit}`,
+        `CoW 报价差额：${quoteDelta}`,
       ].join("\n");
     };
     const supportText = support => {
@@ -658,7 +658,7 @@
     };
     const planInitial = plan => plan?.available ? `${plan.initial_amount || "-"} ${displaySymbol(plan.initial_symbol || "")}` : "-";
     const planFinal = plan => plan?.available ? `${plan.final_target_amount || "-"} ${displaySymbol(plan.final_symbol || "")}` : "-";
-    const planProfit = plan => plan?.available ? `${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
+    const planDelta = plan => plan?.available ? `${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
     const basisLabel = basis => ({
       current_binance_buy_low: "当前盘面买入",
       pre_change_binance_cross: "变化前价格换算",
@@ -736,8 +736,8 @@
       quote_unavailable: "报价不可用",
       flashloan_payload_required: "缺少闪电贷执行参数",
       price_guard_failed: "价格保护未通过",
-      not_profitable: "本地盈利诊断：不盈利",
-      profit_below_threshold: "本地盈利诊断：低于旧阈值",
+      not_profitable: "本地报价诊断：低于参考",
+      profit_below_threshold: "本地报价诊断：低于旧阈值",
       blocked: "不能下单",
     }[status] || status || "未检查");
     const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
@@ -746,7 +746,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      const autoLine = `CoW quote delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | quote result gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
       return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
@@ -754,7 +754,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `CoW delta ${check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | local profit gate ${check.local_profit_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      const autoLine = `CoW quote delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | quote result gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
       return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
@@ -782,13 +782,13 @@
     const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `hop ${item.hop || "-"} ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
     const costDetail = (quote, plan) => {
       const costs = quote?.costs || {};
-      const actualProfit = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
+      const quoteDelta = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
       return `<div>原生币余额：before ${esc(costs.native_balance_before ?? "未检查")} / after ${esc(costs.native_balance_after ?? "未检查")} (${esc(costs.native_balance_source || "quote_stage")})</div>
         <div>Gas：quote ${esc(costs.quote_api_gas_used ?? 0)}；下单 ${esc(costs.user_order_submission_gas_used ?? 0)}；结算 ${esc(costs.settlement_gas_payer || "solver")}；授权 ${esc(costs.approval_gas_status || "待检查")}</div>
         <div>手续费：${esc(feeLines(costs))}</div>
-        <div>盘面盈利：${esc(planProfit(plan))}</div>
+        <div>盘面估算差额：${esc(planDelta(plan))}</div>
         <div>CoW 相对 Binance 估算：${esc(quoteVsPlan(quote, plan))}</div>
-        <div>CoW 盈利：${esc(actualProfit)}</div>`;
+        <div>CoW 报价差额：${esc(quoteDelta)}</div>`;
     };
 
     const rowHtml = (row, index) => `<tr>
@@ -810,7 +810,7 @@
       const t = threshold || {};
       const dynamic = t.min_window_spread_percent ?? t.adjusted_min_spread_percent ?? "-";
       const minProfit = t.min_profit_usd != null && t.amount != null && t.min_profit_percent != null ? `${t.min_profit_usd}U/${t.amount}U=${t.min_profit_percent}%` : "诊断值";
-      return `动态诊断 ${dynamic}% = 双向手续费 ${t.route_trade_fee_percent ?? "-"}% + 闪电贷利息 ${t.flashloan_fee_percent ?? "-"}% + gas/费用预留 ${t.fee_reserve_percent ?? "0"}% + 本地盈利诊断 ${minProfit}；真实执行由 CoW 意图和 SDK 结果控制`;
+      return `动态诊断 ${dynamic}% = 双向手续费 ${t.route_trade_fee_percent ?? "-"}% + 闪电贷利息 ${t.flashloan_fee_percent ?? "-"}% + gas/费用预留 ${t.fee_reserve_percent ?? "0"}% + 本地报价诊断 ${minProfit}；真实执行由 CoW 意图和 SDK 结果控制`;
     };
     const cowSupportedSourceCount = overview => {
       const direct = Number(overview?.source_market_row_count);
@@ -887,7 +887,7 @@
         ? `最终数量 ${quote.final_amount || "-"} | 差额 ${quote.final_delta_amount || "-"}`
         : "等待查询 CoW 链上报价";
       const check = quote?.execution_precheck || null;
-      const pureProfit = check?.pure_profit_amount || quote?.final_delta_amount || "-";
+      const quoteDelta = check?.quote_delta_amount || check?.pure_profit_amount || quote?.final_delta_amount || "-";
       const detail = quote
         ? `<div class="route-detail">
             <div>初始数量：${esc(quoteInitial(quote))}</div>
@@ -897,8 +897,8 @@
             <div>${esc(supportText(support))}</div>
             <div>CoW 实时报价比例：${esc(quoteRates(quote))}</div>
             <div>CoW 预计结果：${esc(quoteFinal(quote))}</div>
-            <div>预期收益：${esc(planProfit(plan))}</div>
-            <div>纯利润：${esc(pureProfit)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
+            <div>目标差额：${esc(planDelta(plan))}</div>
+            <div>报价差额：${esc(quoteDelta)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
             <div>${precheckHtml(quote)}</div>
             ${costDetail(quote, plan)}
             ${quote.viable ? "" : `<div>报价失败原因：${esc(quote.error || "-")}</div>`}
@@ -911,8 +911,8 @@
             <div>${esc(supportText(support))}</div>
             <div>CoW 实时报价比例：等待查询</div>
             <div>CoW 预计结果：等待查询</div>
-            <div>预期收益：${esc(planProfit(plan))}</div>
-            <div>纯利润：等待 CoW SDK 报价</div>
+            <div>目标差额：${esc(planDelta(plan))}</div>
+            <div>报价差额：等待 CoW SDK 报价</div>
             ${costDetail(null, plan)}
           </div>`;
       return `<div class="route-box">
@@ -1124,7 +1124,7 @@
           <span>最高跌幅：${esc(displaySymbol(state.bottom?.[0]?.symbol || "-"))} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
           <span>${esc(routeCountText(panel))}</span>
           <span>${esc(quoteInfo)}</span>
-          <span>最佳纯利润 ${esc(best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
+          <span>最佳报价差额 ${esc(best?.execution_precheck?.quote_delta_amount || best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
         </div>
         <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
         <div class="chain-routes">
@@ -1269,7 +1269,7 @@
       if (!rows.length) return `${meta.retention} | ${meta.empty}`;
       const topReason = cowAttemptReasonTop(rows);
       const latest = rows[0] || {};
-      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyPureProfit(latest)}`;
+      const latestLine = `${fmtTime(latest.created_at)} | ${networkLabel(latest.network) || latest.network || "-"} | ${latest.pair || "-"} | ${historyAttemptState(latest)} | ${historyQuoteDelta(latest)}`;
       if (category === "execution_success") return `${meta.retention} | 成功 ${rows.length} 条 | 最近一条 ${latestLine}`;
       if (category === "execution_failed") return `${meta.retention} | SDK 失败 ${rows.length} 条 | 主要失败项 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
       return `${meta.retention} | 当前等待 ${rows.length} 条 | 当前等待状态 ${topReason ? `${topReason[0]} (${topReason[1]})` : "-"} | 最近一条 ${latestLine}`;
@@ -1282,7 +1282,7 @@
       <td>${esc(historyAttemptState(row))}</td>
       <td>${historyMarketHtml(row)}</td>
       <td>${historyQuoteHtml(row)}</td>
-      <td>${historyCostProfitHtml(row)}</td>
+      <td>${historyCostQuoteHtml(row)}</td>
       <td>${esc(historyReasons(row))}</td>
     </tr>`;
     function renderCowAttemptGroup(category, rows) {

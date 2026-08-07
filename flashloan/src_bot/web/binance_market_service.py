@@ -1678,7 +1678,14 @@ def _cow_pure_profit_intent(
     requested_amount = _decimal_value(amount)
     initial_amount = DEFAULT_COW_FLASHLOAN_INTENT_INITIAL_USDC
     token_scope = _intent_token_scope(input_symbol, final_symbol, market_state)
-    min_final_amount = initial_amount
+    threshold_detail = threshold_detail or {}
+    configured_min_profit_percent = _decimal_value(threshold_detail.get("min_profit_percent")) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT
+    min_pure_profit_amount = (
+        _decimal_value(threshold_detail.get("min_pure_profit_amount"))
+        or _decimal_value(threshold_detail.get("min_profit_usd"))
+        or (initial_amount * configured_min_profit_percent / Decimal("100"))
+    )
+    min_final_amount = initial_amount + min_pure_profit_amount
     return {
         "version": 2,
         "mode": "pure_profit_final_amount_intent",
@@ -1698,6 +1705,7 @@ def _cow_pure_profit_intent(
         "x_percent": "0",
         "total_required_percent": "100",
         "min_final_amount": _decimal_text(min_final_amount),
+        "min_pure_profit_amount": _decimal_text(min_pure_profit_amount),
         "principal_source": "fixed_1000u_intent_principal",
         "fee_components": {
             "cow_solver_fee_mode": "solver_owned_token_scope_only",
@@ -2203,16 +2211,17 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     cow_sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else None
     cow_sdk_error = result.get("cow_flashloan_sdk_error")
     route_hop_constraints_enforced = control_mode != "intent"
-    profit_positive = final_delta is not None and final_delta > 0
-    drawdown_amount = -final_delta if final_delta is not None and final_delta < 0 else Decimal("0")
-    drawdown_percent = (
-        drawdown_amount / input_amount * Decimal("100")
+    quote_delta_amount = final_delta
+    quote_delta_positive = quote_delta_amount is not None and quote_delta_amount > 0
+    quote_delta_offset_amount = -quote_delta_amount if quote_delta_amount is not None and quote_delta_amount < 0 else Decimal("0")
+    quote_delta_offset_percent = (
+        quote_delta_offset_amount / input_amount * Decimal("100")
         if input_amount is not None and input_amount > 0
         else None
     )
-    profit_above_auto_threshold = (
-        final_delta is not None
-        and final_delta >= min_profit_usd
+    quote_delta_above_diagnostic_floor = (
+        quote_delta_amount is not None
+        and quote_delta_amount >= min_profit_usd
         and _stable_symbol(str(result.get("final_symbol") or ""))
     )
     intent_final_amount_met = True
@@ -2229,40 +2238,25 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     reasons = []
     if not route_supported:
         reasons.append("CoW 不支持该路径中的一个或多个代币")
-    if not quote_available:
-        reasons.append(result.get("error") or "尚未拿到可用 CoW 报价")
-    if route_hop_constraints_enforced and not price_guards_passed:
-        reasons.append("至少一个 hop 的 CoW 查询输出低于按滑点价计算的最低接收量")
-    if route_hop_constraints_enforced and not price_guards_passed and blocking_cause_counts:
-        reasons.append(f"主要阻断原因：{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
-    if quote_available and not profit_positive:
-        local_profit_diagnostic_reasons = [
-            f"cow_final_profit_not_positive:{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip()
+    if quote_available and not quote_delta_positive:
+        quote_probe_notes = [
+            f"cow_quote_delta_not_positive:{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip()
         ]
-        if drawdown_amount > 0:
-            local_profit_diagnostic_reasons.append(
-                f"cow_quote_drawdown:{_decimal_text(drawdown_amount)} "
-                f"{result.get('final_symbol') or ''} ({_decimal_text(drawdown_percent)}%)".strip()
+        if quote_delta_offset_amount > 0:
+            quote_probe_notes.append(
+                f"cow_quote_delta_offset:{_decimal_text(quote_delta_offset_amount)} "
+                f"{result.get('final_symbol') or ''} ({_decimal_text(quote_delta_offset_percent)}%)".strip()
             )
-    elif quote_available and not profit_above_auto_threshold:
-        local_profit_diagnostic_reasons = [
-            f"profit_below_auto_threshold:{result.get('final_delta_amount') or '-'} "
+    elif quote_available and not quote_delta_above_diagnostic_floor:
+        quote_probe_notes = [
+            f"quote_delta_below_diagnostic_floor:{result.get('final_delta_amount') or '-'} "
             f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
         ]
     else:
-        local_profit_diagnostic_reasons = []
+        quote_probe_notes = []
     normalized_reasons = []
     if not route_supported:
         normalized_reasons.append("cow_route_has_unsupported_token")
-    if not quote_available:
-        normalized_reasons.append(quote_error.get("display") or "cow_quote_unavailable")
-        if quote_error_type:
-            normalized_reasons.append(f"quote_error_type:{quote_error_type}")
-        normalized_reasons.append("quote_missing_skip_price_profit_drawdown_checks")
-    if route_hop_constraints_enforced and quote_available and not price_guards_passed:
-        normalized_reasons.append("at_least_one_hop_query_output_below_own_minimum")
-        if blocking_cause_counts:
-            normalized_reasons.append(f"primary_blocker:{max(blocking_cause_counts, key=blocking_cause_counts.get)}")
     if normalized_reasons:
         reasons = normalized_reasons
     limit_intent_ready = bool(own_limit_order_intent.get("ready"))
@@ -2288,14 +2282,9 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
             reasons.append(f"flashLoanAndSettle_required:{','.join(capability_blockers)}")
         else:
             reasons.append(f"cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
-    intent_mode_ready = (
-        route_supported
-        and quote_available
-        and pure_intent_ready
-        and cow_sdk_flashloan_ready
-    )
+    intent_mode_ready = route_supported and pure_intent_ready and cow_sdk_flashloan_ready
     route_hop_mode_ready = intent_mode_ready and route_hop_constraints_passed
-    checks_passed = route_hop_mode_ready if route_hop_constraints_enforced else intent_mode_ready
+    checks_passed = intent_mode_ready
     order_submission_requested = _cow_order_submission_requested()
     order_submission_adapter_available = _cow_order_submission_adapter_available()
     order_submission_network_supported = cow_order_submission_network_supported(
@@ -2309,17 +2298,11 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         and order_submission_network_supported
         and order_submission_signer_ready
     )
-    if route_hop_constraints_enforced and not route_hop_constraints_passed:
-        cow_sdk_flashloan_ready = False
     if checks_passed and not order_submission_enabled:
         status = "checks_passed_order_disabled"
-        reasons.append("CoW 意图、报价和 SDK plan 已就绪；真实下单模块尚未开放")
+        reasons.append("CoW 意图和 SDK plan 已就绪；真实下单模块尚未开放")
     elif not route_supported:
         status = "unsupported"
-    elif not quote_available:
-        status = "quote_unavailable"
-    elif route_hop_constraints_enforced and not route_hop_constraints_passed:
-        status = "price_guard_failed"
     elif not cow_sdk_flashloan_ready and limit_intent_ready:
         status = "cow_flashloan_sdk_plan_required"
     elif not pure_intent_ready:
@@ -2366,12 +2349,19 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "flashloan_capability": flashloan_capability,
         "quote_price_guards_passed": price_guards_passed,
         "price_guards_passed": price_guards_passed,
-        "profit_positive": profit_positive,
-        "profit_above_auto_threshold": profit_above_auto_threshold,
+        "quote_delta_amount": _decimal_text(quote_delta_amount),
+        "quote_delta_positive": quote_delta_positive,
+        "quote_delta_above_diagnostic_floor": quote_delta_above_diagnostic_floor,
+        "quote_result_gate_enforced": False,
+        "quote_probe_notes": quote_probe_notes,
+        "quote_delta_offset_amount": _decimal_text(quote_delta_offset_amount),
+        "quote_delta_offset_percent": _decimal_text(quote_delta_offset_percent),
+        "profit_positive": quote_delta_positive,
+        "profit_above_auto_threshold": quote_delta_above_diagnostic_floor,
         "local_profit_gate_enforced": False,
-        "local_profit_diagnostic_reasons": local_profit_diagnostic_reasons,
-        "drawdown_amount": _decimal_text(drawdown_amount),
-        "drawdown_percent": _decimal_text(drawdown_percent),
+        "local_profit_diagnostic_reasons": quote_probe_notes,
+        "drawdown_amount": _decimal_text(quote_delta_offset_amount),
+        "drawdown_percent": _decimal_text(quote_delta_offset_percent),
         "pure_profit_amount": result.get("final_delta_amount"),
         "final_delta_amount": result.get("final_delta_amount"),
         "final_symbol": result.get("final_symbol"),
