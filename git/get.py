@@ -199,9 +199,22 @@ def reset_bootstrap_initial_branch(root: Path, branch: str, behind: int) -> None
     if stash_created:
         result = run_git(root, "stash", "pop", capture=True, check=False)
         if result.returncode != 0:
+            detail = f"{result.stderr or ''}\n{result.stdout or ''}".strip()
+            untracked_restore_failed = (
+                "could not restore untracked files from stash" in detail
+                or "already exists, no checkout" in detail
+            )
+            if untracked_restore_failed and not has_unmerged_paths(root):
+                print(
+                    "Synced to origin, but some stashed untracked files were not restored because "
+                    "origin now contains files with the same paths."
+                )
+                print("The stash was kept by Git. Inspect it with: git stash show --include-untracked stash@{0}")
+                print("If those old local files are not needed, remove the saved stash with: git stash drop stash@{0}")
+                return
             raise RuntimeError(
                 "Synced to origin, but reapplying stashed local changes needs manual resolution.\n"
-                f"{result.stderr or result.stdout}"
+                f"{detail}"
             )
         print("Reapplied local working-tree changes after bootstrap sync.")
 
