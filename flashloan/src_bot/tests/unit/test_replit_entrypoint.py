@@ -53,7 +53,7 @@ def test_replit_launcher_disables_user_site_pip_installs(monkeypatch, tmp_path):
 
     monkeypatch.setattr(launcher.subprocess, "check_call", fake_check_call)
 
-    launcher.ensure_project_venv()
+    assert launcher.ensure_project_venv() is True
 
     install_command, install_kwargs = calls[0]
     assert "--no-user" in install_command
@@ -71,6 +71,28 @@ def test_replit_launcher_checks_dependencies_when_already_in_project_venv(monkey
     launcher.reexec_inside_project_venv()
 
     assert calls == ["ensure"]
+
+
+def test_replit_launcher_reexecs_after_install_inside_project_venv(monkeypatch):
+    launcher = _load_module("test_run_replit_reexec_after_install", REPO_ROOT / "run_replit.py")
+    calls = {}
+
+    monkeypatch.setattr(launcher, "_in_project_venv", lambda: True)
+    monkeypatch.setattr(launcher, "ensure_project_venv", lambda: True)
+    monkeypatch.setattr(launcher, "_venv_python", lambda: Path("/tmp/project/.venv/bin/python"))
+
+    def fake_execv(executable, argv):
+        calls["execv"] = (executable, argv)
+        raise RuntimeError("stop exec")
+
+    monkeypatch.setattr(launcher.os, "execv", fake_execv)
+
+    try:
+        launcher.reexec_inside_project_venv()
+    except RuntimeError as exc:
+        assert str(exc) == "stop exec"
+
+    assert Path(calls["execv"][0]) == Path("/tmp/project/.venv/bin/python")
 
 
 def test_replit_nix_installs_python_runtime():

@@ -68,10 +68,12 @@ def _venv_dependencies_available(python: Path) -> bool:
     return result.returncode == 0
 
 
-def ensure_project_venv() -> None:
+def ensure_project_venv() -> bool:
     python = _venv_python()
+    created = False
     if not python.exists():
         subprocess.check_call([sys.executable, "-m", "venv", str(VENV_DIR)])
+        created = True
     if _requirements_need_install() or not _venv_dependencies_available(python):
         subprocess.check_call(
             [
@@ -92,6 +94,8 @@ def ensure_project_venv() -> None:
                 f"Run `{python} -m pip install --no-user -r {REQUIREMENTS}` and retry."
             )
         _install_stamp().write_text("ok\n", encoding="utf-8")
+        return True
+    return created
 
 
 def _node_install_stamp() -> Path:
@@ -120,11 +124,12 @@ def ensure_cow_node_adapter_dependencies() -> None:
 
 
 def reexec_inside_project_venv() -> None:
-    if _in_project_venv():
-        ensure_project_venv()
-        return
-    ensure_project_venv()
     python = _venv_python()
+    prepared = ensure_project_venv()
+    if _in_project_venv():
+        if prepared:
+            os.execv(str(python), [str(python), str(Path(__file__).resolve())])
+        return
     os.execv(str(python), [str(python), str(Path(__file__).resolve())])
 
 
