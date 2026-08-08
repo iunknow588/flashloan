@@ -157,12 +157,8 @@
       </div>
     </section>
     <section class="card" style="margin-bottom:18px">
-      <h2>选中 CoW 网络候选链路</h2>
+      <h2>选中 CoW 网络候选链路与 Top/Bottom 5</h2>
       <div id="networkOpportunityCards" class="network-opportunity-grid"></div>
-    </section>
-    <section class="card" style="margin-bottom:18px">
-      <h2>选中 CoW 网络支持 Top/Bottom 5</h2>
-      <div id="networkClaims" class="network-claims"></div>
     </section>
     <section class="card">
       <h2 id="pairTitle">多链稳定币闭环套利候选路径</h2>
@@ -902,8 +898,10 @@
       </div>
     </div>`;
     const renderNetworkClaims = claims => {
+      const target = $("networkClaims");
+      if (!target) return;
       const visibleClaims = selectedNetworkClaims(claims);
-      $("networkClaims").innerHTML = visibleClaims.map(networkClaimHtml).join("") || '<div class="muted">请选择 CoW 网络，或等待选中网络的 Top/Bottom 5 数据</div>';
+      target.innerHTML = visibleClaims.map(networkClaimHtml).join("") || '<div class="muted">请选择 CoW 网络，或等待选中网络的 Top/Bottom 5 数据</div>';
     };
     const networkClaimText = claim => [
       `${claim.label || claim.network || "-"} (${claim.chain_id || "-"}) | token ${claim.token_cache_count ?? "-"} | 命中 ${claim.supported_symbol_count ?? 0} | 候选 ${claim.pair_count ?? 0}`,
