@@ -400,7 +400,7 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
 
 
-def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_token_scope_only(monkeypatch):
+def test_cow_pure_profit_intent_binds_requested_principal_and_token_scope_only(monkeypatch):
     monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
     market_state = {
         "top": [
@@ -428,16 +428,17 @@ def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_token_scope_only(
         market_state=market_state,
     )
 
-    assert intent["initial_amount"] == "1000"
+    assert intent["initial_amount"] == "2500"
     assert intent["control_mode"] == "intent"
     assert intent["control_surface"]["current_mode"] == "intent"
     assert intent["control_surface"]["custom_mode_available"] is False
     assert intent["formula"] == "solver_owned_token_scope_only"
     assert intent["baseline_percent"] == "100"
     assert intent["total_required_percent"] == "100"
-    assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "1000"
-    assert intent["min_final_amount"] == "1006.18"
-    assert intent["min_pure_profit_amount"] == "6.18"
+    assert intent["borrow_token_amount"] == "2500"
+    assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "2500"
+    assert intent["min_final_amount"] == "2515.45"
+    assert intent["min_pure_profit_amount"] == "15.45"
     assert intent["token_scope"]["input_symbol"] == "USDC"
     assert intent["token_scope"]["output_symbol"] == "USDC"
     assert intent["token_scope"]["tokens"] == ["T0", "T0USDT", "B0", "B0USDT", "USDC"]

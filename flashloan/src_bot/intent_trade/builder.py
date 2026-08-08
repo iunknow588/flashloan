@@ -265,9 +265,17 @@ def _bind_cow_intent_context(
 ) -> dict[str, Any]:
     """Bind quote/runtime context without changing the public builder contract."""
     bound = dict(intent)
+    requested_decimal = _decimal_value(requested_amount)
+    requested_text = _decimal_text(requested_decimal)
     initial_symbol = str(input_symbol or bound.get("initial_symbol") or DEFAULT_INTENT_BORROW_SYMBOL).strip().upper()
     output_symbol = str(final_symbol or input_symbol or bound.get("final_symbol") or DEFAULT_INTENT_BORROW_SYMBOL).strip().upper()
-    bound["requested_quote_amount"] = _decimal_text(_decimal_value(requested_amount))
+    bound["requested_quote_amount"] = requested_text
+    if requested_text is not None:
+        bound["initial_amount"] = requested_text
+        bound["borrow_token_amount"] = requested_text
+        profit_amount = _decimal_value(bound.get("min_pure_profit_amount"))
+        if profit_amount is not None:
+            bound["min_final_amount"] = _decimal_text(requested_decimal + profit_amount)
     bound["initial_symbol"] = initial_symbol or DEFAULT_INTENT_BORROW_SYMBOL
     bound["final_symbol"] = output_symbol or DEFAULT_INTENT_BORROW_SYMBOL
     bound["owner"] = owner

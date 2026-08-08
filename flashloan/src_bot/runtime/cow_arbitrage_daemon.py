@@ -286,6 +286,13 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
         cow_chain_id=network_config.chain_id,
     )
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
+    if isinstance(result.get("cow_flashloan_intent"), dict):
+        from market.binance_market.service import _bind_intent_route_hop_constraints
+
+        result["cow_flashloan_intent"] = _bind_intent_route_hop_constraints(
+            result["cow_flashloan_intent"],
+            result.get("binance_execution_plan"),
+        )
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])
     result["execution_precheck"] = _cow_execution_precheck(result)
     pause_guard = cow_submission_pause_guard_status()

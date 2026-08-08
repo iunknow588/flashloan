@@ -1595,7 +1595,10 @@ def _cow_pure_profit_intent(
         expected_profit = _decimal_value(threshold_detail.get("min_profit_usd"))
     if expected_profit is None:
         configured_min_profit_percent = _decimal_value(threshold_detail.get("min_profit_percent")) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT
-        expected_profit = Decimal("1000") * configured_min_profit_percent / Decimal("100")
+        notional = _decimal_value(amount)
+        if notional is None or notional <= 0:
+            notional = Decimal("1000")
+        expected_profit = notional * configured_min_profit_percent / Decimal("100")
     route_label = str(link_name or "").strip() or "->".join(
         str(part or "").strip().upper() for part in (path or []) if str(part or "").strip()
     )
@@ -1798,6 +1801,63 @@ def _attach_cow_flashloan_sdk_plan(
     except Exception as exc:
         result["cow_flashloan_sdk_plan"] = None
         result["cow_flashloan_sdk_error"] = str(exc)
+
+
+def _cow_route_hop_constraints_from_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        return {"enabled": False, "hops": []}
+    hops = []
+    for index, step in enumerate(plan.get("steps") or [], start=1):
+        if not isinstance(step, dict):
+            continue
+        sdk = step.get("cow_sdk_parameters") if isinstance(step.get("cow_sdk_parameters"), dict) else {}
+        from_symbol = str(step.get("from_symbol") or sdk.get("sell_token_symbol") or "").strip().upper()
+        to_symbol = str(step.get("to_symbol") or sdk.get("buy_token_symbol") or "").strip().upper()
+        sell_amount = (
+            sdk.get("sell_amount_before_fee")
+            or step.get("query_sell_amount_before_fee")
+            or step.get("input_amount")
+        )
+        min_buy_amount = sdk.get("min_buy_amount_after_fee") or step.get("min_output_amount")
+        target_buy_amount = sdk.get("target_buy_amount_after_fee") or step.get("target_output_amount")
+        if not from_symbol or not to_symbol or sell_amount in (None, "") or min_buy_amount in (None, ""):
+            continue
+        hops.append(
+            {
+                "hop": step.get("step") or index,
+                "from_symbol": from_symbol,
+                "to_symbol": to_symbol,
+                "sell_amount_before_fee": str(sell_amount),
+                "min_buy_amount_after_fee": str(min_buy_amount),
+                "target_buy_amount_after_fee": str(target_buy_amount) if target_buy_amount not in (None, "") else None,
+                "quote_kind": sdk.get("quote_kind") or "sell",
+                "selected_target_source": sdk.get("selected_target_source") or step.get("selected_target_source"),
+                "selected_acceptable_source": sdk.get("selected_acceptable_source") or step.get("selected_acceptable_source"),
+                "rule": step.get("selection_rule") or step.get("price_compare_rule"),
+            }
+        )
+    return {
+        "enabled": bool(hops),
+        "enforcement": "signed_intent_metadata_and_final_min_amount",
+        "route": [str(item or "").upper() for item in plan.get("route") or []],
+        "hops": hops,
+    }
+
+
+def _bind_intent_route_hop_constraints(intent: dict[str, Any], plan: dict[str, Any] | None) -> dict[str, Any]:
+    bound = dict(intent)
+    constraints = _cow_route_hop_constraints_from_plan(plan)
+    bound["route_hop_constraints"] = constraints
+    bound["route_hop_constraints_enforced_by_submission_adapter"] = False
+    bound["route_hop_reference_mode"] = "signed_intent_metadata_and_final_min_amount"
+    final_target = _decimal_value(plan.get("final_target_amount")) if isinstance(plan, dict) else None
+    current_min = _decimal_value(bound.get("min_final_amount"))
+    if final_target is not None and (current_min is None or final_target > current_min):
+        bound["min_final_amount"] = _decimal_text(final_target)
+        order_intent = dict(bound.get("cow_sdk_order_intent") or {})
+        order_intent["minimum_final_buy_amount_after_all_costs"] = bound["min_final_amount"]
+        bound["cow_sdk_order_intent"] = order_intent
+    return bound
 
 
 def _execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -2772,6 +2832,10 @@ def build_cow_quote_verification(
             link_name=result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
         )
         result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
+        result["cow_flashloan_intent"] = _bind_intent_route_hop_constraints(
+            result["cow_flashloan_intent"],
+            result.get("binance_execution_plan"),
+        )
         _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_registry)
         result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, {})
         result["execution_precheck"] = _cow_execution_precheck(result)
