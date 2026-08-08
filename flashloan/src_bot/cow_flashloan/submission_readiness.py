@@ -19,6 +19,7 @@ REQUIRED_COW_SUBMISSION_PACKAGES = (
     "@cowprotocol/sdk-trading",
     "@cowprotocol/sdk-flash-loans",
     "viem",
+    "dotenv",
 )
 COW_ORDER_SIGNER_ENV_NAMES = (
     "COW_ORDER_SIGNER_PRIVATE_KEY",

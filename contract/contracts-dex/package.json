@@ -24,7 +24,6 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
-    "dotenv": "^17.2.1",
     "hardhat": "^2.26.1"
   },
   "dependencies": {
@@ -32,6 +31,7 @@
     "@cowprotocol/sdk-flash-loans": "^3.3.3",
     "@cowprotocol/sdk-trading": "^2.2.6",
     "@cowprotocol/sdk-viem-adapter": "^0.3.26",
+    "dotenv": "^17.2.1",
     "viem": "^2.55.11"
   }
 }

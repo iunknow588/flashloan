@@ -14,11 +14,11 @@ def _cow_submission_pause_off(monkeypatch):
     )
 
 
-def _candidate(pair: str = "APEUSDT / PYRUSDT", route=None, rank: int = 1) -> dict:
+def _candidate(pair: str = "APEUSDT / PYRUSDT", route=None, rank: int = 1, network: str = "bnb") -> dict:
     return {
         "observed_at": "2026-08-05T10:00:00+00:00",
-        "network": "bnb",
-        "chain_id": 56,
+        "network": network,
+        "chain_id": 56 if network == "bnb" else 43114,
         "pair": pair,
         "pair_rank": rank,
         "priority_reason": "buy_loser_then_gainer",
@@ -38,7 +38,7 @@ def _candidate(pair: str = "APEUSDT / PYRUSDT", route=None, rank: int = 1) -> di
             "y_current_price": "0.9",
         },
         "precheck": {"status": "quote_required", "reasons": ["requires_cow_or_dex_quote"]},
-        "market_state": {"observed_at": "2026-08-05T10:00:00+00:00", "cow_filter": {"network": "bnb"}},
+        "market_state": {"observed_at": "2026-08-05T10:00:00+00:00", "cow_filter": {"network": network}},
     }
 
 
@@ -95,6 +95,37 @@ def test_cow_candidate_queue_can_prioritize_window_spread():
 
     assert claimed["pair"] == "HIGHUSDT / DEEPUSDT"
     assert claimed["priority_score"] == "3.1"
+
+
+def test_cow_candidate_queue_snapshot_filters_networks():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many(
+        [
+            _candidate("BNBUSDT / CAKEUSDT", rank=1, network="bnb"),
+            _candidate("AVAXUSDT / LINKUSDT", rank=2, network="avalanche"),
+        ],
+        source="test",
+    )
+
+    rows = queue.snapshot(limit=10, networks=["avalanche"])
+
+    assert [row["network"] for row in rows] == ["avalanche"]
+
+
+def test_cow_candidate_queue_retain_networks_removes_unselected_items():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many(
+        [
+            _candidate("BNBUSDT / CAKEUSDT", rank=1, network="bnb"),
+            _candidate("AVAXUSDT / LINKUSDT", rank=2, network="avalanche"),
+        ],
+        source="test",
+    )
+
+    result = queue.retain_networks(["avalanche"])
+
+    assert result["removed"] == 1
+    assert [row["network"] for row in queue.snapshot(limit=10)] == ["avalanche"]
 
 
 def test_cow_quote_daemon_process_once_records_and_marks_blocked():

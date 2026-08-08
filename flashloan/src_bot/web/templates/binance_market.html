@@ -296,7 +296,7 @@
     let lastAutoCowQuoteKey = "";
     let lastAutoCowQuoteAt = 0;
     const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 1000;
-    const DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb"];
+    const DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb", "ethereum"];
     const networkPanels = new Map();
     const COW_ATTEMPT_PAGE_SIZE = 10;
     const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
@@ -1406,7 +1406,9 @@
     }
     async function refreshCowCandidateQueue() {
       try {
-        renderCowCandidateQueue(await api("/api/binance-market/cow-candidate-queue?limit=100"));
+        const networks = selectedNetworkIds();
+        const suffix = networks.length ? `&cow_networks=${encodeURIComponent(networks.join(","))}` : "";
+        renderCowCandidateQueue(await api(`/api/binance-market/cow-candidate-queue?limit=100${suffix}`));
       } catch (error) {
         $("cowQueueBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
       }

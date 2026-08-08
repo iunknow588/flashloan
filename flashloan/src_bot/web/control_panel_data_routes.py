@@ -34,6 +34,7 @@ from runtime.cow_arbitrage_daemon import (
     cow_quote_daemon_status,
     enqueue_cow_candidate_attempts,
     ensure_cow_quote_daemon_running,
+    retain_cow_candidate_networks,
 )
 from web.control_panel_cow_pause import (
     clear_cow_submission_pause_guard,
@@ -949,11 +950,13 @@ def register_data_routes(app, panel) -> None:
             fallback_reason=extremes.get("fallback_reason") if isinstance(extremes, dict) else None,
             database_url=database_url,
         )
+        queue_retention = retain_cow_candidate_networks(requested)
         return jsonify(
             {
                 "networks": requested,
                 "states": states,
                 "history_recording": history_recording,
+                "queue_retention": queue_retention,
                 "cow_network_claims": claims,
                 "cow_supported_overview": cow_supported_overview,
                 "observed_at": extremes.get("observed_at") if isinstance(extremes, dict) else None,
@@ -1277,10 +1280,11 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/binance-market/cow-candidate-queue")
     def binance_market_cow_candidate_queue():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
+        networks = _request_networks_arg()
         pause_guard = _cow_submission_pause_guard(database_url=panel_call("database_url_or_none"))
         if not pause_guard.get("paused") and cow_quote_daemon_enabled():
             ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
-        return jsonify(cow_candidate_queue_snapshot(limit=limit))
+        return jsonify(cow_candidate_queue_snapshot(limit=limit, networks=networks))
 
     @app.get("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause():

@@ -49,6 +49,10 @@ def enqueue_cow_candidate_attempts(attempts: list[dict[str, Any]], *, source: st
     return _QUEUE.enqueue_many(attempts, source=source)
 
 
+def retain_cow_candidate_networks(networks: list[str]) -> dict[str, Any]:
+    return _QUEUE.retain_networks(networks)
+
+
 def _env_float(name: str, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
     try:
         value = float(os.getenv(name, str(default)) or default)
@@ -548,5 +552,5 @@ def cow_quote_daemon_status() -> dict[str, Any]:
     return daemon.status()
 
 
-def cow_candidate_queue_snapshot(*, limit: int = 50) -> dict[str, Any]:
-    return {"daemon": cow_quote_daemon_status(), "items": _QUEUE.snapshot(limit=limit)}
+def cow_candidate_queue_snapshot(*, limit: int = 50, networks: list[str] | None = None) -> dict[str, Any]:
+    return {"daemon": cow_quote_daemon_status(), "items": _QUEUE.snapshot(limit=limit, networks=networks)}

@@ -35,6 +35,7 @@ REQUIRED_MODULES = {
     "psycopg_pool": "psycopg_pool",
     "web3": "web3",
     "websockets": "websockets",
+    "dotenv": "python-dotenv",
 }
 
 

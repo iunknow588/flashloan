@@ -62,7 +62,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'name="cow_network"' in binance_market_panel
     assert "quoteAmountInput" in binance_market_panel
     assert 'value="sepolia"' not in binance_market_panel
-    assert 'DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb"]' in binance_market_panel
+    assert 'DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb", "ethereum"]' in binance_market_panel
     assert "amount=${encodeURIComponent(amount)}" in binance_market_panel
     assert "cow_networks=${encodeURIComponent(networks.join(\",\"))}" in binance_market_panel
     assert "cow_network=${encodeURIComponent(cowNetwork)}" in binance_market_panel

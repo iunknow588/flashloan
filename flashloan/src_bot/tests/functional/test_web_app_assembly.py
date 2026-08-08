@@ -581,9 +581,10 @@ def test_cow_candidate_queue_does_not_start_daemon_when_submission_paused(monkey
     monkeypatch.setattr(
         routes,
         "cow_candidate_queue_snapshot",
-        lambda limit=100: {
+        lambda limit=100, networks=None: {
             "daemon": {"enabled": True, "running": False, "paused": True},
             "items": [],
+            "networks": networks or [],
         },
     )
 
@@ -595,6 +596,33 @@ def test_cow_candidate_queue_does_not_start_daemon_when_submission_paused(monkey
     assert captured == {}
     assert data["daemon"]["paused"] is True
     assert data["items"] == []
+
+
+def test_cow_candidate_queue_api_filters_selected_networks(monkeypatch):
+    from web import control_panel_data_routes as routes
+
+    captured = {}
+
+    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True})
+    monkeypatch.setattr(routes, "cow_quote_daemon_enabled", lambda: False)
+    monkeypatch.setattr(
+        routes,
+        "cow_candidate_queue_snapshot",
+        lambda limit=100, networks=None: captured.setdefault(
+            "snapshot",
+            {
+                "daemon": {"enabled": True, "paused": True},
+                "items": [],
+                "networks": networks or [],
+            },
+        ),
+    )
+
+    response = app.test_client().get("/api/binance-market/cow-candidate-queue?limit=100&cow_networks=avalanche,ethereum")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["networks"] == ["avalanche", "ethereum"]
 
 
 def test_account_scan_page_preserves_debt_pool_return_intent():

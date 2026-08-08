@@ -210,6 +210,25 @@ class CowCandidateQueue:
         with self._lock:
             return len(self._items)
 
+    def retain_networks(self, networks: list[str] | tuple[str, ...] | set[str]) -> dict[str, Any]:
+        selected = {
+            str(network or "").strip().lower()
+            for network in networks or []
+            if str(network or "").strip()
+        }
+        if not selected:
+            return {"removed": 0, "networks": []}
+        with self._lock:
+            removable = [
+                signature
+                for signature, item in self._items.items()
+                if item.status != "processing"
+                and str(item.attempt.get("network") or "").strip().lower() not in selected
+            ]
+            for signature in removable:
+                self._items.pop(signature, None)
+        return {"removed": len(removable), "networks": sorted(selected), "size": self.size()}
+
     def stats(self) -> dict[str, Any]:
         with self._lock:
             counts: dict[str, int] = {}
@@ -234,9 +253,19 @@ class CowCandidateQueue:
                 "oldest_pending_at": self._oldest_pending_at_locked(),
             }
 
-    def snapshot(self, *, limit: int = 50) -> list[dict[str, Any]]:
+    def snapshot(self, *, limit: int = 50, networks: list[str] | tuple[str, ...] | set[str] | None = None) -> list[dict[str, Any]]:
+        selected = {
+            str(network or "").strip().lower()
+            for network in networks or []
+            if str(network or "").strip()
+        }
         with self._lock:
-            rows = sorted(self._items.values(), key=lambda item: item.updated_at, reverse=True)
+            rows = [
+                item
+                for item in self._items.values()
+                if not selected or str(item.attempt.get("network") or "").strip().lower() in selected
+            ]
+            rows = sorted(rows, key=lambda item: item.updated_at, reverse=True)
             return [item.to_dict() for item in rows[: max(1, int(limit))]]
 
     def _prune_locked(self, now: float) -> None:
