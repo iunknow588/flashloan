@@ -265,7 +265,7 @@
         <table>
           <thead>
             <tr>
-              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>报价差额</th><th>未成功原因</th>
+              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>诊断差额</th><th>未成功原因</th>
             </tr>
           </thead>
           <tbody id="cowAttemptHistoryBody"></tbody>
@@ -647,7 +647,7 @@
         `手续费：${feeLines(costs)}`,
         `盘面估算差额：${planDelta(plan)}`,
         `CoW 相对 Binance 估算：${quoteVsPlan(quote, plan)}`,
-        `CoW 报价差额：${quoteDelta}`,
+        `CoW 诊断差额：${quoteDelta}`,
       ].join("\n");
     };
     const supportText = support => {
@@ -725,11 +725,11 @@
       return `传给 CoW SDK：kind=${sdk.quote_kind || "sell"} | sellToken=${displaySymbol(sdk.sell_token_symbol || step.from_symbol)} | buyToken=${displaySymbol(sdk.buy_token_symbol || step.to_symbol)} | sellAmountBeforeFee=${sdk.sell_amount_before_fee || "-"} | targetBuyAmountAfterFee=${sdk.target_buy_amount_after_fee || "-"} | minBuyAmountAfterFee=${sdk.min_buy_amount_after_fee || "-"}`;
     };
     const precheckStatusLabel = status => ({
-      checks_passed_order_disabled: "意图和报价通过，真实下单未开放",
-      limit_order_ready_not_submitted: "限价参数已准备，提交适配器未开放",
-      limit_order_ready_to_submit: "限价参数已准备，可提交",
-      ready_not_submitted: "已准备，未提交",
-      ready_to_submit: "已准备，可提交",
+      checks_passed_order_disabled: "意图已准备，真实下单未开放",
+      limit_order_ready_not_submitted: "意图参数已准备，提交适配器未开放",
+      limit_order_ready_to_submit: "意图参数已准备，可提交",
+      ready_not_submitted: "意图已准备，未提交",
+      ready_to_submit: "意图已准备，可提交",
       submission_paused: "提交已暂停",
       unsupported: "代币不支持",
       quote_required: "等待 CoW quote",
@@ -746,7 +746,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `CoW quote delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | quote result gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
       return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
@@ -754,7 +754,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `CoW quote delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | quote result gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
       return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
@@ -788,7 +788,7 @@
         <div>手续费：${esc(feeLines(costs))}</div>
         <div>盘面估算差额：${esc(planDelta(plan))}</div>
         <div>CoW 相对 Binance 估算：${esc(quoteVsPlan(quote, plan))}</div>
-        <div>CoW 报价差额：${esc(quoteDelta)}</div>`;
+        <div>CoW 诊断差额：${esc(quoteDelta)}</div>`;
     };
 
     const rowHtml = (row, index) => `<tr>
@@ -898,7 +898,7 @@
             <div>CoW 实时报价比例：${esc(quoteRates(quote))}</div>
             <div>CoW 预计结果：${esc(quoteFinal(quote))}</div>
             <div>目标差额：${esc(planDelta(plan))}</div>
-            <div>报价差额：${esc(quoteDelta)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
+            <div>诊断差额：${esc(quoteDelta)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
             <div>${precheckHtml(quote)}</div>
             ${costDetail(quote, plan)}
             ${quote.viable ? "" : `<div>报价失败原因：${esc(quote.error || "-")}</div>`}
@@ -912,7 +912,7 @@
             <div>CoW 实时报价比例：等待查询</div>
             <div>CoW 预计结果：等待查询</div>
             <div>目标差额：${esc(planDelta(plan))}</div>
-            <div>报价差额：等待 CoW SDK 报价</div>
+            <div>诊断差额：等待 CoW SDK 报价</div>
             ${costDetail(null, plan)}
           </div>`;
       return `<div class="route-box">
@@ -1124,7 +1124,7 @@
           <span>最高跌幅：${esc(displaySymbol(state.bottom?.[0]?.symbol || "-"))} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
           <span>${esc(routeCountText(panel))}</span>
           <span>${esc(quoteInfo)}</span>
-          <span>最佳报价差额 ${esc(best?.execution_precheck?.quote_delta_amount || best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
+          <span>最佳诊断差额 ${esc(best?.execution_precheck?.quote_delta_amount || best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
         </div>
         <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
         <div class="chain-routes">

@@ -4,7 +4,7 @@ from pathlib import Path
 from web.control_panel import app as control_panel_app
 
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _python_files() -> list[Path]:
@@ -120,3 +120,19 @@ def test_cow_quotes_route_applies_pause_guard_after_sdk_quote_verification():
     recording_at = body.index("payload[\"history_recording\"] = record_cow_execution_attempts_safely(")
 
     assert verification_at < pause_at < recording_at
+
+
+def test_intent_mode_submission_script_does_not_use_profit_gates():
+    source = (SRC_ROOT.parent.parent / "contract" / "contracts-dex" / "scripts" / "submit-cow-flashloan-order.js").read_text(encoding="utf-8")
+
+    assert "final_amount_below_minimum_bound" not in source
+    assert "sell_budget_exceeds_principal" not in source
+    assert "if (!profitBudgetMet || !sellBudgetPassed)" not in source
+
+
+def test_probe_script_keeps_intent_submission_gate_free_of_profit_blocks():
+    source = (SRC_ROOT.parent.parent / "contract" / "contracts-dex" / "scripts" / "probe-cow-flashloans.js").read_text(encoding="utf-8")
+
+    assert "if (!profitBudgetMet || !sellBudgetPassed)" not in source
+    assert "selected_profit_budget_passed" not in source
+    assert "no_route_above_profit_budget" not in source

@@ -407,7 +407,8 @@ def test_cow_pure_profit_intent_uses_fixed_1000u_principal_and_token_scope_only(
 
     assert intent["initial_amount"] == "1000"
     assert intent["control_mode"] == "intent"
-    assert intent["control_surface"]["route_hop_constraints_enforced"] is False
+    assert intent["control_surface"]["current_mode"] == "intent"
+    assert intent["control_surface"]["custom_mode_available"] is False
     assert intent["formula"] == "solver_owned_token_scope_only"
     assert intent["baseline_percent"] == "100"
     assert intent["total_required_percent"] == "100"
@@ -479,13 +480,13 @@ def test_cow_execution_precheck_default_intent_mode_keeps_hop_constraints_diagno
     assert precheck["intent_mode_ready"] is True
 
 
-def test_cow_execution_precheck_route_hop_mode_enforces_hop_constraints(monkeypatch):
+def test_cow_execution_precheck_ignores_route_hop_mode_request(monkeypatch):
     monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "route_hop")
 
     precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
 
-    assert precheck["control_mode"] == "route_hop"
-    assert precheck["route_hop_constraints_enforced"] is True
+    assert precheck["control_mode"] == "intent"
+    assert precheck["route_hop_constraints_enforced"] is False
     assert precheck["route_hop_constraints_passed"] is False
     assert precheck["checks_passed"] is True
     assert precheck["status"] == "limit_order_ready_not_submitted"

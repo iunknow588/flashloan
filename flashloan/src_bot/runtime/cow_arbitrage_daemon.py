@@ -235,6 +235,7 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
         cow_chain_id=network_config.chain_id,
         threshold_detail=cow_filter.get("threshold_detail") if isinstance(cow_filter, dict) else {},
         market_state=market_state,
+        link_name=result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
     )
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])

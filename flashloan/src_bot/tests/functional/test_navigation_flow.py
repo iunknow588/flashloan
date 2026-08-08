@@ -144,7 +144,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "手续费" in binance_market_panel
     assert "盘面估算差额" in binance_market_panel
     assert "CoW 相对 Binance 估算" in binance_market_panel
-    assert "CoW 报价差额" in binance_market_panel
+    assert "CoW 诊断差额" in binance_market_panel
     assert "当前盘面买入" in binance_market_panel
     assert "变化前价格换算" in binance_market_panel
     assert "当前盘面卖出" in binance_market_panel

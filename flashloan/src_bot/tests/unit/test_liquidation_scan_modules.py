@@ -6,7 +6,7 @@ from execution.scanner import normalize_accounts
 
 
 def _module_line_count(relative_path: str) -> int:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     return len((root / relative_path).read_text(encoding="utf-8").splitlines())
 
 

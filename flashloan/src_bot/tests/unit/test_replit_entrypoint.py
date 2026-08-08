@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = SRC_ROOT.parents[1]
 
 

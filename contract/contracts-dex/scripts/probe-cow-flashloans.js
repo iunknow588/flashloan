@@ -1225,7 +1225,7 @@ async function submitPureIntentOrder({
       minProfitHuman: quoteAmountHuman(minProfitUnits, quoteDecimals),
       profitBudgetMet,
       sellBudgetPassed,
-      blockedReason: !profitBudgetMet
+      diagnosticReason: !profitBudgetMet
         ? "net_profit_below_percentage_floor"
         : !sellBudgetPassed
           ? "sell_budget_exceeds_principal_after_costs"
@@ -1237,18 +1237,6 @@ async function submitPureIntentOrder({
         attempted: false,
         signerAddress: signer.signerAddress,
         blockedReason: "submission_quote_missing_order",
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        quoteCall,
-        analysis: submissionAnalysis,
-      };
-    }
-    if (!profitBudgetMet || !sellBudgetPassed) {
-      return {
-        ...base,
-        attempted: false,
-        signerAddress: signer.signerAddress,
-        blockedReason: submissionAnalysis.blockedReason,
         startedAt,
         finishedAt: new Date().toISOString(),
         quoteCall,
@@ -1878,21 +1866,20 @@ function routeSelection(routes) {
     minProfitSymbol: "USDC",
     candidateCount: routes.length,
     quotedCandidateCount: routes.filter((route) => route.ok).length,
-    selectedRoute:
-      best && best.profitBudgetMet
-        ? {
-            rank: best.rank,
-            sourceIndex: best.sourceIndex,
-            pair: best.pair,
-            routeDirection: best.routeDirection,
-            priorityReason: best.priorityReason,
-            route: best.route,
-            finalAmount: best.finalAmount,
-            deltaAmount: best.deltaAmount,
-            deltaPercent: best.deltaPercent,
-          }
-        : null,
-    status: best?.profitBudgetMet ? "selected_profit_budget_passed" : "no_route_above_profit_budget",
+    selectedRoute: best && best.quoteAvailable
+      ? {
+          rank: best.rank,
+          sourceIndex: best.sourceIndex,
+          pair: best.pair,
+          routeDirection: best.routeDirection,
+          priorityReason: best.priorityReason,
+          route: best.route,
+          finalAmount: best.finalAmount,
+          deltaAmount: best.deltaAmount,
+          deltaPercent: best.deltaPercent,
+        }
+      : null,
+    status: best ? (best.quoteAvailable ? "selected_diagnostic_best" : "best_route_unquoted") : "no_routes",
     bestRouteEvenIfBlocked: best,
     ranking,
   };

@@ -437,8 +437,6 @@ async function submitOne() {
   const afterSlippageBuyUnits = bigintFrom(quoteAmounts.afterSlippage?.buyAmount ?? orderToSign?.buyAmount ?? 0n);
   const quotedNetworkFeeBuyUnits = bigintFrom(quoteAmounts.costs?.networkFee?.amountInBuyCurrency ?? 0n);
   const requiredSellUnits = bigintFrom(orderToSign?.sellAmount ?? 0n);
-  const sellBudgetPassed = requiredSellUnits <= principalUnits;
-  const profitBudgetMet = afterSlippageBuyUnits >= minFinalAmountUnits;
   const analysis = {
     principalUnits: String(principalUnits),
     afterSlippageBuyUnits: String(afterSlippageBuyUnits),
@@ -446,8 +444,8 @@ async function submitOne() {
     flashLoanFeeUnits: String(flashLoanFeeAmount),
     requiredSellUnits: String(requiredSellUnits),
     minimumFinalAmountUnits: String(minFinalAmountUnits),
-    sellBudgetPassed,
-    profitBudgetMet,
+    sellBudgetPassed: requiredSellUnits <= principalUnits,
+    profitBudgetMet: afterSlippageBuyUnits >= minFinalAmountUnits,
   };
   if (!orderToSign) {
     return {
@@ -456,22 +454,6 @@ async function submitOne() {
       status: "submission_failed",
       blockedReason: "submission_quote_missing_order",
       error: "submission_quote_missing_order",
-      owner: signer.signerAddress,
-      network: network.network,
-      chainId: network.chainId,
-      quoteCall,
-      postingCall: null,
-      submitCall: null,
-      analysis,
-    };
-  }
-  if (!profitBudgetMet || !sellBudgetPassed) {
-    return {
-      ok: false,
-      submitted: false,
-      status: "submission_failed",
-      blockedReason: !profitBudgetMet ? "final_amount_below_minimum_bound" : "sell_budget_exceeds_principal",
-      error: !profitBudgetMet ? "final_amount_below_minimum_bound" : "sell_budget_exceeds_principal",
       owner: signer.signerAddress,
       network: network.network,
       chainId: network.chainId,
