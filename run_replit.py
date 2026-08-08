@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import os
 import shutil
 import subprocess
@@ -68,6 +69,23 @@ def _venv_dependencies_available(python: Path) -> bool:
     return result.returncode == 0
 
 
+def _install_requirements(python: Path) -> None:
+    print(f"Installing Python dependencies into {python} from {REQUIREMENTS}", flush=True)
+    subprocess.check_call(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-user",
+            "-r",
+            str(REQUIREMENTS),
+        ],
+        env=_pip_env(),
+    )
+
+
 def ensure_project_venv() -> bool:
     python = _venv_python()
     created = False
@@ -75,19 +93,7 @@ def ensure_project_venv() -> bool:
         subprocess.check_call([sys.executable, "-m", "venv", str(VENV_DIR)])
         created = True
     if _requirements_need_install() or not _venv_dependencies_available(python):
-        subprocess.check_call(
-            [
-                str(python),
-                "-m",
-                "pip",
-                "install",
-                "--disable-pip-version-check",
-                "--no-user",
-                "-r",
-                str(REQUIREMENTS),
-            ],
-            env=_pip_env(),
-        )
+        _install_requirements(python)
         if not _venv_dependencies_available(python):
             raise RuntimeError(
                 "Project virtual environment was prepared, but required Python packages are still missing. "
@@ -96,6 +102,31 @@ def ensure_project_venv() -> bool:
         _install_stamp().write_text("ok\n", encoding="utf-8")
         return True
     return created
+
+
+def _missing_runtime_imports() -> list[str]:
+    missing: list[str] = []
+    for module_name in REQUIRED_PYTHON_IMPORTS:
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            missing.append(module_name)
+    return missing
+
+
+def ensure_runtime_dependencies_loaded() -> None:
+    missing = _missing_runtime_imports()
+    if not missing:
+        return
+    python = _venv_python()
+    print(
+        "Current Python process is missing required packages: "
+        f"{', '.join(missing)}. executable={sys.executable}; venv_python={python}",
+        file=sys.stderr,
+        flush=True,
+    )
+    _install_requirements(python)
+    os.execv(str(python), [str(python), str(Path(__file__).resolve())])
 
 
 def _node_install_stamp() -> Path:
@@ -148,6 +179,7 @@ def load_src_bot_run_module() -> ModuleType:
 
 def main() -> int:
     reexec_inside_project_venv()
+    ensure_runtime_dependencies_loaded()
     ensure_cow_node_adapter_dependencies()
     module = load_src_bot_run_module()
     return int(module.main())

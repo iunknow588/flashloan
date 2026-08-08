@@ -95,6 +95,29 @@ def test_replit_launcher_reexecs_after_install_inside_project_venv(monkeypatch):
     assert Path(calls["execv"][0]) == Path("/tmp/project/.venv/bin/python")
 
 
+def test_replit_launcher_force_installs_when_current_process_imports_are_missing(monkeypatch):
+    launcher = _load_module("test_run_replit_force_runtime_install", REPO_ROOT / "run_replit.py")
+    calls = {}
+
+    monkeypatch.setattr(launcher, "_missing_runtime_imports", lambda: ["flask"])
+    monkeypatch.setattr(launcher, "_venv_python", lambda: Path("/tmp/project/.venv/bin/python"))
+    monkeypatch.setattr(launcher, "_install_requirements", lambda python: calls.setdefault("install", python))
+
+    def fake_execv(executable, argv):
+        calls["execv"] = (executable, argv)
+        raise RuntimeError("stop exec")
+
+    monkeypatch.setattr(launcher.os, "execv", fake_execv)
+
+    try:
+        launcher.ensure_runtime_dependencies_loaded()
+    except RuntimeError as exc:
+        assert str(exc) == "stop exec"
+
+    assert Path(calls["install"]) == Path("/tmp/project/.venv/bin/python")
+    assert Path(calls["execv"][0]) == Path("/tmp/project/.venv/bin/python")
+
+
 def test_replit_nix_installs_python_runtime():
     config = (REPO_ROOT / "replit.nix").read_text(encoding="utf-8")
 
