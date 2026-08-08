@@ -7,9 +7,8 @@ from typing import Any
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = Path(__file__).resolve().parents[3]
-COW_CONTRACTS_DX_DIR = REPO_ROOT / "contract" / "contracts-dex"
-COW_SUBMISSION_SCRIPT = COW_CONTRACTS_DX_DIR / "scripts" / "submit-cow-flashloan-order.js"
+COW_NODE_ADAPTER_DIR = SRC_ROOT / "cow_flashloan" / "node_adapter"
+COW_SUBMISSION_SCRIPT = COW_NODE_ADAPTER_DIR / "scripts" / "submit-cow-flashloan-order.js"
 LIVE_COW_SUBMISSION_NETWORKS = {"ethereum", "avalanche", "bnb", "polygon", "base"}
 REQUIRED_COW_SUBMISSION_PACKAGES = (
     "@cowprotocol/sdk-common",
@@ -62,7 +61,7 @@ def cow_order_submission_adapter_available() -> bool:
 
 
 def _node_module_package_path(package_name: str) -> Path:
-    path = COW_CONTRACTS_DX_DIR / "node_modules"
+    path = COW_NODE_ADAPTER_DIR / "node_modules"
     for part in str(package_name or "").split("/"):
         if part:
             path /= part
@@ -70,9 +69,9 @@ def _node_module_package_path(package_name: str) -> Path:
 
 
 def cow_order_submission_sdk_status() -> dict[str, Any]:
-    package_json = COW_CONTRACTS_DX_DIR / "package.json"
-    package_lock = COW_CONTRACTS_DX_DIR / "package-lock.json"
-    node_modules = COW_CONTRACTS_DX_DIR / "node_modules"
+    package_json = COW_NODE_ADAPTER_DIR / "package.json"
+    package_lock = COW_NODE_ADAPTER_DIR / "package-lock.json"
+    node_modules = COW_NODE_ADAPTER_DIR / "node_modules"
     installed = [
         package
         for package in REQUIRED_COW_SUBMISSION_PACKAGES
@@ -87,14 +86,14 @@ def cow_order_submission_sdk_status() -> dict[str, Any]:
     return {
         "ready": ready,
         "reason": "cow_flashloan_sdk_ready" if ready else "cow_flashloan_sdk_install_required",
-        "contracts_dir": str(COW_CONTRACTS_DX_DIR),
+        "adapter_dir": str(COW_NODE_ADAPTER_DIR),
         "package_json_exists": package_json.exists(),
         "package_lock_exists": package_lock.exists(),
         "node_modules_exists": node_modules.exists(),
         "required_packages": list(REQUIRED_COW_SUBMISSION_PACKAGES),
         "installed_packages": installed,
         "missing_packages": missing,
-        "install_command": f"cd {COW_CONTRACTS_DX_DIR} && npm install",
+        "install_command": f"cd {COW_NODE_ADAPTER_DIR} && npm install",
     }
 
 

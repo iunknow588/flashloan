@@ -249,16 +249,21 @@ def test_cow_quotes_route_applies_pause_guard_after_sdk_quote_verification():
 
 
 def test_intent_mode_submission_script_does_not_use_profit_gates():
-    source = (SRC_ROOT.parent.parent / "contract" / "contracts-dex" / "scripts" / "submit-cow-flashloan-order.js").read_text(encoding="utf-8")
+    source = (
+        SRC_ROOT / "cow_flashloan" / "node_adapter" / "scripts" / "submit-cow-flashloan-order.js"
+    ).read_text(encoding="utf-8")
 
     assert "final_amount_below_minimum_bound" not in source
     assert "sell_budget_exceeds_principal" not in source
     assert "if (!profitBudgetMet || !sellBudgetPassed)" not in source
 
 
-def test_probe_script_keeps_intent_submission_gate_free_of_profit_blocks():
-    source = (SRC_ROOT.parent.parent / "contract" / "contracts-dex" / "scripts" / "probe-cow-flashloans.js").read_text(encoding="utf-8")
+def test_cow_intent_node_adapter_is_independent_from_contract_workspace():
+    source = (
+        SRC_ROOT / "cow_flashloan" / "node_adapter" / "scripts" / "submit-cow-flashloan-order.js"
+    ).read_text(encoding="utf-8")
+    package_json = (SRC_ROOT / "cow_flashloan" / "node_adapter" / "package.json").read_text(encoding="utf-8")
 
-    assert "if (!profitBudgetMet || !sellBudgetPassed)" not in source
-    assert "selected_profit_budget_passed" not in source
-    assert "no_route_above_profit_budget" not in source
+    assert "contracts-dex" not in source
+    assert "hardhat" not in package_json.lower()
+    assert "deploy" not in package_json.lower()

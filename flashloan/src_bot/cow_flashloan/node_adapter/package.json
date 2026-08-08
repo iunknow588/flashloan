@@ -1,0 +1,19 @@
+{
+  "name": "flashloan-cow-intent-adapter",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CoW SDK intent order submission adapter for src_bot.",
+  "scripts": {
+    "submit:cow-intent": "node scripts/submit-cow-flashloan-order.js"
+  },
+  "dependencies": {
+    "@cowprotocol/sdk-common": "^0.12.1",
+    "@cowprotocol/sdk-config": "^2.4.0",
+    "@cowprotocol/sdk-flash-loans": "^3.3.3",
+    "@cowprotocol/sdk-order-book": "^4.0.2",
+    "@cowprotocol/sdk-trading": "^2.2.6",
+    "@cowprotocol/sdk-viem-adapter": "^0.3.26",
+    "dotenv": "^17.2.1",
+    "viem": "^2.55.11"
+  }
+}

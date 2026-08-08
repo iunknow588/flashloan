@@ -10,7 +10,7 @@ from typing import Any
 
 from core.sensitive_data import redact_sensitive_text
 from cow_flashloan.submission_readiness import (
-    COW_CONTRACTS_DX_DIR,
+    COW_NODE_ADAPTER_DIR,
     COW_SUBMISSION_SCRIPT,
     cow_order_submission_adapter_available,
     cow_order_submission_enabled,
@@ -132,7 +132,7 @@ def submit_cow_flashloan_order(
         try:
             completed = subprocess.run(
                 [node, str(COW_SUBMISSION_SCRIPT), str(input_path)],
-                cwd=str(COW_CONTRACTS_DX_DIR),
+                cwd=str(COW_NODE_ADAPTER_DIR),
                 env=env,
                 text=True,
                 capture_output=True,

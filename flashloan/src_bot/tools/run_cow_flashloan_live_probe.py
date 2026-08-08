@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -15,10 +14,9 @@ from typing import Any
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
-WORKSPACE_ROOT = SRC_ROOT.parents[1]
-CONTRACTS_ROOT = WORKSPACE_ROOT / "contract" / "contracts-dex"
+NODE_ADAPTER_ROOT = SRC_ROOT / "cow_flashloan" / "node_adapter"
 LATEST_EXTREMES_PATH = SRC_ROOT / "runtime" / "state" / "latest_extremes.json"
-DEFAULT_OUTPUT_PATH = CONTRACTS_ROOT / "deployments" / "cow-flashloans-probe-live-avalanche.json"
+DEFAULT_OUTPUT_PATH = SRC_ROOT / "runtime" / "logs" / "cow-flashloans-probe-live-avalanche.json"
 
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
@@ -104,56 +102,18 @@ def _run_observer_window(seconds: int, min_side_change_percent: str) -> bool:
 
 
 def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
-    env = os.environ.copy()
-    env.update(
-        {
-            "COW_FLASHLOAN_PROBE_NETWORK": args.network,
-            "COW_FLASHLOAN_PROBE_SOURCE": "live",
-            "COW_FLASHLOAN_PROBE_AMOUNT": args.amount,
-            "COW_FLASHLOAN_PROBE_ENV": args.sdk_env,
-            "COW_FLASHLOAN_LIVE_WAIT_SECONDS": str(args.wait_seconds),
-            "COW_FLASHLOAN_LIVE_MAX_AGE_SECONDS": str(args.max_age_seconds),
-            "COW_FLASHLOAN_MIN_SIDE_CHANGE_PERCENT": str(args.min_side_change_percent),
-            "COW_FLASHLOAN_MIN_SPREAD_PERCENT": str(args.min_spread_percent),
-            "COW_FLASHLOAN_PROBE_SLIPPAGE_BPS": str(args.slippage_bps),
-            "COW_FLASHLOAN_PROBE_OUTPUT": str(args.output),
-            "COW_FLASHLOAN_PURE_INTENT_ENABLED": env.get("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true"),
-            "COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT": env.get(
-                "COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT", "0.618"
-            ),
-            "COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC": env.get(
-                "COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC", "0"
-            ),
-            "COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC": env.get(
-                "COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC", "0"
-            ),
-            "COW_FLASHLOAN_STOP_AFTER_FIRST_QUOTED_ROUTE": "false",
-            "COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC": env.get("COW_FLASHLOAN_PROBE_MIN_PROFIT_USDC")
-            or env.get("COW_AUTO_EXECUTE_MIN_PROFIT_USD")
-            or "0",
-            "COW_ORDER_SUBMISSION_ENABLED": env.get("COW_ORDER_SUBMISSION_ENABLED", "true"),
-        }
-    )
-    npm = shutil.which("npm.cmd") or shutil.which("npm")
-    if not npm:
-        return {"ok": False, "error": "npm executable not found", "processExitCode": 127}
-    completed = subprocess.run(
-        [npm, "run", "probe:cow-flashloans", "--silent"],
-        cwd=CONTRACTS_ROOT,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=max(30, args.wait_seconds + 90),
-    )
-    try:
-        report = json.loads(args.output.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        report = {
-            "ok": False,
-            "error": completed.stderr.strip() or completed.stdout.strip() or "probe did not write a JSON report",
-        }
-    report["processExitCode"] = completed.returncode
-    return report
+    return {
+        "ok": False,
+        "network": args.network,
+        "sdkEnv": args.sdk_env,
+        "strategyMode": "cow_sdk_intent_order",
+        "liveStatus": "legacy_probe_disabled",
+        "error": (
+            "The contract-workspace CoW probe has been removed from src_bot. "
+            f"Use the dex-arbitrage page/queue submission flow backed by {NODE_ADAPTER_ROOT}."
+        ),
+        "processExitCode": 2,
+    }
 
 
 def _summary(report: dict[str, Any]) -> dict[str, Any]:
@@ -217,7 +177,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     load_env_files(SRC_ROOT, override=False)
-    args.output = args.output if args.output.is_absolute() else CONTRACTS_ROOT / args.output
+    args.output = args.output if args.output.is_absolute() else DEFAULT_OUTPUT_PATH.parent / args.output
     owner_var = f"COW_OWNER_{args.network.upper()}"
     if not os.getenv(owner_var, "").strip():
         print(json.dumps({"ok": False, "error": f"{owner_var} is required"}, indent=2), file=sys.stderr)

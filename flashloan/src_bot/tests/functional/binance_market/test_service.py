@@ -53,7 +53,7 @@ def _sdk_ready_status() -> dict:
         "ready": True,
         "reason": "cow_flashloan_sdk_ready",
         "missing_packages": [],
-        "install_command": "cd flashLoan\\contract\\contracts-dex && npm install",
+        "install_command": "cd flashLoan\\flashloan\\src_bot\\cow_flashloan\\node_adapter && npm install",
     }
 
 
@@ -62,7 +62,7 @@ def _sdk_missing_status() -> dict:
         "ready": False,
         "reason": "cow_flashloan_sdk_install_required",
         "missing_packages": ["@cowprotocol/sdk-flash-loans"],
-        "install_command": "cd flashLoan\\contract\\contracts-dex && npm install",
+        "install_command": "cd flashLoan\\flashloan\\src_bot\\cow_flashloan\\node_adapter && npm install",
     }
 
 

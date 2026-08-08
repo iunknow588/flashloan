@@ -8,6 +8,6 @@ python-dotenv>=1.0,<2
 pytest>=8.0,<9
 
 # CoW live submission SDK packages are Node/npm dependencies, not pip packages.
-# They are installed from ../../contract/contracts-dex/package.json:
+# They are installed from cow_flashloan/node_adapter/package.json:
 # @cowprotocol/sdk-config, @cowprotocol/sdk-flash-loans,
 # @cowprotocol/sdk-trading, @cowprotocol/sdk-viem-adapter, viem, dotenv.
