@@ -385,7 +385,12 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
         }
     )
 
-    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert precheck["status"] in {
+        "limit_order_ready_to_submit",
+        "order_submission_switch_off",
+        "order_submission_adapter_unavailable",
+        "order_submission_signer_not_ready",
+    }
     assert precheck["checks_passed"] is True
     assert precheck["quote_delta_positive"] is True
     assert precheck["quote_delta_above_diagnostic_floor"] is False
@@ -507,7 +512,12 @@ def test_cow_execution_precheck_ignores_route_hop_mode_request(monkeypatch):
     assert precheck["route_hop_constraints_enforced"] is False
     assert precheck["route_hop_constraints_passed"] is False
     assert precheck["checks_passed"] is True
-    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert precheck["status"] in {
+        "limit_order_ready_to_submit",
+        "order_submission_switch_off",
+        "order_submission_adapter_unavailable",
+        "order_submission_signer_not_ready",
+    }
 
 
 def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
@@ -534,7 +544,7 @@ def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     assert precheck["order_submission_enabled"] is True
     assert precheck["order_submission_sdk_ready"] is True
     assert precheck["order_submission_signer_ready"] is True
-    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert precheck["status"] == "limit_order_ready_to_submit"
 
 
 def test_cow_execution_precheck_blocks_submission_when_runtime_sdk_missing(monkeypatch):
@@ -708,7 +718,12 @@ def test_cow_execution_precheck_keeps_three_hop_sdk_capability_as_diagnostic_onl
     assert precheck["flashloan_sdk_gate_enforced"] is False
     assert precheck["checks_passed"] is True
     assert precheck["intent_mode_ready"] is True
-    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert precheck["status"] in {
+        "limit_order_ready_to_submit",
+        "order_submission_switch_off",
+        "order_submission_adapter_unavailable",
+        "order_submission_signer_not_ready",
+    }
     assert "cow_intent_ready" in precheck["reasons"]
     assert any("diagnostic_cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
 
@@ -1397,9 +1412,9 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     sdk_plan = precheck["cow_flashloan_sdk_plan"]
     assert sdk_plan["single_solver_order_count"] == 1
     assert sdk_plan["diagnostic_hop_count"] == 3
-    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert precheck["status"] in {"order_submission_switch_off", "order_submission_adapter_unavailable"}
     assert precheck["checks_passed"] is True
-    assert precheck["can_submit_order"] is (precheck["status"] == "limit_order_ready_to_submit")
+    assert precheck["can_submit_order"] is False
     assert precheck["price_guards_passed"] is True
     assert precheck["quote_delta_positive"] is True
     assert precheck["flashloan_capability"]["multi_step_route"] is True
@@ -1505,7 +1520,12 @@ def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, 
     payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
     precheck = payload["ranking"][0]["execution_precheck"]
 
-    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert precheck["status"] in {
+        "limit_order_ready_to_submit",
+        "order_submission_switch_off",
+        "order_submission_adapter_unavailable",
+        "order_submission_signer_not_ready",
+    }
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
     assert precheck["quote_available"] is False

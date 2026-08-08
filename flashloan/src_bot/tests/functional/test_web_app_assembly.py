@@ -625,6 +625,45 @@ def test_cow_candidate_queue_api_filters_selected_networks(monkeypatch):
     assert data["networks"] == ["avalanche", "ethereum"]
 
 
+def test_cow_submission_switch_on_clears_stale_candidate_queue(monkeypatch):
+    from web import control_panel_data_routes as routes
+
+    captured = {}
+    monkeypatch.setattr(
+        routes,
+        "_set_cow_submission_pause_guard",
+        lambda paused, reason=None, database_url=None: {"paused": paused, "reason": reason},
+    )
+    monkeypatch.setattr(routes, "cow_quote_daemon_enabled", lambda: True)
+    monkeypatch.setattr(
+        routes,
+        "clear_cow_candidate_queue",
+        lambda reason="": captured.setdefault(
+            "cleanup",
+            {"removed": 66, "reason": reason, "counts": {"ready_not_submitted": 40, "pending": 26}, "size": 0},
+        ),
+    )
+    monkeypatch.setattr(
+        routes,
+        "ensure_cow_quote_daemon_running",
+        lambda **kwargs: captured.setdefault("daemon_started", True),
+    )
+
+    response = app.test_client().post(
+        "/api/binance-market/cow-submission-pause",
+        json={"paused": False, "reason": None},
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["paused"] is False
+    assert data["queue_cleanup"]["removed"] == 66
+    assert data["queue_cleanup"]["reason"] == "submission_switch_enabled_clear_stale"
+    assert data["queue_cleanup"]["counts"]["pending"] == 26
+    assert data["queue_cleanup"]["size"] == 0
+    assert captured["daemon_started"] is True
+
+
 def test_account_scan_page_preserves_debt_pool_return_intent():
     client = app.test_client()
 

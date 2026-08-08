@@ -29,6 +29,7 @@ from db.storage_cow_execution import (
 )
 from market.velocity_candidates import build_velocity_candidate_pairs
 from runtime.cow_arbitrage_daemon import (
+    clear_cow_candidate_queue,
     cow_candidate_queue_snapshot,
     cow_quote_daemon_enabled,
     cow_quote_daemon_status,
@@ -1295,11 +1296,20 @@ def register_data_routes(app, panel) -> None:
         payload = request.get_json(silent=True) or {}
         paused = bool(payload.get("paused"))
         reason = payload.get("reason")
-        return jsonify(_set_cow_submission_pause_guard(paused=paused, reason=reason, database_url=panel_call("database_url_or_none")))
+        result = _set_cow_submission_pause_guard(paused=paused, reason=reason, database_url=panel_call("database_url_or_none"))
+        if not paused:
+            result["queue_cleanup"] = clear_cow_candidate_queue(reason="submission_switch_enabled_clear_stale")
+            if cow_quote_daemon_enabled():
+                ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+        return jsonify(result)
 
     @app.post("/api/binance-market/cow-submission-pause/clear")
     def binance_market_cow_submission_pause_clear():
-        return jsonify(_clear_cow_submission_pause_guard(database_url=panel_call("database_url_or_none")))
+        result = _clear_cow_submission_pause_guard(database_url=panel_call("database_url_or_none"))
+        result["queue_cleanup"] = clear_cow_candidate_queue(reason="submission_switch_enabled_clear_stale")
+        if cow_quote_daemon_enabled():
+            ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+        return jsonify(result)
     
     
     @app.get("/api/arbitrage/latest")

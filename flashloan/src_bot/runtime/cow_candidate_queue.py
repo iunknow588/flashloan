@@ -114,6 +114,21 @@ class CowCandidateQueue:
             self._items.clear()
             self._sequence = 0
 
+    def clear_with_result(self, *, reason: str | None = None) -> dict[str, Any]:
+        with self._lock:
+            counts: dict[str, int] = {}
+            for item in self._items.values():
+                counts[item.status] = counts.get(item.status, 0) + 1
+            removed = len(self._items)
+            self._items.clear()
+            self._sequence = 0
+        return {
+            "removed": removed,
+            "reason": reason,
+            "counts": counts,
+            "size": 0,
+        }
+
     def enqueue_many(self, attempts: list[dict[str, Any]], *, source: str = "") -> dict[str, Any]:
         now = time.time()
         added = 0
@@ -206,6 +221,21 @@ class CowCandidateQueue:
             item.last_error = error
             item.retry_at = now + max(0.0, float(delay_seconds)) if delay_seconds > 0 else None
 
+    def remove_statuses(self, statuses: set[str] | list[str] | tuple[str, ...], *, reason: str | None = None) -> dict[str, Any]:
+        selected = {str(status or "").strip() for status in statuses or [] if str(status or "").strip()}
+        if not selected:
+            return {"removed": 0, "statuses": []}
+        with self._lock:
+            removable = [
+                signature
+                for signature, item in self._items.items()
+                if item.status in selected and item.status != "processing"
+            ]
+            for signature in removable:
+                self._items.pop(signature, None)
+            size = len(self._items)
+        return {"removed": len(removable), "statuses": sorted(selected), "reason": reason, "size": size}
+
     def size(self) -> int:
         with self._lock:
             return len(self._items)
@@ -244,6 +274,12 @@ class CowCandidateQueue:
                 "quoted": counts.get("quoted", 0),
                 "blocked": counts.get("blocked", 0),
                 "ready_not_submitted": counts.get("ready_not_submitted", 0),
+                "submission_paused": counts.get("submission_paused", 0),
+                "order_submission_switch_off": counts.get("order_submission_switch_off", 0),
+                "order_submission_disabled": counts.get("order_submission_disabled", 0),
+                "order_submission_adapter_unavailable": counts.get("order_submission_adapter_unavailable", 0),
+                "cow_flashloan_sdk_install_required": counts.get("cow_flashloan_sdk_install_required", 0),
+                "order_submission_signer_not_ready": counts.get("order_submission_signer_not_ready", 0),
                 "ready_to_submit": counts.get("ready_to_submit", 0),
                 "submitted_success": counts.get("submitted_success", 0),
                 "submission_failed": counts.get("submission_failed", 0),

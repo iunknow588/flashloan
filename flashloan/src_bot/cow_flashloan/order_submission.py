@@ -14,6 +14,7 @@ from cow_flashloan.submission_readiness import (
     COW_SUBMISSION_SCRIPT,
     cow_order_submission_adapter_available,
     cow_order_submission_enabled,
+    cow_order_submission_sdk_install_hint,
     cow_order_submission_network_supported,
     cow_order_submission_requested,
     cow_order_submission_sdk_ready,
@@ -93,13 +94,9 @@ def submit_cow_flashloan_order(
         return base
     if not readiness.get("sdk_ready"):
         sdk_status = readiness.get("sdk_status") or {}
-        missing = ", ".join(sdk_status.get("missing_packages") or [])
         base["blocked_reason"] = "cow_flashloan_sdk_install_required"
         base["status"] = "cow_flashloan_sdk_install_required"
-        base["error"] = (
-            f"CoW flashloan SDK packages missing: {missing}. "
-            f"Run: {sdk_status.get('install_command')}"
-        ).strip()
+        base["error"] = cow_order_submission_sdk_install_hint(sdk_status)
         return base
     if not cow_order_submission_network_supported(quote_payload.get("cow_network") or quote_payload.get("network")):
         base["blocked_reason"] = "order_submission_network_unsupported"

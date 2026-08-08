@@ -184,6 +184,29 @@ def test_cow_quote_daemon_marks_passed_checks_without_submit_ready_not_submitted
     assert queue.stats()["ready_not_submitted"] == 1
 
 
+def test_cow_candidate_queue_clears_all_candidates_as_stale_when_switch_opens():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many(
+        [
+            _candidate(pair="APEUSDT / PYRUSDT", rank=1),
+            _candidate(pair="BNBUSDT / CAKEUSDT", rank=2),
+        ],
+        source="test",
+    )
+    first = queue.claim_next()
+    queue.complete(first["signature"], status="ready_not_submitted")
+
+    result = queue.clear_with_result(reason="submission_switch_enabled_clear_stale")
+
+    assert result["removed"] == 2
+    assert result["reason"] == "submission_switch_enabled_clear_stale"
+    assert result["counts"]["ready_not_submitted"] == 1
+    assert result["counts"]["pending"] == 1
+    assert result["size"] == 0
+    assert queue.stats()["pending"] == 0
+    assert queue.claim_next() is None
+
+
 def test_cow_quote_daemon_marks_submission_success_after_live_submission():
     queue = CowCandidateQueue(max_size=10)
     queue.enqueue_many([_candidate()], source="test")

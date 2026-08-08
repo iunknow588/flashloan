@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,9 @@ SRC_BOT_DIR = REPO_ROOT / "flashloan" / "src_bot"
 SRC_BOT_RUN = SRC_BOT_DIR / "run.py"
 REQUIREMENTS = SRC_BOT_DIR / "requirements.txt"
 VENV_DIR = REPO_ROOT / ".venv"
+COW_NODE_ADAPTER_DIR = SRC_BOT_DIR / "cow_flashloan" / "node_adapter"
+COW_NODE_PACKAGE_LOCK = COW_NODE_ADAPTER_DIR / "package-lock.json"
+COW_NODE_MODULES = COW_NODE_ADAPTER_DIR / "node_modules"
 
 
 def _venv_python() -> Path:
@@ -52,6 +56,31 @@ def ensure_project_venv() -> None:
         _install_stamp().write_text("ok\n", encoding="utf-8")
 
 
+def _node_install_stamp() -> Path:
+    return COW_NODE_ADAPTER_DIR / ".node-dependencies-installed"
+
+
+def _node_dependencies_need_install() -> bool:
+    stamp = _node_install_stamp()
+    if not COW_NODE_MODULES.exists() or not stamp.exists():
+        return True
+    try:
+        return COW_NODE_PACKAGE_LOCK.stat().st_mtime > stamp.stat().st_mtime
+    except OSError:
+        return True
+
+
+def ensure_cow_node_adapter_dependencies() -> None:
+    if not COW_NODE_ADAPTER_DIR.exists():
+        return
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    if not npm:
+        raise RuntimeError("npm is required to install CoW SDK dependencies")
+    if _node_dependencies_need_install():
+        subprocess.check_call([npm, "install"], cwd=str(COW_NODE_ADAPTER_DIR))
+        _node_install_stamp().write_text("ok\n", encoding="utf-8")
+
+
 def reexec_inside_project_venv() -> None:
     if _in_project_venv():
         return
@@ -75,6 +104,7 @@ def load_src_bot_run_module() -> ModuleType:
 
 def main() -> int:
     reexec_inside_project_venv()
+    ensure_cow_node_adapter_dependencies()
     module = load_src_bot_run_module()
     return int(module.main())
 

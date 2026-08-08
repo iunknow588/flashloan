@@ -101,6 +101,20 @@ def cow_order_submission_sdk_ready() -> bool:
     return bool(cow_order_submission_sdk_status()["ready"])
 
 
+def cow_order_submission_sdk_install_hint(status: dict[str, Any] | None = None) -> str:
+    payload = status if isinstance(status, dict) else cow_order_submission_sdk_status()
+    if payload.get("ready"):
+        return f"CoW SDK packages installed; adapter_dir={payload.get('adapter_dir')}"
+    missing = ", ".join(payload.get("missing_packages") or [])
+    if not missing:
+        missing = "unknown"
+    return (
+        f"missing CoW SDK packages: {missing}; "
+        f"adapter_dir={payload.get('adapter_dir')}; "
+        f"run `{payload.get('install_command')}`"
+    )
+
+
 def cow_order_submission_enabled() -> bool:
     return (
         cow_order_submission_requested()

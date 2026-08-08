@@ -756,6 +756,10 @@
       submission_failed: "提交失败",
       adapter_unavailable: "提交适配器不可用",
       cow_flashloan_sdk_install_required: "需安装 CoW SDK",
+      order_submission_switch_off: "交易开关关闭",
+      order_submission_adapter_unavailable: "提交适配器不可用",
+      order_submission_network_unsupported: "网络暂不支持提交",
+      order_submission_signer_not_ready: "缺少签名私钥",
       order_submission_disabled: "真实下单未启用",
       unsupported: "代币不支持",
       quote_required: "等待 CoW quote",
@@ -1387,6 +1391,10 @@
         `处理中 ${counts.processing || 0}`,
         `重试等待 ${counts.retry_wait || 0}`,
         `已准备未提交 ${counts.ready_not_submitted || 0}`,
+        `开关关闭 ${counts.order_submission_switch_off || counts.order_submission_disabled || 0}`,
+        `缺 SDK ${counts.cow_flashloan_sdk_install_required || 0}`,
+        `缺私钥 ${counts.order_submission_signer_not_ready || 0}`,
+        `提交暂停 ${counts.submission_paused || 0}`,
         `可提交 ${counts.ready_to_submit || 0}`,
         `已提交 ${counts.submitted_success || 0}`,
         `提交失败 ${counts.submission_failed || 0}`,
@@ -1399,7 +1407,7 @@
         <td>${esc(item.network || "-")}</td>
         <td>${esc(item.pair || "-")}</td>
         <td>${esc((item.route_path || []).join(" -> ") || "-")}</td>
-        <td>${esc(item.status || "-")}</td>
+        <td>${esc(precheckStatusLabel(item.status) || "-")}</td>
         <td>${esc(item.priority_score || item.profit_hint || "-")}</td>
         <td>${esc(item.attempts || 0)}</td>
       </tr>`).join("");

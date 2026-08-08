@@ -18,6 +18,7 @@ from cow_flashloan.order_submission import (
     cow_order_submission_enabled,
     cow_order_submission_network_supported,
     cow_order_submission_requested,
+    cow_order_submission_sdk_install_hint,
     cow_order_submission_sdk_ready,
     cow_order_submission_sdk_status,
     cow_order_submission_signer_ready,
@@ -2193,13 +2194,12 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         status = "cow_flashloan_sdk_install_required"
         if "cow_flashloan_sdk_install_required" not in reasons:
             reasons.append("cow_flashloan_sdk_install_required")
+        reasons.append(cow_order_submission_sdk_install_hint(order_submission_sdk_status))
     else:
         status = "blocked"
     if checks_passed:
         if order_submission_enabled:
             status = "limit_order_ready_to_submit"
-        elif order_submission_sdk_ready:
-            status = "limit_order_ready_not_submitted"
         if not order_submission_enabled:
             disabled_reasons = {
                 "order_submission_switch_off": not order_submission_requested,
@@ -2211,6 +2211,10 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
             for reason, active in disabled_reasons.items():
                 if active and reason not in reasons:
                     reasons.append(reason)
+            for reason, active in disabled_reasons.items():
+                if active:
+                    status = reason
+                    break
     return {
         "control_mode": control_mode,
         "control_mode_default": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,

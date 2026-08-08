@@ -53,6 +53,10 @@ def retain_cow_candidate_networks(networks: list[str]) -> dict[str, Any]:
     return _QUEUE.retain_networks(networks)
 
 
+def clear_cow_candidate_queue(*, reason: str = "submission_switch_enabled_clear_stale") -> dict[str, Any]:
+    return _QUEUE.clear_with_result(reason=reason)
+
+
 def _env_float(name: str, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
     try:
         value = float(os.getenv(name, str(default)) or default)
@@ -75,6 +79,32 @@ def _env_int(name: str, default: int, *, minimum: int | None = None, maximum: in
     if maximum is not None:
         value = min(maximum, value)
     return value
+
+
+def _blocked_submission_state(precheck: dict[str, Any]) -> str:
+    status = str(precheck.get("status") or "").strip()
+    explicit_states = {
+        "submission_paused",
+        "order_submission_switch_off",
+        "order_submission_adapter_unavailable",
+        "cow_flashloan_sdk_install_required",
+        "order_submission_network_unsupported",
+        "order_submission_signer_not_ready",
+    }
+    if status in explicit_states:
+        return status
+    reasons = {str(item or "").strip() for item in precheck.get("reasons") or []}
+    for reason in (
+        "cow_submission_paused",
+        "order_submission_switch_off",
+        "order_submission_adapter_unavailable",
+        "cow_flashloan_sdk_install_required",
+        "order_submission_network_unsupported",
+        "order_submission_signer_not_ready",
+    ):
+        if reason in reasons:
+            return "submission_paused" if reason == "cow_submission_paused" else reason
+    return "ready_not_submitted"
 
 
 def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | None) -> dict[str, Any]:
@@ -477,17 +507,24 @@ class CowQuoteDaemon:
                 if submission.get("submitted") or str(submission.get("status") or "") == "submitted_success" or submission.get("order_id"):
                     state = "submitted_success"
                 elif str(submission.get("status") or "") in {"submission_paused", "adapter_unavailable", "order_submission_disabled"}:
-                    state = "ready_not_submitted"
+                    state = str(submission.get("status") or "ready_not_submitted")
                 else:
                     state = "submission_failed"
             if ranking:
                 precheck = ranking[0].get("execution_precheck") if isinstance(ranking[0], dict) else {}
-                if state in {"submitted_success", "submission_failed", "ready_not_submitted"}:
+                if state in {
+                    "submitted_success",
+                    "submission_failed",
+                    "ready_not_submitted",
+                    "submission_paused",
+                    "adapter_unavailable",
+                    "order_submission_disabled",
+                }:
                     pass
                 elif precheck.get("can_submit_order"):
                     state = "ready_to_submit"
                 elif precheck.get("checks_passed"):
-                    state = "ready_not_submitted"
+                    state = _blocked_submission_state(precheck)
                 elif not precheck.get("checks_passed"):
                     state = "blocked"
             self.queue.complete(signature, status=state, result={"quote": result, "recording": recording})

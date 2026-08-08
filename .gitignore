@@ -4,6 +4,7 @@
 !.env.testnet.example
 node_modules/
 .venv/
+.node-dependencies-installed
 artifacts/
 cache/
 runtime/logs/
