@@ -248,42 +248,11 @@ function jsonFriendly(value) {
   );
 }
 
-function normalizeTokenScope(intent) {
-  const tokenScope = intent.token_scope && typeof intent.token_scope === "object" ? intent.token_scope : {};
-  const rawTokens = Array.isArray(tokenScope.tokens) && tokenScope.tokens.length ? tokenScope.tokens : [];
-  const uniqueTokens = [];
-  for (const item of rawTokens) {
-    const symbol = tokenKey(item);
-    if (symbol && !uniqueTokens.includes(symbol)) uniqueTokens.push(symbol);
-  }
-  const inputSymbol = tokenKey(tokenScope.input_symbol || tokenScope.inputToken || intent.initial_symbol || intent.cow_sdk_order_intent?.sell_symbol || "USDC");
-  const outputSymbol = tokenKey(tokenScope.output_symbol || tokenScope.outputToken || intent.final_symbol || intent.cow_sdk_order_intent?.buy_symbol || inputSymbol);
-  const orderedTokens = [];
-  for (const symbol of [inputSymbol, outputSymbol, ...uniqueTokens]) {
-    if (symbol && !orderedTokens.includes(symbol)) orderedTokens.push(symbol);
-  }
-  return {
-    inputSymbol,
-    outputSymbol,
-    tokens: orderedTokens,
-    tokenCount: orderedTokens.length,
-    scopeRole: tokenScope.scope_role || "solver_owned_token_universe_only",
-  };
-}
-
-function pureIntentAppData({ slippageBps, tokenScope, principalHuman, minFinalAmountHuman }) {
+function pureIntentAppData({ slippageBps }) {
   return {
     metadata: {
       quote: { slippageBips: slippageBps },
       orderClass: { orderClass: "limit" },
-      intent: {
-        kind: "pure_profit",
-        orderBounds: {
-          inputAmount: String(principalHuman),
-          minimumFinalAmount: String(minFinalAmountHuman),
-        },
-        tokenScope,
-      },
     },
   };
 }
@@ -337,7 +306,6 @@ async function submitOne() {
   const flashLoanFeePercent = Number(envFirst("COW_FLASHLOAN_FEE_PERCENT") || "0.05");
   const flashLoanFeeBps = Math.round(flashLoanFeePercent * 100);
   const slippageBps = Number(envFirst("COW_FLASHLOAN_PROBE_SLIPPAGE_BPS", "COW_FLASHLOAN_SLIPPAGE_BPS") || "50");
-  const tokenScope = normalizeTokenScope(intent);
   const { flashLoanFeeAmount } = new AaveCollateralSwapSdk({ env: envFirst("COW_FLASHLOAN_PROBE_ENV", "COW_SDK_ENV") || "prod" }).calculateFlashLoanAmounts({
     sellAmount: principalUnits,
     flashLoanFeeBps,
@@ -359,9 +327,6 @@ async function submitOne() {
   };
   const customAppData = pureIntentAppData({
     slippageBps,
-    tokenScope,
-    principalHuman,
-    minFinalAmountHuman,
   });
   const client = createPublicClient({ chain: network.chain, transport: http(rpc) });
   setGlobalAdapter(new ViemAdapter({ provider: client }));
@@ -447,6 +412,25 @@ async function submitOne() {
     sellBudgetPassed: requiredSellUnits <= principalUnits,
     profitBudgetMet: afterSlippageBuyUnits >= minFinalAmountUnits,
   };
+  if (!analysis.sellBudgetPassed || !analysis.profitBudgetMet) {
+    const blockedReason = !analysis.profitBudgetMet
+      ? "intent_min_final_amount_not_met"
+      : "required_sell_exceeds_principal";
+    return {
+      ok: false,
+      submitted: false,
+      status: "submission_blocked",
+      blockedReason,
+      error: blockedReason,
+      owner: signer.signerAddress,
+      network: network.network,
+      chainId: network.chainId,
+      quoteCall,
+      postingCall: null,
+      submitCall: null,
+      analysis,
+    };
+  }
   if (!orderToSign) {
     return {
       ok: false,
