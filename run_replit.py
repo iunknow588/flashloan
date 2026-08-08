@@ -18,6 +18,7 @@ VENV_DIR = REPO_ROOT / ".venv"
 COW_NODE_ADAPTER_DIR = SRC_BOT_DIR / "cow_flashloan" / "node_adapter"
 COW_NODE_PACKAGE_LOCK = COW_NODE_ADAPTER_DIR / "package-lock.json"
 COW_NODE_MODULES = COW_NODE_ADAPTER_DIR / "node_modules"
+REQUIRED_PYTHON_IMPORTS = ("flask", "psycopg", "psycopg_pool", "web3", "websockets", "dotenv")
 
 
 def _venv_python() -> Path:
@@ -47,12 +48,49 @@ def _requirements_need_install() -> bool:
         return True
 
 
+def _pip_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["PIP_USER"] = "0"
+    env["PYTHONNOUSERSITE"] = "1"
+    env.pop("PYTHONUSERBASE", None)
+    return env
+
+
+def _venv_dependencies_available(python: Path) -> bool:
+    imports = "; ".join(f"import {name}" for name in REQUIRED_PYTHON_IMPORTS)
+    result = subprocess.run(
+        [str(python), "-c", imports],
+        env=_pip_env(),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def ensure_project_venv() -> None:
     python = _venv_python()
     if not python.exists():
         subprocess.check_call([sys.executable, "-m", "venv", str(VENV_DIR)])
-    if _requirements_need_install():
-        subprocess.check_call([str(python), "-m", "pip", "install", "-r", str(REQUIREMENTS)])
+    if _requirements_need_install() or not _venv_dependencies_available(python):
+        subprocess.check_call(
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--no-user",
+                "-r",
+                str(REQUIREMENTS),
+            ],
+            env=_pip_env(),
+        )
+        if not _venv_dependencies_available(python):
+            raise RuntimeError(
+                "Project virtual environment was prepared, but required Python packages are still missing. "
+                f"Run `{python} -m pip install --no-user -r {REQUIREMENTS}` and retry."
+            )
         _install_stamp().write_text("ok\n", encoding="utf-8")
 
 

@@ -36,6 +36,31 @@ def test_replit_config_runs_active_src_bot_entrypoint():
     assert launcher.COW_NODE_PACKAGE_LOCK == launcher.COW_NODE_ADAPTER_DIR / "package-lock.json"
 
 
+def test_replit_launcher_disables_user_site_pip_installs(monkeypatch, tmp_path):
+    launcher = _load_module("test_run_replit_pip", REPO_ROOT / "run_replit.py")
+    calls = []
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(launcher, "_requirements_need_install", lambda: True)
+    monkeypatch.setattr(launcher, "_venv_dependencies_available", lambda python: True)
+    monkeypatch.setattr(launcher, "_venv_python", lambda: venv_python)
+    monkeypatch.setattr(launcher, "_install_stamp", lambda: tmp_path / ".requirements-installed")
+
+    def fake_check_call(command, **kwargs):
+        calls.append((command, kwargs))
+
+    monkeypatch.setattr(launcher.subprocess, "check_call", fake_check_call)
+
+    launcher.ensure_project_venv()
+
+    install_command, install_kwargs = calls[0]
+    assert "--no-user" in install_command
+    assert install_kwargs["env"]["PIP_USER"] == "0"
+    assert install_kwargs["env"]["PYTHONNOUSERSITE"] == "1"
+
+
 def test_replit_nix_installs_python_runtime():
     config = (REPO_ROOT / "replit.nix").read_text(encoding="utf-8")
 
