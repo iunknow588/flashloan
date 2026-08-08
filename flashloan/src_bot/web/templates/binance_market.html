@@ -469,6 +469,7 @@
         "checks_passed",
       ]).has(normalized)) return true;
       return normalized.startsWith("diagnostic_cow_flashloan_sdk_plan_required:")
+        || normalized.startsWith("diagnostic_cow_sdk_intent_route_required:")
         || normalized.startsWith("diagnostic_flashloanandsettle_required:");
     };
     const historyReasons = row => {

@@ -3,14 +3,31 @@ from __future__ import annotations
 from typing import Any
 
 
-FLASH_LOAN_ROUTER_INTERFACE = "IFlashLoanRouter"
-FLASH_LOAN_AND_SETTLE_SIGNATURE = "flashLoanAndSettle(Loan.Data[] loans, bytes settlement)"
+# Legacy names are kept only for old imports/history readers. The active
+# submission path below is the no-self-deployed-contract CoW SDK intent model.
+FLASH_LOAN_ROUTER_INTERFACE = "legacy_custom_router_disabled"
+FLASH_LOAN_AND_SETTLE_SIGNATURE = "legacy_custom_router_call_disabled"
 FLASH_LOAN_ROUTER_ADDRESS = ""
 AAVE_BORROWER_ADDRESS = ""
 ERC3156_BORROWER_ADDRESS = ""
 SDK_FLASH_LOANS_PACKAGE = "@cowprotocol/sdk-flash-loans"
 SDK_FLASH_LOANS_FLOW = "AaveCollateralSwapSdk"
-SDK_FLASH_LOANS_METHOD = "collateralSwap"
+SDK_FLASH_LOANS_METHOD = "postSwapOrderFromQuote"
+SDK_INTENT_SUBMISSION_MODEL = "cow_sdk_intent_order"
+SDK_INTENT_SUBMISSION_METHOD = (
+    "TradingSdk.getQuote + AaveCollateralSwapSdk.getOrderPostingSettings + "
+    "quoteAndPost.postSwapOrderFromQuote"
+)
+REQUIRED_RUNTIME_DEPENDENCIES = [
+    "@cowprotocol/sdk-common",
+    "@cowprotocol/sdk-viem-adapter",
+    "@cowprotocol/sdk-config",
+    "@cowprotocol/sdk-order-book",
+    "@cowprotocol/sdk-trading",
+    "@cowprotocol/sdk-flash-loans",
+    "viem",
+    "dotenv",
+]
 MIN_ATOMIC_SOLVER_HOP_COUNT = 3
 
 
@@ -80,16 +97,12 @@ def _hop_amount_units(hop: dict[str, Any] | None, step: dict[str, Any]) -> str |
     return str(value) if value not in (None, "") else None
 
 
-def build_flashloan_and_settle_draft(
+def build_cow_sdk_intent_order_draft(
     *,
     route: Any,
     steps: Any,
     tokens: Any = None,
     hops: Any = None,
-    lender_address: str | None = None,
-    borrower_address: str | None = None,
-    router_address: str | None = None,
-    settlement_calldata: str | None = None,
 ) -> dict[str, Any]:
     route_items = _route_symbols(route)
     step_items = [item for item in steps or [] if isinstance(item, dict)] if isinstance(steps, list) else []
@@ -102,39 +115,40 @@ def build_flashloan_and_settle_draft(
     hop_count = _hop_count(route_items, step_items)
     closed_cycle = _closed_cycle(route_items)
     three_hop_route = hop_count >= MIN_ATOMIC_SOLVER_HOP_COUNT
-    loans = [
-        {
-            "index": 1,
-            "borrower": borrower_address or AAVE_BORROWER_ADDRESS or None,
-            "lender": lender_address,
-            "token": token.get("address"),
-            "token_symbol": start_symbol,
-            "amount": amount,
-            "amount_source": "first_hop.sell_amount_units",
-            "covers_solver_path": route_items,
-            "ready": bool((borrower_address or AAVE_BORROWER_ADDRESS) and lender_address and token.get("address") and amount),
-        }
-    ] if start_symbol else []
-    settlement = str(settlement_calldata or "").strip()
+    order = {
+        "sell_token": token.get("address"),
+        "sell_token_symbol": start_symbol or None,
+        "sell_amount_before_fee": amount,
+        "sell_amount_source": "first_hop.sell_amount_units",
+        "buy_token_symbol": route_items[-1] if route_items else None,
+        "route": route_items,
+        "route_hop_count": hop_count,
+        "closed_cycle": closed_cycle,
+        "solver_path_symbols": route_items,
+        "solver_intermediate_symbols": route_items[1:-1] if len(route_items) > 2 else [],
+        "ready": bool(start_symbol and amount and three_hop_route and closed_cycle),
+    }
     atomicity_evidence = assess_cow_atomic_settlement_evidence({})
     return {
-        "interface": FLASH_LOAN_ROUTER_INTERFACE,
-        "function": FLASH_LOAN_AND_SETTLE_SIGNATURE,
+        "submission_model": SDK_INTENT_SUBMISSION_MODEL,
+        "submission_method": SDK_INTENT_SUBMISSION_METHOD,
         "sdk_method": SDK_FLASH_LOANS_METHOD,
-        "router": router_address or FLASH_LOAN_ROUTER_ADDRESS or None,
-        "borrower_default": AAVE_BORROWER_ADDRESS or None,
-        "loan_schema": ["borrower", "lender", "token", "amount"],
-        "loans": loans,
-        "loan_count": len(loans),
-        "loan_model": "single_flashloan_for_solver_settlement",
+        "requires_custom_contract_deployment": False,
+        "custom_router_required": False,
+        "deployment_required": False,
+        "sdk_managed_flashloan": True,
+        "order": order,
+        "order_count": 1 if three_hop_route and closed_cycle else 0,
+        "loan_count": 0,
+        "loan_model": "sdk_managed_flashloan_no_user_loan_array",
         "loan_order_matches_route_order": False,
         "borrowed_asset_symbol": start_symbol or None,
         "repaid_asset_symbol": route_items[-1] if route_items else None,
         "route_hop_count": hop_count,
         "required_min_hop_count": MIN_ATOMIC_SOLVER_HOP_COUNT,
         "three_hop_route": three_hop_route,
-        "settlement_model": "single_flashloan_router_call_with_single_cow_solver_settlement",
-        "flashloan_router_call_count": 1 if loans else 0,
+        "settlement_model": "official_cow_solver_settlement",
+        "flashloan_router_call_count": 0,
         "cow_solver_order_count": 1 if three_hop_route and closed_cycle else 0,
         "cow_settlement_transaction_count": 1 if three_hop_route and closed_cycle else 0,
         "solver_path_symbols": route_items,
@@ -142,10 +156,10 @@ def build_flashloan_and_settle_draft(
         "closed_cycle": closed_cycle,
         "independent_per_hop_orders": 0,
         "per_hop_quotes_allowed_for_diagnostics": True,
-        "settlement_calldata": settlement or None,
-        "settlement_calldata_status": "provided" if settlement else "required_from_cow_settlement_encoder",
+        "settlement_calldata": None,
+        "settlement_calldata_status": "not_required_for_sdk_intent_order",
         "route": route_items,
-        "ready": bool(loans) and all(item["ready"] for item in loans) and bool(settlement) and three_hop_route and closed_cycle,
+        "ready": bool(order["ready"]),
         "atomicity_evidence": atomicity_evidence,
         "reliability_evidence_required": [
             "single_order_uid",
@@ -154,6 +168,32 @@ def build_flashloan_and_settle_draft(
             "solver_settlement_interactions_cover_requested_path_or_better",
             "final_repayment_of_flashloan_principal_plus_fee",
         ],
+    }
+
+
+def build_flashloan_and_settle_draft(
+    *,
+    route: Any,
+    steps: Any,
+    tokens: Any = None,
+    hops: Any = None,
+    lender_address: str | None = None,
+    borrower_address: str | None = None,
+    router_address: str | None = None,
+    settlement_calldata: str | None = None,
+) -> dict[str, Any]:
+    draft = build_cow_sdk_intent_order_draft(route=route, steps=steps, tokens=tokens, hops=hops)
+    return {
+        "deprecated": True,
+        "interface": None,
+        "function": None,
+        "router": None,
+        "borrower_default": None,
+        "requires_custom_contract_deployment": False,
+        "custom_router_required": False,
+        "deployment_required": False,
+        "replacement": SDK_INTENT_SUBMISSION_MODEL,
+        **draft,
     }
 
 
@@ -168,7 +208,7 @@ def assess_cow_flashloan_sdk_plan(
     router_address: str | None = None,
     settlement_calldata: str | None = None,
 ) -> dict[str, Any]:
-    """Describe the SDK flash-loan path and the CoW router payload it must feed."""
+    """Describe the no-contract CoW SDK intent submission path."""
     route_items = _route_symbols(route)
     step_items = [item for item in steps or [] if isinstance(item, dict)] if isinstance(steps, list) else []
     hop_items = [item for item in hops or [] if isinstance(item, dict)] if isinstance(hops, list) else []
@@ -176,15 +216,11 @@ def assess_cow_flashloan_sdk_plan(
     closed_cycle = _closed_cycle(route_items)
     three_hop_route = hop_count >= MIN_ATOMIC_SOLVER_HOP_COUNT
     supports_three_hop = three_hop_route and closed_cycle
-    router_draft = build_flashloan_and_settle_draft(
+    intent_order = build_cow_sdk_intent_order_draft(
         route=route_items,
         steps=step_items,
         tokens=tokens,
         hops=hop_items,
-        lender_address=lender_address,
-        borrower_address=borrower_address,
-        router_address=router_address,
-        settlement_calldata=settlement_calldata,
     )
     blockers = [
         name
@@ -198,9 +234,16 @@ def assess_cow_flashloan_sdk_plan(
         "sdk_package": SDK_FLASH_LOANS_PACKAGE,
         "sdk_flow": SDK_FLASH_LOANS_FLOW,
         "sdk_method": SDK_FLASH_LOANS_METHOD,
+        "submission_model": SDK_INTENT_SUBMISSION_MODEL,
+        "submission_method": SDK_INTENT_SUBMISSION_METHOD,
         "sdk_order_scope": "single_cow_order_solver_settlement",
-        "periphery_contract": FLASH_LOAN_ROUTER_INTERFACE,
-        "periphery_function": FLASH_LOAN_AND_SETTLE_SIGNATURE,
+        "periphery_contract": None,
+        "periphery_function": None,
+        "requires_custom_contract_deployment": False,
+        "custom_router_required": False,
+        "deployment_required": False,
+        "sdk_managed_flashloan": True,
+        "required_runtime_dependencies": REQUIRED_RUNTIME_DEPENDENCIES,
         "route": route_items,
         "hop_count": hop_count,
         "multi_step_route": hop_count > 1,
@@ -211,32 +254,29 @@ def assess_cow_flashloan_sdk_plan(
             if supports_three_hop
             else "not_supported_single_or_two_hop_flashloan_arb"
         ),
-        "requires_loan_array": True,
-        "requires_settlement_calldata": True,
-        "router_payload": router_draft,
-        "loan_count": router_draft["loan_count"],
-        "settlement_calldata_present": bool(router_draft.get("settlement_calldata")),
-        "periphery_flashloan_and_settle_ready": bool(router_draft.get("ready")),
+        "requires_loan_array": False,
+        "requires_settlement_calldata": False,
+        "intent_order": intent_order,
+        "router_payload": {
+            "deprecated": True,
+            "custom_router_required": False,
+            "deployment_required": False,
+            "replacement": SDK_INTENT_SUBMISSION_MODEL,
+        },
+        "loan_count": 0,
+        "settlement_calldata_present": False,
+        "periphery_flashloan_and_settle_ready": False,
         "single_order_hooks_ready": bool(step_items) and supports_three_hop,
         "supports_multi_step_atomic_settlement": supports_three_hop,
-        "tested_as_one_atomic_settlement": bool(router_draft.get("ready")),
-        "atomicity_evidence": router_draft["atomicity_evidence"],
+        "tested_as_one_atomic_settlement": bool(intent_order.get("ready")),
+        "atomicity_evidence": intent_order["atomicity_evidence"],
         "submission_safe": supports_three_hop,
         "blockers": blockers,
         "quote_probe_reliability": {
             "per_hop_quotes_are_not_atomicity_proof": True,
             "collateralSwap_order_must_be_single_order": True,
             "must_not_post_independent_hop_orders": True,
-            "minimum_reliable_live_evidence": router_draft["reliability_evidence_required"],
+            "minimum_reliable_live_evidence": intent_order["reliability_evidence_required"],
         },
-        "pending_fields": [
-            name
-            for name, missing in {
-                "router": not router_draft.get("router"),
-                "loan.borrower": any(not loan.get("borrower") for loan in router_draft["loans"]),
-                "loan.lender": any(not loan.get("lender") for loan in router_draft["loans"]),
-                "settlement": not router_draft.get("settlement_calldata"),
-            }.items()
-            if missing
-        ],
+        "pending_fields": [],
     }

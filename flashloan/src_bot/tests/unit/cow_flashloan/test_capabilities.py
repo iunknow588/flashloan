@@ -1,11 +1,10 @@
-﻿from cow_flashloan.capabilities import (
-    FLASH_LOAN_AND_SETTLE_SIGNATURE,
+from cow_flashloan.capabilities import (
     assess_cow_atomic_settlement_evidence,
     assess_cow_flashloan_sdk_plan,
 )
 
 
-def test_multi_hop_sdk_flashloan_plan_builds_router_payload_draft():
+def test_multi_hop_sdk_flashloan_plan_builds_no_contract_intent_order():
     capability = assess_cow_flashloan_sdk_plan(
         route=["USDC", "WAVAX", "WETH.E", "USDC"],
         tokens=[
@@ -23,12 +22,17 @@ def test_multi_hop_sdk_flashloan_plan_builds_router_payload_draft():
             {"sell_amount_units": "100000000000000000"},
             {"sell_amount_units": "1000000000000000"},
         ],
-        lender_address="0x" + "4" * 40,
-        borrower_address="0x" + "5" * 40,
-        router_address="0x" + "6" * 40,
     )
 
-    assert capability["periphery_function"] == FLASH_LOAN_AND_SETTLE_SIGNATURE
+    assert capability["submission_model"] == "cow_sdk_intent_order"
+    assert capability["requires_custom_contract_deployment"] is False
+    assert capability["custom_router_required"] is False
+    assert capability["deployment_required"] is False
+    assert capability["sdk_managed_flashloan"] is True
+    assert capability["periphery_contract"] is None
+    assert capability["periphery_function"] is None
+    assert capability["requires_loan_array"] is False
+    assert capability["requires_settlement_calldata"] is False
     assert capability["multi_step_route"] is True
     assert capability["three_hop_route"] is True
     assert capability["closed_cycle"] is True
@@ -36,30 +40,33 @@ def test_multi_hop_sdk_flashloan_plan_builds_router_payload_draft():
     assert capability["supports_multi_step_atomic_settlement"] is True
     assert capability["submission_safe"] is True
     assert capability["blockers"] == []
-    assert capability["pending_fields"] == ["settlement"]
+    assert capability["pending_fields"] == []
+    assert "@cowprotocol/sdk-flash-loans" in capability["required_runtime_dependencies"]
     assert capability["quote_probe_reliability"]["per_hop_quotes_are_not_atomicity_proof"] is True
     assert capability["quote_probe_reliability"]["must_not_post_independent_hop_orders"] is True
-    router_payload = capability["router_payload"]
-    assert router_payload["function"] == FLASH_LOAN_AND_SETTLE_SIGNATURE
-    assert router_payload["loan_model"] == "single_flashloan_for_solver_settlement"
-    assert router_payload["loan_count"] == 1
-    assert router_payload["settlement_model"] == "single_flashloan_router_call_with_single_cow_solver_settlement"
-    assert router_payload["flashloan_router_call_count"] == 1
-    assert router_payload["cow_solver_order_count"] == 1
-    assert router_payload["cow_settlement_transaction_count"] == 1
-    assert router_payload["atomicity_evidence"]["atomicity_proven"] is False
-    assert router_payload["borrowed_asset_symbol"] == "USDC"
-    assert router_payload["repaid_asset_symbol"] == "USDC"
-    assert router_payload["independent_per_hop_orders"] == 0
-    assert router_payload["solver_path_symbols"] == ["USDC", "WAVAX", "WETH.E", "USDC"]
-    assert router_payload["solver_intermediate_symbols"] == ["WAVAX", "WETH.E"]
-    assert router_payload["closed_cycle"] is True
-    assert router_payload["loans"][0]["token_symbol"] == "USDC"
-    assert router_payload["loans"][0]["amount"] == "1000000"
-    assert router_payload["loans"][0]["covers_solver_path"] == ["USDC", "WAVAX", "WETH.E", "USDC"]
+
+    intent_order = capability["intent_order"]
+    assert intent_order["submission_model"] == "cow_sdk_intent_order"
+    assert intent_order["requires_custom_contract_deployment"] is False
+    assert intent_order["settlement_model"] == "official_cow_solver_settlement"
+    assert intent_order["flashloan_router_call_count"] == 0
+    assert intent_order["cow_solver_order_count"] == 1
+    assert intent_order["cow_settlement_transaction_count"] == 1
+    assert intent_order["atomicity_evidence"]["atomicity_proven"] is False
+    assert intent_order["borrowed_asset_symbol"] == "USDC"
+    assert intent_order["repaid_asset_symbol"] == "USDC"
+    assert intent_order["independent_per_hop_orders"] == 0
+    assert intent_order["solver_path_symbols"] == ["USDC", "WAVAX", "WETH.E", "USDC"]
+    assert intent_order["solver_intermediate_symbols"] == ["WAVAX", "WETH.E"]
+    assert intent_order["closed_cycle"] is True
+    assert intent_order["order"]["sell_token_symbol"] == "USDC"
+    assert intent_order["order"]["sell_amount_before_fee"] == "1000000"
+    assert intent_order["order"]["route"] == ["USDC", "WAVAX", "WETH.E", "USDC"]
+    assert capability["router_payload"]["deprecated"] is True
+    assert capability["router_payload"]["custom_router_required"] is False
 
 
-def test_multi_hop_router_payload_tracks_unconfigured_live_fields_without_blocking_support():
+def test_multi_hop_no_contract_plan_has_no_pending_contract_fields():
     capability = assess_cow_flashloan_sdk_plan(
         route=["USDC", "WAVAX", "WETH.E", "USDC"],
         tokens=[
@@ -81,10 +88,10 @@ def test_multi_hop_router_payload_tracks_unconfigured_live_fields_without_blocki
 
     assert capability["supports_multi_step_atomic_settlement"] is True
     assert capability["submission_safe"] is True
-    assert capability["pending_fields"] == ["router", "loan.borrower", "loan.lender", "settlement"]
-    assert capability["router_payload"]["loan_count"] == 1
-    assert capability["router_payload"]["loans"][0]["token_symbol"] == "USDC"
-    assert capability["router_payload"]["independent_per_hop_orders"] == 0
+    assert capability["pending_fields"] == []
+    assert capability["intent_order"]["order_count"] == 1
+    assert capability["intent_order"]["order"]["sell_token_symbol"] == "USDC"
+    assert capability["intent_order"]["independent_per_hop_orders"] == 0
 
 
 def test_single_hop_is_not_a_supported_cow_flashloan_arbitrage_plan():
@@ -101,7 +108,7 @@ def test_single_hop_is_not_a_supported_cow_flashloan_arbitrage_plan():
         "requires_at_least_three_hops",
         "route_must_return_to_borrowed_asset",
     ]
-    assert capability["router_payload"]["cow_solver_order_count"] == 0
+    assert capability["intent_order"]["cow_solver_order_count"] == 0
 
 
 def test_empty_route_capability_is_not_treated_as_blocking_three_hop_support():
@@ -110,7 +117,7 @@ def test_empty_route_capability_is_not_treated_as_blocking_three_hop_support():
     assert capability["multi_step_route"] is False
     assert capability["supports_multi_step_atomic_settlement"] is False
     assert capability["submission_safe"] is False
-    assert capability["router_payload"]["loan_count"] == 0
+    assert capability["intent_order"]["order_count"] == 0
 
 
 def test_atomic_settlement_evidence_requires_one_order_and_one_settlement():

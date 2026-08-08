@@ -1780,10 +1780,6 @@ def _attach_cow_flashloan_sdk_plan(
                 steps=steps,
                 tokens=tokens,
                 hops=result.get("hops") or [],
-                router_address=os.getenv("COW_FLASHLOAN_ROUTER_ADDRESS", "").strip() or None,
-                lender_address=os.getenv("COW_FLASHLOAN_LENDER_ADDRESS", "").strip() or None,
-                borrower_address=os.getenv("COW_FLASHLOAN_BORROWER_ADDRESS", "").strip() or None,
-                settlement_calldata=os.getenv("COW_FLASHLOAN_SETTLEMENT_CALLDATA", "").strip() or None,
             ),
             "required_probe_methods": [
                 "getSwapQuoteParams",
@@ -1791,11 +1787,11 @@ def _attach_cow_flashloan_sdk_plan(
                 "getOrderPostingSettings",
             ],
             "required_submission_method": (
-                "IFlashLoanRouter.flashLoanAndSettle(loans, abi.encodeCall(settle))"
+                "TradingSdk.getQuote + AaveCollateralSwapSdk.getOrderPostingSettings + quoteAndPost.postSwapOrderFromQuote"
                 if len(steps) >= 3 and route and route[0] == route[-1]
                 else "blocked: flashloan arbitrage requires a closed three-hop solver path"
             ),
-            "settlement_boundary": "official CoW settlement/solver path; no custom CoW contract deployment",
+            "settlement_boundary": "official CoW solver settlement; no self-deployed contract required for current intent mode",
         }
         result["cow_flashloan_sdk_error"] = None
     except Exception as exc:
@@ -2168,7 +2164,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     elif route_supported and pure_intent_ready:
         capability_blockers = flashloan_capability.get("blockers") or []
         if capability_blockers:
-            reasons.append(f"diagnostic_flashLoanAndSettle_required:{','.join(capability_blockers)}")
+            reasons.append(f"diagnostic_cow_sdk_intent_route_required:{','.join(capability_blockers)}")
         else:
             reasons.append(f"diagnostic_cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
     intent_mode_ready = route_supported and pure_intent_ready

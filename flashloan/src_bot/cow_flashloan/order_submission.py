@@ -5,6 +5,7 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from core.sensitive_data import redact_sensitive_text
@@ -99,6 +100,17 @@ def submit_cow_flashloan_order(
             f"CoW flashloan SDK packages missing: {missing}. "
             f"Run: {sdk_status.get('install_command')}"
         ).strip()
+        return base
+    if not cow_order_submission_network_supported(quote_payload.get("cow_network") or quote_payload.get("network")):
+        base["blocked_reason"] = "order_submission_network_unsupported"
+        base["status"] = "order_submission_network_unsupported"
+        base["error"] = f"unsupported live CoW submission network: {quote_payload.get('cow_network') or quote_payload.get('network') or '-'}"
+        return base
+    if not readiness.get("signer_ready"):
+        signer_status = readiness.get("signer_status") or {}
+        base["blocked_reason"] = "order_submission_signer_not_ready"
+        base["status"] = "order_submission_signer_not_ready"
+        base["error"] = signer_status.get("reason") or "signer_private_key_missing"
         return base
     node = readiness["node"]
     if not node:

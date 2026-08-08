@@ -1405,12 +1405,15 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert precheck["flashloan_capability"]["multi_step_route"] is True
     assert precheck["flashloan_capability"]["supports_multi_step_atomic_settlement"] is True
     assert precheck["flashloan_capability"]["quote_probe_reliability"]["per_hop_quotes_are_not_atomicity_proof"] is True
-    assert precheck["flashloan_capability"]["router_payload"]["loan_model"] == "single_flashloan_for_solver_settlement"
-    assert precheck["flashloan_capability"]["router_payload"]["loan_count"] == 1
-    assert precheck["flashloan_capability"]["router_payload"]["independent_per_hop_orders"] == 0
-    assert precheck["flashloan_capability"]["router_payload"]["solver_intermediate_symbols"] == ["BBB", "AAA"]
-    assert precheck["flashloan_capability"]["router_payload"]["closed_cycle"] is True
-    assert precheck["flashloan_capability"]["router_payload"]["loans"][0]["token_symbol"] == "USDC"
+    assert precheck["flashloan_capability"]["requires_custom_contract_deployment"] is False
+    assert precheck["flashloan_capability"]["pending_fields"] == []
+    assert precheck["flashloan_capability"]["intent_order"]["loan_model"] == "sdk_managed_flashloan_no_user_loan_array"
+    assert precheck["flashloan_capability"]["intent_order"]["flashloan_router_call_count"] == 0
+    assert precheck["flashloan_capability"]["intent_order"]["independent_per_hop_orders"] == 0
+    assert precheck["flashloan_capability"]["intent_order"]["solver_intermediate_symbols"] == ["BBB", "AAA"]
+    assert precheck["flashloan_capability"]["intent_order"]["closed_cycle"] is True
+    assert precheck["flashloan_capability"]["intent_order"]["order"]["sell_token_symbol"] == "USDC"
+    assert precheck["cow_flashloan_sdk_plan"]["required_submission_method"].startswith("TradingSdk.getQuote")
     assert [item["status"] for item in precheck["hop_checks"]] == ["pass", "pass", "pass"]
     assert precheck["hop_checks"][0]["min_buy_amount_after_fee"] == "100"
     assert payload["opportunity_count"] == 2
