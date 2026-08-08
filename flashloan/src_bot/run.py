@@ -50,7 +50,10 @@ def require_dependencies() -> None:
     if missing:
         packages = " ".join(missing)
         raise RuntimeError(
-            f"Missing dependencies: {packages}. Run: pip install -r requirements.txt"
+            f"Missing dependencies: {packages}. Replit/Nix users should run "
+            "`python3 run_replit.py` from the repository root so the project "
+            "virtual environment is prepared automatically. Manual install: "
+            "`.venv/bin/python -m pip install -r flashloan/src_bot/requirements.txt`."
         )
 
 
