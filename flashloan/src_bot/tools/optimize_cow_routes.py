@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -11,7 +11,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files  # noqa: E402
-from execution.cow_routes import (  # noqa: E402
+from cow_flashloan.routes import (  # noqa: E402
     build_token_registry,
     cow_network_config,
     default_cow_owner,

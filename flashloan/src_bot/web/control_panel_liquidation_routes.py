@@ -3,8 +3,8 @@ import os
 from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
-from web.debt_pool_workflow import validate_liquidatable_context
-from web.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from debt_pool import validate_liquidatable_context
+from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 from web.route_context import RouteContext
 
 ROUTE_CONTEXT = RouteContext()

@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from core.sensitive_data import redact_sensitive_text
-from web.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 
 
 REQUIRED_SAMPLE_LABELS = (

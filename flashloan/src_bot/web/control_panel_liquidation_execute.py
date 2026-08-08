@@ -21,10 +21,8 @@ from execution.revert_parser import build_failure_record
 from execution.static_call import LIQUIDATION_EXECUTOR_ABI, simulate_request_liquidation_static_call
 import web.control_panel_liquidation_base as liquidation_base
 from web.control_panel_liquidation_scan import liquidation_account_payload, scan_context_assets
-from web.liquidation_execution_service import prepare_execution_payload, summarize_execution_result
-from web.liquidation_submission_service import archive_submission_failure, build_submission_summary
-from web.page_state import ExecutionStatus, PageName
-from web.page_state_service import store_page_state
+from liquidation import archive_submission_failure, build_submission_summary, prepare_execution_payload, summarize_execution_result
+from page_state import ExecutionStatus, PageName, store_page_state
 
 globals().update({name: value for name, value in vars(liquidation_base).items() if not name.startswith("_")})
 

@@ -1,4 +1,4 @@
-"""Trigger quote-only CoW analysis immediately when a Binance signal appears."""
+﻿"""Trigger quote-only CoW analysis immediately when a Binance signal appears."""
 
 from __future__ import annotations
 
@@ -404,7 +404,7 @@ def trigger_realtime_cow_quote(
     if not freshness["fresh"]:
         return {"started": False, "reason": freshness["reason"], "freshness": freshness}
 
-    from execution.cow_routes import cow_network_config
+    from cow_flashloan.routes import cow_network_config
 
     network = os.getenv("COW_REALTIME_QUOTE_NETWORK", "avalanche").strip() or "avalanche"
     config = cow_network_config(network=network)

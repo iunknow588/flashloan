@@ -4,9 +4,28 @@
 
 完成时间：2026-08-08 06:40 GMT+8
 
+后续整理：2026-08-08
+
+跨页面功能测试已继续按功能归档：
+
+- `unit/intent_trade/test_builder.py`
+- `unit/config/test_intent_trade_config.py`
+- `unit/account_pool/test_account_pool_state.py`
+- `unit/debt_pool/test_debt_pool_workflow.py`
+- `unit/market_events/test_volatility.py`
+- `unit/market_events/test_store.py`
+- `integration/liquidation/test_liquidation_discovery_service.py`
+- `integration/liquidation/test_liquidation_discovery_workflow.py`
+- `integration/liquidation/test_liquidation_execution_service.py`
+- `functional/liquidation/test_liquidation_web_helpers.py`
+- `functional/page_state/test_page_state_service.py`
+- `functional/observer_runtime/test_observer_runtime_service.py`
+
 将 `flashloan/src_bot/tests` 目录下的 78 个测试文件按 **单元测试、集成测试、功能测试** 三类重新分类整理。
 
 ## 目录结构
+
+注：下面的原始树形结构记录的是首次按 unit/integration/functional 整理时的快照；后续跨页面功能已继续迁入同名功能目录，见上方“跨页面功能测试已继续按功能归档”列表。
 
 ```
 tests/
@@ -22,8 +41,8 @@ tests/
 │   ├── test_nonce_manager.py
 │   ├── test_private_tx.py
 │   ├── test_parallel_submitter.py
-│   ├── test_cow_routes.py
-│   ├── test_cow_flashloan_capabilities.py
+│   ├── cow_flashloan/test_routes.py
+│   ├── cow_flashloan/test_capabilities.py
 │   ├── test_market_config.py
 │   ├── test_config_schema.py
 │   ├── test_observer_window_extremes.py
@@ -40,7 +59,7 @@ tests/
 │   ├── test_external_liquidation_index.py
 │   ├── test_liquidation_execution_service.py
 │   ├── test_liquidation_audit_service.py
-│   ├── test_cow_candidate_queue.py
+│   ├── cow_flashloan/test_candidate_queue.py
 │   ├── test_market_observer_daemon.py
 │   └── test_binance_market_snapshot_daemon.py
 ├── functional/              # 10个测试文件
@@ -51,7 +70,7 @@ tests/
 │   ├── test_exchange_matrix_page.py
 │   ├── test_page_state_service.py
 │   ├── test_control_panel_data_extremes.py
-│   ├── test_binance_market_service.py
+│   ├── binance_market/test_service.py
 │   ├── test_observer_runtime_service.py
 │   └── test_liquidation_web_helpers.py
 └── e2e/                     # 端到端测试（预留空目录）
@@ -79,7 +98,7 @@ tests/
 **示例**：
 - `test_liquidation_engine.py` - LiquidationEngine 依赖注入测试
 - `test_liquidation_scan.py` - 完整扫描流程（948行大文件）
-- `test_cow_candidate_queue.py` - CoW候选队列管理
+- `cow_flashloan/test_candidate_queue.py` - CoW候选队列管理
 
 ### 功能测试 (functional/)
 - **Web界面测试**：测试路由、页面渲染、API响应

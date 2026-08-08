@@ -3,8 +3,8 @@ from pathlib import Path
 from flask import Response, jsonify
 
 from core.build_info import build_info_payload
-from web.account_pool_state_service import account_pool_state_payload
-from web.page_state_service import (
+from account_pool import account_pool_state_payload
+from page_state import (
     account_scan_state_payload,
     debt_pool_state_payload,
     execution_state_payload,

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from copy import deepcopy
 import os
@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from core.sensitive_data import redact_sensitive_text
 from db.storage_cow_execution import build_cow_execution_attempts
+from intent_trade import _bind_cow_intent_context, build_cow_intent_trade
 from runtime.cow_candidate_queue import CowCandidateQueue
 from web.control_panel_cow_pause import cow_submission_pause_guard_status
 
@@ -120,12 +121,11 @@ def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | 
 
 
 def default_quote_candidate(candidate: dict[str, Any], database_url: str | None) -> dict[str, Any]:
-    from execution.cow_order_submission import submit_cow_flashloan_order
-    from execution.cow_routes import cow_account_config, cow_network_config, evaluate_cow_route, rank_cow_routes
-    from web.binance_market_service import (
+    from cow_flashloan.order_submission import submit_cow_flashloan_order
+    from cow_flashloan.routes import cow_account_config, cow_network_config, evaluate_cow_route, rank_cow_routes
+    from market.binance_market.service import (
         _apply_cow_quote_analysis,
         _attach_cow_flashloan_sdk_plan,
-        _cow_pure_profit_intent,
         _cow_sdk_result_snapshot,
         _binance_execution_plan,
         _cow_cost_summary,
@@ -225,17 +225,31 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
         result["final_delta_amount"] = result.get("final_delta_amount")
     market_state = attempt.get("market_state") if isinstance(attempt.get("market_state"), dict) else {}
     cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
-    result["cow_flashloan_intent"] = _cow_pure_profit_intent(
-        amount=result.get("input_amount") or amount,
+    route_path = result.get("path") or spec.get("path") or []
+    priority_reason = result.get("priority_reason") or spec.get("priority_reason") or ""
+    if str(priority_reason).strip().lower() == "reverse_check":
+        rising_tokens = route_path[1:2]
+        falling_tokens = route_path[2:3]
+    else:
+        rising_tokens = route_path[2:3]
+        falling_tokens = route_path[1:2]
+    threshold_detail = cow_filter.get("threshold_detail") if isinstance(cow_filter, dict) else {}
+    expected_profit = threshold_detail.get("min_pure_profit_amount") if isinstance(threshold_detail, dict) else None
+    if expected_profit is None and isinstance(threshold_detail, dict):
+        expected_profit = threshold_detail.get("min_profit_usd")
+    result["cow_flashloan_intent"] = _bind_cow_intent_context(
+        build_cow_intent_trade(
+            result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
+            expected_profit,
+            rising_tokens,
+            falling_tokens,
+        ),
+        requested_amount=result.get("input_amount") or amount,
         input_symbol=result.get("input_symbol"),
         final_symbol=result.get("final_symbol"),
-        path=result.get("path") or spec.get("path") or [],
         owner=account_config.owner,
         cow_network=network_config.network,
         cow_chain_id=network_config.chain_id,
-        threshold_detail=cow_filter.get("threshold_detail") if isinstance(cow_filter, dict) else {},
-        market_state=market_state,
-        link_name=result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
     )
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])

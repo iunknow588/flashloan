@@ -72,7 +72,7 @@ import web.control_panel_liquidation_execute as liquidation_execute
 import web.control_panel_market as market_panel
 from web.control_panel_app import create_control_panel_app
 from web.control_panel_cow_pause import disable_cow_submission_for_startup
-from web.observer_runtime_service import ObserverRuntimeService
+from observer_runtime import ObserverRuntimeService
 
 for _module in (
     liquidation_base,

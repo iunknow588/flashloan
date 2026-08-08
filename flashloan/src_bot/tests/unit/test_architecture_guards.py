@@ -27,11 +27,21 @@ def test_no_wildcard_imports_are_added():
 
 def test_refactored_helper_modules_stay_under_line_limits():
     limits = {
-        "web/liquidation_account_backfill.py": 300,
-        "web/liquidation_scan_presenter.py": 300,
+        "account_pool/state.py": 300,
+        "debt_pool/workflow.py": 300,
+        "liquidation/account_backfill.py": 300,
+        "liquidation/scan_presenter.py": 300,
+        "liquidation/execution_service.py": 100,
+        "liquidation/submission_service.py": 150,
+        "liquidation/scan_summary_service.py": 100,
         "execution/static_call.py": 300,
         "execution/receipt_formatter.py": 100,
-        "web/observer_runtime_service.py": 250,
+        "intent_trade/builder.py": 300,
+        "config/intent_trade.py": 300,
+        "page_state/models.py": 300,
+        "page_state/store.py": 300,
+        "observer_runtime/service.py": 250,
+        "cow_flashloan/order_submission.py": 300,
         "db/storage_liquidation.py": 250,
         "db/storage_liquidation_accounts.py": 300,
         "db/storage_liquidation_attempts.py": 300,
@@ -54,6 +64,122 @@ def test_key_modules_stop_using_the_storage_aggregator():
         source = (SRC_ROOT / relative_path).read_text(encoding="utf-8")
         for forbidden_import in forbidden_imports:
             assert forbidden_import not in source, f"{relative_path} still imports the storage aggregator"
+
+
+def test_cow_intent_construction_stays_out_of_runtime_and_web_layers():
+    runtime_source = (SRC_ROOT / "runtime/cow_arbitrage_daemon.py").read_text(encoding="utf-8")
+    web_source = (SRC_ROOT / "web/control_panel_data_routes.py").read_text(encoding="utf-8")
+    intent_source = (SRC_ROOT / "intent_trade/builder.py").read_text(encoding="utf-8")
+    config_source = (SRC_ROOT / "config/intent_trade.py").read_text(encoding="utf-8")
+
+    assert "build_cow_intent_trade(" in runtime_source
+    assert "_cow_pure_profit_intent(" not in runtime_source
+    assert "route_trade_fee_amount" not in web_source
+    assert "flashloan_fee_amount" not in web_source
+    assert "def build_cow_intent_trade(" in intent_source
+    assert "def intent_costs(" in config_source
+
+
+def test_cross_page_functionality_uses_dedicated_packages():
+    package_paths = {
+        "page_state": ["models.py", "store.py", "service.py"],
+        "market_events": ["volatility.py", "store.py"],
+        "observer_runtime": ["service.py"],
+        "market/binance_market": ["__init__.py", "service.py"],
+    }
+    retired_web_modules = (
+        "page_state.py",
+        "page_state_store.py",
+        "page_state_service.py",
+        "market_volatility_event_service.py",
+        "market_volatility_event_store.py",
+        "observer_runtime_service.py",
+        "binance_market_service.py",
+    )
+    web_sources = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (SRC_ROOT / "web").glob("*.py")
+    )
+
+    for package, files in package_paths.items():
+        for filename in files:
+            assert (SRC_ROOT / package / filename).exists(), f"{package}/{filename} is missing"
+    for filename in retired_web_modules:
+        assert not (SRC_ROOT / "web" / filename).exists(), f"web/{filename} should be a dedicated package"
+    assert "from web.page_state" not in web_sources
+    assert "from web.market_volatility_event" not in web_sources
+    assert "from web.observer_runtime_service" not in web_sources
+
+
+def test_feature_packages_have_matching_test_directories():
+    expected_test_directories = (
+        "tests/unit/account_pool",
+        "tests/unit/cow_flashloan",
+        "tests/unit/debt_pool",
+        "tests/unit/intent_trade",
+        "tests/unit/config",
+        "tests/unit/market_events",
+        "tests/integration/cow_flashloan",
+        "tests/integration/liquidation",
+        "tests/functional/liquidation",
+        "tests/functional/page_state",
+        "tests/functional/observer_runtime",
+        "tests/functional/binance_market",
+    )
+
+    for relative_path in expected_test_directories:
+        assert (SRC_ROOT / relative_path).is_dir(), f"{relative_path} is missing"
+
+
+def test_cow_flashloan_helpers_live_in_dedicated_package():
+    expected_modules = (
+        "cow_flashloan/routes.py",
+        "cow_flashloan/order_submission.py",
+        "cow_flashloan/capabilities.py",
+    )
+    retired_execution_modules = (
+        "cow_routes.py",
+        "cow_order_submission.py",
+        "cow_flashloan_capabilities.py",
+    )
+    retired_imports = (
+        "execution" + ".cow_routes",
+        "execution" + ".cow_order_submission",
+        "execution" + ".cow_flashloan_capabilities",
+    )
+    python_sources = "\n".join(path.read_text(encoding="utf-8") for path in _python_files())
+
+    for relative_path in expected_modules:
+        assert (SRC_ROOT / relative_path).exists(), f"{relative_path} is missing"
+    for filename in retired_execution_modules:
+        assert not (SRC_ROOT / "execution" / filename).exists(), f"execution/{filename} should be in cow_flashloan"
+    for retired_import in retired_imports:
+        assert retired_import not in python_sources
+
+
+def test_service_functionality_stays_out_of_web_routes():
+    retired_web_modules = (
+        "account_pool_state_service.py",
+        "debt_pool_workflow.py",
+        "liquidation_account_backfill.py",
+        "liquidation_discovery_service.py",
+        "liquidation_discovery_workflow.py",
+        "liquidation_execution_service.py",
+        "liquidation_scan_presenter.py",
+        "liquidation_scan_summary_service.py",
+        "liquidation_submission_service.py",
+        "binance_market_service.py",
+    )
+    web_sources = "\n".join(path.read_text(encoding="utf-8") for path in (SRC_ROOT / "web").glob("*.py"))
+
+    assert (SRC_ROOT / "account_pool" / "state.py").exists()
+    assert (SRC_ROOT / "debt_pool" / "workflow.py").exists()
+    assert (SRC_ROOT / "liquidation" / "execution_service.py").exists()
+    for filename in retired_web_modules:
+        assert not (SRC_ROOT / "web" / filename).exists(), f"web/{filename} should be a dedicated package"
+    assert "from web.account_pool_state_service" not in web_sources
+    assert "from web.debt_pool_workflow" not in web_sources
+    assert "from web.liquidation_" not in web_sources
 
 
 def test_web_route_registration_smoke():
@@ -84,7 +210,7 @@ def test_web_route_registration_smoke():
 
 
 def test_page_status_enums_do_not_include_cross_page_route_nodes():
-    from web.page_state import AccountScanStatus, DebtPoolStatus, ExecutionStatus, MarketObservationStatus
+    from page_state import AccountScanStatus, DebtPoolStatus, ExecutionStatus, MarketObservationStatus
 
     route_nodes = {"ACCOUNT_SCAN_PAGE", "DEBT_POOL_PAGE", "EXECUTION_PAGE"}
     status_values = {

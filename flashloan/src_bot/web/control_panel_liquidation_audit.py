@@ -17,7 +17,7 @@ from web.control_panel_liquidation_pause import (
     record_pause_guard_event,
 )
 from web.parameter_config import LIQUIDATION_PAUSE_GUARD_PATH
-from web.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 from execution.liquidation_preflight import SOFT_BLOCK_REASONS
 
 

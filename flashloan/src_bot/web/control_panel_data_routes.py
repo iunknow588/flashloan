@@ -39,7 +39,7 @@ from web.control_panel_cow_pause import (
     cow_submission_pause_guard_status,
     set_cow_submission_pause_guard,
 )
-from web.binance_market_service import (
+from market.binance_market.service import (
     DEFAULT_BINANCE_RAW_SIDE_LIMIT,
     DEFAULT_MIN_COW_SPREAD_PERCENT,
     build_binance_market_state,

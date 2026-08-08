@@ -36,22 +36,22 @@ from db.storage_liquidation import (
     record_liquidation_account_scan,
 )
 import web.control_panel_liquidation_base as liquidation_base
-from web.liquidation_account_backfill import AccountBackfillService
-from web.debt_pool_workflow import decision_from_borrow_pool_payload
-from web.liquidation_discovery_service import build_discovery_window_result
-from web.liquidation_discovery_workflow import (
+from debt_pool import decision_from_borrow_pool_payload
+from liquidation import (
+    AccountBackfillService,
+    build_discovery_window_result,
+    build_liquidation_account_summary,
+    build_liquidation_health_summary,
+)
+from liquidation.discovery_workflow import (
     discover_and_sync_liquidation_accounts as run_liquidation_discovery_workflow,
 )
-from web.liquidation_scan_presenter import (
+from liquidation.scan_presenter import (
     account_tier_summary as build_account_tier_summary,
     attach_scan_state,
     build_borrow_pool_summary,
     build_health_summary,
     display_health_rows,
-)
-from web.liquidation_scan_summary_service import (
-    build_liquidation_account_summary,
-    build_liquidation_health_summary,
 )
 
 globals().update({name: value for name, value in vars(liquidation_base).items() if not name.startswith("_")})

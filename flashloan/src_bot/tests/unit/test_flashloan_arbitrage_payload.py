@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
 
-from execution.cow_routes import CowToken
+from cow_flashloan.routes import CowToken
 from execution.execution_payload import USE_FULL_BALANCE
 from execution.flashloan_arbitrage_payload import (
     AtomicFlashLoanPayloadConfig,

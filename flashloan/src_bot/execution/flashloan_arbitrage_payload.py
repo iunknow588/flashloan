@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_FLOOR
@@ -6,7 +6,7 @@ from typing import Any
 
 from web3 import Web3
 
-from execution.cow_routes import CowToken, resolve_token
+from cow_flashloan.routes import CowToken, resolve_token
 from execution.execution_payload import USE_FULL_BALANCE
 
 

@@ -14,7 +14,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from market.observer_common import write_json_atomic
-from web.binance_market_service import (
+from market.binance_market.service import (
     DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
     DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS,
     _previous_window_snapshot,

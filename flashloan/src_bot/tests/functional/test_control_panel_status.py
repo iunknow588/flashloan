@@ -134,25 +134,46 @@ def test_opportunity_health_rows_and_summary_rank_by_threshold():
 
 
 def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
-    from web import control_panel
+    from web import control_panel_liquidation_base as liquidation_base
+    from web import control_panel_liquidation_scan as liquidation_scan
 
     persisted_rows = []
     LIQUIDATION_SCAN_CACHE["updated_at"] = 0.0
     LIQUIDATION_SCAN_CACHE["payload"] = None
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
-    monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
-    monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000003"])
-    monkeypatch.setattr(control_panel, "db_liquidation_account_registry_stats", lambda database_url, retained_days=365: {"total_count": 2, "active_count": 2, "earliest_scan_start_at": "2026-01-01T00:00:00+00:00", "latest_scan_end_at": "2026-01-02T00:00:00+00:00", "retained_days": retained_days})
-    monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
-    monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
+    monkeypatch.setattr(liquidation_base, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(liquidation_base, "ensure_database_schema", lambda database_url: None)
+    monkeypatch.setattr(liquidation_base, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
+    monkeypatch.setattr(liquidation_base, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000003"])
+    monkeypatch.setattr(liquidation_base, "db_liquidation_account_registry_stats", lambda database_url, retained_days=365: {"total_count": 2, "active_count": 2, "earliest_scan_start_at": "2026-01-01T00:00:00+00:00", "latest_scan_end_at": "2026-01-02T00:00:00+00:00", "retained_days": retained_days})
+    monkeypatch.setattr(liquidation_base, "aave_rpc_urls", lambda: ["https://rpc.example"])
+    monkeypatch.setattr(liquidation_base, "aave_pool_address", lambda: "0x0000000000000000000000000000000000000002")
+    monkeypatch.setattr(liquidation_scan, "load_liquidation_account_registry", lambda force=False: (["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000003"], "database"))
+    monkeypatch.setattr(liquidation_scan, "liquidation_scan_config", lambda: LiquidationScanConfig())
+    monkeypatch.setattr(liquidation_scan, "liquidation_scan_interval_seconds", lambda: 30.0)
+    monkeypatch.setattr(liquidation_scan, "liquidation_discovery_interval_seconds", lambda: 3600.0)
+    monkeypatch.setattr(liquidation_scan, "liquidation_backfill_interval_seconds", lambda: 3600.0)
+    monkeypatch.setattr(liquidation_scan, "liquidation_recent_discovery_days", lambda: 7.0)
+    monkeypatch.setattr(liquidation_scan, "liquidation_backfill_window_days", lambda: 7.0)
+    monkeypatch.setattr(liquidation_scan, "liquidation_retention_days", lambda: 365)
+    monkeypatch.setattr(liquidation_scan, "liquidation_health_display_limit", lambda: 200)
     monkeypatch.setattr(
-        control_panel,
+        liquidation_scan,
+        "liquidation_account_registry_window",
+        lambda: {
+            "total_count": 2,
+            "active_count": 2,
+            "earliest_scan_start_at": "2026-01-01T00:00:00+00:00",
+            "latest_scan_end_at": "2026-01-02T00:00:00+00:00",
+            "retained_days": 365,
+        },
+    )
+    monkeypatch.setattr(
+        liquidation_scan,
         "record_liquidation_health_scan_rows",
         lambda rows: persisted_rows.extend(rows),
     )
     monkeypatch.setattr(
-        control_panel,
+        liquidation_scan,
         "scan_account_health",
         lambda accounts, pool_address, rpc_url, config: [
             {
@@ -177,7 +198,7 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     )
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000002")
 
-    payload = liquidation_health_payload(force=True)
+    payload = liquidation_scan.liquidation_health_payload(force=True)
 
     assert payload["summary"]["account_count"] == 2
     assert payload["summary"]["liquidatable_count"] == 1

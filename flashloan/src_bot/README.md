@@ -9,6 +9,7 @@ This directory keeps the active single-console bot runtime and source code in fu
 - `market/`: market observers and Aave reserve cache.
 - `strategy/`: signal generation and opportunity filtering.
 - `execution/`: quote, cost, payload, and liquidation helpers.
+- `cow_flashloan/`: CoW route evaluation, flashloan capability checks, and order submission helpers.
 - `web/`: Flask control panel and templates.
 - `tools/`: command-line analysis and plotting tools.
 - `tests/`: Python unit tests.
