@@ -121,6 +121,7 @@ def ensure_cow_node_adapter_dependencies() -> None:
 
 def reexec_inside_project_venv() -> None:
     if _in_project_venv():
+        ensure_project_venv()
         return
     ensure_project_venv()
     python = _venv_python()

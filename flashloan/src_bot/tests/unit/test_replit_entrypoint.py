@@ -61,6 +61,18 @@ def test_replit_launcher_disables_user_site_pip_installs(monkeypatch, tmp_path):
     assert install_kwargs["env"]["PYTHONNOUSERSITE"] == "1"
 
 
+def test_replit_launcher_checks_dependencies_when_already_in_project_venv(monkeypatch):
+    launcher = _load_module("test_run_replit_already_in_venv", REPO_ROOT / "run_replit.py")
+    calls = []
+
+    monkeypatch.setattr(launcher, "_in_project_venv", lambda: True)
+    monkeypatch.setattr(launcher, "ensure_project_venv", lambda: calls.append("ensure"))
+
+    launcher.reexec_inside_project_venv()
+
+    assert calls == ["ensure"]
+
+
 def test_replit_nix_installs_python_runtime():
     config = (REPO_ROOT / "replit.nix").read_text(encoding="utf-8")
 
