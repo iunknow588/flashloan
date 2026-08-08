@@ -189,6 +189,39 @@ def stash_worktree_if_needed(root: Path, message: str) -> bool:
     return "no local changes" not in output
 
 
+def restore_stash_after_sync(root: Path) -> None:
+    result = run_git(root, "stash", "pop", capture=True, check=False)
+    if result.returncode == 0:
+        print("Reapplied local working-tree changes after sync.")
+        return
+    detail = f"{result.stderr or ''}\n{result.stdout or ''}".strip()
+    untracked_restore_failed = (
+        "could not restore untracked files from stash" in detail
+        or "already exists, no checkout" in detail
+    )
+    if untracked_restore_failed and not has_unmerged_paths(root):
+        print(
+            "Synced to origin, but some stashed untracked files were not restored because "
+            "origin now contains files with the same paths."
+        )
+        print("The stash was kept by Git. Inspect it with: git stash show --include-untracked stash@{0}")
+        print("If those old local files are not needed, remove the saved stash with: git stash drop stash@{0}")
+        return
+    raise RuntimeError(
+        "Synced to origin, but reapplying stashed local changes needs manual resolution.\n"
+        f"{detail}"
+    )
+
+
+def checkout_initial_branch_from_origin(root: Path, branch: str, behind: int) -> None:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    stash_created = stash_worktree_if_needed(root, f"get.py initial sync {timestamp}")
+    run_git(root, "checkout", "-f", "-B", branch, f"origin/{branch}")
+    print(f"Initialised local branch {branch} from origin/{branch} ({behind} commits)")
+    if stash_created:
+        restore_stash_after_sync(root)
+
+
 def reset_bootstrap_initial_branch(root: Path, branch: str, behind: int) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     backup_branch = f"backup/bootstrap-initial-{timestamp}"
@@ -197,26 +230,7 @@ def reset_bootstrap_initial_branch(root: Path, branch: str, behind: int) -> None
     run_git(root, "reset", "--hard", f"origin/{branch}")
     print(f"Replaced bootstrap initial commit with origin/{branch} ({behind} commits). Backup branch: {backup_branch}")
     if stash_created:
-        result = run_git(root, "stash", "pop", capture=True, check=False)
-        if result.returncode != 0:
-            detail = f"{result.stderr or ''}\n{result.stdout or ''}".strip()
-            untracked_restore_failed = (
-                "could not restore untracked files from stash" in detail
-                or "already exists, no checkout" in detail
-            )
-            if untracked_restore_failed and not has_unmerged_paths(root):
-                print(
-                    "Synced to origin, but some stashed untracked files were not restored because "
-                    "origin now contains files with the same paths."
-                )
-                print("The stash was kept by Git. Inspect it with: git stash show --include-untracked stash@{0}")
-                print("If those old local files are not needed, remove the saved stash with: git stash drop stash@{0}")
-                return
-            raise RuntimeError(
-                "Synced to origin, but reapplying stashed local changes needs manual resolution.\n"
-                f"{detail}"
-            )
-        print("Reapplied local working-tree changes after bootstrap sync.")
+        restore_stash_after_sync(root)
 
 
 def reset_conflicted_worktree_to_origin(root: Path, branch: str) -> None:
@@ -339,6 +353,7 @@ def branch_sync_state(root: Path, branch: str) -> tuple[int, int]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Cross-platform git pull helper.")
+    parser.add_argument("--init", action="store_true", help="Initialize the local repo if needed, then sync from origin.")
     parser.add_argument("--rebase", action="store_true", help="Use git pull --rebase.")
     parser.add_argument("--merge", action="store_true", help="Use git pull --no-ff when local and remote branches diverged.")
     parser.add_argument("--allow-dirty", action="store_true", help="Allow pulling with a dirty working tree.")
@@ -383,14 +398,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Branch {branch} is already up to date")
             return 0
 
-        # Freshly initialised repo: local branch has no commits at all.
-        # git pull --ff-only aborts because every file is "untracked" from
-        # git's perspective.  Force-checkout creates the local branch and
-        # syncs the working tree in one step; .gitignore'd files (e.g. .env)
-        # are left untouched.
+        # Freshly initialized repo: local branch has no commits at all.
+        # Existing bootstrap files such as git/get.py are untracked at this
+        # point, so stash them before checking out origin and restore only the
+        # files that do not conflict with tracked files from origin.
         if not head_exists(root) and behind > 0:
-            run_git(root, "checkout", "-f", "-b", branch, f"origin/{branch}")
-            print(f"Initialised local branch {branch} from origin/{branch} ({behind} commits)")
+            checkout_initial_branch_from_origin(root, branch, behind)
             return 0
 
         if is_bootstrap_initial_branch(root, branch, ahead=ahead, behind=behind):
