@@ -51,6 +51,8 @@
     .network-claim-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; }
     .network-claim h3 { margin: 0; font-size: 14px; }
     .mini-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .chain-market-claim { margin: 10px 0; border-top: 1px solid #e4e7ec; border-bottom: 1px solid #e4e7ec; padding: 10px 0; }
+    .chain-market-claim h4 { margin: 0 0 6px; font-size: 13px; color: #344054; }
     .network-checks { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 720px; }
     .network-check, .cow-trading-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 10px; background: #fff; font-weight: 700; }
     .network-check input, .cow-trading-switch input { min-width: auto; min-height: auto; width: 16px; height: 16px; padding: 0; }
@@ -159,7 +161,7 @@
       <div id="networkOpportunityCards" class="network-opportunity-grid"></div>
     </section>
     <section class="card" style="margin-bottom:18px">
-      <h2>各 CoW 网络支持 Top/Bottom 5</h2>
+      <h2>选中 CoW 网络支持 Top/Bottom 5</h2>
       <div id="networkClaims" class="network-claims"></div>
     </section>
     <section class="card">
@@ -364,6 +366,18 @@
     const selectedNetworkIds = () => Array.from(document.querySelectorAll("input[name='cow_network']:checked")).map(item => item.value);
     const activeNetworkPanels = () => selectedNetworkIds().map(network => networkPanels.get(network)).filter(Boolean);
     const primaryNetwork = () => selectedNetworkIds()[0] || cowConfig?.default_network || "avalanche";
+    const selectedNetworkClaims = claims => {
+      const selected = new Set(selectedNetworkIds());
+      return (claims || []).filter(claim => selected.has(claim.network));
+    };
+    const currentNetworkClaims = () => {
+      if (Array.isArray(currentMarketState?.cow_network_claims)) return currentMarketState.cow_network_claims;
+      for (const panel of activeNetworkPanels()) {
+        if (Array.isArray(panel?.marketState?.cow_network_claims)) return panel.marketState.cow_network_claims;
+      }
+      return [];
+    };
+    const selectedNetworkClaimFor = network => selectedNetworkClaims(currentNetworkClaims()).find(claim => claim.network === network) || null;
     const quoteLimitValue = () => {
       const value = Number($("quoteLimitSelect")?.value || 1);
       return Number.isFinite(value) && value > 0 ? String(Math.min(9, Math.max(1, Math.floor(value)))) : "1";
@@ -445,12 +459,18 @@
       if (lower.includes("<html") || lower.includes("<!doctype") || lower.includes("http")) return "quote_api_http_error";
       return text.length > 240 ? `${text.slice(0, 240)}...` : text;
     };
-    const nonFailureReason = reason => new Set([
-      "cow_flashloan_sdk_intent_ready",
-      "limit_order_ready_to_submit",
-      "ready_to_submit",
-      "checks_passed",
-    ]).has(String(reason || "").trim().toLowerCase());
+    const nonFailureReason = reason => {
+      const normalized = String(reason || "").trim().toLowerCase();
+      if (new Set([
+        "cow_intent_ready",
+        "cow_flashloan_sdk_intent_ready",
+        "limit_order_ready_to_submit",
+        "ready_to_submit",
+        "checks_passed",
+      ]).has(normalized)) return true;
+      return normalized.startsWith("diagnostic_cow_flashloan_sdk_plan_required:")
+        || normalized.startsWith("diagnostic_flashloanandsettle_required:");
+    };
     const historyReasons = row => {
       const sdk = historyCowSdk(row);
       const sdkStatus = historyCowSdkStatus(row);
@@ -731,6 +751,11 @@
       ready_not_submitted: "意图已准备，未提交",
       ready_to_submit: "意图已准备，可提交",
       submission_paused: "提交已暂停",
+      submitted_success: "已提交",
+      submission_failed: "提交失败",
+      adapter_unavailable: "提交适配器不可用",
+      cow_flashloan_sdk_install_required: "需安装 CoW SDK",
+      order_submission_disabled: "真实下单未启用",
       unsupported: "代币不支持",
       quote_required: "等待 CoW quote",
       quote_unavailable: "报价不可用",
@@ -741,12 +766,24 @@
       blocked: "不能下单",
     }[status] || status || "未检查");
     const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
+    const quoteSubmissionStatus = row => {
+      const check = row?.execution_precheck || {};
+      const sdk = row?.cow_sdk_result || {};
+      const submission = row?.cow_submission_result || {};
+      const submitted = Boolean(submission.submitted || sdk.submitted || check.submission_order_id || check.submission_tx_hash);
+      if (submitted) return check.submission_order_id ? `已提交 ${shortAddress(check.submission_order_id)}` : "已提交";
+      const submissionStatus = check.submission_status || sdk.submission_status || submission.status;
+      if (check.submission_attempted || sdk.submission_attempted || submissionStatus) {
+        return precheckStatusLabel(submissionStatus || check.status);
+      }
+      return check.can_submit_order ? "可提交，等待提交回执" : precheckStatusLabel(check.status);
+    };
     const precheckHtml = quote => {
       const check = quote?.execution_precheck;
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
       return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
@@ -754,7 +791,7 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : "真实下单未启用/已暂停"}`;
+      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
       return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
@@ -860,7 +897,8 @@
       </div>
     </div>`;
     const renderNetworkClaims = claims => {
-      $("networkClaims").innerHTML = (claims || []).map(networkClaimHtml).join("") || '<div class="muted">暂无 CoW 网络支持数据</div>';
+      const visibleClaims = selectedNetworkClaims(claims);
+      $("networkClaims").innerHTML = visibleClaims.map(networkClaimHtml).join("") || '<div class="muted">请选择 CoW 网络，或等待选中网络的 Top/Bottom 5 数据</div>';
     };
     const networkClaimText = claim => [
       `${claim.label || claim.network || "-"} (${claim.chain_id || "-"}) | token ${claim.token_cache_count ?? "-"} | 命中 ${claim.supported_symbol_count ?? 0} | 候选 ${claim.pair_count ?? 0}`,
@@ -1060,8 +1098,8 @@
         "",
         cowSupportedText(`所有 CoW 支持代币跌幅前 ${data.cow_supported_overview?.limit || 50}`, data.cow_supported_overview?.bottom || []),
         "",
-        "各 CoW 网络支持 Top/Bottom 5：",
-        ...((data.cow_network_claims || []).map(networkClaimText)),
+        "选中 CoW 网络支持 Top/Bottom 5：",
+        ...(selectedNetworkClaims(data.cow_network_claims || currentNetworkClaims()).map(networkClaimText)),
         "",
         "选中链候选路线：",
         ...activeNetworkPanels().map(panel => [
@@ -1105,6 +1143,7 @@
     function networkOpportunityCard(panel) {
       const state = panel?.marketState || {};
       const filter = state.cow_filter || {};
+      const claim = selectedNetworkClaimFor(panel.network);
       const pairs = selectedPanelPairs(panel);
       const pair = pairs[0] || null;
       const best = (panel?.quotes?.opportunities || panel?.quotes?.ranking || []).find(row => row?.execution_precheck?.checks_passed) || null;
@@ -1127,6 +1166,14 @@
           <span>最佳诊断差额 ${esc(best?.execution_precheck?.quote_delta_amount || best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
         </div>
         <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
+        <div class="chain-market-claim">
+          <h4>实时 Top/Bottom 5</h4>
+          ${claim ? `<div class="context">来源 ${esc(claim.token_cache_source || "-")} | token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</div>
+          <div class="mini-split">
+            <div>${rowsTable(claim.top || [], "涨幅")}</div>
+            <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
+          </div>` : '<div class="muted">等待该网络的 Top/Bottom 5 数据</div>'}
+        </div>
         <div class="chain-routes">
           ${pair ? routeGraph(pair.route_results || [], pair, panel.network) : '<div class="muted">当前窗口没有同时满足涨幅、跌幅、价格、价差和 CoW 支持条件的一对代币。</div>'}
         </div>
@@ -1220,7 +1267,7 @@
       const rows = opportunities.map((row, index) => `<tr>
         <td>${index + 1}</td><td>${esc(networkLabel(row.display_network))}<br>${esc(row.pair || "-")}</td><td>${esc(quoteInitial(row))}</td>
         <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
-        <td>${esc(row.final_delta_amount || "-")}</td><td>${row.execution_precheck?.can_submit_order ? "可提交" : esc(precheckStatusLabel(row.execution_precheck?.status))}</td>
+        <td>${esc(row.final_delta_amount || "-")}</td><td>${esc(quoteSubmissionStatus(row))}</td>
       </tr>`).join("");
       $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">暂无可展示的 CoW 报价；候选会按意图模式继续自动检查。</td></tr>';
       const best = opportunities[0] || null;
@@ -1577,6 +1624,7 @@
       }
       renderCowIdentity();
       renderNetworkOpportunityCards();
+      renderNetworkClaims(currentNetworkClaims());
       refresh().then(refreshCowSupport);
     };
     $("sideLimitSelect").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };

@@ -114,7 +114,8 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "cowSubmissionPauseRefreshBtn" not in binance_market_panel
     assert "选中 CoW 网络候选链路" in binance_market_panel
     assert "每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅" in binance_market_panel
-    assert "各 CoW 网络支持 Top/Bottom 5" in binance_market_panel
+    assert "选中 CoW 网络支持 Top/Bottom 5" in binance_market_panel
+    assert "实时 Top/Bottom 5" in binance_market_panel
     assert "networkClaims" in binance_market_panel
     assert 'value="50" selected' in binance_market_panel
     assert "前 50 名" in binance_market_panel

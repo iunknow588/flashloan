@@ -465,6 +465,107 @@ def test_cow_quotes_route_keeps_display_but_skips_recording_when_submission_paus
     assert data["ranking"][0]["cow_sdk_result"]["status"] == "submission_paused"
 
 
+def test_cow_quotes_route_submits_ready_orders_when_unpaused(monkeypatch):
+    from web import control_panel_data_routes as routes
+
+    captured = {}
+
+    monkeypatch.setattr(routes, "panel_call", lambda name, *args, **kwargs: None)
+    monkeypatch.setattr(routes, "safe_latest", lambda loader: {"observed_at": "2026-08-04T00:00:00+00:00"})
+    monkeypatch.setattr(routes, "select_binance_market_extremes", lambda extremes, side_limit=50: {"observed_at": "2026-08-04T00:00:00+00:00"})
+    monkeypatch.setattr(
+        routes,
+        "request_cow_trade_thresholds",
+        lambda amount=None: ({}, 50, {"adjusted_min_spread_percent": "0", "min_side_change_percent": "0", "min_token_price_usd": "0.01"}),
+    )
+    monkeypatch.setattr(
+        routes,
+        "load_cow_supported_token_registry",
+        lambda **kwargs: {"network": "ethereum", "chain_id": 1, "registry": {}, "source": "memory", "token_count": 0},
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_binance_market_state",
+        lambda *args, **kwargs: {
+            "observed_at": "2026-08-04T00:00:00+00:00",
+            "pairs": [{"rank": 1, "pair": "AAA / BBB", "x_base_symbol": "AAA", "y_base_symbol": "BBB"}],
+            "cow_filter": {},
+        },
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_cow_quote_verification",
+        lambda *args, **kwargs: {
+            "observed_at": "2026-08-04T00:00:00+00:00",
+            "amount": "1000",
+            "owner": "0x" + "1" * 40,
+            "owner_source": "request.owner",
+            "cow_network": "ethereum",
+            "cow_chain_id": 1,
+            "cow_testnet": False,
+            "route_count": 1,
+            "viable_count": 1,
+            "opportunity_count": 1,
+            "precheck": {"routes": []},
+            "ranking": [
+                {
+                    "pair": "AAA / BBB",
+                    "pair_rank": 1,
+                    "priority_reason": "reverse_check",
+                    "path": ["USDC", "BBB", "AAA", "USDC"],
+                    "execution_precheck": {
+                        "status": "limit_order_ready_to_submit",
+                        "checks_passed": True,
+                        "can_submit_order": True,
+                        "reasons": ["cow_flashloan_sdk_intent_ready"],
+                    },
+                    "cow_sdk_result": {"status": "ready"},
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": False})
+
+    def fake_submit(**kwargs):
+        captured["submission_kwargs"] = kwargs
+        return {
+            "status": "submitted_success",
+            "submitted": True,
+            "order_id": "0xorder",
+            "tx_hash": None,
+            "error": None,
+            "blocked_reason": None,
+        }
+
+    def fake_record(payload, **kwargs):
+        captured["recorded_state"] = payload["ranking"][0]["execution_precheck"]["status"]
+        return {"recorded": 1, "source": "jsonl"}
+
+    monkeypatch.setattr(
+        routes.cow_order_submission,
+        "submit_cow_flashloan_order",
+        fake_submit,
+    )
+    monkeypatch.setattr(
+        routes,
+        "record_cow_execution_attempts_safely",
+        fake_record,
+    )
+
+    client = app.test_client()
+    response = client.get("/api/binance-market/cow-quotes?cow_network=ethereum&quote_limit=1&amount=1000")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert captured["submission_kwargs"]["quote_payload"]["cow_network"] == "ethereum"
+    assert captured["recorded_state"] == "submitted_success"
+    assert data["submission_summary"]["submitted"] == 1
+    assert data["ranking"][0]["execution_precheck"]["status"] == "submitted_success"
+    assert data["ranking"][0]["execution_precheck"]["submission_attempted"] is True
+    assert data["ranking"][0]["execution_precheck"]["submission_order_id"] == "0xorder"
+    assert data["ranking"][0]["cow_sdk_result"]["submission_status"] == "submitted_success"
+
+
 def test_cow_candidate_queue_does_not_start_daemon_when_submission_paused(monkeypatch):
     from web import control_panel_data_routes as routes
 

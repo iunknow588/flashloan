@@ -48,6 +48,24 @@ def _row(symbol: str, start: float, end: float) -> dict:
     }
 
 
+def _sdk_ready_status() -> dict:
+    return {
+        "ready": True,
+        "reason": "cow_flashloan_sdk_ready",
+        "missing_packages": [],
+        "install_command": "cd flashLoan\\contract\\contracts-dex && npm install",
+    }
+
+
+def _sdk_missing_status() -> dict:
+    return {
+        "ready": False,
+        "reason": "cow_flashloan_sdk_install_required",
+        "missing_packages": ["@cowprotocol/sdk-flash-loans"],
+        "install_command": "cd flashLoan\\contract\\contracts-dex && npm install",
+    }
+
+
 def test_query_window_timing_identifies_previous_window_and_lagging_quote():
     timing = _query_window_timing(
         [
@@ -489,12 +507,14 @@ def test_cow_execution_precheck_ignores_route_hop_mode_request(monkeypatch):
     assert precheck["route_hop_constraints_enforced"] is False
     assert precheck["route_hop_constraints_passed"] is False
     assert precheck["checks_passed"] is True
-    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
 
 
 def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     monkeypatch.setenv("COW_FLASHLOAN_CONTROL_MODE", "intent")
     monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_ready_status)
     monkeypatch.setattr(
         "web.control_panel_cow_pause.cow_submission_pause_guard_status",
         lambda: {
@@ -512,12 +532,41 @@ def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is True
     assert precheck["order_submission_enabled"] is True
+    assert precheck["order_submission_sdk_ready"] is True
     assert precheck["order_submission_signer_ready"] is True
     assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
 
 
+def test_cow_execution_precheck_blocks_submission_when_runtime_sdk_missing(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_missing_status)
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
+
+    precheck = _cow_execution_precheck(_route_hop_constraint_precheck_payload())
+
+    assert precheck["checks_passed"] is True
+    assert precheck["order_submission_sdk_ready"] is False
+    assert precheck["order_submission_sdk_status"]["install_command"]
+    assert precheck["can_submit_order"] is False
+    assert precheck["status"] == "cow_flashloan_sdk_install_required"
+    assert "cow_flashloan_sdk_install_required" in precheck["reasons"]
+
+
 def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypatch):
     monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_ready_status)
     monkeypatch.setattr(
         "web.control_panel_cow_pause.cow_submission_pause_guard_status",
         lambda: {
@@ -566,6 +615,7 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypa
     )
 
     assert precheck["status"] == "limit_order_ready_to_submit"
+    assert precheck["can_submit_order"] is True
     assert precheck["quote_delta_positive"] is False
     assert precheck["quote_delta_offset_amount"] == "25"
     assert precheck["quote_delta_offset_percent"] == "2.5"
@@ -573,7 +623,7 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypa
     assert precheck["local_profit_gate_enforced"] is False
 
 
-def test_cow_execution_precheck_rejects_three_hop_plan_without_capability_evidence():
+def test_cow_execution_precheck_keeps_three_hop_sdk_capability_as_diagnostic_only():
     precheck = _cow_execution_precheck(
         {
             "input_amount": "1000",
@@ -655,12 +705,30 @@ def test_cow_execution_precheck_rejects_three_hop_plan_without_capability_eviden
     )
 
     assert precheck["cow_sdk_flashloan_ready"] is False
-    assert precheck["checks_passed"] is False
-    assert precheck["status"] == "cow_flashloan_sdk_plan_required"
-    assert any("cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
+    assert precheck["flashloan_sdk_gate_enforced"] is False
+    assert precheck["checks_passed"] is True
+    assert precheck["intent_mode_ready"] is True
+    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
+    assert "cow_intent_ready" in precheck["reasons"]
+    assert any("diagnostic_cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
 
 
-def test_cow_execution_precheck_blocks_when_official_sdk_plan_missing():
+def test_cow_execution_precheck_does_not_block_when_official_sdk_plan_missing(monkeypatch):
+    monkeypatch.setenv("COW_ORDER_SIGNER_PRIVATE_KEY", "0x" + "1" * 64)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
+    monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_ready_status)
+    monkeypatch.setattr(
+        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        lambda: {
+            "configured": True,
+            "database_configured": True,
+            "source": "database",
+            "paused": False,
+            "order_submission_enabled": True,
+            "pause_reason": None,
+        },
+    )
+
     precheck = _cow_execution_precheck(
         {
             "input_amount": "1000",
@@ -701,9 +769,13 @@ def test_cow_execution_precheck_blocks_when_official_sdk_plan_missing():
     )
 
     assert precheck["cow_sdk_flashloan_ready"] is False
-    assert precheck["checks_passed"] is False
-    assert precheck["status"] == "cow_flashloan_sdk_plan_required"
-    assert any("cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
+    assert precheck["flashloan_sdk_gate_enforced"] is False
+    assert precheck["checks_passed"] is True
+    assert precheck["intent_mode_ready"] is True
+    assert precheck["can_submit_order"] is True
+    assert precheck["status"] == "limit_order_ready_to_submit"
+    assert "cow_intent_ready" in precheck["reasons"]
+    assert any("diagnostic_cow_flashloan_sdk_plan_required" in reason for reason in precheck["reasons"])
 
 
 def test_binance_market_state_uses_pair_spread_threshold_for_trades():
@@ -931,8 +1003,10 @@ def test_cow_supported_market_overview_uses_only_side_move_price_and_cow_support
     )
 
     assert overview["min_side_change_percent"] == 0.3
-    assert [row["base_symbol"] for row in overview["top"]] == ["GAIN"]
-    assert [row["base_symbol"] for row in overview["bottom"]] == ["LOSS"]
+    assert [row["base_symbol"] for row in overview["top"]] == ["GAIN", "GAINLOWMOVE"]
+    assert [row["base_symbol"] for row in overview["bottom"]] == ["LOSS", "LOSSLOWMOVE"]
+    assert overview["supported_symbol_count"] == 4
+    assert overview["candidate_supported_symbol_count"] == 2
     assert overview["top_filter"]["market_eligible_symbol_count"] == 2
     assert overview["top_filter"]["supported_symbol_count"] == 1
     assert overview["top_filter"]["unsupported_symbol_count"] == 1
@@ -1323,9 +1397,9 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     sdk_plan = precheck["cow_flashloan_sdk_plan"]
     assert sdk_plan["single_solver_order_count"] == 1
     assert sdk_plan["diagnostic_hop_count"] == 3
-    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
     assert precheck["checks_passed"] is True
-    assert precheck["can_submit_order"] is False
+    assert precheck["can_submit_order"] is (precheck["status"] == "limit_order_ready_to_submit")
     assert precheck["price_guards_passed"] is True
     assert precheck["quote_delta_positive"] is True
     assert precheck["flashloan_capability"]["multi_step_route"] is True
@@ -1428,7 +1502,7 @@ def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, 
     payload = build_cow_quote_verification(market_state, quote_limit=1, registry=registry)
     precheck = payload["ranking"][0]["execution_precheck"]
 
-    assert precheck["status"] == "limit_order_ready_not_submitted"
+    assert precheck["status"] in {"limit_order_ready_to_submit", "limit_order_ready_not_submitted"}
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
     assert precheck["quote_available"] is False

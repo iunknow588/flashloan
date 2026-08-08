@@ -18,6 +18,8 @@ from cow_flashloan.order_submission import (
     cow_order_submission_enabled,
     cow_order_submission_network_supported,
     cow_order_submission_requested,
+    cow_order_submission_sdk_ready,
+    cow_order_submission_sdk_status,
     cow_order_submission_signer_ready,
     cow_order_submission_signer_status,
 )
@@ -808,12 +810,16 @@ def _rank_supported_extremes(
     *,
     min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
     min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
+    enforce_side_move: bool = True,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    eligible_rows, _ = _eligible_market_rows(
-        rows,
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-    )
+    if enforce_side_move:
+        eligible_rows, _ = _eligible_market_rows(
+            rows,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+        )
+    else:
+        eligible_rows = _price_filtered_market_rows(rows, min_token_price_usd=min_token_price_usd)
     top = sorted(
         (row for row in eligible_rows if _safe_float(row.get("change_percent")) is not None and float(row.get("change_percent") or 0) > 0),
         key=lambda row: float(row.get("change_percent") or 0),
@@ -1706,6 +1712,14 @@ def _cow_order_submission_adapter_available() -> bool:
     return cow_order_submission_adapter_available()
 
 
+def _cow_order_submission_sdk_ready() -> bool:
+    return cow_order_submission_sdk_ready()
+
+
+def _cow_order_submission_sdk_status() -> dict[str, Any]:
+    return cow_order_submission_sdk_status()
+
+
 def _cow_order_submission_enabled() -> bool:
     return cow_order_submission_enabled()
 
@@ -2147,18 +2161,22 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         and bool(flashloan_capability)
         and flashloan_submission_safe
     )
+    if route_supported and pure_intent_ready:
+        reasons.append("cow_intent_ready")
     if cow_sdk_flashloan_ready:
         reasons.append("cow_flashloan_sdk_intent_ready")
     elif route_supported and pure_intent_ready:
         capability_blockers = flashloan_capability.get("blockers") or []
         if capability_blockers:
-            reasons.append(f"flashLoanAndSettle_required:{','.join(capability_blockers)}")
+            reasons.append(f"diagnostic_flashLoanAndSettle_required:{','.join(capability_blockers)}")
         else:
-            reasons.append(f"cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
-    intent_mode_ready = route_supported and pure_intent_ready and cow_sdk_flashloan_ready
+            reasons.append(f"diagnostic_cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
+    intent_mode_ready = route_supported and pure_intent_ready
     checks_passed = intent_mode_ready
     order_submission_requested = _cow_order_submission_requested()
     order_submission_adapter_available = _cow_order_submission_adapter_available()
+    order_submission_sdk_status = _cow_order_submission_sdk_status()
+    order_submission_sdk_ready = bool(order_submission_sdk_status.get("ready"))
     order_submission_network_supported = cow_order_submission_network_supported(
         result.get("cow_network") or result.get("network") or DEFAULT_COW_TEST_NETWORK
     )
@@ -2167,26 +2185,36 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     order_submission_enabled = (
         order_submission_requested
         and order_submission_adapter_available
+        and order_submission_sdk_ready
         and order_submission_network_supported
         and order_submission_signer_ready
     )
-    if checks_passed and not order_submission_enabled:
-        status = "checks_passed_order_disabled"
-        reasons.append("CoW 意图已就绪；真实下单模块尚未开放")
-    elif not route_supported:
+    if not route_supported:
         status = "unsupported"
-    elif not cow_sdk_flashloan_ready and pure_intent_ready:
-        status = "cow_flashloan_sdk_plan_required"
     elif not pure_intent_ready:
         status = "intent_not_ready"
-    elif not cow_sdk_flashloan_ready:
-        status = "cow_flashloan_sdk_plan_required"
+    elif checks_passed and not order_submission_sdk_ready:
+        status = "cow_flashloan_sdk_install_required"
+        if "cow_flashloan_sdk_install_required" not in reasons:
+            reasons.append("cow_flashloan_sdk_install_required")
     else:
         status = "blocked"
     if checks_passed:
-        status = "limit_order_ready_to_submit" if order_submission_enabled else "limit_order_ready_not_submitted"
-        if not order_submission_enabled and "intent_ready_but_submission_adapter_disabled" not in reasons:
-            reasons.append("intent_ready_but_submission_adapter_disabled")
+        if order_submission_enabled:
+            status = "limit_order_ready_to_submit"
+        elif order_submission_sdk_ready:
+            status = "limit_order_ready_not_submitted"
+        if not order_submission_enabled:
+            disabled_reasons = {
+                "order_submission_switch_off": not order_submission_requested,
+                "order_submission_adapter_unavailable": not order_submission_adapter_available,
+                "cow_flashloan_sdk_install_required": not order_submission_sdk_ready,
+                "order_submission_network_unsupported": not order_submission_network_supported,
+                "order_submission_signer_not_ready": not order_submission_signer_ready,
+            }
+            for reason, active in disabled_reasons.items():
+                if active and reason not in reasons:
+                    reasons.append(reason)
     return {
         "control_mode": control_mode,
         "control_mode_default": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
@@ -2196,6 +2224,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "order_submission_requested": order_submission_requested,
         "order_submission_enabled": order_submission_enabled,
         "order_submission_adapter_available": order_submission_adapter_available,
+        "order_submission_sdk_ready": order_submission_sdk_ready,
+        "order_submission_sdk_status": order_submission_sdk_status,
         "order_submission_network_supported": order_submission_network_supported,
         "order_submission_signer_ready": order_submission_signer_ready,
         "order_submission_signer_status": order_submission_signer_status,
@@ -2214,6 +2244,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "own_limit_order_ready": limit_intent_ready,
         "own_limit_order_intent": own_limit_order_intent,
         "cow_sdk_flashloan_ready": cow_sdk_flashloan_ready,
+        "flashloan_sdk_gate_enforced": False,
+        "runtime_sdk_gate_enforced": True,
         "cow_flashloan_sdk_plan": cow_sdk_plan,
         "cow_flashloan_sdk_error": cow_sdk_error,
         "flashloan_capability": flashloan_capability,
@@ -2343,6 +2375,10 @@ def build_cow_network_market_claims(
 ) -> list[dict[str, Any]]:
     min_side_change_percent = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT
     market_rows = _basket_rows_from_extremes(extremes)
+    display_market_rows = _price_filtered_market_rows(
+        market_rows,
+        min_token_price_usd=min_token_price_usd,
+    )
     eligible_market_rows, excluded_market_rows = _eligible_market_rows(
         market_rows,
         min_side_change_percent=min_side_change_percent,
@@ -2354,9 +2390,17 @@ def build_cow_network_market_claims(
         if config.testnet:
             continue
         registry = token_cache.get("registry") if isinstance(token_cache, dict) else {}
-        supported_rows, unsupported_rows = _cow_supported_market_rows(eligible_market_rows, registry or {})
+        supported_rows, unsupported_rows = _cow_supported_market_rows(display_market_rows, registry or {})
+        candidate_supported_rows, _ = _cow_supported_market_rows(eligible_market_rows, registry or {})
         top_rows, bottom_rows = _rank_supported_extremes(
             supported_rows,
+            limit,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+            enforce_side_move=False,
+        )
+        candidate_top_rows, candidate_bottom_rows = _rank_supported_extremes(
+            candidate_supported_rows,
             limit,
             min_side_change_percent=min_side_change_percent,
             min_token_price_usd=min_token_price_usd,
@@ -2370,13 +2414,15 @@ def build_cow_network_market_claims(
                 "token_cache_count": token_cache.get("token_count") if isinstance(token_cache, dict) else 0,
                 "supported_symbol_count": len(supported_rows),
                 "unsupported_symbol_count": len(unsupported_rows),
+                "candidate_supported_symbol_count": len(candidate_supported_rows),
                 "market_eligible_symbol_count": len(eligible_market_rows),
                 "market_excluded_symbol_count": len(excluded_market_rows),
+                "market_display_symbol_count": len(display_market_rows),
                 "min_side_change_percent": float(min_side_change_percent),
                 "min_token_price_usd": float(min_token_price_usd),
                 "min_spread_percent": max(0.0, float(min_spread_percent)),
                 "threshold_detail": threshold_detail or {},
-                "pair_count": _candidate_pair_count(top_rows, bottom_rows, min_spread_percent),
+                "pair_count": _candidate_pair_count(candidate_top_rows, candidate_bottom_rows, min_spread_percent),
                 "top": top_rows,
                 "bottom": bottom_rows,
             }
@@ -2395,6 +2441,10 @@ def build_cow_supported_market_overview(
 ) -> dict[str, Any]:
     min_side_change_percent = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT
     market_rows = _basket_rows_from_extremes(extremes)
+    display_market_rows = _price_filtered_market_rows(
+        market_rows,
+        min_token_price_usd=min_token_price_usd,
+    )
     top_eligible_market_rows, top_excluded_market_rows = _eligible_market_rows(
         market_rows,
         min_side_change_percent=min_side_change_percent,
@@ -2424,26 +2474,34 @@ def build_cow_supported_market_overview(
         all_eligible_market_rows,
         network_token_caches,
     )
+    display_supported_rows, display_unsupported_rows, display_eligible_symbols = _cow_supported_union_market_rows(
+        display_market_rows,
+        network_token_caches,
+    )
     top_rows, _ = _rank_supported_extremes(
-        top_supported_rows,
+        display_supported_rows,
         max(1, int(limit)),
         min_side_change_percent=min_side_change_percent,
         min_token_price_usd=min_token_price_usd,
+        enforce_side_move=False,
     )
     _, bottom_rows = _rank_supported_extremes(
-        bottom_supported_rows,
+        display_supported_rows,
         max(1, int(limit)),
         min_side_change_percent=min_side_change_percent,
         min_token_price_usd=min_token_price_usd,
+        enforce_side_move=False,
     )
     return {
         "limit": max(1, int(limit)),
         "source_market_row_count": len(market_rows),
-        "eligible_symbol_count": len(all_eligible_symbols),
-        "supported_symbol_count": len(all_supported_rows),
-        "unsupported_symbol_count": len(all_unsupported_rows),
+        "eligible_symbol_count": len(display_eligible_symbols),
+        "supported_symbol_count": len(display_supported_rows),
+        "unsupported_symbol_count": len(display_unsupported_rows),
+        "candidate_supported_symbol_count": len(all_supported_rows),
         "market_eligible_symbol_count": len(all_eligible_market_rows),
         "market_excluded_symbol_count": len(all_excluded_market_rows),
+        "market_display_symbol_count": len(display_market_rows),
         "market_excluded_reason_counts": _market_filter_reason_counts(all_excluded_market_rows),
         "top_filter": {
             "source_market_row_count": len(market_rows),

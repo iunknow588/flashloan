@@ -2,130 +2,25 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from core.sensitive_data import redact_sensitive_text
-
-
-SRC_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = Path(__file__).resolve().parents[3]
-COW_CONTRACTS_DX_DIR = REPO_ROOT / "contract" / "contracts-dex"
-COW_SUBMISSION_SCRIPT = COW_CONTRACTS_DX_DIR / "scripts" / "submit-cow-flashloan-order.js"
-LIVE_COW_SUBMISSION_NETWORKS = {"ethereum", "avalanche", "bnb", "polygon", "base"}
-COW_ORDER_SIGNER_ENV_NAMES = (
-    "COW_ORDER_SIGNER_PRIVATE_KEY",
-    "COW_FLASHLOAN_PROBE_PRIVATE_KEY",
-    "LIQUIDATION_EXECUTION_PRIVATE_KEY",
-    "LIQUIDATION_SELF_FUNDED_PRIVATE_KEY",
+from cow_flashloan.submission_readiness import (
+    COW_CONTRACTS_DX_DIR,
+    COW_SUBMISSION_SCRIPT,
+    cow_order_submission_adapter_available,
+    cow_order_submission_enabled,
+    cow_order_submission_network_supported,
+    cow_order_submission_requested,
+    cow_order_submission_sdk_ready,
+    cow_order_submission_sdk_status,
+    cow_order_submission_signer_ready,
+    cow_order_submission_signer_status,
+    submission_script_ready,
 )
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    raw = os.getenv(name)
-    if raw is None or raw.strip() == "":
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def cow_order_submission_requested() -> bool:
-    try:
-        from web.control_panel_cow_pause import cow_submission_pause_guard_status
-
-        guard = cow_submission_pause_guard_status()
-        source = str(guard.get("source") or "")
-        if bool(guard.get("database_configured")) or source in {
-            "database",
-            "database_migrated_from_file",
-            "database_initialized",
-            "file_fallback",
-            "file",
-        }:
-            requested = guard.get("order_submission_enabled")
-            if requested is None:
-                requested = not bool(guard.get("paused"))
-            return bool(requested) and not bool(guard.get("paused"))
-    except Exception:
-        pass
-    raw_requested = os.getenv("COW_ORDER_SUBMISSION_ENABLED")
-    if raw_requested is not None and str(raw_requested).strip() != "":
-        return str(raw_requested).strip().lower() in {"1", "true", "yes", "on"}
-    return False
-
-
-def cow_order_submission_adapter_available() -> bool:
-    raw = os.getenv("COW_ORDER_SUBMISSION_ADAPTER_ENABLED", "").strip().lower()
-    if raw:
-        return raw in {"1", "true", "yes", "on"}
-    return bool(shutil.which("node") or shutil.which("node.exe")) and COW_SUBMISSION_SCRIPT.exists()
-
-
-def cow_order_submission_enabled() -> bool:
-    return cow_order_submission_requested() and cow_order_submission_adapter_available()
-
-
-def cow_order_submission_network_supported(network: str | None) -> bool:
-    return str(network or "").strip().lower() in LIVE_COW_SUBMISSION_NETWORKS
-
-
-def _normalized_private_key(value: str | None) -> str:
-    raw = str(value or "").strip()
-    if not raw or raw == "0x...":
-        return ""
-    key = raw if raw.startswith("0x") else f"0x{raw}"
-    if len(key) != 66 or not key.startswith("0x"):
-        return ""
-    try:
-        int(key[2:], 16)
-    except ValueError:
-        return ""
-    return key
-
-
-def cow_order_submission_signer_status() -> dict[str, Any]:
-    invalid_sources: list[str] = []
-    for name in COW_ORDER_SIGNER_ENV_NAMES:
-        raw = os.getenv(name, "")
-        if not str(raw or "").strip():
-            continue
-        if _normalized_private_key(raw):
-            return {
-                "ready": True,
-                "source": name,
-                "reason": "signer_private_key_configured",
-                "invalid_sources": invalid_sources,
-            }
-        invalid_sources.append(name)
-    reason = "signer_private_key_invalid" if invalid_sources else "signer_private_key_missing"
-    return {
-        "ready": False,
-        "source": None,
-        "reason": reason,
-        "invalid_sources": invalid_sources,
-    }
-
-
-def cow_order_submission_signer_ready() -> bool:
-    return bool(cow_order_submission_signer_status()["ready"])
-
-
-def submission_script_ready() -> dict[str, Any]:
-    node = shutil.which("node") or shutil.which("node.exe")
-    signer = cow_order_submission_signer_status()
-    return {
-        "requested": cow_order_submission_requested(),
-        "adapter_available": cow_order_submission_adapter_available(),
-        "enabled": cow_order_submission_enabled(),
-        "signer_ready": signer["ready"],
-        "signer_status": signer,
-        "node": node,
-        "script": str(COW_SUBMISSION_SCRIPT),
-        "script_exists": COW_SUBMISSION_SCRIPT.exists(),
-    }
 
 
 def _json_from_output(stdout: str) -> dict[str, Any]:
@@ -194,6 +89,16 @@ def submit_cow_flashloan_order(
     if not readiness["script_exists"]:
         base["blocked_reason"] = "cow_submission_script_missing"
         base["status"] = "adapter_unavailable"
+        return base
+    if not readiness.get("sdk_ready"):
+        sdk_status = readiness.get("sdk_status") or {}
+        missing = ", ".join(sdk_status.get("missing_packages") or [])
+        base["blocked_reason"] = "cow_flashloan_sdk_install_required"
+        base["status"] = "cow_flashloan_sdk_install_required"
+        base["error"] = (
+            f"CoW flashloan SDK packages missing: {missing}. "
+            f"Run: {sdk_status.get('install_command')}"
+        ).strip()
         return base
     node = readiness["node"]
     if not node:
