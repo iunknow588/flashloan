@@ -23,7 +23,7 @@ def read_env_file(path: Path) -> dict[str, str]:
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or "=" not in stripped:
             continue
-        key, value = stripped.split("=", 1)
+        key, value = stripped.lstrip("\ufeff").split("=", 1)
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
             value = value[1:-1]
@@ -134,6 +134,12 @@ def resolve_repo_root(create_if_missing: bool = False) -> Path:
             raise RuntimeError(f"Configured REPO_ROOT_OVERRIDE does not exist: {root}")
         return root
 
+    intended_root = SCRIPT_DIR.parent if SCRIPT_DIR.name.lower() == "git" else SCRIPT_DIR
+    if (intended_root / ".git").exists():
+        return intended_root.resolve()
+    if create_if_missing and intended_root.exists():
+        return intended_root.resolve()
+
     candidate = SCRIPT_DIR
     while True:
         if (candidate / ".git").exists():
@@ -142,9 +148,6 @@ def resolve_repo_root(create_if_missing: bool = False) -> Path:
             break
         candidate = candidate.parent
 
-    default_root = SCRIPT_DIR.parent
-    if create_if_missing and default_root.exists():
-        return default_root.resolve()
     raise RuntimeError("Could not find a .git directory. Set REPO_ROOT_OVERRIDE or initialize the repository first.")
 
 
@@ -213,13 +216,37 @@ def restore_stash_after_sync(root: Path) -> None:
     )
 
 
+def remote_tracked_paths(root: Path, ref: str) -> list[str]:
+    result = run_git(root, "ls-tree", "-r", "--name-only", ref, capture=True)
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def backup_initial_checkout_conflicts(root: Path, ref: str, timestamp: str) -> dict[str, object]:
+    moved: list[str] = []
+    backup_root = get_git_dir(root) / f"bootstrap-untracked-backup-{timestamp}"
+    for path_text in remote_tracked_paths(root, ref):
+        local_path = root.joinpath(*path_text.split("/"))
+        if not local_path.exists() and not local_path.is_symlink():
+            continue
+        backup_path = backup_root.joinpath(*path_text.split("/"))
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.rename(backup_path)
+        moved.append(path_text)
+    if moved:
+        print(f"Backed up {len(moved)} bootstrap file(s) that overlap origin/{ref.split('/')[-1]} to {backup_root}")
+    return {"path": str(backup_root) if moved else None, "moved": moved}
+
+
 def checkout_initial_branch_from_origin(root: Path, branch: str, behind: int) -> None:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    stash_created = stash_worktree_if_needed(root, f"get.py initial sync {timestamp}")
+    backup = backup_initial_checkout_conflicts(root, f"origin/{branch}", timestamp)
     run_git(root, "checkout", "-f", "-B", branch, f"origin/{branch}")
     print(f"Initialised local branch {branch} from origin/{branch} ({behind} commits)")
-    if stash_created:
-        restore_stash_after_sync(root)
+    if backup.get("moved"):
+        print(
+            "Local bootstrap files that conflicted with origin were kept in the backup directory above. "
+            "The checked out origin files are now active."
+        )
 
 
 def reset_bootstrap_initial_branch(root: Path, branch: str, behind: int) -> None:
