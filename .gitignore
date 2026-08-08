@@ -3,6 +3,7 @@
 !.env.example
 !.env.testnet.example
 node_modules/
+.venv/
 artifacts/
 cache/
 runtime/logs/
