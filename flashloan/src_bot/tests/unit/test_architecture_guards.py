@@ -37,6 +37,7 @@ def test_refactored_helper_modules_stay_under_line_limits():
         "execution/static_call.py": 300,
         "execution/receipt_formatter.py": 100,
         "intent_trade/builder.py": 300,
+        "intent_trade/direct.py": 480,
         "config/intent_trade.py": 300,
         "page_state/models.py": 300,
         "page_state/store.py": 300,
@@ -72,7 +73,7 @@ def test_cow_intent_construction_stays_out_of_runtime_and_web_layers():
     intent_source = (SRC_ROOT / "intent_trade/builder.py").read_text(encoding="utf-8")
     config_source = (SRC_ROOT / "config/intent_trade.py").read_text(encoding="utf-8")
 
-    assert "build_cow_intent_trade(" in runtime_source
+    assert "build_triangular_onchain_intent_trade(" in runtime_source
     assert "_cow_pure_profit_intent(" not in runtime_source
     assert "route_trade_fee_amount" not in web_source
     assert "flashloan_fee_amount" not in web_source
@@ -256,6 +257,10 @@ def test_intent_mode_submission_script_does_not_use_profit_gates():
     assert "final_amount_below_minimum_bound" not in source
     assert "sell_budget_exceeds_principal" not in source
     assert "if (!profitBudgetMet || !sellBudgetPassed)" not in source
+    assert "flashloanTokenScope" not in source
+    assert "appDataIndicator" not in source
+    assert "flashloanIntent" not in source
+    assert "token_scope_only" not in source
 
 
 def test_cow_intent_node_adapter_is_independent_from_contract_workspace():

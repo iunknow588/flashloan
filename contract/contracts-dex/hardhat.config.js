@@ -1,8 +1,15 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
+const path = require("path");
+const dotenv = require("dotenv");
 
-const FUJI_RPC_URL = process.env.FUJI_RPC_URL;
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../flashloan/src_bot/.env"), override: false });
+
+const FUJI_RPC_URL = process.env.FUJI_RPC_URL || process.env.AVALANCHE_FUJI_RPC_URL;
+const AVALANCHE_RPC_URL = process.env.AVALANCHE_RPC_URL || process.env.AVALANCHE_RPC;
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+const FALLBACK_PRIVATE_KEY = process.env.LIQUIDATION_EXECUTION_PRIVATE_KEY || process.env.COW_ORDER_SIGNER_PRIVATE_KEY;
+const DEPLOYER_KEYS = PRIVATE_KEY ? [PRIVATE_KEY] : (FALLBACK_PRIVATE_KEY ? [FALLBACK_PRIVATE_KEY] : []);
 
 module.exports = {
   paths: {
@@ -24,8 +31,13 @@ module.exports = {
   networks: {
     fuji: {
       url: FUJI_RPC_URL || "http://127.0.0.1:8545",
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      accounts: DEPLOYER_KEYS,
       chainId: 43113,
+    },
+    avalanche: {
+      url: AVALANCHE_RPC_URL || FUJI_RPC_URL || "http://127.0.0.1:8545",
+      accounts: DEPLOYER_KEYS,
+      chainId: 43114,
     },
   },
 };

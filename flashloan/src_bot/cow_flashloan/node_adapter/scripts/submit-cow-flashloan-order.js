@@ -208,62 +208,6 @@ function percentageOfUnits(units, percentHuman) {
   return (BigInt(units) * BigInt(Math.round(percent * 10000))) / 1000000n;
 }
 
-function routeConstraintsFromPayload(intent, quotePayload, tokenRegistry) {
-  const constraints = intent.route_hop_constraints || {};
-  const plan = quotePayload.binance_execution_plan || {};
-  const sourceHops = Array.isArray(constraints.hops)
-    ? constraints.hops
-    : Array.isArray(plan.steps)
-      ? plan.steps
-      : [];
-  const hops = [];
-  for (let index = 0; index < sourceHops.length; index += 1) {
-    const item = sourceHops[index] || {};
-    const sdk = item.cow_sdk_parameters || {};
-    const sellSymbol = tokenKey(item.from_symbol || item.sell_symbol || sdk.sell_token_symbol);
-    const buySymbol = tokenKey(item.to_symbol || item.buy_symbol || sdk.buy_token_symbol);
-    const sellAmountHuman = String(
-      item.sell_amount_before_fee ??
-      sdk.sell_amount_before_fee ??
-      item.query_sell_amount_before_fee ??
-      item.input_amount ??
-      ""
-    );
-    const minBuyAmountHuman = String(
-      item.min_buy_amount_after_fee ??
-      sdk.min_buy_amount_after_fee ??
-      item.min_output_amount ??
-      ""
-    );
-    if (!sellSymbol || !buySymbol || !sellAmountHuman || !minBuyAmountHuman) continue;
-    const sellToken = requireToken(tokenRegistry, sellSymbol);
-    const buyToken = requireToken(tokenRegistry, buySymbol);
-    const sellAmountUnits = parseHumanUnits(sellAmountHuman, sellToken.decimals);
-    const minBuyAmountUnits = parseHumanUnits(minBuyAmountHuman, buyToken.decimals);
-    const targetBuyAmountHuman = item.target_buy_amount_after_fee ?? sdk.target_buy_amount_after_fee ?? item.target_output_amount ?? null;
-    hops.push({
-      hop: item.hop || item.step || index + 1,
-      sellSymbol,
-      buySymbol,
-      sellToken,
-      buyToken,
-      sellAmountHuman,
-      minBuyAmountHuman,
-      targetBuyAmountHuman: targetBuyAmountHuman == null ? null : String(targetBuyAmountHuman),
-      sellAmountUnits,
-      minBuyAmountUnits,
-      rule: item.rule || item.selection_rule || item.price_compare_rule || null,
-      selectedTargetSource: item.selected_target_source || sdk.selected_target_source || null,
-      selectedAcceptableSource: item.selected_acceptable_source || sdk.selected_acceptable_source || null,
-    });
-  }
-  return {
-    enabled: Boolean(constraints.enabled || hops.length),
-    route: constraints.route || intent.route_path || plan.route || [],
-    hops,
-  };
-}
-
 function resolveOrderSigner(owner) {
   const privateKey = normalizedPrivateKey(
     envFirst(
@@ -304,11 +248,14 @@ function jsonFriendly(value) {
   );
 }
 
-function pureIntentAppData({ slippageBps }) {
+function pureIntentAppData({ slippageBps, intent }) {
+  const schema = intent?.cow_app_data_schema || {};
+  const baseMetadata = schema.base_metadata || {};
+  const orderClass = baseMetadata.orderClass?.orderClass || "limit";
   return {
     metadata: {
       quote: { slippageBips: slippageBps },
-      orderClass: { orderClass: "limit" },
+      orderClass: { orderClass },
     },
   };
 }
@@ -355,7 +302,6 @@ async function submitOne() {
 
   const tokenRegistry = loadTokenRegistry(network.network);
   const usdc = requireToken(tokenRegistry, "USDC");
-  const routeConstraints = routeConstraintsFromPayload(intent, quotePayload, tokenRegistry);
   const principalHuman = String(intent.initial_amount || "1000");
   const principalUnits = parseHumanUnits(principalHuman, usdc.decimals);
   const minFinalAmountHuman = String(intent.min_final_amount || intent.cow_sdk_order_intent?.minimum_final_buy_amount_after_all_costs || "0");
@@ -384,23 +330,8 @@ async function submitOne() {
   };
   const customAppData = pureIntentAppData({
     slippageBps,
+    intent,
   });
-  if (routeConstraints.enabled) {
-    customAppData.metadata.flashloanCompositeRoute = {
-      route: routeConstraints.route,
-      mode: "single_intent_reference_amounts",
-      hopCount: routeConstraints.hops.length,
-      hops: routeConstraints.hops.map((hop) => ({
-        hop: hop.hop,
-        path: [hop.sellSymbol, hop.buySymbol],
-        sellAmountBeforeFee: hop.sellAmountHuman,
-        minBuyAmountAfterFee: hop.minBuyAmountHuman,
-        targetBuyAmountAfterFee: hop.targetBuyAmountHuman,
-        selectedTargetSource: hop.selectedTargetSource,
-        selectedAcceptableSource: hop.selectedAcceptableSource,
-      })),
-    };
-  }
   const client = createPublicClient({ chain: network.chain, transport: http(rpc) });
   setGlobalAdapter(new ViemAdapter({ provider: client }));
   const sdkEnv = String(envFirst("COW_FLASHLOAN_PROBE_ENV", "COW_SDK_ENV") || "prod").toLowerCase();
@@ -427,19 +358,13 @@ async function submitOne() {
       amount: quoteParams.amount,
       slippageBps: quoteParams.slippageBps,
       validTo: quoteParams.validTo,
-      routeReferenceAmountMode: routeConstraints.enabled ? "signed_app_data" : "none",
+      routeReferenceAmountMode: "none",
     },
     routeReferenceAmounts: {
-      enabled: routeConstraints.enabled,
-      route: routeConstraints.route,
-      hopCount: routeConstraints.hops.length,
-      hops: routeConstraints.hops.map((hop) => ({
-        hop: hop.hop,
-        path: `${hop.sellSymbol} -> ${hop.buySymbol}`,
-        sellAmountBeforeFee: hop.sellAmountHuman,
-        minBuyAmountAfterFee: hop.minBuyAmountHuman,
-        targetBuyAmountAfterFee: hop.targetBuyAmountHuman,
-      })),
+      enabled: false,
+      route: [],
+      hopCount: 0,
+      hops: [],
     },
     result: null,
   };
@@ -497,26 +422,8 @@ async function submitOne() {
     minimumFinalAmountUnits: String(minFinalAmountUnits),
     sellBudgetPassed: requiredSellUnits <= principalUnits,
     profitBudgetMet: afterSlippageBuyUnits >= minFinalAmountUnits,
+    intentAnalysisOnly: true,
   };
-  if (!analysis.sellBudgetPassed || !analysis.profitBudgetMet) {
-    const blockedReason = !analysis.profitBudgetMet
-      ? "intent_min_final_amount_not_met"
-      : "required_sell_exceeds_principal";
-    return {
-      ok: false,
-      submitted: false,
-      status: "submission_blocked",
-      blockedReason,
-      error: blockedReason,
-      owner: signer.signerAddress,
-      network: network.network,
-      chainId: network.chainId,
-      quoteCall,
-      postingCall: null,
-      submitCall: null,
-      analysis,
-    };
-  }
   if (!orderToSign) {
     return {
       ok: false,

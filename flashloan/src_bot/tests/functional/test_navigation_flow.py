@@ -139,13 +139,13 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "初始数量" in binance_market_panel
     assert "CoW 报价流程" in binance_market_panel
     assert "CoW 报价比例" in binance_market_panel
-    assert "CoW 预计结果" in binance_market_panel
+    assert "CoW 原始回执" in binance_market_panel
     assert "原生币余额" in binance_market_panel
     assert "Gas" in binance_market_panel
     assert "手续费" in binance_market_panel
-    assert "盘面估算差额" in binance_market_panel
-    assert "CoW 相对 Binance 估算" in binance_market_panel
-    assert "CoW 诊断差额" in binance_market_panel
+    assert "上层盈亏预测：已关闭" in binance_market_panel
+    assert "提交控制：仅使用意图和 SDK/链上回执" in binance_market_panel
+    assert "预测状态：上层盈亏预测关闭" in binance_market_panel
     assert "当前盘面买入" in binance_market_panel
     assert "变化前价格换算" in binance_market_panel
     assert "当前盘面卖出" in binance_market_panel

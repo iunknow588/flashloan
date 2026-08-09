@@ -8,7 +8,7 @@ from typing import Any, Callable
 
 from core.sensitive_data import redact_sensitive_text
 from db.storage_cow_execution import build_cow_execution_attempts
-from intent_trade import _bind_cow_intent_context, build_cow_intent_trade
+from intent_trade import bind_cow_intent_context, build_triangular_onchain_intent_trade, submit_cow_intent_trade
 from runtime.cow_candidate_queue import CowCandidateQueue
 from web.control_panel_cow_pause import cow_submission_pause_guard_status
 
@@ -155,7 +155,6 @@ def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | 
 
 
 def default_quote_candidate(candidate: dict[str, Any], database_url: str | None) -> dict[str, Any]:
-    from cow_flashloan.order_submission import submit_cow_flashloan_order
     from cow_flashloan.routes import cow_account_config, cow_network_config, evaluate_cow_route, rank_cow_routes
     from market.binance_market.service import (
         _apply_cow_quote_analysis,
@@ -251,12 +250,9 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     result["queue_signature"] = candidate.get("signature")
     final_amount = result.get("final_amount")
     input_amount = result.get("input_amount")
-    try:
-        if final_amount is not None and input_amount is not None:
-            from decimal import Decimal
-            result["final_delta_amount"] = str(Decimal(str(final_amount)) - Decimal(str(input_amount)))
-    except Exception:
-        result["final_delta_amount"] = result.get("final_delta_amount")
+    result["final_delta_amount"] = None
+    result["profit_prediction_disabled"] = True
+    result["profit_prediction_mode"] = "disabled_intent_only_sdk_settlement"
     market_state = attempt.get("market_state") if isinstance(attempt.get("market_state"), dict) else {}
     cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
     route_path = result.get("path") or spec.get("path") or []
@@ -271,8 +267,8 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     expected_profit = threshold_detail.get("min_pure_profit_amount") if isinstance(threshold_detail, dict) else None
     if expected_profit is None and isinstance(threshold_detail, dict):
         expected_profit = threshold_detail.get("min_profit_usd")
-    result["cow_flashloan_intent"] = _bind_cow_intent_context(
-        build_cow_intent_trade(
+    result["cow_flashloan_intent"] = bind_cow_intent_context(
+        build_triangular_onchain_intent_trade(
             result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
             expected_profit,
             rising_tokens,
@@ -286,13 +282,6 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
         cow_chain_id=network_config.chain_id,
     )
     result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
-    if isinstance(result.get("cow_flashloan_intent"), dict):
-        from market.binance_market.service import _bind_intent_route_hop_constraints
-
-        result["cow_flashloan_intent"] = _bind_intent_route_hop_constraints(
-            result["cow_flashloan_intent"],
-            result.get("binance_execution_plan"),
-        )
     _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_cache["registry"])
     result["execution_precheck"] = _cow_execution_precheck(result)
     pause_guard = cow_submission_pause_guard_status()
@@ -324,7 +313,7 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
             "pause_guard": pause_guard,
         }
     elif (result.get("execution_precheck") or {}).get("can_submit_order"):
-        submission = submit_cow_flashloan_order(
+        submission = submit_cow_intent_trade(
             quote_payload=result,
             opportunity={
                 "attempt": attempt,
@@ -355,7 +344,7 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
             result["error"] = str(error)
         result["execution_precheck"] = precheck
     result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, result["execution_precheck"])
-    result["costs"] = _cow_cost_summary(result, final_delta_amount=result.get("final_delta_amount"))
+    result["costs"] = _cow_cost_summary(result, final_delta_amount=None)
     result["quote_verified"] = True
     payload = {
         "observed_at": attempt.get("observed_at"),

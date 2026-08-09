@@ -1,0 +1,160 @@
+const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
+const {
+  appendJsonl,
+  evidencePaths,
+  networkContext,
+  sanitizeError,
+  writeJson,
+} = require("./fuji-evidence");
+
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value || !value.trim() || value === "0x...") {
+    throw new Error(`${name} is required`);
+  }
+  return value.trim();
+}
+
+function requireAnyEnv(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim() && value !== "0x...") {
+      return value.trim();
+    }
+  }
+  throw new Error(`${names.join(" or ")} is required`);
+}
+
+function requireAnyPrivateKey(...names) {
+  return requireAnyEnv(...names);
+}
+
+function optionalEnv(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim() && value !== "0x...") {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function stableTokenFromEnv(...names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim() && value !== "0x...") {
+      return value.trim();
+    }
+  }
+  const stableTokens = optionalEnv("DEX_TARGET_STABLE_TOKENS");
+  if (stableTokens) {
+    const entries = stableTokens.split(",").map((item) => item.trim()).filter(Boolean);
+    for (const preferred of ["USDC", "USDC.e", "USDC.E"]) {
+      const entry = entries.find((item) => item.toUpperCase().startsWith(`${preferred.toUpperCase()}:`));
+      if (entry) {
+        const [, address] = entry.split(":", 2);
+        if (address && address.trim()) {
+          return address.trim();
+        }
+      }
+    }
+    const fallback = entries.find((item) => item.includes(":"));
+    if (fallback) {
+      const [, address] = fallback.split(":", 2);
+      if (address && address.trim()) {
+        return address.trim();
+      }
+    }
+  }
+  return "";
+}
+
+function normalizeAddress(value) {
+  const text = String(value || "").trim();
+  if (hre.ethers.isAddress(text)) {
+    return hre.ethers.getAddress(text);
+  }
+  if (/^0x[a-fA-F0-9]{40}$/.test(text)) {
+    return hre.ethers.getAddress(text.toLowerCase());
+  }
+  return "";
+}
+
+async function main() {
+  requireAnyEnv("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL", "AVALANCHE_RPC_URL", "AVALANCHE_RPC");
+  requireAnyPrivateKey("DEPLOYER_PRIVATE_KEY", "LIQUIDATION_EXECUTION_PRIVATE_KEY", "COW_ORDER_SIGNER_PRIVATE_KEY");
+
+  const poolAddress = normalizeAddress(optionalEnv("TRIANGULAR_AAVE_POOL_ADDRESS", "AAVE_POOL_ADDRESS"));
+  const usdcAddress = normalizeAddress(stableTokenFromEnv("TRIANGULAR_USDC_ADDRESS", "FUJI_USDC", "USDC_ADDRESS"));
+  if (!poolAddress) throw new Error("TRIANGULAR_AAVE_POOL_ADDRESS or AAVE_POOL_ADDRESS is required");
+  if (!usdcAddress) throw new Error("TRIANGULAR_USDC_ADDRESS or FUJI_USDC or USDC_ADDRESS is required");
+
+  const networkName = hre.network.name || "unknown";
+  const paths = evidencePaths({ strategy: `${networkName}-triangular-ab-deploy` });
+  const [deployer] = await hre.ethers.getSigners();
+  console.log(`deployer=${deployer.address}`);
+
+  const Executor = await hre.ethers.getContractFactory("AaveTriangularExecutor");
+  const executor = await Executor.deploy(poolAddress, usdcAddress, deployer.address);
+  await executor.waitForDeployment();
+  const executorAddress = await executor.getAddress();
+  console.log(`AAVE_TRIANGULAR_EXECUTOR_ADDRESS=${executorAddress}`);
+
+  const Controller = await hre.ethers.getContractFactory("TriangularRouteController");
+  const controller = await Controller.deploy(usdcAddress, executorAddress, deployer.address);
+  await controller.waitForDeployment();
+  const controllerAddress = await controller.getAddress();
+  console.log(`TRIANGULAR_ROUTE_CONTROLLER_ADDRESS=${controllerAddress}`);
+
+  const setControllerTx = await executor.setController(controllerAddress);
+  const setControllerReceipt = await setControllerTx.wait();
+  console.log(`setControllerTx=${setControllerReceipt.hash}`);
+
+  const outputDir = path.join(process.cwd(), "deployments");
+  const deploymentPath = path.join(outputDir, `${networkName}-triangular-ab.json`);
+  const output = {
+    runId: paths.runId,
+    network: networkName,
+    chainId: Number((await hre.ethers.provider.getNetwork()).chainId),
+    deployedAt: new Date().toISOString(),
+    deployer: deployer.address,
+    aavePoolAddress: poolAddress,
+    usdcAddress,
+    triangularRouteControllerAddress: controllerAddress,
+    aaveTriangularExecutorAddress: executorAddress,
+    setControllerTxHash: setControllerReceipt.hash,
+  };
+  fs.mkdirSync(outputDir, { recursive: true });
+  fs.writeFileSync(deploymentPath, `${JSON.stringify(output, null, 2)}\n`);
+
+  const report = {
+    ...output,
+    context: await networkContext(hre, process.env),
+    deploymentPath,
+    reportPath: paths.reportPath,
+  };
+  writeJson(paths.reportPath, report);
+  appendJsonl(paths.tradeLogPath, {
+    runId: paths.runId,
+    observedAt: report.deployedAt,
+    network: hre.network.name,
+    strategy: "triangular_ab_deploy",
+    action: "deploy",
+    success: true,
+    deploymentPath,
+    reportPath: paths.reportPath,
+    triangularRouteControllerAddress: controllerAddress,
+    aaveTriangularExecutorAddress: executorAddress,
+  });
+  console.log(`deploymentFile=${deploymentPath}`);
+  console.log(`evidenceReport=${paths.reportPath}`);
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(JSON.stringify({ ok: false, error: sanitizeError(error) }, null, 2));
+    process.exitCode = 1;
+  });
+}

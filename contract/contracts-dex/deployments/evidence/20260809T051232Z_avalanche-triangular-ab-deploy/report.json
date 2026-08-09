@@ -1,0 +1,20 @@
+{
+  "runId": "20260809T051232Z_avalanche-triangular-ab-deploy",
+  "network": "avalanche",
+  "chainId": 43114,
+  "deployedAt": "2026-08-09T05:13:01.282Z",
+  "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "aavePoolAddress": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+  "usdcAddress": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+  "triangularRouteControllerAddress": "0x89EDB275D2cB78C8d738AC884d9A136d53169EDF",
+  "aaveTriangularExecutorAddress": "0xEf25270589CE1c6fD0d807932b80bC43c509761e",
+  "setControllerTxHash": "0x3c6914215a002550d5b08997398bb009c7b8337adde0cb6515435ee0ab9f89ef",
+  "context": {
+    "network": "avalanche",
+    "chainId": 43114,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "deploymentPath": "E:\\2026OPC大赛\\flashLoan\\contract\\contracts-dex\\deployments\\avalanche-triangular-ab.json",
+  "reportPath": "E:\\2026OPC大赛\\flashLoan\\contract\\contracts-dex\\deployments\\evidence\\20260809T051232Z_avalanche-triangular-ab-deploy\\report.json"
+}

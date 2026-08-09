@@ -4,7 +4,6 @@ from pathlib import Path
 
 from flask import jsonify, request
 
-from cow_flashloan import order_submission as cow_order_submission
 from core.sensitive_data import redact_sensitive_text
 from db.storage_common import (
     database_unavailable_reason,
@@ -37,6 +36,7 @@ from runtime.cow_arbitrage_daemon import (
     ensure_cow_quote_daemon_running,
     retain_cow_candidate_networks,
 )
+from intent_trade import submit_cow_intent_trade
 from web.control_panel_cow_pause import (
     clear_cow_submission_pause_guard,
     cow_submission_pause_guard_status,
@@ -215,7 +215,7 @@ def submit_ready_cow_quote_orders(payload: dict, *, market_state: dict) -> dict:
             "owner_source": payload.get("owner_source"),
             "cow_testnet": payload.get("cow_testnet"),
         }
-        submission = cow_order_submission.submit_cow_flashloan_order(
+        submission = submit_cow_intent_trade(
             quote_payload=quote_payload,
             opportunity={
                 "source": "web_cow_quotes",
@@ -1131,6 +1131,8 @@ def register_data_routes(app, panel) -> None:
                 if not isinstance(item, dict):
                     continue
                 precheck = dict(item.get("execution_precheck") or {})
+                if not precheck.get("checks_passed"):
+                    continue
                 reasons = list(precheck.get("reasons") or [])
                 if "cow_submission_paused" not in reasons:
                     reasons.append("cow_submission_paused")

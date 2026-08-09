@@ -392,10 +392,11 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
         "order_submission_signer_not_ready",
     }
     assert precheck["checks_passed"] is True
-    assert precheck["quote_delta_positive"] is True
-    assert precheck["quote_delta_above_diagnostic_floor"] is False
+    assert precheck["profit_prediction_disabled"] is True
+    assert precheck["quote_delta_positive"] is None
+    assert precheck["quote_delta_above_diagnostic_floor"] is None
     assert precheck["local_profit_gate_enforced"] is False
-    assert precheck["quote_probe_notes"]
+    assert precheck["quote_probe_notes"] == ["upper_profit_prediction_disabled_intent_only"]
     assert precheck["auto_execute_min_profit_usd"] == "6.18"
     assert precheck["auto_execute_min_profit_percent"] == "0.618"
 
@@ -437,13 +438,19 @@ def test_cow_pure_profit_intent_binds_requested_principal_and_token_scope_only(m
     assert intent["total_required_percent"] == "100"
     assert intent["borrow_token_amount"] == "2500"
     assert intent["cow_sdk_order_intent"]["sell_amount_before_fee"] == "2500"
-    assert intent["min_final_amount"] == "2515.45"
+    assert intent["min_final_amount"] == "2524.2"
     assert intent["min_pure_profit_amount"] == "15.45"
+    assert intent["fee_components"]["total_cost_usdc"] == "8.75"
+    assert intent["x_amount"] == "24.2"
+    assert intent["target_token_amount"] == "2524.2"
+    assert intent["cow_sdk_order_intent"]["minimum_final_buy_amount_after_all_costs"] == "2524.2"
     assert intent["token_scope"]["input_symbol"] == "USDC"
     assert intent["token_scope"]["output_symbol"] == "USDC"
     assert intent["token_scope"]["tokens"] == ["T0", "T0USDT", "B0", "B0USDT", "USDC"]
     assert intent["token_scope"]["token_count"] == 5
     assert intent["token_scope"]["scope_role"] == "solver_owned_token_universe_only"
+    assert intent["cow_app_data_schema"]["custom_metadata_allowed"] is False
+    assert intent["cow_app_data_schema"]["exchange_token_scope_appdata_supported"] is False
     assert "market_hints" not in intent
     assert "route_path_hint" not in intent
 
@@ -627,10 +634,11 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypa
 
     assert precheck["status"] == "limit_order_ready_to_submit"
     assert precheck["can_submit_order"] is True
-    assert precheck["quote_delta_positive"] is False
-    assert precheck["quote_delta_offset_amount"] == "25"
-    assert precheck["quote_delta_offset_percent"] == "2.5"
-    assert any("cow_quote_delta_offset" in reason for reason in precheck["quote_probe_notes"])
+    assert precheck["profit_prediction_disabled"] is True
+    assert precheck["quote_delta_positive"] is None
+    assert precheck["quote_delta_offset_amount"] is None
+    assert precheck["quote_delta_offset_percent"] is None
+    assert precheck["quote_probe_notes"] == ["upper_profit_prediction_disabled_intent_only"]
     assert precheck["local_profit_gate_enforced"] is False
 
 
@@ -1254,7 +1262,8 @@ def test_cow_quote_verification_quotes_selected_pairs(monkeypatch):
     assert payload["best"]["costs"]["quote_api_gas_used"] == 0
     assert payload["best"]["costs"]["settlement_gas_payer"] == "solver"
     assert payload["best"]["costs"]["approval_gas_status"] == "requires_allowance_check_before_execution"
-    assert payload["best"]["costs"]["profit_amount"] == "200"
+    assert payload["best"]["costs"]["profit_amount"] is None
+    assert payload["best"]["costs"]["profit_prediction_disabled"] is True
 
 
 def test_cow_quote_verification_records_all_chain_candidates(monkeypatch):
@@ -1416,8 +1425,9 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert precheck["status"] in {"order_submission_switch_off", "order_submission_adapter_unavailable"}
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
-    assert precheck["price_guards_passed"] is True
-    assert precheck["quote_delta_positive"] is True
+    assert precheck["price_guards_passed"] is False
+    assert precheck["profit_prediction_disabled"] is True
+    assert precheck["quote_delta_positive"] is None
     assert precheck["flashloan_capability"]["multi_step_route"] is True
     assert precheck["flashloan_capability"]["supports_multi_step_atomic_settlement"] is True
     assert precheck["flashloan_capability"]["quote_probe_reliability"]["per_hop_quotes_are_not_atomicity_proof"] is True

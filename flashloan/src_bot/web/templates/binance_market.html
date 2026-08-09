@@ -68,6 +68,9 @@
     .execute-button { border-color: #b42318; color: #b42318; }
     .execute-button.ready { border-color: #15803d; color: #15803d; }
     .execute-button:disabled { color: #667085; border-color: #d0d5dd; background: #f2f4f7; }
+    .sdk-candidate-token { color: #1d4ed8; font-weight: 800; }
+    .sdk-candidate-row { background: #eff6ff; }
+    .sdk-candidate-note { color: #1d4ed8; font-weight: 800; }
     .review-section { border: 1px solid #cfd6e2; border-radius: 8px; padding: 14px; background: #fff; margin-top: 18px; }
     .review-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
     .review-head h2 { margin-bottom: 4px; }
@@ -171,7 +174,7 @@
         <table>
           <thead>
             <tr>
-              <th>#</th><th>兑换对</th><th>初始数量</th><th>CoW 报价流程</th><th>CoW 报价比例</th><th>CoW 预计结果</th><th>差额</th><th>状态</th>
+              <th>#</th><th>兑换对</th><th>初始数量</th><th>CoW 报价流程</th><th>CoW 报价比例</th><th>CoW 原始回执</th><th>预测状态</th><th>状态</th>
             </tr>
           </thead>
           <tbody id="cowQuoteBody"></tbody>
@@ -183,7 +186,7 @@
       <div id="cowQueueStatus" class="context">等待队列状态</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>优先级</th><th>尝试次数</th></tr></thead>
+          <thead><tr><th>#</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>来源/原因</th><th>优先级</th><th>尝试次数</th></tr></thead>
           <tbody id="cowQueueBody"></tbody>
         </table>
       </div>
@@ -263,7 +266,7 @@
         <table>
           <thead>
             <tr>
-              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>诊断差额</th><th>未成功原因</th>
+              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>意图状态</th><th>未成功原因</th>
             </tr>
           </thead>
           <tbody id="cowAttemptHistoryBody"></tbody>
@@ -413,7 +416,7 @@
     };
     const quotePath = quote => (quote?.path || []).map(displaySymbol).join(" -> ") || "-";
     const quoteInitial = quote => quote ? `${quote.input_amount || "-"} ${displaySymbol(quote.input_symbol || "")}` : "-";
-    const quoteFinal = quote => quote ? `${quote.final_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "-";
+    const quoteFinal = quote => quote ? `${quote.final_amount || "-"} ${displaySymbol(quote.final_symbol || "")}（原始查询，不作盈亏预测）` : "-";
     const quoteVsPlan = (quote, plan) => {
       if (!quote || !plan?.available) return "-";
       const finalAmount = Number(quote.final_amount);
@@ -421,26 +424,91 @@
       if (!Number.isFinite(finalAmount) || !Number.isFinite(targetAmount) || targetAmount === 0) return "-";
       const diff = finalAmount - targetAmount;
       const pctDiff = diff / targetAmount * 100;
-      return `${diff >= 0 ? "+" : ""}${diff.toFixed(6)} ${displaySymbol(quote.final_symbol || plan.final_symbol || "")} (${diff >= 0 ? "+" : ""}${pctDiff.toFixed(4)}%)`;
+      return "上层预测已关闭";
     };
     const minSpreadValue = () => {
       const value = Number($("minSpreadInput").value || "0");
       return Number.isFinite(value) && value >= 0 ? String(value) : "0";
     };
+    const usdcValueText = value => Number.isFinite(value) ? `${value.toFixed(6)} USDC` : "-";
+    const hopValueTrace = (hop, costBasisUsdc) => {
+      const basis = Number(costBasisUsdc);
+      if (symbolKey(hop?.buy_symbol) !== "USDC") {
+        return {
+          text: ` | 链内成本基准 ${usdcValueText(basis)} | 未回到USDC，不做USDC折价`,
+          value: basis,
+        };
+      }
+      const realized = Number(hop?.buy_amount);
+      const delta = Number.isFinite(realized) && Number.isFinite(basis) ? realized - basis : null;
+      return {
+        text: ` | 已回到USDC ${usdcValueText(realized)}${Number.isFinite(delta) ? ` | 已实现差额 ${delta >= 0 ? "+" : ""}${delta.toFixed(6)} USDC` : ""}`,
+        value: Number.isFinite(realized) ? realized : basis,
+      };
+    };
+    const hopLinesWithValueTrace = quote => {
+      let previousUsdcValue = Number(quote?.input_amount);
+      return (quote?.hops || []).map(hop => {
+        const trace = hopValueTrace(hop, previousUsdcValue);
+        previousUsdcValue = trace.value;
+        return `${esc(hop.hop || "-")}. ${esc(hop.sell_amount || "-")} ${esc(displaySymbol(hop.sell_symbol))} -> ${esc(hop.buy_amount || "-")} ${esc(displaySymbol(hop.buy_symbol))} @ ${esc(hop.exchange_rate || "-")}${esc(trace.text)}`;
+      });
+    };
     const hopLine = hop => `${esc(hop.hop || "-")}. ${esc(hop.sell_amount || "-")} ${esc(displaySymbol(hop.sell_symbol))} -> ${esc(hop.buy_amount || "-")} ${esc(displaySymbol(hop.buy_symbol))} @ ${esc(hop.exchange_rate || "-")}`;
     const quoteRates = quote => (quote?.hops || []).map(hop => `${displaySymbol(hop.sell_symbol)}/${displaySymbol(hop.buy_symbol)} ${hop.exchange_rate || "-"}`).join(" | ") || "-";
-    const quoteFlow = quote => (quote?.hops || []).map(hopLine).join("<br>") || esc(quotePath(quote));
+    const quoteFlow = quote => hopLinesWithValueTrace(quote).join("<br>") || esc(quotePath(quote));
     const plain = value => String(value ?? "-");
     const plainPct = value => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(5)}%` : "-";
     const plainNum = value => formatPrice(value);
+    const symbolKey = symbol => displaySymbol(symbol).toUpperCase();
+    const tokenHtml = (symbol, highlightSymbols = null) => {
+      const text = displaySymbol(symbol);
+      const highlighted = highlightSymbols && highlightSymbols.has(symbolKey(symbol));
+      return highlighted ? `<span class="sdk-candidate-token">${esc(text)}</span>` : esc(text);
+    };
+    const claimMinSpread = claim => {
+      const threshold = claim?.threshold_detail || {};
+      const value = Number(claim?.min_spread_percent ?? threshold.adjusted_min_spread_percent ?? threshold.min_window_spread_percent ?? 0);
+      return Number.isFinite(value) ? Math.max(0, value) : 0;
+    };
+    const claimSdkCandidateSymbols = claim => {
+      const symbols = new Set();
+      const topRows = Array.isArray(claim?.top) ? claim.top : [];
+      const bottomRows = Array.isArray(claim?.bottom) ? claim.bottom : [];
+      const minSpread = claimMinSpread(claim);
+      for (const top of topRows) {
+        for (const bottom of bottomRows) {
+          if (!top || !bottom || symbolKey(top.symbol) === symbolKey(bottom.symbol)) continue;
+          const topChange = Number(top.change_percent);
+          const bottomChange = Number(bottom.change_percent);
+          if (!Number.isFinite(topChange) || !Number.isFinite(bottomChange)) continue;
+          if (topChange - bottomChange > minSpread) {
+            symbols.add(symbolKey(top.symbol));
+            symbols.add(symbolKey(bottom.symbol));
+          }
+        }
+      }
+      return symbols;
+    };
+    const routePathHtml = route => (route.route || route.route_symbols || route.path || [])
+      .map(symbol => symbolKey(symbol) === "USDC" ? esc(displaySymbol(symbol)) : tokenHtml(symbol, new Set([symbolKey(symbol)])))
+      .join(" -> ") || "-";
     const tableText = (title, rows) => [
       title,
       ...((rows || []).map((row, index) => `${index + 1}. ${displaySymbol(row.symbol)} | ${plainPct(row.change_percent)} | ${plainNum(row.start_price)} -> ${plainNum(row.current_price)} | ${row.price_source || "-"}`)),
       ...(rows && rows.length ? [] : ["-"]),
     ].join("\n");
     const planText = plan => executionParamsText(plan);
-    const quoteHopText = hop => `${hop.hop || "-"}. ${hop.sell_amount || "-"} ${displaySymbol(hop.sell_symbol)} -> ${hop.buy_amount || "-"} ${displaySymbol(hop.buy_symbol)} @ ${hop.exchange_rate || "-"} | fee ${hop.fee_amount || "-"} ${displaySymbol(hop.sell_symbol)}`;
-    const quoteText = quote => (quote?.hops || []).map(quoteHopText).join("\n") || quotePath(quote);
+    const quoteHopText = (hop, traceText = "") => `${hop.hop || "-"}. ${hop.sell_amount || "-"} ${displaySymbol(hop.sell_symbol)} -> ${hop.buy_amount || "-"} ${displaySymbol(hop.buy_symbol)} @ ${hop.exchange_rate || "-"}${traceText} | fee ${hop.fee_amount || "-"} ${displaySymbol(hop.sell_symbol)}`;
+    const quoteText = quote => {
+      let previousUsdcValue = Number(quote?.input_amount);
+      const lines = (quote?.hops || []).map(hop => {
+        const trace = hopValueTrace(hop, previousUsdcValue);
+        previousUsdcValue = trace.value;
+        return quoteHopText(hop, trace.text);
+      });
+      return lines.join("\n") || quotePath(quote);
+    };
     const historyRoutePath = row => (row?.route_path || row?.quote?.path || []).map(displaySymbol).join(" -> ") || "-";
     /*
     const historyReasons = row => (row?.blocked_reasons || row?.precheck?.reasons || []).join("锛?) || row?.error || "-";
@@ -478,7 +546,7 @@
       if (sdkStatus && historySdkWaiting(row)) reasons.unshift(`sdk_pending:${sdkStatus}`);
       return reasons.filter(reason => !nonFailureReason(reason)).join("; ") || cowErrorSummary(row?.error) || "-";
     };
-    const historyQuoteDelta = row => `${row?.final_delta_amount || row?.quote?.final_delta_amount || "-"} ${displaySymbol(row?.final_symbol || row?.quote?.final_symbol || "")}`.trim();
+    const historyQuoteDelta = row => row?.profit_prediction_disabled || row?.precheck?.profit_prediction_disabled ? "预测关闭，等待 SDK/链上回执" : "预测关闭";
     const historyReview = row => row?.review_summary || {};
     const historyCowSdk = row => {
       const review = historyReview(row);
@@ -581,16 +649,16 @@
         `${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`
       ).join(" | ") || "-";
       return [
-        `plan delta ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)`,
-        `CoW quote delta ${guard.quote_delta_amount || guard.pure_profit_amount || row?.final_delta_amount || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "")}`,
+        `intent target ${guard.min_final_amount || guard.auto_execute_min_profit_usd || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "USDC")}`,
+        `upper prediction disabled: ${guard.profit_prediction_disabled ? "yes" : "yes"}`,
         `SDK status ${historyCowSdkStatus(row) || "-"}`,
-        `quote result gate ${guard.quote_result_gate_enforced ? "on" : "off"} | diagnostic floor ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%) | threshold ${guard.quote_delta_above_diagnostic_floor ? "pass" : "diagnostic only"}`,
+        `quote result gate ${guard.quote_result_gate_enforced ? "on" : "off"} | upper quote delta gate disabled | intent only`,
         `quote probe notes ${(guard.quote_probe_notes || guard.local_profit_diagnostic_reasons || []).join("; ") || "-"}`,
         `quote error ${guard.quote_error_type || guard.quote_error_display || "-"}`,
-        `query position ${queryLines}`,
+        `raw query position ${queryLines}`,
         `blocking ${JSON.stringify(guard.blocking_cause_counts || {})}`,
-        `quote delta offset ${guard.quote_delta_offset_amount || guard.drawdown_amount || "-"} (${guard.quote_delta_offset_percent || guard.drawdown_percent || "-"}%)`,
-        `min ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%)`,
+        `quote delta offset disabled`,
+        `intent min ${guard.auto_execute_min_profit_usd || "-"}U (${guard.auto_execute_min_profit_percent || "-"}%)`,
         `fees ${fees}`,
         `gas quote ${costs.quote_api_gas_used ?? "-"} / submit ${costs.user_order_submission_gas_used ?? "-"} / settle ${costs.settlement_gas_payer || "-"}`,
       ].map(esc).join("<br>");
@@ -657,14 +725,13 @@
     }
     const costText = (quote, plan) => {
       const costs = quote?.costs || {};
-      const quoteDelta = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
       return [
         `原生币余额：before ${costs.native_balance_before ?? "未检查"} / after ${costs.native_balance_after ?? "未检查"} (${costs.native_balance_source || "quote_stage"})`,
         `Gas：quote ${costs.quote_api_gas_used ?? 0}；下单 ${costs.user_order_submission_gas_used ?? 0}；结算 ${costs.settlement_gas_payer || "solver"}；授权 ${costs.approval_gas_status || "待检查"}`,
         `手续费：${feeLines(costs)}`,
-        `盘面估算差额：${planDelta(plan)}`,
-        `CoW 相对 Binance 估算：${quoteVsPlan(quote, plan)}`,
-        `CoW 诊断差额：${quoteDelta}`,
+        `上层盈亏预测：已关闭`,
+        `提交控制：仅使用意图和 SDK/链上回执`,
+        `原始报价：${quote ? quoteFinal(quote) : "等待 CoW SDK 报价"}`,
       ].join("\n");
     };
     const supportText = support => {
@@ -675,7 +742,7 @@
     };
     const planInitial = plan => plan?.available ? `${plan.initial_amount || "-"} ${displaySymbol(plan.initial_symbol || "")}` : "-";
     const planFinal = plan => plan?.available ? `${plan.final_target_amount || "-"} ${displaySymbol(plan.final_symbol || "")}` : "-";
-    const planDelta = plan => plan?.available ? `${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
+    const planDelta = plan => plan?.available ? `意图目标 ${plan.profit_amount || "-"} ${displaySymbol(plan.final_symbol || "")} (${plan.profit_percent || "-"}%)` : "-";
     const basisLabel = basis => ({
       current_binance_buy_low: "当前盘面买入",
       pre_change_binance_cross: "变化前价格换算",
@@ -761,12 +828,12 @@
       quote_required: "等待 CoW quote",
       quote_unavailable: "报价不可用",
       flashloan_payload_required: "缺少闪电贷执行参数",
-      price_guard_failed: "价格保护未通过",
-      not_profitable: "本地报价诊断：低于参考",
-      profit_below_threshold: "本地报价诊断：低于旧阈值",
+      price_guard_failed: "旧逐跳保护已关闭",
+      not_profitable: "旧本地预测已关闭",
+      profit_below_threshold: "旧本地预测已关闭",
       blocked: "不能下单",
     }[status] || status || "未检查");
-    const precheckLine = item => `${item.price_guard_passed ? "通过" : "失败"} ${item.path || "-"} | 查询输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 最低接收 ${item.min_buy_amount_after_fee || "-"} | 目标 ${item.target_buy_amount_after_fee || "-"} | ${item.rule || "-"}`;
+    const precheckLine = item => `原始查询 ${item.path || "-"} | 输出 ${item.query_buy_amount_after_fee || "-"} ${displaySymbol(item.buy_symbol || "")} | 上层不做逐跳保底判断`;
     const quoteSubmissionStatus = row => {
       const check = row?.execution_precheck || {};
       const sdk = row?.cow_sdk_result || {};
@@ -784,16 +851,16 @@
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
       const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
-      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
-      return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>逐步检查：<br>${hops}<br>原因/限制：<br>${reasons}`;
+      const autoLine = `上层盈亏预测已关闭 | 逐跳约束已关闭 | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
+      return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>原始逐跳查询：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
     const precheckText = quote => {
       const check = quote?.execution_precheck;
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(precheckLine).join("\n") || "-";
       const reasons = (check.reasons || []).join("\n") || "-";
-      const autoLine = `CoW intent diagnostic delta ${check.quote_delta_amount || check.pure_profit_amount || check.final_delta_amount || "-"} ${displaySymbol(check.final_symbol || "")} | intent gate ${check.quote_result_gate_enforced ? "on" : "off"} | diagnostic only | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
-      return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n逐步检查：\n${hops}\n原因/限制：\n${reasons}`;
+      const autoLine = `上层盈亏预测已关闭 | 逐跳约束已关闭 | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
+      return `下单条件：${precheckStatusLabel(check.status)}\n${autoLine}\n原始逐跳查询：\n${hops}\n原因/限制：\n${reasons}`;
     };
     const executionStepLine = step => `${esc(step.step || "-")}. ${esc(displaySymbol(step.from_symbol))} -> ${esc(displaySymbol(step.to_symbol))} | ${esc(basisLabel(step.price_basis))}<br>` +
       `输入数量 ${esc(step.query_sell_amount_before_fee || step.input_amount || "-")} ${esc(displaySymbol(step.from_symbol))} | CoW 查询输出 ${esc(step.query_buy_amount_after_fee || "等待查询")} ${esc(displaySymbol(step.to_symbol))}<br>` +
@@ -807,32 +874,35 @@
       `${selectionText(step)} | 保底价动态生成；保底参数 ${step.slippage_bps ?? "-"}bps (${step.slippage_percent || "-"}%)\n` +
       `目标数量 ${step.target_output_amount || "-"} ${displaySymbol(step.to_symbol)} | 最低接收 ${step.min_output_amount || "-"} ${displaySymbol(step.to_symbol)}\n` +
       `${sdkParamsText(step)}\n规则：${step.selection_rule || step.price_compare_rule || "-"}`;
-    const executionParams = plan => plan?.available ? `<div>Binance 行情价格：<br>${planMarketPrices(plan)}</div><div>兑换参数：<br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>最终 Binance 估算：${esc(planFinal(plan))} | slip ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%)</div>` : `计划不可用：${esc(plan?.reason || "-")}`;
+    const executionParams = plan => plan?.available ? `<div>本地候选参考价格：<br>${planMarketPrices(plan)}</div><div>本地参考参数（不控制 SDK 提交）：<br>${(plan.steps || []).map(executionStepLine).join("<br>")}</div><div>参考目标：${esc(planFinal(plan))} | slip ${esc(plan.slippage_bps ?? "-")}bps (${esc(plan.slippage_percent || "-")}%) | 上层预测关闭</div>` : `计划不可用：${esc(plan?.reason || "-")}`;
     const executionParamsText = plan => plan?.available ? [
-      "Binance 行情价格：",
+      "本地候选参考价格：",
       planMarketPricesText(plan),
-      "兑换参数：",
+      "本地参考参数（不控制 SDK 提交）：",
       ...((plan.steps || []).map(executionStepText)),
-      `最终 Binance 估算：${planFinal(plan)} | slip ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%)`,
+      `参考目标：${planFinal(plan)} | slip ${plan.slippage_bps ?? "-"}bps (${plan.slippage_percent || "-"}%) | 上层预测关闭`,
     ].join("\n") : `计划不可用：${plan?.reason || "-"}`;
     const planStepLine = executionStepLine;
     const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `计划不可用：${esc(plan?.reason || "-")}`;
     const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `hop ${item.hop || "-"} ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
     const costDetail = (quote, plan) => {
       const costs = quote?.costs || {};
-      const quoteDelta = quote ? `${quote.final_delta_amount || "-"} ${displaySymbol(quote.final_symbol || "")}` : "等待 CoW SDK 报价";
       return `<div>原生币余额：before ${esc(costs.native_balance_before ?? "未检查")} / after ${esc(costs.native_balance_after ?? "未检查")} (${esc(costs.native_balance_source || "quote_stage")})</div>
         <div>Gas：quote ${esc(costs.quote_api_gas_used ?? 0)}；下单 ${esc(costs.user_order_submission_gas_used ?? 0)}；结算 ${esc(costs.settlement_gas_payer || "solver")}；授权 ${esc(costs.approval_gas_status || "待检查")}</div>
         <div>手续费：${esc(feeLines(costs))}</div>
-        <div>盘面估算差额：${esc(planDelta(plan))}</div>
-        <div>CoW 相对 Binance 估算：${esc(quoteVsPlan(quote, plan))}</div>
-        <div>CoW 诊断差额：${esc(quoteDelta)}</div>`;
+        <div>上层盈亏预测：已关闭</div>
+        <div>提交控制：仅使用意图和 SDK/链上回执</div>
+        <div>原始报价：${esc(quote ? quoteFinal(quote) : "等待 CoW SDK 报价")}</div>`;
     };
 
-    const rowHtml = (row, index) => `<tr>
-      <td>${index}</td><td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
+    const rowHtml = (row, index, options = {}) => {
+      const highlightSymbols = options.highlightSymbols || null;
+      const highlighted = highlightSymbols && highlightSymbols.has(symbolKey(row.symbol));
+      return `<tr class="${highlighted ? "sdk-candidate-row" : ""}">
+      <td>${index}</td><td>${tokenHtml(row.symbol, highlightSymbols)}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
       <td>${num(row.start_price)}</td><td>${num(row.current_price)}</td><td>${esc(row.price_source || "-")}</td>
     </tr>`;
+    };
     const chainList = row => (row?.cow_networks || []).join(", ") || "-";
     const cowSupportedRowHtml = (row, index) => `<tr>
       <td>${index}</td><td>${esc(displaySymbol(row.symbol))}</td><td class="${cls(row.change_percent)}">${pct(row.change_percent)}</td>
@@ -882,21 +952,28 @@
       $("cowSupportedTopBody").innerHTML = top.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币涨幅数据</td></tr>';
       $("cowSupportedBottomBody").innerHTML = bottom.map((row, index) => cowSupportedRowHtml(row, index + 1)).join("") || '<tr><td colspan="7">暂无 CoW 支持代币跌幅数据</td></tr>';
     };
-    const rowsTable = (rows, sideLabel) => `<div class="table-wrap"><table>
+    const rowsTable = (rows, sideLabel, options = {}) => `<div class="table-wrap"><table>
       <thead><tr><th>#</th><th>代币</th><th>${esc(sideLabel)}</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
-      <tbody>${(rows || []).map((row, index) => rowHtml(row, index + 1)).join("") || '<tr><td colspan="6">暂无数据</td></tr>'}</tbody>
+      <tbody>${(rows || []).map((row, index) => rowHtml(row, index + 1, options)).join("") || '<tr><td colspan="6">暂无数据</td></tr>'}</tbody>
     </table></div>`;
-    const networkClaimHtml = claim => `<div class="network-claim">
+    const networkClaimHtml = claim => {
+      const highlightSymbols = claimSdkCandidateSymbols(claim);
+      const candidateNote = highlightSymbols.size
+        ? `<span class="sdk-candidate-note">蓝色粗体 = 已进入 CoW SDK 候选链路</span>`
+        : `<span class="muted">当前 Top/Bottom 5 未形成可入队候选</span>`;
+      return `<div class="network-claim">
       <div class="network-claim-head">
         <h3>${esc(claim.label || claim.network || "-")} <span class="muted">(${esc(claim.chain_id || "-")})</span></h3>
         <span class="context">token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</span>
       </div>
       <div class="context">来源 ${esc(claim.token_cache_source || "-")} | 单边 &gt; ${esc(claim.min_side_change_percent ?? "0.3")}% | 价格 &gt;= ${esc(claim.min_token_price_usd ?? "0.01")}U | 已过滤 ${esc(claim.market_excluded_symbol_count ?? 0)} | ${esc(thresholdBreakdownText(claim.threshold_detail || {}))}</div>
+      <div class="context">${candidateNote}</div>
       <div class="mini-split">
-        <div>${rowsTable(claim.top || [], "涨幅")}</div>
-        <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
+        <div>${rowsTable(claim.top || [], "涨幅", {highlightSymbols})}</div>
+        <div>${rowsTable(claim.bottom || [], "跌幅", {highlightSymbols})}</div>
       </div>
     </div>`;
+    };
     const renderNetworkClaims = claims => {
       const target = $("networkClaims");
       if (!target) return;
@@ -925,40 +1002,37 @@
           ? `<span class="badge">${support.supported ? "支持" : "不支持"}</span>`
         : '<span class="badge">未报价</span>';
       const quoteMeta = quote
-        ? `最终数量 ${quote.final_amount || "-"} | 差额 ${quote.final_delta_amount || "-"}`
+        ? `原始末跳 ${quote.final_amount || "-"} ${displaySymbol(quote.final_symbol || "")} | 预测关闭`
         : "等待查询 CoW 链上报价";
       const check = quote?.execution_precheck || null;
-      const quoteDelta = check?.quote_delta_amount || check?.pure_profit_amount || quote?.final_delta_amount || "-";
       const detail = quote
         ? `<div class="route-detail">
             <div>初始数量：${esc(quoteInitial(quote))}</div>
-            <div>Binance 估算目标：${esc(planFinal(plan))}</div>
-            <div>Binance/CoW 兑换参数：${executionParams(plan)}</div>
+            <div>意图目标：${esc(planDelta(plan))}</div>
+            <div>参考参数：${executionParams(plan)}</div>
             <div>CoW 链上实时报价流程：${quoteFlow(quote)}</div>
             <div>${esc(supportText(support))}</div>
             <div>CoW 实时报价比例：${esc(quoteRates(quote))}</div>
-            <div>CoW 预计结果：${esc(quoteFinal(quote))}</div>
-            <div>目标差额：${esc(planDelta(plan))}</div>
-            <div>诊断差额：${esc(quoteDelta)} ${esc(displaySymbol(check?.final_symbol || quote.final_symbol || ""))}</div>
+            <div>CoW 原始回执：${esc(quoteFinal(quote))}</div>
+            <div>预测状态：上层盈亏预测关闭，不按本地差额阻断</div>
             <div>${precheckHtml(quote)}</div>
             ${costDetail(quote, plan)}
             ${quote.viable ? "" : `<div>报价失败原因：${esc(quote.error || "-")}</div>`}
           </div>`
         : `<div class="route-detail">
             <div>初始数量：${esc(planInitial(plan))}</div>
-            <div>Binance 估算目标：${esc(planFinal(plan))}</div>
-            <div>Binance/CoW 兑换参数：${executionParams(plan)}</div>
+            <div>意图目标：${esc(planDelta(plan))}</div>
+            <div>参考参数：${executionParams(plan)}</div>
             <div>CoW 链上报价路径：${esc(routePath(route))}</div>
             <div>${esc(supportText(support))}</div>
             <div>CoW 实时报价比例：等待查询</div>
-            <div>CoW 预计结果：等待查询</div>
-            <div>目标差额：${esc(planDelta(plan))}</div>
-            <div>诊断差额：等待 CoW SDK 报价</div>
+            <div>CoW 原始回执：等待查询</div>
+            <div>预测状态：上层盈亏预测关闭</div>
             ${costDetail(null, plan)}
           </div>`;
       return `<div class="route-box">
         <div class="route-top"><span class="route-no">链路 ${esc(route.route_no || "-")} | ${reason}</span>${quoteBadge}</div>
-        <div class="route-path">${esc(routePath(route))}</div>
+        <div class="route-path">${routePathHtml(route)}</div>
         <div class="route-meta">起始 ${esc(displaySymbol(route.initial_symbol || "USDC"))}<br>${esc(quoteMeta)}</div>
         ${detail}
         <div class="route-actions">
@@ -1042,13 +1116,13 @@
         `链路 ${route.route_no || "-"} | ${reason} | ${pair?.pair || "-"}`,
         `路径：${routePath(route)}`,
         `初始数量：${quote ? quoteInitial(quote) : planInitial(plan)}`,
-        `Binance 估算目标：${planFinal(plan)}`,
-        "Binance/CoW 兑换参数：",
+        `意图目标：${planDelta(plan)}`,
+        "参考参数：",
         executionParamsText(plan),
         `CoW 支持：${supportText(support)}`,
         `CoW 链上报价路径：${quote ? quotePath(quote) : routePath(route)}`,
         `CoW 实时报价比例：${quote ? quoteRates(quote) : "等待查询"}`,
-        `CoW 预计结果：${quote ? quoteFinal(quote) : "等待查询"}`,
+        `CoW 原始回执：${quote ? quoteFinal(quote) : "等待查询"}`,
         precheckText(quote),
         costText(quote, plan),
         quote && quote.error ? `失败原因：${quote.error}` : "",
@@ -1069,8 +1143,8 @@
         "CoW 链上报价流程：",
         quoteText(row),
         `CoW 实时报价比例：${quoteRates(row)}`,
-        `CoW 预计结果：${quoteFinal(row)}`,
-        `差额：${row.final_delta_amount || "-"}`,
+        `CoW 原始回执：${quoteFinal(row)}`,
+        `预测状态：上层盈亏预测关闭`,
         costText(row, plan),
         row.error ? `错误：${row.error}` : "",
       ].filter(Boolean).join("\n");
@@ -1156,25 +1230,27 @@
           ? `${panel.support.supported_route_count || 0}/${panel.support.route_count || 0} 支持`
           : "等待检查";
       const threshold = filter.threshold_detail || {};
+      const highlightSymbols = claimSdkCandidateSymbols(claim);
       return `<div class="chain-card" data-chain-card="${esc(panel.network || "")}">
         <div class="chain-card-head">
           <h3>${esc(networkLabel(panel.network))}</h3>
           <span class="context">${esc(panel.network || "-")} | ${esc(shortAddress(selectedCowConfig(panel.network)?.owner))}</span>
         </div>
         <div class="chain-summary">
-          <span>最高涨幅：${esc(displaySymbol(state.top?.[0]?.symbol || "-"))} ${esc(pct(state.top?.[0]?.change_percent))}</span>
-          <span>最高跌幅：${esc(displaySymbol(state.bottom?.[0]?.symbol || "-"))} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
+          <span>最高涨幅：${tokenHtml(state.top?.[0]?.symbol || "-", highlightSymbols)} ${esc(pct(state.top?.[0]?.change_percent))}</span>
+          <span>最高跌幅：${tokenHtml(state.bottom?.[0]?.symbol || "-", highlightSymbols)} ${esc(pct(state.bottom?.[0]?.change_percent))}</span>
           <span>${esc(routeCountText(panel))}</span>
           <span>${esc(quoteInfo)}</span>
-          <span>最佳诊断差额 ${esc(best?.execution_precheck?.quote_delta_amount || best?.execution_precheck?.pure_profit_amount || best?.final_delta_amount || "-")} ${esc(displaySymbol(best?.final_symbol || ""))}</span>
+          <span>SDK 意图 ${esc(best ? quoteSubmissionStatus(best) : "等待报价")}</span>
         </div>
         <div class="context">token ${esc(filter.token_cache_count ?? "-")} | 命中 ${esc(filter.supported_symbol_count ?? 0)} | 过滤 ${esc(filter.market_excluded_symbol_count ?? 0)} | 单边 ${esc(filter.min_side_change_percent ?? "0.3")}% | ${esc(thresholdBreakdownText(threshold))}</div>
         <div class="chain-market-claim">
           <h4>实时 Top/Bottom 5</h4>
           ${claim ? `<div class="context">来源 ${esc(claim.token_cache_source || "-")} | token ${esc(claim.token_cache_count ?? "-")} | 命中 ${esc(claim.supported_symbol_count ?? 0)} | 候选 ${esc(claim.pair_count ?? 0)}</div>
+          <div class="context">${highlightSymbols.size ? '<span class="sdk-candidate-note">蓝色粗体 = 将进入 CoW SDK 报价/交易候选</span>' : '<span class="muted">当前 Top/Bottom 5 未形成可入队候选</span>'}</div>
           <div class="mini-split">
-            <div>${rowsTable(claim.top || [], "涨幅")}</div>
-            <div>${rowsTable(claim.bottom || [], "跌幅")}</div>
+            <div>${rowsTable(claim.top || [], "涨幅", {highlightSymbols})}</div>
+            <div>${rowsTable(claim.bottom || [], "跌幅", {highlightSymbols})}</div>
           </div>` : '<div class="muted">等待该网络的 Top/Bottom 5 数据</div>'}
         </div>
         <div class="chain-routes">
@@ -1270,11 +1346,11 @@
       const rows = opportunities.map((row, index) => `<tr>
         <td>${index + 1}</td><td>${esc(networkLabel(row.display_network))}<br>${esc(row.pair || "-")}</td><td>${esc(quoteInitial(row))}</td>
         <td>${quoteFlow(row)}</td><td>${esc(quoteRates(row))}</td><td>${esc(quoteFinal(row))}</td>
-        <td>${esc(row.final_delta_amount || "-")}</td><td>${esc(quoteSubmissionStatus(row))}</td>
+        <td>预测关闭</td><td>${esc(quoteSubmissionStatus(row))}</td>
       </tr>`).join("");
       $("cowQuoteBody").innerHTML = rows || '<tr><td colspan="8">暂无可展示的 CoW 报价；候选会按意图模式继续自动检查。</td></tr>';
       const best = opportunities[0] || null;
-      $("notionalUsd").textContent = best?.final_delta_amount || "-";
+      $("notionalUsd").textContent = best ? "预测关闭" : "-";
       $("notionalUsd").title = best ? `${networkLabel(best.display_network)} | ${best.pair || "-"} | ${(best.path || []).join(" -> ")}` : "";
       const quotedRoutes = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.quotes?.route_count || 0), 0);
       $("quoteState").innerHTML = `<span class="badge">CoW 多链</span><span class="muted">${esc(opportunities.length)} 个机会 | ${esc(quotedRoutes)} 条路由已报价</span>`;
@@ -1378,6 +1454,49 @@
         }
       }
     }
+    const queueQuoteContainer = item => item?.result?.quote || null;
+    const queueQuoteResult = item => {
+      const container = queueQuoteContainer(item);
+      if (container?.result && typeof container.result === "object") return container.result;
+      if (container?.quote && typeof container.quote === "object") return container.quote;
+      return container && typeof container === "object" ? container : {};
+    };
+    const queuePrecheck = item => {
+      const container = queueQuoteContainer(item);
+      const result = queueQuoteResult(item);
+      const ranked = container?.payload?.ranking?.[0]?.execution_precheck;
+      return result.execution_precheck || result.precheck || ranked || item?.candidate?.precheck || item?.candidate?.quote?.execution_precheck || {};
+    };
+    const queueReasonList = item => {
+      const precheck = queuePrecheck(item);
+      const result = queueQuoteResult(item);
+      const reasons = [
+        ...(Array.isArray(precheck.reasons) ? precheck.reasons : []),
+        ...(Array.isArray(precheck.quote_probe_notes) ? precheck.quote_probe_notes : []),
+        precheck.quote_error_display,
+        result.error,
+        item.last_error,
+      ].filter(Boolean).map(value => String(value));
+      const causeCounts = precheck.blocking_cause_counts || {};
+      for (const [cause, count] of Object.entries(causeCounts)) {
+        if (cause) reasons.push(`${cause}${count ? ` x${count}` : ""}`);
+      }
+      return [...new Set(reasons)];
+    };
+    const queueStatusDetail = item => {
+      const precheck = queuePrecheck(item);
+      const status = String(precheck.status || "").trim();
+      const statusText = status && status !== item.status ? `预检：${precheckStatusLabel(status)}` : "";
+      const reasons = queueReasonList(item);
+      return [statusText, ...reasons].filter(Boolean).join("；") || "-";
+    };
+    const queueDisplayStatus = item => {
+      const precheck = queuePrecheck(item);
+      const queueStatus = precheckStatusLabel(item.status);
+      const precheckStatus = precheck.status ? precheckStatusLabel(precheck.status) : "";
+      if (precheckStatus && precheckStatus !== queueStatus) return `${queueStatus} / ${precheckStatus}`;
+      return queueStatus || "-";
+    };
     function renderCowCandidateQueue(data) {
       const daemon = data?.daemon || {};
       const queue = daemon.queue || {};
@@ -1404,12 +1523,13 @@
         <td>${index + 1}</td>
         <td>${esc(item.network || "-")}</td>
         <td>${esc(item.pair || "-")}</td>
-        <td>${esc((item.route_path || []).join(" -> ") || "-")}</td>
-        <td>${esc(precheckStatusLabel(item.status) || "-")}</td>
+        <td>${(item.route_path || []).map(symbol => symbolKey(symbol) === "USDC" ? esc(displaySymbol(symbol)) : tokenHtml(symbol, new Set([symbolKey(symbol)]))).join(" -> ") || "-"}</td>
+        <td>${esc(queueDisplayStatus(item))}</td>
+        <td title="${esc(queueStatusDetail(item))}">${esc(queueStatusDetail(item))}</td>
         <td>${esc(item.priority_score || item.profit_hint || "-")}</td>
         <td>${esc(item.attempts || 0)}</td>
       </tr>`).join("");
-      $("cowQueueBody").innerHTML = rows || '<tr><td colspan="7">暂无排队的 CoW 候选</td></tr>';
+      $("cowQueueBody").innerHTML = rows || '<tr><td colspan="8">暂无排队的 CoW 候选</td></tr>';
     }
     async function refreshCowCandidateQueue() {
       try {
@@ -1417,7 +1537,7 @@
         const suffix = networks.length ? `&cow_networks=${encodeURIComponent(networks.join(","))}` : "";
         renderCowCandidateQueue(await api(`/api/binance-market/cow-candidate-queue?limit=100${suffix}`));
       } catch (error) {
-        $("cowQueueBody").innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`;
+        $("cowQueueBody").innerHTML = `<tr><td colspan="8">${esc(error.message)}</td></tr>`;
       }
     }
     function renderCowSubmissionPause(data) {

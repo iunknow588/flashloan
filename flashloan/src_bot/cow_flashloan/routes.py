@@ -575,12 +575,14 @@ def evaluate_cow_route(
 
 
 def rank_cow_routes(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    def score(item: dict[str, Any]) -> Decimal:
-        if not item.get("viable"):
-            return Decimal("-1")
+    def sort_key(item: dict[str, Any]) -> tuple[int, int, int]:
+        # Route selection must not use a sequential quote as a profit estimate.
+        viable_rank = 0 if item.get("viable") else 1
         try:
-            return Decimal(str(item.get("final_amount_units") or "0"))
-        except InvalidOperation:
-            return Decimal("-1")
+            pair_rank = int(item.get("pair_rank") or 10**9)
+        except (TypeError, ValueError):
+            pair_rank = 10**9
+        priority_rank = 0 if item.get("priority_reason") == "buy_loser_then_gainer" else 1
+        return viable_rank, pair_rank, priority_rank
 
-    return sorted(results, key=score, reverse=True)
+    return sorted(results, key=sort_key)

@@ -13,6 +13,8 @@ load_env_files(__file__, override=False)
 # CoW analysis starts from the same observer cycle as the Binance signal.
 # Real order submission is additionally gated by the UI transaction switch.
 os.environ.setdefault("COW_REALTIME_QUOTE_ENABLED", "true")
+os.environ.setdefault("COW_REALTIME_QUOTE_NETWORK", "avalanche")
+os.environ.setdefault("COW_FLASHLOAN_INTENT_NETWORK", "avalanche")
 os.environ.setdefault("COW_ORDER_SUBMISSION_ENABLED", "true")
 os.environ.setdefault("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25")
 os.environ.setdefault("COW_REALTIME_QUOTE_MAX_INFLIGHT", "2")

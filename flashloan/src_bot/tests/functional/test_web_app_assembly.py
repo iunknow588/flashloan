@@ -541,11 +541,7 @@ def test_cow_quotes_route_submits_ready_orders_when_unpaused(monkeypatch):
         captured["recorded_state"] = payload["ranking"][0]["execution_precheck"]["status"]
         return {"recorded": 1, "source": "jsonl"}
 
-    monkeypatch.setattr(
-        routes.cow_order_submission,
-        "submit_cow_flashloan_order",
-        fake_submit,
-    )
+    monkeypatch.setattr(routes, "submit_cow_intent_trade", fake_submit)
     monkeypatch.setattr(
         routes,
         "record_cow_execution_attempts_safely",

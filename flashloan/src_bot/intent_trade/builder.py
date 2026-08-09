@@ -164,7 +164,7 @@ def build_cow_intent_trade(
         + costs["other_known_costs_amount"]
     )
     x_amount = profit_amount + total_cost_usdc
-    min_final_amount = borrow_amount + profit_amount
+    min_final_amount = borrow_amount + x_amount
     target_token_amount = borrow_amount + x_amount
 
     token_scope = _build_token_scope(
@@ -221,6 +221,19 @@ def build_cow_intent_trade(
         "target_token_name": target_symbol,
         "target_token_amount": _decimal_text(target_token_amount),
         "fee_components": fee_components,
+        "cow_app_data_schema": {
+            "schema_package": "@cowprotocol/sdk-app-data",
+            "version": "latest",
+            "custom_metadata_allowed": False,
+            "base_metadata": {
+                "quote": {"slippageBips": None},
+                "orderClass": {"orderClass": "limit"},
+            },
+            "flashloan_metadata_source": "AaveCollateralSwapSdk.getOrderPostingSettings",
+            "flashloan_metadata_keys": ["flashloan", "hooks"],
+            "exchange_token_scope_appdata_supported": False,
+            "exchange_token_scope_source": "local_intent_payload_only",
+        },
         "cow_sdk_order_intent": {
             "sell_amount_before_fee": _decimal_text(borrow_amount),
             "sell_symbol": borrow_symbol,
@@ -237,7 +250,7 @@ def build_cow_intent_trade(
             "intent_mode": "intent",
             "custom_mode_available": False,
         },
-        "submission_boundary": "caller_provides_token_scope_and_min_final_amount; intent_only_submission",
+        "submission_boundary": "caller_provides_token_scope_and_min_final_amount_including_costs; intent_only_submission",
         "ready": borrow_amount > 0 and bool(borrow_symbol) and bool(target_symbol) and bool(route_path),
         "cost_model": {
             "network": network,
@@ -251,46 +264,3 @@ def build_cow_intent_trade(
         },
     }
     return intent
-
-
-def _bind_cow_intent_context(
-    intent: dict[str, Any],
-    *,
-    requested_amount: Any,
-    input_symbol: Any,
-    final_symbol: Any,
-    owner: str | None,
-    cow_network: str,
-    cow_chain_id: int,
-) -> dict[str, Any]:
-    """Bind quote/runtime context without changing the public builder contract."""
-    bound = dict(intent)
-    requested_decimal = _decimal_value(requested_amount)
-    requested_text = _decimal_text(requested_decimal)
-    initial_symbol = str(input_symbol or bound.get("initial_symbol") or DEFAULT_INTENT_BORROW_SYMBOL).strip().upper()
-    output_symbol = str(final_symbol or input_symbol or bound.get("final_symbol") or DEFAULT_INTENT_BORROW_SYMBOL).strip().upper()
-    bound["requested_quote_amount"] = requested_text
-    if requested_text is not None:
-        bound["initial_amount"] = requested_text
-        bound["borrow_token_amount"] = requested_text
-        profit_amount = _decimal_value(bound.get("min_pure_profit_amount"))
-        if profit_amount is not None:
-            bound["min_final_amount"] = _decimal_text(requested_decimal + profit_amount)
-    bound["initial_symbol"] = initial_symbol or DEFAULT_INTENT_BORROW_SYMBOL
-    bound["final_symbol"] = output_symbol or DEFAULT_INTENT_BORROW_SYMBOL
-    bound["owner"] = owner
-    bound["cow_network"] = cow_network
-    bound["cow_chain_id"] = cow_chain_id
-    bound["token_scope"] = {
-        **(bound.get("token_scope") if isinstance(bound.get("token_scope"), dict) else {}),
-        "input_symbol": bound["initial_symbol"],
-        "output_symbol": bound["final_symbol"],
-    }
-    bound["cow_sdk_order_intent"] = {
-        "sell_amount_before_fee": bound.get("initial_amount"),
-        "sell_symbol": bound["initial_symbol"],
-        "minimum_final_buy_amount_after_all_costs": bound.get("min_final_amount"),
-        "buy_symbol": bound["final_symbol"],
-    }
-    bound["ready"] = bool(bound.get("initial_amount")) and bool(bound["initial_symbol"]) and bool(bound["final_symbol"])
-    return bound

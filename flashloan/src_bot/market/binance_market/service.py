@@ -24,7 +24,7 @@ from cow_flashloan.order_submission import (
     cow_order_submission_signer_ready,
     cow_order_submission_signer_status,
 )
-from intent_trade import _bind_cow_intent_context, build_cow_intent_trade
+from intent_trade import bind_cow_intent_context, build_triangular_onchain_intent_trade
 from cow_flashloan.routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
@@ -1564,8 +1564,12 @@ def _cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None)
         "execution_gas_used": None,
         "execution_gas_source": "available_after_onchain_receipt",
         "cow_fee_amounts": fee_amounts,
-        "profit_amount": final_delta_amount,
-        "profit_symbol": result.get("final_symbol"),
+        "profit_amount": None,
+        "profit_symbol": None,
+        "profit_prediction_disabled": True,
+        "profit_source": "sdk_settlement_receipt_only",
+        "quoted_final_amount": result.get("final_amount"),
+        "quoted_final_symbol": result.get("final_symbol"),
     }
 
 
@@ -1603,13 +1607,13 @@ def _cow_pure_profit_intent(
         str(part or "").strip().upper() for part in (path or []) if str(part or "").strip()
     )
     state = market_state if isinstance(market_state, dict) else {}
-    result = build_cow_intent_trade(
+    result = build_triangular_onchain_intent_trade(
         route_label,
         expected_profit,
         state.get("cow_top") or state.get("top") or [],
         state.get("cow_bottom") or state.get("bottom") or [],
     )
-    return _bind_cow_intent_context(
+    return bind_cow_intent_context(
         result,
         requested_amount=amount,
         input_symbol=input_symbol,
@@ -1801,63 +1805,6 @@ def _attach_cow_flashloan_sdk_plan(
     except Exception as exc:
         result["cow_flashloan_sdk_plan"] = None
         result["cow_flashloan_sdk_error"] = str(exc)
-
-
-def _cow_route_hop_constraints_from_plan(plan: dict[str, Any] | None) -> dict[str, Any]:
-    if not isinstance(plan, dict) or not plan.get("available"):
-        return {"enabled": False, "hops": []}
-    hops = []
-    for index, step in enumerate(plan.get("steps") or [], start=1):
-        if not isinstance(step, dict):
-            continue
-        sdk = step.get("cow_sdk_parameters") if isinstance(step.get("cow_sdk_parameters"), dict) else {}
-        from_symbol = str(step.get("from_symbol") or sdk.get("sell_token_symbol") or "").strip().upper()
-        to_symbol = str(step.get("to_symbol") or sdk.get("buy_token_symbol") or "").strip().upper()
-        sell_amount = (
-            sdk.get("sell_amount_before_fee")
-            or step.get("query_sell_amount_before_fee")
-            or step.get("input_amount")
-        )
-        min_buy_amount = sdk.get("min_buy_amount_after_fee") or step.get("min_output_amount")
-        target_buy_amount = sdk.get("target_buy_amount_after_fee") or step.get("target_output_amount")
-        if not from_symbol or not to_symbol or sell_amount in (None, "") or min_buy_amount in (None, ""):
-            continue
-        hops.append(
-            {
-                "hop": step.get("step") or index,
-                "from_symbol": from_symbol,
-                "to_symbol": to_symbol,
-                "sell_amount_before_fee": str(sell_amount),
-                "min_buy_amount_after_fee": str(min_buy_amount),
-                "target_buy_amount_after_fee": str(target_buy_amount) if target_buy_amount not in (None, "") else None,
-                "quote_kind": sdk.get("quote_kind") or "sell",
-                "selected_target_source": sdk.get("selected_target_source") or step.get("selected_target_source"),
-                "selected_acceptable_source": sdk.get("selected_acceptable_source") or step.get("selected_acceptable_source"),
-                "rule": step.get("selection_rule") or step.get("price_compare_rule"),
-            }
-        )
-    return {
-        "enabled": bool(hops),
-        "enforcement": "signed_intent_metadata_and_final_min_amount",
-        "route": [str(item or "").upper() for item in plan.get("route") or []],
-        "hops": hops,
-    }
-
-
-def _bind_intent_route_hop_constraints(intent: dict[str, Any], plan: dict[str, Any] | None) -> dict[str, Any]:
-    bound = dict(intent)
-    constraints = _cow_route_hop_constraints_from_plan(plan)
-    bound["route_hop_constraints"] = constraints
-    bound["route_hop_constraints_enforced_by_submission_adapter"] = False
-    bound["route_hop_reference_mode"] = "signed_intent_metadata_and_final_min_amount"
-    final_target = _decimal_value(plan.get("final_target_amount")) if isinstance(plan, dict) else None
-    current_min = _decimal_value(bound.get("min_final_amount"))
-    if final_target is not None and (current_min is None or final_target > current_min):
-        bound["min_final_amount"] = _decimal_text(final_target)
-        order_intent = dict(bound.get("cow_sdk_order_intent") or {})
-        order_intent["minimum_final_buy_amount_after_all_costs"] = bound["min_final_amount"]
-        bound["cow_sdk_order_intent"] = order_intent
-    return bound
 
 
 def _execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -2147,33 +2094,20 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         )
     route_supported = bool((result.get("cow_support") or {}).get("supported"))
     quote_available = bool(result.get("viable")) and bool(hops)
-    final_delta = _decimal_value(result.get("final_delta_amount"))
-    final_amount = _decimal_value(result.get("final_amount"))
-    input_amount = _decimal_value(result.get("input_amount"))
-    if final_amount is None and input_amount is not None and final_delta is not None:
-        final_amount = input_amount + final_delta
     min_profit_usd = _decimal_value(pure_intent.get("min_pure_profit_amount")) or _cow_min_profit_usd_for_amount(result.get("input_amount"))
     min_final_amount = _decimal_value(pure_intent.get("min_final_amount"))
     own_limit_order_intent = _cow_own_limit_order_intent(plan, min_profit_usd=min_profit_usd)
     cow_sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else None
     cow_sdk_error = result.get("cow_flashloan_sdk_error")
     route_hop_constraints_enforced = False
-    quote_delta_amount = final_delta
-    quote_delta_positive = quote_delta_amount is not None and quote_delta_amount > 0
-    quote_delta_offset_amount = -quote_delta_amount if quote_delta_amount is not None and quote_delta_amount < 0 else Decimal("0")
-    quote_delta_offset_percent = (
-        quote_delta_offset_amount / input_amount * Decimal("100")
-        if input_amount is not None and input_amount > 0
-        else None
-    )
-    quote_delta_above_diagnostic_floor = (
-        quote_delta_amount is not None
-        and quote_delta_amount >= min_profit_usd
-        and _stable_symbol(str(result.get("final_symbol") or ""))
-    )
+    quote_delta_amount = None
+    quote_delta_positive = None
+    quote_delta_offset_amount = None
+    quote_delta_offset_percent = None
+    quote_delta_above_diagnostic_floor = None
     pure_intent_ready = bool(pure_intent.get("enabled", True)) and bool(pure_intent.get("ready"))
-    route_hop_constraints_passed = bool(hop_checks) and all(item["price_guard_passed"] for item in hop_checks)
-    price_guards_passed = route_hop_constraints_passed
+    route_hop_constraints_passed = False
+    price_guards_passed = False
     blocking_cause_counts: dict[str, int] = {}
     for item in hop_checks:
         cause = item.get("failure_cause")
@@ -2182,22 +2116,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     reasons = []
     if not route_supported:
         reasons.append("CoW 不支持该路径中的一个或多个代币")
-    if quote_available and not quote_delta_positive:
-        quote_probe_notes = [
-            f"cow_quote_delta_not_positive:{result.get('final_delta_amount') or '-'} {result.get('final_symbol') or ''}".strip()
-        ]
-        if quote_delta_offset_amount > 0:
-            quote_probe_notes.append(
-                f"cow_quote_delta_offset:{_decimal_text(quote_delta_offset_amount)} "
-                f"{result.get('final_symbol') or ''} ({_decimal_text(quote_delta_offset_percent)}%)".strip()
-            )
-    elif quote_available and not quote_delta_above_diagnostic_floor:
-        quote_probe_notes = [
-            f"quote_delta_below_diagnostic_floor:{result.get('final_delta_amount') or '-'} "
-            f"{result.get('final_symbol') or ''} < {_decimal_text(min_profit_usd)}U".strip()
-        ]
-    else:
-        quote_probe_notes = []
+    quote_probe_notes = ["upper_profit_prediction_disabled_intent_only"]
     normalized_reasons = []
     if not route_supported:
         normalized_reasons.append("cow_route_has_unsupported_token")
@@ -2296,6 +2215,8 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "auto_execute_blocked": checks_passed and not order_submission_enabled,
         "route_supported": route_supported,
         "quote_available": quote_available,
+        "profit_prediction_disabled": True,
+        "profit_prediction_mode": "disabled_intent_only_sdk_settlement",
         "pure_intent_ready": pure_intent_ready,
         "intent_mode_ready": intent_mode_ready,
         "route_hop_constraints_enforced": route_hop_constraints_enforced,
@@ -2324,11 +2245,9 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "local_profit_diagnostic_reasons": quote_probe_notes,
         "drawdown_amount": _decimal_text(quote_delta_offset_amount),
         "drawdown_percent": _decimal_text(quote_delta_offset_percent),
-        "intent_final_amount_met": (
-            final_amount is not None and min_final_amount is not None and final_amount >= min_final_amount
-        ) if min_final_amount is not None else None,
-        "pure_profit_amount": result.get("final_delta_amount"),
-        "final_delta_amount": result.get("final_delta_amount"),
+        "intent_final_amount_met": None,
+        "pure_profit_amount": None,
+        "final_delta_amount": None,
         "final_symbol": result.get("final_symbol"),
         "hop_checks": hop_checks,
         "blocking_cause_counts": blocking_cause_counts,
@@ -2813,11 +2732,9 @@ def build_cow_quote_verification(
         result["cow_support"] = support
         final_amount = _decimal_or_none(result.get("final_amount"))
         input_amount = _decimal_or_none(result.get("input_amount"))
-        result["final_delta_amount"] = (
-            str(final_amount - input_amount)
-            if final_amount is not None and input_amount is not None
-            else None
-        )
+        result["final_delta_amount"] = None
+        result["profit_prediction_disabled"] = True
+        result["profit_prediction_mode"] = "disabled_intent_only_sdk_settlement"
         cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
         result["cow_flashloan_intent"] = _cow_pure_profit_intent(
             amount=result.get("input_amount") or amount,
@@ -2832,15 +2749,11 @@ def build_cow_quote_verification(
             link_name=result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
         )
         result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
-        result["cow_flashloan_intent"] = _bind_intent_route_hop_constraints(
-            result["cow_flashloan_intent"],
-            result.get("binance_execution_plan"),
-        )
         _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_registry)
         result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, {})
         result["execution_precheck"] = _cow_execution_precheck(result)
         result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, result["execution_precheck"])
-        result["costs"] = _cow_cost_summary(result, final_delta_amount=result["final_delta_amount"])
+        result["costs"] = _cow_cost_summary(result, final_delta_amount=None)
         result["quote_verified"] = True
         results.append(result)
     ranking = rank_cow_routes(results)

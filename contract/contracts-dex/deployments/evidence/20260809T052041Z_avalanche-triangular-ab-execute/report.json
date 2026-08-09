@@ -1,0 +1,124 @@
+{
+  "runId": "20260809T052041Z_avalanche-triangular-ab-execute",
+  "strategy": "triangular_ab",
+  "mode": "static-call",
+  "startedAt": "2026-08-09T05:20:41.987Z",
+  "finishedAt": "2026-08-09T05:20:41.987Z",
+  "context": {
+    "network": "avalanche",
+    "chainId": 43114,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "network": "avalanche",
+  "owner": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "matches": true
+  },
+  "controllerAddress": "0x89EDB275D2cB78C8d738AC884d9A136d53169EDF",
+  "blockNumber": 92377257,
+  "blockTimestamp": 1786252870,
+  "useBatch": false,
+  "requests": [
+    {
+      "tokenX": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "tokenY": "0x63a72806098Bd3D9520cC43356dD78afe5D386D9",
+      "router": "0x60aE616a2155Ee3d9A68541Ba4544862310933d4",
+      "amount": "1000000",
+      "premiumBps": "5",
+      "minProfitUsdc": "1",
+      "deadline": "1786252930",
+      "slippageBps": "50",
+      "allowReverse": true
+    }
+  ],
+  "request": {
+    "tokenX": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    "tokenY": "0x63a72806098Bd3D9520cC43356dD78afe5D386D9",
+    "router": "0x60aE616a2155Ee3d9A68541Ba4544862310933d4",
+    "amount": "1000000",
+    "premiumBps": "5",
+    "minProfitUsdc": "1",
+    "deadline": "1786252930",
+    "slippageBps": "50",
+    "allowReverse": true
+  },
+  "preview": {
+    "ok": false,
+    "viable": false,
+    "reverse": false,
+    "quotedFinalUsdc": "0",
+    "profitUsdc": "0",
+    "path": [],
+    "edgeBps": "0",
+    "requiredEdgeBps": "0",
+    "directComparableAmount": "0",
+    "viaComparableAmount": "0"
+  },
+  "staticCall": {
+    "ok": false,
+    "error": "execution reverted"
+  },
+  "broadcast": {
+    "requested": false,
+    "sent": false
+  },
+  "gate": {
+    "ready": false,
+    "checks": [
+      {
+        "name": "network.chainId",
+        "ok": true,
+        "level": "ok",
+        "chainId": 43114,
+        "expectedChainId": 43114
+      },
+      {
+        "name": "execution.enabled",
+        "ok": false,
+        "level": "error",
+        "env": "FUJI_EXECUTION_ENABLED"
+      },
+      {
+        "name": "execution.intent",
+        "ok": false,
+        "level": "error",
+        "env": [
+          "TRIANGULAR_AB_BROADCAST_ENABLED"
+        ]
+      },
+      {
+        "name": "execution.strategy",
+        "ok": true,
+        "level": "ok",
+        "strategy": "small-amount"
+      },
+      {
+        "name": "owner.matchesSigner",
+        "ok": true,
+        "level": "ok",
+        "ownerMatches": true
+      },
+      {
+        "name": "staticCall.ok",
+        "ok": false,
+        "level": "error",
+        "staticCallOk": false
+      },
+      {
+        "name": "payload.fresh",
+        "ok": true,
+        "level": "ok",
+        "payloadFresh": true
+      },
+      {
+        "name": "profit.checked",
+        "ok": true,
+        "level": "ok",
+        "minProfitChecked": true
+      }
+    ]
+  },
+  "receipt": null
+}

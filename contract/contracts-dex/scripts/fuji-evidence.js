@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const EXPECTED_FUJI_CHAIN_ID = 43113n;
+const EXPECTED_AVALANCHE_CHAIN_ID = 43114n;
 
 function envValue(env, name) {
   const value = env[name];
@@ -94,17 +95,26 @@ async function buildBroadcastGate({
   staticCallOk,
   payloadFresh = true,
   minProfitChecked = true,
+  expectedChainId = null,
+  executionEnvNames = null,
 }) {
   const network = await hreLike.ethers.provider.getNetwork();
-  const chainIdOk = network.chainId === EXPECTED_FUJI_CHAIN_ID;
-  const explicitExecution = boolEnv(env, "FUJI_EXECUTION_ENABLED", "LIQUIDATION_EXECUTION_ENABLED");
+  const resolvedExpectedChainId = expectedChainId
+    ? BigInt(expectedChainId)
+    : (String(hreLike.network && hreLike.network.name || "").toLowerCase() === "avalanche"
+      ? EXPECTED_AVALANCHE_CHAIN_ID
+      : EXPECTED_FUJI_CHAIN_ID);
+  const chainIdOk = network.chainId === resolvedExpectedChainId;
+  const explicitExecution = executionEnvNames && executionEnvNames.length
+    ? boolEnv(env, ...executionEnvNames)
+    : boolEnv(env, "FUJI_EXECUTION_ENABLED", "LIQUIDATION_EXECUTION_ENABLED");
   const intentNames = Array.isArray(intent) ? intent : (intent ? [intent] : []);
   const intentEnabled = intentNames.length ? boolEnv(env, ...intentNames) : true;
   const strategyAllowed = ["mock-funded", "small-amount"].includes(strategy);
   const checks = [
     gateCheck("network.chainId", chainIdOk, {
       chainId: Number(network.chainId),
-      expectedChainId: Number(EXPECTED_FUJI_CHAIN_ID),
+      expectedChainId: Number(resolvedExpectedChainId),
     }),
     gateCheck("execution.enabled", explicitExecution, {
       env: "FUJI_EXECUTION_ENABLED",
@@ -192,6 +202,7 @@ function receiptReport(receipt) {
 
 module.exports = {
   EXPECTED_FUJI_CHAIN_ID,
+  EXPECTED_AVALANCHE_CHAIN_ID,
   appendJsonl,
   boolEnv,
   buildBroadcastGate,
