@@ -18,12 +18,18 @@ ROUTE_FAILURE_NAMES = {
     6: "quoted_final_below_required",
     7: "slippage_adjusted_final_below_required",
 }
+RUNTIME_FAILURE_NAMES = {
+    0: "none",
+    101: "not_enough_valid_pools",
+    102: "no_price_spread",
+}
 EXECUTOR_FAILURE_NAMES = {
     1: "post_swap_balance_below_actual_repayment",
 }
 CONTROLLER_ERROR_SELECTOR = keccak(
     text="NoViableRoute(uint256,uint256,uint256,uint256,uint256,uint256)"
 )[:4].hex()
+RUNTIME_CONTROLLER_ERROR_SELECTOR = keccak(text="NoRuntimeOpportunity(uint256)")[:4].hex()
 EXECUTOR_ERROR_SELECTOR = keccak(
     text="ExecutionConstraintFailed(uint256,uint256,uint256,uint256,uint256,uint256)"
 )[:4].hex()
@@ -68,6 +74,13 @@ def _route_failure_name(code: Any) -> str:
         return "unknown_failure"
 
 
+def _runtime_failure_name(code: Any) -> str:
+    try:
+        return RUNTIME_FAILURE_NAMES.get(int(code), f"unknown_failure_{code}")
+    except (TypeError, ValueError):
+        return "unknown_failure"
+
+
 def _route_decision_report(decision: Any) -> dict[str, Any]:
     failure_code = int(decision[9]) if len(decision) > 9 else 0
     return {
@@ -85,6 +98,12 @@ def _route_decision_report(decision: Any) -> dict[str, Any]:
         "requiredFinalUsdc": str(decision[10]) if len(decision) > 10 else "0",
         "minAfterSlippageUsdc": str(decision[11]) if len(decision) > 11 else "0",
         "amountOutMinUsdc": str(decision[12]) if len(decision) > 12 else "0",
+        "selectedAmount": str(decision[13]) if len(decision) > 13 else "0",
+        "routeMaxBorrow": str(decision[14]) if len(decision) > 14 else "0",
+        "probeAmount": str(decision[15]) if len(decision) > 15 else "0",
+        "probeProfitUsdc": str(decision[16]) if len(decision) > 16 else "0",
+        "fundingCostUsdc": str(decision[17]) if len(decision) > 17 else "0",
+        "mBps": str(decision[18]) if len(decision) > 18 else "0",
     }
 
 
@@ -93,6 +112,13 @@ def _execution_failure_report(error: Any) -> dict[str, Any] | None:
     if not raw or len(raw) < 2 + 8:
         return None
     selector = raw[2:10].lower()
+    if selector == RUNTIME_CONTROLLER_ERROR_SELECTOR and len(raw) == 2 + 8 + 64:
+        failure_code = int(raw[10:74], 16)
+        return {
+            "source": "triangular_route_controller",
+            "failureCode": str(failure_code),
+            "failureReason": _runtime_failure_name(failure_code),
+        }
     if selector == ROUTER_SWAP_ERROR_SELECTOR and len(raw) == 2 + 8 + 64:
         return {
             "source": "aave_triangular_executor",

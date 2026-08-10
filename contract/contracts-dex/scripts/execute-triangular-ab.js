@@ -60,61 +60,150 @@ function envNumber(name, defaultValue) {
   return value && value.trim() ? Number(value.trim()) : defaultValue;
 }
 
-function parseRouteCandidates() {
-  const value = process.env.TRIANGULAR_ROUTE_CANDIDATES_JSON;
-  if (!value || !value.trim()) return [];
-  const parsed = JSON.parse(value);
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error("TRIANGULAR_ROUTE_CANDIDATES_JSON must be a non-empty JSON array");
+function envRuntimeTrades() {
+  const value = optionalEnv("TRIANGULAR_RUNTIME_TRADES_JSON");
+  if (!value) {
+    throw new Error("TRIANGULAR_RUNTIME_TRADES_JSON is required");
   }
-  return parsed.map((candidate, index) => {
-    if (!candidate || typeof candidate !== "object") {
-      throw new Error(`TRIANGULAR_ROUTE_CANDIDATES_JSON[${index}] must be an object`);
-    }
-    return {
-      tokenX: String(candidate.tokenX || "").trim(),
-      tokenY: String(candidate.tokenY || "").trim(),
-    };
-  });
+  const parsed = JSON.parse(value);
+  if (!Array.isArray(parsed)) {
+    throw new Error("TRIANGULAR_RUNTIME_TRADES_JSON must be a JSON array");
+  }
+  if (parsed.length === 0 || parsed.length > 16) {
+    throw new Error("TRIANGULAR_RUNTIME_TRADES_JSON must include 1 to 16 trades");
+  }
+  return parsed.map(normalizeRuntimeTrade);
 }
 
-function decisionReport(result) {
-  const failureCode = result[9] ? Number(result[9]) : 0;
+function normalizeRuntimeTrade(trade, tradeArrayIndex) {
+  if (!trade || typeof trade !== "object") {
+    throw new Error(`runtimeTrades[${tradeArrayIndex}] must be an object`);
+  }
+  const tokenX = normalizeAddress(trade.tokenX || trade.token_x);
+  const tokenY = normalizeAddress(trade.tokenY || trade.token_y);
+  if (!tokenX || !tokenY) {
+    throw new Error(`runtimeTrades[${tradeArrayIndex}] tokenX/tokenY must be valid addresses`);
+  }
+  const inputPools = trade.pools || trade.candidatePools || trade.candidate_pools;
+  if (!Array.isArray(inputPools) || inputPools.length === 0 || inputPools.length > 10) {
+    throw new Error(`runtimeTrades[${tradeArrayIndex}] pools must include 1 to 10 items`);
+  }
+  const pools = Array.from({ length: 10 }, () => ({ adapterKind: 0n, pool: hre.ethers.ZeroAddress }));
+  inputPools.forEach((pool, poolIndex) => {
+    if (!pool || typeof pool !== "object") {
+      throw new Error(`runtimeTrades[${tradeArrayIndex}].pools[${poolIndex}] must be an object`);
+    }
+    const poolAddress = normalizeAddress(pool.pool);
+    if (!poolAddress) {
+      throw new Error(`runtimeTrades[${tradeArrayIndex}].pools[${poolIndex}].pool must be a valid address`);
+    }
+    pools[poolIndex] = {
+      adapterKind: BigInt(pool.adapterKind ?? pool.adapter_kind ?? 1),
+      pool: poolAddress,
+    };
+  });
   return {
-    ok: Boolean(result[0]),
-    viable: Boolean(result[0]),
-    reverse: Boolean(result[1]),
-    quotedFinalUsdc: result[2].toString(),
-    profitUsdc: result[3].toString(),
-    path: result[4],
-    edgeBps: result[5].toString(),
-    requiredEdgeBps: result[6].toString(),
-    directComparableAmount: result[7].toString(),
-    viaComparableAmount: result[8].toString(),
-    failureCode: failureCode.toString(),
-    failureReason: routeFailureReason(failureCode),
-    requiredFinalUsdc: result[10] ? result[10].toString() : "0",
-    minAfterSlippageUsdc: result[11] ? result[11].toString() : "0",
-    amountOutMinUsdc: result[12] ? result[12].toString() : "0",
-    selectedAmount: result[13] ? result[13].toString() : "0",
-    routeMaxBorrow: result[14] ? result[14].toString() : "0",
-    probeAmount: result[15] ? result[15].toString() : "0",
-    probeProfitUsdc: result[16] ? result[16].toString() : "0",
-    fundingCostUsdc: result[17] ? result[17].toString() : "0",
+    tradeIndex: BigInt(trade.tradeIndex ?? trade.trade_index ?? tradeArrayIndex),
+    tokenX,
+    tokenY,
+    pools,
   };
 }
 
-function routeFailureReason(code) {
+function decisionReport(result) {
+  const failureCode = result[16] ? Number(result[16]) : 0;
+  return {
+    ok: Boolean(result[0]),
+    viable: Boolean(result[0]),
+    tradeIndex: result[1].toString(),
+    tokenX: result[2],
+    tokenY: result[3],
+    lowPool: result[4],
+    highPool: result[5],
+    adapterKind: result[6].toString(),
+    lowFee: result[7].toString(),
+    highFee: result[8].toString(),
+    lowLiquidity: result[9].toString(),
+    highLiquidity: result[10].toString(),
+    lowNormalizedTick: result[11].toString(),
+    highNormalizedTick: result[12].toString(),
+    tickDelta: result[13].toString(),
+    scannedPoolCount: result[14].toString(),
+    validPoolCount: result[15].toString(),
+    failureCode: failureCode.toString(),
+    failureReason: runtimeFailureReason(failureCode),
+  };
+}
+
+function runtimeFailureReason(code) {
   return ({
     0: "none",
-    1: "first_hop_quote_failed",
-    2: "direct_comparison_quote_failed",
-    3: "middle_hop_quote_failed",
-    4: "edge_below_required",
-    5: "full_route_quote_failed",
-    6: "quoted_final_below_required",
-    7: "slippage_adjusted_final_below_required",
+    101: "not_enough_valid_pools",
+    102: "no_price_spread",
   })[Number(code)] || `unknown_failure_${code}`;
+}
+
+async function staticCallLatest(contract, functionName, args, from) {
+  const data = contract.interface.encodeFunctionData(functionName, args);
+  const raw = await hre.ethers.provider.send("eth_call", [{
+    ...(from ? { from } : {}),
+    to: await contract.getAddress(),
+    data,
+  }, "latest"]);
+  return contract.interface.decodeFunctionResult(functionName, raw);
+}
+
+async function estimateGasLatest(contract, functionName, args, from) {
+  const data = contract.interface.encodeFunctionData(functionName, args);
+  const raw = await hre.ethers.provider.send("eth_estimateGas", [{
+    ...(from ? { from } : {}),
+    to: await contract.getAddress(),
+    data,
+  }]);
+  return BigInt(raw);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeReceipt(receipt) {
+  if (!receipt) return null;
+  return {
+    ...receipt,
+    hash: receipt.transactionHash,
+    blockNumber: receipt.blockNumber ? Number(BigInt(receipt.blockNumber)) : null,
+    status: receipt.status ? Number(BigInt(receipt.status)) : null,
+    gasUsed: receipt.gasUsed ? BigInt(receipt.gasUsed).toString() : null,
+  };
+}
+
+async function waitForReceipt(hash, timeoutMs = 180_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const receipt = await hre.ethers.provider.send("eth_getTransactionReceipt", [hash]);
+    if (receipt) return normalizeReceipt(receipt);
+    await sleep(2_000);
+  }
+  throw new Error(`timed out waiting for receipt ${hash}`);
+}
+
+async function sendRawControllerCall(contract, functionName, args, gasLimit) {
+  const privateKey = optionalEnv("DEPLOYER_PRIVATE_KEY", "LIQUIDATION_EXECUTION_PRIVATE_KEY", "COW_ORDER_SIGNER_PRIVATE_KEY");
+  if (!privateKey) throw new Error("DEPLOYER_PRIVATE_KEY or fallback signer key is required");
+  const wallet = new hre.ethers.Wallet(privateKey, hre.ethers.provider);
+  const network = await hre.ethers.provider.getNetwork();
+  const nonce = await hre.ethers.provider.getTransactionCount(wallet.address, "latest");
+  const signed = await wallet.signTransaction({
+    to: await contract.getAddress(),
+    data: contract.interface.encodeFunctionData(functionName, args),
+    nonce,
+    gasPrice: 30_000_000_000n,
+    gasLimit,
+    chainId: network.chainId,
+  });
+  const hash = await hre.ethers.provider.send("eth_sendRawTransaction", [signed]);
+  return waitForReceipt(hash);
 }
 
 async function main() {
@@ -122,26 +211,9 @@ async function main() {
 
   const controllerAddress = normalizeAddress(optionalEnv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "TRIANGULAR_CONTROLLER_ADDRESS"));
   if (!controllerAddress) throw new Error("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS is required");
-
-  const routeCandidates = parseRouteCandidates();
-  const singleTokenX = normalizeAddress(optionalEnv("TRIANGULAR_TOKEN_X"));
-  const singleTokenY = normalizeAddress(optionalEnv("TRIANGULAR_TOKEN_Y"));
-  if (routeCandidates.length === 0) {
-    if (!singleTokenX) throw new Error("TRIANGULAR_TOKEN_X is required");
-    if (!singleTokenY) throw new Error("TRIANGULAR_TOKEN_Y is required");
-  }
+  const runtimeTrades = envRuntimeTrades();
 
   const latest = await hre.ethers.provider.getBlock("latest");
-  const candidateTokens = routeCandidates.length > 0
-    ? routeCandidates.flatMap((candidate, index) => {
-      const tokenX = normalizeAddress(candidate.tokenX);
-      const tokenY = normalizeAddress(candidate.tokenY);
-      if (!tokenX) throw new Error(`tokenX is required for route candidate ${index}`);
-      if (!tokenY) throw new Error(`tokenY is required for route candidate ${index}`);
-      return [tokenX, tokenY];
-    })
-    : [singleTokenX, singleTokenY];
-  const uniqueCandidateTokens = [...new Set(candidateTokens.map((item) => hre.ethers.getAddress(item)))];
   const networkName = hre.network.name || "unknown";
 
   const controller = await hre.ethers.getContractAt("TriangularRouteController", controllerAddress);
@@ -150,16 +222,16 @@ async function main() {
 
   let preview = { ok: false };
   try {
-    const result = await controller.previewBestRoute.staticCall(uniqueCandidateTokens);
-    preview = { ...decisionReport(result[1]), bestPairIndex: result[0].toString(), candidateTokens: uniqueCandidateTokens.length };
+    const result = await staticCallLatest(controller, "previewBestRuntimeTrades", [runtimeTrades], ownerGate.signer);
+    preview = { bestTradeArrayIndex: result[0].toString(), decision: decisionReport(result[1]) };
   } catch (error) {
     preview = { ok: false, error: sanitizeError(error) };
   }
 
   let staticCall = { ok: false };
   try {
-    await controller.run.staticCall(uniqueCandidateTokens);
-    const gasEstimate = await controller.run.estimateGas(uniqueCandidateTokens);
+    await staticCallLatest(controller, "runBestRuntimeTrades", [runtimeTrades], ownerGate.signer);
+    const gasEstimate = await estimateGasLatest(controller, "runBestRuntimeTrades", [runtimeTrades], ownerGate.signer);
     staticCall = { ok: true, gasEstimate: gasEstimate.toString() };
   } catch (error) {
     staticCall = { ok: false, error: sanitizeError(error) };
@@ -180,8 +252,8 @@ async function main() {
   let receipt = null;
   let broadcast = { requested: boolEnv(process.env, "TRIANGULAR_AB_BROADCAST_ENABLED"), sent: false };
   if (gate.ready) {
-    const tx = await controller.run(uniqueCandidateTokens);
-    receipt = await tx.wait();
+    const gasLimit = staticCall.gasEstimate ? BigInt(staticCall.gasEstimate) + 50_000n : 3_000_000n;
+    receipt = await sendRawControllerCall(controller, "runBestRuntimeTrades", [runtimeTrades], gasLimit);
     broadcast = { ...broadcast, sent: true, hash: receipt.hash };
   }
 
@@ -195,9 +267,9 @@ async function main() {
     network: networkName,
     owner: ownerGate,
     controllerAddress,
+    runtimeTrades,
     blockNumber: latest.number,
     blockTimestamp: latest.timestamp,
-    candidateTokens: uniqueCandidateTokens,
     preview,
     staticCall,
     broadcast,
@@ -213,6 +285,7 @@ async function main() {
     action: receipt ? "broadcast" : "static-call",
     success: staticCall.ok,
     controllerAddress,
+    runtimeTrades,
     reportPath: paths.reportPath,
     txHash: receipt ? receipt.hash : null,
   });

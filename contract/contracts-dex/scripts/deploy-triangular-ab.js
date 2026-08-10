@@ -9,14 +9,6 @@ const {
   writeJson,
 } = require("./fuji-evidence");
 
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value || !value.trim() || value === "0x...") {
-    throw new Error(`${name} is required`);
-  }
-  return value.trim();
-}
-
 function requireAnyEnv(...names) {
   for (const name of names) {
     const value = process.env[name];
@@ -25,10 +17,6 @@ function requireAnyEnv(...names) {
     }
   }
   throw new Error(`${names.join(" or ")} is required`);
-}
-
-function requireAnyPrivateKey(...names) {
-  return requireAnyEnv(...names);
 }
 
 function optionalEnv(...names) {
@@ -43,10 +31,8 @@ function optionalEnv(...names) {
 
 function stableTokenFromEnv(...names) {
   for (const name of names) {
-    const value = process.env[name];
-    if (value && value.trim() && value !== "0x...") {
-      return value.trim();
-    }
+    const value = optionalEnv(name);
+    if (value) return value;
   }
   const stableTokens = optionalEnv("DEX_TARGET_STABLE_TOKENS");
   if (stableTokens) {
@@ -55,17 +41,13 @@ function stableTokenFromEnv(...names) {
       const entry = entries.find((item) => item.toUpperCase().startsWith(`${preferred.toUpperCase()}:`));
       if (entry) {
         const [, address] = entry.split(":", 2);
-        if (address && address.trim()) {
-          return address.trim();
-        }
+        if (address && address.trim()) return address.trim();
       }
     }
     const fallback = entries.find((item) => item.includes(":"));
     if (fallback) {
       const [, address] = fallback.split(":", 2);
-      if (address && address.trim()) {
-        return address.trim();
-      }
+      if (address && address.trim()) return address.trim();
     }
   }
   return "";
@@ -82,24 +64,33 @@ function normalizeAddress(value) {
   return "";
 }
 
+function normalizeOptionalAddress(value, label) {
+  const address = normalizeAddress(value);
+  if (!value || value === "0x...") return hre.ethers.ZeroAddress;
+  if (!address) throw new Error(`${label} must be a valid address`);
+  return address;
+}
+
+function envBigInt(name, defaultValue) {
+  const value = process.env[name];
+  return value && value.trim() ? BigInt(value.trim()) : defaultValue;
+}
+
 async function main() {
   requireAnyEnv("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL", "AVALANCHE_RPC_URL", "AVALANCHE_RPC");
-  requireAnyPrivateKey("DEPLOYER_PRIVATE_KEY", "LIQUIDATION_EXECUTION_PRIVATE_KEY", "COW_ORDER_SIGNER_PRIVATE_KEY");
+  requireAnyEnv("DEPLOYER_PRIVATE_KEY", "LIQUIDATION_EXECUTION_PRIVATE_KEY", "COW_ORDER_SIGNER_PRIVATE_KEY");
 
   const poolAddress = normalizeAddress(optionalEnv("TRIANGULAR_AAVE_POOL_ADDRESS", "AAVE_POOL_ADDRESS"));
   const usdcAddress = normalizeAddress(stableTokenFromEnv("TRIANGULAR_USDC_ADDRESS", "FUJI_USDC", "USDC_ADDRESS"));
-  const routerAddress = normalizeAddress(optionalEnv("TRIANGULAR_DEX_ROUTER", "DEX_ROUTER_ADDRESS", "FUJI_DEX_ROUTER"));
   if (!poolAddress) throw new Error("TRIANGULAR_AAVE_POOL_ADDRESS or AAVE_POOL_ADDRESS is required");
   if (!usdcAddress) throw new Error("TRIANGULAR_USDC_ADDRESS or FUJI_USDC or USDC_ADDRESS is required");
-  if (!routerAddress) throw new Error("TRIANGULAR_DEX_ROUTER or DEX_ROUTER_ADDRESS or FUJI_DEX_ROUTER is required");
-  const borrowAmount = BigInt(optionalEnv("TRIANGULAR_BORROW_AMOUNT_UNITS") || "1000000");
-  const minProfitUsdc = BigInt(optionalEnv("TRIANGULAR_MIN_PROFIT_USDC_UNITS") || "0");
-  const deadlineSeconds = BigInt(optionalEnv("TRIANGULAR_DEADLINE_SECONDS") || "60");
-  const slippageBps = BigInt(optionalEnv("TRIANGULAR_SLIPPAGE_BPS") || "50");
-  const minBorrowAmount = BigInt(optionalEnv("TRIANGULAR_MIN_BORROW_AMOUNT_UNITS") || borrowAmount.toString());
-  const maxBorrowAmount = BigInt(optionalEnv("TRIANGULAR_MAX_BORROW_AMOUNT_UNITS") || borrowAmount.toString());
-  const amountSearchSteps = BigInt(optionalEnv("TRIANGULAR_AMOUNT_SEARCH_STEPS") || "1");
-  const maxRouteSlippageBps = BigInt(optionalEnv("TRIANGULAR_MAX_ROUTE_SLIPPAGE_BPS") || slippageBps.toString());
+
+  const adapterKind = 1n;
+  const v3Factory = normalizeOptionalAddress(optionalEnv("TRIANGULAR_V3_FACTORY", "UNISWAP_V3_FACTORY"), "TRIANGULAR_V3_FACTORY");
+  const v3Router = normalizeOptionalAddress(optionalEnv("TRIANGULAR_V3_ROUTER", "UNISWAP_V3_ROUTER", "TRIANGULAR_DEX_ROUTER"), "TRIANGULAR_V3_ROUTER");
+  const v3Quoter = normalizeOptionalAddress(optionalEnv("TRIANGULAR_V3_QUOTER", "UNISWAP_V3_QUOTER"), "TRIANGULAR_V3_QUOTER");
+  const minPoolLiquidity = envBigInt("TRIANGULAR_MIN_POOL_LIQUIDITY", 1n);
+  const minTickDelta = envBigInt("TRIANGULAR_MIN_TICK_DELTA", 1n);
 
   const networkName = hre.network.name || "unknown";
   const paths = evidencePaths({ strategy: `${networkName}-triangular-ab-deploy` });
@@ -118,18 +109,13 @@ async function main() {
   const controllerAddress = await controller.getAddress();
   console.log(`TRIANGULAR_ROUTE_CONTROLLER_ADDRESS=${controllerAddress}`);
 
-  const configTx = await controller.setExecutionConfig(routerAddress, borrowAmount, minProfitUsdc, deadlineSeconds, slippageBps);
-  const configReceipt = await configTx.wait();
-  console.log(`setExecutionConfigTx=${configReceipt.hash}`);
+  const adapterTx = await controller.setAdapterConfig(adapterKind, true, v3Factory, v3Router, v3Quoter);
+  const adapterReceipt = await adapterTx.wait();
+  console.log(`setAdapterConfigTx=${adapterReceipt.hash}`);
 
-  const amountSearchTx = await controller.setAmountSearchConfig(
-    minBorrowAmount,
-    maxBorrowAmount,
-    amountSearchSteps,
-    maxRouteSlippageBps,
-  );
-  const amountSearchReceipt = await amountSearchTx.wait();
-  console.log(`setAmountSearchConfigTx=${amountSearchReceipt.hash}`);
+  const riskTx = await controller.setRuntimeRiskConfig(minPoolLiquidity, minTickDelta);
+  const riskReceipt = await riskTx.wait();
+  console.log(`setRuntimeRiskConfigTx=${riskReceipt.hash}`);
 
   const setControllerTx = await executor.setController(controllerAddress);
   const setControllerReceipt = await setControllerTx.wait();
@@ -145,19 +131,20 @@ async function main() {
     deployer: deployer.address,
     aavePoolAddress: poolAddress,
     usdcAddress,
-    routerAddress,
-    borrowAmount: borrowAmount.toString(),
-    minProfitUsdc: minProfitUsdc.toString(),
-    deadlineSeconds: deadlineSeconds.toString(),
-    slippageBps: slippageBps.toString(),
-    minBorrowAmount: minBorrowAmount.toString(),
-    maxBorrowAmount: maxBorrowAmount.toString(),
-    amountSearchSteps: amountSearchSteps.toString(),
-    maxRouteSlippageBps: maxRouteSlippageBps.toString(),
     triangularRouteControllerAddress: controllerAddress,
     aaveTriangularExecutorAddress: executorAddress,
-    setExecutionConfigTxHash: configReceipt.hash,
-    setAmountSearchConfigTxHash: amountSearchReceipt.hash,
+    runtimeRiskConfig: {
+      minPoolLiquidity: minPoolLiquidity.toString(),
+      minTickDelta: minTickDelta.toString(),
+    },
+    adapterConfig: {
+      adapterKind: adapterKind.toString(),
+      factory: v3Factory,
+      router: v3Router,
+      quoter: v3Quoter,
+      setAdapterConfigTxHash: adapterReceipt.hash,
+    },
+    setRuntimeRiskConfigTxHash: riskReceipt.hash,
     setControllerTxHash: setControllerReceipt.hash,
   };
   fs.mkdirSync(outputDir, { recursive: true });

@@ -1,0 +1,202 @@
+{
+  "runId": "20260810T093227Z_fuji-triangular-ab-execute",
+  "strategy": "triangular_ab",
+  "mode": "broadcast",
+  "startedAt": "2026-08-10T09:32:31.137Z",
+  "finishedAt": "2026-08-10T09:32:31.137Z",
+  "context": {
+    "network": "fuji",
+    "chainId": 43113,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "network": "fuji",
+  "owner": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "matches": true
+  },
+  "controllerAddress": "0x01B3f1C33225d3E5557C92AA882301050d573456",
+  "runtimeTrades": [
+    {
+      "tradeIndex": "0",
+      "tokenX": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "tokenY": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "pool": "0x998E2E466F012e039ADDC679b82ddeA3d4BF6e16"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x922f3801AF41C0aB2a22cf07c52420Ea48459c15"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0xf6Eb041A66959D2d0772773024455A70Cbc1ff84"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0xb731fB5B9C10F2a4Df24b8737e11360C8De875b8"
+        }
+      ]
+    }
+  ],
+  "blockNumber": 57679030,
+  "blockTimestamp": 1786354373,
+  "preview": {
+    "bestTradeArrayIndex": "0",
+    "decision": {
+      "ok": true,
+      "viable": true,
+      "tradeIndex": "0",
+      "tokenX": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "tokenY": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "lowPool": "0xb731fB5B9C10F2a4Df24b8737e11360C8De875b8",
+      "highPool": "0xf6Eb041A66959D2d0772773024455A70Cbc1ff84",
+      "adapterKind": "1",
+      "lowFee": "3000",
+      "highFee": "3000",
+      "lowLiquidity": "2000000",
+      "highLiquidity": "4000000",
+      "lowNormalizedTick": "-250",
+      "highNormalizedTick": "500",
+      "tickDelta": "750",
+      "scannedPoolCount": "4",
+      "validPoolCount": "3",
+      "failureCode": "0",
+      "failureReason": "none"
+    }
+  },
+  "staticCall": {
+    "ok": true,
+    "gasEstimate": "133385"
+  },
+  "broadcast": {
+    "requested": true,
+    "sent": true,
+    "hash": "0x6a5737e2ea44959a8a0ba85d04e1f222041314586d854b418d31b772e54770f2"
+  },
+  "gate": {
+    "ready": true,
+    "checks": [
+      {
+        "name": "network.chainId",
+        "ok": true,
+        "level": "ok",
+        "chainId": 43113,
+        "expectedChainId": 43113
+      },
+      {
+        "name": "execution.enabled",
+        "ok": true,
+        "level": "ok",
+        "env": "FUJI_EXECUTION_ENABLED"
+      },
+      {
+        "name": "execution.intent",
+        "ok": true,
+        "level": "ok",
+        "env": [
+          "TRIANGULAR_AB_BROADCAST_ENABLED"
+        ]
+      },
+      {
+        "name": "execution.strategy",
+        "ok": true,
+        "level": "ok",
+        "strategy": "small-amount"
+      },
+      {
+        "name": "owner.matchesSigner",
+        "ok": true,
+        "level": "ok",
+        "ownerMatches": true
+      },
+      {
+        "name": "staticCall.ok",
+        "ok": true,
+        "level": "ok",
+        "staticCallOk": true
+      },
+      {
+        "name": "payload.fresh",
+        "ok": true,
+        "level": "ok",
+        "payloadFresh": true
+      },
+      {
+        "name": "profit.checked",
+        "ok": true,
+        "level": "ok",
+        "minProfitChecked": true
+      }
+    ]
+  },
+  "receipt": {
+    "summary": {
+      "hash": "0x6a5737e2ea44959a8a0ba85d04e1f222041314586d854b418d31b772e54770f2",
+      "blockNumber": 57679032,
+      "status": 1,
+      "gasUsed": "131167"
+    },
+    "raw": {
+      "blockHash": "0x1c4675055ce346454de53903d63f31eb18d7d7ab5a7dd2adefd7faac6528ac1e",
+      "blockNumber": 57679032,
+      "contractAddress": null,
+      "cumulativeGasUsed": "0x2005f",
+      "effectiveGasPrice": "0x6fc23ac00",
+      "from": "0xf9c5525792df4d70c287b872bea21c2e44df87ac",
+      "gasUsed": "131167",
+      "logs": [
+        {
+          "address": "0x01b3f1c33225d3e5557c92aa882301050d573456",
+          "topics": [
+            "0x3df866407fc07bbb89ffd92cac545796e44fc1816149ae649d4c9fa08f958cb6",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "0x00000000000000000000000005a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+          ],
+          "data": "0x000000000000000000000000b169fe96425783d7ba7a9f905fe8de5f80e3fdc8000000000000000000000000b731fb5b9c10f2a4df24b8737e11360c8de875b8000000000000000000000000f6eb041a66959d2d0772773024455a70cbc1ff8400000000000000000000000000000000000000000000000000000000000002ee",
+          "blockNumber": "0x3701cb8",
+          "transactionHash": "0x6a5737e2ea44959a8a0ba85d04e1f222041314586d854b418d31b772e54770f2",
+          "transactionIndex": "0x0",
+          "blockHash": "0x1c4675055ce346454de53903d63f31eb18d7d7ab5a7dd2adefd7faac6528ac1e",
+          "logIndex": "0x0",
+          "removed": false
+        }
+      ],
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000008000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000400000000000020010000000000000000800000000000000000000000000000000000000140000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000004000000000000000000000000000000000000000",
+      "status": 1,
+      "to": "0x01b3f1c33225d3e5557c92aa882301050d573456",
+      "transactionHash": "0x6a5737e2ea44959a8a0ba85d04e1f222041314586d854b418d31b772e54770f2",
+      "transactionIndex": "0x0",
+      "type": "0x1",
+      "hash": "0x6a5737e2ea44959a8a0ba85d04e1f222041314586d854b418d31b772e54770f2"
+    }
+  }
+}

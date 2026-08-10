@@ -1,0 +1,116 @@
+{
+  "runId": "20260810T015139Z_fuji-triangular-ab-execute",
+  "strategy": "triangular_ab",
+  "mode": "static-call",
+  "startedAt": "2026-08-10T01:51:40.692Z",
+  "finishedAt": "2026-08-10T01:51:40.692Z",
+  "context": {
+    "network": "fuji",
+    "chainId": 43113,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "network": "fuji",
+  "owner": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "matches": true
+  },
+  "controllerAddress": "0x0566b7098e1358CEC4eb6eE65C4Caf95cd2E00FC",
+  "pairId": "0",
+  "blockNumber": 57670630,
+  "blockTimestamp": 1786326723,
+  "preview": {
+    "ok": true,
+    "viable": true,
+    "reverse": false,
+    "quotedFinalUsdc": "1875000000",
+    "profitUsdc": "624375000",
+    "path": [
+      "0xCaed3D872709C6f7A55c18cfCF9D5D0812B1eE80",
+      "0xB364DEe684fF917a772659a9056D05A0f1D7991E",
+      "0x23089F98bE3613AC5Db5000124AF05c262cf4945",
+      "0xCaed3D872709C6f7A55c18cfCF9D5D0812B1eE80"
+    ],
+    "edgeBps": "10000",
+    "requiredEdgeBps": "855",
+    "directComparableAmount": "625000000",
+    "viaComparableAmount": "1250000000",
+    "failureCode": "0",
+    "failureReason": "none",
+    "requiredFinalUsdc": "1350625000",
+    "minAfterSlippageUsdc": "1865625000",
+    "amountOutMinUsdc": "1865625000",
+    "selectedAmount": "1250000000",
+    "routeMaxBorrow": "2000000000",
+    "probeAmount": "1000000000",
+    "probeProfitUsdc": "599500000",
+    "fundingCostUsdc": "625000",
+    "pairId": "0"
+  },
+  "staticCall": {
+    "ok": false,
+    "error": "state not available for pending block"
+  },
+  "broadcast": {
+    "requested": false,
+    "sent": false
+  },
+  "gate": {
+    "ready": false,
+    "checks": [
+      {
+        "name": "network.chainId",
+        "ok": true,
+        "level": "ok",
+        "chainId": 43113,
+        "expectedChainId": 43113
+      },
+      {
+        "name": "execution.enabled",
+        "ok": false,
+        "level": "error",
+        "env": "FUJI_EXECUTION_ENABLED"
+      },
+      {
+        "name": "execution.intent",
+        "ok": false,
+        "level": "error",
+        "env": [
+          "TRIANGULAR_AB_BROADCAST_ENABLED"
+        ]
+      },
+      {
+        "name": "execution.strategy",
+        "ok": true,
+        "level": "ok",
+        "strategy": "small-amount"
+      },
+      {
+        "name": "owner.matchesSigner",
+        "ok": true,
+        "level": "ok",
+        "ownerMatches": true
+      },
+      {
+        "name": "staticCall.ok",
+        "ok": false,
+        "level": "error",
+        "staticCallOk": false
+      },
+      {
+        "name": "payload.fresh",
+        "ok": true,
+        "level": "ok",
+        "payloadFresh": true
+      },
+      {
+        "name": "profit.checked",
+        "ok": true,
+        "level": "ok",
+        "minProfitChecked": true
+      }
+    ]
+  },
+  "receipt": null
+}

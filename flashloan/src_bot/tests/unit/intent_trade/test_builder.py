@@ -1,13 +1,52 @@
 import inspect
+import json
 from types import SimpleNamespace
 
 from intent_trade import (
     bind_cow_intent_context,
     build_cow_intent_trade,
     build_triangular_onchain_intent_trade,
+    pair_index_from_tokenx_tokeny,
+    set_usdc_pair_memory_table,
     submit_cow_intent_trade,
 )
+from intent_trade import direct
 from intent_trade import direct_utils
+
+
+def _addr(n: int) -> str:
+    return "0x" + f"{n:040x}"
+
+
+def _clear_direct_pair_env(monkeypatch):
+    for name in (
+        "TRIANGULAR_USDC_PAIR_ID",
+        "TRIANGULAR_PAIR_ID",
+        "TRIANGULAR_USDC_PAIRS_JSON",
+        "TRIANGULAR_TOKEN_X",
+        "TRIANGULAR_TOKEN_Y",
+        "TRIANGULAR_DEX_ROUTER",
+        "DEX_ROUTER_ADDRESS",
+        "FUJI_DEX_ROUTER",
+        "TRIANGULAR_RUNTIME_TRADES_JSON",
+        "TRIANGULAR_DIRECT_USE_DYNAMIC_CANDIDATES",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
+
+
+def _runtime_trades_json(token_x: str | None = None, token_y: str | None = None, pool: str | None = None) -> str:
+    return json.dumps([
+        {
+            "tradeIndex": 0,
+            "tokenX": token_x or _addr(101),
+            "tokenY": token_y or _addr(102),
+            "pools": [
+                {"adapterKind": 1, "pool": pool or _addr(103)},
+                {"adapterKind": 1, "pool": _addr(104)},
+            ],
+        }
+    ])
 
 
 def test_build_cow_intent_trade_exposes_a_small_public_surface():
@@ -131,18 +170,214 @@ def test_bind_cow_intent_context_recomputes_cost_inclusive_final_target(monkeypa
 def test_build_triangular_onchain_intent_trade_exposes_direct_protocol(monkeypatch):
     monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "0x" + "1" * 40)
     monkeypatch.setenv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "0x" + "2" * 40)
-    monkeypatch.setenv("TRIANGULAR_DEX_ROUTER", "0x" + "4" * 40)
     monkeypatch.setenv("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "0x" + "5" * 40)
+    monkeypatch.setenv("TRIANGULAR_RUNTIME_TRADES_JSON", _runtime_trades_json())
 
     intent = build_triangular_onchain_intent_trade("USDC->BBB->AAA->USDC", "6.18", ["AAA"], ["BBB"])
 
     protocol = intent["direct_onchain_protocol"]
-    assert protocol["kind"] == "triangular_route_controller_v1"
+    assert protocol["kind"] == "triangular_route_controller_runtime_v1"
     assert protocol["controller_address"] == "0x" + "1" * 40
     assert protocol["executor_address"] == "0x" + "2" * 40
-    assert protocol["candidate_symbols"] == ["BBB", "AAA"]
+    assert protocol["runtime_trades"][0]["tradeIndex"] == 0
+    assert protocol["runtime_trades"][0]["pools"][0]["adapterKind"] == 1
+    assert intent["direct_onchain_ready"] is True
     assert intent["intent_protocol"] == "direct_onchain"
     assert intent["submission_protocol"] == "direct_onchain"
+
+
+def test_build_triangular_onchain_intent_trade_requires_runtime_trades(monkeypatch):
+    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "0x" + "1" * 40)
+    monkeypatch.setenv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "0x" + "2" * 40)
+
+    intent = build_triangular_onchain_intent_trade("USDC", "6.18", [], [])
+
+    protocol = intent["direct_onchain_protocol"]
+    assert "pair_id" not in protocol
+    assert protocol["runtime_trades"] == []
+    assert intent["direct_onchain_ready"] is False
+
+
+def test_pair_index_from_tokenx_tokeny_scans_env_pair_table(monkeypatch):
+    x0 = _addr(1)
+    y0 = _addr(2)
+    x1 = _addr(3)
+    y1 = _addr(4)
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv(
+        "TRIANGULAR_USDC_PAIRS_JSON",
+        json.dumps([
+            {"tokenX": x0, "tokenY": y0, "router": _addr(5)},
+            {"tokenX": x1, "tokenY": y1, "router": _addr(6)},
+        ]),
+    )
+
+    assert pair_index_from_tokenx_tokeny(x1.upper().replace("0X", "0x"), y1) == 1
+    assert pair_index_from_tokenx_tokeny(y1, x1) == 1
+
+
+def test_pair_index_from_tokenx_tokeny_scans_memory_table_before_env(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    env_x = _addr(1)
+    env_y = _addr(2)
+    memory_x = _addr(7)
+    memory_y = _addr(8)
+    monkeypatch.setenv("TRIANGULAR_USDC_PAIRS_JSON", json.dumps([{"tokenX": env_x, "tokenY": env_y}]))
+    set_usdc_pair_memory_table([
+        {"tokenX": _addr(3), "tokenY": _addr(4)},
+        {"tokenX": memory_x, "tokenY": memory_y},
+    ])
+
+    assert pair_index_from_tokenx_tokeny(memory_x, memory_y) == 1
+    assert pair_index_from_tokenx_tokeny(env_x, env_y) is None
+    monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
+
+
+def test_pair_index_from_tokenx_tokeny_uses_router_to_disambiguate_duplicate_pairs(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    token_x = _addr(10)
+    token_y = _addr(11)
+    router_a = _addr(12)
+    router_b = _addr(13)
+    set_usdc_pair_memory_table([
+        {"tokenX": token_x, "tokenY": token_y, "router": router_a},
+        {"tokenX": token_x, "tokenY": token_y, "router": router_b},
+    ])
+
+    assert pair_index_from_tokenx_tokeny(token_x, token_y) == 0
+    assert pair_index_from_tokenx_tokeny(token_x, token_y, router=router_b) == 1
+    assert pair_index_from_tokenx_tokeny(token_x, token_y, router=_addr(14)) is None
+    monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
+
+
+def test_pair_index_from_tokenx_tokeny_tracks_swap_and_pop_memory_refresh(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    removed_x = _addr(21)
+    removed_y = _addr(22)
+    moved_x = _addr(23)
+    moved_y = _addr(24)
+    set_usdc_pair_memory_table([
+        {"tokenX": _addr(19), "tokenY": _addr(20)},
+        {"tokenX": removed_x, "tokenY": removed_y},
+        {"tokenX": moved_x, "tokenY": moved_y},
+    ])
+    assert pair_index_from_tokenx_tokeny(moved_x, moved_y) == 2
+
+    set_usdc_pair_memory_table([
+        {"tokenX": _addr(19), "tokenY": _addr(20)},
+        {"tokenX": moved_x, "tokenY": moved_y},
+    ])
+
+    assert pair_index_from_tokenx_tokeny(moved_x, moved_y) == 1
+    assert pair_index_from_tokenx_tokeny(removed_x, removed_y) is None
+    monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
+
+
+def test_build_triangular_onchain_intent_trade_uses_runtime_env_not_pair_table(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    x0 = _addr(1)
+    y0 = _addr(2)
+    x1 = _addr(3)
+    y1 = _addr(4)
+    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", _addr(9))
+    monkeypatch.setenv("TRIANGULAR_RUNTIME_TRADES_JSON", _runtime_trades_json(x1, y1))
+    monkeypatch.setenv(
+        "TRIANGULAR_USDC_PAIRS_JSON",
+        json.dumps([
+            {"tokenX": x0, "tokenY": y0},
+            {"tokenX": x1, "tokenY": y1},
+        ]),
+    )
+
+    intent = build_triangular_onchain_intent_trade(f"USDC->{x1}->{y1}->USDC", "6.18", [], [])
+
+    protocol = intent["direct_onchain_protocol"]
+    assert "pair_id" not in protocol
+    assert protocol["runtime_trades"][0]["tokenX"] == x1
+    assert protocol["runtime_trades"][0]["tokenY"] == y1
+    assert intent["direct_onchain_ready"] is True
+
+
+def test_submit_direct_onchain_trade_accepts_runtime_trades_before_network_setup(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
+        monkeypatch.delenv(name, raising=False)
+    token_x = _addr(31)
+    token_y = _addr(32)
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "avalanche",
+                    "controller_address": _addr(33),
+                    "runtime_trades": json.loads(_runtime_trades_json(token_x, token_y)),
+                }
+            }
+        },
+        opportunity={"tokenX": token_x, "tokenY": token_y},
+    )
+
+    assert result["status"] == "network_config_missing"
+    assert result["blocked_reason"] == "network_config_missing"
+
+
+def test_runtime_candidate_pairs_use_default_router(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    router = _addr(55)
+    pairs = direct._runtime_candidate_pairs(
+        {"router": router},
+        {"candidate_pairs": [{"tokenX": _addr(51), "tokenY": _addr(52)}]},
+    )
+
+    assert pairs == [{"tokenX": _addr(51), "tokenY": _addr(52), "router": router}]
+
+
+def test_submit_direct_onchain_trade_accepts_opportunity_runtime_trades_before_network_setup(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
+        monkeypatch.delenv(name, raising=False)
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "avalanche",
+                    "controller_address": _addr(61),
+                }
+            }
+        },
+        opportunity={"runtime_trades": json.loads(_runtime_trades_json(_addr(62), _addr(63), _addr(64)))},
+    )
+
+    assert result["status"] == "network_config_missing"
+    assert result["blocked_reason"] == "network_config_missing"
+
+
+def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_in_memory_table(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
+        monkeypatch.delenv(name, raising=False)
+    set_usdc_pair_memory_table([{"tokenX": _addr(41), "tokenY": _addr(42)}])
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "avalanche",
+                    "controller_address": _addr(43),
+                }
+            }
+        },
+        opportunity={"tokenX": _addr(44), "tokenY": _addr(45)},
+    )
+
+    assert result["status"] == "direct_protocol_incomplete"
+    assert result["error"] == "runtime_trades is required"
+    monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
 
 
 def test_direct_bool_value_parses_string_false():
@@ -195,6 +430,12 @@ def test_direct_route_decision_report_names_precise_failure():
             1000500001,
             0,
             0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            -70000,
         ]
     )
 
@@ -202,6 +443,7 @@ def test_direct_route_decision_report_names_precise_failure():
     assert report["failureReason"] == "middle_hop_quote_failed"
     assert report["path"] == ["USDC", "JOE", "AI", "USDC"]
     assert report["requiredFinalUsdc"] == "1000500001"
+    assert report["mBps"] == "-70000"
 
 
 def test_direct_execution_failure_report_decodes_executor_revert_data():

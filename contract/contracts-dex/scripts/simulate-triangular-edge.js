@@ -1,11 +1,5 @@
 const hre = require("hardhat");
-
-const ROUTER_ABI = [
-  "function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts)",
-];
-const EXECUTOR_ABI = [
-  "function flashLoanPremiumBps() external view returns (uint256)",
-];
+const { sanitizeError, toJsonValue } = require("./fuji-evidence");
 
 function optionalEnv(...names) {
   for (const name of names) {
@@ -17,164 +11,115 @@ function optionalEnv(...names) {
   return "";
 }
 
-function requireAnyEnv(...names) {
-  const value = optionalEnv(...names);
-  if (!value) throw new Error(`${names.join(" or ")} is required`);
-  return value;
+function normalizeAddress(value) {
+  const text = String(value || "").trim();
+  if (hre.ethers.isAddress(text)) {
+    return hre.ethers.getAddress(text);
+  }
+  if (/^0x[a-fA-F0-9]{40}$/.test(text)) {
+    return hre.ethers.getAddress(text.toLowerCase());
+  }
+  return "";
 }
 
-function envBigInt(name, defaultValue) {
-  const value = process.env[name];
-  return value && value.trim() ? BigInt(value.trim()) : defaultValue;
-}
-
-function parseRouteCandidates(defaultRouter) {
-  const value = process.env.TRIANGULAR_ROUTE_CANDIDATES_JSON;
-  if (!value || !value.trim()) {
-    return [{
-      router: defaultRouter,
-      tokenX: requireAnyEnv("TRIANGULAR_TOKEN_X"),
-      tokenY: requireAnyEnv("TRIANGULAR_TOKEN_Y"),
-    }];
+function normalizeRuntimeTrade(trade, tradeArrayIndex) {
+  if (!trade || typeof trade !== "object") {
+    throw new Error(`runtimeTrades[${tradeArrayIndex}] must be an object`);
   }
-
-  const parsed = JSON.parse(value);
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error("TRIANGULAR_ROUTE_CANDIDATES_JSON must be a non-empty JSON array");
+  const tokenX = normalizeAddress(trade.tokenX || trade.token_x);
+  const tokenY = normalizeAddress(trade.tokenY || trade.token_y);
+  if (!tokenX || !tokenY) {
+    throw new Error(`runtimeTrades[${tradeArrayIndex}] tokenX/tokenY must be valid addresses`);
   }
-  return parsed.map((candidate, index) => {
-    const router = String(candidate.router || defaultRouter || "").trim();
-    const tokenX = String(candidate.tokenX || "").trim();
-    const tokenY = String(candidate.tokenY || "").trim();
-    if (!router) throw new Error(`router is required for route candidate ${index}`);
-    if (!tokenX) throw new Error(`tokenX is required for route candidate ${index}`);
-    if (!tokenY) throw new Error(`tokenY is required for route candidate ${index}`);
-    return { router, tokenX, tokenY };
+  const inputPools = trade.pools || trade.candidatePools || trade.candidate_pools;
+  if (!Array.isArray(inputPools) || inputPools.length === 0 || inputPools.length > 10) {
+    throw new Error(`runtimeTrades[${tradeArrayIndex}] pools must include 1 to 10 items`);
+  }
+  const pools = Array.from({ length: 10 }, () => ({ adapterKind: 0n, pool: hre.ethers.ZeroAddress }));
+  inputPools.forEach((pool, poolIndex) => {
+    const poolAddress = normalizeAddress(pool && pool.pool);
+    if (!poolAddress) {
+      throw new Error(`runtimeTrades[${tradeArrayIndex}].pools[${poolIndex}].pool must be a valid address`);
+    }
+    pools[poolIndex] = {
+      adapterKind: BigInt(pool.adapterKind ?? pool.adapter_kind ?? 1),
+      pool: poolAddress,
+    };
   });
+  return {
+    tradeIndex: BigInt(trade.tradeIndex ?? trade.trade_index ?? tradeArrayIndex),
+    tokenX,
+    tokenY,
+    pools,
+  };
 }
 
-function ceilDiv(value, divisor) {
-  return value === 0n ? 0n : ((value - 1n) / divisor) + 1n;
-}
-
-function edgeBps(viaAmount, directAmount) {
-  if (directAmount === 0n || viaAmount <= directAmount) return 0n;
-  return ((viaAmount - directAmount) * 10000n) / directAmount;
-}
-
-function requiredProfitUsdc(minProfitUsdc) {
-  return minProfitUsdc === 0n ? 1n : minProfitUsdc;
-}
-
-async function quote(router, amount, path) {
-  try {
-    const amounts = await router.getAmountsOut(amount, path);
-    return {
-      ok: true,
-      amountOut: amounts[amounts.length - 1],
-      amounts: amounts.map((item) => item.toString()),
-    };
-  } catch (error) {
-    return { ok: false, error: error.shortMessage || error.message };
+function runtimeTradesFromEnv() {
+  const value = optionalEnv("TRIANGULAR_RUNTIME_TRADES_JSON");
+  if (!value) throw new Error("TRIANGULAR_RUNTIME_TRADES_JSON is required");
+  const parsed = JSON.parse(value);
+  if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 16) {
+    throw new Error("TRIANGULAR_RUNTIME_TRADES_JSON must include 1 to 16 trades");
   }
+  return parsed.map(normalizeRuntimeTrade);
 }
 
-async function evaluateCandidate({ router: routerAddress, tokenX, tokenY }, params) {
-  const router = await hre.ethers.getContractAt(ROUTER_ABI, routerAddress);
-  const usdc = params.usdc;
-  const amount = params.amount;
-  const requiredFinal = amount + ((amount * params.premiumBps) / 10000n) + params.requiredProfitUsdc;
-
-  const usdcToX = await quote(router, amount, [usdc, tokenX]);
-  const usdcToY = await quote(router, amount, [usdc, tokenY]);
-
-  let forward = { ok: false };
-  if (usdcToX.ok && usdcToY.ok) {
-    const xToY = await quote(router, usdcToX.amountOut, [tokenX, tokenY]);
-    const full = await quote(router, amount, [usdc, tokenX, tokenY, usdc]);
-    const edge = xToY.ok ? edgeBps(xToY.amountOut, usdcToY.amountOut) : 0n;
-    const minAfterSlippage = full.ok ? (full.amountOut * (10000n - params.slippageBps)) / 10000n : 0n;
-    forward = {
-      ok: xToY.ok && full.ok,
-      path: [usdc, tokenX, tokenY, usdc],
-      directComparableAmount: usdcToY.amountOut,
-      viaComparableAmount: xToY.amountOut || 0n,
-      edgeBps: edge,
-      requiredEdgeBps: params.requiredEdgeBps,
-      quotedFinalUsdc: full.amountOut || 0n,
-      minAfterSlippage,
-      viable: xToY.ok && full.ok && edge >= params.requiredEdgeBps && minAfterSlippage >= requiredFinal,
-    };
-  }
-
-  let reverse = { ok: false };
-  if (usdcToX.ok && usdcToY.ok) {
-    const yToX = await quote(router, usdcToY.amountOut, [tokenY, tokenX]);
-    const full = await quote(router, amount, [usdc, tokenY, tokenX, usdc]);
-    const edge = yToX.ok ? edgeBps(yToX.amountOut, usdcToX.amountOut) : 0n;
-    const minAfterSlippage = full.ok ? (full.amountOut * (10000n - params.slippageBps)) / 10000n : 0n;
-    reverse = {
-      ok: yToX.ok && full.ok,
-      path: [usdc, tokenY, tokenX, usdc],
-      directComparableAmount: usdcToX.amountOut,
-      viaComparableAmount: yToX.amountOut || 0n,
-      edgeBps: edge,
-      requiredEdgeBps: params.requiredEdgeBps,
-      quotedFinalUsdc: full.amountOut || 0n,
-      minAfterSlippage,
-      viable: yToX.ok && full.ok && edge >= params.requiredEdgeBps && minAfterSlippage >= requiredFinal,
-    };
-  }
-
-  return { router: routerAddress, tokenX, tokenY, forward, reverse };
+function runtimeFailureReason(code) {
+  return ({
+    0: "none",
+    101: "not_enough_valid_pools",
+    102: "no_price_spread",
+  })[Number(code)] || `unknown_failure_${code}`;
 }
 
-function bigintReplacer(_key, value) {
-  return typeof value === "bigint" ? value.toString() : value;
+function decisionReport(result) {
+  const failureCode = result[16] ? Number(result[16]) : 0;
+  return {
+    ok: Boolean(result[0]),
+    viable: Boolean(result[0]),
+    tradeIndex: result[1].toString(),
+    tokenX: result[2],
+    tokenY: result[3],
+    lowPool: result[4],
+    highPool: result[5],
+    adapterKind: result[6].toString(),
+    lowFee: result[7].toString(),
+    highFee: result[8].toString(),
+    lowLiquidity: result[9].toString(),
+    highLiquidity: result[10].toString(),
+    lowNormalizedTick: result[11].toString(),
+    highNormalizedTick: result[12].toString(),
+    tickDelta: result[13].toString(),
+    scannedPoolCount: result[14].toString(),
+    validPoolCount: result[15].toString(),
+    failureCode: failureCode.toString(),
+    failureReason: runtimeFailureReason(failureCode),
+  };
 }
 
 async function main() {
-  requireAnyEnv("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL");
+  const controllerAddress = normalizeAddress(optionalEnv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "TRIANGULAR_CONTROLLER_ADDRESS"));
+  if (!controllerAddress) throw new Error("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS is required");
+  const runtimeTrades = runtimeTradesFromEnv();
+  const controller = await hre.ethers.getContractAt("TriangularRouteController", controllerAddress);
+  const result = await controller.previewBestRuntimeTrades.staticCall(runtimeTrades);
 
-  const usdc = requireAnyEnv("TRIANGULAR_USDC_ADDRESS", "FUJI_USDC", "USDC_ADDRESS");
-  const executorAddress = requireAnyEnv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "TRIANGULAR_EXECUTOR_ADDRESS");
-  const defaultRouter = optionalEnv("TRIANGULAR_DEX_ROUTER", "FUJI_DEX_ROUTER");
-  const amount = envBigInt("TRIANGULAR_BORROW_AMOUNT_UNITS", 1_000_000n);
-  const minProfitUsdc = envBigInt("TRIANGULAR_MIN_PROFIT_USDC_UNITS", 0n);
-  if (minProfitUsdc < 0n) throw new Error("TRIANGULAR_MIN_PROFIT_USDC_UNITS must be non-negative");
-  const requiredProfit = requiredProfitUsdc(minProfitUsdc);
-  const slippageBps = envBigInt("TRIANGULAR_SLIPPAGE_BPS", 50n);
-  const executor = await hre.ethers.getContractAt(EXECUTOR_ABI, executorAddress);
-  const premiumBps = await executor.flashLoanPremiumBps();
-  const requiredEdgeBps = premiumBps + slippageBps + ceilDiv(requiredProfit * 10000n, amount);
-  const candidates = parseRouteCandidates(defaultRouter);
-
-  const params = { usdc, amount, premiumBps, minProfitUsdc, requiredProfitUsdc: requiredProfit, slippageBps, requiredEdgeBps };
-  const evaluations = [];
-  for (const candidate of candidates) {
-    evaluations.push(await evaluateCandidate(candidate, params));
-  }
-
-  const directions = evaluations.flatMap((item, index) => [
-    { index, reverse: false, ...item.forward },
-    { index, reverse: true, ...item.reverse },
-  ]).filter((item) => item.ok);
-  const viable = directions.filter((item) => item.viable);
-  viable.sort((a, b) => (a.quotedFinalUsdc === b.quotedFinalUsdc ? 0 : a.quotedFinalUsdc > b.quotedFinalUsdc ? -1 : 1));
-
-  console.log(JSON.stringify({
+  console.log(JSON.stringify(toJsonValue({
     ok: true,
     network: hre.network.name,
     chainId: Number((await hre.ethers.provider.getNetwork()).chainId),
-    params,
-    candidates: evaluations,
-    best: viable[0] || null,
-  }, bigintReplacer, 2));
+    controllerAddress,
+    runtimeTrades,
+    preview: {
+      bestTradeArrayIndex: result[0].toString(),
+      decision: decisionReport(result[1]),
+    },
+  }), null, 2));
 }
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error(JSON.stringify({ ok: false, error: error.shortMessage || error.message }, null, 2));
+    console.error(JSON.stringify({ ok: false, error: sanitizeError(error) }, null, 2));
     process.exitCode = 1;
   });
 }
