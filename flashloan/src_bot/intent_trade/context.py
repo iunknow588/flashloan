@@ -69,8 +69,6 @@ def bind_cow_intent_context(
         bound["target_token_amount"] = _decimal_text(min_final)
         direct_protocol = dict(bound.get("direct_onchain_protocol") if isinstance(bound.get("direct_onchain_protocol"), dict) else {})
         if direct_protocol:
-            direct_protocol["amount"] = requested_text
-            direct_protocol["min_profit_usdc"] = _decimal_text(profit_amount)
             direct_protocol["borrow_symbol"] = initial_symbol or DEFAULT_INTENT_BORROW_SYMBOL
             direct_protocol["route_path"] = bound.get("route_path") if isinstance(bound.get("route_path"), list) else direct_protocol.get("route_path")
             bound["direct_onchain_protocol"] = direct_protocol

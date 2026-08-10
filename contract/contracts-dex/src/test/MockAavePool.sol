@@ -42,6 +42,10 @@ contract MockAavePool {
         premiumBps = value;
     }
 
+    function FLASHLOAN_PREMIUM_TOTAL() external view returns (uint128) {
+        return uint128(premiumBps);
+    }
+
     function flashLoanSimple(
         address receiverAddress,
         address asset,

@@ -1,4 +1,5 @@
 import inspect
+from types import SimpleNamespace
 
 from intent_trade import (
     bind_cow_intent_context,
@@ -6,6 +7,7 @@ from intent_trade import (
     build_triangular_onchain_intent_trade,
     submit_cow_intent_trade,
 )
+from intent_trade import direct_utils
 
 
 def test_build_cow_intent_trade_exposes_a_small_public_surface():
@@ -129,7 +131,6 @@ def test_bind_cow_intent_context_recomputes_cost_inclusive_final_target(monkeypa
 def test_build_triangular_onchain_intent_trade_exposes_direct_protocol(monkeypatch):
     monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "0x" + "1" * 40)
     monkeypatch.setenv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "0x" + "2" * 40)
-    monkeypatch.setenv("TRIANGULAR_AAVE_POOL_ADDRESS", "0x" + "3" * 40)
     monkeypatch.setenv("TRIANGULAR_DEX_ROUTER", "0x" + "4" * 40)
     monkeypatch.setenv("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "0x" + "5" * 40)
 
@@ -139,10 +140,98 @@ def test_build_triangular_onchain_intent_trade_exposes_direct_protocol(monkeypat
     assert protocol["kind"] == "triangular_route_controller_v1"
     assert protocol["controller_address"] == "0x" + "1" * 40
     assert protocol["executor_address"] == "0x" + "2" * 40
-    assert protocol["pool_address"] == "0x" + "3" * 40
-    assert protocol["router_address"] == "0x" + "4" * 40
-    assert protocol["token_x_symbol"] == "BBB"
-    assert protocol["token_y_symbol"] == "AAA"
-    assert protocol["allow_reverse"] is True
+    assert protocol["candidate_symbols"] == ["BBB", "AAA"]
     assert intent["intent_protocol"] == "direct_onchain"
     assert intent["submission_protocol"] == "direct_onchain"
+
+
+def test_direct_bool_value_parses_string_false():
+    assert direct_utils._bool_value("false", True) is False
+    assert direct_utils._bool_value("0", True) is False
+    assert direct_utils._bool_value("true", False) is True
+    assert direct_utils._bool_value(None, True) is True
+
+
+def test_direct_raw_signed_transaction_supports_web3_v6_field():
+    assert direct_utils._raw_signed_transaction(SimpleNamespace(rawTransaction=b"raw")) == b"raw"
+
+
+def test_direct_token_registry_falls_back_to_local_aave_cache(monkeypatch, tmp_path):
+    cache_path = tmp_path / "aave_reserve_assets.json"
+    cache_path.write_text(
+        '{"assets":[{"symbol":"USDC","address":"0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E","decimals":6}]}',
+        encoding="utf-8",
+    )
+
+    calls = []
+
+    def fake_build_token_registry(**kwargs):
+        calls.append(kwargs)
+        if kwargs.get("include_cow_token_list", True):
+            raise OSError("remote token list unavailable")
+        return {"USDC": "local-usdc"}
+
+    monkeypatch.setattr(direct_utils, "build_token_registry", fake_build_token_registry)
+
+    registry = direct_utils._build_direct_token_registry(aave_cache_path=cache_path, network="avalanche")
+
+    assert registry == {"USDC": "local-usdc"}
+    assert calls[-1]["include_cow_token_list"] is False
+
+
+def test_direct_route_decision_report_names_precise_failure():
+    report = direct_utils._route_decision_report(
+        [
+            False,
+            False,
+            0,
+            0,
+            ["USDC", "JOE", "AI", "USDC"],
+            0,
+            1055,
+            1000,
+            0,
+            3,
+            1000500001,
+            0,
+            0,
+        ]
+    )
+
+    assert report["failureCode"] == "3"
+    assert report["failureReason"] == "middle_hop_quote_failed"
+    assert report["path"] == ["USDC", "JOE", "AI", "USDC"]
+    assert report["requiredFinalUsdc"] == "1000500001"
+
+
+def test_direct_execution_failure_report_decodes_executor_revert_data():
+    values = [1, 1_000_500_000, 1_000_500_000, 0, 0, 0]
+    raw = "0x" + direct_utils.EXECUTOR_ERROR_SELECTOR + "".join(f"{value:064x}" for value in values)
+
+    report = direct_utils._execution_failure_report(Exception({"data": raw}))
+
+    assert report["source"] == "aave_triangular_executor"
+    assert report["failureCode"] == "1"
+    assert report["failureReason"] == "post_swap_balance_below_actual_repayment"
+    assert report["amountOutMinUsdc"] == "1000500000"
+
+
+def test_direct_execution_failure_report_decodes_router_selector():
+    raw = "0x" + direct_utils.ROUTER_SWAP_ERROR_SELECTOR + "deadbeef" + ("0" * 56)
+
+    report = direct_utils._execution_failure_report(Exception({"data": raw}))
+
+    assert report["source"] == "aave_triangular_executor"
+    assert report["failureCode"] == "router_swap_failed"
+    assert report["failureReason"] == "router_swap_reverted_selector_0xdeadbeef"
+
+
+def test_direct_execution_failure_report_decodes_invalid_router_result():
+    raw = "0x" + direct_utils.ROUTER_SWAP_RESULT_INVALID_SELECTOR + f"{3:064x}"
+
+    report = direct_utils._execution_failure_report(Exception({"data": raw}))
+
+    assert report["source"] == "aave_triangular_executor"
+    assert report["failureCode"] == "router_swap_result_invalid"
+    assert report["failureReason"] == "router_swap_result_length_invalid"
+    assert report["resultLength"] == "3"

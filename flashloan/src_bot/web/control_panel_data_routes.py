@@ -264,6 +264,8 @@ def submit_ready_cow_quote_orders(payload: dict, *, market_state: dict) -> dict:
                 "submission_tx_hash": submission.get("tx_hash"),
                 "submission_error": submission.get("error"),
                 "submission_blocked_reason": submission.get("blocked_reason"),
+                "submission_preflight": submission.get("preflight"),
+                "execution_error": submission.get("execution_error"),
                 "submitted": bool(submission.get("submitted")),
             }
         )

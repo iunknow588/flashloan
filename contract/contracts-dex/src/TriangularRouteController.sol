@@ -16,34 +16,54 @@ interface IAaveTriangularExecutorLike {
         address tokenY;
         address router;
         uint256 amount;
-        uint256 minProfitUsdc;
         uint256 deadline;
-        uint256 slippageBps;
+        uint256 amountOutMinUsdc;
     }
 
-    function execute(ExecutionRequest calldata request) external returns (uint256 profitReturned);
+    function execute(ExecutionRequest calldata request) external returns (uint256 profitSwept);
+    function flashLoanPremiumBps() external view returns (uint256);
 }
 
 contract TriangularRouteController {
     error NotOwner();
     error Paused();
     error InvalidRequest();
-    error NoViableRoute();
+    error NoViableRoute(
+        uint256 failureCode,
+        uint256 edgeBps,
+        uint256 requiredEdgeBps,
+        uint256 quotedFinalUsdc,
+        uint256 requiredFinalUsdc,
+        uint256 minAfterSlippageUsdc
+    );
     error TransferFailed();
     error Reentrancy();
 
-    uint256 public constant MAX_ROUTE_REQUESTS = 32;
+    uint256 public constant MAX_CANDIDATE_TOKENS = 8;
+    uint256 public constant FAIL_NONE = 0;
+    uint256 public constant FAIL_FIRST_HOP_QUOTE = 1;
+    uint256 public constant FAIL_DIRECT_COMPARISON_QUOTE = 2;
+    uint256 public constant FAIL_MIDDLE_HOP_QUOTE = 3;
+    uint256 public constant FAIL_EDGE_BELOW_REQUIRED = 4;
+    uint256 public constant FAIL_ROUTE_QUOTE = 5;
+    uint256 public constant FAIL_FINAL_BELOW_REQUIRED = 6;
+    uint256 public constant FAIL_SLIPPAGE_BELOW_REQUIRED = 7;
+    uint256 public constant MAX_AMOUNT_SEARCH_STEPS = 16;
 
-    struct RouteRequest {
-        address tokenX;
-        address tokenY;
-        address router;
-        uint256 amount;
-        uint256 premiumBps;
-        uint256 minProfitUsdc;
-        uint256 deadline;
-        uint256 slippageBps;
-        bool allowReverse;
+    struct QuoteContext {
+        uint256 owedEstimate;
+        uint256 requiredEdgeBps;
+        uint256 requiredFinalUsdc;
+        uint256 fundingCostUsdc;
+    }
+
+    struct SearchState {
+        bool hasBest;
+        uint256 routeMaxBorrow;
+        bool baseQuoteSet;
+        uint256 baseAmount;
+        uint256 baseFinalUsdc;
+        uint256 attempts;
     }
 
     struct RouteDecision {
@@ -56,26 +76,39 @@ contract TriangularRouteController {
         uint256 requiredEdgeBps;
         uint256 directComparableAmount;
         uint256 viaComparableAmount;
+        uint256 failureCode;
+        uint256 requiredFinalUsdc;
+        uint256 minAfterSlippageUsdc;
+        uint256 amountOutMinUsdc;
+        uint256 selectedAmount;
+        uint256 routeMaxBorrow;
+        uint256 probeAmount;
+        uint256 probeProfitUsdc;
+        uint256 fundingCostUsdc;
     }
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PausedSet(bool paused);
+    event ExecutionConfigSet(
+        address indexed router,
+        uint256 amount,
+        uint256 minProfitUsdc,
+        uint256 deadlineSeconds,
+        uint256 slippageBps
+    );
+    event AmountSearchConfigSet(
+        uint256 minBorrowAmount,
+        uint256 maxBorrowAmount,
+        uint256 amountSearchSteps,
+        uint256 maxRouteSlippageBps
+    );
     event RouteSubmitted(
         bool indexed reverse,
         address indexed tokenX,
         address indexed tokenY,
         uint256 amount,
         uint256 quotedFinalUsdc,
-        uint256 profitReturned
-    );
-    event BatchRouteSubmitted(
-        uint256 indexed requestIndex,
-        bool indexed reverse,
-        address indexed tokenX,
-        address tokenY,
-        uint256 amount,
-        uint256 quotedFinalUsdc,
-        uint256 profitReturned
+        uint256 profitSwept
     );
     event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
 
@@ -84,6 +117,15 @@ contract TriangularRouteController {
     address public owner;
     bool public paused;
     bool private locked;
+    address public dexRouter;
+    uint256 public borrowAmount;
+    uint256 public minProfitUsdc;
+    uint256 public deadlineSeconds;
+    uint256 public slippageBps;
+    uint256 public minBorrowAmount;
+    uint256 public maxBorrowAmount;
+    uint256 public amountSearchSteps;
+    uint256 public maxRouteSlippageBps;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -121,162 +163,520 @@ contract TriangularRouteController {
         emit PausedSet(value);
     }
 
-    function run(RouteRequest calldata request)
+    function setExecutionConfig(
+        address routerAddress,
+        uint256 borrowAmountValue,
+        uint256 minProfit,
+        uint256 deadlineWindowSeconds,
+        uint256 slippage
+    ) external onlyOwner {
+        _validateConfig(routerAddress, borrowAmountValue, deadlineWindowSeconds, slippage);
+        dexRouter = routerAddress;
+        borrowAmount = borrowAmountValue;
+        minProfitUsdc = minProfit;
+        deadlineSeconds = deadlineWindowSeconds;
+        slippageBps = slippage;
+        if (amountSearchSteps == 0) {
+            minBorrowAmount = borrowAmountValue;
+            maxBorrowAmount = borrowAmountValue;
+            amountSearchSteps = 1;
+            maxRouteSlippageBps = slippage;
+            emit AmountSearchConfigSet(borrowAmountValue, borrowAmountValue, 1, slippage);
+        } else {
+            _validateAmountSearchConfig(minBorrowAmount, maxBorrowAmount, amountSearchSteps, maxRouteSlippageBps);
+        }
+        emit ExecutionConfigSet(routerAddress, borrowAmountValue, minProfit, deadlineWindowSeconds, slippage);
+    }
+
+    function setAmountSearchConfig(
+        uint256 minBorrow,
+        uint256 maxBorrow,
+        uint256 steps,
+        uint256 maxSlippage
+    ) external onlyOwner {
+        _validateAmountSearchConfig(minBorrow, maxBorrow, steps, maxSlippage);
+        minBorrowAmount = minBorrow;
+        maxBorrowAmount = maxBorrow;
+        amountSearchSteps = steps;
+        maxRouteSlippageBps = maxSlippage;
+        emit AmountSearchConfigSet(minBorrow, maxBorrow, steps, maxSlippage);
+    }
+
+    function run(address[] calldata candidateTokens)
         external
         onlyOwner
         whenNotPaused
         nonReentrantEntry
-        returns (uint256 profitReturned)
+        returns (uint256 profitSwept)
     {
-        RouteDecision memory decision = previewBestRoute(request);
-        if (!decision.viable) revert NoViableRoute();
+        RouteDecision memory decision;
+        (, decision) = previewBestRoute(candidateTokens);
+        if (!decision.viable) {
+            revert NoViableRoute(
+                decision.failureCode,
+                decision.edgeBps,
+                decision.requiredEdgeBps,
+                decision.quotedFinalUsdc,
+                decision.requiredFinalUsdc,
+                decision.minAfterSlippageUsdc
+            );
+        }
 
-        profitReturned = _executeDecision(request, decision);
+        profitSwept = _executeDecision(decision);
 
         emit RouteSubmitted(
             decision.reverse,
-            request.tokenX,
-            request.tokenY,
-            request.amount,
+            decision.path[1],
+            decision.path[2],
+            decision.selectedAmount,
             decision.quotedFinalUsdc,
-            profitReturned
+            profitSwept
         );
     }
 
-    function runBest(RouteRequest[] calldata requests)
-        external
-        onlyOwner
-        whenNotPaused
-        nonReentrantEntry
-        returns (uint256 bestIndex, uint256 profitReturned)
-    {
-        RouteDecision memory decision;
-        (bestIndex, decision) = previewBestRouteFrom(requests);
-        if (!decision.viable) revert NoViableRoute();
-
-        RouteRequest calldata request = requests[bestIndex];
-        profitReturned = _executeDecision(request, decision);
-
-        emit BatchRouteSubmitted(
-            bestIndex,
-            decision.reverse,
-            request.tokenX,
-            request.tokenY,
-            request.amount,
-            decision.quotedFinalUsdc,
-            profitReturned
-        );
-    }
-
-    function previewBestRouteFrom(RouteRequest[] calldata requests)
+    function previewBestRoute(address[] calldata candidateTokens)
         public
         view
-        returns (uint256 bestIndex, RouteDecision memory best)
+        returns (uint256 bestPairIndex, RouteDecision memory best)
     {
-        if (requests.length == 0 || requests.length > MAX_ROUTE_REQUESTS) revert InvalidRequest();
+        _validateCandidateTokens(candidateTokens);
+        _validateConfig(dexRouter, borrowAmount, deadlineSeconds, slippageBps);
+        _validateAmountSearchConfig(minBorrowAmount, maxBorrowAmount, amountSearchSteps, maxRouteSlippageBps);
 
-        for (uint256 i = 0; i < requests.length; i++) {
-            RouteDecision memory decision = previewBestRoute(requests[i]);
-            if (decision.viable && (!best.viable || decision.profitUsdc > best.profitUsdc)) {
-                best = decision;
-                bestIndex = i;
+        uint256 premiumBps = IAaveTriangularExecutorLike(executor).flashLoanPremiumBps();
+        bool hasBest = false;
+        uint256 pairIndex = 0;
+        for (uint256 i = 0; i < candidateTokens.length; i++) {
+            for (uint256 j = i + 1; j < candidateTokens.length; j++) {
+                RouteDecision memory decision = _previewDirection(
+                    candidateTokens[i],
+                    candidateTokens[j],
+                    premiumBps,
+                    false
+                );
+                if (_shouldReplaceBest(decision, best, hasBest)) {
+                    best = decision;
+                    bestPairIndex = pairIndex;
+                    hasBest = true;
+                }
+
+                decision = _previewDirection(
+                    candidateTokens[j],
+                    candidateTokens[i],
+                    premiumBps,
+                    true
+                );
+                if (_shouldReplaceBest(decision, best, hasBest)) {
+                    best = decision;
+                    bestPairIndex = pairIndex;
+                    hasBest = true;
+                }
+                pairIndex++;
             }
         }
     }
 
-    function _executeDecision(RouteRequest calldata request, RouteDecision memory decision)
+    function _executeDecision(RouteDecision memory decision)
         private
-        returns (uint256 profitReturned)
+        returns (uint256 profitSwept)
     {
-        address tokenX = decision.reverse ? request.tokenY : request.tokenX;
-        address tokenY = decision.reverse ? request.tokenX : request.tokenY;
         IAaveTriangularExecutorLike.ExecutionRequest memory executionRequest = IAaveTriangularExecutorLike.ExecutionRequest({
-            tokenX: tokenX,
-            tokenY: tokenY,
-            router: request.router,
-            amount: request.amount,
-            minProfitUsdc: request.minProfitUsdc,
-            deadline: request.deadline,
-            slippageBps: request.slippageBps
+            tokenX: decision.path[1],
+            tokenY: decision.path[2],
+            router: dexRouter,
+            amount: decision.selectedAmount,
+            deadline: block.timestamp + deadlineSeconds,
+            amountOutMinUsdc: decision.amountOutMinUsdc
         });
-        profitReturned = IAaveTriangularExecutorLike(executor).execute(executionRequest);
+        profitSwept = IAaveTriangularExecutorLike(executor).execute(executionRequest);
     }
 
-    function previewBestRoute(RouteRequest calldata request) public view returns (RouteDecision memory best) {
-        _validateRequest(request);
-        uint256 owedEstimate = request.amount + (request.amount * request.premiumBps) / 10000;
-        uint256 requiredEdgeBps = _requiredEdgeBps(request);
-
-        RouteDecision memory forward = _quote(request, owedEstimate, requiredEdgeBps, false);
-        if (forward.viable) best = forward;
-        if (request.allowReverse) {
-            RouteDecision memory reverse = _quote(request, owedEstimate, requiredEdgeBps, true);
-            if (reverse.viable && (!best.viable || reverse.profitUsdc > best.profitUsdc)) {
-                best = reverse;
-            }
-        }
-    }
-
-    function withdrawToken(address token, address to, uint256 amount) external onlyOwner {
+    function withdrawToken(address token, address to, uint256 tokenAmount) external onlyOwner {
         if (token == address(0) || to == address(0)) revert InvalidRequest();
-        if (!IERC20Controller(token).transfer(to, amount)) revert TransferFailed();
-        emit TokenWithdrawn(token, to, amount);
+        if (!IERC20Controller(token).transfer(to, tokenAmount)) revert TransferFailed();
+        emit TokenWithdrawn(token, to, tokenAmount);
     }
 
-    function _quote(
-        RouteRequest calldata request,
-        uint256 owedEstimate,
-        uint256 requiredEdgeBps,
+    function _previewDirection(
+        address tokenIn,
+        address tokenOut,
+        uint256 premiumBps,
         bool reverse
     ) private view returns (RouteDecision memory decision) {
-        address[] memory path = _routePath(request.tokenX, request.tokenY, reverse);
-        (bool edgeOk, uint256 edgeBps, uint256 directComparableAmount, uint256 viaComparableAmount) =
-            _relativeEdge(request, reverse);
-        if (!edgeOk || edgeBps < requiredEdgeBps) return decision;
+        address[] memory path = _routePath(tokenIn, tokenOut, false);
+        SearchState memory state = SearchState({
+            hasBest: false,
+            routeMaxBorrow: 0,
+            baseQuoteSet: false,
+            baseAmount: 0,
+            baseFinalUsdc: 0,
+            attempts: 0
+        });
 
-        (bool quoteOk, uint256 finalUsdc) = _tryAmountsOut(request.router, request.amount, path);
-        if (!quoteOk || finalUsdc < owedEstimate + request.minProfitUsdc) return decision;
-        uint256 minAfterSlippage = (finalUsdc * (10000 - request.slippageBps)) / 10000;
-        if (minAfterSlippage < owedEstimate + request.minProfitUsdc) return decision;
+        RouteDecision memory probe = _previewAmount(tokenIn, tokenOut, path, borrowAmount, premiumBps, reverse);
+        state = _recordCapacity(probe, borrowAmount, state);
+        state.attempts = 1;
+        decision = probe;
+        state.hasBest = probe.viable;
+
+        if (probe.viable) {
+            uint256 amount = borrowAmount * 2;
+            while (state.attempts < amountSearchSteps && amount <= maxBorrowAmount) {
+                RouteDecision memory candidate = _previewAmount(tokenIn, tokenOut, path, amount, premiumBps, reverse);
+                state = _recordCapacity(candidate, amount, state);
+                state.attempts++;
+
+                if (!candidate.viable) {
+                    break;
+                }
+                if (candidate.profitUsdc < decision.profitUsdc) {
+                    break;
+                }
+                if (_shouldReplaceBest(candidate, decision, true)) {
+                    decision = candidate;
+                }
+
+                uint256 nextAmount = amount * 2;
+                if (nextAmount <= amount || nextAmount > maxBorrowAmount) {
+                    break;
+                }
+                amount = nextAmount;
+            }
+        }
+
+        if (state.hasBest && state.attempts < amountSearchSteps) {
+            (decision, state) = _refineAboveBest(tokenIn, tokenOut, path, premiumBps, reverse, decision, state);
+        }
+
+        decision.routeMaxBorrow = state.routeMaxBorrow;
+        decision.probeAmount = borrowAmount;
+        decision.probeProfitUsdc = probe.viable ? probe.profitUsdc : 0;
+    }
+
+    function _refineAboveBest(
+        address tokenIn,
+        address tokenOut,
+        address[] memory path,
+        uint256 premiumBps,
+        bool reverse,
+        RouteDecision memory best,
+        SearchState memory state
+    ) private view returns (RouteDecision memory refined, SearchState memory updatedState) {
+        refined = best;
+        updatedState = state;
+        uint256 anchor = best.selectedAmount;
+        uint256[4] memory deltaNumerators = [uint256(1), uint256(1), uint256(1), uint256(5)];
+        uint256[4] memory deltaDenominators = [uint256(2), uint256(4), uint256(8), uint256(100)];
+
+        for (uint256 i = 0; i < deltaNumerators.length && updatedState.attempts < amountSearchSteps; i++) {
+            uint256 delta = (anchor * deltaNumerators[i]) / deltaDenominators[i];
+            if (delta == 0) continue;
+            uint256 amount = anchor + delta;
+            if (amount <= anchor || amount > maxBorrowAmount) continue;
+
+            RouteDecision memory candidate = _previewAmount(tokenIn, tokenOut, path, amount, premiumBps, reverse);
+            updatedState = _recordCapacity(candidate, amount, updatedState);
+            if (_shouldReplaceBest(candidate, refined, true)) {
+                refined = candidate;
+            }
+            updatedState.attempts++;
+        }
+    }
+
+    function _recordCapacity(
+        RouteDecision memory candidate,
+        uint256 amount,
+        SearchState memory state
+    ) private view returns (SearchState memory updatedState) {
+        updatedState = state;
+        if (candidate.quotedFinalUsdc == 0) return updatedState;
+        if (!updatedState.baseQuoteSet) {
+            updatedState.baseQuoteSet = true;
+            updatedState.baseAmount = amount;
+            updatedState.baseFinalUsdc = candidate.quotedFinalUsdc;
+        }
+        if (
+            _routeSlippageBps(
+                updatedState.baseAmount,
+                updatedState.baseFinalUsdc,
+                amount,
+                candidate.quotedFinalUsdc
+            ) <= maxRouteSlippageBps
+        ) {
+            if (amount > updatedState.routeMaxBorrow) {
+                updatedState.routeMaxBorrow = amount;
+            }
+        }
+    }
+
+    function _previewAmount(
+        address tokenIn,
+        address tokenOut,
+        address[] memory path,
+        uint256 amount,
+        uint256 premiumBps,
+        bool reverse
+    ) private view returns (RouteDecision memory decision) {
+        QuoteContext memory context = _quoteContext(premiumBps, amount);
+        (bool firstOk, uint256 firstHopAmount) = _tryAmountsOut(dexRouter, amount, _twoTokenPath(usdc, tokenIn));
+        (bool directOk, uint256 directComparisonAmount) = _tryAmountsOut(dexRouter, amount, _twoTokenPath(usdc, tokenOut));
+        if (!firstOk) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                0,
+                0,
+                0,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                0,
+                FAIL_FIRST_HOP_QUOTE,
+                context.requiredFinalUsdc,
+                0,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+        if (!directOk || directComparisonAmount == 0) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                0,
+                0,
+                0,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                0,
+                FAIL_DIRECT_COMPARISON_QUOTE,
+                context.requiredFinalUsdc,
+                0,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+
+        (bool viaOk, uint256 viaComparableAmount) =
+            _tryAmountsOut(dexRouter, firstHopAmount, _twoTokenPath(tokenIn, tokenOut));
+        if (!viaOk) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                0,
+                0,
+                0,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                viaComparableAmount,
+                FAIL_MIDDLE_HOP_QUOTE,
+                context.requiredFinalUsdc,
+                0,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+
+        uint256 edgeBps = _edgeBps(viaComparableAmount, directComparisonAmount);
+        if (edgeBps < context.requiredEdgeBps) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                0,
+                0,
+                edgeBps,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                viaComparableAmount,
+                FAIL_EDGE_BELOW_REQUIRED,
+                context.requiredFinalUsdc,
+                0,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+
+        (bool quoteOk, uint256 finalUsdc) = _tryAmountsOut(dexRouter, amount, path);
+        if (!quoteOk) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                0,
+                0,
+                edgeBps,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                viaComparableAmount,
+                FAIL_ROUTE_QUOTE,
+                context.requiredFinalUsdc,
+                0,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+        if (finalUsdc < context.requiredFinalUsdc) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                finalUsdc,
+                0,
+                edgeBps,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                viaComparableAmount,
+                FAIL_FINAL_BELOW_REQUIRED,
+                context.requiredFinalUsdc,
+                0,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+        uint256 minAfterSlippage = (finalUsdc * (10000 - slippageBps)) / 10000;
+        if (minAfterSlippage < context.requiredFinalUsdc) {
+            return _decision(
+                false,
+                reverse,
+                path,
+                finalUsdc,
+                0,
+                edgeBps,
+                context.requiredEdgeBps,
+                directComparisonAmount,
+                viaComparableAmount,
+                FAIL_SLIPPAGE_BELOW_REQUIRED,
+                context.requiredFinalUsdc,
+                minAfterSlippage,
+                0,
+                amount,
+                0,
+                context.fundingCostUsdc
+            );
+        }
+        decision = _decision(
+            true,
+            reverse,
+            path,
+            finalUsdc,
+            finalUsdc - context.owedEstimate,
+            edgeBps,
+            context.requiredEdgeBps,
+            directComparisonAmount,
+            viaComparableAmount,
+            FAIL_NONE,
+            context.requiredFinalUsdc,
+            minAfterSlippage,
+            _max(context.requiredFinalUsdc, minAfterSlippage),
+            amount,
+            0,
+            context.fundingCostUsdc
+        );
+    }
+
+    function _decision(
+        bool viable,
+        bool reverse,
+        address[] memory path,
+        uint256 quotedFinalUsdc,
+        uint256 profitUsdc,
+        uint256 edgeBps,
+        uint256 requiredEdgeBps,
+        uint256 directComparableAmount,
+        uint256 viaComparableAmount,
+        uint256 failureCode,
+        uint256 requiredFinalUsdc,
+        uint256 minAfterSlippageUsdc,
+        uint256 amountOutMinUsdc,
+        uint256 selectedAmount,
+        uint256 routeMaxBorrow,
+        uint256 fundingCostUsdc
+    ) private pure returns (RouteDecision memory decision) {
         decision = RouteDecision({
-            viable: true,
+            viable: viable,
             reverse: reverse,
-            quotedFinalUsdc: finalUsdc,
-            profitUsdc: finalUsdc - owedEstimate,
+            quotedFinalUsdc: quotedFinalUsdc,
+            profitUsdc: profitUsdc,
             path: path,
             edgeBps: edgeBps,
             requiredEdgeBps: requiredEdgeBps,
             directComparableAmount: directComparableAmount,
-            viaComparableAmount: viaComparableAmount
+            viaComparableAmount: viaComparableAmount,
+            failureCode: failureCode,
+            requiredFinalUsdc: requiredFinalUsdc,
+            minAfterSlippageUsdc: minAfterSlippageUsdc,
+            amountOutMinUsdc: amountOutMinUsdc,
+            selectedAmount: selectedAmount,
+            routeMaxBorrow: routeMaxBorrow,
+            probeAmount: 0,
+            probeProfitUsdc: 0,
+            fundingCostUsdc: fundingCostUsdc
         });
     }
 
-    function _relativeEdge(RouteRequest calldata request, bool reverse)
-        private
-        view
-        returns (bool ok, uint256 edgeBps, uint256 directComparableAmount, uint256 viaComparableAmount)
-    {
-        if (reverse) {
-            (bool yOk, uint256 yAmount) =
-                _tryAmountsOut(request.router, request.amount, _twoTokenPath(usdc, request.tokenY));
-            (bool directXOk, uint256 directX) =
-                _tryAmountsOut(request.router, request.amount, _twoTokenPath(usdc, request.tokenX));
-            if (!yOk || !directXOk || directX == 0) return (false, 0, directX, 0);
-            (bool viaXOk, uint256 viaX) =
-                _tryAmountsOut(request.router, yAmount, _twoTokenPath(request.tokenY, request.tokenX));
-            if (!viaXOk) return (false, 0, directX, viaX);
-            return (true, _edgeBps(viaX, directX), directX, viaX);
-        }
+    function _failureRank(uint256 failureCode) private pure returns (uint256) {
+        if (failureCode == FAIL_ROUTE_QUOTE) return 3;
+        if (failureCode == FAIL_FINAL_BELOW_REQUIRED || failureCode == FAIL_SLIPPAGE_BELOW_REQUIRED) return 2;
+        if (failureCode == FAIL_EDGE_BELOW_REQUIRED) return 1;
+        return 0;
+    }
 
-        (bool xOk, uint256 xAmount) =
-            _tryAmountsOut(request.router, request.amount, _twoTokenPath(usdc, request.tokenX));
-        (bool directYOk, uint256 directY) =
-            _tryAmountsOut(request.router, request.amount, _twoTokenPath(usdc, request.tokenY));
-        if (!xOk || !directYOk || directY == 0) return (false, 0, directY, 0);
-        (bool viaYOk, uint256 viaY) =
-            _tryAmountsOut(request.router, xAmount, _twoTokenPath(request.tokenX, request.tokenY));
-        if (!viaYOk) return (false, 0, directY, viaY);
-        return (true, _edgeBps(viaY, directY), directY, viaY);
+    function _shouldReplaceBest(
+        RouteDecision memory candidate,
+        RouteDecision memory current,
+        bool hasCurrent
+    ) private pure returns (bool) {
+        if (!hasCurrent) return true;
+        if (candidate.viable && !current.viable) return true;
+        if (candidate.viable && current.viable) {
+            if (candidate.profitUsdc > current.profitUsdc) return true;
+            if (candidate.profitUsdc == current.profitUsdc && candidate.edgeBps > current.edgeBps) return true;
+        }
+        if (!candidate.viable && !current.viable && _failureRank(candidate.failureCode) > _failureRank(current.failureCode)) {
+            return true;
+        }
+        return false;
+    }
+
+    function _max(uint256 a, uint256 b) private pure returns (uint256) {
+        return a > b ? a : b;
+    }
+
+    function _quoteContext(uint256 premiumBps, uint256 amount) private view returns (QuoteContext memory context) {
+        uint256 fundingCostUsdc = (amount * premiumBps) / 10000;
+        uint256 owedEstimate = amount + fundingCostUsdc;
+        context = QuoteContext({
+            owedEstimate: owedEstimate,
+            requiredEdgeBps: _requiredEdgeBpsFor(premiumBps, amount, minProfitUsdc, slippageBps),
+            requiredFinalUsdc: owedEstimate + _requiredProfitUsdc(minProfitUsdc),
+            fundingCostUsdc: fundingCostUsdc
+        });
+    }
+
+    function _routeSlippageBps(
+        uint256 baseAmount,
+        uint256 baseFinalUsdc,
+        uint256 amount,
+        uint256 finalUsdc
+    ) private pure returns (uint256) {
+        if (baseAmount == 0 || baseFinalUsdc == 0 || amount == 0 || finalUsdc == 0) return type(uint256).max;
+        uint256 expectedFinal = (baseFinalUsdc * amount) / baseAmount;
+        if (finalUsdc >= expectedFinal) return 0;
+        return ((expectedFinal - finalUsdc) * 10000) / expectedFinal;
     }
 
     function _tryAmountsOut(
@@ -313,8 +713,17 @@ contract TriangularRouteController {
         path[1] = tokenOut;
     }
 
-    function _requiredEdgeBps(RouteRequest calldata request) private pure returns (uint256) {
-        return request.premiumBps + request.slippageBps + _ceilDiv(request.minProfitUsdc * 10000, request.amount);
+    function _requiredEdgeBpsFor(
+        uint256 premiumBps,
+        uint256 amount,
+        uint256 requestedMinProfitUsdc,
+        uint256 slippage
+    ) private pure returns (uint256) {
+        return premiumBps + slippage + _ceilDiv(_requiredProfitUsdc(requestedMinProfitUsdc) * 10000, amount);
+    }
+
+    function _requiredProfitUsdc(uint256 requestedMinProfitUsdc) private pure returns (uint256) {
+        return requestedMinProfitUsdc == 0 ? 1 : requestedMinProfitUsdc;
     }
 
     function _edgeBps(uint256 viaAmount, uint256 directAmount) private pure returns (uint256) {
@@ -326,20 +735,45 @@ contract TriangularRouteController {
         return value == 0 ? 0 : ((value - 1) / divisor) + 1;
     }
 
-    function _validateRequest(RouteRequest calldata request) private view {
+    function _validateConfig(
+        address routerAddress,
+        uint256 borrowAmountValue,
+        uint256 deadlineWindowSeconds,
+        uint256 slippage
+    ) private pure {
+        if (routerAddress == address(0) || borrowAmountValue == 0 || deadlineWindowSeconds == 0 || slippage > 5000) {
+            revert InvalidRequest();
+        }
+    }
+
+    function _validateAmountSearchConfig(
+        uint256 minBorrow,
+        uint256 maxBorrow,
+        uint256 steps,
+        uint256 maxSlippage
+    ) private view {
         if (
-            request.tokenX == address(0)
-                || request.tokenY == address(0)
-                || request.router == address(0)
-                || request.tokenX == request.tokenY
-                || request.tokenX == usdc
-                || request.tokenY == usdc
-                || request.amount == 0
-                || request.premiumBps > 10000
-                || request.deadline < block.timestamp
-                || request.slippageBps > 5000
+            minBorrow == 0
+                || maxBorrow < minBorrow
+                || borrowAmount == 0
+                || borrowAmount < minBorrow
+                || borrowAmount > maxBorrow
+                || steps == 0
+                || steps > MAX_AMOUNT_SEARCH_STEPS
+                || maxSlippage > 5000
         ) {
             revert InvalidRequest();
         }
     }
+
+    function _validateCandidateTokens(address[] calldata candidateTokens) private view {
+        if (candidateTokens.length < 2 || candidateTokens.length > MAX_CANDIDATE_TOKENS) revert InvalidRequest();
+        for (uint256 i = 0; i < candidateTokens.length; i++) {
+            if (candidateTokens[i] == address(0) || candidateTokens[i] == usdc) revert InvalidRequest();
+            for (uint256 j = i + 1; j < candidateTokens.length; j++) {
+                if (candidateTokens[i] == candidateTokens[j]) revert InvalidRequest();
+            }
+        }
+    }
+
 }

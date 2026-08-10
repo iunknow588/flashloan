@@ -110,9 +110,9 @@
       <button id="quoteBtn">CoW SDK 报价验证</button>
       <button id="copySummaryBtn">复制摘要</button>
       <button id="copyQuotesBtn">复制报价</button>
-      <label id="cowTradingSwitchLabel" class="cow-trading-switch disabled" title="勾选后才允许 CoW SDK 交易提交、候选入队和数据库写入">
+      <label id="cowTradingSwitchLabel" class="cow-trading-switch disabled" title="勾选后才允许自动交易提交、候选入队和数据库写入；提交路径可能是 CoW SDK 或链上 A 合约直连">
         <input id="cowSubmissionEnabledCheckbox" type="checkbox">
-        允许 CoW SDK 交易
+        允许自动交易
       </label>
       <span id="cowSubmissionPauseMessage" class="context">交易开关状态加载中</span>
       <select id="sideLimitSelect">
@@ -538,9 +538,18 @@
     };
     const historyReasons = row => {
       const sdk = historyCowSdk(row);
+      const submission = row?.cow_submission_result || {};
+      const preflight = submission.preflight || sdk.submission_preflight || sdk.preflight || row?.preflight || {};
+      const executionError = submission.execution_error || sdk.execution_error || {};
       const sdkStatus = historyCowSdkStatus(row);
       const reasons = (row?.blocked_reasons || row?.precheck?.reasons || []).map(cowErrorSummary).filter(Boolean);
-      const sdkReason = sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "";
+      if (preflight.failureReason && preflight.failureReason !== "none") {
+        reasons.unshift(`route_preview:${preflight.failureReason} code=${preflight.failureCode || "-"}`);
+      }
+      if (executionError.failureReason) {
+        reasons.unshift(`execution:${executionError.source || "unknown"}:${executionError.failureReason} code=${executionError.failureCode || "-"}`);
+      }
+      const sdkReason = submission.error || submission.blocked_reason || sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "";
       if (sdkReason) reasons.unshift(cowErrorSummary(sdkReason));
       if (sdkStatus && historyCowSdkSubmitted(row)) reasons.unshift(`sdk_status:${sdkStatus}`);
       if (sdkStatus && historySdkWaiting(row)) reasons.unshift(`sdk_pending:${sdkStatus}`);
@@ -841,6 +850,12 @@
       const submitted = Boolean(submission.submitted || sdk.submitted || check.submission_order_id || check.submission_tx_hash);
       if (submitted) return check.submission_order_id ? `已提交 ${shortAddress(check.submission_order_id)}` : "已提交";
       const submissionStatus = check.submission_status || sdk.submission_status || submission.status;
+      if (submission?.preflight?.failureReason && submission.preflight.failureReason !== "none") {
+        return `预检失败 ${submission.preflight.failureReason}`;
+      }
+      if (submission?.execution_error?.failureReason) {
+        return `执行预检失败 ${submission.execution_error.failureReason}`;
+      }
       if (check.submission_attempted || sdk.submission_attempted || submissionStatus) {
         return precheckStatusLabel(submissionStatus || check.status);
       }
@@ -1548,8 +1563,8 @@
       $("cowTradingSwitchLabel").classList.toggle("enabled", !paused);
       $("cowTradingSwitchLabel").classList.toggle("disabled", paused);
       $("cowSubmissionPauseMessage").textContent = paused
-        ? "CoW SDK 交易关闭：报价和界面照常显示，不会提交交易，也不会写库"
-        : "CoW SDK 交易开启：允许提交前检查和交易提交";
+        ? "自动交易关闭：报价和界面照常显示，不会提交交易，也不会写库"
+        : "自动交易开启：允许提交前检查和交易提交";
       $("quoteBtn").disabled = false;
       renderNetworkOpportunityCards();
     }

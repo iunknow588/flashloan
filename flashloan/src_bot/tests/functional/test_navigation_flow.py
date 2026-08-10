@@ -101,7 +101,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "cow_supported_overview" in binance_market_panel
     assert '<button id="quoteBtn">CoW SDK 报价验证</button>' in binance_market_panel
     assert "cowSubmissionEnabledCheckbox" in binance_market_panel
-    assert "允许 CoW SDK 交易" in binance_market_panel
+    assert "允许自动交易" in binance_market_panel
     assert "updateCowSubmissionFromCheckbox" in binance_market_panel
     assert 'latestCowSubmissionPausePayload = {paused: true, pause_reason: "ui_initial_fail_closed"}' in binance_market_panel
     assert "latestCowSubmissionPausePayload?.paused !== false" in binance_market_panel
@@ -125,7 +125,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "const quoteLimit = quoteLimitValue()" in binance_market_panel
     assert "autoRefreshCowQuotes" in binance_market_panel
     assert "cowAutomationPaused()" in binance_market_panel
-    assert "CoW SDK 交易关闭：报价和界面照常显示，不会提交交易，也不会写库" in binance_market_panel
+    assert "自动交易关闭：报价和界面照常显示，不会提交交易，也不会写库" in binance_market_panel
     assert "AUTO_COW_QUOTE_MIN_INTERVAL_MS" in binance_market_panel
     assert "autoExecuteToggle" not in binance_market_panel
     assert 'data-route-action="auto-execute"' not in binance_market_panel

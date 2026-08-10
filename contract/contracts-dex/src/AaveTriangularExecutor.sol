@@ -8,6 +8,8 @@ interface IERC20AaveTriangular {
 }
 
 interface IAavePoolAaveTriangular {
+    function FLASHLOAN_PREMIUM_TOTAL() external view returns (uint128);
+
     function flashLoanSimple(
         address receiverAddress,
         address asset,
@@ -18,7 +20,6 @@ interface IAavePoolAaveTriangular {
 }
 
 interface IRouterAaveTriangular {
-    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -45,34 +46,45 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
     error BadInitiator();
     error Paused();
     error InvalidRequest();
-    error NoViableRoute();
+    error ExecutionConstraintFailed(
+        uint256 failureCode,
+        uint256 amountOutMinUsdc,
+        uint256 repaymentRequiredUsdc,
+        uint256 finalUsdc,
+        uint256 actualBalance,
+        uint256 requiredBalance
+    );
+    error RouterSwapFailed(bytes4 selector);
+    error RouterSwapResultInvalid(uint256 resultLength);
     error ApproveFailed();
     error TransferFailed();
     error Reentrancy();
+
+    uint256 public constant FAIL_POST_SWAP_BALANCE_BELOW_REPAYMENT = 1;
+    uint256 public constant DEFAULT_PROFIT_SWEEP_THRESHOLD_USDC = 100_000_000;
 
     struct ExecutionRequest {
         address tokenX;
         address tokenY;
         address router;
         uint256 amount;
-        uint256 minProfitUsdc;
         uint256 deadline;
-        uint256 slippageBps;
+        uint256 amountOutMinUsdc;
     }
 
     struct CallbackPlan {
         address tokenX;
         address tokenY;
         address router;
-        uint256 minProfitUsdc;
         uint256 deadline;
-        uint256 slippageBps;
+        uint256 amountOutMinUsdc;
         uint256 startingUsdcBalance;
     }
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ControllerSet(address indexed previousController, address indexed newController);
     event PausedSet(bool paused);
+    event ProfitSweepThresholdSet(uint256 previousThreshold, uint256 newThreshold);
     event FlashLoanRequested(address indexed controller, uint256 amount);
     event RouteExecuted(
         address indexed controller,
@@ -82,7 +94,7 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
         uint256 finalUsdc,
         uint256 profitUsdc
     );
-    event ProfitReturned(address indexed controller, uint256 amount);
+    event ProfitSwept(address indexed recipient, uint256 amount, uint256 threshold);
     event TokenWithdrawn(address indexed token, address indexed to, uint256 amount);
 
     address public immutable pool;
@@ -91,6 +103,7 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
     address public controller;
     bool public paused;
     bool private locked;
+    uint256 public profitSweepThresholdUsdc;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -119,6 +132,7 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
         pool = poolAddress;
         usdc = usdcAddress;
         owner = initialOwner == address(0) ? msg.sender : initialOwner;
+        profitSweepThresholdUsdc = DEFAULT_PROFIT_SWEEP_THRESHOLD_USDC;
         emit OwnershipTransferred(address(0), owner);
     }
 
@@ -139,12 +153,21 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
         emit PausedSet(value);
     }
 
+    function setProfitSweepThresholdUsdc(uint256 newThreshold) external onlyOwner {
+        emit ProfitSweepThresholdSet(profitSweepThresholdUsdc, newThreshold);
+        profitSweepThresholdUsdc = newThreshold;
+    }
+
+    function flashLoanPremiumBps() external view returns (uint256) {
+        return IAavePoolAaveTriangular(pool).FLASHLOAN_PREMIUM_TOTAL();
+    }
+
     function execute(ExecutionRequest calldata request)
         external
         onlyController
         whenNotPaused
         nonReentrantEntry
-        returns (uint256 profitReturned)
+        returns (uint256 profitSwept)
     {
         _validateRequest(request);
         uint256 startingUsdcBalance = IERC20AaveTriangular(usdc).balanceOf(address(this));
@@ -152,9 +175,8 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
             tokenX: request.tokenX,
             tokenY: request.tokenY,
             router: request.router,
-            minProfitUsdc: request.minProfitUsdc,
             deadline: request.deadline,
-            slippageBps: request.slippageBps,
+            amountOutMinUsdc: request.amountOutMinUsdc,
             startingUsdcBalance: startingUsdcBalance
         });
 
@@ -162,10 +184,11 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
         emit FlashLoanRequested(msg.sender, request.amount);
 
         uint256 endingUsdcBalance = IERC20AaveTriangular(usdc).balanceOf(address(this));
-        if (endingUsdcBalance > startingUsdcBalance) {
-            profitReturned = endingUsdcBalance - startingUsdcBalance;
-            if (!IERC20AaveTriangular(usdc).transfer(controller, profitReturned)) revert TransferFailed();
-            emit ProfitReturned(controller, profitReturned);
+        uint256 threshold = profitSweepThresholdUsdc;
+        if (endingUsdcBalance > threshold) {
+            profitSwept = endingUsdcBalance;
+            if (!IERC20AaveTriangular(usdc).transfer(owner, profitSwept)) revert TransferFailed();
+            emit ProfitSwept(owner, profitSwept, threshold);
         }
     }
 
@@ -186,25 +209,36 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
         address[] memory path = _routePath(plan.tokenX, plan.tokenY);
 
         uint256 owed = amount + premium;
-        uint256 quotedFinal = _amountOut(plan.router, amount, path);
-        uint256 requiredFinal = owed + plan.minProfitUsdc;
-        uint256 minAfterSlippage = (quotedFinal * (10000 - plan.slippageBps)) / 10000;
-        if (quotedFinal < requiredFinal || minAfterSlippage < requiredFinal) revert NoViableRoute();
 
         _forceApprove(usdc, plan.router, amount);
-        uint256[] memory amounts = IRouterAaveTriangular(plan.router).swapExactTokensForTokens(
+        uint256[] memory amounts;
+        try IRouterAaveTriangular(plan.router).swapExactTokensForTokens(
             amount,
-            _max(requiredFinal, minAfterSlippage),
+            plan.amountOutMinUsdc,
             path,
             address(this),
             plan.deadline
-        );
+        ) returns (uint256[] memory result) {
+            amounts = result;
+        } catch (bytes memory reason) {
+            revert RouterSwapFailed(_revertSelector(reason));
+        }
+        if (amounts.length != path.length) revert RouterSwapResultInvalid(amounts.length);
         _forceApprove(usdc, plan.router, 0);
 
         uint256 finalUsdc = amounts[amounts.length - 1];
         uint256 actualBalance = IERC20AaveTriangular(usdc).balanceOf(address(this));
-        uint256 requiredBalance = plan.startingUsdcBalance + requiredFinal;
-        if (actualBalance < requiredBalance) revert NoViableRoute();
+        uint256 requiredBalance = plan.startingUsdcBalance + owed;
+        if (actualBalance < requiredBalance) {
+            revert ExecutionConstraintFailed(
+                FAIL_POST_SWAP_BALANCE_BELOW_REPAYMENT,
+                plan.amountOutMinUsdc,
+                owed,
+                finalUsdc,
+                actualBalance,
+                requiredBalance
+            );
+        }
 
         _forceApprove(usdc, pool, owed);
         emit RouteExecuted(controller, plan.router, amount, premium, finalUsdc, actualBalance - plan.startingUsdcBalance - owed);
@@ -227,7 +261,6 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
                 || request.router == address(0)
                 || request.amount == 0
                 || request.deadline < block.timestamp
-                || request.slippageBps > 5000
         ) {
             revert InvalidRequest();
         }
@@ -254,17 +287,15 @@ contract AaveTriangularExecutor is IFlashLoanSimpleReceiverAaveTriangular {
         path[3] = usdc;
     }
 
-    function _amountOut(address router, uint256 amount, address[] memory path) private view returns (uint256) {
-        uint256[] memory amounts = IRouterAaveTriangular(router).getAmountsOut(amount, path);
-        return amounts[amounts.length - 1];
-    }
-
     function _forceApprove(address token, address spender, uint256 amount) private {
         if (!IERC20AaveTriangular(token).approve(spender, 0)) revert ApproveFailed();
         if (amount > 0 && !IERC20AaveTriangular(token).approve(spender, amount)) revert ApproveFailed();
     }
 
-    function _max(uint256 a, uint256 b) private pure returns (uint256) {
-        return a > b ? a : b;
+    function _revertSelector(bytes memory reason) private pure returns (bytes4 selector) {
+        if (reason.length < 4) return bytes4(0);
+        assembly {
+            selector := mload(add(reason, 32))
+        }
     }
 }

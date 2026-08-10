@@ -3,6 +3,9 @@ const hre = require("hardhat");
 const ROUTER_ABI = [
   "function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts)",
 ];
+const EXECUTOR_ABI = [
+  "function flashLoanPremiumBps() external view returns (uint256)",
+];
 
 function optionalEnv(...names) {
   for (const name of names) {
@@ -59,6 +62,10 @@ function edgeBps(viaAmount, directAmount) {
   return ((viaAmount - directAmount) * 10000n) / directAmount;
 }
 
+function requiredProfitUsdc(minProfitUsdc) {
+  return minProfitUsdc === 0n ? 1n : minProfitUsdc;
+}
+
 async function quote(router, amount, path) {
   try {
     const amounts = await router.getAmountsOut(amount, path);
@@ -76,7 +83,7 @@ async function evaluateCandidate({ router: routerAddress, tokenX, tokenY }, para
   const router = await hre.ethers.getContractAt(ROUTER_ABI, routerAddress);
   const usdc = params.usdc;
   const amount = params.amount;
-  const requiredFinal = amount + ((amount * params.premiumBps) / 10000n) + params.minProfitUsdc;
+  const requiredFinal = amount + ((amount * params.premiumBps) / 10000n) + params.requiredProfitUsdc;
 
   const usdcToX = await quote(router, amount, [usdc, tokenX]);
   const usdcToY = await quote(router, amount, [usdc, tokenY]);
@@ -130,15 +137,19 @@ async function main() {
   requireAnyEnv("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL");
 
   const usdc = requireAnyEnv("TRIANGULAR_USDC_ADDRESS", "FUJI_USDC", "USDC_ADDRESS");
+  const executorAddress = requireAnyEnv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "TRIANGULAR_EXECUTOR_ADDRESS");
   const defaultRouter = optionalEnv("TRIANGULAR_DEX_ROUTER", "FUJI_DEX_ROUTER");
   const amount = envBigInt("TRIANGULAR_BORROW_AMOUNT_UNITS", 1_000_000n);
-  const premiumBps = envBigInt("TRIANGULAR_AAVE_PREMIUM_BPS", 5n);
-  const minProfitUsdc = envBigInt("TRIANGULAR_MIN_PROFIT_USDC_UNITS", 1n);
+  const minProfitUsdc = envBigInt("TRIANGULAR_MIN_PROFIT_USDC_UNITS", 0n);
+  if (minProfitUsdc < 0n) throw new Error("TRIANGULAR_MIN_PROFIT_USDC_UNITS must be non-negative");
+  const requiredProfit = requiredProfitUsdc(minProfitUsdc);
   const slippageBps = envBigInt("TRIANGULAR_SLIPPAGE_BPS", 50n);
-  const requiredEdgeBps = premiumBps + slippageBps + ceilDiv(minProfitUsdc * 10000n, amount);
+  const executor = await hre.ethers.getContractAt(EXECUTOR_ABI, executorAddress);
+  const premiumBps = await executor.flashLoanPremiumBps();
+  const requiredEdgeBps = premiumBps + slippageBps + ceilDiv(requiredProfit * 10000n, amount);
   const candidates = parseRouteCandidates(defaultRouter);
 
-  const params = { usdc, amount, premiumBps, minProfitUsdc, slippageBps, requiredEdgeBps };
+  const params = { usdc, amount, premiumBps, minProfitUsdc, requiredProfitUsdc: requiredProfit, slippageBps, requiredEdgeBps };
   const evaluations = [];
   for (const candidate of candidates) {
     evaluations.push(await evaluateCandidate(candidate, params));

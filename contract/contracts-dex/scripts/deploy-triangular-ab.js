@@ -88,8 +88,18 @@ async function main() {
 
   const poolAddress = normalizeAddress(optionalEnv("TRIANGULAR_AAVE_POOL_ADDRESS", "AAVE_POOL_ADDRESS"));
   const usdcAddress = normalizeAddress(stableTokenFromEnv("TRIANGULAR_USDC_ADDRESS", "FUJI_USDC", "USDC_ADDRESS"));
+  const routerAddress = normalizeAddress(optionalEnv("TRIANGULAR_DEX_ROUTER", "DEX_ROUTER_ADDRESS", "FUJI_DEX_ROUTER"));
   if (!poolAddress) throw new Error("TRIANGULAR_AAVE_POOL_ADDRESS or AAVE_POOL_ADDRESS is required");
   if (!usdcAddress) throw new Error("TRIANGULAR_USDC_ADDRESS or FUJI_USDC or USDC_ADDRESS is required");
+  if (!routerAddress) throw new Error("TRIANGULAR_DEX_ROUTER or DEX_ROUTER_ADDRESS or FUJI_DEX_ROUTER is required");
+  const borrowAmount = BigInt(optionalEnv("TRIANGULAR_BORROW_AMOUNT_UNITS") || "1000000");
+  const minProfitUsdc = BigInt(optionalEnv("TRIANGULAR_MIN_PROFIT_USDC_UNITS") || "0");
+  const deadlineSeconds = BigInt(optionalEnv("TRIANGULAR_DEADLINE_SECONDS") || "60");
+  const slippageBps = BigInt(optionalEnv("TRIANGULAR_SLIPPAGE_BPS") || "50");
+  const minBorrowAmount = BigInt(optionalEnv("TRIANGULAR_MIN_BORROW_AMOUNT_UNITS") || borrowAmount.toString());
+  const maxBorrowAmount = BigInt(optionalEnv("TRIANGULAR_MAX_BORROW_AMOUNT_UNITS") || borrowAmount.toString());
+  const amountSearchSteps = BigInt(optionalEnv("TRIANGULAR_AMOUNT_SEARCH_STEPS") || "1");
+  const maxRouteSlippageBps = BigInt(optionalEnv("TRIANGULAR_MAX_ROUTE_SLIPPAGE_BPS") || slippageBps.toString());
 
   const networkName = hre.network.name || "unknown";
   const paths = evidencePaths({ strategy: `${networkName}-triangular-ab-deploy` });
@@ -108,6 +118,19 @@ async function main() {
   const controllerAddress = await controller.getAddress();
   console.log(`TRIANGULAR_ROUTE_CONTROLLER_ADDRESS=${controllerAddress}`);
 
+  const configTx = await controller.setExecutionConfig(routerAddress, borrowAmount, minProfitUsdc, deadlineSeconds, slippageBps);
+  const configReceipt = await configTx.wait();
+  console.log(`setExecutionConfigTx=${configReceipt.hash}`);
+
+  const amountSearchTx = await controller.setAmountSearchConfig(
+    minBorrowAmount,
+    maxBorrowAmount,
+    amountSearchSteps,
+    maxRouteSlippageBps,
+  );
+  const amountSearchReceipt = await amountSearchTx.wait();
+  console.log(`setAmountSearchConfigTx=${amountSearchReceipt.hash}`);
+
   const setControllerTx = await executor.setController(controllerAddress);
   const setControllerReceipt = await setControllerTx.wait();
   console.log(`setControllerTx=${setControllerReceipt.hash}`);
@@ -122,8 +145,19 @@ async function main() {
     deployer: deployer.address,
     aavePoolAddress: poolAddress,
     usdcAddress,
+    routerAddress,
+    borrowAmount: borrowAmount.toString(),
+    minProfitUsdc: minProfitUsdc.toString(),
+    deadlineSeconds: deadlineSeconds.toString(),
+    slippageBps: slippageBps.toString(),
+    minBorrowAmount: minBorrowAmount.toString(),
+    maxBorrowAmount: maxBorrowAmount.toString(),
+    amountSearchSteps: amountSearchSteps.toString(),
+    maxRouteSlippageBps: maxRouteSlippageBps.toString(),
     triangularRouteControllerAddress: controllerAddress,
     aaveTriangularExecutorAddress: executorAddress,
+    setExecutionConfigTxHash: configReceipt.hash,
+    setAmountSearchConfigTxHash: amountSearchReceipt.hash,
     setControllerTxHash: setControllerReceipt.hash,
   };
   fs.mkdirSync(outputDir, { recursive: true });

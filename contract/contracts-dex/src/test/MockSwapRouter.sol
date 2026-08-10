@@ -32,6 +32,7 @@ contract MockSwapRouter {
     address public owner;
     mapping(address => mapping(address => Rate)) public rates;
     mapping(address => mapping(address => uint256)) public maxAmountIn;
+    mapping(address => mapping(address => uint256)) public impactBpsPerUnit;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -52,6 +53,10 @@ contract MockSwapRouter {
 
     function setMaxAmountIn(address tokenIn, address tokenOut, uint256 amount) external onlyOwner {
         maxAmountIn[tokenIn][tokenOut] = amount;
+    }
+
+    function setImpactBpsPerUnit(address tokenIn, address tokenOut, uint256 impactBps) external onlyOwner {
+        impactBpsPerUnit[tokenIn][tokenOut] = impactBps;
     }
 
     function swapExactTokensForTokens(
@@ -86,7 +91,10 @@ contract MockSwapRouter {
             if (rate.numerator == 0 || rate.denominator == 0) revert RateNotSet();
             uint256 maxIn = maxAmountIn[path[i]][path[i + 1]];
             if (maxIn != 0 && amounts[i] > maxIn) revert AmountTooLarge();
-            amounts[i + 1] = (amounts[i] * rate.numerator) / rate.denominator;
+            uint256 amountOut = (amounts[i] * rate.numerator) / rate.denominator;
+            uint256 impactBps = (amounts[i] * impactBpsPerUnit[path[i]][path[i + 1]]) / 1_000_000;
+            if (impactBps >= 10000) revert AmountTooLarge();
+            amounts[i + 1] = (amountOut * (10000 - impactBps)) / 10000;
         }
     }
 
