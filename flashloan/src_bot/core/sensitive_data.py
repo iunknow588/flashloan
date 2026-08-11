@@ -39,8 +39,8 @@ def _sensitive_environment_values() -> list[str]:
 
 def _is_sensitive_environment_name(name: str) -> bool:
     normalized = name.upper()
-    return (
-        normalized.endswith("_RPC_URL")
-        or normalized == "DATABASE_URL"
-        or any(part in normalized for part in ("PRIVATE_KEY", "MNEMONIC", "SEED", "PASSWORD", "TOKEN", "SECRET", "API_KEY"))
-    )
+    if normalized.endswith("_RPC_URL") or normalized == "DATABASE_URL":
+        return True
+    if any(part in normalized for part in ("PRIVATE_KEY", "MNEMONIC", "SEED", "PASSWORD", "SECRET", "API_KEY")):
+        return True
+    return normalized in {"TOKEN", "ACCESS_TOKEN", "AUTH_TOKEN", "REFRESH_TOKEN", "JWT"}

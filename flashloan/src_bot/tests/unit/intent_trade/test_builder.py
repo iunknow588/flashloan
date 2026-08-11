@@ -1,6 +1,7 @@
 import inspect
 import json
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 from intent_trade import (
     bind_cow_intent_context,
@@ -29,10 +30,16 @@ def _clear_direct_pair_env(monkeypatch):
         "DEX_ROUTER_ADDRESS",
         "FUJI_DEX_ROUTER",
         "TRIANGULAR_RUNTIME_TRADES_JSON",
+        "UNIFIED_EXECUTOR_ADDRESS",
+        "TRIANGULAR_UNIFIED_EXECUTOR_ADDRESS",
+        "UNIFIED_EXECUTOR_ARTIFACT",
         "TRIANGULAR_DIRECT_USE_DYNAMIC_CANDIDATES",
         "TRIANGULAR_DIRECT_CANDIDATE_STRATEGY",
         "TRIANGULAR_ENABLE_NON_USDC_CROSS_POOL",
         "TRIANGULAR_DIRECT_ENABLE_TOKEN_X_CROSS_POOL",
+        "TRIANGULAR_MIN_PROFIT_USDC",
+        "TRIANGULAR_MIN_PROFIT_USDC_BASE_UNITS",
+        "TRIANGULAR_EXECUTION_MIN_PROFIT_USDC",
         "TRIANGULAR_USDC_ADDRESS",
         "USDC_ADDRESS",
         "TRIANGULAR_DIRECT_NETWORK",
@@ -44,6 +51,7 @@ def _clear_direct_pair_env(monkeypatch):
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
+    monkeypatch.setattr(direct, "_UNIFIED_EXECUTOR_ABI_CACHE", None)
 
 
 def _runtime_trades_json(token_x: str | None = None, token_y: str | None = None, pool: str | None = None) -> str:
@@ -57,6 +65,50 @@ def _runtime_trades_json(token_x: str | None = None, token_y: str | None = None,
                 {"adapterKind": 1, "pool": _addr(104)},
             ],
         }
+    ])
+
+
+def _unified_runtime_trades_json(
+    usdc: str | None = None,
+    token_x: str | None = None,
+    token_y: str | None = None,
+) -> str:
+    usdc = usdc or _addr(500)
+    token_x = token_x or _addr(501)
+    token_y = token_y or _addr(502)
+    return json.dumps([
+        {
+            "tradeIndex": 0,
+            "tokenX": usdc,
+            "tokenY": token_x,
+            "strategyStatus": 1,
+            "routeKey": "AAA:BBB",
+            "pools": [{"adapterKind": 1, "pool": _addr(601)}, {"adapterKind": 1, "pool": _addr(602)}],
+        },
+        {
+            "tradeIndex": 1,
+            "tokenX": usdc,
+            "tokenY": token_y,
+            "strategyStatus": 2,
+            "routeKey": "AAA:BBB",
+            "pools": [{"adapterKind": 1, "pool": _addr(603)}, {"adapterKind": 1, "pool": _addr(604)}],
+        },
+        {
+            "tradeIndex": 2,
+            "tokenX": token_x,
+            "tokenY": token_y,
+            "strategyStatus": 3,
+            "routeKey": "AAA:BBB",
+            "pools": [{"adapterKind": 1, "pool": _addr(605)}, {"adapterKind": 1, "pool": _addr(606)}],
+        },
+        {
+            "tradeIndex": 3,
+            "tokenX": token_y,
+            "tokenY": token_x,
+            "strategyStatus": 5,
+            "routeKey": "AAA:BBB",
+            "pools": [{"adapterKind": 1, "pool": _addr(607)}, {"adapterKind": 1, "pool": _addr(608)}],
+        },
     ])
 
 
@@ -214,24 +266,23 @@ def test_bind_cow_intent_context_recomputes_cost_inclusive_final_target(monkeypa
 
 
 def test_build_triangular_onchain_intent_trade_exposes_direct_protocol(monkeypatch):
-    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "0x" + "1" * 40)
-    monkeypatch.setenv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "0x" + "2" * 40)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ADDRESS", "0x" + "2" * 40)
     monkeypatch.setenv("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "0x" + "5" * 40)
-    monkeypatch.setenv("TRIANGULAR_RUNTIME_TRADES_JSON", _runtime_trades_json())
+    monkeypatch.setenv("TRIANGULAR_RUNTIME_TRADES_JSON", _unified_runtime_trades_json())
 
     intent = build_triangular_onchain_intent_trade("USDC->BBB->AAA->USDC", "6.18", ["AAA"], ["BBB"])
 
     protocol = intent["direct_onchain_protocol"]
-    assert protocol["kind"] == "triangular_route_controller_runtime_auto_v3"
-    assert protocol["execution_mode"] == "auto"
-    assert protocol["controller_address"] == "0x" + "1" * 40
+    assert protocol["kind"] == "unified_flashloan_mev_executor_runtime_v1"
+    assert protocol["execution_mode"] == "ordered_auto"
+    assert protocol["unified_executor_address"] == "0x" + "2" * 40
     assert protocol["executor_address"] == "0x" + "2" * 40
     assert protocol["runtime_trades"][0]["tradeIndex"] == 0
     assert protocol["runtime_trades"][0]["pools"][0]["adapterKind"] == 1
     assert protocol["runtime_trade_limit"] == 5
     assert protocol["runtime_candidate_limit"] == 25
     assert protocol["candidate_strategy"] == "expanded"
-    assert protocol["selection_strategy"] == "expanded_status_order_safe_auto_then_triangular_fallback"
+    assert protocol["selection_strategy"] == "all_usdc_route_groups_preview_then_best"
     assert intent["direct_onchain_ready"] is True
     assert intent["intent_protocol"] == "direct_onchain"
     assert intent["submission_protocol"] == "direct_onchain"
@@ -261,23 +312,22 @@ def test_direct_onchain_rpc_prefers_fuji_rpc_for_fuji(monkeypatch):
 
 def test_build_triangular_onchain_intent_trade_uses_signal_and_pool_cache(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
-    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", _addr(9))
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ADDRESS", _addr(9))
     cache_path = tmp_path / "avalanche_v3_pools.json"
-    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["AAA", "BBB"])), encoding="utf-8")
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["USDC", "AAA", "BBB"])), encoding="utf-8")
     monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
 
     intent = build_triangular_onchain_intent_trade("USDC->BBB->AAA->USDC", "6.18", ["AAA"], ["BBB"])
 
     protocol = intent["direct_onchain_protocol"]
     assert protocol["runtime_trades"]
-    assert protocol["runtime_trades"][0]["tokenX"] == _addr(500)
-    assert protocol["runtime_trades"][0]["tokenY"] == _addr(501)
+    assert [trade["strategyStatus"] for trade in protocol["runtime_trades"]] == [1, 2, 3, 5]
+    assert len(protocol["runtime_trades"][0]["pools"]) == 5
     assert intent["direct_onchain_ready"] is True
 
 
 def test_build_triangular_onchain_intent_trade_requires_runtime_trades(monkeypatch):
-    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", "0x" + "1" * 40)
-    monkeypatch.setenv("AAVE_TRIANGULAR_EXECUTOR_ADDRESS", "0x" + "2" * 40)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ADDRESS", "0x" + "2" * 40)
 
     intent = build_triangular_onchain_intent_trade("USDC", "6.18", [], [])
 
@@ -368,8 +418,8 @@ def test_build_triangular_onchain_intent_trade_uses_runtime_env_not_pair_table(m
     y0 = _addr(2)
     x1 = _addr(3)
     y1 = _addr(4)
-    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", _addr(9))
-    monkeypatch.setenv("TRIANGULAR_RUNTIME_TRADES_JSON", _runtime_trades_json(x1, y1))
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ADDRESS", _addr(9))
+    monkeypatch.setenv("TRIANGULAR_RUNTIME_TRADES_JSON", _unified_runtime_trades_json(_addr(500), x1, y1))
     monkeypatch.setenv(
         "TRIANGULAR_USDC_PAIRS_JSON",
         json.dumps([
@@ -382,13 +432,14 @@ def test_build_triangular_onchain_intent_trade_uses_runtime_env_not_pair_table(m
 
     protocol = intent["direct_onchain_protocol"]
     assert "pair_id" not in protocol
-    assert protocol["runtime_trades"][0]["tokenX"] == x1
-    assert protocol["runtime_trades"][0]["tokenY"] == y1
+    assert protocol["runtime_trades"][2]["tokenX"] == x1
+    assert protocol["runtime_trades"][2]["tokenY"] == y1
     assert intent["direct_onchain_ready"] is True
 
 
 def test_submit_direct_onchain_trade_accepts_runtime_trades_before_network_setup(monkeypatch):
     _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", _addr(500))
     for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
         monkeypatch.delenv(name, raising=False)
     token_x = _addr(31)
@@ -400,8 +451,8 @@ def test_submit_direct_onchain_trade_accepts_runtime_trades_before_network_setup
                 "direct_onchain_protocol": {
                     "enabled": True,
                     "network": "avalanche",
-                    "controller_address": _addr(33),
-                    "runtime_trades": json.loads(_runtime_trades_json(token_x, token_y)),
+                    "unified_executor_address": _addr(33),
+                    "runtime_trades": json.loads(_unified_runtime_trades_json(_addr(500), token_x, token_y)),
                 }
             }
         },
@@ -425,6 +476,7 @@ def test_runtime_candidate_pairs_use_default_router(monkeypatch):
 
 def test_submit_direct_onchain_trade_accepts_opportunity_runtime_trades_before_network_setup(monkeypatch):
     _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", _addr(500))
     for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
         monkeypatch.delenv(name, raising=False)
 
@@ -434,22 +486,145 @@ def test_submit_direct_onchain_trade_accepts_opportunity_runtime_trades_before_n
                 "direct_onchain_protocol": {
                     "enabled": True,
                     "network": "avalanche",
-                    "controller_address": _addr(61),
+                    "unified_executor_address": _addr(61),
                 }
             }
         },
-        opportunity={"runtime_trades": json.loads(_runtime_trades_json(_addr(62), _addr(63), _addr(64)))},
+        opportunity={"runtime_trades": json.loads(_unified_runtime_trades_json(_addr(500), _addr(62), _addr(63)))},
     )
 
     assert result["status"] == "network_config_missing"
     assert result["blocked_reason"] == "network_config_missing"
 
 
+def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before_broadcast(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    usdc = _addr(500)
+    token_x = _addr(501)
+    token_y = _addr(502)
+    signer = _addr(700)
+    executor_address = _addr(701)
+
+    class FakeCall:
+        def __init__(self, value):
+            self.value = value
+
+        def call(self, *_args, **_kwargs):
+            return self.value
+
+    class FakeRunCall(FakeCall):
+        def estimate_gas(self, *_args, **_kwargs):
+            return 321_000
+
+    hop = (1, usdc, token_x, _addr(601), 500, 1_000_000, 1_001_000, 0)
+    preview_result = (
+        True,
+        4,
+        1,
+        2,
+        (True, 2, token_x, token_y, _addr(605), _addr(606), 500, 3000, 1, 1, -100, 250, 350, 2, 0),
+        (usdc, usdc, 1_000_000, 1, 0, b"\x01", 1_003_003, 500, 1_000_501, 1_000_501, 1, 2_502),
+        (1, 0, 1, (hop, hop, hop), 1_003_003, 500, 1_000_501, 2_502),
+        (
+            1104,
+            4,
+            4,
+            0b01111,
+            0b01000,
+            0b10000,
+            1,
+            tuple((index + 1, 1, 0, 0, 0, 0, index, index, usdc, 0, 0, 0) for index in range(5)),
+        ),
+    )
+    static_result = (1204, 4, 1, 1, 2, usdc, 2_503, 2_503, 0b01111, 0b10000, 1)
+
+    class FakeFunctions:
+        def owner(self):
+            return FakeCall(signer)
+
+        def previewOrderedRuntimeAutoExecution(self, *args):
+            self.preview_args = args
+            return FakeCall(preview_result)
+
+        def runOrderedRuntimeTradesAndExecuteAuto(self, *args):
+            self.run_args = args
+            return FakeRunCall(static_result)
+
+    class FakeContract:
+        def __init__(self):
+            self.functions = FakeFunctions()
+
+    contract = FakeContract()
+
+    class FakeEth:
+        chain_id = 43113
+
+        def contract(self, *, address, abi):
+            self.address = address
+            self.abi = abi
+            return contract
+
+    class FakeWeb3:
+        def __init__(self, _provider):
+            self.eth = FakeEth()
+
+        @staticmethod
+        def HTTPProvider(url, request_kwargs=None):
+            return (url, request_kwargs)
+
+        @staticmethod
+        def to_checksum_address(value):
+            return value.lower()
+
+    class FakeAccount:
+        @staticmethod
+        def from_key(_key):
+            return SimpleNamespace(address=signer)
+
+    web3_module = ModuleType("web3")
+    web3_module.Web3 = FakeWeb3
+    account_module = ModuleType("eth_account")
+    account_module.Account = FakeAccount
+    monkeypatch.setitem(sys.modules, "web3", web3_module)
+    monkeypatch.setitem(sys.modules, "eth_account", account_module)
+    monkeypatch.setenv("FUJI_RPC_URL", "https://api.avax-test.network/ext/bc/C/rpc")
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", usdc)
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_PRIVATE_KEY", "0x" + "11" * 32)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_BROADCAST_ENABLED", "false")
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "fuji",
+                    "unified_executor_address": executor_address,
+                    "runtime_trades": json.loads(_unified_runtime_trades_json(usdc, token_x, token_y)),
+                    "execute_runtime_trade": True,
+                    "execution_amount": 1_000_000,
+                    "amountOutMinUsdc": 1_000_501,
+                    "minProfitUsdc": 1,
+                }
+            }
+        },
+        opportunity={"tokenX": token_x, "tokenY": token_y},
+    )
+
+    assert result["status"] == "static_call_passed"
+    assert result["blocked_reason"] == "broadcast_disabled"
+    assert result["preflight"]["strategyStatus"] == "4"
+    assert result["route_direction"] == "1"
+    assert result["static_call"]["gasEstimate"] == "321000"
+    assert result["static_call"]["runResult"]["profitSwept"] == "2503"
+    assert contract.functions.preview_args[3] is False
+    assert contract.functions.run_args[3] is False
+
+
 def test_runtime_trade_candidates_use_cached_v3_pools_for_top5_bottom5(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
     top = [_market_row(f"T{i}", 5.0 - i) for i in range(6)]
     bottom = [_market_row(f"B{i}", -5.0 - i) for i in range(6)]
-    symbols = [row["base_symbol"] for row in [*top, *bottom]]
+    symbols = ["USDC", *[row["base_symbol"] for row in [*top, *bottom]]]
     cache_path = tmp_path / "avalanche_v3_pools.json"
     cache_path.write_text(json.dumps(_pool_cache_for_symbols(symbols)), encoding="utf-8")
     monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
@@ -460,24 +635,20 @@ def test_runtime_trade_candidates_use_cached_v3_pools_for_top5_bottom5(monkeypat
         trade_limit=16,
     )
 
-    assert len(trades) == 16
-    assert [trade["tradeIndex"] for trade in trades] == list(range(16))
-    assert all(2 <= len([pool for pool in trade["pools"] if pool["adapterKind"] == 1 and pool["pool"]]) <= 10 for trade in trades)
+    assert len(trades) == 4
+    assert [trade["tradeIndex"] for trade in trades] == [0, 1, 2, 3]
+    assert [trade["strategyStatus"] for trade in trades] == [1, 2, 3, 5]
+    assert all(2 <= len([pool for pool in trade["pools"] if pool["adapterKind"] == 1 and pool["pool"]]) <= 5 for trade in trades)
     assert all(pool["adapterKind"] in {0, 1} for trade in trades for pool in trade["pools"])
-    assert _addr(505) not in {trade["tokenX"] for trade in trades}
-    assert _addr(511) not in {trade["tokenY"] for trade in trades}
-    assert trades[0]["tokenX"] == _addr(500)
-    assert trades[0]["tokenY"] == _addr(510)
+    assert len({trade["routeKey"] for trade in trades}) == 1
 
     default_trades = direct._runtime_trade_candidates(
         {"network": "avalanche"},
         {"market_state": {"top": top, "bottom": bottom}},
     )
 
-    assert len(default_trades) == 5
-    assert [trade["tradeIndex"] for trade in default_trades] == list(range(5))
-    assert default_trades[0]["tokenX"] == _addr(500)
-    assert default_trades[0]["tokenY"] == _addr(510)
+    assert len(default_trades) == 4
+    assert [trade["strategyStatus"] for trade in default_trades] == [1, 2, 3, 5]
 
 
 def test_runtime_trade_candidates_expand_usdc_cross_pool_before_xy(monkeypatch, tmp_path):
@@ -502,6 +673,141 @@ def test_runtime_trade_candidates_expand_usdc_cross_pool_before_xy(monkeypatch, 
     assert trades[1]["routeSymbols"] == ["USDC", "BBB", "USDC"]
     assert trades[2]["routeSymbols"] == ["USDC", "AAA", "BBB", "USDC"]
     assert trades[3]["routeSymbols"] == ["USDC", "BBB", "AAA", "USDC"]
+
+
+def test_runtime_route_groups_cover_all_cache_discovered_usdc_tokens(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    usdc = _addr(500)
+    cache = _pool_cache_for_symbols(["USDC", "AAA", "BBB", "CCC"])
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", usdc)
+
+    groups = direct._runtime_route_groups_from_market_state(
+        {
+            "top": [_market_row("AAA", 6.0), _market_row("BBB", 3.0)],
+            "bottom": [_market_row("CCC", -4.0)],
+        },
+        cache=cache,
+        group_limit=0,
+    )
+
+    direct_keys = {group["routeKey"] for group in groups if group["routeKind"] == "usdc_cross_pool"}
+    triangular_keys = {group["routeKey"] for group in groups if group["routeKind"] == "usdc_triangular"}
+    assert direct_keys == {"USDC:AAA", "USDC:BBB", "USDC:CCC"}
+    assert triangular_keys == {"AAA:BBB", "AAA:CCC", "BBB:CCC"}
+    assert all(len(group["trades"]) == 1 for group in groups if group["routeKind"] == "usdc_cross_pool")
+    assert all(3 <= len(group["trades"]) <= 4 for group in groups if group["routeKind"] == "usdc_triangular")
+
+
+def test_unified_route_group_check_accepts_single_usdc_cross_pool_trade():
+    usdc = _addr(500)
+    trade = direct._normalize_runtime_trade(
+        {
+            "tradeIndex": 0,
+            "tokenX": usdc,
+            "tokenY": _addr(501),
+            "strategyStatus": 1,
+            "routeKey": "USDC:AAA",
+            "pools": [{"adapterKind": 1, "pool": _addr(601)}, {"adapterKind": 1, "pool": _addr(602)}],
+        },
+        0,
+    )
+    trade["strategyStatus"] = 1
+    trade["routeKey"] = "USDC:AAA"
+
+    ordered, plan = direct._ordered_runtime_trade_plan([trade], usdc_address=usdc)
+    check = direct._unified_executor_route_order_check(ordered, usdc_address=usdc)
+
+    assert plan["ok"] is True
+    assert len(ordered) == 1
+    assert check["ok"] is True
+    assert check["routeDirection"] == "U-X-U"
+
+
+def test_unified_route_group_selection_uses_highest_usdc_expected_profit():
+    usdc = _addr(500)
+    groups = [
+        {"groupIndex": 0, "routeKey": "USDC:AAA", "routeKind": "usdc_cross_pool"},
+        {"groupIndex": 1, "routeKey": "USDC:BBB", "routeKind": "usdc_cross_pool"},
+    ]
+
+    def preview(expected_profit: int):
+        hop = (0, usdc, usdc, _addr(601), 0, 0, 0, 0)
+        return (
+            True,
+            1,
+            3,
+            0,
+            (True, 0, usdc, _addr(501), _addr(601), _addr(602), 500, 3000, 1, 1, -1, 1, 2, 2, 0),
+            (usdc, usdc, 1_000_000, 0, 0, b"", 1_000_000 + expected_profit, 500, 1_000_000, 1_000_000, 1, expected_profit),
+            (0, 0, 0, (hop, hop, hop), 0, 0, 0, 0),
+            (1101, 1, 1, 1, 1, 0, 0, ((1, 2, 0, 0, 1101, 0, 0, 0, usdc, expected_profit, 1_000_000, 1_000_000),) * 5),
+        )
+
+    selected, report, evaluations = direct._select_best_unified_route_group(
+        groups,
+        usdc_address=usdc,
+        preview_group=lambda group: preview(12 if group["routeKey"] == "USDC:AAA" else 34),
+    )
+
+    assert selected["routeKey"] == "USDC:BBB"
+    assert report["executionPreview"]["expectedProfit"] == "34"
+    assert [item["selected"] for item in evaluations] == [True, True]
+
+
+def test_unified_executor_route_plan_enforces_one_coherent_xy_group(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", _addr(500))
+    cache_path = tmp_path / "pools.json"
+    cache = _pool_cache_for_symbols(["USDC", "AAA", "BBB"])
+    cache_path.write_text(json.dumps(cache), encoding="utf-8")
+
+    trades = direct._runtime_trades_from_market_state(
+        {"top": [_market_row("AAA", 4.0)], "bottom": [_market_row("BBB", -3.0)]},
+        cache=cache,
+    )
+    ordered, plan = direct._ordered_runtime_trade_plan(trades, usdc_address=_addr(500))
+    check = direct._unified_executor_route_order_check(ordered, usdc_address=_addr(500))
+
+    assert plan["ok"] is True
+    assert [trade["strategyStatus"] for trade in ordered] == [1, 2, 3, 5]
+    assert len({trade["routeKey"] for trade in ordered}) == 1
+    assert check["ok"] is True
+    assert check["routeDirection"] == "U-X-Y-U"
+    assert all(len(trade["pools"]) == 5 for trade in ordered)
+
+
+def test_unified_executor_route_plan_rejects_mixed_xy_slots():
+    usdc = _addr(500)
+    trades = json.loads(_unified_runtime_trades_json(usdc, _addr(501), _addr(502)))
+    trades[2]["tokenX"] = _addr(503)
+    normalized = [direct._normalize_runtime_trade(trade, index) for index, trade in enumerate(trades)]
+
+    assert direct._unified_executor_route_order_check(normalized, usdc_address=usdc)["ok"] is False
+
+
+def test_unified_executor_abi_is_loaded_from_the_current_contract_artifact(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    abi = direct._load_unified_executor_abi()
+    names = {entry.get("name") for entry in abi if entry.get("type") == "function"}
+
+    assert "previewOrderedRuntimeAutoExecution" in names
+    assert "runOrderedRuntimeTradesAndExecuteAuto" in names
+    assert "previewFirstProfitableRuntimeAutoExecution" not in names
+
+
+def test_aave_borrowable_cache_rejects_mainnet_data_for_fuji():
+    cache = {
+        "rpc_url": "https://api.avax.network/ext/bc/C/rpc",
+        "assets": [
+            {
+                "token_address": _addr(900),
+                "available_liquidity": 1_000_000,
+            }
+        ],
+    }
+
+    assert direct._aave_borrowable_token_addresses(cache, network="fuji") == set()
 
 
 def test_cross_pool_filter_allows_usdc_base_and_blocks_non_usdc_by_default(monkeypatch):
@@ -598,12 +904,13 @@ def test_rank_runtime_trades_by_profit_keeps_top_five_and_stable_ties():
 
 def test_submit_direct_onchain_trade_builds_runtime_trades_from_market_state_cache(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", _addr(500))
     for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
         monkeypatch.delenv(name, raising=False)
     top = [_market_row("AAA", 4.0)]
     bottom = [_market_row("BBB", -3.0)]
     cache_path = tmp_path / "avalanche_v3_pools.json"
-    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["AAA", "BBB"])), encoding="utf-8")
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["USDC", "AAA", "BBB"])), encoding="utf-8")
     monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
 
     result = direct.submit_direct_onchain_trade(
@@ -613,7 +920,7 @@ def test_submit_direct_onchain_trade_builds_runtime_trades_from_market_state_cac
                 "direct_onchain_protocol": {
                     "enabled": True,
                     "network": "avalanche",
-                    "controller_address": _addr(71),
+                    "unified_executor_address": _addr(71),
                 },
             }
         },
@@ -689,7 +996,7 @@ def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_i
                 "direct_onchain_protocol": {
                     "enabled": True,
                     "network": "avalanche",
-                    "controller_address": _addr(43),
+                    "unified_executor_address": _addr(43),
                 }
             }
         },
@@ -697,7 +1004,7 @@ def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_i
     )
 
     assert result["status"] == "direct_protocol_incomplete"
-    assert result["error"] == "runtime_trades is required"
+    assert result["error"] == "runtime_trades_empty"
     monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
 
 

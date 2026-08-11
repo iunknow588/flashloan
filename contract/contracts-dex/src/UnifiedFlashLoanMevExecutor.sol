@@ -97,41 +97,42 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         uint8 remainingStatusMask
     );
 
-    uint8 public constant ADAPTER_NONE = 0;
-    uint8 public constant ADAPTER_UNISWAP_V3 = 1;
+    uint8 internal constant ADAPTER_NONE = 0;
+    uint8 internal constant ADAPTER_UNISWAP_V3 = 1;
 
-    uint8 public constant EXECUTION_KIND_NONE = 0;
-    uint8 public constant EXECUTION_KIND_USDC_TRIANGULAR = 1;
-    uint8 public constant EXECUTION_KIND_TOKEN_CROSS_POOL = 2;
-    uint8 public constant EXECUTION_KIND_USDC_CROSS_POOL = 3;
+    uint8 internal constant EXECUTION_KIND_NONE = 0;
+    uint8 internal constant EXECUTION_KIND_USDC_TRIANGULAR = 1;
+    uint8 internal constant EXECUTION_KIND_TOKEN_CROSS_POOL = 2;
+    uint8 internal constant EXECUTION_KIND_USDC_CROSS_POOL = 3;
 
-    uint8 public constant ROUTE_DIRECTION_NONE = 0;
-    uint8 public constant ROUTE_DIRECTION_U_X_Y_U = 1;
-    uint8 public constant ROUTE_DIRECTION_U_Y_X_U = 2;
+    uint8 internal constant ROUTE_DIRECTION_NONE = 0;
+    uint8 internal constant ROUTE_DIRECTION_U_X_Y_U = 1;
+    uint8 internal constant ROUTE_DIRECTION_U_Y_X_U = 2;
 
-    uint8 public constant TRIANGULAR_EXECUTION_PACKED_PATH = 1;
+    uint8 internal constant TRIANGULAR_EXECUTION_PACKED_PATH = 1;
 
-    uint8 public constant STEP_NOT_CHECKED = 0;
-    uint8 public constant STEP_CHECKED_FAILED = 1;
-    uint8 public constant STEP_SELECTED = 2;
-    uint8 public constant STEP_NOT_EXECUTED_AFTER_SELECTION = 3;
+    uint8 internal constant STEP_NOT_CHECKED = 0;
+    uint8 internal constant STEP_CHECKED_FAILED = 1;
+    uint8 internal constant STEP_SELECTED = 2;
+    uint8 internal constant STEP_NOT_EXECUTED_AFTER_SELECTION = 3;
 
-    uint256 public constant STATUS_UX_CROSS_POOL = 1;
-    uint256 public constant STATUS_UY_CROSS_POOL = 2;
-    uint256 public constant STATUS_XY_CROSS_POOL = 3;
-    uint256 public constant STATUS_XY_USDC_FALLBACK = 4;
-    uint256 public constant STATUS_COMBINED_FALLBACK = 5;
+    uint256 internal constant STATUS_UX_CROSS_POOL = 1;
+    uint256 internal constant STATUS_UY_CROSS_POOL = 2;
+    uint256 internal constant STATUS_XY_CROSS_POOL = 3;
+    uint256 internal constant STATUS_XY_USDC_FALLBACK = 4;
+    uint256 internal constant STATUS_COMBINED_FALLBACK = 5;
 
-    uint256 public constant ERR_NONE = 0;
-    uint256 public constant ERR_NOT_ENOUGH_POOLS = 1;
-    uint256 public constant ERR_NO_PRICE_SPREAD = 2;
-    uint256 public constant ERR_QUOTE_FAILED = 3;
-    uint256 public constant ERR_PROFIT_NOT_ENOUGH = 4;
-    uint256 public constant ERR_BORROW_ASSET_DISABLED = 5;
-    uint256 public constant ERR_NO_PROFITABLE_ROUTE = 55555;
+    uint256 internal constant ERR_NONE = 0;
+    uint256 internal constant ERR_NOT_ENOUGH_POOLS = 1;
+    uint256 internal constant ERR_NO_PRICE_SPREAD = 2;
+    uint256 internal constant ERR_QUOTE_FAILED = 3;
+    uint256 internal constant ERR_PROFIT_NOT_ENOUGH = 4;
+    uint256 internal constant ERR_BORROW_ASSET_DISABLED = 5;
+    uint256 internal constant ERR_ROUTE_LAYOUT_INVALID = 6;
+    uint256 internal constant ERR_NO_PROFITABLE_ROUTE = 55555;
 
-    uint256 public constant MAX_POOLS_PER_TRADE = 5;
-    uint256 public constant MAX_ORDERED_TRADE_SCAN = 5;
+    uint256 internal constant MAX_POOLS_PER_TRADE = 5;
+    uint256 internal constant MAX_ORDERED_TRADE_SCAN = 5;
 
     struct AdapterConfig {
         bool allowed;
@@ -769,6 +770,10 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
             _failStep(result.progress, status, tradeArrayIndex, xy, 3500 + status, ERR_BORROW_ASSET_DISABLED);
             return false;
         }
+        if (!_hasForwardTriangularLayout(ux, uy, xy)) {
+            _failStep(result.progress, status, tradeArrayIndex, xy, 3100 + status, ERR_ROUTE_LAYOUT_INVALID);
+            return false;
+        }
 
         RuntimeExecutionPreview memory executionPreview;
         RuntimeTriangularRoutePreview memory triangularRoute;
@@ -808,6 +813,14 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
             _failStep(result.progress, status, tradeArrayIndex, yx, 3100 + status, ERR_NOT_ENOUGH_POOLS);
             return false;
         }
+        if (!_isBorrowEnabled(usdc, params.amount)) {
+            _failStep(result.progress, status, tradeArrayIndex, yx, 3500 + status, ERR_BORROW_ASSET_DISABLED);
+            return false;
+        }
+        if (!_hasReverseTriangularLayout(ux, uy, yx)) {
+            _failStep(result.progress, status, tradeArrayIndex, yx, 3100 + status, ERR_ROUTE_LAYOUT_INVALID);
+            return false;
+        }
 
         RuntimeExecutionPreview memory executionPreview;
         RuntimeTriangularRoutePreview memory triangularRoute;
@@ -831,6 +844,32 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         _select(result, status, EXECUTION_KIND_USDC_TRIANGULAR, tradeArrayIndex, yx, executionPreview);
         result.triangularRoute = triangularRoute;
         return true;
+    }
+
+    function _hasForwardTriangularLayout(
+        RuntimeTradeDecision memory ux,
+        RuntimeTradeDecision memory uy,
+        RuntimeTradeDecision memory xy
+    ) private view returns (bool) {
+        return (
+            ux.tokenX == usdc
+                && uy.tokenX == usdc
+                && ux.tokenY == xy.tokenX
+                && uy.tokenY == xy.tokenY
+        );
+    }
+
+    function _hasReverseTriangularLayout(
+        RuntimeTradeDecision memory ux,
+        RuntimeTradeDecision memory uy,
+        RuntimeTradeDecision memory yx
+    ) private view returns (bool) {
+        return (
+            ux.tokenX == usdc
+                && uy.tokenX == usdc
+                && uy.tokenY == yx.tokenX
+                && ux.tokenY == yx.tokenY
+        );
     }
 
     function _tryPreviewCrossPool(

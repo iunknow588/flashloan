@@ -1,4 +1,5 @@
 import run
+from core.sensitive_data import _is_sensitive_environment_name
 
 
 def test_redact_sensitive_text_masks_credentials_and_private_key_shapes():
@@ -28,3 +29,10 @@ def test_main_redacts_sensitive_startup_error(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "demo-password" not in captured.err
     assert "postgresql://[REDACTED]@db.example/app" in captured.err
+
+
+def test_public_token_configuration_is_not_treated_as_a_secret_environment_value():
+    assert _is_sensitive_environment_name("TRIANGULAR_TOKEN_X") is False
+    assert _is_sensitive_environment_name("DEX_TARGET_STABLE_TOKENS") is False
+    assert _is_sensitive_environment_name("ACCESS_TOKEN") is True
+    assert _is_sensitive_environment_name("LIQUIDATION_EXECUTION_PRIVATE_KEY") is True

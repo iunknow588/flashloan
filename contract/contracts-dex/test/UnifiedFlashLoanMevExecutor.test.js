@@ -1,6 +1,21 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+const STRATEGY = {
+  adapterUniswapV3: 1n,
+  executionKindUsdcTriangular: 1n,
+  executionKindTokenCrossPool: 2n,
+  routeUxyu: 1n,
+  stepCheckedFailed: 1n,
+  stepSelected: 2n,
+  statusXyCrossPool: 3n,
+  statusXyUsdcFallback: 4n,
+  errNotEnoughPools: 1n,
+  errBorrowAssetDisabled: 5n,
+  errRouteLayoutInvalid: 6n,
+  errNoProfitableRoute: 55555n,
+};
+
 function emptyRuntimePools() {
   return Array.from({ length: 5 }, () => ({ adapterKind: 0n, pool: ethers.ZeroAddress }));
 }
@@ -42,7 +57,7 @@ async function deployFixture() {
   const executor = await Executor.deploy(await pool.getAddress(), await usdc.getAddress(), owner.address);
 
   await executor.setAdapterConfig(
-    await executor.ADAPTER_UNISWAP_V3(),
+    STRATEGY.adapterUniswapV3,
     true,
     factory.address,
     await router.getAddress(),
@@ -136,19 +151,19 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     );
 
     expect(preview.found).to.equal(true);
-    expect(preview.strategyStatus).to.equal(await ctx.executor.STATUS_XY_USDC_FALLBACK());
-    expect(preview.executionKind).to.equal(await ctx.executor.EXECUTION_KIND_USDC_TRIANGULAR());
+    expect(preview.strategyStatus).to.equal(STRATEGY.statusXyUsdcFallback);
+    expect(preview.executionKind).to.equal(STRATEGY.executionKindUsdcTriangular);
     expect(preview.selectedTradeArrayIndex).to.equal(2n);
     expect(preview.executionPreview.borrowedAsset).to.equal(ctx.usdcAddress);
     expect(preview.executionPreview.profitAsset).to.equal(ctx.usdcAddress);
-    expect(preview.executionPreview.routeDirection).to.equal(await ctx.executor.ROUTE_DIRECTION_U_X_Y_U());
+    expect(preview.executionPreview.routeDirection).to.equal(STRATEGY.routeUxyu);
     expect(preview.executionPreview.quotedFinal).to.equal(1_003_003n);
     expect(preview.executionPreview.premium).to.equal(500n);
     expect(preview.executionPreview.requiredFinal).to.equal(1_000_501n);
     expect(preview.executionPreview.protectedMinFinal).to.equal(1_000_501n);
     expect(preview.executionPreview.expectedProfit).to.equal(2_502n);
 
-    expect(preview.triangularRoute.routeDirection).to.equal(await ctx.executor.ROUTE_DIRECTION_U_X_Y_U());
+    expect(preview.triangularRoute.routeDirection).to.equal(STRATEGY.routeUxyu);
     expect(preview.triangularRoute.hops[0].pool).to.equal(uxHigh.address);
     expect(preview.triangularRoute.hops[0].tokenIn).to.equal(ctx.usdcAddress);
     expect(preview.triangularRoute.hops[0].tokenOut).to.equal(ctx.xAddress);
@@ -173,10 +188,10 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     expect(preview.progress.selectedStatusMask).to.equal(0b01000);
     expect(preview.progress.remainingStatusMask).to.equal(0b10000);
     expect(preview.progress.remainingStepCount).to.equal(1);
-    expect(preview.progress.steps[0].phase).to.equal(await ctx.executor.STEP_CHECKED_FAILED());
-    expect(preview.progress.steps[1].phase).to.equal(await ctx.executor.STEP_CHECKED_FAILED());
+    expect(preview.progress.steps[0].phase).to.equal(STRATEGY.stepCheckedFailed);
+    expect(preview.progress.steps[1].phase).to.equal(STRATEGY.stepCheckedFailed);
     expect(preview.progress.steps[2].resultCode).to.equal(3503n);
-    expect(preview.progress.steps[3].phase).to.equal(await ctx.executor.STEP_SELECTED());
+    expect(preview.progress.steps[3].phase).to.equal(STRATEGY.stepSelected);
   });
 
   it("executes the selected three-hop USDC route and sweeps the realized profit", async function () {
@@ -193,16 +208,16 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     );
     expect(runPreview.resultCode).to.equal(1204n);
     expect(runPreview.strategyStatus).to.equal(4n);
-    expect(runPreview.routeDirection).to.equal(await ctx.executor.ROUTE_DIRECTION_U_X_Y_U());
+    expect(runPreview.routeDirection).to.equal(STRATEGY.routeUxyu);
     expect(runPreview.profitAmount).to.equal(2_503n);
     expect(runPreview.profitSwept).to.equal(2_503n);
 
     await expect(ctx.executor.runOrderedRuntimeTradesAndExecuteAuto(trades, usdcParams, tokenBorrowParams, false))
       .to.emit(ctx.executor, "OrderedRuntimePreviewSelected")
-      .withArgs(4n, await ctx.executor.EXECUTION_KIND_USDC_TRIANGULAR(), 2n, 103n)
+      .withArgs(4n, STRATEGY.executionKindUsdcTriangular, 2n, 103n)
       .and.to.emit(ctx.executor, "RuntimeTriangularHopQuoted")
       .withArgs(
-        await ctx.executor.ROUTE_DIRECTION_U_X_Y_U(),
+        STRATEGY.routeUxyu,
         1n,
         uxHigh.address,
         ctx.usdcAddress,
@@ -238,8 +253,8 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     );
 
     expect(preview.found).to.equal(false);
-    expect(preview.progress.finalResultCode).to.equal(await ctx.executor.ERR_NO_PROFITABLE_ROUTE());
-    expect(preview.progress.steps[3].phase).to.equal(await ctx.executor.STEP_CHECKED_FAILED());
+    expect(preview.progress.finalResultCode).to.equal(STRATEGY.errNoProfitableRoute);
+    expect(preview.progress.steps[3].phase).to.equal(STRATEGY.stepCheckedFailed);
     expect(preview.progress.steps[3].resultCode).to.equal(3404n);
     expect(preview.progress.steps[3].expectedProfit).to.equal(-505n);
     expect(preview.progress.steps[3].quotedFinal).to.equal(999_996n);
@@ -247,7 +262,7 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
 
     await expect(ctx.executor.runOrderedRuntimeTradesAndExecuteAuto(trades, usdcParams, tokenBorrowParams, false))
       .to.be.revertedWithCustomError(ctx.executor, "OrderedRuntimeExecutionFailed")
-      .withArgs(55555n, 5n, 3n, await ctx.executor.ERR_NOT_ENOUGH_POOLS(), 0n, 0n, 0n, 0b11111, 0n);
+      .withArgs(55555n, 5n, 3n, STRATEGY.errNotEnoughPools, 0n, 0n, 0n, 0b11111, 0n);
   });
 
   it("can choose direct token cross-pool status 3 when token borrowing is explicitly enabled", async function () {
@@ -267,12 +282,69 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     );
 
     expect(preview.found).to.equal(true);
-    expect(preview.strategyStatus).to.equal(await ctx.executor.STATUS_XY_CROSS_POOL());
-    expect(preview.executionKind).to.equal(await ctx.executor.EXECUTION_KIND_TOKEN_CROSS_POOL());
+    expect(preview.strategyStatus).to.equal(STRATEGY.statusXyCrossPool);
+    expect(preview.executionKind).to.equal(STRATEGY.executionKindTokenCrossPool);
     expect(preview.selectedTradeArrayIndex).to.equal(2n);
     expect(preview.executionPreview.borrowedAsset).to.equal(ctx.xAddress);
     expect(preview.executionPreview.profitAsset).to.equal(ctx.xAddress);
     expect(preview.executionPreview.quotedFinal).to.equal(1_003_002n);
     expect(preview.progress.remainingStatusMask).to.equal(0b11000);
+  });
+
+  it("rejects a malformed triangular slot layout instead of quoting a mixed route", async function () {
+    const ctx = await deployFixture();
+    const { trades } = await buildTriangularTrades(ctx);
+    await setStatus4Rates(ctx);
+
+    // Keep the second trade viable but make it another U-X pair. The
+    // contract must reject the resulting U-X-X route before quoting hops.
+    trades[1] = runtimeTrade(
+      102n,
+      ctx.usdcAddress,
+      ctx.xAddress,
+      runtimePools([
+        [0, (await deployV3Pool(ctx, ctx.usdcAddress, ctx.xAddress, -80, 500n)).address],
+        [1, (await deployV3Pool(ctx, ctx.usdcAddress, ctx.xAddress, 160, 3000n)).address],
+      ]),
+    );
+
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+    const preview = await ctx.executor.previewOrderedRuntimeAutoExecution.staticCall(
+      trades,
+      usdcParams,
+      tokenBorrowParams,
+      false,
+    );
+
+    expect(preview.found).to.equal(false);
+    expect(preview.progress.steps[3].detailCode).to.equal(STRATEGY.errRouteLayoutInvalid);
+    expect(preview.progress.steps[4].detailCode).to.equal(STRATEGY.errNotEnoughPools);
+  });
+
+  it("does not allow fallback triangular execution after USDC borrowing is disabled", async function () {
+    const ctx = await deployFixture();
+    const { trades } = await buildTriangularTrades(ctx);
+    await setStatus4Rates(ctx);
+    const yxLow = await deployV3Pool(ctx, ctx.yAddress, ctx.xAddress, -90, 500n);
+    const yxHigh = await deployV3Pool(ctx, ctx.yAddress, ctx.xAddress, 210, 3000n);
+    trades[3] = runtimeTrade(
+      104n,
+      ctx.yAddress,
+      ctx.xAddress,
+      runtimePools([[0, yxLow.address], [1, yxHigh.address]]),
+    );
+    await ctx.executor.setBorrowConfig(ctx.usdcAddress, false, 0n);
+
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+    const preview = await ctx.executor.previewOrderedRuntimeAutoExecution.staticCall(
+      trades,
+      usdcParams,
+      tokenBorrowParams,
+      false,
+    );
+
+    expect(preview.found).to.equal(false);
+    expect(preview.progress.steps[3].detailCode).to.equal(STRATEGY.errBorrowAssetDisabled);
+    expect(preview.progress.steps[4].detailCode).to.equal(STRATEGY.errBorrowAssetDisabled);
   });
 });
