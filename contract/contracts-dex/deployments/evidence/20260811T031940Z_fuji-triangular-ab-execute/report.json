@@ -1,0 +1,269 @@
+{
+  "runId": "20260811T031940Z_fuji-triangular-ab-execute",
+  "strategy": "triangular_ab",
+  "mode": "static-call",
+  "startedAt": "2026-08-11T03:19:41.473Z",
+  "finishedAt": "2026-08-11T03:19:41.473Z",
+  "context": {
+    "network": "fuji",
+    "chainId": 43113,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "network": "fuji",
+  "owner": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "matches": true
+  },
+  "controllerAddress": "0x3Cd11f3b8d1A438Ed6f674759E71a50EB7ff15b8",
+  "runtimeTrades": [
+    {
+      "tradeIndex": "0",
+      "tokenX": "0x8Fe0C998bB9955AA4a4Fc48Fe5EBe0d45FfC5Cdd",
+      "tokenY": "0x2ab29979095C1F55d6baF1009266010FB23f89Ef",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "pool": "0x6f4D4a49a3076399C3Ad16634F9df51c54e0557D"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x56517eC693f538120EdD83cE82cE8979E0a87131"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x2732F115FC495A8a0aB50FDc679DAf1dd82C278d"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0xd38a76A1eAf4B7379c7bE80b4c61EE48F18637e8"
+        }
+      ]
+    },
+    {
+      "tradeIndex": "1",
+      "tokenX": "0x442a86E3Fec6a43124d7227eea6bd06F607fB58D",
+      "tokenY": "0xa2768f4Eb7c6EF152416e5d2BBbab84DA1551cff",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "pool": "0x32fa4A01da68f71970646294B21A19623E039821"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x837b48eC441580CeD0B3cf43a8fbB7b1D40B0d2f"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x801af14a50Af3F29f5B0C3405964209FEa954190"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x5Ba392ba644F040a0eae26020A9fAf8D45fC1c24"
+        }
+      ]
+    },
+    {
+      "tradeIndex": "2",
+      "tokenX": "0x650b2366e90cdB8e8F2890E528E35E75292F1f54",
+      "tokenY": "0x3E8a5bA0b52bA0374afB997F53970fF6b65b006B",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "pool": "0xf14E9A6E77f2A9669bd42aDBC2263a8a03710A51"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x43C4a0681B31d2F13C32A2bae029e4cf72207A4F"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0xd9D4F6C938B043782C7C3dFD7c80226D18f953d0"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x90bc09a2210fe0A20F1B63742ee17eC9Dc735f22"
+        }
+      ]
+    }
+  ],
+  "blockNumber": 57694560,
+  "blockTimestamp": 1786418402,
+  "preview": {
+    "found": true,
+    "selectedTradeArrayIndex": "1",
+    "decision": {
+      "ok": true,
+      "viable": true,
+      "tradeIndex": "1",
+      "tokenX": "0x442a86E3Fec6a43124d7227eea6bd06F607fB58D",
+      "tokenY": "0xa2768f4Eb7c6EF152416e5d2BBbab84DA1551cff",
+      "lowPool": "0x5Ba392ba644F040a0eae26020A9fAf8D45fC1c24",
+      "highPool": "0x801af14a50Af3F29f5B0C3405964209FEa954190",
+      "adapterKind": "1",
+      "lowFee": "3000",
+      "highFee": "3000",
+      "lowLiquidity": "2000000",
+      "highLiquidity": "4000000",
+      "lowNormalizedTick": "-250",
+      "highNormalizedTick": "500",
+      "tickDelta": "750",
+      "scannedPoolCount": "4",
+      "validPoolCount": "3",
+      "failureCode": "0",
+      "failureReason": "none"
+    },
+    "executionPreview": {
+      "router": "0x72025e24941cbeea253B3b9135Eb9Ffa31d21725",
+      "quotedFinalUsdc": "1003003",
+      "premiumUsdc": "500",
+      "requiredFinalUsdc": "1000501",
+      "protectedAmountOutMinUsdc": "1000501",
+      "minProfitUsdc": "1"
+    }
+  },
+  "staticCall": {
+    "ok": true,
+    "gasEstimate": "483328",
+    "executionParams": {
+      "amount": "1000000",
+      "deadline": "1786418980",
+      "amountOutMinUsdc": "1000000",
+      "minProfitUsdc": "1"
+    }
+  },
+  "broadcast": {
+    "requested": false,
+    "sent": false
+  },
+  "gate": {
+    "ready": false,
+    "checks": [
+      {
+        "name": "network.chainId",
+        "ok": true,
+        "level": "ok",
+        "chainId": 43113,
+        "expectedChainId": 43113
+      },
+      {
+        "name": "execution.enabled",
+        "ok": false,
+        "level": "error",
+        "env": "FUJI_EXECUTION_ENABLED"
+      },
+      {
+        "name": "execution.intent",
+        "ok": false,
+        "level": "error",
+        "env": [
+          "TRIANGULAR_AB_BROADCAST_ENABLED"
+        ]
+      },
+      {
+        "name": "execution.strategy",
+        "ok": true,
+        "level": "ok",
+        "strategy": "small-amount"
+      },
+      {
+        "name": "owner.matchesSigner",
+        "ok": true,
+        "level": "ok",
+        "ownerMatches": true
+      },
+      {
+        "name": "staticCall.ok",
+        "ok": true,
+        "level": "ok",
+        "staticCallOk": true
+      },
+      {
+        "name": "payload.fresh",
+        "ok": true,
+        "level": "ok",
+        "payloadFresh": true
+      },
+      {
+        "name": "profit.checked",
+        "ok": true,
+        "level": "ok",
+        "minProfitChecked": true
+      }
+    ]
+  },
+  "receipt": null
+}

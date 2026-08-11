@@ -1263,5 +1263,12 @@
         "hash": "0x383c98fd5f832b8a0a910fcf9b425310df1b1a4014e8974870dc7b656b54b4eb"
       }
     }
-  }
+  },
+  "context": {
+    "network": "fuji",
+    "chainId": 43113,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "deploymentPath": "E:\\2026OPC大赛\\flashLoan\\contract\\contracts-dex\\deployments\\fuji-triangular-ab-mock-fixture.json"
 }

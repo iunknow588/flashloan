@@ -30,6 +30,17 @@ def _clear_direct_pair_env(monkeypatch):
         "FUJI_DEX_ROUTER",
         "TRIANGULAR_RUNTIME_TRADES_JSON",
         "TRIANGULAR_DIRECT_USE_DYNAMIC_CANDIDATES",
+        "TRIANGULAR_DIRECT_CANDIDATE_STRATEGY",
+        "TRIANGULAR_ENABLE_NON_USDC_CROSS_POOL",
+        "TRIANGULAR_DIRECT_ENABLE_TOKEN_X_CROSS_POOL",
+        "TRIANGULAR_USDC_ADDRESS",
+        "USDC_ADDRESS",
+        "TRIANGULAR_DIRECT_NETWORK",
+        "TRIANGULAR_ONCHAIN_NETWORK",
+        "TRIANGULAR_TESTNET_NAME",
+        "TRIANGULAR_NETWORK",
+        "TRIANGULAR_TESTNET_CHAIN_ID",
+        "AAVE_RESERVE_CACHE_FILE",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
@@ -47,6 +58,41 @@ def _runtime_trades_json(token_x: str | None = None, token_y: str | None = None,
             ],
         }
     ])
+
+
+def _market_row(symbol: str, change: float) -> dict:
+    return {
+        "symbol": f"{symbol}USDT",
+        "base_symbol": symbol,
+        "change_percent": change,
+        "current_price": 1.0,
+        "window_ready": True,
+    }
+
+
+def _pool_cache_for_symbols(symbols: list[str]) -> dict:
+    token_by_symbol = {symbol: _addr(500 + index) for index, symbol in enumerate(symbols)}
+    pools = []
+    pool_id = 700
+    for x_symbol in symbols:
+        for y_symbol in symbols:
+            if x_symbol == y_symbol:
+                continue
+            pools.append(
+                {
+                    "tokenX_symbol": x_symbol,
+                    "tokenY_symbol": y_symbol,
+                    "tokenX": token_by_symbol[x_symbol],
+                    "tokenY": token_by_symbol[y_symbol],
+                    "pools": [
+                        {"adapterKind": 1, "pool": _addr(pool_id)},
+                        {"adapterKind": 1, "pool": _addr(pool_id + 1)},
+                        {"adapterKind": 2, "pool": _addr(pool_id + 2)},
+                    ],
+                }
+            )
+            pool_id += 3
+    return {"network": "avalanche", "protocols": ["uniswap_v3"], "pools": pools}
 
 
 def test_build_cow_intent_trade_exposes_a_small_public_surface():
@@ -176,14 +222,57 @@ def test_build_triangular_onchain_intent_trade_exposes_direct_protocol(monkeypat
     intent = build_triangular_onchain_intent_trade("USDC->BBB->AAA->USDC", "6.18", ["AAA"], ["BBB"])
 
     protocol = intent["direct_onchain_protocol"]
-    assert protocol["kind"] == "triangular_route_controller_runtime_v1"
+    assert protocol["kind"] == "triangular_route_controller_runtime_auto_v3"
+    assert protocol["execution_mode"] == "auto"
     assert protocol["controller_address"] == "0x" + "1" * 40
     assert protocol["executor_address"] == "0x" + "2" * 40
     assert protocol["runtime_trades"][0]["tradeIndex"] == 0
     assert protocol["runtime_trades"][0]["pools"][0]["adapterKind"] == 1
+    assert protocol["runtime_trade_limit"] == 5
+    assert protocol["runtime_candidate_limit"] == 25
+    assert protocol["candidate_strategy"] == "expanded"
+    assert protocol["selection_strategy"] == "expanded_status_order_safe_auto_then_triangular_fallback"
     assert intent["direct_onchain_ready"] is True
     assert intent["intent_protocol"] == "direct_onchain"
     assert intent["submission_protocol"] == "direct_onchain"
+
+
+def test_direct_onchain_network_can_target_fuji_without_cow_network_config(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_TESTNET_NAME", "fuji")
+
+    network, chain_id, testnet = direct._resolve_direct_onchain_network({})
+
+    assert network == "fuji"
+    assert chain_id == 43113
+    assert testnet is True
+
+
+def test_direct_onchain_rpc_prefers_fuji_rpc_for_fuji(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("AVALANCHE_RPC_URL", "https://mainnet.example")
+    monkeypatch.setenv("FUJI_RPC_URL", "https://fuji.example")
+
+    rpc_url, rpc_env_names = direct._direct_rpc_url("fuji")
+
+    assert rpc_url == "https://fuji.example"
+    assert rpc_env_names == ("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL")
+
+
+def test_build_triangular_onchain_intent_trade_uses_signal_and_pool_cache(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_ROUTE_CONTROLLER_ADDRESS", _addr(9))
+    cache_path = tmp_path / "avalanche_v3_pools.json"
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["AAA", "BBB"])), encoding="utf-8")
+    monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
+
+    intent = build_triangular_onchain_intent_trade("USDC->BBB->AAA->USDC", "6.18", ["AAA"], ["BBB"])
+
+    protocol = intent["direct_onchain_protocol"]
+    assert protocol["runtime_trades"]
+    assert protocol["runtime_trades"][0]["tokenX"] == _addr(500)
+    assert protocol["runtime_trades"][0]["tokenY"] == _addr(501)
+    assert intent["direct_onchain_ready"] is True
 
 
 def test_build_triangular_onchain_intent_trade_requires_runtime_trades(monkeypatch):
@@ -354,6 +443,238 @@ def test_submit_direct_onchain_trade_accepts_opportunity_runtime_trades_before_n
 
     assert result["status"] == "network_config_missing"
     assert result["blocked_reason"] == "network_config_missing"
+
+
+def test_runtime_trade_candidates_use_cached_v3_pools_for_top5_bottom5(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    top = [_market_row(f"T{i}", 5.0 - i) for i in range(6)]
+    bottom = [_market_row(f"B{i}", -5.0 - i) for i in range(6)]
+    symbols = [row["base_symbol"] for row in [*top, *bottom]]
+    cache_path = tmp_path / "avalanche_v3_pools.json"
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(symbols)), encoding="utf-8")
+    monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
+
+    trades = direct._runtime_trades_from_market_state(
+        {"top": top, "bottom": bottom},
+        cache=json.loads(cache_path.read_text(encoding="utf-8")),
+        trade_limit=16,
+    )
+
+    assert len(trades) == 16
+    assert [trade["tradeIndex"] for trade in trades] == list(range(16))
+    assert all(2 <= len([pool for pool in trade["pools"] if pool["adapterKind"] == 1 and pool["pool"]]) <= 10 for trade in trades)
+    assert all(pool["adapterKind"] in {0, 1} for trade in trades for pool in trade["pools"])
+    assert _addr(505) not in {trade["tokenX"] for trade in trades}
+    assert _addr(511) not in {trade["tokenY"] for trade in trades}
+    assert trades[0]["tokenX"] == _addr(500)
+    assert trades[0]["tokenY"] == _addr(510)
+
+    default_trades = direct._runtime_trade_candidates(
+        {"network": "avalanche"},
+        {"market_state": {"top": top, "bottom": bottom}},
+    )
+
+    assert len(default_trades) == 5
+    assert [trade["tradeIndex"] for trade in default_trades] == list(range(5))
+    assert default_trades[0]["tokenX"] == _addr(500)
+    assert default_trades[0]["tokenY"] == _addr(510)
+
+
+def test_runtime_trade_candidates_expand_usdc_cross_pool_before_xy(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    top = [_market_row("AAA", 4.0)]
+    bottom = [_market_row("BBB", -3.0)]
+    cache_path = tmp_path / "avalanche_v3_pools.json"
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["USDC", "AAA", "BBB"])), encoding="utf-8")
+    monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", _addr(500))
+
+    trades = direct._runtime_trades_from_market_state(
+        {"top": top, "bottom": bottom},
+        cache=json.loads(cache_path.read_text(encoding="utf-8")),
+        trade_limit=16,
+    )
+
+    assert [trade["strategyStatus"] for trade in trades] == [1, 2, 3, 5]
+    assert trades[0]["routeSymbols"] == ["USDC", "AAA", "USDC"]
+    assert trades[0]["tokenX"] == _addr(500)
+    assert trades[0]["tokenY"] == _addr(501)
+    assert trades[1]["routeSymbols"] == ["USDC", "BBB", "USDC"]
+    assert trades[2]["routeSymbols"] == ["USDC", "AAA", "BBB", "USDC"]
+    assert trades[3]["routeSymbols"] == ["USDC", "BBB", "AAA", "USDC"]
+
+
+def test_cross_pool_filter_allows_usdc_base_and_blocks_non_usdc_by_default(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    usdc = _addr(500)
+    usdc_trade = {"tokenX": usdc, "tokenY": _addr(501)}
+    xy_trade = {"tokenX": _addr(501), "tokenY": _addr(502)}
+
+    assert direct._cross_pool_trade_allowed(
+        usdc_trade,
+        usdc_address=usdc,
+        borrowable_addresses=set(),
+        allow_non_usdc=False,
+    )
+    assert not direct._cross_pool_trade_allowed(
+        xy_trade,
+        usdc_address=usdc,
+        borrowable_addresses={_addr(501)},
+        allow_non_usdc=False,
+    )
+    assert direct._cross_pool_trade_allowed(
+        xy_trade,
+        usdc_address=usdc,
+        borrowable_addresses={_addr(501)},
+        allow_non_usdc=True,
+    )
+
+
+def test_selected_strategy_status_maps_xy_cross_pool_and_triangular_fallback():
+    xy_trade = {"tradeIndex": 3, "strategyStatus": 3}
+
+    assert direct._selected_strategy_status(xy_trade, execution_mode="auto", execution_kind=2) == 3
+    assert direct._selected_strategy_status(xy_trade, execution_mode="auto", execution_kind=1) == 4
+    assert direct._selected_strategy_status(xy_trade, execution_mode="triangular", execution_kind=1) == 4
+    assert direct._selected_strategy_status({"strategyStatus": 5}, execution_mode="triangular", execution_kind=1) == 5
+    assert direct._selected_strategy_status(None, execution_mode="auto", execution_kind=None) == 55555
+
+
+def test_runtime_trade_candidates_keep_input_order_and_cap_at_top_five(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    supplied = []
+    for index in range(6):
+        supplied.append(
+            {
+                "tradeIndex": index,
+                "tokenX": _addr(800 + index * 2),
+                "tokenY": _addr(801 + index * 2),
+                "pools": [
+                    {"adapterKind": 1, "pool": _addr(900 + index * 2)},
+                    {"adapterKind": 1, "pool": _addr(901 + index * 2)},
+                ],
+            }
+        )
+
+    trades = direct._runtime_trade_candidates({"runtime_trades": supplied})
+
+    assert [trade["tradeIndex"] for trade in trades] == [0, 1, 2, 3, 4]
+
+
+def test_rank_runtime_trades_by_profit_keeps_top_five_and_stable_ties():
+    candidates = [{"tradeIndex": index} for index in range(6)]
+    quotes = {
+        0: (True, 1_000_510),
+        1: (True, 1_000_800),
+        2: (False, 0),
+        3: (True, 1_000_600),
+        4: (True, 1_000_800),
+        5: (True, 1_000_550),
+    }
+
+    def preview_trade(trade):
+        found, quoted_final = quotes[trade["tradeIndex"]]
+        return [
+            found,
+            0,
+            [],
+            [
+                _addr(999),
+                "0x1234",
+                quoted_final,
+                500,
+                1_000_501,
+                1_000_501,
+                1,
+            ],
+        ]
+
+    selected, reports = direct._rank_runtime_trades_by_profit(candidates, preview_trade)
+
+    assert [trade["tradeIndex"] for trade in selected] == [0, 5, 3, 1, 4]
+    assert [report["tradeIndex"] for report in reports] == ["0", "5", "3", "1", "4"]
+    assert reports[0]["netProfitUsdc"] == "10"
+
+
+def test_submit_direct_onchain_trade_builds_runtime_trades_from_market_state_cache(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
+        monkeypatch.delenv(name, raising=False)
+    top = [_market_row("AAA", 4.0)]
+    bottom = [_market_row("BBB", -3.0)]
+    cache_path = tmp_path / "avalanche_v3_pools.json"
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["AAA", "BBB"])), encoding="utf-8")
+    monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "ready": True,
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "avalanche",
+                    "controller_address": _addr(71),
+                },
+            }
+        },
+        opportunity={"market_state": {"top": top, "bottom": bottom}},
+    )
+
+    assert result["status"] == "network_config_missing"
+    assert result["blocked_reason"] == "network_config_missing"
+
+
+def test_runtime_execution_params_use_explicit_min_profit_base_units(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    params = direct._runtime_execution_params(
+        {
+            "execution_amount": "1000000",
+            "deadline": "2000000000",
+            "amountOutMinUsdc": "1000100",
+            "minProfitUsdc": "12345",
+            "expected_profit_usdc": "6.18",
+        },
+        None,
+    )
+
+    assert params == {
+        "amount": 1_000_000,
+        "deadline": 2_000_000_000,
+        "amountOutMinUsdc": 1_000_100,
+        "minProfitUsdc": 12_345,
+        "usdcToTokenXFee": 3_000,
+        "tokenYToUsdcFee": 3_000,
+    }
+
+
+def test_runtime_execution_params_convert_expected_profit_usdc_to_base_units(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    params = direct._runtime_execution_params(
+        {
+            "execution_amount": "1000000",
+            "deadline": "2000000000",
+            "amountOutMinUsdc": "1000000",
+            "expected_profit_usdc": "6.18",
+        },
+        None,
+    )
+
+    assert params["minProfitUsdc"] == 6_180_000
+
+
+def test_runtime_execution_params_accept_testnet_env_aliases(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_BORROW_AMOUNT_UNITS", "100000000")
+    monkeypatch.setenv("TRIANGULAR_AMOUNT_OUT_MIN_USDC", "100010000")
+    monkeypatch.setenv("TRIANGULAR_MIN_PROFIT_USDC", "123")
+
+    params = direct._runtime_execution_params({}, None)
+
+    assert params["amount"] == 100_000_000
+    assert params["amountOutMinUsdc"] == 100_010_000
+    assert params["minProfitUsdc"] == 123
 
 
 def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_in_memory_table(monkeypatch):

@@ -5,15 +5,10 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "test:ab": "hardhat test test/TriangularRouteController.test.js",
-    "preflight:fuji-triangular-ab": "hardhat run scripts/preflight-triangular-ab.js --network fuji",
-    "deploy:fuji-triangular-ab": "hardhat run scripts/deploy-triangular-ab.js --network fuji",
-    "deploy:fuji-triangular-ab-mock-fixture": "hardhat run scripts/deploy-triangular-ab-mock-fixture.js --network fuji",
-    "preflight:avalanche-triangular-ab": "hardhat run scripts/preflight-triangular-ab.js --network avalanche",
-    "deploy:avalanche-triangular-ab": "hardhat run scripts/deploy-triangular-ab.js --network avalanche",
-    "execute:fuji-triangular-ab": "hardhat run scripts/execute-triangular-ab.js --network fuji",
-    "execute:avalanche-triangular-ab": "hardhat run scripts/execute-triangular-ab.js --network avalanche",
-    "simulate:avalanche-fuji-triangular-edge": "hardhat run scripts/simulate-triangular-edge.js --network fuji"
+    "test:unified": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
+    "test:ab": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
+    "deploy:unified:fuji": "hardhat run scripts/deploy-unified-flashloan.js --network fuji",
+    "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",

@@ -4,6 +4,16 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, "../../flashloan/src_bot/.env"), override: false });
+const testEnvPath = path.resolve(__dirname, "../../flashloan/src_bot/.env.test");
+const testEnv = dotenv.config({ path: testEnvPath, processEnv: {} }).parsed || {};
+const sensitiveEnvMarkers = ["PRIVATE_KEY", "SECRET", "PASSWORD", "DATABASE_URL", "JWT"];
+for (const [key, value] of Object.entries(testEnv)) {
+  const upperKey = key.toUpperCase();
+  const sensitive = sensitiveEnvMarkers.some((marker) => upperKey.includes(marker));
+  if (!sensitive && String(value || "").trim()) {
+    process.env[key] = value;
+  }
+}
 
 const FUJI_RPC_URL = process.env.FUJI_RPC_URL || process.env.AVALANCHE_FUJI_RPC_URL;
 const AVALANCHE_RPC_URL = process.env.AVALANCHE_RPC_URL || process.env.AVALANCHE_RPC;

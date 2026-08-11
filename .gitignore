@@ -30,4 +30,6 @@ flashloan/src_bot/importtime.err
 /srcs/
 docs/
 back/
+!/contract/contracts-dex/back/
+!/contract/contracts-dex/back/**
 .agents/

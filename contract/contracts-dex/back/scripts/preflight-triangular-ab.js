@@ -9,11 +9,21 @@ const PLACEHOLDERS = new Set(["", "0x...", "0xyour_private_key"]);
 
 const POOL_ABI = [
   "function FLASHLOAN_PREMIUM_TOTAL() view returns (uint128)",
+  "function getReserveData(address asset) view returns (tuple(uint256 configuration,uint128 liquidityIndex,uint128 currentLiquidityRate,uint128 variableBorrowIndex,uint128 currentVariableBorrowRate,uint128 currentStableBorrowRate,uint40 lastUpdateTimestamp,uint16 id,address aTokenAddress,address stableDebtTokenAddress,address variableDebtTokenAddress,address interestRateStrategyAddress,uint128 accruedToTreasury,uint128 unbacked,uint128 isolationModeTotalDebt))",
 ];
 
 const ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function balanceOf(address) view returns (uint256)",
+];
+
+const V3_POOL_ABI = [
+  "function factory() view returns (address)",
+  "function token0() view returns (address)",
+  "function token1() view returns (address)",
+  "function fee() view returns (uint24)",
+  "function liquidity() view returns (uint128)",
+  "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
 ];
 
 function envValue(name) {
@@ -36,6 +46,42 @@ function optionalEnv(...names) {
     if (configured(name)) return envValue(name);
   }
   return "";
+}
+
+function positiveUint24Env(name) {
+  const value = envValue(name);
+  if (!value) {
+    return check(`env.${name}`, false, { error: `${name} is required for V3 exactInput path construction` });
+  }
+  try {
+    const parsed = BigInt(value);
+    return check(`env.${name}`, parsed > 0n && parsed <= 16_777_215n, {
+      value,
+      error: parsed > 0n && parsed <= 16_777_215n ? undefined : `${name} must be between 1 and 16777215`,
+    });
+  } catch (error) {
+    return check(`env.${name}`, false, { value, error: sanitizeError(error) });
+  }
+}
+
+function bigintEnv(name, defaultValue) {
+  const value = envValue(name);
+  if (!value) return defaultValue;
+  return BigInt(value);
+}
+
+function etherEnv(name, defaultEther) {
+  const value = envValue(name) || defaultEther;
+  return hre.ethers.parseEther(value);
+}
+
+function bpsEnv(name, defaultValue) {
+  const value = envValue(name);
+  const parsed = value ? BigInt(value) : BigInt(defaultValue);
+  if (parsed < 10_000n) {
+    throw new Error(`${name} must be at least 10000 bps`);
+  }
+  return parsed;
 }
 
 function stableTokenFromEnv(...names) {
@@ -107,13 +153,105 @@ async function codeCheck(name, addressResult, { required = true } = {}) {
     const code = await hre.ethers.provider.getCode(addressResult.address);
     const hasCode = code !== "0x";
     return check(`code.${name}`, hasCode, {
-      level: hasCode || required ? "error" : "warn",
+      level: hasCode ? "ok" : (required ? "error" : "warn"),
       address: addressResult.address,
       error: hasCode ? undefined : `${name} has no contract code`,
     });
   } catch (error) {
     return check(`code.${name}`, false, { error: sanitizeError(error) });
   }
+}
+
+async function v3PoolSemanticChecks(name, poolAddress, trade, expectedFactory) {
+  const checks = [];
+  try {
+    const pool = await hre.ethers.getContractAt(V3_POOL_ABI, poolAddress);
+    const [factory, token0, token1, fee, liquidity, slot0] = await Promise.all([
+      pool.factory(),
+      pool.token0(),
+      pool.token1(),
+      pool.fee(),
+      pool.liquidity(),
+      pool.slot0(),
+    ]);
+    const normalizedFactory = hre.ethers.getAddress(factory);
+    const normalizedToken0 = hre.ethers.getAddress(token0);
+    const normalizedToken1 = hre.ethers.getAddress(token1);
+    const tokenX = hre.ethers.getAddress(trade.tokenX);
+    const tokenY = hre.ethers.getAddress(trade.tokenY);
+    const containsPair =
+      (normalizedToken0 === tokenX && normalizedToken1 === tokenY)
+        || (normalizedToken0 === tokenY && normalizedToken1 === tokenX);
+    checks.push(check(`${name}.factory`, !expectedFactory || normalizedFactory === expectedFactory, {
+      factory: normalizedFactory,
+      expectedFactory: expectedFactory || null,
+      error: !expectedFactory || normalizedFactory === expectedFactory ? undefined : "pool factory does not match TRIANGULAR_V3_FACTORY",
+    }));
+    checks.push(check(`${name}.tokens`, containsPair, {
+      token0: normalizedToken0,
+      token1: normalizedToken1,
+      tokenX,
+      tokenY,
+      error: containsPair ? undefined : "pool token0/token1 does not match trade tokenX/tokenY",
+    }));
+    checks.push(check(`${name}.liquidity`, liquidity > 0n, {
+      fee: fee.toString(),
+      liquidity: liquidity.toString(),
+      tick: slot0[1].toString(),
+      error: liquidity > 0n ? undefined : "pool has no active liquidity",
+    }));
+  } catch (error) {
+    checks.push(check(`${name}.semantic`, false, { error: sanitizeError(error) }));
+  }
+  return checks;
+}
+
+async function estimateGasLatest(tx, from) {
+  const request = {
+    from,
+    ...(tx.to ? { to: tx.to } : {}),
+    ...(tx.data ? { data: tx.data } : {}),
+    ...(tx.value ? { value: hre.ethers.toQuantity(tx.value) } : {}),
+  };
+  const raw = await hre.ethers.provider.send("eth_estimateGas", [request, "latest"]);
+  return BigInt(raw);
+}
+
+async function deploymentBudgetEstimate({ poolAddress, usdcAddress, deployerAddress }) {
+  const Executor = await hre.ethers.getContractFactory("AaveTriangularExecutor");
+  const Controller = await hre.ethers.getContractFactory("TriangularRouteController");
+  const executorDeployTx = await Executor.getDeployTransaction(poolAddress, usdcAddress, deployerAddress);
+  const controllerDeployTx = await Controller.getDeployTransaction(usdcAddress, deployerAddress, deployerAddress);
+  const [executorGas, controllerGas, gasPriceRaw] = await Promise.all([
+    estimateGasLatest(executorDeployTx, deployerAddress),
+    estimateGasLatest(controllerDeployTx, deployerAddress),
+    hre.ethers.provider.send("eth_gasPrice", []),
+  ]);
+  const configGas = bigintEnv("TRIANGULAR_DEPLOY_CONFIG_GAS_UNITS", 800_000n);
+  const safetyBps = bpsEnv("TRIANGULAR_DEPLOY_GAS_SAFETY_BPS", 15_000);
+  const networkGasPrice = BigInt(gasPriceRaw);
+  const minGasPrice = bigintEnv("TRIANGULAR_DEPLOY_MIN_GAS_PRICE_WEI", 25_000_000_000n);
+  const gasPrice = networkGasPrice > minGasPrice ? networkGasPrice : minGasPrice;
+  const estimatedGasUnits = executorGas + controllerGas + configGas;
+  const estimatedBudgetWei = (estimatedGasUnits * gasPrice * safetyBps) / 10_000n;
+  const historicalFloorWei = etherEnv("TRIANGULAR_DEPLOY_HISTORICAL_MIN_BUDGET_AVAX", "0.25");
+  const budgetWei = estimatedBudgetWei > historicalFloorWei ? estimatedBudgetWei : historicalFloorWei;
+  return {
+    executorGas: executorGas.toString(),
+    controllerGas: controllerGas.toString(),
+    configGas: configGas.toString(),
+    estimatedGasUnits: estimatedGasUnits.toString(),
+    networkGasPriceWei: networkGasPrice.toString(),
+    minGasPriceWei: minGasPrice.toString(),
+    gasPriceWei: gasPrice.toString(),
+    safetyBps: safetyBps.toString(),
+    estimatedBudgetWei: estimatedBudgetWei.toString(),
+    estimatedBudgetAvax: hre.ethers.formatEther(estimatedBudgetWei),
+    historicalFloorWei: historicalFloorWei.toString(),
+    historicalFloorAvax: hre.ethers.formatEther(historicalFloorWei),
+    budgetWei: budgetWei.toString(),
+    budgetAvax: hre.ethers.formatEther(budgetWei),
+  };
 }
 
 function normalizeRuntimePool(pool, tradeIndex, poolIndex) {
@@ -165,6 +303,8 @@ function parseRuntimeTrades() {
 
 async function main() {
   const checks = [];
+  let deployerAddress = "";
+  let deployerBalance = 0n;
   const networkName = (hre.network.name || "fuji").toLowerCase();
   const expectedChainId = EXPECTED_CHAIN_IDS[networkName] || EXPECTED_CHAIN_IDS.fuji;
   const rpc = networkName === "avalanche"
@@ -203,10 +343,21 @@ async function main() {
       checks.push(check("deployer.signer", false, { error: "no deployer signer is available" }));
     } else {
       const balance = await hre.ethers.provider.getBalance(signer.address);
+      deployerAddress = signer.address;
+      deployerBalance = balance;
+      const minDeployBalance = etherEnv("TRIANGULAR_MIN_DEPLOYER_BALANCE_AVAX", "0.12");
       checks.push(check("deployer.balance", balance > 0n, {
         address: signer.address,
         balanceAvax: hre.ethers.formatEther(balance),
         error: balance > 0n ? undefined : "deployer has no AVAX",
+      }));
+      checks.push(check("deployer.balanceForDeployment", balance >= minDeployBalance, {
+        address: signer.address,
+        balanceAvax: hre.ethers.formatEther(balance),
+        minDeployBalanceAvax: hre.ethers.formatEther(minDeployBalance),
+        error: balance >= minDeployBalance
+          ? undefined
+          : "deployer balance is below the configured deployment safety floor",
       }));
     }
   } catch (error) {
@@ -229,6 +380,26 @@ async function main() {
     checks.push(usdcCode);
   }
 
+  if (poolAddress.ok && usdcAddress.ok && deployerAddress) {
+    try {
+      const budget = await deploymentBudgetEstimate({
+        poolAddress: poolAddress.address,
+        usdcAddress: usdcAddress.address,
+        deployerAddress,
+      });
+      const budgetWei = BigInt(budget.budgetWei);
+      checks.push(check("deployer.estimatedDeploymentBudget", deployerBalance >= budgetWei, {
+        ...budget,
+        balanceAvax: hre.ethers.formatEther(deployerBalance),
+        error: deployerBalance >= budgetWei
+          ? undefined
+          : "deployer balance is below estimated/historical deployment budget",
+      }));
+    } catch (error) {
+      checks.push(check("deployer.estimatedDeploymentBudget", false, { error: sanitizeError(error) }));
+    }
+  }
+
   if (poolCode && poolCode.ok) {
     try {
       const aavePool = await hre.ethers.getContractAt(POOL_ABI, poolCode.address);
@@ -242,38 +413,59 @@ async function main() {
   if (usdcCode && usdcCode.ok) {
     try {
       const token = await hre.ethers.getContractAt(ERC20_ABI, usdcCode.address);
-      const [decimals, poolBalance] = await Promise.all([
+      const aavePool = poolCode && poolCode.ok ? await hre.ethers.getContractAt(POOL_ABI, poolCode.address) : null;
+      const reserveData = aavePool ? await aavePool.getReserveData(usdcCode.address) : null;
+      const aTokenAddress = reserveData ? reserveData.aTokenAddress : hre.ethers.ZeroAddress;
+      const [decimals, poolBalance, aTokenUnderlyingLiquidity] = await Promise.all([
         token.decimals(),
         token.balanceOf(poolCode && poolCode.ok ? poolCode.address : hre.ethers.ZeroAddress),
+        token.balanceOf(aTokenAddress),
       ]);
       checks.push(check("usdc.metadata", true, {
         decimals: Number(decimals),
         poolBalance: poolBalance.toString(),
+        aTokenAddress,
+        aTokenUnderlyingLiquidity: aTokenUnderlyingLiquidity.toString(),
+      }));
+      const configuredBorrowAmount = bigintEnv(
+        "TRIANGULAR_BORROW_AMOUNT_UNITS",
+        bigintEnv("TRIANGULAR_EXECUTION_AMOUNT_USDC_BASE_UNITS", 100_000_000n),
+      );
+      checks.push(check("aave.usdcLiquidityForBorrow", configuredBorrowAmount > 0n && configuredBorrowAmount <= aTokenUnderlyingLiquidity, {
+        borrowAmount: configuredBorrowAmount.toString(),
+        aTokenUnderlyingLiquidity: aTokenUnderlyingLiquidity.toString(),
+        error: configuredBorrowAmount <= aTokenUnderlyingLiquidity
+          ? undefined
+          : "configured borrow amount exceeds current Aave USDC liquidity",
       }));
     } catch (error) {
       checks.push(check("usdc.metadata", false, { error: sanitizeError(error) }));
     }
   }
 
+  let configuredV3Factory = "";
   for (const [envName, required] of [
-    ["TRIANGULAR_V3_FACTORY", false],
-    ["TRIANGULAR_V3_ROUTER", false],
-    ["TRIANGULAR_V3_QUOTER", false],
+    ["TRIANGULAR_V3_FACTORY", true],
+    ["TRIANGULAR_V3_ROUTER", true],
+    ["TRIANGULAR_V3_QUOTER", true],
   ]) {
     const value = optionalEnv(envName, envName.replace("TRIANGULAR_", "UNISWAP_"));
     if (!value) {
       checks.push(check(`env.${envName}`, false, {
-        level: "warn",
-        error: `${envName} is not configured; adapter will use zero address for this field`,
+        level: required ? "error" : "warn",
+        error: `${envName} is required for V3 execution`,
       }));
       continue;
     }
     const addressResult = addressCheck(envName, value, { required });
     checks.push(addressResult);
-    if (envName !== "TRIANGULAR_V3_FACTORY") {
-      checks.push(await codeCheck(envName, addressResult, { required: false }));
+    checks.push(await codeCheck(envName, addressResult, { required }));
+    if (envName === "TRIANGULAR_V3_FACTORY" && addressResult.ok) {
+      configuredV3Factory = addressResult.address;
     }
   }
+  checks.push(positiveUint24Env("TRIANGULAR_USDC_TO_TOKEN_X_FEE"));
+  checks.push(positiveUint24Env("TRIANGULAR_TOKEN_Y_TO_USDC_FEE"));
 
   let runtimeTrades = [];
   try {
@@ -297,7 +489,16 @@ async function main() {
       }));
       const poolResult = addressCheck(`runtimeTrades[${tradeIndex}].pools[${poolIndex}].pool`, poolCandidate.pool);
       checks.push(poolResult);
-      checks.push(await codeCheck(`runtimeTrades[${tradeIndex}].pools[${poolIndex}].pool`, poolResult));
+      const poolCodeResult = await codeCheck(`runtimeTrades[${tradeIndex}].pools[${poolIndex}].pool`, poolResult);
+      checks.push(poolCodeResult);
+      if (poolCandidate.adapterKind === 1 && poolCodeResult.ok) {
+        checks.push(...await v3PoolSemanticChecks(
+          `runtimeTrades[${tradeIndex}].pools[${poolIndex}]`,
+          poolResult.address,
+          trade,
+          configuredV3Factory,
+        ));
+      }
     }
   }
 

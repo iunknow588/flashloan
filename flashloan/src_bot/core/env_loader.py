@@ -2,6 +2,14 @@ import os
 from pathlib import Path
 from typing import Iterable
 
+SENSITIVE_ENV_MARKERS = (
+    "PRIVATE_KEY",
+    "SECRET",
+    "PASSWORD",
+    "DATABASE_URL",
+    "JWT",
+)
+
 
 def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
     path = Path(start_path).resolve()
@@ -12,6 +20,9 @@ def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
         env_path = current / ".env"
         if env_path.exists() and env_path.is_file():
             paths.append(env_path)
+        test_env_path = current / ".env.test"
+        if test_env_path.exists() and test_env_path.is_file():
+            paths.append(test_env_path)
 
     return paths
 
@@ -52,8 +63,15 @@ def load_env_files(
     loaded: list[Path] = []
     for env_path in candidate_env_paths(start_path):
         values = parse_env_lines(env_path.read_text(encoding="utf-8").splitlines())
+        is_test_env = env_path.name == ".env.test"
         for key, value in values.items():
-            if override:
+            if is_test_env and _is_sensitive_key(key):
+                continue
+            if is_test_env and str(value or "").strip() == "":
+                continue
+            if is_test_env:
+                os.environ[key] = value
+            elif override:
                 os.environ[key] = value
             elif key not in os.environ or str(os.environ.get(key) or "").strip() == "":
                 os.environ[key] = value
@@ -61,6 +79,11 @@ def load_env_files(
                 continue
         loaded.append(env_path)
     return loaded
+
+
+def _is_sensitive_key(key: str) -> bool:
+    upper = key.upper()
+    return any(marker in upper for marker in SENSITIVE_ENV_MARKERS)
 
 
 def resolve_env_path(

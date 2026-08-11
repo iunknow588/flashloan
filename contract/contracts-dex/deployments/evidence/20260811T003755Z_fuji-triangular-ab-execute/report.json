@@ -1,0 +1,140 @@
+{
+  "runId": "20260811T003755Z_fuji-triangular-ab-execute",
+  "strategy": "triangular_ab",
+  "mode": "static-call",
+  "startedAt": "2026-08-11T00:37:56.363Z",
+  "finishedAt": "2026-08-11T00:37:56.363Z",
+  "context": {
+    "network": "fuji",
+    "chainId": 43113,
+    "rpcHost": "avalanche-fuji-c-chain-rpc.publicnode.com",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac"
+  },
+  "network": "fuji",
+  "owner": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "matches": true
+  },
+  "controllerAddress": "0x33AD4d44e9FE34Ab50FE929952ef0a462Fd79bdF",
+  "runtimeTrades": [
+    {
+      "tradeIndex": "0",
+      "tokenX": "0x0c51ffE66f90c1B554EfaA3dC4B82782f4B68b95",
+      "tokenY": "0x3682BE40F2dfc1093189b799055efF5BE353B3Ff",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "pool": "0x7AcBef3482b8041BB76E38584d0CF4Bb1DeD96F7"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x5988db4F809aE073bea9F3bF80c2b4ddc06022d0"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0xbc1aaEA130F5E255B925a470c2111B9dace4C42B"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": "1",
+          "pool": "0x3429d64494869546599768BfcD216EebB0A90f68"
+        }
+      ]
+    }
+  ],
+  "blockNumber": 57692485,
+  "blockTimestamp": 1786408701,
+  "preview": {
+    "ok": false,
+    "error": "execution reverted"
+  },
+  "staticCall": {
+    "ok": false,
+    "error": "execution reverted"
+  },
+  "broadcast": {
+    "requested": false,
+    "sent": false
+  },
+  "gate": {
+    "ready": false,
+    "checks": [
+      {
+        "name": "network.chainId",
+        "ok": true,
+        "level": "ok",
+        "chainId": 43113,
+        "expectedChainId": 43113
+      },
+      {
+        "name": "execution.enabled",
+        "ok": false,
+        "level": "error",
+        "env": "FUJI_EXECUTION_ENABLED"
+      },
+      {
+        "name": "execution.intent",
+        "ok": false,
+        "level": "error",
+        "env": [
+          "TRIANGULAR_AB_BROADCAST_ENABLED"
+        ]
+      },
+      {
+        "name": "execution.strategy",
+        "ok": true,
+        "level": "ok",
+        "strategy": "small-amount"
+      },
+      {
+        "name": "owner.matchesSigner",
+        "ok": true,
+        "level": "ok",
+        "ownerMatches": true
+      },
+      {
+        "name": "staticCall.ok",
+        "ok": false,
+        "level": "error",
+        "staticCallOk": false
+      },
+      {
+        "name": "payload.fresh",
+        "ok": true,
+        "level": "ok",
+        "payloadFresh": true
+      },
+      {
+        "name": "profit.checked",
+        "ok": true,
+        "level": "ok",
+        "minProfitChecked": true
+      }
+    ]
+  },
+  "receipt": null
+}

@@ -60,6 +60,25 @@ function envNumber(name, defaultValue) {
   return value && value.trim() ? Number(value.trim()) : defaultValue;
 }
 
+function envUint24(name, defaultValue) {
+  const value = envBigInt(name, BigInt(defaultValue));
+  if (value <= 0n || value > 16_777_215n) {
+    throw new Error(`${name} must be between 1 and 16777215`);
+  }
+  return value;
+}
+
+function runtimeExecutionParams() {
+  return {
+    amount: envBigInt("TRIANGULAR_BORROW_AMOUNT_UNITS", 1_000_000n),
+    deadline: BigInt(Math.floor(Date.now() / 1000) + envNumber("ATOMIC_FLASHLOAN_DEADLINE_SECONDS", 600)),
+    amountOutMinUsdc: envBigInt("TRIANGULAR_AMOUNT_OUT_MIN_USDC", 1_000_000n),
+    minProfitUsdc: envBigInt("TRIANGULAR_MIN_PROFIT_USDC", 1n),
+    usdcToTokenXFee: envUint24("TRIANGULAR_USDC_TO_TOKEN_X_FEE", 3000),
+    tokenYToUsdcFee: envUint24("TRIANGULAR_TOKEN_Y_TO_USDC_FEE", 3000),
+  };
+}
+
 function envRuntimeTrades() {
   const value = optionalEnv("TRIANGULAR_RUNTIME_TRADES_JSON");
   if (!value) {
@@ -194,11 +213,14 @@ async function sendRawControllerCall(contract, functionName, args, gasLimit) {
   const wallet = new hre.ethers.Wallet(privateKey, hre.ethers.provider);
   const network = await hre.ethers.provider.getNetwork();
   const nonce = await hre.ethers.provider.getTransactionCount(wallet.address, "latest");
+  const networkGasPrice = BigInt(await hre.ethers.provider.send("eth_gasPrice", []));
+  const gasPriceCap = envBigInt("TRIANGULAR_MAX_GAS_PRICE_WEI", 30_000_000_000n);
+  const gasPrice = networkGasPrice < gasPriceCap ? networkGasPrice : gasPriceCap;
   const signed = await wallet.signTransaction({
     to: await contract.getAddress(),
     data: contract.interface.encodeFunctionData(functionName, args),
     nonce,
-    gasPrice: 30_000_000_000n,
+    gasPrice,
     gasLimit,
     chainId: network.chainId,
   });
@@ -221,18 +243,36 @@ async function main() {
   const paths = evidencePaths({ strategy: `${networkName}-triangular-ab-execute` });
 
   let preview = { ok: false };
+  const executionParams = runtimeExecutionParams();
   try {
-    const result = await staticCallLatest(controller, "previewBestRuntimeTrades", [runtimeTrades], ownerGate.signer);
-    preview = { bestTradeArrayIndex: result[0].toString(), decision: decisionReport(result[1]) };
+    const result = await staticCallLatest(
+      controller,
+      "previewFirstProfitableRuntimeExecution",
+      [runtimeTrades, executionParams],
+      ownerGate.signer,
+    );
+    preview = {
+      found: Boolean(result[0]),
+      selectedTradeArrayIndex: result[1].toString(),
+      decision: decisionReport(result[2]),
+      executionPreview: {
+        router: result[3].router,
+        quotedFinalUsdc: result[3].quotedFinalUsdc.toString(),
+        premiumUsdc: result[3].premiumUsdc.toString(),
+        requiredFinalUsdc: result[3].requiredFinalUsdc.toString(),
+        protectedAmountOutMinUsdc: result[3].protectedAmountOutMinUsdc.toString(),
+        minProfitUsdc: result[3].minProfitUsdc.toString(),
+      },
+    };
   } catch (error) {
     preview = { ok: false, error: sanitizeError(error) };
   }
 
   let staticCall = { ok: false };
   try {
-    await staticCallLatest(controller, "runBestRuntimeTrades", [runtimeTrades], ownerGate.signer);
-    const gasEstimate = await estimateGasLatest(controller, "runBestRuntimeTrades", [runtimeTrades], ownerGate.signer);
-    staticCall = { ok: true, gasEstimate: gasEstimate.toString() };
+    await staticCallLatest(controller, "runFirstProfitableRuntimeTradesAndExecute", [runtimeTrades, executionParams], ownerGate.signer);
+    const gasEstimate = await estimateGasLatest(controller, "runFirstProfitableRuntimeTradesAndExecute", [runtimeTrades, executionParams], ownerGate.signer);
+    staticCall = { ok: true, gasEstimate: gasEstimate.toString(), executionParams };
   } catch (error) {
     staticCall = { ok: false, error: sanitizeError(error) };
   }
@@ -253,7 +293,10 @@ async function main() {
   let broadcast = { requested: boolEnv(process.env, "TRIANGULAR_AB_BROADCAST_ENABLED"), sent: false };
   if (gate.ready) {
     const gasLimit = staticCall.gasEstimate ? BigInt(staticCall.gasEstimate) + 50_000n : 3_000_000n;
-    receipt = await sendRawControllerCall(controller, "runBestRuntimeTrades", [runtimeTrades], gasLimit);
+    receipt = await sendRawControllerCall(controller, "runFirstProfitableRuntimeTradesAndExecute", [
+      runtimeTrades,
+      staticCall.executionParams || executionParams,
+    ], gasLimit);
     broadcast = { ...broadcast, sent: true, hash: receipt.hash };
   }
 
