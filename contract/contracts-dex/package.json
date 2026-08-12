@@ -7,6 +7,8 @@
     "test": "hardhat test",
     "test:unified": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
     "test:ab": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
+    "preflight:unified:fuji": "hardhat run scripts/preflight-unified-flashloan.js --network fuji",
+    "inspect:fuji": "hardhat run scripts/inspect-fuji-capabilities.js --network fuji",
     "deploy:unified:fuji": "hardhat run scripts/deploy-unified-flashloan.js --network fuji",
     "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche"
   },

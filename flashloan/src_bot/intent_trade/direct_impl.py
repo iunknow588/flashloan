@@ -27,6 +27,7 @@ _ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$", re.IGNORECASE)
 _USDC_PAIR_MEMORY_TABLE: list[dict[str, str]] = []
 MAX_RUNTIME_POOL_SCAN = 5
 MAX_RUNTIME_TRADE_SCAN = 5
+MAX_UNIFIED_ROUTE_TRADE_INPUTS = 4
 DEFAULT_RUNTIME_TRADE_SCAN = 5
 RUNTIME_TOP_BOTTOM_LIMIT = 5
 MAX_OFFCHAIN_RUNTIME_CANDIDATE_SCAN = RUNTIME_TOP_BOTTOM_LIMIT * RUNTIME_TOP_BOTTOM_LIMIT
@@ -355,6 +356,50 @@ def _env_bool(*names: str) -> bool:
     return False
 
 
+def _max_broadcast_gas_price_wei() -> int:
+    return _positive_int_value(
+        _env(
+            "TRIANGULAR_MAX_GAS_PRICE_WEI",
+            "UNIFIED_EXECUTOR_MAX_GAS_PRICE_WEI",
+            default="0",
+        )
+    )
+
+
+def _broadcast_gas_guard(gas_units: Any, gas_estimate: Any) -> dict[str, Any]:
+    gas = _positive_int_value(gas_units)
+    max_fee = _positive_int_value(getattr(gas_estimate, "max_fee", 0))
+    strategy = str(getattr(gas_estimate, "strategy", "") or "")
+    cap = _max_broadcast_gas_price_wei()
+    report = {
+        "gasUnits": str(gas),
+        "gasPriceWei": str(max_fee),
+        "estimatedCostWei": str(gas * max_fee),
+        "strategy": strategy,
+        "configuredMaxGasPriceWei": str(cap),
+    }
+    if strategy == "blocked" or max_fee == 0:
+        return {
+            "ok": False,
+            "status": "gas_price_unavailable",
+            "blocked_reason": "gas_price_unavailable",
+            "report": report,
+        }
+    if cap and max_fee > cap:
+        return {
+            "ok": False,
+            "status": "gas_price_cap_exceeded",
+            "blocked_reason": "gas_price_cap_exceeded",
+            "report": report,
+        }
+    return {
+        "ok": True,
+        "status": "gas_price_accepted",
+        "blocked_reason": None,
+        "report": report,
+    }
+
+
 def _normalize_direct_onchain_network(value: Any) -> str:
     key = str(value or "").strip().lower().replace("_", "-")
     if not key:
@@ -647,6 +692,14 @@ def _aave_borrowable_token_addresses(
 ) -> set[str]:
     payload = cache if isinstance(cache, dict) else _load_aave_reserve_cache()
     normalized_network = _normalize_direct_onchain_network(network)
+    cache_chain_id = payload.get("chain_id")
+    expected_chain_id = DIRECT_ONCHAIN_NETWORKS.get(normalized_network, {}).get("chain_id")
+    if cache_chain_id is not None and expected_chain_id is not None:
+        try:
+            if int(cache_chain_id) != int(expected_chain_id):
+                return set()
+        except (TypeError, ValueError):
+            return set()
     cache_rpc = str(payload.get("rpc_url") or "").lower()
     if normalized_network == "fuji" and "avax-test" not in cache_rpc:
         return set()
@@ -659,12 +712,17 @@ def _aave_borrowable_token_addresses(
         address = _normalize_pair_address(asset.get("token_address") or asset.get("address"))
         if not address:
             continue
-        liquidity = _positive_int_value(
-            asset.get("available_liquidity")
-            or asset.get("reserve_data_liquidity")
-            or asset.get("a_token_total_supply")
-            or 0
-        )
+        if asset.get("active") is False or asset.get("paused") is True:
+            continue
+        if asset.get("borrowing_enabled") is False:
+            continue
+        if "available_liquidity" in asset:
+            raw_liquidity = asset.get("available_liquidity")
+        elif "reserve_data_liquidity" in asset:
+            raw_liquidity = asset.get("reserve_data_liquidity")
+        else:
+            raw_liquidity = asset.get("a_token_total_supply") or 0
+        liquidity = _positive_int_value(raw_liquidity)
         if min_liquidity and liquidity < min_liquidity:
             continue
         addresses.add(address)
@@ -860,7 +918,7 @@ def _ordered_runtime_trade_plan(
             ungrouped.append(trade)
 
     if not groups:
-        ordered = list(trades[:MAX_RUNTIME_TRADE_SCAN])
+        ordered = list(trades[:MAX_UNIFIED_ROUTE_TRADE_INPUTS])
         for index, trade in enumerate(ordered):
             if _runtime_trade_status(trade) is None and index < 4:
                 trade["strategyStatus"] = index + 1
@@ -912,7 +970,7 @@ def _ordered_runtime_trade_plan(
         trade["routeKey"] = selected_key
         trade["route_key"] = selected_key
 
-    return ordered[:MAX_RUNTIME_TRADE_SCAN], {
+    return ordered[:MAX_UNIFIED_ROUTE_TRADE_INPUTS], {
         "ok": True,
         "reason": "coherent_route_group_selected",
         "groupKey": selected_key,
@@ -952,9 +1010,9 @@ def _runtime_trades_from_market_state(
             yx_x, yx_y, yx_pools = _cache_pool_candidates_for_pair(pool_cache, y_symbol, x_symbol)
             if (
                 not usdc_address
-                or len(ux_pools) < 2
-                or len(uy_pools) < 2
-                or len(xy_pools) < 2
+                or len(ux_pools) < 1
+                or len(uy_pools) < 1
+                or len(xy_pools) < 1
                 or not ux_x
                 or not ux_y
                 or not uy_x
@@ -1027,7 +1085,7 @@ def _runtime_trades_from_market_state(
         return []
     limit = DEFAULT_RUNTIME_TRADE_SCAN if trade_limit is None else int(trade_limit)
     limit = max(1, min(limit, MAX_RUNTIME_TRADE_SCAN))
-    return candidates[0][2][:limit]
+    return candidates[0][2][:min(limit, MAX_UNIFIED_ROUTE_TRADE_INPUTS)]
 
 
 def _cache_usdc_supported_symbols(cache: dict[str, Any]) -> list[str]:
@@ -1094,7 +1152,7 @@ def _runtime_route_groups_from_market_state(
         if (
             not token_x
             or not token_y
-            or len(pools) < 2
+            or len(pools) < 1
             or usdc_address.lower() not in {token_x.lower(), token_y.lower()}
         ):
             continue
@@ -1130,7 +1188,7 @@ def _runtime_route_groups_from_market_state(
             ux_x, ux_y, ux_pools = usdc_pairs[x_symbol]
             uy_x, uy_y, uy_pools = usdc_pairs[y_symbol]
             xy_x, xy_y, xy_pools = _cache_pool_candidates_for_pair(pool_cache, x_symbol, y_symbol)
-            if not xy_x or not xy_y or len(xy_pools) < 2:
+            if not xy_x or not xy_y or len(xy_pools) < 1:
                 continue
 
             route_key = f"{x_symbol}:{y_symbol}"
@@ -1171,7 +1229,7 @@ def _runtime_route_groups_from_market_state(
                 ),
             ]
             yx_x, yx_y, yx_pools = _cache_pool_candidates_for_pair(pool_cache, y_symbol, x_symbol)
-            if yx_x and yx_y and len(yx_pools) >= 2:
+            if yx_x and yx_y and len(yx_pools) >= 1:
                 trades.append(
                     _runtime_trade_with_metadata(
                         trade_index=3,
@@ -1759,6 +1817,15 @@ def _runtime_execution_params(protocol: dict[str, Any], opportunity: dict[str, A
             ),
             default=1,
         )
+    min_net_profit = _positive_int_value(
+        _env(
+            "TRIANGULAR_MIN_NET_PROFIT_USDC_BASE_UNITS",
+            "TRIANGULAR_MIN_NET_PROFIT_USDC",
+            default="1",
+        ),
+        default=1,
+    )
+    min_profit = max(min_profit, min_net_profit)
     deadline = _positive_int_value(
         _first_value(protocol, opportunity, names=("deadline", "execution_deadline"))
         or _env("TRIANGULAR_EXECUTION_DEADLINE")
@@ -1854,6 +1921,84 @@ def _runtime_cross_pool_execution_params(
     }
 
 
+def _route_symbols_match(route_symbols: Any, route_path: list[Any]) -> bool:
+    if not isinstance(route_symbols, (list, tuple)) or not route_path:
+        return False
+    left = [str(item or "").strip().upper() for item in route_symbols]
+    right = [str(item or "").strip().upper() for item in route_path]
+    return bool(left and left == right)
+
+
+def _runtime_group_intent_score(group: dict[str, Any], route_path: list[Any]) -> int:
+    if not isinstance(group, dict) or len(route_path) < 3:
+        return 0
+    normalized_path = [str(item or "").strip().upper() for item in route_path if str(item or "").strip()]
+    route_key = str(group.get("routeKey") or "").strip().upper()
+    route_kind = str(group.get("routeKind") or "").strip().lower()
+    trades = group.get("trades") if isinstance(group.get("trades"), list) else []
+
+    if len(normalized_path) >= 4:
+        forward_key = f"{normalized_path[1]}:{normalized_path[2]}"
+        reverse_key = f"{normalized_path[2]}:{normalized_path[1]}"
+        if any(_route_symbols_match(trade.get("routeSymbols") or trade.get("route_symbols"), normalized_path) for trade in trades):
+            return 300
+        if route_kind == "usdc_triangular" and route_key == forward_key:
+            return 250
+        if route_kind == "usdc_triangular" and route_key == reverse_key:
+            return 200
+    if len(normalized_path) >= 3 and normalized_path[0] == "USDC":
+        direct_key = f"USDC:{normalized_path[1]}"
+        if route_kind == "usdc_cross_pool" and route_key == direct_key:
+            return 150
+    return 0
+
+
+def _select_runtime_group_for_intent(
+    route_groups: list[dict[str, Any]],
+    route_path: list[Any],
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    normalized_path = [str(item or "").strip().upper() for item in route_path if str(item or "").strip()]
+    scored: list[tuple[int, float, int, dict[str, Any]]] = []
+    for index, group in enumerate(route_groups):
+        score = _runtime_group_intent_score(group, route_path)
+        if score <= 0:
+            continue
+        scored.append((score, float(group.get("score") or 0.0), -index, group))
+    if scored:
+        selected = max(scored, key=lambda item: (item[0], item[1], item[2]))
+        return selected[3], {
+            "matched": True,
+            "matchScore": str(selected[0]),
+            "routeKey": str(selected[3].get("routeKey") or ""),
+            "routeKind": str(selected[3].get("routeKind") or ""),
+            "routePath": normalized_path,
+        }
+
+    preferred_groups = [
+        group for group in route_groups
+        if group.get("routeKind") == "usdc_triangular" and len(group.get("trades") or []) >= 3
+    ]
+    if preferred_groups:
+        return preferred_groups[0], {
+            "matched": False,
+            "matchScore": "0",
+            "routeKey": str(preferred_groups[0].get("routeKey") or ""),
+            "routeKind": str(preferred_groups[0].get("routeKind") or ""),
+            "routePath": normalized_path,
+            "fallback": "first_triangular_group",
+        }
+    if route_groups:
+        return route_groups[0], {
+            "matched": False,
+            "matchScore": "0",
+            "routeKey": str(route_groups[0].get("routeKey") or ""),
+            "routeKind": str(route_groups[0].get("routeKind") or ""),
+            "routePath": normalized_path,
+            "fallback": "first_route_group",
+        }
+    return None, {"matched": False, "matchScore": "0", "routeKey": "", "routeKind": "", "routePath": normalized_path}
+
+
 def _pair_tokens_from_path(path: Any) -> tuple[Any, Any]:
     if isinstance(path, (list, tuple)) and len(path) >= 4:
         return path[1], path[2]
@@ -1893,15 +2038,8 @@ def build_triangular_onchain_intent_trade(
         "bottom": list(falling_tokens or []) if isinstance(falling_tokens, (list, tuple)) else [],
     }
     route_groups = _runtime_route_group_candidates({"market_state": signal_market_state}, None)
-    preferred_groups = [
-        group for group in route_groups
-        if group.get("routeKind") == "usdc_triangular" and len(group.get("trades") or []) >= 3
-    ]
-    runtime_trades = (
-        list(preferred_groups[0]["trades"])
-        if preferred_groups
-        else list(route_groups[0]["trades"]) if route_groups else []
-    )
+    selected_group, intent_route_match = _select_runtime_group_for_intent(route_groups, route_path)
+    runtime_trades = list(selected_group["trades"]) if selected_group else []
     network, chain_id, testnet = _resolve_direct_onchain_network()
     unified_executor_address = _env(
         "UNIFIED_EXECUTOR_ADDRESS",
@@ -1922,6 +2060,7 @@ def build_triangular_onchain_intent_trade(
         "runtime_trade_limit": MAX_RUNTIME_TRADE_SCAN,
         "runtime_candidate_limit": MAX_OFFCHAIN_RUNTIME_CANDIDATE_SCAN,
         "runtime_route_group_limit": _runtime_route_group_limit({}, None),
+        "intent_route_match": intent_route_match,
         "execution_mode": "ordered_auto",
         "candidate_strategy": _runtime_strategy_from_env(),
         "selection_strategy": "all_usdc_route_groups_preview_then_best",
@@ -2317,7 +2456,34 @@ def _submit_legacy_direct_onchain_trade(
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             }
             return result
-        gas_estimate_info = estimate_gas_price(w3)
+        gas_estimate_info = estimate_gas_price(
+            w3,
+            max_gas_price_gwei=(
+                _max_broadcast_gas_price_wei() / 1_000_000_000
+                if _max_broadcast_gas_price_wei()
+                else None
+            ),
+        )
+        gas_guard = _broadcast_gas_guard(gas_estimate, gas_estimate_info)
+        static_report["gasPricing"] = gas_guard["report"]
+        if not gas_guard["ok"]:
+            return {
+                "ok": False,
+                "submitted": False,
+                "status": gas_guard["status"],
+                "blocked_reason": gas_guard["blocked_reason"],
+                "error": gas_guard["blocked_reason"],
+                "network": network,
+                "chain_id": chain_id,
+                "owner": onchain_owner,
+                "signer": signer_address,
+                "controller_address": controller_address,
+                "preflight": _runtime_trade_decision_report(preflight),
+                "static_call": static_report,
+                "strategy_status": str(request_payload.get("selectedStrategyStatus", "55555")) if execute_runtime_trade else None,
+                "request": request_payload,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
         tx_params = {
             "from": signer_address,
             "nonce": w3.eth.get_transaction_count(signer_address, "pending"),
@@ -2509,7 +2675,8 @@ def _select_best_unified_route_group(
             "routeKey": str(group.get("routeKey") or ""),
             "routeKind": str(group.get("routeKind") or ""),
             "found": bool(report["found"]),
-            "selected": found,
+            "profitableCandidate": found,
+            "selected": False,
             "strategyStatus": report["strategyStatus"],
             "executionKind": report["executionKind"],
             "expectedProfit": str(expected_profit),
@@ -2526,6 +2693,13 @@ def _select_best_unified_route_group(
 
     if selected is None:
         return None, None, evaluations
+    selected_group = selected[2]
+    selected_index = str(selected_group.get("groupIndex", ""))
+    selected_key = str(selected_group.get("routeKey") or "")
+    for evaluation in evaluations:
+        if evaluation.get("groupIndex") == selected_index and evaluation.get("routeKey") == selected_key:
+            evaluation["selected"] = True
+            break
     return selected[2], selected[3], evaluations
 
 
@@ -2775,6 +2949,7 @@ def submit_direct_onchain_trade(
             "routeEvaluations": route_evaluations,
             "selectedRouteKey": selected_group["routeKey"],
             "selectedRouteKind": selected_group["routeKind"],
+            "selectedRouteDirection": route_check.get("routeDirection"),
             "executeRuntimeTrade": execute_runtime_trade,
             "executionMode": "ordered_auto",
             "executionPhase": "unified_ordered_state_machine",
@@ -2847,7 +3022,35 @@ def submit_direct_onchain_trade(
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             }
 
-        gas_estimate_info = estimate_gas_price(w3)
+        gas_estimate_info = estimate_gas_price(
+            w3,
+            max_gas_price_gwei=(
+                _max_broadcast_gas_price_wei() / 1_000_000_000
+                if _max_broadcast_gas_price_wei()
+                else None
+            ),
+        )
+        gas_guard = _broadcast_gas_guard(gas_estimate, gas_estimate_info)
+        static_report["gasPricing"] = gas_guard["report"]
+        if not gas_guard["ok"]:
+            return {
+                "ok": False,
+                "submitted": False,
+                "status": gas_guard["status"],
+                "blocked_reason": gas_guard["blocked_reason"],
+                "error": gas_guard["blocked_reason"],
+                "network": network,
+                "chain_id": chain_id,
+                "owner": onchain_owner,
+                "signer": signer_address,
+                "executor_address": executor_address,
+                "preflight": preview_report,
+                "static_call": static_report,
+                "strategy_status": preview_report["strategyStatus"],
+                "route_direction": preview_report["executionPreview"]["routeDirection"],
+                "request": request_payload,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
         tx_params = {
             "from": signer_address,
             "nonce": w3.eth.get_transaction_count(signer_address, "pending"),

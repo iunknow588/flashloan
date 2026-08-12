@@ -11,6 +11,7 @@ const STRATEGY = {
   statusXyCrossPool: 3n,
   statusXyUsdcFallback: 4n,
   errNotEnoughPools: 1n,
+  errNoPriceSpread: 2n,
   errBorrowAssetDisabled: 5n,
   errRouteLayoutInvalid: 6n,
   errNoProfitableRoute: 55555n,
@@ -238,6 +239,22 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     expect(await ctx.usdc.balanceOf(await ctx.executor.getAddress())).to.equal(0n);
   });
 
+  it("does not sweep a pre-existing USDC balance while collecting realized profit", async function () {
+    const ctx = await deployFixture();
+    const { trades } = await buildTriangularTrades(ctx);
+    await setStatus4Rates(ctx);
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+    const executorAddress = await ctx.executor.getAddress();
+
+    await ctx.usdc.mint(executorAddress, 777_777n);
+    await expect(ctx.executor.runOrderedRuntimeTradesAndExecuteAuto(trades, usdcParams, tokenBorrowParams, false))
+      .to.emit(ctx.executor, "ProfitSwept")
+      .withArgs(ctx.owner.address, ctx.usdcAddress, 2_503n, 0n);
+
+    expect(await ctx.usdc.balanceOf(ctx.owner.address)).to.equal(2_503n);
+    expect(await ctx.usdc.balanceOf(executorAddress)).to.equal(777_777n);
+  });
+
   it("returns structured failure progress when the three-hop route is not profitable", async function () {
     const ctx = await deployFixture();
     const { trades } = await buildTriangularTrades(ctx);
@@ -346,5 +363,51 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     expect(preview.found).to.equal(false);
     expect(preview.progress.steps[3].detailCode).to.equal(STRATEGY.errBorrowAssetDisabled);
     expect(preview.progress.steps[4].detailCode).to.equal(STRATEGY.errBorrowAssetDisabled);
+  });
+
+  it("allows a triangular route when each hop has one valid pool but keeps cross-pool checks strict", async function () {
+    const ctx = await deployFixture();
+    const ux = await deployV3Pool(ctx, ctx.usdcAddress, ctx.xAddress, 120, 3000n);
+    const uy = await deployV3Pool(ctx, ctx.usdcAddress, ctx.yAddress, 180, 3000n);
+    const xy = await deployV3Pool(ctx, ctx.xAddress, ctx.yAddress, 250, 3000n);
+    const trades = [
+      runtimeTrade(201n, ctx.usdcAddress, ctx.xAddress, runtimePools([[0, ux.address]])),
+      runtimeTrade(202n, ctx.usdcAddress, ctx.yAddress, runtimePools([[0, uy.address]])),
+      runtimeTrade(203n, ctx.xAddress, ctx.yAddress, runtimePools([[0, xy.address]])),
+    ];
+    await setStatus4Rates(ctx);
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+
+    const preview = await ctx.executor.previewOrderedRuntimeAutoExecution.staticCall(
+      trades,
+      usdcParams,
+      tokenBorrowParams,
+      false,
+    );
+
+    expect(preview.found).to.equal(true);
+    expect(preview.strategyStatus).to.equal(STRATEGY.statusXyUsdcFallback);
+    expect(preview.executionPreview.routeDirection).to.equal(STRATEGY.routeUxyu);
+    expect(preview.triangularRoute.hops[0].pool).to.equal(ux.address);
+    expect(preview.triangularRoute.hops[1].pool).to.equal(xy.address);
+    expect(preview.triangularRoute.hops[2].pool).to.equal(uy.address);
+    expect(preview.progress.steps[0].detailCode).to.equal(STRATEGY.errNoPriceSpread);
+    expect(preview.progress.steps[3].phase).to.equal(STRATEGY.stepSelected);
+  });
+
+  it("rejects a fifth trade input because the current state machine consumes four route inputs", async function () {
+    const ctx = await deployFixture();
+    const { trades } = await buildTriangularTrades(ctx);
+    const extra = runtimeTrade(105n, ctx.usdcAddress, ctx.xAddress, emptyRuntimePools());
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+
+    await expect(
+      ctx.executor.previewOrderedRuntimeAutoExecution.staticCall(
+        [...trades, extra],
+        usdcParams,
+        tokenBorrowParams,
+        false,
+      ),
+    ).to.be.revertedWithCustomError(ctx.executor, "InvalidRequest");
   });
 });

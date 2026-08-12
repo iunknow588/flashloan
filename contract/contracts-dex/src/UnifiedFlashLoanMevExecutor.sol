@@ -132,7 +132,7 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
     uint256 internal constant ERR_NO_PROFITABLE_ROUTE = 55555;
 
     uint256 internal constant MAX_POOLS_PER_TRADE = 5;
-    uint256 internal constant MAX_ORDERED_TRADE_SCAN = 5;
+    uint256 internal constant MAX_ORDERED_TRADE_INPUTS = 4;
 
     struct AdapterConfig {
         bool allowed;
@@ -641,7 +641,7 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         RuntimeTokenBorrowParams calldata tokenBorrowParams,
         bool enableNonUsdcCrossPool
     ) private view returns (RuntimeOrderPreview memory result) {
-        if (trades.length == 0 || trades.length > MAX_ORDERED_TRADE_SCAN) revert InvalidRequest();
+        if (trades.length == 0 || trades.length > MAX_ORDERED_TRADE_INPUTS) revert InvalidRequest();
         if (usdcParams.deadline < block.timestamp || tokenBorrowParams.deadline < block.timestamp) {
             revert InvalidRequest();
         }
@@ -762,7 +762,13 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         uint256 status
     ) private view returns (bool selected) {
         _attempt(result.progress, status);
-        if (!ux.viable || !uy.viable || !xy.viable || params.amount == 0 || params.minProfitUsdc == 0) {
+        if (
+            ux.validPoolCount == 0
+                || uy.validPoolCount == 0
+                || xy.validPoolCount == 0
+                || params.amount == 0
+                || params.minProfitUsdc == 0
+        ) {
             _failStep(result.progress, status, tradeArrayIndex, xy, 3100 + status, ERR_NOT_ENOUGH_POOLS);
             return false;
         }
@@ -809,7 +815,13 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
     ) private view returns (bool selected) {
         uint256 status = STATUS_COMBINED_FALLBACK;
         _attempt(result.progress, status);
-        if (!ux.viable || !uy.viable || !yx.viable || params.amount == 0 || params.minProfitUsdc == 0) {
+        if (
+            ux.validPoolCount == 0
+                || uy.validPoolCount == 0
+                || yx.validPoolCount == 0
+                || params.amount == 0
+                || params.minProfitUsdc == 0
+        ) {
             _failStep(result.progress, status, tradeArrayIndex, yx, 3100 + status, ERR_NOT_ENOUGH_POOLS);
             return false;
         }
@@ -1020,13 +1032,12 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         decision.validPoolCount = validPoolCount;
 
         if (validPoolCount < 2) {
-            decision.failureCode = ERR_NOT_ENOUGH_POOLS;
+            decision.failureCode = validPoolCount == 0 ? ERR_NOT_ENOUGH_POOLS : ERR_NO_PRICE_SPREAD;
             return decision;
         }
         decision.tickDelta = int256(high.normalizedTick) - int256(low.normalizedTick);
         if (decision.tickDelta < runtimeRiskConfig.minTickDelta) {
             decision.failureCode = ERR_NO_PRICE_SPREAD;
-            return decision;
         }
         decision.viable = true;
     }
@@ -1169,7 +1180,8 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         uint256 reserve = token == usdc ? profitReserveUsdc : 0;
         uint256 balance = IERC20Unified(token).balanceOf(address(this));
         if (balance <= reserve) return 0;
-        swept = balance - reserve;
+        uint256 available = balance - reserve;
+        swept = profitAmount < available ? profitAmount : available;
         if (!IERC20Unified(token).transfer(owner, swept)) revert TransferFailed();
         emit ProfitSwept(owner, token, swept, reserve);
     }

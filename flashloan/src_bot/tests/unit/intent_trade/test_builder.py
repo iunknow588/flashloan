@@ -39,6 +39,8 @@ def _clear_direct_pair_env(monkeypatch):
         "TRIANGULAR_DIRECT_ENABLE_TOKEN_X_CROSS_POOL",
         "TRIANGULAR_MIN_PROFIT_USDC",
         "TRIANGULAR_MIN_PROFIT_USDC_BASE_UNITS",
+        "TRIANGULAR_MIN_NET_PROFIT_USDC",
+        "TRIANGULAR_MIN_NET_PROFIT_USDC_BASE_UNITS",
         "TRIANGULAR_EXECUTION_MIN_PROFIT_USDC",
         "TRIANGULAR_USDC_ADDRESS",
         "USDC_ADDRESS",
@@ -324,6 +326,23 @@ def test_build_triangular_onchain_intent_trade_uses_signal_and_pool_cache(monkey
     assert [trade["strategyStatus"] for trade in protocol["runtime_trades"]] == [1, 2, 3, 5]
     assert len(protocol["runtime_trades"][0]["pools"]) == 5
     assert intent["direct_onchain_ready"] is True
+
+
+def test_build_triangular_onchain_intent_trade_prefers_requested_route_in_large_cache(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ADDRESS", _addr(9))
+    cache_path = tmp_path / "avalanche_v3_pools.json"
+    cache_path.write_text(json.dumps(_pool_cache_for_symbols(["USDC", "AAA", "BBB", "CCC"])), encoding="utf-8")
+    monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
+
+    intent = build_triangular_onchain_intent_trade("USDC->CCC->AAA->USDC", "6.18", ["AAA"], ["CCC"])
+
+    protocol = intent["direct_onchain_protocol"]
+    assert protocol["intent_route_match"]["matched"] is True
+    assert protocol["intent_route_match"]["routeKey"] == "AAA:CCC"
+    assert protocol["intent_route_match"]["routePath"] == ["USDC", "CCC", "AAA", "USDC"]
+    assert {trade["routeKey"] for trade in protocol["runtime_trades"]} == {"AAA:CCC"}
+    assert protocol["runtime_trades"][3]["routeSymbols"] == ["USDC", "CCC", "AAA", "USDC"]
 
 
 def test_build_triangular_onchain_intent_trade_requires_runtime_trades(monkeypatch):
@@ -619,6 +638,36 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
     assert contract.functions.preview_args[3] is False
     assert contract.functions.run_args[3] is False
 
+    monkeypatch.setenv("TRIANGULAR_DIRECT_BROADCAST_ENABLED", "true")
+    monkeypatch.setenv("UNIFIED_EXECUTOR_BROADCAST_ENABLED", "true")
+    monkeypatch.setenv("TRIANGULAR_MAX_GAS_PRICE_WEI", "1")
+    monkeypatch.setattr(
+        direct,
+        "estimate_gas_price",
+        lambda *_args, **_kwargs: SimpleNamespace(max_fee=2, strategy="normal"),
+    )
+    blocked = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "fuji",
+                    "unified_executor_address": executor_address,
+                    "runtime_trades": json.loads(_unified_runtime_trades_json(usdc, token_x, token_y)),
+                    "execute_runtime_trade": True,
+                    "execution_amount": 1_000_000,
+                    "amountOutMinUsdc": 1_000_501,
+                    "minProfitUsdc": 1,
+                }
+            }
+        },
+        opportunity={"tokenX": token_x, "tokenY": token_y},
+    )
+
+    assert blocked["status"] == "gas_price_cap_exceeded"
+    assert blocked["blocked_reason"] == "gas_price_cap_exceeded"
+    assert blocked["static_call"]["gasPricing"]["gasPriceWei"] == "2"
+
 
 def test_runtime_trade_candidates_use_cached_v3_pools_for_top5_bottom5(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
@@ -751,7 +800,34 @@ def test_unified_route_group_selection_uses_highest_usdc_expected_profit():
 
     assert selected["routeKey"] == "USDC:BBB"
     assert report["executionPreview"]["expectedProfit"] == "34"
-    assert [item["selected"] for item in evaluations] == [True, True]
+    assert [item["profitableCandidate"] for item in evaluations] == [True, True]
+    assert [item["selected"] for item in evaluations] == [False, True]
+
+
+def test_submit_cow_intent_trade_reports_incomplete_direct_protocol_without_cow_fallback(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    def fail_cow_submit(**_kwargs):
+        raise AssertionError("direct-onchain intent must not fall back to cow order submission")
+
+    monkeypatch.setattr("intent_trade.submission.order_submission.submit_cow_flashloan_order", fail_cow_submit)
+
+    result = submit_cow_intent_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "ready": True,
+                "submission_protocol": "direct_onchain",
+                "direct_onchain_protocol": {
+                    "enabled": True,
+                    "network": "avalanche",
+                },
+            }
+        },
+        opportunity={},
+    )
+
+    assert result["status"] == "direct_protocol_incomplete"
+    assert result["error"] == "unified executor address is required"
 
 
 def test_unified_executor_route_plan_enforces_one_coherent_xy_group(monkeypatch, tmp_path):
@@ -865,6 +941,50 @@ def test_runtime_trade_candidates_keep_input_order_and_cap_at_top_five(monkeypat
     trades = direct._runtime_trade_candidates({"runtime_trades": supplied})
 
     assert [trade["tradeIndex"] for trade in trades] == [0, 1, 2, 3, 4]
+
+
+def test_unified_route_plan_drops_the_unused_fifth_trade_input():
+    usdc = _addr(500)
+    trades = json.loads(_unified_runtime_trades_json(usdc, _addr(501), _addr(502)))
+    trades.append(
+        {
+            "tradeIndex": 4,
+            "tokenX": usdc,
+            "tokenY": _addr(503),
+            "strategyStatus": 6,
+            "routeKey": "AAA:BBB",
+            "pools": [{"adapterKind": 1, "pool": _addr(608)}, {"adapterKind": 1, "pool": _addr(609)}],
+        }
+    )
+    normalized = [direct._normalize_runtime_trade(trade, index) for index, trade in enumerate(trades)]
+
+    ordered, plan = direct._ordered_runtime_trade_plan(normalized, usdc_address=usdc)
+
+    assert plan["ok"] is True
+    assert len(ordered) == 4
+    assert [trade["strategyStatus"] for trade in ordered] == [1, 2, 3, 5]
+
+
+def test_unified_route_plan_caps_ungrouped_external_inputs_at_four():
+    usdc = _addr(500)
+    source = []
+    for index in range(5):
+        source.append(
+            direct._normalize_runtime_trade(
+                {
+                    "tradeIndex": index,
+                    "tokenX": usdc if index < 2 else _addr(501),
+                    "tokenY": _addr(510 + index),
+                    "pools": [{"adapterKind": 1, "pool": _addr(600 + index)}],
+                },
+                index,
+            )
+        )
+
+    ordered, plan = direct._ordered_runtime_trade_plan(source, usdc_address=usdc)
+
+    assert plan["ok"] is True
+    assert len(ordered) == 4
 
 
 def test_rank_runtime_trades_by_profit_keeps_top_five_and_stable_ties():
@@ -982,6 +1102,47 @@ def test_runtime_execution_params_accept_testnet_env_aliases(monkeypatch):
     assert params["amount"] == 100_000_000
     assert params["amountOutMinUsdc"] == 100_010_000
     assert params["minProfitUsdc"] == 123
+
+
+def test_runtime_execution_params_keeps_configured_net_profit_floor(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_BORROW_AMOUNT_UNITS", "100000000")
+    monkeypatch.setenv("TRIANGULAR_AMOUNT_OUT_MIN_USDC", "100010000")
+    monkeypatch.setenv("TRIANGULAR_MIN_PROFIT_USDC_BASE_UNITS", "1")
+    monkeypatch.setenv("TRIANGULAR_MIN_NET_PROFIT_USDC_BASE_UNITS", "1000000")
+
+    params = direct._runtime_execution_params(
+        {
+            "execution_amount": "100000000",
+            "minProfitUsdc": "12345",
+            "deadline": "2000000000",
+        },
+        None,
+    )
+
+    assert params["minProfitUsdc"] == 1_000_000
+
+
+def test_broadcast_gas_guard_requires_a_nonzero_price_under_the_configured_cap(monkeypatch):
+    monkeypatch.setenv("TRIANGULAR_MAX_GAS_PRICE_WEI", "30000000000")
+
+    accepted = direct._broadcast_gas_guard(
+        200_000,
+        SimpleNamespace(max_fee=25_000_000_000, strategy="normal"),
+    )
+    capped = direct._broadcast_gas_guard(
+        200_000,
+        SimpleNamespace(max_fee=30_000_000_001, strategy="normal"),
+    )
+    unavailable = direct._broadcast_gas_guard(
+        200_000,
+        SimpleNamespace(max_fee=0, strategy="blocked"),
+    )
+
+    assert accepted["ok"] is True
+    assert accepted["report"]["estimatedCostWei"] == "5000000000000000"
+    assert capped["status"] == "gas_price_cap_exceeded"
+    assert unavailable["status"] == "gas_price_unavailable"
 
 
 def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_in_memory_table(monkeypatch):
