@@ -41,7 +41,7 @@ def private_relay_research_summary() -> dict[str, Any]:
             "The bot supports operator-supplied private RPC endpoints when a provider offers one."
         ),
         "config": "LIQUIDATION_PRIVATE_RPC_URLS=name=https://private-rpc.example,...",
-        "fallback": "public_rpc_parallel_wallet_submission",
+        "fallback": "public_rpc_parallel_wallet_submission_requires_explicit_opt_in",
     }
 
 
@@ -51,6 +51,7 @@ def send_raw_transaction_private_first(
     public_w3: Web3,
     relay_urls: str | None = None,
     timeout_seconds: int = 10,
+    allow_public_fallback: bool = True,
 ) -> dict[str, Any]:
     errors: list[dict[str, str]] = []
     for relay in configured_private_relays(relay_urls):
@@ -64,6 +65,14 @@ def send_raw_transaction_private_first(
             }
         except Exception as exc:
             errors.append({"relay": relay.name, "error": redact_sensitive_text(exc)})
+
+    if not allow_public_fallback:
+        return {
+            "tx_hash": None,
+            "broadcast_channel": "not_broadcast",
+            "status": "private_relay_failed_public_fallback_disabled",
+            "relay_errors": errors,
+        }
 
     tx_hash = public_w3.eth.send_raw_transaction(raw_transaction)
     return {

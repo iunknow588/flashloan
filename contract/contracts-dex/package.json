@@ -7,9 +7,12 @@
     "test": "hardhat test",
     "test:unified": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
     "test:ab": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
-    "preflight:unified:fuji": "hardhat run scripts/preflight-unified-flashloan.js --network fuji",
-    "inspect:fuji": "hardhat run scripts/inspect-fuji-capabilities.js --network fuji",
-    "deploy:unified:fuji": "hardhat run scripts/deploy-unified-flashloan.js --network fuji",
+    "preflight:unified:avalanche": "hardhat run scripts/preflight-unified-flashloan.js --network avalanche",
+    "discover:unified:avalanche": "hardhat run scripts/discover-avalanche-v3-pools.js --network avalanche",
+    "export:unified:fork-candidate": "node scripts/export-unified-fork-candidate.js",
+    "scan:unified:fork-candidates": "hardhat run scripts/scan-unified-fork-candidates.js --network hardhat",
+    "readback:unified:avalanche": "hardhat run scripts/readback-unified-flashloan.js --network avalanche",
+    "fork:unified:avalanche": "hardhat run scripts/fork-unified-flashloan.js --network hardhat",
     "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche"
   },
   "devDependencies": {

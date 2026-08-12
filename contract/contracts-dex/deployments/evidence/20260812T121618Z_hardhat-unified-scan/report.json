@@ -1,0 +1,174 @@
+{
+  "runAt": "2026-08-12T12:16:18.758Z",
+  "network": "hardhat",
+  "chainId": 43114,
+  "blockNumber": 92615447,
+  "cacheFile": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+  "cacheBlockNumber": 92615445,
+  "candidateCount": 2,
+  "amountCandidates": [
+    "1000000",
+    "10000000",
+    "100000000",
+    "500000000",
+    "1000000000"
+  ],
+  "minProfit": "1",
+  "enableNonUsdcCrossPool": false,
+  "executorAddress": "0x56962745c8Be080e09cEa4209B43016883D3640b",
+  "successCount": 0,
+  "successes": [],
+  "failures": [
+    {
+      "route": "USDC/WAVAX",
+      "mode": "single_pair",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX",
+      "mode": "single_pair",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX",
+      "mode": "single_pair",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX",
+      "mode": "single_pair",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX",
+      "mode": "single_pair",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b",
+      "mode": "single_pair",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b",
+      "mode": "single_pair",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b",
+      "mode": "single_pair",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b",
+      "mode": "single_pair",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b",
+      "mode": "single_pair",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 1,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    }
+  ],
+  "status": "no_candidate_found"
+}

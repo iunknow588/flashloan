@@ -2,25 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { validateDeploymentPrerequisites } = require("./preflight-unified-flashloan");
-
-function envAddress(...names) {
-  for (const name of names) {
-    const value = String(process.env[name] || "").trim();
-    if (value && value !== "0x..." && value !== "0xyour_private_key") return value;
-  }
-  return "";
-}
-
-function requiredAddress(...names) {
-  const value = envAddress(...names);
-  if (!value) {
-    throw new Error(`Missing address env: ${names.join(" or ")}`);
-  }
-  if (!hre.ethers.isAddress(value)) {
-    throw new Error(`Invalid address env: ${names.join(" or ")}=${value}`);
-  }
-  return value;
-}
+const { readbackUnifiedExecutor } = require("./readback-unified-flashloan");
 
 function envBool(name, fallback) {
   const value = String(process.env[name] || "").trim().toLowerCase();
@@ -36,41 +18,22 @@ function envUint(name, fallback) {
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
   const preflight = await validateDeploymentPrerequisites();
-  if (BigInt(preflight.balanceWei) < BigInt(preflight.estimatedBudgetWei)) {
+  if (!preflight.ready || !preflight.deployment) {
+    const failed = preflight.checks.filter((item) => !item.ok).map((item) => item.name).join(", ");
+    throw new Error(`deployment preflight failed: ${failed || "unknown prerequisite"}`);
+  }
+  if (BigInt(preflight.deployment.balanceWei) < BigInt(preflight.deployment.estimatedBudgetWei)) {
     throw new Error(
-      `insufficient deployer balance: have ${preflight.balanceWei} wei, need approximately ${preflight.estimatedBudgetWei} wei`,
+      `insufficient deployer balance: have ${preflight.deployment.balanceWei} wei, need approximately ${preflight.deployment.estimatedBudgetWei} wei`,
     );
   }
-  const poolAddress = requiredAddress("UNIFIED_AAVE_POOL_ADDRESS", "TRIANGULAR_AAVE_POOL_ADDRESS");
-  const usdcAddress = requiredAddress("UNIFIED_USDC_ADDRESS", "TRIANGULAR_USDC_ADDRESS");
+  const poolAddress = preflight.configured.aavePool;
+  const usdcAddress = preflight.configured.usdc;
 
   const Executor = await hre.ethers.getContractFactory("UnifiedFlashLoanMevExecutor");
-  const factoryAddress = envAddress("UNIFIED_V3_FACTORY", "TRIANGULAR_V3_FACTORY");
-  const routerAddress = envAddress("UNIFIED_V3_ROUTER", "TRIANGULAR_V3_ROUTER");
-  const quoterAddress = envAddress("UNIFIED_V3_QUOTER", "TRIANGULAR_V3_QUOTER");
-  if (Boolean(factoryAddress) || Boolean(routerAddress) || Boolean(quoterAddress)) {
-    if (!factoryAddress || !routerAddress || !quoterAddress) {
-      throw new Error("UNIFIED_V3_FACTORY, UNIFIED_V3_ROUTER and UNIFIED_V3_QUOTER must be set together");
-    }
-    for (const [label, address] of [
-      ["UNIFIED_V3_FACTORY", factoryAddress],
-      ["UNIFIED_V3_ROUTER", routerAddress],
-      ["UNIFIED_V3_QUOTER", quoterAddress],
-    ]) {
-      if (!hre.ethers.isAddress(address)) throw new Error(`Invalid address env: ${label}=${address}`);
-      if ((await hre.ethers.provider.getCode(address)) === "0x") {
-        throw new Error(`${label} has no contract code on ${hre.network.name}: ${address}`);
-      }
-    }
-  } else {
-    throw new Error("V3 factory/router/quoter are required before deployment");
-  }
-  if ((await hre.ethers.provider.getCode(poolAddress)) === "0x") {
-    throw new Error(`Aave pool has no contract code on ${hre.network.name}: ${poolAddress}`);
-  }
-  if ((await hre.ethers.provider.getCode(usdcAddress)) === "0x") {
-    throw new Error(`USDC has no contract code on ${hre.network.name}: ${usdcAddress}`);
-  }
+  const factoryAddress = preflight.configured.factory;
+  const routerAddress = preflight.configured.router;
+  const quoterAddress = preflight.configured.quoter;
 
   const deploymentRequest = await Executor.getDeployTransaction(poolAddress, usdcAddress, deployer.address);
   const estimatedDeploymentGas = await hre.ethers.provider.estimateGas({
@@ -134,6 +97,7 @@ async function main() {
       reserveUsdc: profitReserveUsdc.toString(),
       sweepThreshold: profitSweepThreshold.toString(),
     },
+    readback: await readbackUnifiedExecutor(await executor.getAddress()),
   };
 
   const outputDir = path.resolve(__dirname, "../deployments");

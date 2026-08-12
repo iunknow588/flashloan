@@ -40,14 +40,20 @@ interface IV3PoolUnifiedLike {
 }
 
 interface IV3QuoterUnifiedLike {
-    function quoteExactInput(bytes calldata path, uint256 amountIn) external view returns (uint256 amountOut);
+    function quoteExactInput(bytes calldata path, uint256 amountIn)
+        external
+        returns (
+            uint256 amountOut,
+            uint160[] memory sqrtPriceX96AfterList,
+            uint32[] memory initializedTicksCrossedList,
+            uint256 gasEstimate
+        );
 }
 
 interface IV3RouterUnifiedLike {
     struct ExactInputParams {
         bytes path;
         address recipient;
-        uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
     }
@@ -323,12 +329,6 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         uint256 indexed tradeArrayIndex,
         uint256 tradeIndex
     );
-    event RuntimePoolExtremesSelected(
-        uint256 indexed tradeArrayIndex,
-        address lowPool,
-        address highPool,
-        int256 tickDelta
-    );
     event RuntimeProfitChecked(uint256 quotedFinal, uint256 requiredFinal, uint256 premium, uint256 minProfit);
     event RuntimeTriangularHopQuoted(
         uint8 indexed routeDirection,
@@ -455,18 +455,6 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         emit ProfitConfigSet(sweepEnabled, reserveUsdc, sweepThreshold);
     }
 
-    function flashLoanPremiumBps() external view returns (uint256) {
-        return IAavePoolUnified(aavePool).FLASHLOAN_PREMIUM_TOTAL();
-    }
-
-    function previewRuntimeTrade(RuntimeTradeSpec calldata trade)
-        external
-        view
-        returns (RuntimeTradeDecision memory decision)
-    {
-        decision = _previewRuntimeTrade(trade);
-    }
-
     function previewOrderedRuntimeAutoExecution(
         RuntimeTradeSpec[] calldata trades,
         RuntimeExecutionParams calldata usdcParams,
@@ -514,12 +502,6 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
             preview.executionKind,
             preview.selectedTradeArrayIndex,
             preview.decision.tradeIndex
-        );
-        emit RuntimePoolExtremesSelected(
-            preview.selectedTradeArrayIndex,
-            preview.decision.lowPool,
-            preview.decision.highPool,
-            preview.decision.tickDelta
         );
         emit RuntimeProfitChecked(
             preview.executionPreview.quotedFinal,
@@ -600,7 +582,6 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
             IV3RouterUnifiedLike.ExactInputParams({
                 path: plan.swapPath,
                 recipient: address(this),
-                deadline: plan.deadline,
                 amountIn: amount,
                 amountOutMinimum: plan.protectedMinFinal
             })
@@ -1038,6 +1019,7 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         decision.tickDelta = int256(high.normalizedTick) - int256(low.normalizedTick);
         if (decision.tickDelta < runtimeRiskConfig.minTickDelta) {
             decision.failureCode = ERR_NO_PRICE_SPREAD;
+            return decision;
         }
         decision.viable = true;
     }
@@ -1143,7 +1125,13 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         returns (bool ok, uint256 amountOut)
     {
         (bool returned, bytes memory data) =
-            quoter.staticcall(abi.encodeWithSelector(IV3QuoterUnifiedLike.quoteExactInput.selector, path, amountIn));
+            quoter.staticcall(
+                abi.encodeWithSelector(
+                    IV3QuoterUnifiedLike.quoteExactInput.selector,
+                    path,
+                    amountIn
+                )
+            );
         if (!returned || data.length < 32) return (false, 0);
         amountOut = abi.decode(data, (uint256));
         return (true, amountOut);

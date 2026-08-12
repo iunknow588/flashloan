@@ -164,6 +164,17 @@ def write_cache(path: Path, payload: dict) -> None:
     tmp.replace(path)
 
 
+def rpc_chain_snapshot(rpc_url: str) -> dict:
+    try:
+        w3 = web3_for_rpc_url(rpc_url, timeout=10)
+        return {
+            "chain_id": int(w3.eth.chain_id),
+            "block_number": int(w3.eth.block_number),
+        }
+    except Exception:
+        return {}
+
+
 def normalize_binance_symbol(token_symbol: str) -> Optional[str]:
     symbol = token_symbol.strip().upper()
     if not symbol:
@@ -335,6 +346,7 @@ def load_aave_reserve_assets(
                 cache_path,
                 {
                     "schema_version": 4,
+                    **rpc_chain_snapshot(candidate),
                     "refreshed_at": now_iso(),
                     "pool_address": pool_address,
                     "rpc_url": candidate,

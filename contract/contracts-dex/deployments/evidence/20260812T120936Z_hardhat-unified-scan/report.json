@@ -1,0 +1,1444 @@
+{
+  "runAt": "2026-08-12T12:09:36.976Z",
+  "network": "hardhat",
+  "chainId": 43114,
+  "blockNumber": 92615447,
+  "cacheFile": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+  "cacheBlockNumber": 92615445,
+  "candidateCount": 20,
+  "amountCandidates": [
+    "1000000",
+    "10000000",
+    "100000000",
+    "500000000",
+    "1000000000"
+  ],
+  "minProfit": "1",
+  "enableNonUsdcCrossPool": false,
+  "executorAddress": "0x56962745c8Be080e09cEa4209B43016883D3640b",
+  "successCount": 0,
+  "successes": [],
+  "failures": [
+    {
+      "route": "USDC/DAI.e/USDt",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/USDt",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/USDt",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/USDt",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/USDt",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/WAVAX",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/WAVAX",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/WAVAX",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/WAVAX",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/DAI.e/WAVAX",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WETH.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WETH.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WETH.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WETH.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WETH.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WAVAX",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WAVAX",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WAVAX",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WAVAX",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/WAVAX",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/BTC.b",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/BTC.b",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/BTC.b",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/BTC.b",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WBTC.e/BTC.b",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WBTC.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WBTC.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WBTC.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WBTC.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WBTC.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/USDt",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/USDt",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/USDt",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/USDt",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/USDt",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WAVAX",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WAVAX",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WAVAX",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WAVAX",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WETH.e/WAVAX",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/DAI.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/USDt/DAI.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/USDt/DAI.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/USDt/DAI.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/USDt/DAI.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/USDt/WETH.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/WETH.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/WETH.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/WETH.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/WETH.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/WAVAX",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/USDt/WAVAX",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/USDt/WAVAX",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/USDt/WAVAX",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/USDt/WAVAX",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/USDt/USDe",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/USDe",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/USDe",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/USDe",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDt/USDe",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/DAI.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/DAI.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/DAI.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/DAI.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/DAI.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction reverted without a reason string",
+        "data": "0x"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WBTC.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WBTC.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WBTC.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WBTC.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WBTC.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WETH.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WETH.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WETH.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WETH.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/WETH.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/WAVAX/USDt",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/USDt",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/USDt",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/USDt",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/USDt",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/BTC.b",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/BTC.b",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/BTC.b",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/BTC.b",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/WAVAX/BTC.b",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WBTC.e",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WBTC.e",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WBTC.e",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WBTC.e",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WBTC.e",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WAVAX",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WAVAX",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WAVAX",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WAVAX",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/BTC.b/WAVAX",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "previewError": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    {
+      "route": "USDC/USDe/USDt",
+      "amount": "1000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDe/USDt",
+      "amount": "10000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDe/USDt",
+      "amount": "100000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDe/USDt",
+      "amount": "500000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    },
+    {
+      "route": "USDC/USDe/USDt",
+      "amount": "1000000000",
+      "minProfit": "1",
+      "tradeCount": 3,
+      "preview": {
+        "found": false,
+        "strategyStatus": "0",
+        "executionKind": 0,
+        "expectedProfit": "0",
+        "quotedFinal": "0",
+        "requiredFinal": "0"
+      }
+    }
+  ],
+  "status": "no_candidate_found"
+}

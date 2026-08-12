@@ -4,7 +4,7 @@ import os
 import json
 import re
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,9 +33,29 @@ RUNTIME_TOP_BOTTOM_LIMIT = 5
 MAX_OFFCHAIN_RUNTIME_CANDIDATE_SCAN = RUNTIME_TOP_BOTTOM_LIMIT * RUNTIME_TOP_BOTTOM_LIMIT
 DEFAULT_RUNTIME_ROUTE_GROUP_SCAN = 25
 MAX_RUNTIME_ROUTE_GROUP_SCAN = 250
+DEFAULT_RUNTIME_CACHE_MAX_AGE_BLOCKS = 30
+DEFAULT_DIRECT_CIRCUIT_OFFCHAIN_THRESHOLD = 5
+DEFAULT_DIRECT_CIRCUIT_ONCHAIN_THRESHOLD = 2
+DEFAULT_DIRECT_CIRCUIT_LOSS_THRESHOLD_USDC = "1"
+DEFAULT_DIRECT_CIRCUIT_COOLDOWN_SECONDS = 3600
+DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS = 120
 SRC_ROOT = Path(__file__).resolve().parents[1]
 AVALANCHE_USDC_ADDRESS = "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
 FUJI_USDC_ADDRESS = "0x5425890298aed601595a70ab815c96711a31bc65"
+STABLE_EXERCISE_SYMBOLS = {
+    "USDC",
+    "USDC.E",
+    "USDT",
+    "USDT.E",
+    "USDT0",
+    "USDT0.E",
+    "DAI",
+    "DAI.E",
+    "FRAX",
+    "EURC",
+    "USDE",
+    "SUSDE",
+}
 DIRECT_ONCHAIN_NETWORKS = {
     "avalanche": {"chain_id": 43114, "testnet": False, "rpc_env": ("AVALANCHE_RPC_URL", "AVALANCHE_RPC")},
     "fuji": {"chain_id": 43113, "testnet": True, "rpc_env": ("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL")},
@@ -648,6 +668,16 @@ def _aave_reserve_cache_path() -> Path:
     return path if path.is_absolute() else SRC_ROOT / path
 
 
+def _direct_circuit_breaker_path() -> Path:
+    raw = _env(
+        "DIRECT_ONCHAIN_CIRCUIT_BREAKER_FILE",
+        "UNIFIED_EXECUTOR_CIRCUIT_BREAKER_FILE",
+        default="runtime/cache/direct_onchain_circuit_breaker.json",
+    )
+    path = Path(raw)
+    return path if path.is_absolute() else SRC_ROOT / path
+
+
 def _load_aave_reserve_cache(path: Path | None = None) -> dict[str, Any]:
     cache_path = path or _aave_reserve_cache_path()
     try:
@@ -655,6 +685,587 @@ def _load_aave_reserve_cache(path: Path | None = None) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _read_json_file(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f"{path.suffix}.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_utc_datetime(value: Any) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        return parsed.astimezone(timezone.utc) if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _direct_circuit_enabled() -> bool:
+    raw = _env("DIRECT_ONCHAIN_CIRCUIT_BREAKER_ENABLED", "UNIFIED_EXECUTOR_CIRCUIT_BREAKER_ENABLED", default="true")
+    return _bool_value(raw)
+
+
+def _direct_circuit_thresholds() -> dict[str, int]:
+    def configured_int(name: str, fallback: int) -> int:
+        try:
+            return max(1, _positive_int_value(_env(name), default=fallback))
+        except ValueError:
+            return fallback
+
+    return {
+        "offchain": configured_int(
+            "DIRECT_ONCHAIN_CIRCUIT_OFFCHAIN_THRESHOLD",
+            DEFAULT_DIRECT_CIRCUIT_OFFCHAIN_THRESHOLD,
+        ),
+        "onchain": configured_int(
+            "DIRECT_ONCHAIN_CIRCUIT_ONCHAIN_THRESHOLD",
+            DEFAULT_DIRECT_CIRCUIT_ONCHAIN_THRESHOLD,
+        ),
+        "cooldownSeconds": configured_int(
+            "DIRECT_ONCHAIN_CIRCUIT_COOLDOWN_SECONDS",
+            DEFAULT_DIRECT_CIRCUIT_COOLDOWN_SECONDS,
+        ),
+        "redLossUsdc": _usdc_decimal_to_base_units(
+            _env(
+                "DIRECT_ONCHAIN_CIRCUIT_RED_LOSS_USDC",
+                default=DEFAULT_DIRECT_CIRCUIT_LOSS_THRESHOLD_USDC,
+            )
+        ),
+    }
+
+
+def _direct_circuit_group_key(network: str, route_key: Any = "") -> str:
+    key = str(route_key or "global").strip() or "global"
+    return f"{_normalize_direct_onchain_network(network)}:{key}"
+
+
+def _direct_circuit_status(
+    *,
+    network: str,
+    route_key: Any = "",
+    now: datetime | None = None,
+    path: Path | None = None,
+) -> dict[str, Any]:
+    if not _direct_circuit_enabled():
+        return {"enabled": False, "paused": False, "level": "green"}
+    state_path = path or _direct_circuit_breaker_path()
+    payload = _read_json_file(state_path)
+    groups = payload.get("groups") if isinstance(payload.get("groups"), dict) else {}
+    key = _direct_circuit_group_key(network, route_key)
+    group = groups.get(key) if isinstance(groups.get(key), dict) else {}
+    paused_until = _parse_utc_datetime(group.get("pausedUntil"))
+    current = now or _utc_now()
+    paused = bool(paused_until and paused_until > current)
+    return {
+        "enabled": True,
+        "paused": paused,
+        "level": str(group.get("level") or "green"),
+        "reason": str(group.get("reason") or ""),
+        "groupKey": key,
+        "pausedUntil": paused_until.isoformat() if paused_until else "",
+        "state": group,
+        "file": str(state_path),
+    }
+
+
+def _direct_failure_bucket(status: Any, submitted: bool) -> str:
+    text = str(status or "").lower()
+    if submitted or text in {"submitted_failed", "confirmed_failed", "transaction_reverted"}:
+        return "onchain"
+    if text in {
+        "private_relay_failed_public_fallback_disabled",
+        "submission_failed",
+        "gas_price_cap_exceeded",
+        "gas_price_unavailable",
+    }:
+        return "submission"
+    return "offchain"
+
+
+def _direct_failure_loss_usdc(result: dict[str, Any]) -> int:
+    receipt = result.get("receipt") if isinstance(result, dict) else None
+    try:
+        gas_used = _positive_int_value((receipt or {}).get("gasUsed")) if isinstance(receipt, dict) else 0
+    except ValueError:
+        gas_used = 0
+    static_call = result.get("static_call") if isinstance(result, dict) else {}
+    gas_pricing = static_call.get("gasPricing") if isinstance(static_call, dict) else {}
+    try:
+        gas_price = _positive_int_value((gas_pricing or {}).get("gasPriceWei")) if isinstance(gas_pricing, dict) else 0
+    except ValueError:
+        gas_price = 0
+    request = result.get("request") if isinstance(result, dict) else {}
+    model = request.get("netProfitModel") if isinstance(request, dict) else {}
+    try:
+        avax_price = _positive_int_value((model or {}).get("avaxUsdcPriceMicro")) if isinstance(model, dict) else 0
+    except ValueError:
+        avax_price = 0
+    return _wei_cost_to_usdc_base_units(gas_used * gas_price, avax_price)
+
+
+def _record_direct_circuit_result(
+    result: dict[str, Any],
+    *,
+    network: str,
+    route_key: Any = "",
+    now: datetime | None = None,
+    path: Path | None = None,
+) -> dict[str, Any]:
+    if not _direct_circuit_enabled():
+        return {"enabled": False, "recorded": False}
+    state_path = path or _direct_circuit_breaker_path()
+    payload = _read_json_file(state_path)
+    groups = payload.get("groups") if isinstance(payload.get("groups"), dict) else {}
+    key = _direct_circuit_group_key(network, route_key)
+    group = groups.get(key) if isinstance(groups.get(key), dict) else {}
+    thresholds = _direct_circuit_thresholds()
+    current = now or _utc_now()
+    ok = bool(result.get("ok"))
+    status = str(result.get("status") or "")
+
+    if ok:
+        group = {
+            "level": "green",
+            "reason": "last_result_success",
+            "offchainFailures": 0,
+            "onchainFailures": 0,
+            "updatedAt": current.isoformat(),
+            "lastSuccessAt": current.isoformat(),
+        }
+    else:
+        bucket = _direct_failure_bucket(status, bool(result.get("submitted")))
+        offchain_failures = _positive_int_value(group.get("offchainFailures"))
+        onchain_failures = _positive_int_value(group.get("onchainFailures"))
+        if bucket == "onchain":
+            onchain_failures += 1
+        elif bucket == "offchain":
+            offchain_failures += 1
+
+        loss_usdc = _direct_failure_loss_usdc(result)
+        level = "green"
+        reason = status or "direct_onchain_failure"
+        paused_until = ""
+        if loss_usdc >= thresholds["redLossUsdc"] > 0:
+            level = "red"
+            reason = "red_large_loss"
+            paused_until = (current + timedelta(seconds=thresholds["cooldownSeconds"])).isoformat()
+        elif onchain_failures >= thresholds["onchain"]:
+            level = "orange"
+            reason = "orange_onchain_failure_threshold"
+            paused_until = (current + timedelta(seconds=thresholds["cooldownSeconds"])).isoformat()
+        elif offchain_failures >= thresholds["offchain"]:
+            level = "yellow"
+            reason = "yellow_offchain_failure_threshold"
+            paused_until = (current + timedelta(seconds=thresholds["cooldownSeconds"])).isoformat()
+        group = {
+            **group,
+            "level": level,
+            "reason": reason,
+            "lastStatus": status,
+            "lastFailureBucket": bucket,
+            "lastFailureAt": current.isoformat(),
+            "updatedAt": current.isoformat(),
+            "offchainFailures": offchain_failures,
+            "onchainFailures": onchain_failures,
+            "lastEstimatedLossUsdc": str(loss_usdc),
+        }
+        if paused_until:
+            group["pausedUntil"] = paused_until
+
+    groups[key] = group
+    payload = {"schemaVersion": 1, "updatedAt": current.isoformat(), "groups": groups}
+    _write_json_file(state_path, payload)
+    return {"enabled": True, "recorded": True, "groupKey": key, "state": group, "file": str(state_path)}
+
+
+def _with_direct_circuit_record(
+    result: dict[str, Any],
+    *,
+    network: str,
+    route_key: Any = "",
+) -> dict[str, Any]:
+    circuit = _record_direct_circuit_result(result, network=network, route_key=route_key)
+    if circuit.get("recorded"):
+        result["circuitBreaker"] = circuit
+    return result
+
+
+def _cache_observed_block(cache: dict[str, Any]) -> int:
+    for key in (
+        "block_number",
+        "blockNumber",
+        "observed_block",
+        "observedBlock",
+        "latest_block",
+        "latestBlock",
+    ):
+        try:
+            value = _positive_int_value(cache.get(key))
+        except ValueError:
+            value = 0
+        if value:
+            return value
+    return 0
+
+
+def _max_runtime_cache_age_blocks(protocol: dict[str, Any] | None = None) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        names=("max_cache_age_blocks", "maxCacheAgeBlocks", "runtime_cache_max_age_blocks"),
+    )
+    if raw in (None, ""):
+        raw = _env("TRIANGULAR_RUNTIME_CACHE_MAX_AGE_BLOCKS", "UNIFIED_EXECUTOR_CACHE_MAX_AGE_BLOCKS")
+    try:
+        return _positive_int_value(raw, default=DEFAULT_RUNTIME_CACHE_MAX_AGE_BLOCKS)
+    except ValueError:
+        return DEFAULT_RUNTIME_CACHE_MAX_AGE_BLOCKS
+
+
+def _runtime_cache_validation(
+    cache: dict[str, Any],
+    *,
+    network: str,
+    current_block: int | None = None,
+    max_age_blocks: int | None = None,
+    required_factory: str = "",
+) -> dict[str, Any]:
+    if not isinstance(cache, dict) or not cache:
+        return {"ok": False, "reason": "cache_missing"}
+    normalized_network = _normalize_direct_onchain_network(network)
+    expected_chain_id = DIRECT_ONCHAIN_NETWORKS.get(normalized_network, {}).get("chain_id")
+    cache_chain_id = cache.get("chain_id", cache.get("chainId"))
+    if expected_chain_id is not None:
+        try:
+            if int(cache_chain_id) != int(expected_chain_id):
+                return {
+                    "ok": False,
+                    "reason": "cache_chain_id_mismatch",
+                    "expectedChainId": str(expected_chain_id),
+                    "cacheChainId": str(cache_chain_id),
+                }
+        except (TypeError, ValueError):
+            return {
+                "ok": False,
+                "reason": "cache_chain_id_missing",
+                "expectedChainId": str(expected_chain_id),
+            }
+    observed_block = _cache_observed_block(cache)
+    max_age = DEFAULT_RUNTIME_CACHE_MAX_AGE_BLOCKS if max_age_blocks is None else int(max_age_blocks)
+    if current_block is not None and max_age > 0:
+        if observed_block <= 0:
+            return {"ok": False, "reason": "cache_block_missing", "currentBlock": str(current_block)}
+        age = int(current_block) - observed_block
+        if age < 0:
+            return {
+                "ok": False,
+                "reason": "cache_block_ahead",
+                "currentBlock": str(current_block),
+                "cacheBlock": str(observed_block),
+            }
+        if age > max_age:
+            return {
+                "ok": False,
+                "reason": "cache_stale",
+                "currentBlock": str(current_block),
+                "cacheBlock": str(observed_block),
+                "maxAgeBlocks": str(max_age),
+                "ageBlocks": str(age),
+            }
+    expected_factory = _normalize_pair_address(required_factory)
+    if expected_factory:
+        cache_factory = _normalize_pair_address(cache.get("factory") or cache.get("factory_address"))
+        if cache_factory and cache_factory != expected_factory:
+            return {
+                "ok": False,
+                "reason": "cache_factory_mismatch",
+                "expectedFactory": expected_factory,
+                "cacheFactory": cache_factory,
+            }
+        checked = 0
+        mismatches: list[str] = []
+        for entry in cache.get("pools") or []:
+            if not isinstance(entry, dict):
+                continue
+            nested = entry.get("pools") if isinstance(entry.get("pools"), list) else [entry]
+            for pool in nested:
+                if not isinstance(pool, dict):
+                    continue
+                pool_address = _normalize_pair_address(pool.get("pool") or pool.get("pool_address") or pool.get("address"))
+                entry_factory = _normalize_pair_address(
+                    pool.get("factory")
+                    or pool.get("factory_address")
+                    or entry.get("factory")
+                    or entry.get("factory_address")
+                )
+                if not pool_address and not entry_factory:
+                    continue
+                checked += 1
+                if entry_factory and entry_factory != expected_factory:
+                    mismatches.append(pool_address or f"entry:{checked}")
+                    if len(mismatches) >= 3:
+                        break
+            if len(mismatches) >= 3:
+                break
+        if mismatches:
+            return {
+                "ok": False,
+                "reason": "cache_factory_mismatch",
+                "expectedFactory": expected_factory,
+                "samplePools": mismatches,
+            }
+    return {
+        "ok": True,
+        "reason": "cache_verified",
+        "cacheBlock": str(observed_block),
+        "maxAgeBlocks": str(max_age),
+        "currentBlock": str(current_block or ""),
+        "factoryCheckedCount": str(checked) if expected_factory else "0",
+    }
+
+
+def _unified_required_factory(protocol: dict[str, Any] | None, cache: dict[str, Any] | None = None) -> str:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        names=("factory", "factory_address", "v3_factory", "v3Factory", "unified_v3_factory"),
+    )
+    if raw in (None, ""):
+        raw = _env("UNIFIED_V3_FACTORY", "TRIANGULAR_V3_FACTORY")
+    if raw in (None, "") and isinstance(cache, dict):
+        raw = cache.get("factory") or cache.get("factory_address")
+    return _normalize_pair_address(raw)
+
+
+def _reserve_cache_validation(
+    cache: dict[str, Any],
+    *,
+    network: str,
+    current_block: int | None = None,
+    max_age_blocks: int | None = None,
+) -> dict[str, Any]:
+    result = _runtime_cache_validation(
+        cache,
+        network=network,
+        current_block=current_block,
+        max_age_blocks=max_age_blocks,
+    )
+    if not result.get("ok"):
+        result["cacheKind"] = "aave_reserve"
+        return result
+    assets = _aave_reserve_assets(cache)
+    if not assets:
+        return {"ok": False, "reason": "reserve_cache_assets_missing", "cacheKind": "aave_reserve"}
+    result["cacheKind"] = "aave_reserve"
+    result["assetCount"] = str(len(assets))
+    return result
+
+
+def _public_fallback_enabled(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> bool:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("allow_public_fallback", "allowPublicFallback", "public_fallback_enabled", "publicFallbackEnabled"),
+    )
+    if raw is not None:
+        return _bool_value(raw)
+    return _env_bool(
+        "UNIFIED_EXECUTOR_ALLOW_PUBLIC_FALLBACK",
+        "TRIANGULAR_ALLOW_PUBLIC_FALLBACK",
+    )
+
+
+def _relay_cost_wei(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("relay_cost_wei", "relayCostWei"),
+    )
+    if raw in (None, ""):
+        raw = _env("UNIFIED_EXECUTOR_RELAY_COST_WEI", "TRIANGULAR_RELAY_COST_WEI")
+    try:
+        return _positive_int_value(raw)
+    except ValueError:
+        return 0
+
+
+def _cache_risk_penalty_usdc_base_units(
+    protocol: dict[str, Any] | None = None,
+    opportunity: dict[str, Any] | None = None,
+    cache_reports: dict[str, dict[str, Any]] | None = None,
+) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("cache_risk_penalty_usdc", "cacheRiskPenaltyUsdc"),
+    )
+    if raw in (None, ""):
+        raw = _env("UNIFIED_EXECUTOR_CACHE_RISK_PENALTY_USDC", "TRIANGULAR_CACHE_RISK_PENALTY_USDC")
+    try:
+        static_penalty = _usdc_decimal_to_base_units(raw)
+    except ValueError:
+        static_penalty = 0
+    per_block = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("cache_risk_penalty_per_block_usdc", "cacheRiskPenaltyPerBlockUsdc"),
+    )
+    if per_block in (None, ""):
+        per_block = _env(
+            "UNIFIED_EXECUTOR_CACHE_RISK_PENALTY_PER_BLOCK_USDC",
+            "TRIANGULAR_CACHE_RISK_PENALTY_PER_BLOCK_USDC",
+        )
+    try:
+        per_block_penalty = _usdc_decimal_to_base_units(per_block)
+    except ValueError:
+        per_block_penalty = 0
+    age_blocks = 0
+    for report in (cache_reports or {}).values():
+        if not isinstance(report, dict) or not report.get("ok"):
+            continue
+        try:
+            age = _positive_int_value(report.get("ageBlocks"))
+        except ValueError:
+            age = 0
+        if age == 0:
+            try:
+                current = _positive_int_value(report.get("currentBlock"))
+                cache_block = _positive_int_value(report.get("cacheBlock"))
+                age = max(0, current - cache_block) if current and cache_block else 0
+            except ValueError:
+                age = 0
+        age_blocks = max(age_blocks, age)
+    dynamic_penalty = per_block_penalty * age_blocks
+    return static_penalty + dynamic_penalty
+
+
+def _gas_token_price_max_age_seconds(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("gas_token_price_max_age_seconds", "gasTokenPriceMaxAgeSeconds", "avax_usdc_price_max_age_seconds"),
+    )
+    if raw in (None, ""):
+        raw = _env("AVAX_USDC_PRICE_MAX_AGE_SECONDS", "GAS_TOKEN_USDC_PRICE_MAX_AGE_SECONDS")
+    try:
+        return _positive_int_value(raw, default=DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS)
+    except ValueError:
+        return DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS
+
+
+def _gas_token_price_updated_at(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> datetime | None:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=(
+            "avax_usdc_price_updated_at",
+            "avaxUsdcPriceUpdatedAt",
+            "gas_token_usdc_price_updated_at",
+            "gasTokenUsdcPriceUpdatedAt",
+        ),
+    )
+    if raw in (None, ""):
+        raw = _env("AVAX_USDC_PRICE_UPDATED_AT", "GAS_TOKEN_USDC_PRICE_UPDATED_AT")
+    if raw in (None, ""):
+        return None
+    try:
+        numeric = Decimal(str(raw))
+        if numeric > 0:
+            return datetime.fromtimestamp(float(numeric), tz=timezone.utc)
+    except (InvalidOperation, ValueError, OSError, OverflowError):
+        pass
+    return _parse_utc_datetime(raw)
+
+
+def _avax_usdc_price_micro(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("avax_usdc_price", "avaxUsdcPrice", "gas_token_usdc_price", "gasTokenUsdcPrice"),
+    )
+    if raw in (None, ""):
+        raw = _env("AVAX_USDC_PRICE", "GAS_TOKEN_USDC_PRICE")
+    try:
+        return _usdc_decimal_to_base_units(raw)
+    except ValueError:
+        return 0
+
+
+def _gas_token_usdc_price_report(
+    protocol: dict[str, Any] | None = None,
+    opportunity: dict[str, Any] | None = None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    price = _avax_usdc_price_micro(protocol, opportunity)
+    updated_at = _gas_token_price_updated_at(protocol, opportunity)
+    max_age = _gas_token_price_max_age_seconds(protocol, opportunity)
+    current = now or _utc_now()
+    report: dict[str, Any] = {
+        "ok": False,
+        "priceMicro": str(price),
+        "updatedAt": updated_at.isoformat() if updated_at else "",
+        "maxAgeSeconds": str(max_age),
+    }
+    if price <= 0:
+        report["reason"] = "gas_token_usdc_price_missing"
+        return report
+    if updated_at is None:
+        report["reason"] = "gas_token_usdc_price_timestamp_missing"
+        return report
+    age = max(0, int((current - updated_at).total_seconds()))
+    report["ageSeconds"] = str(age)
+    if max_age > 0 and age > max_age:
+        report["reason"] = "gas_token_usdc_price_stale"
+        return report
+    report["ok"] = True
+    report["reason"] = "gas_token_usdc_price_fresh"
+    return report
+
+
+def _wei_cost_to_usdc_base_units(cost_wei: int, avax_usdc_price_micro: int) -> int:
+    if cost_wei <= 0 or avax_usdc_price_micro <= 0:
+        return 0
+    return (int(cost_wei) * int(avax_usdc_price_micro) + 10**18 - 1) // 10**18
+
+
+def _unified_net_profit_report(
+    *,
+    expected_profit: int,
+    gas_units: int,
+    gas_price_wei: int,
+    relay_cost_wei: int,
+    cache_risk_penalty_usdc: int,
+    avax_usdc_price_micro: int,
+) -> dict[str, str]:
+    gas_cost_wei = max(0, int(gas_units)) * max(0, int(gas_price_wei))
+    relay_cost_usdc = _wei_cost_to_usdc_base_units(max(0, int(relay_cost_wei)), avax_usdc_price_micro)
+    gas_cost_usdc = _wei_cost_to_usdc_base_units(gas_cost_wei, avax_usdc_price_micro)
+    net_profit = int(expected_profit) - gas_cost_usdc - relay_cost_usdc - max(0, int(cache_risk_penalty_usdc))
+    return {
+        "expectedProfit": str(expected_profit),
+        "gasUnits": str(gas_units),
+        "gasPriceWei": str(gas_price_wei),
+        "gasCostWei": str(gas_cost_wei),
+        "gasCostUsdc": str(gas_cost_usdc),
+        "relayCostWei": str(relay_cost_wei),
+        "relayCostUsdc": str(relay_cost_usdc),
+        "cacheRiskPenaltyUsdc": str(max(0, int(cache_risk_penalty_usdc))),
+        "avaxUsdcPriceMicro": str(avax_usdc_price_micro),
+        "netProfit": str(net_profit),
+    }
 
 
 def _usdc_address_for_network(network: str | None = None, cache: dict[str, Any] | None = None) -> str:
@@ -748,6 +1359,39 @@ def _base_symbol_from_row(row: Any) -> str:
                     return value[: -len(suffix)]
             return value
     return ""
+
+
+def _normalized_symbol(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def _is_stable_exercise_symbol(value: Any) -> bool:
+    return _normalized_symbol(value) in STABLE_EXERCISE_SYMBOLS
+
+
+def _allow_stable_exercise_targets(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> bool:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("allow_stable_exercise_targets", "allowStableExerciseTargets"),
+    )
+    if raw is not None:
+        return _bool_value(raw, False)
+    return _env_bool("UNIFIED_EXECUTOR_ALLOW_STABLE_TARGETS", "TRIANGULAR_ALLOW_STABLE_TARGETS")
+
+
+def _allow_single_pair_diagnostic(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> bool:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=("allow_single_pair_diagnostic", "allowSinglePairDiagnostic"),
+    )
+    if raw is not None:
+        return _bool_value(raw, False)
+    return _env_bool(
+        "UNIFIED_EXECUTOR_ALLOW_SINGLE_PAIR_DIAGNOSTIC",
+        "TRIANGULAR_ALLOW_SINGLE_PAIR_DIAGNOSTIC",
+    )
 
 
 def _symbol_aliases(symbol: str) -> set[str]:
@@ -984,6 +1628,7 @@ def _runtime_trades_from_market_state(
     cache: dict[str, Any] | None = None,
     side_limit: int = RUNTIME_TOP_BOTTOM_LIMIT,
     trade_limit: int | None = None,
+    include_stable_targets: bool = False,
 ) -> list[dict[str, Any]]:
     if not isinstance(market_state, dict):
         return []
@@ -997,12 +1642,16 @@ def _runtime_trades_from_market_state(
     for top in top_rows:
         x_symbol = _base_symbol_from_row(top)
         x_change = _float_or_none(top.get("change_percent")) if isinstance(top, dict) else None
-        if not x_symbol:
+        if not x_symbol or (_is_stable_exercise_symbol(x_symbol) and not include_stable_targets):
             continue
         for bottom in bottom_rows:
             y_symbol = _base_symbol_from_row(bottom)
             y_change = _float_or_none(bottom.get("change_percent")) if isinstance(bottom, dict) else None
-            if not y_symbol or x_symbol == y_symbol:
+            if (
+                not y_symbol
+                or x_symbol == y_symbol
+                or (_is_stable_exercise_symbol(y_symbol) and not include_stable_targets)
+            ):
                 continue
             ux_x, ux_y, ux_pools = _cache_pool_candidates_for_pair(pool_cache, "USDC", x_symbol)
             uy_x, uy_y, uy_pools = _cache_pool_candidates_for_pair(pool_cache, "USDC", y_symbol)
@@ -1139,6 +1788,8 @@ def _runtime_route_groups_from_market_state(
     *,
     cache: dict[str, Any] | None = None,
     group_limit: int | None = None,
+    include_single_pair_diagnostic: bool = False,
+    include_stable_targets: bool = False,
 ) -> list[dict[str, Any]]:
     """Build direct and triangular route groups for every cache-discovered USDC token."""
     context = market_state if isinstance(market_state, dict) else {}
@@ -1159,32 +1810,40 @@ def _runtime_route_groups_from_market_state(
         usdc_pairs[symbol] = (token_x, token_y, pools)
 
     groups: list[dict[str, Any]] = []
-    for symbol, (token_x, token_y, pools) in usdc_pairs.items():
-        score = abs(changes.get(symbol, 0.0))
-        groups.append(
-            {
-                "routeKey": f"USDC:{symbol}",
-                "routeKind": "usdc_cross_pool",
-                "score": score,
-                "trades": [
-                    _runtime_trade_with_metadata(
-                        trade_index=0,
-                        token_x=token_x,
-                        token_y=token_y,
-                        pools=pools,
-                        strategy_status=1,
-                        strategy_stage="status1_usdc_cross_pool",
-                        route_symbols=["USDC", symbol, "USDC"],
-                        route_key=f"USDC:{symbol}",
-                        spread=score,
-                    )
-                ],
-            }
-        )
+    if include_single_pair_diagnostic:
+        for symbol, (token_x, token_y, pools) in usdc_pairs.items():
+            if _is_stable_exercise_symbol(symbol) and not include_stable_targets:
+                continue
+            score = abs(changes.get(symbol, 0.0))
+            groups.append(
+                {
+                    "routeKey": f"USDC:{symbol}",
+                    "routeKind": "usdc_cross_pool_diagnostic",
+                    "exerciseTargetPolicy": "single-pair-diagnostic",
+                    "score": score,
+                    "trades": [
+                        _runtime_trade_with_metadata(
+                            trade_index=0,
+                            token_x=token_x,
+                            token_y=token_y,
+                            pools=pools,
+                            strategy_status=1,
+                            strategy_stage="status1_usdc_cross_pool_diagnostic",
+                            route_symbols=["USDC", symbol, "USDC"],
+                            route_key=f"USDC:{symbol}",
+                            spread=score,
+                        )
+                    ],
+                }
+            )
 
     symbols = sorted(usdc_pairs)
     for left_index, x_symbol in enumerate(symbols):
+        if _is_stable_exercise_symbol(x_symbol) and not include_stable_targets:
+            continue
         for y_symbol in symbols[left_index + 1 :]:
+            if _is_stable_exercise_symbol(y_symbol) and not include_stable_targets:
+                continue
             ux_x, ux_y, ux_pools = usdc_pairs[x_symbol]
             uy_x, uy_y, uy_pools = usdc_pairs[y_symbol]
             xy_x, xy_y, xy_pools = _cache_pool_candidates_for_pair(pool_cache, x_symbol, y_symbol)
@@ -1247,6 +1906,11 @@ def _runtime_route_groups_from_market_state(
                 {
                     "routeKey": route_key,
                     "routeKind": "usdc_triangular",
+                    "exerciseTargetPolicy": (
+                        "stable-target-diagnostic"
+                        if _is_stable_exercise_symbol(x_symbol) or _is_stable_exercise_symbol(y_symbol)
+                        else "non-stable-pair"
+                    ),
                     "score": score,
                     "trades": trades,
                 }
@@ -1322,7 +1986,12 @@ def _runtime_route_group_candidates(
         }]
 
     market_state = _market_state_from_context(protocol, opportunity)
-    return _runtime_route_groups_from_market_state(market_state, group_limit=limit)
+    return _runtime_route_groups_from_market_state(
+        market_state,
+        group_limit=limit,
+        include_single_pair_diagnostic=_allow_single_pair_diagnostic(protocol, opportunity),
+        include_stable_targets=_allow_stable_exercise_targets(protocol, opportunity),
+    )
 
 
 def _market_state_from_context(protocol: dict[str, Any], opportunity: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -1358,7 +2027,15 @@ def _runtime_trade_candidates(
         env_value = _env("TRIANGULAR_RUNTIME_TRADES_JSON")
         if not env_value:
             market_state = _market_state_from_context(protocol, opportunity)
-            return _runtime_trades_from_market_state(market_state, trade_limit=limit) if market_state else []
+            return (
+                _runtime_trades_from_market_state(
+                    market_state,
+                    trade_limit=limit,
+                    include_stable_targets=_allow_stable_exercise_targets(protocol, opportunity),
+                )
+                if market_state
+                else []
+            )
         source = json.loads(env_value)
     if not isinstance(source, list):
         raise ValueError("runtime trades must be a list")
@@ -2085,6 +2762,17 @@ def _submit_legacy_direct_onchain_trade(
     opportunity: dict[str, Any],
     timeout_seconds: int | float | None = None,
 ) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "submitted": False,
+        "status": "legacy_direct_path_disabled",
+        "blocked_reason": "legacy_direct_path_disabled",
+        "error": (
+            "legacy TriangularRouteController direct-onchain submission is disabled; "
+            "use UnifiedFlashLoanMevExecutor via submit_direct_onchain_trade"
+        ),
+    }
+
     intent = quote_payload.get("cow_flashloan_intent") if isinstance(quote_payload, dict) else None
     protocol = intent.get("direct_onchain_protocol") if isinstance(intent, dict) else None
     if not isinstance(protocol, dict) or not protocol.get("enabled", True):
@@ -2467,7 +3155,7 @@ def _submit_legacy_direct_onchain_trade(
         gas_guard = _broadcast_gas_guard(gas_estimate, gas_estimate_info)
         static_report["gasPricing"] = gas_guard["report"]
         if not gas_guard["ok"]:
-            return {
+            return _with_direct_circuit_record({
                 "ok": False,
                 "submitted": False,
                 "status": gas_guard["status"],
@@ -2483,7 +3171,7 @@ def _submit_legacy_direct_onchain_trade(
                 "strategy_status": str(request_payload.get("selectedStrategyStatus", "55555")) if execute_runtime_trade else None,
                 "request": request_payload,
                 "finished_at": datetime.now(timezone.utc).isoformat(),
-            }
+            }, network=network, route_key="legacy")
         tx_params = {
             "from": signer_address,
             "nonce": w3.eth.get_transaction_count(signer_address, "pending"),
@@ -2606,10 +3294,30 @@ def _unified_executor_route_order_check(
     }
 
 
+def _route_group_target_symbols(group: dict[str, Any], trades: list[dict[str, Any]]) -> list[str]:
+    symbols: list[str] = []
+    for trade in trades:
+        route_symbols = trade.get("routeSymbols") or trade.get("route_symbols")
+        if isinstance(route_symbols, (list, tuple)):
+            for item in route_symbols:
+                symbol = _normalized_symbol(item)
+                if symbol and symbol != "USDC" and symbol not in symbols:
+                    symbols.append(symbol)
+    if not symbols:
+        route_key = str(group.get("routeKey") or group.get("route_key") or "")
+        for item in re.split(r"[:>\-/,\s]+", route_key):
+            symbol = _normalized_symbol(item)
+            if symbol and symbol != "USDC" and symbol not in symbols:
+                symbols.append(symbol)
+    return symbols
+
+
 def _prepare_unified_route_groups(
     groups: list[dict[str, Any]],
     *,
     usdc_address: str,
+    allow_single_pair_diagnostic: bool = False,
+    allow_stable_targets: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     prepared: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -2629,15 +3337,38 @@ def _prepare_unified_route_groups(
                 }
             )
             continue
+        if len(ordered) == 1 and not allow_single_pair_diagnostic:
+            rejected.append(
+                {
+                    "groupIndex": index,
+                    "routeKey": str(group.get("routeKey") or f"group:{index}"),
+                    "reason": "single_pair_diagnostic_disabled",
+                }
+            )
+            continue
+        target_symbols = _route_group_target_symbols(group, ordered)
+        stable_targets = [symbol for symbol in target_symbols if _is_stable_exercise_symbol(symbol)]
+        if stable_targets and not allow_stable_targets:
+            rejected.append(
+                {
+                    "groupIndex": index,
+                    "routeKey": str(group.get("routeKey") or f"group:{index}"),
+                    "reason": "stable_exercise_target_disabled",
+                    "stableTargets": stable_targets,
+                }
+            )
+            continue
         prepared.append(
             {
                 "groupIndex": index,
                 "routeKey": str(group.get("routeKey") or route_plan.get("groupKey") or f"group:{index}"),
                 "routeKind": str(group.get("routeKind") or "provided"),
+                "exerciseTargetPolicy": str(group.get("exerciseTargetPolicy") or "provided"),
                 "score": float(group.get("score") or 0.0),
                 "trades": ordered,
                 "routePlan": route_plan,
                 "routeCheck": route_check,
+                "targetSymbols": target_symbols,
             }
         )
     return prepared, rejected
@@ -2648,9 +3379,14 @@ def _select_best_unified_route_group(
     *,
     usdc_address: str,
     preview_group: Callable[[dict[str, Any]], Any],
+    estimate_group_gas: Callable[[dict[str, Any]], int] | None = None,
+    gas_price_wei: int = 0,
+    relay_cost_wei: int = 0,
+    cache_risk_penalty_usdc: int = 0,
+    avax_usdc_price_micro: int = 0,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[dict[str, Any]]]:
     evaluations: list[dict[str, Any]] = []
-    selected: tuple[int, int, dict[str, Any], dict[str, Any]] | None = None
+    selected: tuple[int, int, int, dict[str, Any], dict[str, Any]] | None = None
     for group_index, group in enumerate(groups):
         try:
             raw_preview = preview_group(group)
@@ -2670,6 +3406,22 @@ def _select_best_unified_route_group(
         expected_profit = int(report["executionPreview"].get("expectedProfit") or 0)
         profit_asset = _normalize_pair_address(report["executionPreview"].get("profitAsset"))
         found = bool(report["found"]) and profit_asset == usdc_address and expected_profit > 0
+        gas_units = 0
+        gas_error = ""
+        if found and estimate_group_gas is not None:
+            try:
+                gas_units = int(estimate_group_gas(group))
+            except Exception as exc:
+                found = False
+                gas_error = redact_sensitive_text(exc)
+        net_profit = _unified_net_profit_report(
+            expected_profit=expected_profit,
+            gas_units=gas_units,
+            gas_price_wei=gas_price_wei,
+            relay_cost_wei=relay_cost_wei,
+            cache_risk_penalty_usdc=cache_risk_penalty_usdc,
+            avax_usdc_price_micro=avax_usdc_price_micro,
+        )
         evaluation = {
             "groupIndex": str(group.get("groupIndex", group_index)),
             "routeKey": str(group.get("routeKey") or ""),
@@ -2680,27 +3432,31 @@ def _select_best_unified_route_group(
             "strategyStatus": report["strategyStatus"],
             "executionKind": report["executionKind"],
             "expectedProfit": str(expected_profit),
+            "netProfit": net_profit,
             "profitAsset": report["executionPreview"].get("profitAsset"),
             "preview": report,
         }
+        if gas_error:
+            evaluation["status"] = "gas_estimate_error"
+            evaluation["error"] = gas_error
         evaluations.append(evaluation)
         if not found:
             continue
         tie_index = int(group.get("groupIndex", group_index))
-        candidate = (expected_profit, -tie_index, group, report)
-        if selected is None or candidate[:2] > selected[:2]:
+        candidate = (int(net_profit["netProfit"]), expected_profit, -tie_index, group, report)
+        if selected is None or candidate[:3] > selected[:3]:
             selected = candidate
 
     if selected is None:
         return None, None, evaluations
-    selected_group = selected[2]
+    selected_group = selected[3]
     selected_index = str(selected_group.get("groupIndex", ""))
     selected_key = str(selected_group.get("routeKey") or "")
     for evaluation in evaluations:
         if evaluation.get("groupIndex") == selected_index and evaluation.get("routeKey") == selected_key:
             evaluation["selected"] = True
             break
-    return selected[2], selected[3], evaluations
+    return selected[3], selected[4], evaluations
 
 
 def _unified_execution_params(params: dict[str, int]) -> dict[str, int]:
@@ -2786,14 +3542,21 @@ def submit_direct_onchain_trade(
             "status": "direct_protocol_incomplete",
             "blocked_reason": "direct_protocol_incomplete",
             "error": "unified executor address is required",
-    }
+        }
 
     opportunity_context = opportunity if isinstance(opportunity, dict) else None
     usdc_address = _usdc_address_for_network(network)
+    explicit_route_groups = any(
+        isinstance(payload, dict)
+        and any(isinstance(payload.get(key), list) for key in ("runtime_route_groups", "runtime_trades", "candidate_trades", "trades"))
+        for payload in (protocol, opportunity_context)
+    ) or bool(_env("TRIANGULAR_RUNTIME_TRADES_JSON"))
     route_groups = _runtime_route_group_candidates(protocol, opportunity_context)
     prepared_groups, rejected_groups = _prepare_unified_route_groups(
         route_groups,
         usdc_address=usdc_address,
+        allow_single_pair_diagnostic=_allow_single_pair_diagnostic(protocol, opportunity_context),
+        allow_stable_targets=_allow_stable_exercise_targets(protocol, opportunity_context),
     )
     if not prepared_groups:
         error = "runtime_trades_empty" if not route_groups else "no_valid_unified_route_group"
@@ -2836,6 +3599,32 @@ def submit_direct_onchain_trade(
                 "blocked_reason": "network_mismatch",
                 "error": f"chain id is {chain_id}, expected {expected_chain_id}",
             }
+        current_block = int(w3.eth.block_number)
+        max_cache_age_blocks = _max_runtime_cache_age_blocks(protocol)
+        cache_reports: dict[str, dict[str, Any]] = {}
+        pool_cache = _load_runtime_pool_cache()
+        pool_cache_report = _runtime_cache_validation(
+            pool_cache,
+            network=network,
+            current_block=current_block,
+            max_age_blocks=max_cache_age_blocks,
+            required_factory=_unified_required_factory(protocol, pool_cache),
+        )
+        pool_cache_report["explicitRouteGroups"] = str(bool(explicit_route_groups))
+        cache_reports["runtimePoolCache"] = pool_cache_report
+        if not pool_cache_report.get("ok"):
+            return {
+                "ok": False,
+                "submitted": False,
+                "status": "runtime_cache_unverified",
+                "blocked_reason": pool_cache_report.get("reason") or "runtime_cache_unverified",
+                "error": pool_cache_report.get("reason") or "runtime cache verification failed",
+                "network": network,
+                "chain_id": chain_id,
+                "executor_address": executor_address,
+                "cacheValidation": cache_reports,
+                "runtimePoolCacheFile": str(_runtime_pool_cache_path()),
+            }
 
         signer_key = _env(
             "LIQUIDATION_EXECUTION_PRIVATE_KEY",
@@ -2876,11 +3665,74 @@ def submit_direct_onchain_trade(
         token_params_arg = _unified_cross_pool_params(token_params)
         allow_non_usdc_cross_pool = _non_usdc_cross_pool_enabled(protocol, opportunity_context)
         reserve_cache = _load_aave_reserve_cache()
+        reserve_cache_report = _reserve_cache_validation(
+            reserve_cache,
+            network=network,
+            current_block=current_block,
+            max_age_blocks=max_cache_age_blocks,
+        )
+        cache_reports["aaveReserveCache"] = reserve_cache_report
+        if not reserve_cache_report.get("ok"):
+            return {
+                "ok": False,
+                "submitted": False,
+                "status": "runtime_cache_unverified",
+                "blocked_reason": reserve_cache_report.get("reason") or "reserve_cache_unverified",
+                "error": reserve_cache_report.get("reason") or "Aave reserve cache verification failed",
+                "network": network,
+                "chain_id": chain_id,
+                "executor_address": executor_address,
+                "cacheValidation": cache_reports,
+                "reserveCacheFile": str(_aave_reserve_cache_path()),
+            }
         borrowable_addresses = _aave_borrowable_token_addresses(
             reserve_cache,
             min_liquidity=token_params_arg["amount"],
             network=network,
         )
+        broadcast_enabled = _env_bool(
+            "TRIANGULAR_DIRECT_BROADCAST_ENABLED",
+            "TRIANGULAR_AB_BROADCAST_ENABLED",
+            "UNIFIED_EXECUTOR_BROADCAST_ENABLED",
+        )
+        gas_estimate_info = None
+        gas_price_for_selection = 0
+        relay_cost_for_selection = 0
+        cache_penalty_for_selection = 0
+        avax_usdc_price_for_selection = 0
+        gas_token_price_report: dict[str, Any] = {}
+        if broadcast_enabled:
+            gas_estimate_info = estimate_gas_price(
+                w3,
+                max_gas_price_gwei=(
+                    _max_broadcast_gas_price_wei() / 1_000_000_000
+                    if _max_broadcast_gas_price_wei()
+                    else None
+                ),
+            )
+            gas_price_for_selection = _positive_int_value(getattr(gas_estimate_info, "max_fee", 0))
+            relay_cost_for_selection = _relay_cost_wei(protocol, opportunity_context)
+            cache_penalty_for_selection = _cache_risk_penalty_usdc_base_units(
+                protocol,
+                opportunity_context,
+                cache_reports,
+            )
+            gas_token_price_report = _gas_token_usdc_price_report(protocol, opportunity_context)
+            avax_usdc_price_for_selection = _positive_int_value(gas_token_price_report.get("priceMicro"))
+            if not gas_token_price_report.get("ok"):
+                return {
+                    "ok": False,
+                    "submitted": False,
+                    "status": "net_profit_model_incomplete",
+                    "blocked_reason": gas_token_price_report.get("reason") or "gas_token_usdc_price_unverified",
+                    "error": "fresh AVAX_USDC_PRICE/gasTokenUsdcPrice with updated_at is required before broadcast",
+                    "network": network,
+                    "chain_id": chain_id,
+                    "executor_address": executor_address,
+                    "cacheValidation": cache_reports,
+                    "gasTokenPrice": gas_token_price_report,
+                }
+
         def preview_group(group: dict[str, Any]) -> Any:
             runtime_trade_args = [_runtime_trade_abi_arg(trade, Web3) for trade in group["trades"]]
             return executor.functions.previewOrderedRuntimeAutoExecution(
@@ -2890,10 +3742,26 @@ def submit_direct_onchain_trade(
                 allow_non_usdc_cross_pool,
             ).call({"from": signer_address})
 
+        def estimate_group_gas(group: dict[str, Any]) -> int:
+            runtime_trade_args = [_runtime_trade_abi_arg(trade, Web3) for trade in group["trades"]]
+            return int(
+                executor.functions.runOrderedRuntimeTradesAndExecuteAuto(
+                    runtime_trade_args,
+                    usdc_params_arg,
+                    token_params_arg,
+                    allow_non_usdc_cross_pool,
+                ).estimate_gas({"from": signer_address})
+            )
+
         selected_group, preview_report, route_evaluations = _select_best_unified_route_group(
             prepared_groups,
             usdc_address=usdc_address,
             preview_group=preview_group,
+            estimate_group_gas=estimate_group_gas if broadcast_enabled else None,
+            gas_price_wei=gas_price_for_selection,
+            relay_cost_wei=relay_cost_for_selection,
+            cache_risk_penalty_usdc=cache_penalty_for_selection,
+            avax_usdc_price_micro=avax_usdc_price_for_selection,
         )
         if selected_group is None or preview_report is None:
             return {
@@ -2947,13 +3815,26 @@ def submit_direct_onchain_trade(
             "routeGroupCount": len(prepared_groups),
             "rejectedRouteGroups": rejected_groups,
             "routeEvaluations": route_evaluations,
+            "cacheValidation": cache_reports,
             "selectedRouteKey": selected_group["routeKey"],
             "selectedRouteKind": selected_group["routeKind"],
             "selectedRouteDirection": route_check.get("routeDirection"),
             "executeRuntimeTrade": execute_runtime_trade,
             "executionMode": "ordered_auto",
             "executionPhase": "unified_ordered_state_machine",
-            "selectionStrategy": "contract_ordered_status_1_to_5",
+            "selectionStrategy": (
+                "net_profit_after_gas_relay_cache_penalty"
+                if broadcast_enabled
+                else "expected_profit_preview_only"
+            ),
+            "netProfitModel": {
+                "enabled": str(bool(broadcast_enabled)),
+                "gasPriceWei": str(gas_price_for_selection),
+                "relayCostWei": str(relay_cost_for_selection),
+                "cacheRiskPenaltyUsdc": str(cache_penalty_for_selection),
+                "avaxUsdcPriceMicro": str(avax_usdc_price_for_selection),
+                "gasTokenPrice": gas_token_price_report,
+            },
             "executionParams": {key: str(value) for key, value in usdc_params_arg.items()},
             "crossPoolExecutionParams": {key: str(value) for key, value in token_params_arg.items()},
             "crossPoolFilter": {
@@ -2966,6 +3847,46 @@ def submit_direct_onchain_trade(
             "selectedExecutionKind": preview_report["executionKind"],
             "selectedTradeArrayIndex": preview_report["selectedTradeArrayIndex"],
         }
+        if broadcast_enabled:
+            circuit_status = _direct_circuit_status(network=network, route_key=selected_group["routeKey"])
+            request_payload["circuitBreaker"] = circuit_status
+            if circuit_status.get("paused"):
+                return {
+                    "ok": False,
+                    "submitted": False,
+                    "status": "direct_circuit_breaker_paused",
+                    "blocked_reason": "direct_circuit_breaker_paused",
+                    "error": circuit_status.get("reason") or "direct on-chain circuit breaker is paused",
+                    "network": network,
+                    "chain_id": chain_id,
+                    "owner": onchain_owner,
+                    "signer": signer_address,
+                    "executor_address": executor_address,
+                    "preflight": preview_report,
+                    "request": request_payload,
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                }
+            selected_evaluation = next(
+                (item for item in route_evaluations if item.get("selected")),
+                {},
+            )
+            selected_net_profit = int((selected_evaluation.get("netProfit") or {}).get("netProfit") or 0)
+            if selected_net_profit <= 0:
+                return _with_direct_circuit_record({
+                    "ok": False,
+                    "submitted": False,
+                    "status": "net_profit_not_positive",
+                    "blocked_reason": "net_profit_not_positive",
+                    "error": "selected route is not profitable after gas, relay, and cache-risk costs",
+                    "network": network,
+                    "chain_id": chain_id,
+                    "owner": onchain_owner,
+                    "signer": signer_address,
+                    "executor_address": executor_address,
+                    "preflight": preview_report,
+                    "request": request_payload,
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                }, network=network, route_key=selected_group["routeKey"])
         if not execute_runtime_trade:
             return {
                 "ok": True,
@@ -2997,11 +3918,6 @@ def submit_direct_onchain_trade(
             "runResult": _runtime_run_result_report(static_return),
             "executionPreview": preview_report["executionPreview"],
         }
-        broadcast_enabled = _env_bool(
-            "TRIANGULAR_DIRECT_BROADCAST_ENABLED",
-            "TRIANGULAR_AB_BROADCAST_ENABLED",
-            "UNIFIED_EXECUTOR_BROADCAST_ENABLED",
-        )
         if not broadcast_enabled:
             return {
                 "ok": True,
@@ -3022,14 +3938,15 @@ def submit_direct_onchain_trade(
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             }
 
-        gas_estimate_info = estimate_gas_price(
-            w3,
-            max_gas_price_gwei=(
-                _max_broadcast_gas_price_wei() / 1_000_000_000
-                if _max_broadcast_gas_price_wei()
-                else None
-            ),
-        )
+        if gas_estimate_info is None:
+            gas_estimate_info = estimate_gas_price(
+                w3,
+                max_gas_price_gwei=(
+                    _max_broadcast_gas_price_wei() / 1_000_000_000
+                    if _max_broadcast_gas_price_wei()
+                    else None
+                ),
+            )
         gas_guard = _broadcast_gas_guard(gas_estimate, gas_estimate_info)
         static_report["gasPricing"] = gas_guard["report"]
         if not gas_guard["ok"]:
@@ -3063,8 +3980,30 @@ def submit_direct_onchain_trade(
         broadcast = send_raw_transaction_private_first(
             _raw_signed_transaction(signed_tx),
             public_w3=w3,
+            allow_public_fallback=_public_fallback_enabled(protocol, opportunity_context),
         )
         tx_hash = broadcast.get("tx_hash")
+        if not tx_hash:
+            return _with_direct_circuit_record({
+                "ok": False,
+                "submitted": False,
+                "status": broadcast.get("status") or "private_relay_failed_public_fallback_disabled",
+                "blocked_reason": broadcast.get("status") or "private_relay_failed_public_fallback_disabled",
+                "error": "private relay failed and public fallback is disabled; discard calldata and re-preview",
+                "network": network,
+                "chain_id": chain_id,
+                "owner": onchain_owner,
+                "signer": signer_address,
+                "executor_address": executor_address,
+                "broadcast_channel": broadcast.get("broadcast_channel"),
+                "relay_errors": broadcast.get("relay_errors"),
+                "preflight": preview_report,
+                "static_call": static_report,
+                "strategy_status": preview_report["strategyStatus"],
+                "route_direction": preview_report["executionPreview"]["routeDirection"],
+                "request": request_payload,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }, network=network, route_key=selected_group["routeKey"])
         receipt_hash = tx_hash.hex() if hasattr(tx_hash, "hex") else tx_hash
         receipt = w3.eth.wait_for_transaction_receipt(
             receipt_hash,
@@ -3072,7 +4011,7 @@ def submit_direct_onchain_trade(
         )
         status = "submitted_success" if receipt and int(receipt.status or 0) == 1 else "submitted_failed"
         events = _unified_receipt_events(executor, receipt) if receipt else {}
-        return {
+        return _with_direct_circuit_record({
             "ok": status == "submitted_success",
             "submitted": True,
             "status": status,
@@ -3098,7 +4037,7 @@ def submit_direct_onchain_trade(
                 "events": events,
             },
             "finished_at": datetime.now(timezone.utc).isoformat(),
-        }
+        }, network=network, route_key=selected_group["routeKey"])
     except Exception as exc:
         execution_error = _execution_failure_report(exc)
         return {

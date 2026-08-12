@@ -1,6 +1,7 @@
 import inspect
 import json
 import sys
+from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
 
 from intent_trade import (
@@ -50,6 +51,16 @@ def _clear_direct_pair_env(monkeypatch):
         "TRIANGULAR_NETWORK",
         "TRIANGULAR_TESTNET_CHAIN_ID",
         "AAVE_RESERVE_CACHE_FILE",
+        "AVAX_USDC_PRICE",
+        "GAS_TOKEN_USDC_PRICE",
+        "AVAX_USDC_PRICE_UPDATED_AT",
+        "GAS_TOKEN_USDC_PRICE_UPDATED_AT",
+        "AVAX_USDC_PRICE_MAX_AGE_SECONDS",
+        "GAS_TOKEN_USDC_PRICE_MAX_AGE_SECONDS",
+        "UNIFIED_EXECUTOR_CACHE_RISK_PENALTY_USDC",
+        "TRIANGULAR_CACHE_RISK_PENALTY_USDC",
+        "UNIFIED_EXECUTOR_CACHE_RISK_PENALTY_PER_BLOCK_USDC",
+        "TRIANGULAR_CACHE_RISK_PENALTY_PER_BLOCK_USDC",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
@@ -147,6 +158,13 @@ def _pool_cache_for_symbols(symbols: list[str]) -> dict:
             )
             pool_id += 3
     return {"network": "avalanche", "protocols": ["uniswap_v3"], "pools": pools}
+
+
+def _pool_cache_with_metadata(symbols: list[str], *, chain_id: int = 43114, block_number: int = 100) -> dict:
+    cache = _pool_cache_for_symbols(symbols)
+    cache["chain_id"] = chain_id
+    cache["block_number"] = block_number
+    return cache
 
 
 def test_build_cow_intent_trade_exposes_a_small_public_surface():
@@ -345,8 +363,12 @@ def test_build_triangular_onchain_intent_trade_prefers_requested_route_in_large_
     assert protocol["runtime_trades"][3]["routeSymbols"] == ["USDC", "CCC", "AAA", "USDC"]
 
 
-def test_build_triangular_onchain_intent_trade_requires_runtime_trades(monkeypatch):
+def test_build_triangular_onchain_intent_trade_requires_runtime_trades(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
     monkeypatch.setenv("UNIFIED_EXECUTOR_ADDRESS", "0x" + "2" * 40)
+    cache_path = tmp_path / "empty_pools.json"
+    cache_path.write_text(json.dumps({"chain_id": 43114, "pools": []}), encoding="utf-8")
+    monkeypatch.setenv("PINAX_POOL_DISCOVERY_CACHE_FILE", str(cache_path))
 
     intent = build_triangular_onchain_intent_trade("USDC", "6.18", [], [])
 
@@ -516,7 +538,7 @@ def test_submit_direct_onchain_trade_accepts_opportunity_runtime_trades_before_n
     assert result["blocked_reason"] == "network_config_missing"
 
 
-def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before_broadcast(monkeypatch):
+def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before_broadcast(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
     usdc = _addr(500)
     token_x = _addr(501)
@@ -577,6 +599,7 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
 
     class FakeEth:
         chain_id = 43113
+        block_number = 100
 
         def contract(self, *, address, abi):
             self.address = address
@@ -610,6 +633,33 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
     monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", usdc)
     monkeypatch.setenv("LIQUIDATION_EXECUTION_PRIVATE_KEY", "0x" + "11" * 32)
     monkeypatch.setenv("UNIFIED_EXECUTOR_BROADCAST_ENABLED", "false")
+    reserve_cache = tmp_path / "aave_reserve_assets.json"
+    reserve_cache.write_text(
+        json.dumps(
+            {
+                "chain_id": 43113,
+                "rpc_url": "https://api.avax-test.network/ext/bc/C/rpc",
+                "block_number": 100,
+                "assets": [
+                    {
+                        "token_address": usdc,
+                        "active": True,
+                        "paused": False,
+                        "borrowing_enabled": True,
+                        "available_liquidity": 10_000_000,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AAVE_RESERVE_CACHE_FILE", str(reserve_cache))
+    pool_cache = tmp_path / "avalanche_v3_pools.json"
+    pool_cache.write_text(
+        json.dumps(_pool_cache_with_metadata(["USDC", "AAA", "BBB"], chain_id=43113, block_number=100)),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIANGULAR_RUNTIME_POOL_CACHE_FILE", str(pool_cache))
 
     result = direct.submit_direct_onchain_trade(
         quote_payload={
@@ -641,6 +691,9 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
     monkeypatch.setenv("TRIANGULAR_DIRECT_BROADCAST_ENABLED", "true")
     monkeypatch.setenv("UNIFIED_EXECUTOR_BROADCAST_ENABLED", "true")
     monkeypatch.setenv("TRIANGULAR_MAX_GAS_PRICE_WEI", "1")
+    monkeypatch.setenv("AVAX_USDC_PRICE", "1")
+    monkeypatch.setenv("AVAX_USDC_PRICE_UPDATED_AT", "2026-08-12T00:00:00Z")
+    monkeypatch.setenv("AVAX_USDC_PRICE_MAX_AGE_SECONDS", "999999999")
     monkeypatch.setattr(
         direct,
         "estimate_gas_price",
@@ -741,10 +794,78 @@ def test_runtime_route_groups_cover_all_cache_discovered_usdc_tokens(monkeypatch
 
     direct_keys = {group["routeKey"] for group in groups if group["routeKind"] == "usdc_cross_pool"}
     triangular_keys = {group["routeKey"] for group in groups if group["routeKind"] == "usdc_triangular"}
-    assert direct_keys == {"USDC:AAA", "USDC:BBB", "USDC:CCC"}
+    assert direct_keys == set()
     assert triangular_keys == {"AAA:BBB", "AAA:CCC", "BBB:CCC"}
-    assert all(len(group["trades"]) == 1 for group in groups if group["routeKind"] == "usdc_cross_pool")
     assert all(3 <= len(group["trades"]) <= 4 for group in groups if group["routeKind"] == "usdc_triangular")
+
+    diagnostic_groups = direct._runtime_route_groups_from_market_state(
+        {
+            "top": [_market_row("AAA", 6.0), _market_row("BBB", 3.0)],
+            "bottom": [_market_row("CCC", -4.0)],
+        },
+        cache=cache,
+        group_limit=0,
+        include_single_pair_diagnostic=True,
+    )
+    diagnostic_keys = {
+        group["routeKey"]
+        for group in diagnostic_groups
+        if group["routeKind"] == "usdc_cross_pool_diagnostic"
+    }
+    assert diagnostic_keys == {"USDC:AAA", "USDC:BBB", "USDC:CCC"}
+    assert all(
+        len(group["trades"]) == 1
+        for group in diagnostic_groups
+        if group["routeKind"] == "usdc_cross_pool_diagnostic"
+    )
+
+
+def test_runtime_route_groups_filter_stable_targets_but_keep_wavax(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    cache = _pool_cache_for_symbols(["USDC", "USDt", "WAVAX", "BTC.b"])
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", _addr(500))
+
+    groups = direct._runtime_route_groups_from_market_state(
+        {
+            "top": [_market_row("USDt", 1.0), _market_row("BTC.b", 0.8)],
+            "bottom": [_market_row("WAVAX", -2.0)],
+        },
+        cache=cache,
+        group_limit=0,
+    )
+
+    route_keys = {group["routeKey"] for group in groups}
+    assert "BTC.B:WAVAX" in route_keys
+    assert all("USDT" not in key.upper() for key in route_keys)
+
+
+def test_prepare_unified_route_groups_rejects_single_pair_without_diagnostic_flag():
+    usdc = _addr(500)
+    trade = direct._normalize_runtime_trade(
+        {
+            "tradeIndex": 0,
+            "tokenX": usdc,
+            "tokenY": _addr(501),
+            "strategyStatus": 1,
+            "routeKey": "USDC:AAA",
+            "pools": [{"adapterKind": 1, "pool": _addr(601)}, {"adapterKind": 1, "pool": _addr(602)}],
+        },
+        0,
+    )
+    trade["strategyStatus"] = 1
+    trade["routeKey"] = "USDC:AAA"
+    groups = [{"routeKey": "USDC:AAA", "routeKind": "usdc_cross_pool", "trades": [trade]}]
+
+    prepared, rejected = direct._prepare_unified_route_groups(groups, usdc_address=usdc)
+    diagnostic_prepared, _diagnostic_rejected = direct._prepare_unified_route_groups(
+        groups,
+        usdc_address=usdc,
+        allow_single_pair_diagnostic=True,
+    )
+
+    assert prepared == []
+    assert rejected[0]["reason"] == "single_pair_diagnostic_disabled"
+    assert diagnostic_prepared[0]["routeCheck"]["routeDirection"] == "U-X-U"
 
 
 def test_unified_route_group_check_accepts_single_usdc_cross_pool_trade():
@@ -802,6 +923,134 @@ def test_unified_route_group_selection_uses_highest_usdc_expected_profit():
     assert report["executionPreview"]["expectedProfit"] == "34"
     assert [item["profitableCandidate"] for item in evaluations] == [True, True]
     assert [item["selected"] for item in evaluations] == [False, True]
+
+
+def test_unified_route_group_selection_uses_net_profit_when_gas_model_is_supplied():
+    usdc = _addr(500)
+    groups = [
+        {"groupIndex": 0, "routeKey": "USDC:AAA", "routeKind": "usdc_cross_pool"},
+        {"groupIndex": 1, "routeKey": "USDC:BBB", "routeKind": "usdc_cross_pool"},
+    ]
+
+    def preview(expected_profit: int):
+        hop = (0, usdc, usdc, _addr(601), 0, 0, 0, 0)
+        return (
+            True,
+            1,
+            3,
+            0,
+            (True, 0, usdc, _addr(501), _addr(601), _addr(602), 500, 3000, 1, 1, -1, 1, 2, 2, 0),
+            (usdc, usdc, 1_000_000, 0, 0, b"", 1_000_000 + expected_profit, 500, 1_000_000, 1_000_000, 1, expected_profit),
+            (0, 0, 0, (hop, hop, hop), 0, 0, 0, 0),
+            (1101, 1, 1, 1, 1, 0, 0, ((1, 2, 0, 0, 1101, 0, 0, 0, usdc, expected_profit, 1_000_000, 1_000_000),) * 5),
+        )
+
+    selected, _report, evaluations = direct._select_best_unified_route_group(
+        groups,
+        usdc_address=usdc,
+        preview_group=lambda group: preview(100 if group["routeKey"] == "USDC:AAA" else 120),
+        estimate_group_gas=lambda group: 10 if group["routeKey"] == "USDC:AAA" else 100,
+        gas_price_wei=10**18,
+        avax_usdc_price_micro=1,
+    )
+
+    assert selected["routeKey"] == "USDC:AAA"
+    assert [item["netProfit"]["netProfit"] for item in evaluations] == ["90", "20"]
+
+
+def test_legacy_direct_onchain_path_is_disabled():
+    result = direct._submit_legacy_direct_onchain_trade(
+        quote_payload={"cow_flashloan_intent": {"direct_onchain_protocol": {"enabled": True}}},
+        opportunity={},
+    )
+
+    assert result["status"] == "legacy_direct_path_disabled"
+    assert result["submitted"] is False
+
+
+def test_runtime_cache_validation_rejects_stale_or_wrong_chain_cache():
+    assert not direct._runtime_cache_validation(
+        {"chain_id": 43113, "block_number": 90},
+        network="avalanche",
+        current_block=100,
+        max_age_blocks=30,
+    )["ok"]
+
+    stale = direct._runtime_cache_validation(
+        {"chain_id": 43114, "block_number": 10},
+        network="avalanche",
+        current_block=100,
+        max_age_blocks=30,
+    )
+
+    assert stale["reason"] == "cache_stale"
+
+
+def test_private_tx_can_disable_public_fallback(monkeypatch):
+    from execution import private_tx
+
+    class FakeEth:
+        def send_raw_transaction(self, _raw):
+            raise AssertionError("public fallback must stay disabled")
+
+    result = private_tx.send_raw_transaction_private_first(
+        b"raw",
+        public_w3=SimpleNamespace(eth=FakeEth()),
+        relay_urls="",
+        allow_public_fallback=False,
+    )
+
+    assert result["broadcast_channel"] == "not_broadcast"
+    assert result["tx_hash"] is None
+
+
+def test_direct_circuit_breaker_persists_threshold_pause(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    state_path = tmp_path / "direct_breaker.json"
+    monkeypatch.setenv("DIRECT_ONCHAIN_CIRCUIT_BREAKER_FILE", str(state_path))
+    monkeypatch.setenv("DIRECT_ONCHAIN_CIRCUIT_OFFCHAIN_THRESHOLD", "2")
+    now = datetime(2026, 8, 12, tzinfo=timezone.utc)
+    failure = {"ok": False, "submitted": False, "status": "net_profit_not_positive"}
+
+    direct._record_direct_circuit_result(failure, network="avalanche", route_key="USDC:AAA", now=now)
+    first = direct._direct_circuit_status(network="avalanche", route_key="USDC:AAA", now=now, path=state_path)
+    direct._record_direct_circuit_result(failure, network="avalanche", route_key="USDC:AAA", now=now, path=state_path)
+    second = direct._direct_circuit_status(network="avalanche", route_key="USDC:AAA", now=now, path=state_path)
+
+    assert first["paused"] is False
+    assert second["paused"] is True
+    assert second["level"] == "yellow"
+    assert second["state"]["offchainFailures"] == 2
+
+
+def test_direct_circuit_breaker_success_clears_route_group(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    state_path = tmp_path / "direct_breaker.json"
+    monkeypatch.setenv("DIRECT_ONCHAIN_CIRCUIT_BREAKER_FILE", str(state_path))
+    direct._record_direct_circuit_result(
+        {"ok": False, "submitted": True, "status": "submitted_failed"},
+        network="avalanche",
+        route_key="USDC:AAA",
+        now=datetime(2026, 8, 12, tzinfo=timezone.utc),
+        path=state_path,
+    )
+    direct._record_direct_circuit_result(
+        {"ok": True, "submitted": True, "status": "submitted_success"},
+        network="avalanche",
+        route_key="USDC:AAA",
+        now=datetime(2026, 8, 12, 0, 1, tzinfo=timezone.utc),
+        path=state_path,
+    )
+    status = direct._direct_circuit_status(
+        network="avalanche",
+        route_key="USDC:AAA",
+        now=datetime(2026, 8, 12, 0, 1, tzinfo=timezone.utc),
+        path=state_path,
+    )
+
+    assert status["paused"] is False
+    assert status["level"] == "green"
+    assert status["state"]["onchainFailures"] == 0
 
 
 def test_submit_cow_intent_trade_reports_incomplete_direct_protocol_without_cow_fallback(monkeypatch):
@@ -1145,10 +1394,72 @@ def test_broadcast_gas_guard_requires_a_nonzero_price_under_the_configured_cap(m
     assert unavailable["status"] == "gas_price_unavailable"
 
 
-def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_in_memory_table(monkeypatch):
+def test_gas_token_price_report_requires_fresh_timestamp(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    now = datetime(2026, 8, 12, 0, 2, tzinfo=timezone.utc)
+
+    missing_timestamp = direct._gas_token_usdc_price_report(
+        {"avaxUsdcPrice": "24.5"},
+        now=now,
+    )
+    fresh = direct._gas_token_usdc_price_report(
+        {
+            "avaxUsdcPrice": "24.5",
+            "avaxUsdcPriceUpdatedAt": "2026-08-12T00:01:30Z",
+            "gasTokenPriceMaxAgeSeconds": 60,
+        },
+        now=now,
+    )
+    stale = direct._gas_token_usdc_price_report(
+        {
+            "avaxUsdcPrice": "24.5",
+            "avaxUsdcPriceUpdatedAt": "2026-08-12T00:00:00Z",
+            "gasTokenPriceMaxAgeSeconds": 60,
+        },
+        now=now,
+    )
+
+    assert missing_timestamp["reason"] == "gas_token_usdc_price_timestamp_missing"
+    assert fresh["ok"] is True
+    assert fresh["priceMicro"] == "24500000"
+    assert fresh["ageSeconds"] == "30"
+    assert stale["reason"] == "gas_token_usdc_price_stale"
+
+
+def test_gas_token_price_report_accepts_unix_timestamp():
+    report = direct._gas_token_usdc_price_report(
+        {
+            "gasTokenUsdcPrice": "25",
+            "gasTokenUsdcPriceUpdatedAt": "1786492890",
+            "gasTokenPriceMaxAgeSeconds": 60,
+        },
+        now=datetime(2026, 8, 12, 0, 2, tzinfo=timezone.utc),
+    )
+
+    assert report["ok"] is True
+    assert report["priceMicro"] == "25000000"
+
+
+def test_cache_risk_penalty_adds_per_block_age(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_CACHE_RISK_PENALTY_USDC", "0.25")
+    monkeypatch.setenv("TRIANGULAR_CACHE_RISK_PENALTY_PER_BLOCK_USDC", "0.01")
+
+    penalty = direct._cache_risk_penalty_usdc_base_units(
+        cache_reports={
+            "runtimePoolCache": {"ok": True, "currentBlock": "120", "cacheBlock": "100"},
+            "aaveReserveCache": {"ok": True, "ageBlocks": "7"},
+        }
+    )
+
+    assert penalty == 450_000
+
+
+def test_submit_direct_onchain_trade_reports_incomplete_when_token_pair_is_not_in_memory_table(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
     for name in ("AVALANCHE_RPC_URL", "AVALANCHE_RPC", "FUJI_RPC_URL"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("TRIANGULAR_RUNTIME_POOL_CACHE_FILE", str(tmp_path / "missing_pool_cache.json"))
     set_usdc_pair_memory_table([{"tokenX": _addr(41), "tokenY": _addr(42)}])
 
     result = direct.submit_direct_onchain_trade(

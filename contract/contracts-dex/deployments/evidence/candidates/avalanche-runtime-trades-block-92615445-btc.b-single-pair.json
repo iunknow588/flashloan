@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-12T12:14:09.477Z",
+  "network": "avalanche",
+  "chainId": 43114,
+  "forkBlockNumber": 92615445,
+  "sourceCache": {
+    "file": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+    "sha256": "12306d474e6601ac5bda2bc6370200890264cdae2e611ff3f4b7dcb70423fcc5",
+    "fetchedAt": "2026-08-12T06:08:55.323Z",
+    "blockNumber": 92615445,
+    "factory": "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+    "router": "0xbb00FF08d01D300023C629E8fFfFcb65A5a578cE",
+    "quoter": "0xbe0F5544EC67e9B3b2D979aaA43f18Fd87E6257F",
+    "aavePool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+    "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+  },
+  "route": {
+    "mode": "single_pair",
+    "usdcSymbol": "USDC",
+    "tokenXSymbol": "BTC.b",
+    "tokenYSymbol": "",
+    "tradeOrder": [
+      "U-X"
+    ],
+    "includeReverseTrade": false
+  },
+  "runtimeTrades": [
+    {
+      "tradeIndex": 0,
+      "tokenX": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "tokenY": "0x152b9d0FdC40C096757F570A51E494bd4b943E50",
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x2E587b9E7aA638d7EB7DB5fe7447513bC4D0D28B"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xD1356d360F37932059E5b89b7992692aA234EDA6"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  ]
+}

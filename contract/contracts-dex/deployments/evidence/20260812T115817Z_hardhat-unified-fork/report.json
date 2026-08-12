@@ -1,0 +1,255 @@
+{
+  "runAt": "2026-08-12T11:57:49.939Z",
+  "network": "hardhat",
+  "chainId": 43114,
+  "blockNumber": 92615445,
+  "artifact": {
+    "contractName": "UnifiedFlashLoanMevExecutor",
+    "deployedBytecodeBytes": 23305,
+    "deployedBytecodeHash": "0x1b551d29f0449b8c98e2d598e3c754cd17fdfe23c0eb4777fb1cb214ef9795e1"
+  },
+  "candidateSource": "E:\\2026OPC大赛\\flashLoan\\contract\\contracts-dex\\deployments\\evidence\\candidates\\avalanche-runtime-trades-block-92615445-weth.e-wavax.json",
+  "candidateTradeCount": 4,
+  "runtimeTrades": [
+    {
+      "tradeIndex": "0",
+      "tokenX": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "tokenY": "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB",
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x43fb9c3fd6715e872272B0CAAB968A97692726EB"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "tradeIndex": "1",
+      "tokenX": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "tokenY": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x1951BD56E82cC1eDFEc8546c3202eCBcC5B74A29"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xfAe3f424a0a47706811521E3ee268f00cFb5c45E"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0x0E663593657B064e1baE76d28625Df5D0eBd4421"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xd18384F4398BF5415902aD5d87eAA96549Fd4f1E"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "tradeIndex": "2",
+      "tokenX": "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB",
+      "tokenY": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x7b602f98D71715916E7c963f51bfEbC754aDE2d0"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0x724f6a02ED2eB82D8d45034B280903cf663731Ab"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "tradeIndex": "3",
+      "tokenX": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "tokenY": "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB",
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x7b602f98D71715916E7c963f51bfEbC754aDE2d0"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0x724f6a02ED2eB82D8d45034B280903cf663731Ab"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  ],
+  "ready": false,
+  "executorAddress": "0x56962745c8Be080e09cEa4209B43016883D3640b",
+  "readback": {
+    "runAt": "2026-08-12T11:57:50.357Z",
+    "network": "hardhat",
+    "chainId": 43114,
+    "blockNumber": 92615447,
+    "executor": {
+      "address": "0x56962745c8Be080e09cEa4209B43016883D3640b",
+      "hasCode": true,
+      "codeBytes": 23305,
+      "codeHash": "0xbc55d71ee0e7cf5fa9677b4902885c4f80c2315d60fd29a1a4eaa67f99615fac"
+    },
+    "config": {
+      "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "aavePool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+      "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "paused": false,
+      "adapterKind1": [
+        true,
+        "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+        "0xbb00FF08d01D300023C629E8fFfFcb65A5a578cE",
+        "0xbe0F5544EC67e9B3b2D979aaA43f18Fd87E6257F"
+      ],
+      "runtimeRiskConfig": [
+        "1",
+        "1"
+      ],
+      "usdcBorrowConfig": [
+        true,
+        "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+      ],
+      "profitConfig": {
+        "sweepEnabled": true,
+        "reserveUsdc": "0",
+        "sweepThreshold": "0"
+      }
+    },
+    "readyForBroadcast": false
+  },
+  "executionParams": {
+    "amount": "100000000",
+    "deadline": "1786536170",
+    "amountOutMinUsdc": "0",
+    "minProfitUsdc": "1"
+  },
+  "tokenBorrowParams": {
+    "amount": "100000000",
+    "deadline": "1786536170",
+    "minFinalToken": "0",
+    "minProfitToken": "1"
+  },
+  "enableNonUsdcCrossPool": false,
+  "successCandidate": {
+    "label": "success_candidate",
+    "tradeCount": 4,
+    "previewError": {
+      "message": "Transaction ran out of gas",
+      "data": {
+        "reason": {
+          "OutOfGas": "Basic"
+        },
+        "data": "0x",
+        "transactionHash": null
+      }
+    },
+    "staticCall": {
+      "ok": false,
+      "error": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    "estimateGasError": {
+      "message": "Transaction ran out of gas",
+      "data": {
+        "reason": {
+          "OutOfGas": "Basic"
+        },
+        "data": "0x",
+        "transactionHash": null
+      }
+    }
+  },
+  "failureCandidate": {
+    "label": "failure_candidate",
+    "tradeCount": 4,
+    "previewError": {
+      "message": "Transaction ran out of gas",
+      "data": {
+        "reason": {
+          "OutOfGas": "Basic"
+        },
+        "data": "0x",
+        "transactionHash": null
+      }
+    },
+    "staticCall": {
+      "ok": false,
+      "error": {
+        "message": "Transaction ran out of gas",
+        "data": {
+          "reason": {
+            "OutOfGas": "Basic"
+          },
+          "data": "0x",
+          "transactionHash": null
+        }
+      }
+    },
+    "estimateGasError": {
+      "message": "Transaction ran out of gas",
+      "data": {
+        "reason": {
+          "OutOfGas": "Basic"
+        },
+        "data": "0x",
+        "transactionHash": null
+      }
+    }
+  },
+  "successTransaction": {
+    "skipped": true,
+    "reason": "success_candidate_static_call_failed"
+  },
+  "status": "fork_preflight_failed"
+}

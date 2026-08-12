@@ -395,6 +395,37 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     expect(preview.progress.steps[3].phase).to.equal(STRATEGY.stepSelected);
   });
 
+  it("rejects a pool pair below minTickDelta before it reaches the quoter", async function () {
+    const ctx = await deployFixture();
+    const low = await deployV3Pool(ctx, ctx.usdcAddress, ctx.xAddress, 100, 500n);
+    const high = await deployV3Pool(ctx, ctx.usdcAddress, ctx.xAddress, 110, 3000n);
+    const trades = [
+      runtimeTrade(
+        301n,
+        ctx.usdcAddress,
+        ctx.xAddress,
+        runtimePools([
+          [0, low.address],
+          [1, high.address],
+        ]),
+      ),
+    ];
+    await ctx.executor.setRuntimeRiskConfig(1n, 11n);
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+
+    const preview = await ctx.executor.previewOrderedRuntimeAutoExecution.staticCall(
+      trades,
+      usdcParams,
+      tokenBorrowParams,
+      false,
+    );
+
+    expect(preview.found).to.equal(false);
+    expect(preview.progress.steps[0].phase).to.equal(STRATEGY.stepCheckedFailed);
+    expect(preview.progress.steps[0].resultCode).to.equal(3201n);
+    expect(preview.progress.steps[0].detailCode).to.equal(STRATEGY.errNoPriceSpread);
+  });
+
   it("rejects a fifth trade input because the current state machine consumes four route inputs", async function () {
     const ctx = await deployFixture();
     const { trades } = await buildTriangularTrades(ctx);

@@ -32,7 +32,6 @@ contract MockV3SwapRouter {
     struct ExactInputParams {
         bytes path;
         address recipient;
-        uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
     }
@@ -67,16 +66,20 @@ contract MockV3SwapRouter {
         impactBpsPerUnit[tokenIn][tokenOut] = impactBps;
     }
 
-    function quoteExactInput(bytes calldata path, uint256 amountIn) external view returns (uint256 amountOut) {
+    function quoteExactInput(bytes calldata path, uint256 amountIn)
+        external
+        view
+        returns (uint256 amountOut, uint160[] memory, uint32[] memory, uint256 gasEstimate)
+    {
         address[] memory tokens = _decodeTokenPath(path);
         amountOut = amountIn;
         for (uint256 i = 0; i < tokens.length - 1; i++) {
             amountOut = _quoteHop(tokens[i], tokens[i + 1], amountOut);
         }
+        return (amountOut, new uint160[](0), new uint32[](0), 0);
     }
 
     function exactInput(ExactInputParams calldata params) external returns (uint256 amountOut) {
-        if (params.deadline < block.timestamp) revert DeadlineExpired();
         if (params.recipient == address(0)) revert InvalidPath();
 
         address[] memory tokens = _decodeTokenPath(params.path);

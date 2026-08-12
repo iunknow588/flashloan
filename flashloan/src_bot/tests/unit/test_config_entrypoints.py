@@ -113,6 +113,22 @@ def test_aave_reserve_cache_uses_default_refresh_for_invalid_env(monkeypatch, tm
     assert assets == [{"symbol": "WAVAX", "depth_score_usd": 1.0}]
 
 
+def test_aave_reserve_cache_chain_snapshot_reads_chain_and_block(monkeypatch):
+    class FakeEth:
+        chain_id = 43114
+        block_number = 123456
+
+    class FakeWeb3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(aave_reserve_cache, "web3_for_rpc_url", lambda *_args, **_kwargs: FakeWeb3())
+
+    assert aave_reserve_cache.rpc_chain_snapshot("https://rpc.example") == {
+        "chain_id": 43114,
+        "block_number": 123456,
+    }
+
+
 def test_database_pool_bounds_use_safe_env_parsing(monkeypatch):
     monkeypatch.setenv("DATABASE_POOL_MIN_SIZE", "bad")
     monkeypatch.setenv("DATABASE_POOL_MAX_SIZE", "0")
