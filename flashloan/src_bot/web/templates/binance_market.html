@@ -295,12 +295,12 @@
     let lastAutoCowQuoteKey = "";
     let lastAutoCowQuoteAt = 0;
     const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 1000;
-    const DEFAULT_SELECTED_NETWORKS = ["avalanche", "polygon", "base", "bnb", "ethereum"];
+    const DEFAULT_SELECTED_NETWORKS = ["avalanche"];
     const networkPanels = new Map();
     const COW_ATTEMPT_PAGE_SIZE = 10;
     const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
     let latestCowAttemptHistoryPayload = null;
-    let latestCowSubmissionPausePayload = {paused: true, pause_reason: "ui_initial_fail_closed"};
+    let latestCowSubmissionPausePayload = {paused: false, pause_reason: null};
     const COW_ATTEMPT_GROUP_META = {
       not_executable: {
         label: "报价等待 / 报价失败 / 提交暂停 / SDK 等待",

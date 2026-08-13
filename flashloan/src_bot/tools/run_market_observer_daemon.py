@@ -5,12 +5,13 @@ import os
 import sys
 from pathlib import Path
 
-from strategy.limits import DEFAULT_BINANCE_RAW_SIDE_LIMIT
-
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
+
+from core.env_loader import load_env_files
+from strategy.limits import DEFAULT_BINANCE_RAW_SIDE_LIMIT
 
 
 def configure_market_observer_env() -> dict[str, str]:
@@ -54,6 +55,7 @@ def configure_market_observer_env() -> dict[str, str]:
 
 
 def main() -> int:
+    load_env_files(__file__, override=False)
     configure_market_observer_env()
     from market import observer
 

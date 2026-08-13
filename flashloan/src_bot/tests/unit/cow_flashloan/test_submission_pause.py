@@ -6,14 +6,14 @@ from web.control_panel_cow_pause import (
 )
 
 
-def test_startup_initializes_missing_cow_transaction_switch_off(monkeypatch, tmp_path):
+def test_startup_initializes_missing_cow_transaction_switch_on(monkeypatch, tmp_path):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     path = tmp_path / "cow_submission_pause_guard.json"
     state = disable_cow_submission_for_startup(path)
 
-    assert state["paused"] is True
-    assert state["pause_reason"] == "startup_transaction_switch_off"
-    assert load_cow_submission_pause_guard(path)["paused"] is True
+    assert state["paused"] is False
+    assert state["pause_reason"] is None
+    assert load_cow_submission_pause_guard(path)["paused"] is False
 
 
 def test_startup_does_not_overwrite_existing_enabled_choice(monkeypatch, tmp_path):
@@ -28,14 +28,14 @@ def test_startup_does_not_overwrite_existing_enabled_choice(monkeypatch, tmp_pat
     assert load_cow_submission_pause_guard(path)["paused"] is False
 
 
-def test_missing_cow_transaction_switch_state_defaults_to_off(monkeypatch, tmp_path):
+def test_missing_cow_transaction_switch_state_defaults_to_on(monkeypatch, tmp_path):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     path = tmp_path / "missing_cow_submission_pause_guard.json"
 
     state = load_cow_submission_pause_guard(path)
 
-    assert state["paused"] is True
-    assert state["pause_reason"] == "startup_transaction_switch_off"
+    assert state["paused"] is False
+    assert state["pause_reason"] is None
 
 
 def test_cow_transaction_switch_syncs_to_database_parameter_map(monkeypatch, tmp_path):

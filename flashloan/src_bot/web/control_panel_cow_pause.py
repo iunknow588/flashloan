@@ -19,9 +19,9 @@ from web.parameter_config import (
 
 
 _DEFAULT_STATE: dict[str, Any] = {
-    "paused": True,
-    "order_submission_enabled": False,
-    "pause_reason": "startup_transaction_switch_off",
+    "paused": False,
+    "order_submission_enabled": True,
+    "pause_reason": None,
     "updated_at": None,
     "last_paused_at": None,
     "last_resumed_at": None,
@@ -53,15 +53,16 @@ def _state_payload(state: dict[str, Any]) -> dict[str, Any]:
 
 def _load_cow_submission_pause_guard_file(path: Path) -> dict[str, Any]:
     try:
-        raw = read_json_parameter(path, legacy_paths=LEGACY_COW_SUBMISSION_PAUSE_GUARD_PATHS)
+        legacy_paths = LEGACY_COW_SUBMISSION_PAUSE_GUARD_PATHS if path == COW_SUBMISSION_PAUSE_GUARD_PATH else ()
+        raw = read_json_parameter(path, legacy_paths=legacy_paths)
         if isinstance(raw, dict):
             return _normalized_state(raw, source="file")
     except Exception:
         pass
     return _normalized_state(
         {
-            "paused": True,
-            "pause_reason": "startup_transaction_switch_off",
+            "paused": False,
+            "pause_reason": None,
         },
         source="default",
     )
@@ -172,11 +173,17 @@ def disable_cow_submission_for_startup(
 ) -> dict[str, Any]:
     """Initialize the CoW switch once without overwriting an existing user choice."""
     existing = load_cow_submission_pause_guard(path, database_url=database_url)
-    if existing.get("updated_at") or existing.get("source") in {"database", "database_migrated_from_file", "file"}:
+    if (
+        existing.get("updated_at")
+        and existing.get("pause_reason") != "startup_transaction_switch_off"
+    ) or (
+        existing.get("source") in {"database", "database_migrated_from_file", "file"}
+        and existing.get("pause_reason") != "startup_transaction_switch_off"
+    ):
         return {"configured": bool(_database_url_or_none(database_url)), **existing}
     return set_cow_submission_pause_guard(
-        paused=True,
-        reason="startup_transaction_switch_off",
+        paused=False,
+        reason=None,
         path=path,
         database_url=database_url,
     )
