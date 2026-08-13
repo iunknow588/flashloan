@@ -272,3 +272,15 @@ def test_cow_intent_node_adapter_is_independent_from_contract_workspace():
     assert "contracts-dex" not in source
     assert "hardhat" not in package_json.lower()
     assert "deploy" not in package_json.lower()
+
+
+def test_unified_direct_submission_has_no_reachable_legacy_controller_path():
+    source = (SRC_ROOT / "intent_trade" / "direct_impl.py").read_text(encoding="utf-8")
+    submit_start = source.index("def submit_direct_onchain_trade(")
+    submit_body = source[submit_start:]
+    legacy_start = source.index("def _submit_legacy_direct_onchain_trade(")
+    legacy_body = source[legacy_start:submit_start]
+
+    assert "_submit_legacy_direct_onchain_trade(" not in submit_body
+    assert "UnifiedFlashLoanMevExecutor" in legacy_body
+    assert 'status": "legacy_direct_path_disabled"' in legacy_body

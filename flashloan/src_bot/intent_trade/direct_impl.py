@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import json
 import re
+import hashlib
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -39,6 +40,7 @@ DEFAULT_DIRECT_CIRCUIT_ONCHAIN_THRESHOLD = 2
 DEFAULT_DIRECT_CIRCUIT_LOSS_THRESHOLD_USDC = "1"
 DEFAULT_DIRECT_CIRCUIT_COOLDOWN_SECONDS = 3600
 DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS = 120
+DEFAULT_GAS_TOKEN_PRICE_MAX_DEVIATION_BPS = 100
 SRC_ROOT = Path(__file__).resolve().parents[1]
 AVALANCHE_USDC_ADDRESS = "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
 FUJI_USDC_ADDRESS = "0x5425890298aed601595a70ab815c96711a31bc65"
@@ -147,6 +149,13 @@ RUNTIME_EXECUTION_PREVIEW_COMPONENTS = [
     {"name": "protectedAmountOutMinUsdc", "type": "uint256"},
     {"name": "minProfitUsdc", "type": "uint256"},
 ]
+# docs: docs/闪电贷防MEV/单合约版本/01_单合约接口设计.md
+# Update this table, ABI docs, and tests together when executionKind/status changes.
+_SELECTED_STRATEGY_STATUS_TRANSLATION: dict[tuple[str, int | None, int], int] = {
+    ("auto", 1, 3): 4,
+    ("auto", 2, 3): 3,
+    ("triangular", 1, 3): 4,
+}
 TRIANGULAR_CONTROLLER_ABI = [
     {
         "type": "function",
@@ -643,6 +652,280 @@ def _normalize_runtime_trade(trade: Any, trade_index: int) -> dict[str, Any]:
     return normalized
 
 
+def _route_group_token_risk_report(
+    group: dict[str, Any],
+    trades: list[dict[str, Any]],
+    *,
+    require_metadata: bool = False,
+) -> dict[str, Any]:
+    """Evaluate explicit token-risk metadata for a route group."""
+    route_tokens = sorted(
+        {
+            token.lower()
+            for trade in trades
+            if isinstance(trade, dict)
+            for token in (trade.get("tokenX"), trade.get("tokenY"))
+            if _normalize_pair_address(token)
+        }
+    )
+    raw = None
+    for key in ("tokenRisks", "token_risks", "tokenWhitelist", "token_whitelist"):
+        value = group.get(key)
+        if value not in (None, ""):
+            raw = value
+            break
+    if raw in (None, ""):
+        return {
+            "provided": False,
+            "broadcastable": not require_metadata,
+            "routeTokens": route_tokens,
+            "missingTokens": route_tokens if require_metadata else [],
+            "tokens": [],
+            "blocked": [],
+        }
+
+    entries: list[dict[str, Any]] = []
+    if isinstance(raw, dict):
+        for token, metadata in raw.items():
+            item = dict(metadata) if isinstance(metadata, dict) else {}
+            item.setdefault("token", token)
+            entries.append(item)
+    elif isinstance(raw, list):
+        entries = [dict(item) for item in raw if isinstance(item, dict)]
+
+    blocked: list[dict[str, Any]] = []
+    normalized_entries: list[dict[str, Any]] = []
+    for item in entries:
+        token = _normalize_pair_address(item.get("token") or item.get("address"))
+        if token and route_tokens and token.lower() not in route_tokens:
+            continue
+        reentrancy_risk = str(
+            item.get("reentrancyRisk", item.get("reentrancy_risk", "none")) or "none"
+        ).strip().lower()
+        truncation_risk = str(
+            item.get("decimalTruncationRisk", item.get("decimal_truncation_risk", "none")) or "none"
+        ).strip().lower()
+        normalized_item = {
+            "token": token or str(item.get("token") or item.get("address") or ""),
+            "reentrancyRisk": reentrancy_risk,
+            "decimalTruncationRisk": truncation_risk,
+        }
+        normalized_entries.append(normalized_item)
+        if reentrancy_risk not in {"none", "low"} or truncation_risk not in {"none", "low"}:
+            blocked.append(normalized_item)
+    covered_tokens = {str(item["token"]).lower() for item in normalized_entries if item["token"]}
+    missing_tokens = [token for token in route_tokens if token not in covered_tokens]
+
+    return {
+        "provided": True,
+        "broadcastable": not blocked and (not require_metadata or not missing_tokens),
+        "routeTokens": route_tokens,
+        "missingTokens": missing_tokens,
+        "tokens": normalized_entries,
+        "blocked": blocked,
+    }
+
+
+def _route_group_usdc_penalty(group: dict[str, Any], *names: str) -> int:
+    raw = _first_value(group, names=tuple(names))
+    if raw in (None, ""):
+        return 0
+    try:
+        return _positive_int_value(raw)
+    except ValueError:
+        return 0
+
+
+def _unified_token_registry_path() -> Path:
+    raw = _env(
+        "UNIFIED_EXECUTOR_TOKEN_REGISTRY_FILE",
+        "TRIANGULAR_TOKEN_REGISTRY_FILE",
+        default="runtime/config/unified_token_registry.json",
+    )
+    path = Path(raw)
+    return path if path.is_absolute() else SRC_ROOT / path
+
+
+def _load_unified_token_registry(path: Path | None = None) -> dict[str, Any]:
+    payload = _read_json_file(path or _unified_token_registry_path())
+    if int(payload.get("schemaVersion") or 0) != 1:
+        return {}
+    tokens = payload.get("tokens")
+    if not isinstance(tokens, list):
+        return {}
+    expected_hash = (
+        _env("UNIFIED_EXECUTOR_TOKEN_REGISTRY_HASH", "TRIANGULAR_TOKEN_REGISTRY_HASH")
+        or str(
+            payload.get("canonicalHash")
+            or payload.get("canonical_hash")
+            or payload.get("registryHash")
+            or payload.get("registry_hash")
+            or ""
+        )
+    ).strip()
+    hash_payload = {
+        key: value
+        for key, value in payload.items()
+        if key
+        not in {
+            "canonicalHash",
+            "canonical_hash",
+            "registryHash",
+            "registry_hash",
+            "signature",
+            "signatures",
+        }
+    }
+    actual_hash = _canonical_json_hash(hash_payload)
+    payload["_canonicalHash"] = actual_hash
+    payload["_integrityRequired"] = bool(expected_hash)
+    payload["_integrityOk"] = not expected_hash or expected_hash == actual_hash
+    if expected_hash:
+        payload["_expectedCanonicalHash"] = expected_hash
+    return payload
+
+
+def _registry_token_risks_for_trades(
+    trades: list[dict[str, Any]],
+    *,
+    network: str,
+    registry: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
+    """Resolve reviewed token metadata for one dynamically generated route group."""
+    payload = registry if isinstance(registry, dict) else _load_unified_token_registry()
+    expected_chain_id = DIRECT_ONCHAIN_NETWORKS.get(
+        _normalize_direct_onchain_network(network),
+        {},
+    ).get("chain_id")
+    try:
+        registry_chain_id = int(payload.get("chainId") or payload.get("chain_id") or 0)
+    except (TypeError, ValueError):
+        registry_chain_id = 0
+    if not payload or not expected_chain_id or registry_chain_id != expected_chain_id:
+        return None, {
+            "source": "registry",
+            "available": False,
+            "reason": "token_registry_chain_mismatch_or_unavailable",
+            "registryPath": str(_unified_token_registry_path()),
+        }
+    if payload.get("_integrityRequired") and not payload.get("_integrityOk"):
+        return None, {
+            "source": "registry",
+            "available": False,
+            "reason": "token_registry_hash_mismatch",
+            "registryVersion": str(payload.get("registryVersion") or ""),
+            "registryPath": str(_unified_token_registry_path()),
+            "canonicalHash": str(payload.get("_canonicalHash") or ""),
+            "expectedCanonicalHash": str(payload.get("_expectedCanonicalHash") or ""),
+        }
+
+    now = _utc_now()
+    by_address: dict[str, dict[str, Any]] = {}
+    expired_by_address: dict[str, dict[str, Any]] = {}
+    for item in payload.get("tokens") or []:
+        if not isinstance(item, dict):
+            continue
+        token = _normalize_pair_address(item.get("token") or item.get("address"))
+        if not token:
+            continue
+        expires_at = _parse_utc_datetime(item.get("expiresAt") or item.get("expires_at"))
+        if expires_at and expires_at <= now:
+            expired_by_address[token] = item
+            continue
+        by_address[token] = item
+
+    route_tokens = sorted(
+        {
+            _normalize_pair_address(token)
+            for trade in trades
+            if isinstance(trade, dict)
+            for token in (trade.get("tokenX"), trade.get("tokenY"))
+            if _normalize_pair_address(token)
+        }
+    )
+    missing = [token for token in route_tokens if token not in by_address]
+    if missing:
+        expired = [token for token in missing if token in expired_by_address]
+        if expired:
+            return None, {
+                "source": "registry",
+                "available": False,
+                "reason": "token_registry_metadata_expired",
+                "expiredTokens": expired,
+                "missingTokens": missing,
+                "registryVersion": str(payload.get("registryVersion") or ""),
+                "registryPath": str(_unified_token_registry_path()),
+                "automaticDowngrade": "route_group_diagnostic_only_until_registry_refresh",
+            }
+        return None, {
+            "source": "registry",
+            "available": False,
+            "reason": "token_registry_metadata_missing",
+            "missingTokens": missing,
+            "registryVersion": str(payload.get("registryVersion") or ""),
+            "registryPath": str(_unified_token_registry_path()),
+        }
+
+    token_risks: list[dict[str, Any]] = []
+    for token in route_tokens:
+        source = by_address[token]
+        token_risks.append(
+            {
+                "token": token,
+                "symbol": str(source.get("symbol") or ""),
+                "decimals": source.get("decimals"),
+                "approveBehavior": str(source.get("approveBehavior") or source.get("approve_behavior") or ""),
+                "transferBehavior": str(source.get("transferBehavior") or source.get("transfer_behavior") or ""),
+                "aaveBorrowEnabled": source.get("aaveBorrowEnabled", source.get("aave_borrow_enabled")),
+                "poolCacheVerifiedAt": str(
+                    source.get("poolCacheVerifiedAt") or source.get("pool_cache_verified_at") or ""
+                ),
+                "role": str(source.get("role") or ""),
+                "reentrancyRisk": str(
+                    source.get("reentrancyRisk") or source.get("reentrancy_risk") or "none"
+                ).lower(),
+                "decimalTruncationRisk": str(
+                    source.get("decimalTruncationRisk")
+                    or source.get("decimal_truncation_risk")
+                    or "none"
+                ).lower(),
+                "reviewedAt": str(source.get("reviewedAt") or source.get("reviewed_at") or ""),
+                "expiresAt": str(source.get("expiresAt") or source.get("expires_at") or ""),
+            }
+        )
+    return token_risks, {
+        "source": "registry",
+        "available": True,
+        "registryVersion": str(payload.get("registryVersion") or ""),
+        "registryPath": str(_unified_token_registry_path()),
+        "chainId": str(registry_chain_id),
+        "canonicalHash": str(payload.get("_canonicalHash") or ""),
+        "integrityRequired": bool(payload.get("_integrityRequired")),
+        "integrityOk": bool(payload.get("_integrityOk")),
+    }
+
+
+def _attach_registry_token_risk_metadata(
+    groups: list[dict[str, Any]],
+    *,
+    network: str,
+    registry: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    for group in groups:
+        if not isinstance(group, dict) or group.get("tokenRisks") or group.get("token_risks"):
+            continue
+        trades = group.get("trades") if isinstance(group.get("trades"), list) else []
+        token_risks, report = _registry_token_risks_for_trades(
+            trades,
+            network=network,
+            registry=registry,
+        )
+        group["tokenRiskRegistry"] = report
+        if token_risks:
+            group["tokenRisks"] = token_risks
+    return groups
+
+
 def _runtime_pool_cache_path() -> Path:
     raw = _env(
         "TRIANGULAR_RUNTIME_POOL_CACHE_FILE",
@@ -678,6 +961,16 @@ def _direct_circuit_breaker_path() -> Path:
     return path if path.is_absolute() else SRC_ROOT / path
 
 
+def _direct_pre_pause_path() -> Path:
+    raw = _env(
+        "DIRECT_ONCHAIN_PRE_PAUSE_FILE",
+        "UNIFIED_EXECUTOR_PRE_PAUSE_FILE",
+        default="runtime/cache/direct_onchain_pre_pause.json",
+    )
+    path = Path(raw)
+    return path if path.is_absolute() else SRC_ROOT / path
+
+
 def _load_aave_reserve_cache(path: Path | None = None) -> dict[str, Any]:
     cache_path = path or _aave_reserve_cache_path()
     try:
@@ -693,6 +986,11 @@ def _read_json_file(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _canonical_json_hash(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
@@ -780,6 +1078,64 @@ def _direct_circuit_status(
         "state": group,
         "file": str(state_path),
     }
+
+
+def direct_pre_pause_status(path: Path | None = None) -> dict[str, Any]:
+    state_path = path or _direct_pre_pause_path()
+    payload = _read_json_file(state_path)
+    paused = bool(payload.get("prePause"))
+    detected_at = str(payload.get("pauseDetectedAt") or payload.get("updatedAt") or "")
+    signer_blocked_at = str(payload.get("signerBlockedAt") or payload.get("updatedAt") or "")
+    propagation_ms = payload.get("pausePropagationMs")
+    return {
+        "prePause": paused,
+        "reason": str(payload.get("reason") or ""),
+        "updatedAt": str(payload.get("updatedAt") or ""),
+        "setBy": str(payload.get("setBy") or ""),
+        "pauseTriggerSource": str(payload.get("pauseTriggerSource") or ""),
+        "pauseDetectedAt": detected_at,
+        "signerBlockedAt": signer_blocked_at,
+        "pausePropagationMs": str(propagation_ms if propagation_ms is not None else ""),
+        "pauseTxSentAt": str(payload.get("pauseTxSentAt") or ""),
+        "pauseTxConfirmedAt": str(payload.get("pauseTxConfirmedAt") or ""),
+        "blockedCandidateCount": str(payload.get("blockedCandidateCount") or 0),
+        "file": str(state_path),
+    }
+
+
+def set_direct_pre_pause(
+    paused: bool,
+    *,
+    reason: str,
+    set_by: str = "operator",
+    pause_trigger_source: str = "manual",
+    pause_detected_at: Any = None,
+    pause_tx_sent_at: Any = None,
+    pause_tx_confirmed_at: Any = None,
+    blocked_candidate_count: Any = 0,
+    path: Path | None = None,
+) -> dict[str, Any]:
+    """Persist the local signer stop before attempting on-chain pause confirmation."""
+    state_path = path or _direct_pre_pause_path()
+    current = _utc_now()
+    detected_at = _parse_utc_datetime(pause_detected_at) or current
+    propagation_ms = max(0, int((current - detected_at).total_seconds() * 1000)) if paused else ""
+    payload = {
+        "schemaVersion": 1,
+        "prePause": bool(paused),
+        "reason": str(reason or ("manual_resume" if not paused else "operator_pre_pause")),
+        "setBy": str(set_by or "operator"),
+        "pauseTriggerSource": str(pause_trigger_source or ("manual" if paused else "")),
+        "updatedAt": current.isoformat(),
+        "pauseDetectedAt": detected_at.isoformat() if paused else "",
+        "signerBlockedAt": current.isoformat() if paused else "",
+        "pausePropagationMs": str(propagation_ms),
+        "pauseTxSentAt": str(pause_tx_sent_at or ""),
+        "pauseTxConfirmedAt": str(pause_tx_confirmed_at or ""),
+        "blockedCandidateCount": str(blocked_candidate_count or 0),
+    }
+    _write_json_file(state_path, payload)
+    return direct_pre_pause_status(state_path)
 
 
 def _direct_failure_bucket(status: Any, submitted: bool) -> str:
@@ -901,6 +1257,13 @@ def _with_direct_circuit_record(
     circuit = _record_direct_circuit_result(result, network=network, route_key=route_key)
     if circuit.get("recorded"):
         result["circuitBreaker"] = circuit
+        if (circuit.get("state") or {}).get("level") in {"yellow", "orange", "red"}:
+            result["prePause"] = set_direct_pre_pause(
+                True,
+                reason=f"circuit_breaker_{(circuit.get('state') or {}).get('level')}",
+                set_by="direct_circuit_breaker",
+                pause_trigger_source="circuit_breaker",
+            )
     return result
 
 
@@ -1087,14 +1450,55 @@ def _public_fallback_enabled(protocol: dict[str, Any] | None = None, opportunity
     )
 
 
+def _private_relay_research_enabled(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> bool:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=(
+            "private_relay_research_enabled",
+            "privateRelayResearchEnabled",
+            "private_first_enabled",
+            "privateFirstEnabled",
+        ),
+    )
+    if raw is not None:
+        return _bool_value(raw)
+    return _env_bool(
+        "UNIFIED_EXECUTOR_PRIVATE_RELAY_RESEARCH_ENABLED",
+        "TRIANGULAR_PRIVATE_RELAY_RESEARCH_ENABLED",
+        "LIQUIDATION_PRIVATE_RELAY_RESEARCH_ENABLED",
+    )
+
+
+def _delivery_policy_report(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> dict[str, Any]:
+    private_relay_research = _private_relay_research_enabled(protocol, opportunity)
+    return {
+        "mode": "private_relay_research" if private_relay_research else "public_rpc_direct_after_fresh_gates",
+        "privateRelayResearchEnabled": private_relay_research,
+        "privateFirst": private_relay_research,
+        "publicFallbackRequested": _public_fallback_enabled(protocol, opportunity) if private_relay_research else False,
+        "publicFallbackRequiresRevalidation": private_relay_research,
+        "privacyBoundary": (
+            "deferred_to_cow_or_intent_layer"
+            if not private_relay_research
+            else "operator_supplied_private_rpc_research_only"
+        ),
+    }
+
+
 def _relay_cost_wei(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> int:
     raw = _first_value(
         protocol if isinstance(protocol, dict) else {},
         opportunity if isinstance(opportunity, dict) else {},
-        names=("relay_cost_wei", "relayCostWei"),
+        names=("delivery_cost_wei", "deliveryCostWei", "relay_cost_wei", "relayCostWei"),
     )
     if raw in (None, ""):
-        raw = _env("UNIFIED_EXECUTOR_RELAY_COST_WEI", "TRIANGULAR_RELAY_COST_WEI")
+        raw = _env(
+            "UNIFIED_EXECUTOR_DELIVERY_COST_WEI",
+            "TRIANGULAR_DELIVERY_COST_WEI",
+            "UNIFIED_EXECUTOR_RELAY_COST_WEI",
+            "TRIANGULAR_RELAY_COST_WEI",
+        )
     try:
         return _positive_int_value(raw)
     except ValueError:
@@ -1149,6 +1553,56 @@ def _cache_risk_penalty_usdc_base_units(
         age_blocks = max(age_blocks, age)
     dynamic_penalty = per_block_penalty * age_blocks
     return static_penalty + dynamic_penalty
+
+
+def _public_mempool_risk_penalty_usdc_base_units(
+    protocol: dict[str, Any] | None = None,
+    opportunity: dict[str, Any] | None = None,
+) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=(
+            "public_mempool_risk_penalty_usdc",
+            "publicMempoolRiskPenaltyUsdc",
+            "mempool_risk_penalty_usdc",
+            "mempoolRiskPenaltyUsdc",
+        ),
+    )
+    if raw in (None, ""):
+        raw = _env(
+            "UNIFIED_EXECUTOR_PUBLIC_MEMPOOL_RISK_PENALTY_USDC",
+            "TRIANGULAR_PUBLIC_MEMPOOL_RISK_PENALTY_USDC",
+        )
+    try:
+        return _usdc_decimal_to_base_units(raw)
+    except ValueError:
+        return 0
+
+
+def _public_mempool_risk_penalty_bps(
+    protocol: dict[str, Any] | None = None,
+    opportunity: dict[str, Any] | None = None,
+) -> int:
+    raw = _first_value(
+        protocol if isinstance(protocol, dict) else {},
+        opportunity if isinstance(opportunity, dict) else {},
+        names=(
+            "public_mempool_risk_penalty_bps",
+            "publicMempoolRiskPenaltyBps",
+            "mempool_risk_penalty_bps",
+            "mempoolRiskPenaltyBps",
+        ),
+    )
+    if raw in (None, ""):
+        raw = _env(
+            "UNIFIED_EXECUTOR_PUBLIC_MEMPOOL_RISK_PENALTY_BPS",
+            "TRIANGULAR_PUBLIC_MEMPOOL_RISK_PENALTY_BPS",
+        )
+    try:
+        return min(10_000, _positive_int_value(raw))
+    except ValueError:
+        return 0
 
 
 def _gas_token_price_max_age_seconds(protocol: dict[str, Any] | None = None, opportunity: dict[str, Any] | None = None) -> int:
@@ -1208,16 +1662,149 @@ def _gas_token_usdc_price_report(
     opportunity: dict[str, Any] | None = None,
     *,
     now: datetime | None = None,
+    require_production_sources: bool = False,
 ) -> dict[str, Any]:
+    def price_sources() -> list[dict[str, Any]]:
+        raw = _first_value(
+            protocol if isinstance(protocol, dict) else {},
+            opportunity if isinstance(opportunity, dict) else {},
+            names=("price_sources", "priceSources", "gas_token_price_sources", "gasTokenPriceSources"),
+        )
+        if not isinstance(raw, list):
+            return []
+        return [dict(item) for item in raw if isinstance(item, dict)]
+
+    def max_deviation_bps() -> int:
+        raw = _first_value(
+            protocol if isinstance(protocol, dict) else {},
+            opportunity if isinstance(opportunity, dict) else {},
+            names=("price_max_deviation_bps", "priceMaxDeviationBps"),
+        )
+        if raw in (None, ""):
+            raw = _env("AVAX_USDC_PRICE_MAX_DEVIATION_BPS", "GAS_TOKEN_USDC_PRICE_MAX_DEVIATION_BPS")
+        try:
+            return _positive_int_value(raw, default=DEFAULT_GAS_TOKEN_PRICE_MAX_DEVIATION_BPS)
+        except ValueError:
+            return DEFAULT_GAS_TOKEN_PRICE_MAX_DEVIATION_BPS
+
+    def blacklist_path() -> Path:
+        raw = _env(
+            "UNIFIED_EXECUTOR_PRICE_SOURCE_BLACKLIST_FILE",
+            "TRIANGULAR_PRICE_SOURCE_BLACKLIST_FILE",
+            default="runtime/cache/unified_price_source_blacklist.json",
+        )
+        value = Path(raw)
+        return value if value.is_absolute() else SRC_ROOT / value
+
+    def blacklist() -> dict[str, dict[str, Any]]:
+        payload = _read_json_file(blacklist_path())
+        sources = payload.get("sources")
+        return sources if isinstance(sources, dict) else {}
+
+    def record_source_issue(source_id: str, reason: str) -> None:
+        if not source_id:
+            return
+        path = blacklist_path()
+        payload = _read_json_file(path)
+        sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
+        entry = sources.get(source_id) if isinstance(sources.get(source_id), dict) else {}
+        now_text = (now or _utc_now()).isoformat()
+        sources[source_id] = {
+            **entry,
+            "reason": reason,
+            "failureCount": int(entry.get("failureCount") or 0) + 1,
+            "firstFailureAt": str(entry.get("firstFailureAt") or now_text),
+            "lastFailureAt": now_text,
+            "recoveryState": str(entry.get("recoveryState") or "manual_review_required"),
+        }
+        _write_json_file(path, {"schemaVersion": 1, "updatedAt": now_text, "sources": sources})
+
     price = _avax_usdc_price_micro(protocol, opportunity)
     updated_at = _gas_token_price_updated_at(protocol, opportunity)
     max_age = _gas_token_price_max_age_seconds(protocol, opportunity)
     current = now or _utc_now()
+    raw_sources = price_sources()
+    blocked_sources = blacklist()
+    usable_sources: list[dict[str, Any]] = []
+    source_errors: list[dict[str, str]] = []
+    for index, source in enumerate(raw_sources):
+        source_id = str(source.get("id") or source.get("source") or f"source_{index + 1}")
+        if source_id in blocked_sources:
+            source_errors.append({"source": source_id, "reason": "blacklisted"})
+            continue
+        try:
+            source_price = _usdc_decimal_to_base_units(source.get("priceUsdc", source.get("price_usdc")))
+        except ValueError:
+            source_price = 0
+        source_updated_at = _parse_utc_datetime(source.get("updatedAt") or source.get("updated_at"))
+        if source_price <= 0 or source_updated_at is None:
+            source_errors.append({"source": source_id, "reason": "invalid_price_source"})
+            record_source_issue(source_id, "invalid_price_source")
+            continue
+        source_age = max(0, int((current - source_updated_at).total_seconds()))
+        if max_age > 0 and source_age > max_age:
+            source_errors.append({"source": source_id, "reason": "stale_price_source"})
+            record_source_issue(source_id, "stale_price_source")
+            continue
+        usable_sources.append(
+            {
+                "id": source_id,
+                "priceMicro": source_price,
+                "updatedAt": source_updated_at.isoformat(),
+                "ageSeconds": source_age,
+                "kind": str(source.get("kind") or source.get("policy") or "unknown"),
+            }
+        )
+
+    configured_policy = str(
+        _first_value(
+            protocol if isinstance(protocol, dict) else {},
+            opportunity if isinstance(opportunity, dict) else {},
+            names=("price_source_policy", "priceSourcePolicy"),
+        )
+        or ""
+    ).strip()
+    fallback_policy = ""
+    if usable_sources:
+        values = sorted(int(item["priceMicro"]) for item in usable_sources)
+        median = values[len(values) // 2]
+        price = median
+        updated_at = min(_parse_utc_datetime(item["updatedAt"]) for item in usable_sources)
+        deviation_bps = max(
+            abs(int(item["priceMicro"]) - median) * 10_000 // max(1, median)
+            for item in usable_sources
+        )
+        if not configured_policy:
+            configured_policy = "multi-source-median" if len(usable_sources) >= 2 else "diagnostic-single-source"
+    else:
+        deviation_bps = 0
+        if not configured_policy:
+            configured_policy = "legacy-single-source"
+
     report: dict[str, Any] = {
         "ok": False,
         "priceMicro": str(price),
         "updatedAt": updated_at.isoformat() if updated_at else "",
         "maxAgeSeconds": str(max_age),
+        "priceSourcePolicy": configured_policy,
+        "priceSourceCount": str(len(usable_sources)),
+        "priceDeviationBps": str(deviation_bps),
+        "priceSourceErrors": source_errors,
+        "priceSourceBlacklist": {
+            "file": str(blacklist_path()),
+            "blockedSourceCount": str(len(blocked_sources)),
+            "blockedSources": sorted(blocked_sources),
+        },
+        "priceSources": [
+            {
+                "id": item["id"],
+                "priceMicro": str(item["priceMicro"]),
+                "updatedAt": item["updatedAt"],
+                "ageSeconds": str(item["ageSeconds"]),
+                "kind": item["kind"],
+            }
+            for item in usable_sources
+        ],
     }
     if price <= 0:
         report["reason"] = "gas_token_usdc_price_missing"
@@ -1229,6 +1816,20 @@ def _gas_token_usdc_price_report(
     report["ageSeconds"] = str(age)
     if max_age > 0 and age > max_age:
         report["reason"] = "gas_token_usdc_price_stale"
+        return report
+    production_eligible = False
+    if configured_policy == "multi-source-median":
+        production_eligible = len(usable_sources) >= 2 and deviation_bps <= max_deviation_bps()
+    elif configured_policy == "chainlink-derived":
+        production_eligible = len(usable_sources) >= 2 and deviation_bps <= max_deviation_bps()
+        fallback_policy = "chainlink-derived"
+    report["priceSourceFallback"] = {
+        "policy": fallback_policy,
+        "productionEligible": production_eligible,
+    }
+    report["maxDeviationBps"] = str(max_deviation_bps())
+    if require_production_sources and not production_eligible:
+        report["reason"] = "gas_token_price_source_health_failed"
         return report
     report["ok"] = True
     report["reason"] = "gas_token_usdc_price_fresh"
@@ -1248,21 +1849,46 @@ def _unified_net_profit_report(
     gas_price_wei: int,
     relay_cost_wei: int,
     cache_risk_penalty_usdc: int,
+    public_mempool_risk_penalty_usdc: int = 0,
+    public_mempool_risk_penalty_bps: int = 0,
+    slippage_risk_penalty_usdc: int = 0,
+    route_correlation_penalty_usdc: int = 0,
     avax_usdc_price_micro: int,
 ) -> dict[str, str]:
     gas_cost_wei = max(0, int(gas_units)) * max(0, int(gas_price_wei))
     relay_cost_usdc = _wei_cost_to_usdc_base_units(max(0, int(relay_cost_wei)), avax_usdc_price_micro)
     gas_cost_usdc = _wei_cost_to_usdc_base_units(gas_cost_wei, avax_usdc_price_micro)
-    net_profit = int(expected_profit) - gas_cost_usdc - relay_cost_usdc - max(0, int(cache_risk_penalty_usdc))
+    mempool_fixed_penalty = max(0, int(public_mempool_risk_penalty_usdc))
+    mempool_bps = min(10_000, max(0, int(public_mempool_risk_penalty_bps)))
+    mempool_bps_penalty = max(0, int(expected_profit)) * mempool_bps // 10_000
+    mempool_penalty = mempool_fixed_penalty + mempool_bps_penalty
+    net_profit = (
+        int(expected_profit)
+        - gas_cost_usdc
+        - relay_cost_usdc
+        - max(0, int(cache_risk_penalty_usdc))
+        - mempool_penalty
+        - max(0, int(slippage_risk_penalty_usdc))
+        - max(0, int(route_correlation_penalty_usdc))
+    )
     return {
         "expectedProfit": str(expected_profit),
         "gasUnits": str(gas_units),
         "gasPriceWei": str(gas_price_wei),
         "gasCostWei": str(gas_cost_wei),
         "gasCostUsdc": str(gas_cost_usdc),
+        # Deprecated compatibility aliases: new evidence should read deliveryCost*.
         "relayCostWei": str(relay_cost_wei),
         "relayCostUsdc": str(relay_cost_usdc),
+        "deliveryCostWei": str(relay_cost_wei),
+        "deliveryCostUsdc": str(relay_cost_usdc),
         "cacheRiskPenaltyUsdc": str(max(0, int(cache_risk_penalty_usdc))),
+        "publicMempoolRiskPenaltyUsdc": str(mempool_penalty),
+        "publicMempoolRiskPenaltyFixedUsdc": str(mempool_fixed_penalty),
+        "publicMempoolRiskPenaltyBps": str(mempool_bps),
+        "publicMempoolRiskPenaltyBpsUsdc": str(mempool_bps_penalty),
+        "slippageRiskPenaltyUsdc": str(max(0, int(slippage_risk_penalty_usdc))),
+        "routeCorrelationPenaltyUsdc": str(max(0, int(route_correlation_penalty_usdc))),
         "avaxUsdcPriceMicro": str(avax_usdc_price_micro),
         "netProfit": str(net_profit),
     }
@@ -1917,6 +2543,10 @@ def _runtime_route_groups_from_market_state(
             )
 
     groups.sort(key=lambda item: (-float(item["score"]), item["routeKind"], item["routeKey"]))
+    _attach_registry_token_risk_metadata(
+        groups,
+        network=str(context.get("network") or pool_cache.get("network") or "avalanche"),
+    )
     if group_limit is None or int(group_limit) <= 0:
         return groups
     return groups[: max(1, int(group_limit))]
@@ -1960,6 +2590,24 @@ def _runtime_route_group_candidates(
                         "routeKey": str(source.get("routeKey") or f"group:{index}") if isinstance(source, dict) else f"group:{index}",
                         "routeKind": str(source.get("routeKind") or "provided") if isinstance(source, dict) else "provided",
                         "score": float(source.get("score") or 0.0) if isinstance(source, dict) else 0.0,
+                        "tokenRisks": (
+                            source.get("tokenRisks", source.get("token_risks"))
+                            if isinstance(source, dict)
+                            else None
+                        ),
+                        "slippageRiskPenaltyUsdc": (
+                            source.get("slippageRiskPenaltyUsdc", source.get("slippage_risk_penalty_usdc"))
+                            if isinstance(source, dict)
+                            else None
+                        ),
+                        "routeCorrelationPenaltyUsdc": (
+                            source.get(
+                                "routeCorrelationPenaltyUsdc",
+                                source.get("route_correlation_penalty_usdc"),
+                            )
+                            if isinstance(source, dict)
+                            else None
+                        ),
                         "trades": trades,
                     }
                 )
@@ -1971,7 +2619,21 @@ def _runtime_route_group_candidates(
         for key in ("runtime_trades", "candidate_trades", "trades"):
             if isinstance(payload.get(key), list):
                 trades = [_normalize_runtime_trade(trade, index) for index, trade in enumerate(payload[key])]
-                return [{"routeKey": "provided", "routeKind": "provided", "score": 0.0, "trades": trades}]
+                return [{
+                    "routeKey": "provided",
+                    "routeKind": "provided",
+                    "score": 0.0,
+                    "tokenRisks": payload.get("tokenRisks", payload.get("token_risks")),
+                    "slippageRiskPenaltyUsdc": payload.get(
+                        "slippageRiskPenaltyUsdc",
+                        payload.get("slippage_risk_penalty_usdc"),
+                    ),
+                    "routeCorrelationPenaltyUsdc": payload.get(
+                        "routeCorrelationPenaltyUsdc",
+                        payload.get("route_correlation_penalty_usdc"),
+                    ),
+                    "trades": trades,
+                }]
 
     env_value = _env("TRIANGULAR_RUNTIME_TRADES_JSON")
     if env_value:
@@ -2259,11 +2921,10 @@ def _selected_strategy_status(
         strategy_status = 55555
     if strategy_status in {1, 2, 5}:
         return strategy_status
+    mapped_status = _SELECTED_STRATEGY_STATUS_TRANSLATION.get((execution_mode, execution_kind, strategy_status))
+    if mapped_status is not None:
+        return mapped_status
     if strategy_status == 3:
-        if execution_kind == 2:
-            return 3
-        if execution_kind == 1 or execution_mode == "triangular":
-            return 4
         return 3
     return strategy_status if strategy_status in {4, 55555} else 55555
 
@@ -3318,6 +3979,7 @@ def _prepare_unified_route_groups(
     usdc_address: str,
     allow_single_pair_diagnostic: bool = False,
     allow_stable_targets: bool = False,
+    require_token_risk_metadata: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     prepared: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -3358,6 +4020,26 @@ def _prepare_unified_route_groups(
                 }
             )
             continue
+        token_risk = _route_group_token_risk_report(
+            group,
+            ordered,
+            require_metadata=require_token_risk_metadata,
+        )
+        if not token_risk["broadcastable"]:
+            reason = (
+                "token_risk_broadcast_disabled"
+                if token_risk["blocked"]
+                else "token_risk_metadata_missing"
+            )
+            rejected.append(
+                {
+                    "groupIndex": index,
+                    "routeKey": str(group.get("routeKey") or route_plan.get("groupKey") or f"group:{index}"),
+                    "reason": reason,
+                    "tokenRisk": token_risk,
+                }
+            )
+            continue
         prepared.append(
             {
                 "groupIndex": index,
@@ -3369,6 +4051,17 @@ def _prepare_unified_route_groups(
                 "routePlan": route_plan,
                 "routeCheck": route_check,
                 "targetSymbols": target_symbols,
+                "tokenRisk": token_risk,
+                "slippageRiskPenaltyUsdc": _route_group_usdc_penalty(
+                    group,
+                    "slippageRiskPenaltyUsdc",
+                    "slippage_risk_penalty_usdc",
+                ),
+                "routeCorrelationPenaltyUsdc": _route_group_usdc_penalty(
+                    group,
+                    "routeCorrelationPenaltyUsdc",
+                    "route_correlation_penalty_usdc",
+                ),
             }
         )
     return prepared, rejected
@@ -3383,6 +4076,8 @@ def _select_best_unified_route_group(
     gas_price_wei: int = 0,
     relay_cost_wei: int = 0,
     cache_risk_penalty_usdc: int = 0,
+    public_mempool_risk_penalty_usdc: int = 0,
+    public_mempool_risk_penalty_bps: int = 0,
     avax_usdc_price_micro: int = 0,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[dict[str, Any]]]:
     evaluations: list[dict[str, Any]] = []
@@ -3420,6 +4115,10 @@ def _select_best_unified_route_group(
             gas_price_wei=gas_price_wei,
             relay_cost_wei=relay_cost_wei,
             cache_risk_penalty_usdc=cache_risk_penalty_usdc,
+            public_mempool_risk_penalty_usdc=public_mempool_risk_penalty_usdc,
+            public_mempool_risk_penalty_bps=public_mempool_risk_penalty_bps,
+            slippage_risk_penalty_usdc=int(group.get("slippageRiskPenaltyUsdc") or 0),
+            route_correlation_penalty_usdc=int(group.get("routeCorrelationPenaltyUsdc") or 0),
             avax_usdc_price_micro=avax_usdc_price_micro,
         )
         evaluation = {
@@ -3434,6 +4133,7 @@ def _select_best_unified_route_group(
             "expectedProfit": str(expected_profit),
             "netProfit": net_profit,
             "profitAsset": report["executionPreview"].get("profitAsset"),
+            "tokenRisk": group.get("tokenRisk"),
             "preview": report,
         }
         if gas_error:
@@ -3546,6 +4246,11 @@ def submit_direct_onchain_trade(
 
     opportunity_context = opportunity if isinstance(opportunity, dict) else None
     usdc_address = _usdc_address_for_network(network)
+    broadcast_enabled = _env_bool(
+        "TRIANGULAR_DIRECT_BROADCAST_ENABLED",
+        "TRIANGULAR_AB_BROADCAST_ENABLED",
+        "UNIFIED_EXECUTOR_BROADCAST_ENABLED",
+    )
     explicit_route_groups = any(
         isinstance(payload, dict)
         and any(isinstance(payload.get(key), list) for key in ("runtime_route_groups", "runtime_trades", "candidate_trades", "trades"))
@@ -3557,6 +4262,7 @@ def submit_direct_onchain_trade(
         usdc_address=usdc_address,
         allow_single_pair_diagnostic=_allow_single_pair_diagnostic(protocol, opportunity_context),
         allow_stable_targets=_allow_stable_exercise_targets(protocol, opportunity_context),
+        require_token_risk_metadata=broadcast_enabled,
     )
     if not prepared_groups:
         error = "runtime_trades_empty" if not route_groups else "no_valid_unified_route_group"
@@ -3653,6 +4359,22 @@ def submit_direct_onchain_trade(
                 "signer": signer_address,
                 "executor_address": executor_address,
             }
+        if broadcast_enabled:
+            pre_pause = direct_pre_pause_status()
+            if pre_pause.get("prePause"):
+                return {
+                    "ok": False,
+                    "submitted": False,
+                    "status": "direct_pre_pause_active",
+                    "blocked_reason": "direct_pre_pause_active",
+                    "error": pre_pause.get("reason") or "local pre-pause blocks new signatures",
+                    "network": network,
+                    "chain_id": chain_id,
+                    "owner": onchain_owner,
+                    "signer": signer_address,
+                    "executor_address": executor_address,
+                    "prePause": pre_pause,
+                }
 
         execute_runtime_trade = _direct_execution_enabled(protocol, opportunity_context)
         usdc_params = _runtime_execution_params(protocol, opportunity_context)
@@ -3690,15 +4412,12 @@ def submit_direct_onchain_trade(
             min_liquidity=token_params_arg["amount"],
             network=network,
         )
-        broadcast_enabled = _env_bool(
-            "TRIANGULAR_DIRECT_BROADCAST_ENABLED",
-            "TRIANGULAR_AB_BROADCAST_ENABLED",
-            "UNIFIED_EXECUTOR_BROADCAST_ENABLED",
-        )
         gas_estimate_info = None
         gas_price_for_selection = 0
         relay_cost_for_selection = 0
         cache_penalty_for_selection = 0
+        public_mempool_penalty_for_selection = 0
+        public_mempool_penalty_bps_for_selection = 0
         avax_usdc_price_for_selection = 0
         gas_token_price_report: dict[str, Any] = {}
         if broadcast_enabled:
@@ -3717,7 +4436,19 @@ def submit_direct_onchain_trade(
                 opportunity_context,
                 cache_reports,
             )
-            gas_token_price_report = _gas_token_usdc_price_report(protocol, opportunity_context)
+            public_mempool_penalty_for_selection = _public_mempool_risk_penalty_usdc_base_units(
+                protocol,
+                opportunity_context,
+            )
+            public_mempool_penalty_bps_for_selection = _public_mempool_risk_penalty_bps(
+                protocol,
+                opportunity_context,
+            )
+            gas_token_price_report = _gas_token_usdc_price_report(
+                protocol,
+                opportunity_context,
+                require_production_sources=True,
+            )
             avax_usdc_price_for_selection = _positive_int_value(gas_token_price_report.get("priceMicro"))
             if not gas_token_price_report.get("ok"):
                 return {
@@ -3761,6 +4492,8 @@ def submit_direct_onchain_trade(
             gas_price_wei=gas_price_for_selection,
             relay_cost_wei=relay_cost_for_selection,
             cache_risk_penalty_usdc=cache_penalty_for_selection,
+            public_mempool_risk_penalty_usdc=public_mempool_penalty_for_selection,
+            public_mempool_risk_penalty_bps=public_mempool_penalty_bps_for_selection,
             avax_usdc_price_micro=avax_usdc_price_for_selection,
         )
         if selected_group is None or preview_report is None:
@@ -3823,18 +4556,25 @@ def submit_direct_onchain_trade(
             "executionMode": "ordered_auto",
             "executionPhase": "unified_ordered_state_machine",
             "selectionStrategy": (
-                "net_profit_after_gas_relay_cache_penalty"
+                "net_profit_after_gas_delivery_cache_mempool_slippage_correlation_penalties"
                 if broadcast_enabled
                 else "expected_profit_preview_only"
             ),
             "netProfitModel": {
                 "enabled": str(bool(broadcast_enabled)),
                 "gasPriceWei": str(gas_price_for_selection),
+                # Deprecated compatibility alias; use deliveryCostWei in new reports.
                 "relayCostWei": str(relay_cost_for_selection),
+                "deliveryCostWei": str(relay_cost_for_selection),
                 "cacheRiskPenaltyUsdc": str(cache_penalty_for_selection),
+                "publicMempoolRiskPenaltyUsdc": str(public_mempool_penalty_for_selection),
+                "publicMempoolRiskPenaltyBps": str(public_mempool_penalty_bps_for_selection),
+                "slippageRiskPenaltyUsdc": str(selected_group.get("slippageRiskPenaltyUsdc") or 0),
+                "routeCorrelationPenaltyUsdc": str(selected_group.get("routeCorrelationPenaltyUsdc") or 0),
                 "avaxUsdcPriceMicro": str(avax_usdc_price_for_selection),
                 "gasTokenPrice": gas_token_price_report,
             },
+            "selectedTokenRisk": selected_group.get("tokenRisk"),
             "executionParams": {key: str(value) for key, value in usdc_params_arg.items()},
             "crossPoolExecutionParams": {key: str(value) for key, value in token_params_arg.items()},
             "crossPoolFilter": {
@@ -3846,6 +4586,7 @@ def submit_direct_onchain_trade(
             "selectedStrategyStatus": preview_report["strategyStatus"],
             "selectedExecutionKind": preview_report["executionKind"],
             "selectedTradeArrayIndex": preview_report["selectedTradeArrayIndex"],
+            "deliveryPolicy": _delivery_policy_report(protocol, opportunity_context),
         }
         if broadcast_enabled:
             circuit_status = _direct_circuit_status(network=network, route_key=selected_group["routeKey"])
@@ -3977,26 +4718,41 @@ def submit_direct_onchain_trade(
         }
         built_tx = tx_builder.build_transaction(tx_params)
         signed_tx = Account.sign_transaction(built_tx, signer_key)
-        broadcast = send_raw_transaction_private_first(
-            _raw_signed_transaction(signed_tx),
-            public_w3=w3,
-            allow_public_fallback=_public_fallback_enabled(protocol, opportunity_context),
-        )
+        raw_signed_tx = _raw_signed_transaction(signed_tx)
+        if _private_relay_research_enabled(protocol, opportunity_context):
+            broadcast = send_raw_transaction_private_first(
+                raw_signed_tx,
+                public_w3=w3,
+                allow_public_fallback=_public_fallback_enabled(protocol, opportunity_context),
+                target_block=current_block + 1,
+                defer_public_fallback=True,
+            )
+        else:
+            public_tx_hash = w3.eth.send_raw_transaction(raw_signed_tx)
+            broadcast = {
+                "tx_hash": public_tx_hash.hex() if hasattr(public_tx_hash, "hex") else str(public_tx_hash),
+                "broadcast_channel": "public_rpc",
+                "relay": "",
+                "private_relay_metrics": [],
+                "delivery_mode": "public_rpc_direct_after_fresh_gates",
+            }
         tx_hash = broadcast.get("tx_hash")
         if not tx_hash:
             return _with_direct_circuit_record({
                 "ok": False,
                 "submitted": False,
-                "status": broadcast.get("status") or "private_relay_failed_public_fallback_disabled",
-                "blocked_reason": broadcast.get("status") or "private_relay_failed_public_fallback_disabled",
-                "error": "private relay failed and public fallback is disabled; discard calldata and re-preview",
+                "status": broadcast.get("status") or "broadcast_failed",
+                "blocked_reason": broadcast.get("status") or "broadcast_failed",
+                "error": "broadcast failed; discard calldata and re-preview",
                 "network": network,
                 "chain_id": chain_id,
                 "owner": onchain_owner,
                 "signer": signer_address,
                 "executor_address": executor_address,
                 "broadcast_channel": broadcast.get("broadcast_channel"),
+                "deliveryPolicy": request_payload.get("deliveryPolicy"),
                 "relay_errors": broadcast.get("relay_errors"),
+                "privateRelayMetrics": broadcast.get("private_relay_metrics"),
                 "preflight": preview_report,
                 "static_call": static_report,
                 "strategy_status": preview_report["strategyStatus"],
@@ -4011,6 +4767,20 @@ def submit_direct_onchain_trade(
         )
         status = "submitted_success" if receipt and int(receipt.status or 0) == 1 else "submitted_failed"
         events = _unified_receipt_events(executor, receipt) if receipt else {}
+        private_relay_metrics = list(broadcast.get("private_relay_metrics") or [])
+        if receipt and private_relay_metrics:
+            included_block = int(receipt.blockNumber) if receipt.blockNumber is not None else 0
+            for metric in private_relay_metrics:
+                if not isinstance(metric, dict):
+                    continue
+                metric["firstVisibleBlock"] = str(included_block or "")
+                metric["finalIncludedBlock"] = str(included_block or "")
+                try:
+                    target_block = int(metric.get("targetBlock") or 0)
+                except (TypeError, ValueError):
+                    target_block = 0
+                metric["targetBlockDelta"] = str(included_block - target_block) if target_block else ""
+                metric["finalStatus"] = "included" if status == "submitted_success" else "included_reverted"
         return _with_direct_circuit_record({
             "ok": status == "submitted_success",
             "submitted": True,
@@ -4024,7 +4794,9 @@ def submit_direct_onchain_trade(
             "executor_address": executor_address,
             "tx_hash": broadcast.get("tx_hash"),
             "broadcast_channel": broadcast.get("broadcast_channel"),
+            "deliveryPolicy": request_payload.get("deliveryPolicy"),
             "relay": broadcast.get("relay"),
+            "privateRelayMetrics": private_relay_metrics,
             "preflight": preview_report,
             "static_call": static_report,
             "strategy_status": preview_report["strategyStatus"],
@@ -4034,6 +4806,7 @@ def submit_direct_onchain_trade(
                 "hash": receipt.hash.hex() if hasattr(receipt.hash, "hex") else str(receipt.hash),
                 "status": receipt.status,
                 "gasUsed": str(receipt.gasUsed) if receipt and receipt.gasUsed is not None else None,
+                "blockNumber": str(receipt.blockNumber) if receipt and receipt.blockNumber is not None else None,
                 "events": events,
             },
             "finished_at": datetime.now(timezone.utc).isoformat(),

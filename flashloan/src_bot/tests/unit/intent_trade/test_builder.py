@@ -14,6 +14,13 @@ from intent_trade import (
 )
 from intent_trade import direct
 from intent_trade import direct_utils
+from intent_trade import live_evidence
+from intent_trade.unified_live_signal_schema import (
+    UNIFIED_LIVE_SIGNAL_REQUIRED_FIELDS,
+    UNIFIED_LIVE_SIGNAL_SCHEMA_CONSTANT_VERSION,
+    UNIFIED_LIVE_SIGNAL_SCHEMA_VERSION,
+    unified_live_signal_schema,
+)
 
 
 def _addr(n: int) -> str:
@@ -61,6 +68,20 @@ def _clear_direct_pair_env(monkeypatch):
         "TRIANGULAR_CACHE_RISK_PENALTY_USDC",
         "UNIFIED_EXECUTOR_CACHE_RISK_PENALTY_PER_BLOCK_USDC",
         "TRIANGULAR_CACHE_RISK_PENALTY_PER_BLOCK_USDC",
+        "UNIFIED_EXECUTOR_TOKEN_REGISTRY_FILE",
+        "TRIANGULAR_TOKEN_REGISTRY_FILE",
+        "DIRECT_ONCHAIN_PRE_PAUSE_FILE",
+        "UNIFIED_EXECUTOR_PRE_PAUSE_FILE",
+        "UNIFIED_EXECUTOR_PRICE_SOURCES_JSON",
+        "UNIFIED_EXECUTOR_PRIVATE_RELAY_RESEARCH_ENABLED",
+        "TRIANGULAR_PRIVATE_RELAY_RESEARCH_ENABLED",
+        "LIQUIDATION_PRIVATE_RELAY_RESEARCH_ENABLED",
+        "UNIFIED_EXECUTOR_ALLOW_PUBLIC_FALLBACK",
+        "TRIANGULAR_ALLOW_PUBLIC_FALLBACK",
+        "UNIFIED_EXECUTOR_PUBLIC_MEMPOOL_RISK_PENALTY_USDC",
+        "TRIANGULAR_PUBLIC_MEMPOOL_RISK_PENALTY_USDC",
+        "UNIFIED_EXECUTOR_PUBLIC_MEMPOOL_RISK_PENALTY_BPS",
+        "TRIANGULAR_PUBLIC_MEMPOOL_RISK_PENALTY_BPS",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(direct, "_USDC_PAIR_MEMORY_TABLE", [])
@@ -125,6 +146,68 @@ def _unified_runtime_trades_json(
     ])
 
 
+def _live_runtime_trade(
+    token_x: str | None = None,
+    token_y: str | None = None,
+    pool: str | None = None,
+) -> dict:
+    return {
+        "tradeIndex": 0,
+        "tokenX": token_x or _addr(500),
+        "tokenY": token_y or _addr(501),
+        "pools": [{"adapterKind": 1, "pool": pool or _addr(601)}],
+    }
+
+
+def _live_signal_result(
+    *,
+    runtime_trades: list[dict] | None = None,
+    status: str = "static_call_passed",
+    submitted: bool = False,
+    request_overrides: dict | None = None,
+) -> dict:
+    request = {
+        "runtimeTrades": runtime_trades if runtime_trades is not None else [_live_runtime_trade()],
+        "deliveryPolicy": {
+            "mode": "public_rpc_direct_after_fresh_gates",
+            "privateRelayResearchEnabled": False,
+            "privateFirst": False,
+            "publicFallbackRequested": False,
+            "publicFallbackRequiresRevalidation": False,
+            "privacyBoundary": "deferred_to_cow_or_intent_layer",
+        },
+        "netProfitModel": {
+            "enabled": "false",
+            "relayCostWei": "0",
+            "deliveryCostWei": "0",
+            "publicMempoolRiskPenaltyUsdc": "0",
+            "publicMempoolRiskPenaltyBps": "0",
+        },
+        "routeEvaluations": [
+            {
+                "netProfit": {
+                    "relayCostWei": "0",
+                    "relayCostUsdc": "0",
+                    "deliveryCostWei": "0",
+                    "deliveryCostUsdc": "0",
+                    "publicMempoolRiskPenaltyUsdc": "0",
+                    "publicMempoolRiskPenaltyFixedUsdc": "0",
+                    "publicMempoolRiskPenaltyBps": "0",
+                    "publicMempoolRiskPenaltyBpsUsdc": "0",
+                }
+            }
+        ],
+    }
+    if request_overrides:
+        request.update(request_overrides)
+    return {
+        "ok": status in {"static_call_passed", "submitted_success"},
+        "submitted": submitted,
+        "status": status,
+        "request": request,
+    }
+
+
 def _market_row(symbol: str, change: float) -> dict:
     return {
         "symbol": f"{symbol}USDT",
@@ -181,6 +264,17 @@ def test_build_cow_intent_trade_exposes_a_small_public_surface():
         "cow_network",
         "cow_chain_id",
     ]
+
+
+def test_unified_live_signal_schema_exports_required_evidence_fields():
+    schema = unified_live_signal_schema()
+
+    assert schema["properties"]["schemaVersion"]["const"] == UNIFIED_LIVE_SIGNAL_SCHEMA_VERSION
+    assert schema["properties"]["schemaConstantVersion"]["const"] == UNIFIED_LIVE_SIGNAL_SCHEMA_CONSTANT_VERSION
+    assert set(UNIFIED_LIVE_SIGNAL_REQUIRED_FIELDS).issubset(set(schema["required"]))
+    assert "runtimeTradesHash" in schema["required"]
+    assert "evidenceHash" in schema["required"]
+    assert "marketFeasibility" in schema["required"]
     assert list(inspect.signature(submit_cow_intent_trade).parameters) == [
         "quote_payload",
         "opportunity",
@@ -666,16 +760,26 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
             "cow_flashloan_intent": {
                 "direct_onchain_protocol": {
                     "enabled": True,
-                    "network": "fuji",
-                    "unified_executor_address": executor_address,
-                    "runtime_trades": json.loads(_unified_runtime_trades_json(usdc, token_x, token_y)),
-                    "execute_runtime_trade": True,
+                        "network": "fuji",
+                        "unified_executor_address": executor_address,
+                        "runtime_trades": json.loads(_unified_runtime_trades_json(usdc, token_x, token_y)),
+                        "tokenRisks": [
+                            {"token": usdc, "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                            {"token": token_x, "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                            {"token": token_y, "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                        ],
+                        "execute_runtime_trade": True,
                     "execution_amount": 1_000_000,
                     "amountOutMinUsdc": 1_000_501,
-                    "minProfitUsdc": 1,
+                        "minProfitUsdc": 1,
+                        "priceSourcePolicy": "multi-source-median",
+                        "priceSources": [
+                            {"id": "source-a", "priceUsdc": "1", "updatedAt": "2026-08-12T00:00:00Z"},
+                            {"id": "source-b", "priceUsdc": "1", "updatedAt": "2026-08-12T00:00:01Z"},
+                        ],
+                    }
                 }
-            }
-        },
+            },
         opportunity={"tokenX": token_x, "tokenY": token_y},
     )
 
@@ -685,6 +789,9 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
     assert result["route_direction"] == "1"
     assert result["static_call"]["gasEstimate"] == "321000"
     assert result["static_call"]["runResult"]["profitSwept"] == "2503"
+    assert result["request"]["deliveryPolicy"]["mode"] == "public_rpc_direct_after_fresh_gates"
+    assert result["request"]["deliveryPolicy"]["privateFirst"] is False
+    assert result["request"]["deliveryPolicy"]["privacyBoundary"] == "deferred_to_cow_or_intent_layer"
     assert contract.functions.preview_args[3] is False
     assert contract.functions.run_args[3] is False
 
@@ -704,13 +811,23 @@ def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before
             "cow_flashloan_intent": {
                 "direct_onchain_protocol": {
                     "enabled": True,
-                    "network": "fuji",
-                    "unified_executor_address": executor_address,
-                    "runtime_trades": json.loads(_unified_runtime_trades_json(usdc, token_x, token_y)),
-                    "execute_runtime_trade": True,
+                        "network": "fuji",
+                        "unified_executor_address": executor_address,
+                        "runtime_trades": json.loads(_unified_runtime_trades_json(usdc, token_x, token_y)),
+                        "tokenRisks": [
+                            {"token": usdc, "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                            {"token": token_x, "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                            {"token": token_y, "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                        ],
+                        "execute_runtime_trade": True,
                     "execution_amount": 1_000_000,
                     "amountOutMinUsdc": 1_000_501,
                     "minProfitUsdc": 1,
+                    "priceSourcePolicy": "multi-source-median",
+                    "priceSources": [
+                        {"id": "source-a", "priceUsdc": "1", "updatedAt": "2026-08-12T00:00:00Z"},
+                        {"id": "source-b", "priceUsdc": "1", "updatedAt": "2026-08-12T00:00:01Z"},
+                    ],
                 }
             }
         },
@@ -839,6 +956,681 @@ def test_runtime_route_groups_filter_stable_targets_but_keep_wavax(monkeypatch):
     assert all("USDT" not in key.upper() for key in route_keys)
 
 
+def test_dynamic_route_groups_inject_reviewed_token_registry_metadata(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    usdc, token_x, token_y = _addr(500), _addr(501), _addr(502)
+    registry_path = tmp_path / "unified_token_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "registryVersion": "2026-08-12-review-1",
+                "chainId": 43114,
+                "tokens": [
+                    {"token": usdc, "symbol": "USDC", "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                    {"token": token_x, "symbol": "AAA", "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                    {"token": token_y, "symbol": "BBB", "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", usdc)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_TOKEN_REGISTRY_FILE", str(registry_path))
+    cache = _pool_cache_for_symbols(["USDC", "AAA", "BBB"])
+
+    groups = direct._runtime_route_groups_from_market_state(
+        {"network": "avalanche", "top": [_market_row("AAA", 2)], "bottom": [_market_row("BBB", -2)]},
+        cache=cache,
+        group_limit=0,
+    )
+
+    group = next(item for item in groups if item["routeKey"] == "AAA:BBB")
+    assert {item["token"] for item in group["tokenRisks"]} == {usdc, token_x, token_y}
+    assert group["tokenRiskRegistry"]["available"] is True
+    assert group["tokenRiskRegistry"]["registryVersion"] == "2026-08-12-review-1"
+    assert group["tokenRiskRegistry"]["canonicalHash"].startswith("sha256:")
+    assert group["tokenRiskRegistry"]["integrityOk"] is True
+
+
+def test_dynamic_route_groups_report_missing_registry_metadata_without_guessing(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    registry_path = tmp_path / "unified_token_registry.json"
+    registry_path.write_text(
+        json.dumps({"schemaVersion": 1, "registryVersion": "incomplete", "chainId": 43114, "tokens": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("UNIFIED_EXECUTOR_TOKEN_REGISTRY_FILE", str(registry_path))
+    cache = _pool_cache_for_symbols(["USDC", "AAA", "BBB"])
+
+    groups = direct._runtime_route_groups_from_market_state(
+        {"network": "avalanche", "top": [_market_row("AAA", 2)], "bottom": [_market_row("BBB", -2)]},
+        cache=cache,
+        group_limit=0,
+    )
+
+    group = next(item for item in groups if item["routeKey"] == "AAA:BBB")
+    assert "tokenRisks" not in group
+    assert group["tokenRiskRegistry"]["reason"] == "token_registry_metadata_missing"
+
+
+def test_dynamic_route_groups_reject_token_registry_hash_mismatch(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    usdc, token_x, token_y = _addr(500), _addr(501), _addr(502)
+    registry_path = tmp_path / "unified_token_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "registryVersion": "tampered",
+                "chainId": 43114,
+                "tokens": [
+                    {"token": usdc, "symbol": "USDC", "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                    {"token": token_x, "symbol": "AAA", "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                    {"token": token_y, "symbol": "BBB", "reentrancyRisk": "low", "decimalTruncationRisk": "low"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", usdc)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_TOKEN_REGISTRY_FILE", str(registry_path))
+    monkeypatch.setenv("UNIFIED_EXECUTOR_TOKEN_REGISTRY_HASH", "sha256:" + "0" * 64)
+    cache = _pool_cache_for_symbols(["USDC", "AAA", "BBB"])
+
+    groups = direct._runtime_route_groups_from_market_state(
+        {"network": "avalanche", "top": [_market_row("AAA", 2)], "bottom": [_market_row("BBB", -2)]},
+        cache=cache,
+        group_limit=0,
+    )
+
+    group = next(item for item in groups if item["routeKey"] == "AAA:BBB")
+    assert "tokenRisks" not in group
+    assert group["tokenRiskRegistry"]["reason"] == "token_registry_hash_mismatch"
+    assert group["tokenRiskRegistry"]["canonicalHash"].startswith("sha256:")
+
+
+def test_dynamic_route_groups_report_expired_token_registry_metadata(monkeypatch, tmp_path):
+    _clear_direct_pair_env(monkeypatch)
+    usdc, token_x, token_y = _addr(500), _addr(501), _addr(502)
+    registry_path = tmp_path / "unified_token_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "registryVersion": "expired-token",
+                "chainId": 43114,
+                "tokens": [
+                    {
+                        "token": usdc,
+                        "symbol": "USDC",
+                        "reentrancyRisk": "low",
+                        "decimalTruncationRisk": "low",
+                        "expiresAt": "2099-01-01T00:00:00+00:00",
+                    },
+                    {
+                        "token": token_x,
+                        "symbol": "AAA",
+                        "reentrancyRisk": "low",
+                        "decimalTruncationRisk": "low",
+                        "expiresAt": "2020-01-01T00:00:00+00:00",
+                    },
+                    {
+                        "token": token_y,
+                        "symbol": "BBB",
+                        "reentrancyRisk": "low",
+                        "decimalTruncationRisk": "low",
+                        "expiresAt": "2099-01-01T00:00:00+00:00",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TRIANGULAR_USDC_ADDRESS", usdc)
+    monkeypatch.setenv("UNIFIED_EXECUTOR_TOKEN_REGISTRY_FILE", str(registry_path))
+    cache = _pool_cache_for_symbols(["USDC", "AAA", "BBB"])
+
+    groups = direct._runtime_route_groups_from_market_state(
+        {"network": "avalanche", "top": [_market_row("AAA", 2)], "bottom": [_market_row("BBB", -2)]},
+        cache=cache,
+        group_limit=0,
+    )
+
+    group = next(item for item in groups if item["routeKey"] == "AAA:BBB")
+    assert "tokenRisks" not in group
+    assert group["tokenRiskRegistry"]["reason"] == "token_registry_metadata_expired"
+    assert group["tokenRiskRegistry"]["expiredTokens"] == [token_x]
+    assert group["tokenRiskRegistry"]["automaticDowngrade"] == "route_group_diagnostic_only_until_registry_refresh"
+
+
+def test_live_signal_evidence_rejects_tampered_runtime_trades_hash():
+    result = _live_signal_result()
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-1",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    assert live_evidence.validate_unified_live_signal_evidence(evidence)["ok"] is True
+    evidence["runtimeTrades"][0]["tokenY"] = _addr(502)
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "runtime_trades_hash_mismatch" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_schema_constant_version_drift():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-schema-version",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    evidence["schemaConstantVersion"] = "unified_live_signal_schema:v0"
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "unsupported_schema_constant_version" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_result_hash_tampering():
+    result = _live_signal_result()
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-1",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    evidence["result"]["status"] = "submitted_success"
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "result_hash_mismatch" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_result_status_family_tampering():
+    result = _live_signal_result()
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-family-tamper",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    evidence["result"]["statusFamily"] = "broadcast_blocked"
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "result_status_family_mismatch" in validation["errors"]
+
+
+def test_live_signal_evidence_records_default_delivery_policy_and_delivery_cost_aliases():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-delivery-policy",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is True
+    assert evidence["deliveryPolicy"]["mode"] == "public_rpc_direct_after_fresh_gates"
+    assert evidence["deliveryPolicy"]["privateFirst"] is False
+    assert evidence["deliveryPolicy"]["privacyBoundary"] == "deferred_to_cow_or_intent_layer"
+    assert evidence["netProfitModel"]["deliveryCostWei"] == evidence["netProfitModel"]["relayCostWei"]
+    assert evidence["marketFeasibility"]["conclusion"] == "insufficient_data"
+    assert evidence["marketFeasibility"]["competitorPressure"]["emptyObservationMeaning"] == (
+        "no_sufficient_data_to_infer_competitor_pressure"
+    )
+
+
+def test_live_signal_evidence_rejects_missing_market_feasibility():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-market-feasibility-missing",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    del evidence["marketFeasibility"]
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "market_feasibility_missing" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_competitor_pressure_without_empty_meaning():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-market-feasibility-empty-meaning",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    del evidence["marketFeasibility"]["competitorPressure"]["emptyObservationMeaning"]
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "market_feasibility_empty_observation_meaning_missing" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_delivery_cost_alias_mismatch():
+    result = _live_signal_result()
+    result["request"]["netProfitModel"]["deliveryCostWei"] = "1"
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-delivery-cost-mismatch",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "delivery_cost_wei_relay_alias_mismatch" in validation["errors"]
+
+
+def test_live_signal_evidence_requires_public_mempool_risk_penalty_fields():
+    result = _live_signal_result()
+    del result["request"]["netProfitModel"]["publicMempoolRiskPenaltyUsdc"]
+    del result["request"]["routeEvaluations"][0]["netProfit"]["publicMempoolRiskPenaltyUsdc"]
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-public-mempool-risk-missing",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "public_mempool_risk_penalty_usdc_missing" in validation["errors"]
+    assert "route_evaluation_0_public_mempool_risk_penalty_usdc_missing" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_public_mempool_risk_penalty_component_mismatch():
+    result = _live_signal_result()
+    result["request"]["routeEvaluations"][0]["netProfit"]["publicMempoolRiskPenaltyFixedUsdc"] = "3"
+    result["request"]["routeEvaluations"][0]["netProfit"]["publicMempoolRiskPenaltyBpsUsdc"] = "4"
+    result["request"]["routeEvaluations"][0]["netProfit"]["publicMempoolRiskPenaltyUsdc"] = "8"
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-public-mempool-risk-mismatch",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "route_evaluation_0_public_mempool_risk_penalty_mismatch" in validation["errors"]
+    assert validation["disposition"] == "diagnostic_only_notify_ops"
+
+
+def test_live_signal_evidence_flags_large_public_mempool_penalty_for_manual_review():
+    result = _live_signal_result()
+    net_profit = result["request"]["routeEvaluations"][0]["netProfit"]
+    net_profit["expectedProfit"] = "1000"
+    net_profit["publicMempoolRiskPenaltyFixedUsdc"] = "600"
+    net_profit["publicMempoolRiskPenaltyBpsUsdc"] = "0"
+    net_profit["publicMempoolRiskPenaltyUsdc"] = "600"
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-public-mempool-risk-review",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is True
+    assert validation["disposition"] == "manual_review_required"
+    assert validation["reviewFlags"] == [
+        "route_evaluation_0_public_mempool_penalty_gt_50pct_expected_profit"
+    ]
+    assert validation["manualReviewThresholdBps"] == "5000"
+
+
+def test_live_signal_evidence_uses_configured_public_mempool_review_threshold():
+    result = _live_signal_result()
+    result["request"]["manualReviewThresholdBps"] = "7000"
+    result["request"]["manualReviewThresholdAdjustmentHistory"] = [
+        {
+            "previousThresholdBps": "5000",
+            "newThresholdBps": "7000",
+            "proposedAt": "2026-08-12T00:00:00+00:00",
+            "effectiveScope": "manual_review_candidate_only",
+            "independentWindowStatistics": [
+                {"runId": "window-1"},
+                {"runId": "window-2"},
+                {"runId": "window-3"},
+            ],
+            "competitorPressureSummary": "independent_provider_evidence_reviewed",
+            "reviewConclusion": "approved_for_manual_review_only",
+            "approvedBy": "reviewer@example.invalid",
+            "rollbackCondition": "revert_on_any_window_quality_regression",
+        }
+    ]
+    net_profit = result["request"]["routeEvaluations"][0]["netProfit"]
+    net_profit["expectedProfit"] = "1000"
+    net_profit["publicMempoolRiskPenaltyFixedUsdc"] = "600"
+    net_profit["publicMempoolRiskPenaltyBpsUsdc"] = "0"
+    net_profit["publicMempoolRiskPenaltyUsdc"] = "600"
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-public-mempool-risk-custom-threshold",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is True
+    assert validation["disposition"] == "g07d_passed"
+    assert validation["reviewFlags"] == []
+    assert validation["manualReviewThresholdBps"] == "7000"
+
+
+def test_live_signal_evidence_rejects_collected_competitor_source_without_provider_or_retention():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-metric-source-missing",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    source = evidence["marketFeasibility"]["competitorPressure"]["metricSources"][
+        "sameBlockHigherGasIndicator"
+    ]
+    source.update(
+        {
+            "sourceKind": "confirmed_block_receipts",
+            "unavailableReason": None,
+            "endpointHost": "rpc.example.invalid",
+            "blockRange": {"from": 1, "to": 2},
+            "transactionFilter": "target_pair_pool_interactions",
+            "collectedAt": "2026-08-12T00:00:00+00:00",
+            "rawEvidencePath": "evidence/raw.json",
+            "rawEvidenceHash": "sha256:" + "a" * 64,
+            "retentionUntil": "2026-08-13T00:00:00+00:00",
+        }
+    )
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "market_feasibility_competitor_metric_source_provider_missing" in validation["errors"]
+    assert "market_feasibility_competitor_metric_source_retention_too_short" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_high_confidence_with_same_provider_sources():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-provider-independence",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    competitor = evidence["marketFeasibility"]["competitorPressure"]
+    competitor["confidence"] = "high_confidence"
+    collected_source = {
+        "sourceKind": "confirmed_block_receipts",
+        "sourceProvider": "provider-a",
+        "endpointHost": "rpc.provider-a.invalid",
+        "blockRange": {"from": 1, "to": 2},
+        "transactionFilter": "target_pair_pool_interactions",
+        "collectedAt": "2026-08-12T00:00:00+00:00",
+        "rawEvidencePath": "evidence/raw-a.json",
+        "rawEvidenceHash": "sha256:" + "a" * 64,
+        "retentionUntil": "2026-11-10T00:00:00+00:00",
+        "unavailableReason": None,
+    }
+    competitor["metricSources"]["sameBlockHigherGasIndicator"] = collected_source
+    competitor["metricSources"]["independentSources"] = [
+        {
+            **collected_source,
+            "sourceKind": "pending_websocket",
+            "endpointHost": "ws.provider-a.invalid",
+            "rawEvidencePath": "evidence/raw-b.json",
+            "rawEvidenceHash": "sha256:" + "b" * 64,
+        }
+    ]
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "market_feasibility_competitor_sources_not_independent" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_low_frequency_without_24h_chain_confirmation():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-low-frequency-incomplete",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    market = evidence["marketFeasibility"]
+    market["expectedProfitDistribution"].update(
+        {
+            "sampleSufficiency": "low_frequency_market",
+            "sampleSufficiencyReason": "candidate_count_below_100",
+            "candidateGenerationRatePerHour": 1.5,
+            "lowFrequencyConfirmation": None,
+        }
+    )
+    market["candidateGeneration"].update(
+        {"listenerHealth": "healthy", "rpcHealth": "healthy", "cacheHealth": "healthy"}
+    )
+    evidence["listenerStartedAt"] = "2026-08-12T00:00:00+00:00"
+    evidence["listenerStoppedAt"] = "2026-08-12T01:00:00+00:00"
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "market_feasibility_low_frequency_requires_healthy_24h_window" in validation["errors"]
+    assert "market_feasibility_low_frequency_confirmation_missing" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_regime_declared_after_listener_start():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-regime-declared-late",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(),
+    )
+    evidence["listenerStartedAt"] = "2026-08-12T00:00:00+00:00"
+    evidence["marketFeasibility"]["volatilitySummary"]["regimeDefinitionDeclaredAt"] = (
+        "2026-08-12T00:00:01+00:00"
+    )
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "market_feasibility_regime_definition_declared_after_listener_start" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_non_default_threshold_without_approval_history():
+    result = _live_signal_result()
+    result["request"]["manualReviewThresholdBps"] = "7000"
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-threshold-history-missing",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "manual_review_threshold_non_default_without_adjustment_history" in validation["errors"]
+
+
+def test_live_signal_evidence_requires_pre_pause_trigger_source():
+    result = _live_signal_result()
+    result["prePause"] = {
+        "prePause": True,
+        "pauseDetectedAt": "2026-08-12T00:00:00+00:00",
+        "signerBlockedAt": "2026-08-12T00:00:01+00:00",
+        "pausePropagationMs": "1000",
+    }
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-pre-pause-trigger-missing",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "pre_pause_trigger_source_invalid" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_diagnostic_input_claiming_live_evidence():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-2",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(runtime_trades=[]),
+        live_signal_only=False,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "live_signal_semantics_missing" in validation["errors"]
+    assert "runtime_trades_empty" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_empty_runtime_trades_for_live_signal():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-empty-runtime-trades",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(runtime_trades=[]),
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "runtime_trades_empty" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_incomplete_runtime_trade_shape():
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-incomplete-runtime-trades",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=_live_signal_result(
+            runtime_trades=[
+                {"tradeIndex": 0, "tokenX": _addr(500), "tokenY": _addr(501)}
+            ],
+        ),
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "runtime_trade_0_pools_missing" in validation["errors"]
+    assert "runtime_trade_0_pools_empty" in validation["errors"]
+
+
+def test_live_signal_evidence_requires_schema_validation_and_no_positive_profit_claim_without_broadcast():
+    result = _live_signal_result()
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-3",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+        positive_profit_proven=True,
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "positive_profit_claim_without_broadcast" in validation["errors"]
+    assert "schema_validation_missing" not in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_failed_schema_validation():
+    result = _live_signal_result()
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-4",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+    )
+    evidence["schemaValidation"] = {"ok": False, "errors": ["manual_failure"]}
+    evidence["evidenceHash"] = live_evidence.canonical_json_hash(
+        {key: value for key, value in evidence.items() if key != "evidenceHash"}
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "schema_validation_failed" in validation["errors"]
+
+
+def test_live_signal_evidence_rejects_broadcast_in_shadow_mode():
+    result = _live_signal_result(status="submitted_success", submitted=True)
+    evidence = live_evidence.build_unified_live_signal_evidence(
+        run_id="run-shadow-broadcast",
+        signal_detected_at="2026-08-12T00:00:00+00:00",
+        validated_at="2026-08-12T00:00:00.050000+00:00",
+        submitted_or_dropped_at="2026-08-12T00:00:00.060000+00:00",
+        result=result,
+        mode="shadow",
+    )
+
+    validation = live_evidence.validate_unified_live_signal_evidence(evidence)
+
+    assert validation["ok"] is False
+    assert "shadow_broadcast_detected" in validation["errors"]
+
+
 def test_prepare_unified_route_groups_rejects_single_pair_without_diagnostic_flag():
     usdc = _addr(500)
     trade = direct._normalize_runtime_trade(
@@ -866,6 +1658,120 @@ def test_prepare_unified_route_groups_rejects_single_pair_without_diagnostic_fla
     assert prepared == []
     assert rejected[0]["reason"] == "single_pair_diagnostic_disabled"
     assert diagnostic_prepared[0]["routeCheck"]["routeDirection"] == "U-X-U"
+
+
+def test_prepare_unified_route_groups_rejects_explicit_high_risk_token_metadata():
+    usdc = _addr(500)
+    token_x = _addr(501)
+    token_y = _addr(502)
+    groups = [
+        {
+            "routeKey": "AAA:BBB",
+            "routeKind": "usdc_triangular",
+            "tokenRisks": [
+                {"token": token_x, "reentrancyRisk": "high"},
+                {"token": token_y, "decimalTruncationRisk": "low"},
+            ],
+            "trades": [
+                {
+                    "tradeIndex": 0,
+                    "tokenX": usdc,
+                    "tokenY": token_x,
+                    "strategyStatus": 1,
+                    "pools": [{"adapterKind": 1, "pool": _addr(601)}],
+                },
+                {
+                    "tradeIndex": 1,
+                    "tokenX": usdc,
+                    "tokenY": token_y,
+                    "strategyStatus": 2,
+                    "pools": [{"adapterKind": 1, "pool": _addr(602)}],
+                },
+                {
+                    "tradeIndex": 2,
+                    "tokenX": token_x,
+                    "tokenY": token_y,
+                    "strategyStatus": 3,
+                    "pools": [{"adapterKind": 1, "pool": _addr(603)}],
+                },
+            ],
+        }
+    ]
+
+    prepared, rejected = direct._prepare_unified_route_groups(groups, usdc_address=usdc)
+
+    assert prepared == []
+    assert rejected[0]["reason"] == "token_risk_broadcast_disabled"
+    assert rejected[0]["tokenRisk"]["blocked"][0]["token"] == token_x
+
+
+def test_prepare_unified_route_groups_requires_complete_token_risk_metadata_for_broadcast():
+    usdc = _addr(500)
+    token_x = _addr(501)
+    token_y = _addr(502)
+    groups = [
+        {
+            "routeKey": "AAA:BBB",
+            "routeKind": "usdc_triangular",
+            "tokenRisks": [{"token": usdc, "reentrancyRisk": "low"}],
+            "trades": [
+                {
+                    "tradeIndex": 0,
+                    "tokenX": usdc,
+                    "tokenY": token_x,
+                    "strategyStatus": 1,
+                    "pools": [{"adapterKind": 1, "pool": _addr(601)}],
+                },
+                {
+                    "tradeIndex": 1,
+                    "tokenX": usdc,
+                    "tokenY": token_y,
+                    "strategyStatus": 2,
+                    "pools": [{"adapterKind": 1, "pool": _addr(602)}],
+                },
+                {
+                    "tradeIndex": 2,
+                    "tokenX": token_x,
+                    "tokenY": token_y,
+                    "strategyStatus": 3,
+                    "pools": [{"adapterKind": 1, "pool": _addr(603)}],
+                },
+            ],
+        }
+    ]
+
+    prepared, rejected = direct._prepare_unified_route_groups(
+        groups,
+        usdc_address=usdc,
+        require_token_risk_metadata=True,
+    )
+
+    assert prepared == []
+    assert rejected[0]["reason"] == "token_risk_metadata_missing"
+    assert set(rejected[0]["tokenRisk"]["missingTokens"]) == {token_x, token_y}
+
+
+def test_runtime_route_group_candidates_preserve_explicit_risk_and_penalty_metadata():
+    usdc = _addr(500)
+    groups = direct._runtime_route_group_candidates(
+        {
+            "runtime_trades": [
+                {
+                    "tradeIndex": 0,
+                    "tokenX": usdc,
+                    "tokenY": _addr(501),
+                    "pools": [{"adapterKind": 1, "pool": _addr(601)}],
+                }
+            ],
+            "tokenRisks": [{"token": _addr(501), "reentrancyRisk": "low"}],
+            "slippageRiskPenaltyUsdc": "250000",
+            "routeCorrelationPenaltyUsdc": "500000",
+        }
+    )
+
+    assert groups[0]["tokenRisks"][0]["reentrancyRisk"] == "low"
+    assert groups[0]["slippageRiskPenaltyUsdc"] == "250000"
+    assert groups[0]["routeCorrelationPenaltyUsdc"] == "500000"
 
 
 def test_unified_route_group_check_accepts_single_usdc_cross_pool_trade():
@@ -958,6 +1864,81 @@ def test_unified_route_group_selection_uses_net_profit_when_gas_model_is_supplie
     assert [item["netProfit"]["netProfit"] for item in evaluations] == ["90", "20"]
 
 
+def test_unified_route_group_selection_applies_slippage_and_correlation_penalties():
+    usdc = _addr(500)
+    groups = [
+        {
+            "groupIndex": 0,
+            "routeKey": "USDC:AAA",
+            "routeKind": "usdc_cross_pool",
+            "slippageRiskPenaltyUsdc": 30,
+            "routeCorrelationPenaltyUsdc": 20,
+        },
+        {
+            "groupIndex": 1,
+            "routeKey": "USDC:BBB",
+            "routeKind": "usdc_cross_pool",
+        },
+    ]
+
+    def preview(expected_profit: int):
+        hop = (0, usdc, usdc, _addr(601), 0, 0, 0, 0)
+        return (
+            True,
+            1,
+            3,
+            0,
+            (True, 0, usdc, _addr(501), _addr(601), _addr(602), 500, 3000, 1, 1, -1, 1, 2, 2, 0),
+            (usdc, usdc, 1_000_000, 0, 0, b"", 1_000_000 + expected_profit, 500, 1_000_000, 1_000_000, 1, expected_profit),
+            (0, 0, 0, (hop, hop, hop), 0, 0, 0, 0),
+            (1101, 1, 1, 1, 1, 0, 0, ((1, 2, 0, 0, 1101, 0, 0, 0, usdc, expected_profit, 1_000_000, 1_000_000),) * 5),
+        )
+
+    selected, _report, evaluations = direct._select_best_unified_route_group(
+        groups,
+        usdc_address=usdc,
+        preview_group=lambda _group: preview(100),
+    )
+
+    assert selected["routeKey"] == "USDC:BBB"
+    assert evaluations[0]["netProfit"]["slippageRiskPenaltyUsdc"] == "30"
+    assert evaluations[0]["netProfit"]["routeCorrelationPenaltyUsdc"] == "20"
+    assert [item["netProfit"]["netProfit"] for item in evaluations] == ["50", "100"]
+
+
+def test_unified_route_group_selection_applies_public_mempool_risk_penalty():
+    usdc = _addr(500)
+    groups = [{"groupIndex": 0, "routeKey": "USDC:AAA", "routeKind": "usdc_cross_pool"}]
+
+    def preview(expected_profit: int):
+        hop = (0, usdc, usdc, _addr(601), 0, 0, 0, 0)
+        return (
+            True,
+            1,
+            3,
+            0,
+            (True, 0, usdc, _addr(501), _addr(601), _addr(602), 500, 3000, 1, 1, -1, 1, 2, 2, 0),
+            (usdc, usdc, 1_000_000, 0, 0, b"", 1_001_000, 500, 1_000_000, 1_000_000, 1, expected_profit),
+            (0, 0, 0, (hop, hop, hop), 0, 0, 0, 0),
+            (1101, 1, 1, 1, 1, 0, 0, ((1, 2, 0, 0, 1101, 0, 0, 0, usdc, expected_profit, 1_000_000, 1_000_000),) * 5),
+        )
+
+    selected, _report, evaluations = direct._select_best_unified_route_group(
+        groups,
+        usdc_address=usdc,
+        preview_group=lambda _group: preview(1_000),
+        public_mempool_risk_penalty_usdc=100,
+        public_mempool_risk_penalty_bps=1_000,
+    )
+
+    assert selected["routeKey"] == "USDC:AAA"
+    assert evaluations[0]["netProfit"]["publicMempoolRiskPenaltyFixedUsdc"] == "100"
+    assert evaluations[0]["netProfit"]["publicMempoolRiskPenaltyBps"] == "1000"
+    assert evaluations[0]["netProfit"]["publicMempoolRiskPenaltyBpsUsdc"] == "100"
+    assert evaluations[0]["netProfit"]["publicMempoolRiskPenaltyUsdc"] == "200"
+    assert evaluations[0]["netProfit"]["netProfit"] == "800"
+
+
 def test_legacy_direct_onchain_path_is_disabled():
     result = direct._submit_legacy_direct_onchain_trade(
         quote_payload={"cow_flashloan_intent": {"direct_onchain_protocol": {"enabled": True}}},
@@ -1002,6 +1983,36 @@ def test_private_tx_can_disable_public_fallback(monkeypatch):
 
     assert result["broadcast_channel"] == "not_broadcast"
     assert result["tx_hash"] is None
+
+
+def test_delivery_policy_requires_explicit_private_relay_research(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    default_policy = direct._delivery_policy_report({}, {})
+    explicit_policy = direct._delivery_policy_report(
+        {"privateRelayResearchEnabled": True, "allowPublicFallback": True},
+        {},
+    )
+
+    assert default_policy["mode"] == "public_rpc_direct_after_fresh_gates"
+    assert default_policy["privateFirst"] is False
+    assert default_policy["publicFallbackRequested"] is False
+    assert default_policy["privacyBoundary"] == "deferred_to_cow_or_intent_layer"
+    assert explicit_policy["mode"] == "private_relay_research"
+    assert explicit_policy["privateRelayResearchEnabled"] is True
+    assert explicit_policy["privateFirst"] is True
+    assert explicit_policy["publicFallbackRequested"] is True
+    assert explicit_policy["privacyBoundary"] == "operator_supplied_private_rpc_research_only"
+
+
+def test_delivery_cost_input_alias_takes_precedence_over_deprecated_relay_cost(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    assert direct._relay_cost_wei({"relayCostWei": "1", "deliveryCostWei": "2"}, {}) == 2
+
+    monkeypatch.setenv("UNIFIED_EXECUTOR_RELAY_COST_WEI", "3")
+    monkeypatch.setenv("UNIFIED_EXECUTOR_DELIVERY_COST_WEI", "4")
+    assert direct._relay_cost_wei({}, {}) == 4
 
 
 def test_direct_circuit_breaker_persists_threshold_pause(monkeypatch, tmp_path):
@@ -1169,6 +2180,9 @@ def test_selected_strategy_status_maps_xy_cross_pool_and_triangular_fallback():
     assert direct._selected_strategy_status(xy_trade, execution_mode="triangular", execution_kind=1) == 4
     assert direct._selected_strategy_status({"strategyStatus": 5}, execution_mode="triangular", execution_kind=1) == 5
     assert direct._selected_strategy_status(None, execution_mode="auto", execution_kind=None) == 55555
+    assert direct._SELECTED_STRATEGY_STATUS_TRANSLATION[("auto", 1, 3)] == 4
+    assert direct._SELECTED_STRATEGY_STATUS_TRANSLATION[("auto", 2, 3)] == 3
+    assert direct._SELECTED_STRATEGY_STATUS_TRANSLATION[("triangular", 1, 3)] == 4
 
 
 def test_runtime_trade_candidates_keep_input_order_and_cap_at_top_five(monkeypatch):
@@ -1438,6 +2452,60 @@ def test_gas_token_price_report_accepts_unix_timestamp():
 
     assert report["ok"] is True
     assert report["priceMicro"] == "25000000"
+
+
+def test_gas_token_price_report_requires_healthy_multi_source_for_broadcast():
+    now = datetime(2026, 8, 12, 0, 2, tzinfo=timezone.utc)
+    sources = [
+        {"id": "chainlink_avax_usd", "kind": "chainlink-derived", "priceUsdc": "25.00", "updatedAt": "2026-08-12T00:01:50Z"},
+        {"id": "independent_quote", "kind": "independent", "priceUsdc": "25.01", "updatedAt": "2026-08-12T00:01:55Z"},
+    ]
+
+    report = direct._gas_token_usdc_price_report(
+        {
+            "priceSourcePolicy": "multi-source-median",
+            "priceSources": sources,
+            "gasTokenPriceMaxAgeSeconds": 60,
+            "priceMaxDeviationBps": 20,
+        },
+        now=now,
+        require_production_sources=True,
+    )
+    blocked = direct._gas_token_usdc_price_report(
+        {"priceSourcePolicy": "diagnostic-single-source", "priceSources": [sources[0]]},
+        now=now,
+        require_production_sources=True,
+    )
+
+    assert report["ok"] is True
+    assert report["priceSourceCount"] == "2"
+    assert report["priceSourcePolicy"] == "multi-source-median"
+    assert blocked["reason"] == "gas_token_price_source_health_failed"
+
+
+def test_direct_pre_pause_persists_and_blocks_new_broadcasts(tmp_path):
+    path = tmp_path / "direct_pre_pause.json"
+
+    active = direct.set_direct_pre_pause(
+        True,
+        reason="drill",
+        set_by="test",
+        pause_trigger_source="watchdog",
+        pause_detected_at="2026-08-13T00:00:00+00:00",
+        blocked_candidate_count=3,
+        path=path,
+    )
+    cleared = direct.set_direct_pre_pause(False, reason="manual_resume", set_by="test", path=path)
+
+    assert active["prePause"] is True
+    assert active["reason"] == "drill"
+    assert active["pauseTriggerSource"] == "watchdog"
+    assert active["pauseDetectedAt"] == "2026-08-13T00:00:00+00:00"
+    assert active["signerBlockedAt"] >= active["pauseDetectedAt"]
+    assert int(active["pausePropagationMs"]) >= 0
+    assert active["blockedCandidateCount"] == "3"
+    assert cleared["prePause"] is False
+    assert cleared["reason"] == "manual_resume"
 
 
 def test_cache_risk_penalty_adds_per_block_age(monkeypatch):

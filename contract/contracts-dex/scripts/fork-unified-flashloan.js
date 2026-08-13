@@ -3,6 +3,7 @@ const path = require("path");
 const hre = require("hardhat");
 const { AVALANCHE_V3_PROFILE } = require("./preflight-unified-flashloan");
 const { readbackUnifiedExecutor } = require("./readback-unified-flashloan");
+const { resultError } = require("./unified-error-decoder");
 const executorArtifact = require("../artifacts/src/UnifiedFlashLoanMevExecutor.sol/UnifiedFlashLoanMevExecutor.json");
 
 const DEFAULT_AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
@@ -85,19 +86,26 @@ function tokenBorrowParams(usdcParams) {
   };
 }
 
-function resultError(error) {
-  return {
-    message: error?.shortMessage || error?.message || String(error),
-    data: error?.data || error?.info?.error?.data || error?.error?.data || null,
-  };
-}
-
 function jsonReplacer(_key, value) {
   return typeof value === "bigint" ? value.toString() : value;
 }
 
 function stringifyReport(report) {
   return JSON.stringify(report, jsonReplacer, 2);
+}
+
+function evidenceStamp() {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.(\d+)Z$/, "$1Z");
+  return `${stamp}-${process.pid}`;
+}
+
+function evidenceSemantics() {
+  return {
+    historicalForkOnly: true,
+    purpose: "replay normalized RuntimeTradeSpec inputs and validate execution-path behavior on a pinned fork",
+    doesNotProveLiveProfitOpportunity: true,
+    positiveProfitWindowsCanBeSubBlockAndMustBeCapturedFromFreshRuntimeSignal: true,
+  };
 }
 
 function forkCallOverrides() {
@@ -254,8 +262,7 @@ async function prefixDiagnostics(executor, trades, usdcParams, tokenParams, enab
 }
 
 function writeEvidence(report) {
-  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "Z");
-  const dir = path.resolve(__dirname, "../deployments/evidence", `${stamp}_${hre.network.name}-unified-fork`);
+  const dir = path.resolve(__dirname, "../deployments/evidence", `${evidenceStamp()}_${hre.network.name}-unified-fork`);
   fs.mkdirSync(dir, { recursive: true });
   const reportPath = path.join(dir, "report.json");
   fs.writeFileSync(reportPath, `${stringifyReport(report)}\n`, "utf8");
@@ -282,6 +289,7 @@ async function main() {
     },
     candidateSource: runtimeTradesPath() || (process.env.UNIFIED_FORK_RUNTIME_TRADES_JSON ? "env" : ""),
     candidateTradeCount: trades.length,
+    evidenceSemantics: evidenceSemantics(),
     runtimeTrades: trades,
     ready: false,
   };
@@ -340,5 +348,7 @@ if (require.main === module) {
 module.exports = {
   loadRuntimeTrades,
   normalizeTrade,
+  evidenceSemantics,
+  resultError,
   runCandidate,
 };

@@ -1,9 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T12:24:10.920Z",
+  "generatedAt": "2026-08-12T13:25:15.756Z",
   "network": "avalanche",
   "chainId": 43114,
   "forkBlockNumber": 92615445,
+  "evidenceSemantics": {
+    "historicalForkOnly": true,
+    "purpose": "runtime trade template replay and execution-path rehearsal",
+    "doesNotProveLiveProfitOpportunity": true,
+    "liveProfitOpportunityMustBeCapturedFromFreshRuntimeSignal": true
+  },
   "sourceCache": {
     "file": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
     "sha256": "12306d474e6601ac5bda2bc6370200890264cdae2e611ff3f4b7dcb70423fcc5",

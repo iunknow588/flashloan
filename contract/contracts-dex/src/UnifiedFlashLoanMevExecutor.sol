@@ -139,6 +139,7 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
 
     uint256 internal constant MAX_POOLS_PER_TRADE = 5;
     uint256 internal constant MAX_ORDERED_TRADE_INPUTS = 4;
+    uint256 internal constant MAX_QUOTER_CALL_GAS = 2_500_000;
 
     struct AdapterConfig {
         bool allowed;
@@ -1125,7 +1126,7 @@ contract UnifiedFlashLoanMevExecutor is IFlashLoanSimpleReceiverUnified {
         returns (bool ok, uint256 amountOut)
     {
         (bool returned, bytes memory data) =
-            quoter.staticcall(
+            quoter.staticcall{gas: MAX_QUOTER_CALL_GAS}(
                 abi.encodeWithSelector(
                     IV3QuoterUnifiedLike.quoteExactInput.selector,
                     path,

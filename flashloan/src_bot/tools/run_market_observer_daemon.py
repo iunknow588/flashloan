@@ -29,7 +29,8 @@ def configure_market_observer_env() -> dict[str, str]:
         "AAVE_VERIFICATION_ENABLED": os.getenv("AAVE_VERIFICATION_ENABLED", "true"),
         "REPORT_ONLY_ALERTS": os.getenv("REPORT_ONLY_ALERTS", "true"),
         "COW_REALTIME_QUOTE_ENABLED": "true",
-        "COW_ORDER_SUBMISSION_ENABLED": os.getenv("COW_ORDER_SUBMISSION_ENABLED", "true"),
+        # G-07a is observation and quote collection only; never enable CoW submission here.
+        "COW_ORDER_SUBMISSION_ENABLED": "false",
         "COW_REALTIME_QUOTE_COOLDOWN_SECONDS": os.getenv("COW_REALTIME_QUOTE_COOLDOWN_SECONDS", "0.25"),
         "COW_REALTIME_QUOTE_MAX_INFLIGHT": os.getenv("COW_REALTIME_QUOTE_MAX_INFLIGHT", "2"),
         "COW_FLASHLOAN_PURE_INTENT_ENABLED": os.getenv("COW_FLASHLOAN_PURE_INTENT_ENABLED", "true"),

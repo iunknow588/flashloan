@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { AVALANCHE_V3_PROFILE } = require("./preflight-unified-flashloan");
+const { resultError } = require("./unified-error-decoder");
 
 const DEFAULT_AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD";
 const DEFAULT_USDC = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E";
@@ -46,6 +47,20 @@ function jsonReplacer(_key, value) {
 
 function stringifyReport(value) {
   return JSON.stringify(value, jsonReplacer, 2);
+}
+
+function evidenceStamp() {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.(\d+)Z$/, "$1Z");
+  return `${stamp}-${process.pid}`;
+}
+
+function evidenceSemantics() {
+  return {
+    historicalForkOnly: true,
+    purpose: "enumerate runtime trade templates against a pinned pool-cache snapshot",
+    doesNotProveLiveProfitOpportunity: true,
+    positiveProfitWindowsCanBeSubBlockAndMustBeCapturedFromFreshRuntimeSignal: true,
+  };
 }
 
 function cachePath() {
@@ -103,6 +118,13 @@ function isStableSymbol(symbol) {
   return STABLE_SYMBOLS.has(String(symbol || "").trim().toUpperCase());
 }
 
+function exerciseTargetConfig() {
+  return {
+    includeStable: envBool("UNIFIED_FORK_SCAN_INCLUDE_STABLE", false),
+    allowSinglePairDiagnostic: envBool("UNIFIED_FORK_ALLOW_SINGLE_PAIR_DIAGNOSTIC", false),
+  };
+}
+
 function buildTrade(index, left, right, row) {
   const pools = row.pools.slice(0, 5);
   while (pools.length < 5) pools.push({ adapterKind: 0, pool: ZERO_ADDRESS });
@@ -121,8 +143,7 @@ function candidateGroups(cache) {
   if (!["triangular", "single_pair", "all"].includes(mode)) {
     throw new Error(`UNIFIED_FORK_SCAN_MODE must be triangular, single_pair, or all; got ${mode}`);
   }
-  const includeStable = envBool("UNIFIED_FORK_SCAN_INCLUDE_STABLE", false);
-  const allowSinglePairDiagnostic = envBool("UNIFIED_FORK_ALLOW_SINGLE_PAIR_DIAGNOSTIC", false);
+  const { includeStable, allowSinglePairDiagnostic } = exerciseTargetConfig();
   const tokens = new Map();
   for (const row of rows.values()) {
     for (const [address, symbol] of [
@@ -142,24 +163,24 @@ function candidateGroups(cache) {
         );
       }
     } else {
-    for (const x of entries) {
-      if (!includeStable && isStableSymbol(x.symbol)) continue;
-      const ux = findPair(rows, usdc, x.address);
-      if (!ux || ux.pools.length < 2) continue;
-      result.push({
-        route: `USDC/${x.symbol}`,
-        mode: "single_pair",
-        exerciseTargetPolicy: "single-pair-diagnostic",
-        usdc,
-        tokenX: x.address,
-        tokenY: "",
-        tokenXSymbol: x.symbol,
-        tokenYSymbol: "",
-        trades: [
-          buildTrade(0, usdc, x.address, ux),
-        ],
-      });
-    }
+      for (const x of entries) {
+        if (!includeStable && isStableSymbol(x.symbol)) continue;
+        const ux = findPair(rows, usdc, x.address);
+        if (!ux || ux.pools.length < 2) continue;
+        result.push({
+          route: `USDC/${x.symbol}`,
+          mode: "single_pair",
+          exerciseTargetPolicy: "single-pair-diagnostic",
+          usdc,
+          tokenX: x.address,
+          tokenY: "",
+          tokenXSymbol: x.symbol,
+          tokenYSymbol: "",
+          trades: [
+            buildTrade(0, usdc, x.address, ux),
+          ],
+        });
+      }
     }
   }
   if (mode === "single_pair") return result;
@@ -260,17 +281,13 @@ async function scanCandidate(executor, candidate, amount, minProfit, enableNonUs
       requiredFinal: preview.executionPreview.requiredFinal.toString(),
     };
   } catch (error) {
-    report.previewError = {
-      message: error?.shortMessage || error?.message || String(error),
-      data: error?.data || error?.info?.error?.data || null,
-    };
+    report.previewError = resultError(error);
   }
   return report;
 }
 
 function writeReport(report) {
-  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "Z");
-  const dir = path.resolve(__dirname, "../deployments/evidence", `${stamp}_hardhat-unified-scan`);
+  const dir = path.resolve(__dirname, "../deployments/evidence", `${evidenceStamp()}_hardhat-unified-scan`);
   fs.mkdirSync(dir, { recursive: true });
   const output = path.join(dir, "report.json");
   fs.writeFileSync(output, `${stringifyReport(report)}\n`, "utf8");
@@ -284,6 +301,7 @@ async function main() {
   const network = await hre.ethers.provider.getNetwork();
   if (network.chainId !== 43114n) throw new Error(`expected Avalanche fork chainId 43114, got ${network.chainId}`);
   const { payload: cache, file } = loadCache();
+  const { includeStable, allowSinglePairDiagnostic } = exerciseTargetConfig();
   const candidates = candidateGroups(cache);
   const scanAmounts = amounts();
   const scanMinProfit = envBigInt("UNIFIED_FORK_SCAN_MIN_PROFIT_USDC", "1");
@@ -303,6 +321,7 @@ async function main() {
     blockNumber: await hre.ethers.provider.getBlockNumber(),
     cacheFile: file,
     cacheBlockNumber: cache.block_number,
+    evidenceSemantics: evidenceSemantics(),
     exerciseTargetPolicy: includeStable ? "stable-target-diagnostic-enabled" : "non-stable-pair-only",
     includeStableExerciseTargets: includeStable,
     singlePairDiagnosticEnabled: allowSinglePairDiagnostic,
@@ -330,7 +349,10 @@ if (require.main === module) {
 
 module.exports = {
   candidateGroups,
+  evidenceSemantics,
+  exerciseTargetConfig,
   isStableSymbol,
   loadCache,
+  resultError,
   scanCandidate,
 };

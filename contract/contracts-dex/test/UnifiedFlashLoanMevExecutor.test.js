@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { DECODED_SCHEMA_VERSION, decodeUnifiedExecutorError, detailReason, resultError } = require("../scripts/unified-error-decoder");
 
 const STRATEGY = {
   adapterUniswapV3: 1n,
@@ -12,6 +13,7 @@ const STRATEGY = {
   statusXyUsdcFallback: 4n,
   errNotEnoughPools: 1n,
   errNoPriceSpread: 2n,
+  errQuoteFailed: 3n,
   errBorrowAssetDisabled: 5n,
   errRouteLayoutInvalid: 6n,
   errNoProfitableRoute: 55555n,
@@ -280,6 +282,56 @@ describe("UnifiedFlashLoanMevExecutor ordered U-x-y-U strategy", function () {
     await expect(ctx.executor.runOrderedRuntimeTradesAndExecuteAuto(trades, usdcParams, tokenBorrowParams, false))
       .to.be.revertedWithCustomError(ctx.executor, "OrderedRuntimeExecutionFailed")
       .withArgs(55555n, 5n, 3n, STRATEGY.errNotEnoughPools, 0n, 0n, 0n, 0b11111, 0n);
+  });
+
+  it("contains quoter gas exhaustion as a structured quote failure", async function () {
+    const ctx = await deployFixture();
+    const { trades } = await buildTriangularTrades(ctx);
+    await setStatus4Rates(ctx);
+    await ctx.router.setQuoteMinGas(ctx.usdcAddress, ctx.xAddress, 3_000_000n);
+    const { usdcParams, tokenBorrowParams } = await executionParams();
+
+    const preview = await ctx.executor.previewOrderedRuntimeAutoExecution.staticCall(
+      trades,
+      usdcParams,
+      tokenBorrowParams,
+      false,
+      { gasLimit: 8_000_000n },
+    );
+
+    expect(preview.found).to.equal(false);
+    expect(preview.progress.finalResultCode).to.equal(STRATEGY.errNoProfitableRoute);
+    expect(preview.progress.steps[0].detailCode).to.equal(STRATEGY.errQuoteFailed);
+    expect(preview.progress.steps[3].detailCode).to.equal(STRATEGY.errQuoteFailed);
+  });
+
+  it("decodes ordered runtime custom errors for fork evidence reports", async function () {
+    const error = ethers.AbiCoder.defaultAbiCoder().encode(
+      ["uint256", "uint256", "uint256", "uint256", "int256", "uint256", "uint256", "uint8", "uint8"],
+      [55555n, 5n, 3n, STRATEGY.errQuoteFailed, -505n, 999_996n, 1_000_501n, 0b11111, 0],
+    );
+    const selector = ethers.id(
+      "OrderedRuntimeExecutionFailed(uint256,uint256,uint256,uint256,int256,uint256,uint256,uint8,uint8)",
+    ).slice(0, 10);
+    const decoded = decodeUnifiedExecutorError(`${selector}${error.slice(2)}`);
+
+    expect(decoded.name).to.equal("OrderedRuntimeExecutionFailed");
+    expect(decoded.code).to.equal("55555");
+    expect(decoded.codeReason).to.equal("ERR_NO_PROFITABLE_ROUTE");
+    expect(decoded.failedStatus).to.equal("5");
+    expect(decoded.tradeArrayIndex).to.equal("3");
+    expect(decoded.detailCode).to.equal("3");
+    expect(decoded.detailReason).to.equal("ERR_QUOTE_FAILED");
+    expect(decoded.expectedProfit).to.equal("-505");
+    expect(decoded.quotedFinal).to.equal("999996");
+    expect(decoded.requiredFinal).to.equal("1000501");
+    expect(decoded.attemptedStatusMask).to.equal("31");
+    expect(decoded.remainingStatusMask).to.equal("0");
+    expect(detailReason(999)).to.equal("ERR_UNKNOWN");
+
+    const reportError = resultError({ shortMessage: "reverted", data: `${selector}${error.slice(2)}` });
+    expect(reportError.decodedSchemaVersion).to.equal(DECODED_SCHEMA_VERSION);
+    expect(reportError.decoded.detailReason).to.equal("ERR_QUOTE_FAILED");
   });
 
   it("can choose direct token cross-pool status 3 when token borrowing is explicitly enabled", async function () {

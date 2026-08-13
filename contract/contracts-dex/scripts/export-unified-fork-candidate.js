@@ -53,6 +53,15 @@ function allowStableTargets() {
   return String(process.env.UNIFIED_FORK_ALLOW_STABLE_TARGETS || "").trim().toLowerCase() === "true";
 }
 
+function evidenceSemantics() {
+  return {
+    historicalForkOnly: true,
+    purpose: "runtime trade template replay and execution-path rehearsal",
+    doesNotProveLiveProfitOpportunity: true,
+    liveProfitOpportunityMustBeCapturedFromFreshRuntimeSignal: true,
+  };
+}
+
 function rowSymbols(row) {
   return [normalizedSymbol(row?.tokenX_symbol), normalizedSymbol(row?.tokenY_symbol)];
 }
@@ -119,6 +128,7 @@ function buildCandidate(cache, rawCache, tokenXSymbol, tokenYSymbol) {
       network: "avalanche",
       chainId: 43114,
       forkBlockNumber: Number(cache.block_number),
+      evidenceSemantics: evidenceSemantics(),
       sourceCache: {
         file: cachePath(),
         sha256: crypto.createHash("sha256").update(rawCache).digest("hex"),
@@ -170,6 +180,7 @@ function buildCandidate(cache, rawCache, tokenXSymbol, tokenYSymbol) {
     network: "avalanche",
     chainId: 43114,
     forkBlockNumber: Number(cache.block_number),
+    evidenceSemantics: evidenceSemantics(),
     sourceCache: {
       file: cachePath(),
       sha256: crypto.createHash("sha256").update(rawCache).digest("hex"),
@@ -226,6 +237,7 @@ if (require.main === module) {
 
 module.exports = {
   buildCandidate,
+  evidenceSemantics,
   findPair,
   isStableSymbol,
   runtimeTrade,

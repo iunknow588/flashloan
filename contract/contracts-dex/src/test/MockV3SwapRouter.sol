@@ -40,6 +40,7 @@ contract MockV3SwapRouter {
     mapping(address => mapping(address => Rate)) public rates;
     mapping(address => mapping(address => uint256)) public maxAmountIn;
     mapping(address => mapping(address => uint256)) public impactBpsPerUnit;
+    mapping(address => mapping(address => uint256)) public quoteMinGas;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -64,6 +65,10 @@ contract MockV3SwapRouter {
 
     function setImpactBpsPerUnit(address tokenIn, address tokenOut, uint256 impactBps) external onlyOwner {
         impactBpsPerUnit[tokenIn][tokenOut] = impactBps;
+    }
+
+    function setQuoteMinGas(address tokenIn, address tokenOut, uint256 minGas) external onlyOwner {
+        quoteMinGas[tokenIn][tokenOut] = minGas;
     }
 
     function quoteExactInput(bytes calldata path, uint256 amountIn)
@@ -100,6 +105,8 @@ contract MockV3SwapRouter {
     }
 
     function _quoteHop(address tokenIn, address tokenOut, uint256 amountIn) private view returns (uint256 amountOut) {
+        uint256 minGas = quoteMinGas[tokenIn][tokenOut];
+        if (minGas != 0 && gasleft() < minGas) revert RateNotSet();
         Rate memory rate = rates[tokenIn][tokenOut];
         if (rate.numerator == 0 || rate.denominator == 0) revert RateNotSet();
         uint256 maxIn = maxAmountIn[tokenIn][tokenOut];

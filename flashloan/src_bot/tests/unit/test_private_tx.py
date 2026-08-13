@@ -40,17 +40,34 @@ def test_private_relay_summary_documents_optional_avalanche_channel():
     summary = private_relay_research_summary()
 
     assert summary["chain"] == "Avalanche C-Chain"
-    assert summary["status"] == "optional_endpoint_required"
+    assert summary["status"] == "deferred_research_optional"
     assert "LIQUIDATION_PRIVATE_RPC_URLS" in summary["config"]
+    assert summary["currentDelivery"] == "public_rpc_direct_after_fresh_gates"
+    assert summary["fallback"] == "public_fallback_requires_explicit_opt_in_and_revalidation"
 
 
-def test_private_broadcast_falls_back_to_public_rpc_when_no_relays():
+def test_private_broadcast_does_not_public_fallback_by_default():
     public_w3 = FakeWeb3("0xpublic")
 
     result = send_raw_transaction_private_first(
         b"raw",
         public_w3=public_w3,
         relay_urls="",
+    )
+
+    assert result["tx_hash"] is None
+    assert result["broadcast_channel"] == "not_broadcast"
+    assert public_w3.eth.sent == []
+
+
+def test_private_broadcast_public_fallback_requires_explicit_opt_in():
+    public_w3 = FakeWeb3("0xpublic")
+
+    result = send_raw_transaction_private_first(
+        b"raw",
+        public_w3=public_w3,
+        relay_urls="",
+        allow_public_fallback=True,
     )
 
     assert result["tx_hash"] == "0xpublic"
@@ -80,7 +97,11 @@ def test_private_broadcast_redacts_relay_errors(monkeypatch):
     monkeypatch.setattr(private_tx, "Web3", FailingRelayWeb3)
     public_w3 = FakeWeb3("0xpublic")
 
-    result = send_raw_transaction_private_first(b"raw", public_w3=public_w3)
+    result = send_raw_transaction_private_first(
+        b"raw",
+        public_w3=public_w3,
+        allow_public_fallback=True,
+    )
     error = result["relay_errors"][0]["error"]
 
     assert result["tx_hash"] == "0xpublic"
@@ -88,3 +109,21 @@ def test_private_broadcast_redacts_relay_errors(monkeypatch):
     assert private_key not in error
     assert "abc123" not in error
     assert "[REDACTED]" in error
+    assert result["private_relay_metrics"][0]["status"] == "relay_error"
+
+
+def test_private_broadcast_defers_public_fallback_for_fresh_revalidation():
+    public_w3 = FakeWeb3("0xpublic")
+
+    result = send_raw_transaction_private_first(
+        b"raw",
+        public_w3=public_w3,
+        relay_urls="",
+        allow_public_fallback=True,
+        defer_public_fallback=True,
+        target_block=123,
+    )
+
+    assert result["tx_hash"] is None
+    assert result["status"] == "public_fallback_revalidation_required"
+    assert public_w3.eth.sent == []

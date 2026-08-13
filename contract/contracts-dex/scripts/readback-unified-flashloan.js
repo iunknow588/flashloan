@@ -91,9 +91,13 @@ async function readbackUnifiedExecutor(executorAddress = "") {
   };
 }
 
+function evidenceStamp() {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.(\d+)Z$/, "$1Z");
+  return `${stamp}-${process.pid}`;
+}
+
 function writeEvidence(report) {
-  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "Z");
-  const dir = path.resolve(__dirname, "../deployments/evidence", `${stamp}_${hre.network.name}-unified-readback`);
+  const dir = path.resolve(__dirname, "../deployments/evidence", `${evidenceStamp()}_${hre.network.name}-unified-readback`);
   fs.mkdirSync(dir, { recursive: true });
   const reportPath = path.join(dir, "report.json");
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");

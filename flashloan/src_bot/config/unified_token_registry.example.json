@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "replace-with-reviewed-version",
+  "chainId": 43114,
+  "canonicalHash": "optional-sha256-of-registry-without-hash-or-signature-fields",
+  "tokens": [
+    {
+      "token": "0x0000000000000000000000000000000000000000",
+      "symbol": "REPLACE",
+      "decimals": 18,
+      "approveBehavior": "review_required",
+      "transferBehavior": "standard_only",
+      "aaveBorrowEnabled": false,
+      "poolCacheVerifiedAt": "",
+      "role": "intermediate",
+      "reentrancyRisk": "low",
+      "decimalTruncationRisk": "low",
+      "reviewedAt": "",
+      "expiresAt": ""
+    }
+  ]
+}
