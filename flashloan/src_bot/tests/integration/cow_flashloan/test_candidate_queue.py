@@ -441,7 +441,7 @@ def test_default_quote_candidate_submits_when_precheck_enters_live_submit_state(
         },
     )
     monkeypatch.setattr(
-        "cow_flashloan.order_submission.submit_cow_flashloan_order",
+        "runtime.cow_arbitrage_daemon.submit_cow_intent_trade",
         lambda **kwargs: {
             "status": "submitted_success",
             "submitted": True,
@@ -508,7 +508,7 @@ def test_default_quote_candidate_respects_submission_pause_guard(monkeypatch):
     )
     called = {}
     monkeypatch.setattr(
-        "cow_flashloan.order_submission.submit_cow_flashloan_order",
+        "runtime.cow_arbitrage_daemon.submit_cow_intent_trade",
         lambda **kwargs: called.setdefault("called", True),
     )
 
