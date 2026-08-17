@@ -12,34 +12,75 @@ DEFAULT_AVALANCHE_ROUTER_ADDRESS = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4"
 DEFAULT_BNB_MARKET_ID = "bnb-venus-core"
 DEFAULT_BNB_CHAIN_ID = 56
 DEFAULT_BNB_PANCAKE_ROUTER_ADDRESS = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+DEFAULT_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
+DEFAULT_ROBINHOOD_CHAIN_ID = 4663
+DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID = 46630
+DEFAULT_ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+DEFAULT_ROBINHOOD_MULTICALL_ADDRESS = "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
+DEFAULT_ROBINHOOD_EXPLORER_URL = "https://robinhoodchain.blockscout.com"
 
 
 KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
     DEFAULT_AVALANCHE_MARKET_ID: {
+        "feature": "liquidation",
+        "display_name": "Avalanche Aave V3 Liquidation",
         "network": "avalanche",
         "chain_id": DEFAULT_AVALANCHE_CHAIN_ID,
         "native_symbol": "AVAX",
         "protocol": "aave_v3",
         "rpc_env_prefixes": ("AVALANCHE",),
+        "observation_only": False,
+        "migration_type": "config_and_new_executor_deployment",
     },
     "bnb-aave-v3": {
+        "feature": "liquidation",
+        "display_name": "BNB Aave V3 Liquidation",
         "network": "bnb",
         "chain_id": DEFAULT_BNB_CHAIN_ID,
         "native_symbol": "BNB",
         "protocol": "aave_v3",
         "rpc_env_prefixes": ("BNB", "BSC"),
+        "observation_only": False,
+        "migration_type": "config_and_new_executor_deployment",
     },
     DEFAULT_BNB_MARKET_ID: {
+        "feature": "liquidation",
+        "display_name": "BNB Venus Core Liquidation",
         "network": "bnb",
         "chain_id": DEFAULT_BNB_CHAIN_ID,
         "native_symbol": "BNB",
         "protocol": "venus_core",
         "rpc_env_prefixes": ("BNB", "BSC"),
+        "observation_only": True,
+        "migration_type": "config_and_new_executor_deployment",
+    },
+    DEFAULT_ROBINHOOD_DEX_MARKET_ID: {
+        "feature": "dex_arbitrage",
+        "display_name": "Robinhood DEX Shadow",
+        "network": "robinhood",
+        "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "uniswap_v3",
+        "rpc_env_prefixes": ("ROBINHOOD", "ROBINHOOD_MAINNET"),
+        "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
+        "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+        "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
+        "observation_only": True,
+        "migration_type": "dex_shadow_market_registry",
     },
 }
 
-KNOWN_CHAIN_ID_MARKETS: dict[int, str] = {
-    int(profile["chain_id"]): market_id
+KNOWN_CHAIN_ID_MARKETS: dict[int, str] = {}
+for _market_id, _profile in KNOWN_EVM_MARKETS.items():
+    if not isinstance(_profile.get("chain_id"), int):
+        continue
+    _chain_id = int(_profile["chain_id"])
+    _feature = str(_profile.get("feature") or "")
+    if _chain_id not in KNOWN_CHAIN_ID_MARKETS or _feature == "liquidation":
+        KNOWN_CHAIN_ID_MARKETS[_chain_id] = _market_id
+
+KNOWN_CHAIN_FEATURE_MARKETS: dict[tuple[int, str], str] = {
+    (int(profile["chain_id"]), str(profile.get("feature") or "liquidation")): market_id
     for market_id, profile in KNOWN_EVM_MARKETS.items()
     if isinstance(profile.get("chain_id"), int)
 }
@@ -59,6 +100,13 @@ PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
         "executor": "VenusLiquidationExecutor",
         "supported": False,
         "notes": "Venus Core Pool observation mode uses a dedicated protocol adapter; execution remains gated until the Venus executor is deployed.",
+    },
+    "uniswap_v3": {
+        "evm": True,
+        "adapter": "UniswapV3DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "DEX arbitrage starts in shadow mode until DEX addresses, pools, executor, and flash-loan path are verified.",
     },
     "hyperliquid_native": {
         "evm": False,
@@ -80,6 +128,8 @@ PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
 @dataclass(frozen=True)
 class ChainMarketConfig:
     market_id: str
+    feature: str
+    display_name: str
     network: str
     protocol: str
     chain_id: int
@@ -96,6 +146,11 @@ class ChainMarketConfig:
     evm_compatible: bool
     protocol_adapter: str
     executor_adapter: str
+    wrapped_native_address: str = ""
+    explorer_url: str = ""
+    observation_only: bool = False
+    enabled: bool = True
+    is_default: bool = False
 
     @property
     def namespace(self) -> str:
@@ -105,10 +160,14 @@ class ChainMarketConfig:
         return {
             "market_id": self.market_id,
             "namespace": self.namespace,
+            "feature": self.feature,
+            "display_name": self.display_name,
             "network": self.network,
             "protocol": self.protocol,
             "chain_id": self.chain_id,
             "native_symbol": self.native_symbol,
+            "wrapped_native_address": self.wrapped_native_address,
+            "explorer_url": self.explorer_url,
             "rpc_urls": list(self.rpc_urls),
             "pool_address": self.pool_address,
             "protocol_data_provider_address": self.protocol_data_provider_address,
@@ -121,6 +180,9 @@ class ChainMarketConfig:
             "evm_compatible": self.evm_compatible,
             "protocol_adapter": self.protocol_adapter,
             "executor_adapter": self.executor_adapter,
+            "observation_only": self.observation_only,
+            "enabled": self.enabled,
+            "is_default": self.is_default,
         }
 
 
@@ -178,6 +240,17 @@ def market_id_for_chain_id(chain_id: int | None) -> str | None:
     return KNOWN_CHAIN_ID_MARKETS.get(int(chain_id))
 
 
+def market_id_for_scope(chain_id: int | None = None, feature: str | None = None) -> str | None:
+    if chain_id is None:
+        return None
+    normalized_feature = str(feature or "").strip().lower()
+    if normalized_feature:
+        scoped = KNOWN_CHAIN_FEATURE_MARKETS.get((int(chain_id), normalized_feature))
+        if scoped:
+            return scoped
+    return market_id_for_chain_id(chain_id)
+
+
 def _rpc_urls_for(profile: dict[str, Any]) -> tuple[str, ...]:
     candidates: list[str] = []
     for raw in (
@@ -207,6 +280,8 @@ def _rpc_urls_for(profile: dict[str, Any]) -> tuple[str, ...]:
                 "https://bsc.publicnode.com",
             ]
         )
+    if profile.get("network") == "robinhood":
+        candidates.extend(["https://rpc.mainnet.chain.robinhood.com"])
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
@@ -231,8 +306,14 @@ def liquidation_market_config_for(
     market_id: str | None = None,
     *,
     chain_id: int | None = None,
+    feature: str | None = None,
 ) -> ChainMarketConfig:
-    resolved_market_id = market_namespace(market_id or market_id_for_chain_id(chain_id) or DEFAULT_AVALANCHE_MARKET_ID)
+    resolved_feature = str(feature or "liquidation").strip().lower()
+    resolved_market_id = market_namespace(
+        market_id
+        or market_id_for_scope(chain_id, resolved_feature)
+        or DEFAULT_AVALANCHE_MARKET_ID
+    )
     profile = _known_profile(resolved_market_id)
     protocol = (_env("LIQUIDATION_PROTOCOL") or str(profile.get("protocol") or "aave_v3")).strip().lower()
     resolved_chain_id = int(chain_id if chain_id is not None else profile.get("chain_id") or DEFAULT_AVALANCHE_CHAIN_ID)
@@ -240,6 +321,8 @@ def liquidation_market_config_for(
     capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
     return ChainMarketConfig(
         market_id=resolved_market_id,
+        feature=str(profile.get("feature") or resolved_feature or "liquidation"),
+        display_name=str(profile.get("display_name") or resolved_market_id),
         network=(_env("LIQUIDATION_NETWORK") or str(profile.get("network") or "custom")).strip().lower(),
         protocol=protocol,
         chain_id=resolved_chain_id,
@@ -254,15 +337,20 @@ def liquidation_market_config_for(
         multicall3_address=_first_env(
             "LIQUIDATION_MULTICALL3_ADDRESS",
         )
-        or "0xcA11bde05977b3631167028862bE2a173976CA11",
+        or str(profile.get("multicall3_address") or "0xcA11bde05977b3631167028862bE2a173976CA11"),
         protocol_supported=bool(capabilities.get("supported")),
         evm_compatible=bool(capabilities.get("evm")),
         protocol_adapter=str(capabilities.get("adapter") or "ProtocolAdapter"),
         executor_adapter=str(capabilities.get("executor") or "LiquidationExecutor"),
+        wrapped_native_address=str(profile.get("wrapped_native_address") or ""),
+        explorer_url=str(profile.get("explorer_url") or ""),
+        observation_only=bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
+        enabled=bool(profile.get("enabled", True)),
+        is_default=resolved_market_id == DEFAULT_AVALANCHE_MARKET_ID,
     )
 
 
-def supported_market_summaries() -> list[dict[str, Any]]:
+def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for market_id, profile in KNOWN_EVM_MARKETS.items():
         protocol = str(profile["protocol"])
@@ -270,12 +358,15 @@ def supported_market_summaries() -> list[dict[str, Any]]:
         summaries.append(
             {
                 "market_id": market_id,
+                "feature": profile.get("feature") or "liquidation",
+                "display_name": profile.get("display_name") or market_id,
                 "network": profile["network"],
                 "chain_id": profile["chain_id"],
                 "native_symbol": profile["native_symbol"],
                 "protocol": protocol,
                 "protocol_supported": bool(capabilities.get("supported")),
-                "migration_type": "config_and_new_executor_deployment",
+                "observation_only": bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
+                "migration_type": profile.get("migration_type") or "config_and_new_executor_deployment",
             }
         )
     summaries.append(
@@ -290,3 +381,16 @@ def supported_market_summaries() -> list[dict[str, Any]]:
         }
     )
     return summaries
+
+
+def supported_market_summaries(database_url: str | None = None) -> list[dict[str, Any]]:
+    if database_url:
+        try:
+            from db.storage_chain_markets import load_chain_market_summaries
+
+            rows = load_chain_market_summaries(database_url)
+            if rows:
+                return rows
+        except Exception:
+            pass
+    return _builtin_supported_market_summaries()

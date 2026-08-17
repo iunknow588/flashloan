@@ -14,6 +14,11 @@ from db.storage_control_parameters import (
     save_control_panel_parameter,
     save_control_panel_parameter_map,
 )
+from db.storage_chain_markets import (
+    ensure_chain_market_registry_schema,
+    load_chain_market_summaries,
+    seed_builtin_chain_markets,
+)
 from db.storage_liquidation import (
     liquidation_account_registry_stats,
     liquidation_execution_attempt_stats,
@@ -76,6 +81,7 @@ __all__ = [
     "append_observations",
     "close_connection_pools",
     "db_connection",
+    "ensure_chain_market_registry_schema",
     "ensure_control_panel_parameters_table",
     "ensure_database_schema",
     "ensure_deduplication_constraints",
@@ -100,6 +106,7 @@ __all__ = [
     "load_liquidation_accounts_page",
     "load_control_panel_parameter",
     "load_control_panel_parameter_map",
+    "load_chain_market_summaries",
     "load_schema_migrations",
     "prune_liquidation_accounts",
     "record_liquidation_account_scan",
@@ -114,6 +121,7 @@ __all__ = [
     "require_psycopg",
     "save_control_panel_parameter",
     "save_control_panel_parameter_map",
+    "seed_builtin_chain_markets",
     "try_acquire_observer_lock",
     "sync_liquidation_borrow_health_pool",
     "upsert_liquidation_accounts",

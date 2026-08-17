@@ -50,6 +50,10 @@ SCHEMA_MIGRATIONS = (
         "20260807_control_panel_parameters",
         "Persist UI/runtime control parameters in the application database.",
     ),
+    (
+        "20260818_chain_market_registry",
+        "Persist chain/market registry, scan policies, and current DEX arbitrage candidates.",
+    ),
 )
 EXPECTED_SCHEMA_MIGRATION_IDS = tuple(migration_id for migration_id, _ in SCHEMA_MIGRATIONS)
 

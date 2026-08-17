@@ -51,6 +51,7 @@ DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS = 120
 DEFAULT_GAS_TOKEN_PRICE_MAX_DEVIATION_BPS = 100
 SRC_ROOT = Path(__file__).resolve().parents[1]
 BNB_USDC_ADDRESS = "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 STABLE_EXERCISE_SYMBOLS = {
     "USDC",
     "USDC.E",
@@ -84,6 +85,32 @@ DIRECT_ONCHAIN_NETWORKS = {
         "rpc_env": ("BNB_RPC_URL", "BSC_RPC_URL", "BNB_RPC", "BSC_RPC"),
         "unified_executor_supported": False,
     },
+    "robinhood": {
+        "chain_id": 4663,
+        "testnet": False,
+        "rpc_env": (
+            "ROBINHOOD_RPC_URL",
+            "ROBINHOOD_RPC",
+            "ROBINHOOD_RPCS",
+            "ROBINHOOD_ALCHEMY_RPC_URL",
+            "ROBINHOOD_ALCHEMY_RPC",
+            "ROBINHOOD_MAINNET_RPC_URL",
+            "ROBINHOOD_MAINNET_RPC",
+        ),
+        "unified_executor_supported": False,
+    },
+    "robinhood-testnet": {
+        "chain_id": 46630,
+        "testnet": True,
+        "rpc_env": (
+            "ROBINHOOD_TESTNET_RPC_URL",
+            "ROBINHOOD_TESTNET_RPC",
+            "ROBINHOOD_TESTNET_RPCS",
+            "ROBINHOOD_TESTNET_ALCHEMY_RPC_URL",
+            "ROBINHOOD_TESTNET_ALCHEMY_RPC",
+        ),
+        "unified_executor_supported": False,
+    },
 }
 DIRECT_ONCHAIN_NETWORK_ALIASES = {
     "avax": "avalanche",
@@ -98,6 +125,13 @@ DIRECT_ONCHAIN_NETWORK_ALIASES = {
     "bnb-chain": "bnb",
     "binance-smart-chain": "bnb",
     "56": "bnb",
+    "robinhood": "robinhood",
+    "robinhood-chain": "robinhood",
+    "robinhood-mainnet": "robinhood",
+    "4663": "robinhood",
+    "robinhood-testnet": "robinhood-testnet",
+    "robinhood-sepolia": "robinhood-testnet",
+    "46630": "robinhood-testnet",
 }
 ROUTE_DECISION_COMPONENTS = [
     {"name": "viable", "type": "bool"},
@@ -508,6 +542,28 @@ def _direct_rpc_url(network: str) -> tuple[str, tuple[str, ...]]:
 def _unified_executor_supported_for_network(network: str) -> bool:
     normalized = _normalize_direct_onchain_network(network)
     return bool(DIRECT_ONCHAIN_NETWORKS.get(normalized, {}).get("unified_executor_supported", False))
+
+
+def _executor_adapter_unverified_status(network: str) -> str:
+    normalized = _normalize_direct_onchain_network(network)
+    if normalized == "bnb":
+        return "bnb_executor_adapter_unverified"
+    if normalized in {"robinhood", "robinhood-testnet"}:
+        return "robinhood_executor_adapter_unverified"
+    return f"{normalized or 'direct'}_executor_adapter_unverified"
+
+
+def _executor_adapter_unverified_error(network: str) -> str:
+    normalized = _normalize_direct_onchain_network(network)
+    label = {
+        "bnb": "BNB",
+        "robinhood": "Robinhood",
+        "robinhood-testnet": "Robinhood testnet",
+    }.get(normalized, normalized or "direct")
+    return (
+        f"{label} direct execution is disabled until a chain-specific "
+        "flash-loan executor adapter is verified"
+    )
 
 
 def _positive_int_value(value: Any, *, default: int = 0) -> int:
@@ -1929,7 +1985,13 @@ def _unified_net_profit_report(
 
 def _usdc_address_for_network(network: str | None = None, cache: dict[str, Any] | None = None) -> str:
     explicit = _normalize_pair_address(
-        _env("TRIANGULAR_USDC_ADDRESS", "FUJI_USDC_ADDRESS", "FUJI_USDC", "USDC_ADDRESS")
+        _env(
+            "TRIANGULAR_USDC_ADDRESS",
+            "ROBINHOOD_USDC_ADDRESS",
+            "FUJI_USDC_ADDRESS",
+            "FUJI_USDC",
+            "USDC_ADDRESS",
+        )
     )
     if explicit:
         return explicit
@@ -1947,6 +2009,8 @@ def _usdc_address_for_network(network: str | None = None, cache: dict[str, Any] 
         return FUJI_USDC_ADDRESS
     if normalized_network == "bnb":
         return BNB_USDC_ADDRESS
+    if normalized_network in {"robinhood", "robinhood-testnet"}:
+        return ""
     return AVALANCHE_USDC_ADDRESS
 
 
@@ -3452,7 +3516,7 @@ def build_triangular_onchain_intent_trade(
         "execution_support": (
             "supported"
             if _unified_executor_supported_for_network(network)
-            else "bnb_executor_adapter_unverified"
+            else _executor_adapter_unverified_status(network)
         ),
         "owner_address": _env("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "TRIANGULAR_CONTROLLER_OWNER_ADDRESS"),
         "unified_executor_address": unified_executor_address,
@@ -4278,15 +4342,16 @@ def submit_direct_onchain_trade(
     protocol = intent.get("direct_onchain_protocol") if isinstance(intent, dict) else None
     if isinstance(protocol, dict) and not protocol.get("enabled", True):
         network = _normalize_direct_onchain_network(protocol.get("network") or "")
-        if network == "bnb":
+        if network in DIRECT_ONCHAIN_NETWORKS:
+            status = _executor_adapter_unverified_status(network)
             return {
                 "ok": False,
                 "submitted": False,
-                "status": "bnb_executor_adapter_unverified",
-                "blocked_reason": "bnb_executor_adapter_unverified",
-                "error": "BNB direct execution is disabled until a BNB-specific flash-loan executor adapter is verified",
+                "status": status,
+                "blocked_reason": status,
+                "error": _executor_adapter_unverified_error(network),
                 "network": network,
-                "chain_id": DIRECT_ONCHAIN_NETWORKS["bnb"]["chain_id"],
+                "chain_id": DIRECT_ONCHAIN_NETWORKS[network]["chain_id"],
             }
     if not isinstance(protocol, dict) or not protocol.get("enabled", True):
         return {
@@ -4308,12 +4373,13 @@ def submit_direct_onchain_trade(
             "error": str(exc),
         }
     if not _unified_executor_supported_for_network(network):
+        status = _executor_adapter_unverified_status(network)
         return {
             "ok": False,
             "submitted": False,
-            "status": "bnb_executor_adapter_unverified",
-            "blocked_reason": "bnb_executor_adapter_unverified",
-            "error": "BNB direct execution is disabled until a BNB-specific flash-loan executor adapter is verified",
+            "status": status,
+            "blocked_reason": status,
+            "error": _executor_adapter_unverified_error(network),
             "network": network,
             "chain_id": expected_chain_id,
         }

@@ -1,5 +1,10 @@
 from core.config_schema import liquidation_config_health
-from core.market_config import liquidation_market_config, liquidation_market_config_for, supported_market_summaries
+from core.market_config import (
+    DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+    liquidation_market_config,
+    liquidation_market_config_for,
+    supported_market_summaries,
+)
 
 
 def _clear_market_env(monkeypatch):
@@ -20,6 +25,10 @@ def _clear_market_env(monkeypatch):
         "BNB_RPC",
         "AVALANCHE_RPCS",
         "AVALANCHE_RPC",
+        "ROBINHOOD_RPCS",
+        "ROBINHOOD_RPC",
+        "ROBINHOOD_RPC_URL",
+        "ROBINHOOD_ALCHEMY_RPC_URL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -103,4 +112,56 @@ def test_supported_market_summaries_classifies_migration_type():
     summaries = {row["market_id"]: row for row in supported_market_summaries()}
 
     assert summaries["bnb-aave-v3"]["migration_type"] == "config_and_new_executor_deployment"
+    assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
+    assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["observation_only"] is True
     assert summaries["hyperliquid-native"]["migration_type"] == "new_protocol_adapter_required"
+
+
+def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
+    _clear_market_env(monkeypatch)
+    monkeypatch.setenv("ROBINHOOD_ALCHEMY_RPC_URL", "https://robinhood-alchemy.example")
+
+    market = liquidation_market_config_for(chain_id=4663, feature="dex_arbitrage")
+
+    assert market.market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID
+    assert market.feature == "dex_arbitrage"
+    assert market.network == "robinhood"
+    assert market.chain_id == 4663
+    assert market.native_symbol == "ETH"
+    assert market.wrapped_native_address == "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+    assert market.multicall3_address == "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
+    assert market.rpc_urls[0] == "https://robinhood-alchemy.example"
+    assert market.protocol_supported is False
+    assert market.observation_only is True
+
+
+def test_supported_market_summaries_prefers_database_rows_when_available(monkeypatch):
+    db_rows = [
+        {
+            "market_id": "db-robinhood-dex",
+            "chain_id": 4663,
+            "network": "robinhood",
+            "feature": "dex_arbitrage",
+            "protocol": "uniswap_v3",
+            "native_symbol": "ETH",
+        }
+    ]
+
+    import db.storage_chain_markets as storage_chain_markets
+
+    monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", lambda database_url: db_rows)
+
+    assert supported_market_summaries("postgresql://example") == db_rows
+
+
+def test_supported_market_summaries_falls_back_when_database_unavailable(monkeypatch):
+    import db.storage_chain_markets as storage_chain_markets
+
+    def fail(_database_url):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", fail)
+
+    summaries = {row["market_id"]: row for row in supported_market_summaries("postgresql://disabled")}
+
+    assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in summaries

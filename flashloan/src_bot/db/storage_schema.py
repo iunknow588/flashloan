@@ -1,6 +1,7 @@
 from typing import Any
 
 from db.storage_common import SCHEMA_ADVISORY_LOCK_ID, SCHEMA_MIGRATIONS, db_connection, require_psycopg
+from db.storage_chain_markets import ensure_chain_market_registry_schema, seed_builtin_chain_markets
 from db.storage_liquidation_schema import (
     LIQUIDATION_BORROW_HEALTH_POOL_COLUMNS,
     LIQUIDATION_BORROW_HEALTH_SCAN_BATCH_COLUMNS,
@@ -348,6 +349,8 @@ def ensure_database_schema(database_url: str) -> None:
                     )
                     """
                 )
+                ensure_chain_market_registry_schema(cursor)
+                seed_builtin_chain_markets(cursor)
                 create_liquidation_failure_sample_schema(cursor)
                 ensure_schema_columns(cursor)
                 ensure_liquidation_market_indexes(cursor)

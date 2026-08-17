@@ -57,6 +57,15 @@ def _clear_direct_pair_env(monkeypatch):
         "TRIANGULAR_TESTNET_NAME",
         "TRIANGULAR_NETWORK",
         "TRIANGULAR_TESTNET_CHAIN_ID",
+        "ROBINHOOD_RPC_URL",
+        "ROBINHOOD_RPC",
+        "ROBINHOOD_RPCS",
+        "ROBINHOOD_MAINNET_RPC_URL",
+        "ROBINHOOD_MAINNET_RPC",
+        "ROBINHOOD_TESTNET_RPC_URL",
+        "ROBINHOOD_TESTNET_RPC",
+        "ROBINHOOD_TESTNET_RPCS",
+        "ROBINHOOD_USDC_ADDRESS",
         "AAVE_RESERVE_CACHE_FILE",
         "AVAX_USDC_PRICE",
         "GAS_TOKEN_USDC_PRICE",
@@ -426,6 +435,40 @@ def test_direct_onchain_network_can_target_bnb_in_shadow_only_mode(monkeypatch):
     assert direct._unified_executor_supported_for_network("bnb") is False
 
 
+def test_direct_onchain_network_can_target_robinhood_in_shadow_only_mode(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_DIRECT_NETWORK", "robinhood-chain")
+
+    network, chain_id, testnet = direct._resolve_direct_onchain_network({})
+
+    assert network == "robinhood"
+    assert chain_id == 4663
+    assert testnet is False
+    assert direct._unified_executor_supported_for_network("4663") is False
+    assert direct._usdc_address_for_network("robinhood") == ""
+
+
+def test_direct_onchain_network_can_target_robinhood_testnet_by_chain_id(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    network, chain_id, testnet = direct._resolve_direct_onchain_network({"chain_id": 46630})
+
+    assert network == "robinhood-testnet"
+    assert chain_id == 46630
+    assert testnet is True
+
+
+def test_direct_onchain_rpc_prefers_robinhood_rpc_for_robinhood(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("AVALANCHE_RPC_URL", "https://mainnet.example")
+    monkeypatch.setenv("ROBINHOOD_RPC_URL", "https://robinhood.example")
+
+    rpc_url, rpc_env_names = direct._direct_rpc_url("robinhood")
+
+    assert rpc_url == "https://robinhood.example"
+    assert rpc_env_names[0] == "ROBINHOOD_RPC_URL"
+
+
 def test_bnb_direct_submission_is_explicitly_disabled(monkeypatch):
     _clear_direct_pair_env(monkeypatch)
 
@@ -446,6 +489,28 @@ def test_bnb_direct_submission_is_explicitly_disabled(monkeypatch):
     assert result["submitted"] is False
     assert result["status"] == "bnb_executor_adapter_unverified"
     assert result["network"] == "bnb"
+
+
+def test_robinhood_direct_submission_is_explicitly_disabled(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": False,
+                    "network": "robinhood",
+                    "chain_id": 4663,
+                }
+            }
+        },
+        opportunity={},
+        timeout_seconds=1,
+    )
+
+    assert result["submitted"] is False
+    assert result["status"] == "robinhood_executor_adapter_unverified"
+    assert result["network"] == "robinhood"
 
 
 def test_direct_onchain_rpc_prefers_fuji_rpc_for_fuji(monkeypatch):

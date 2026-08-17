@@ -21,6 +21,7 @@ def test_record_schema_migrations_is_idempotent():
     assert "20260803_liquidation_market_namespace" in EXPECTED_SCHEMA_MIGRATION_IDS
     assert "20260804_cow_supported_tokens" in EXPECTED_SCHEMA_MIGRATION_IDS
     assert "20260805_cow_execution_attempts" in EXPECTED_SCHEMA_MIGRATION_IDS
+    assert "20260818_chain_market_registry" in EXPECTED_SCHEMA_MIGRATION_IDS
     query, params = cursor.calls[0]
     assert "ON CONFLICT (migration_id) DO NOTHING" in query
     assert params[0] == "20260730_liquidation_runtime_schema"
@@ -124,6 +125,10 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any("idx_cow_supported_tokens_network_symbol" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS cow_execution_attempts" in query for query in queries)
     assert any("idx_cow_execution_attempts_network_time" in query for query in queries)
+    assert any("CREATE TABLE IF NOT EXISTS chain_markets" in query for query in queries)
+    assert any("CREATE TABLE IF NOT EXISTS market_scan_policies" in query for query in queries)
+    assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_candidates" in query for query in queries)
+    assert any("robinhood-dex-shadow" in str(params) for _query, params in cursor.calls)
     assert any("control_mode TEXT" in query for query in queries)
     assert any("route_hop_constraints_enforced BOOLEAN" in query for query in queries)
     assert any("cow_flashloan_intent_json TEXT" in query for query in queries)
