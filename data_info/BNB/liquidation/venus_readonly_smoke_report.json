@@ -1,0 +1,222 @@
+{
+  "network": "bnb",
+  "chain_id": 56,
+  "protocol": "venus_core",
+  "generated_at": "2026-08-16T08:51:25Z",
+  "rpc_url": "https://ultra-prettiest-frost.bsc.quiknode.pro/a1756ab6e43e3347797d64bccf5416f5b4d63995",
+  "execution_enabled": false,
+  "checks": {
+    "bnb_rpc": {
+      "ok": true,
+      "detail": "chain_id=56"
+    },
+    "venus_market_table": {
+      "ok": true,
+      "detail": "markets=1"
+    },
+    "venus_comptroller": {
+      "ok": true,
+      "detail": "0xfD36E2c2a6789Db23113685031d7F16329158384"
+    },
+    "venus_oracle": {
+      "ok": true,
+      "detail": "0x6592b5DE802159F3E74B2486b091D11a8256ab8A"
+    },
+    "bnb_gas_price": {
+      "ok": true,
+      "detail": "0.05",
+      "error": null
+    },
+    "bnb_native_usd_price": {
+      "ok": true,
+      "detail": "606.744392211486",
+      "error": null
+    }
+  },
+  "runtime_metrics": {
+    "gas_price": {
+      "ok": true,
+      "source": "eth_gasPrice",
+      "gas_price_wei": 50000000,
+      "gas_price_gwei": 0.05,
+      "error": null
+    },
+    "native_usd_price": {
+      "ok": true,
+      "source": "pancakeswap_wbnb_usdt",
+      "bnb_usd": 606.744392211486,
+      "quote": {
+        "network": "bnb",
+        "chain_id": 56,
+        "dex": "pancakeswap_v2",
+        "router_address": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+        "v3_quoter_address": "0x78D78E420Da98ad378D7799bE8f4AF69033EB077",
+        "quote_block": 116243555,
+        "slippage_bps": 50,
+        "collateral_asset": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+        "debt_asset": "0x55d398326f99059fF775485246999027B3197955",
+        "amount_in_raw": 1000000000000000000,
+        "quote_at": "2026-08-16T08:51:23Z",
+        "quotes": [
+          {
+            "ok": true,
+            "dex": "pancakeswap_v2",
+            "quote_method": "router_getAmountsOut",
+            "path": [
+              "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+              "0x55d398326f99059fF775485246999027B3197955"
+            ],
+            "amount_in_raw": 1000000000000000000,
+            "amount_out_raw": 605263378854363861139,
+            "amounts_raw": [
+              1000000000000000000,
+              605263378854363861139
+            ],
+            "error": null,
+            "quote_at": "2026-08-16T08:51:23Z",
+            "quote_block": 116243554,
+            "fee_bps": 25,
+            "price_impact_bps": null,
+            "min_amount_out_raw": 602237061960092041833
+          },
+          {
+            "ok": true,
+            "dex": "pancakeswap_v3",
+            "quote_method": "quoter_quoteExactInputSingle",
+            "path": [
+              "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+              "0x55d398326f99059fF775485246999027B3197955"
+            ],
+            "amount_in_raw": 1000000000000000000,
+            "amount_out_raw": 606744392211485994811,
+            "amounts_raw": [
+              1000000000000000000,
+              606744392211485994811
+            ],
+            "fee_tier": 500,
+            "fee_bps": 5.0,
+            "reverse_quote_ok": true,
+            "reverse_amount_out_raw": 998983951123274724,
+            "sqrt_price_x96_after": "3215658118240264471584757130",
+            "initialized_ticks_crossed": 1,
+            "quoter_gas_estimate": 79362,
+            "error": null,
+            "quote_at": "2026-08-16T08:51:23Z",
+            "quote_block": 116243555,
+            "price_impact_bps": null,
+            "min_amount_out_raw": 603710670250428564836
+          },
+          {
+            "ok": true,
+            "dex": "pancakeswap_v2",
+            "quote_method": "router_getAmountsOut",
+            "path": [
+              "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+              "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+              "0x55d398326f99059fF775485246999027B3197955"
+            ],
+            "amount_in_raw": 1000000000000000000,
+            "amount_out_raw": 603535927442966414429,
+            "amounts_raw": [
+              1000000000000000000,
+              603777143071195028679,
+              603535927442966414429
+            ],
+            "error": null,
+            "quote_at": "2026-08-16T08:51:23Z",
+            "quote_block": 116243555,
+            "fee_bps": 25,
+            "price_impact_bps": null,
+            "min_amount_out_raw": 600518247805751582356
+          }
+        ],
+        "best_quote": {
+          "ok": true,
+          "dex": "pancakeswap_v3",
+          "quote_method": "quoter_quoteExactInputSingle",
+          "path": [
+            "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+            "0x55d398326f99059fF775485246999027B3197955"
+          ],
+          "amount_in_raw": 1000000000000000000,
+          "amount_out_raw": 606744392211485994811,
+          "amounts_raw": [
+            1000000000000000000,
+            606744392211485994811
+          ],
+          "fee_tier": 500,
+          "fee_bps": 5.0,
+          "reverse_quote_ok": true,
+          "reverse_amount_out_raw": 998983951123274724,
+          "sqrt_price_x96_after": "3215658118240264471584757130",
+          "initialized_ticks_crossed": 1,
+          "quoter_gas_estimate": 79362,
+          "error": null,
+          "quote_at": "2026-08-16T08:51:23Z",
+          "quote_block": 116243555,
+          "price_impact_bps": null,
+          "min_amount_out_raw": 603710670250428564836
+        },
+        "rejected_reason": null
+      },
+      "error": null
+    }
+  },
+  "market_table_preview": {
+    "network": "bnb",
+    "chain_id": 56,
+    "protocol": "venus_core",
+    "source": "https://docs-v4.venus.io/deployed-contracts/markets",
+    "generated_at": "2026-08-16T08:51:23Z",
+    "block_number": 116243553,
+    "rpc_url": "https://ultra-prettiest-frost.bsc.quiknode.pro/a1756ab6e43e3347797d64bccf5416f5b4d63995",
+    "comptroller_address": "0xfD36E2c2a6789Db23113685031d7F16329158384",
+    "oracle_address": "0x6592b5DE802159F3E74B2486b091D11a8256ab8A",
+    "close_factor_mantissa": 500000000000000000,
+    "liquidation_incentive_mantissa": 1100000000000000000,
+    "liquidation_incentive_source": "fallback_env_or_venus_default",
+    "protocol_share_mantissa": 50000000000000000,
+    "market_count": 1,
+    "markets": [
+      {
+        "vtoken_address": "0xecA88125a5ADbe82614ffC12D0DB554E2e2867C8",
+        "vtoken_symbol": "vUSDC",
+        "vtoken_name": "Venus USDC",
+        "vtoken_decimals": 8,
+        "underlying_address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+        "wrapped_underlying_address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+        "underlying_symbol": "USDC",
+        "underlying_decimals": 18,
+        "underlying_source": "erc20_underlying",
+        "is_listed": true,
+        "collateral_factor_mantissa": 825000000000000000,
+        "collateral_factor": 0.825,
+        "close_factor_mantissa": 500000000000000000,
+        "close_factor": 0.5,
+        "liquidation_incentive_mantissa": 1100000000000000000,
+        "liquidation_incentive": 1.1,
+        "exchange_rate_stored": 266117329794772422400534502,
+        "borrow_index": 1514752980169676229,
+        "total_supply": 171819601163962523,
+        "total_borrows": 28331185061847708298351610,
+        "cash": 17393008088890110805599665,
+        "oracle_price": 999830023888711200,
+        "oracle_price_usd": 0.9998300238887111,
+        "stable": true,
+        "high_liquidity": true,
+        "long_tail": false,
+        "paused": null,
+        "borrow_disabled": null,
+        "collateral_disabled": false,
+        "protocol_share_mantissa": null
+      }
+    ]
+  },
+  "account_reports": [],
+  "ok": true,
+  "rpc_connect": {
+    "attempts": 1,
+    "failures": [],
+    "rate_limited": false
+  }
+}

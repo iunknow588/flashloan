@@ -3,8 +3,10 @@ import os
 from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
+from core.market_config import DEFAULT_BNB_CHAIN_ID, DEFAULT_BNB_MARKET_ID
 from debt_pool import validate_liquidatable_context
 from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from web.control_panel_bnb_venus import bnb_venus_accounts_payload
 from web.route_context import RouteContext
 
 ROUTE_CONTEXT = RouteContext()
@@ -67,6 +69,15 @@ def _request_market_kwargs() -> dict:
     if chain_id is not None:
         kwargs["chain_id"] = chain_id
     return kwargs
+
+
+def _is_bnb_venus_request(market_id: str | None = None, chain_id: int | None = None) -> bool:
+    if str(market_id or "").strip().lower() == DEFAULT_BNB_MARKET_ID:
+        return True
+    try:
+        return market_id is None and int(chain_id) == DEFAULT_BNB_CHAIN_ID
+    except (TypeError, ValueError):
+        return False
 
 
 def request_liquidatable_context(account: str) -> dict | None:
@@ -506,13 +517,11 @@ def register_liquidation_routes(app, panel) -> None:
 
     @app.get("/api/liquidation/config-health")
     def liquidation_config_health_api():
-        raw_chain_id = request.args.get("chain_id", "").strip()
-        chain_id = request_int_arg("chain_id", 0) if raw_chain_id else None
-        return jsonify(panel_call("liquidation_config_health", chain_id=chain_id))
+        return jsonify(panel_call("liquidation_config_health", **_request_market_kwargs()))
 
     @app.get("/api/liquidation/market")
     def liquidation_market_api():
-        return jsonify(panel_call("liquidation_market_payload"))
+        return jsonify(panel_call("liquidation_market_payload", **_request_market_kwargs()))
 
     @app.get("/api/liquidation/execution-attempts")
     def liquidation_execution_attempts_api():
@@ -553,7 +562,7 @@ def register_liquidation_routes(app, panel) -> None:
         if not account:
             return jsonify({"error": "account is required"}), 400
         try:
-            return jsonify(panel_call("liquidation_account_payload", account))
+            return jsonify(panel_call("liquidation_account_payload", account, **_request_market_kwargs()))
         except Exception as exc:
             return jsonify({"error": route_error_message(exc), "account": account}), 400
 
@@ -591,10 +600,27 @@ def register_liquidation_routes(app, panel) -> None:
             deadline_seconds = request_int_arg("deadline_seconds", 300, minimum=1)
             allow_zero_min_out = request.args.get("allow_zero_min_out", "").strip().lower() in {"1", "true", "yes"}
             fast = request.args.get("fast", "").strip().lower() in {"1", "true", "yes"}
+            market_id = request.args.get("market_id", "").strip() or None
+            chain_id = _optional_request_int_arg("chain_id")
+            if _is_bnb_venus_request(market_id, chain_id):
+                snapshot = panel_call(
+                    "liquidation_account_cached_payload",
+                    account,
+                    market_id=market_id,
+                    chain_id=chain_id,
+                )
+                return jsonify(
+                    {
+                        "error": "BNB Venus Core is observation-only; transaction payload generation is disabled",
+                        "account": account,
+                        "state": "submission_blocked",
+                        "execution_phase": "observation_only",
+                        "blocked_reasons": ["venus_core_observation_only"],
+                        "cached_snapshot": snapshot,
+                    }
+                ), 400
             if fast:
                 try:
-                    market_id = request.args.get("market_id", "").strip() or None
-                    chain_id = _optional_request_int_arg("chain_id")
                     try:
                         snapshot = panel_call(
                             "liquidation_account_cached_payload",
@@ -691,22 +717,17 @@ def register_liquidation_routes(app, panel) -> None:
     @app.post("/api/liquidation/account/execute")
     def liquidation_account_execute_api():
         account = request.args.get("account", "").strip()
-        force = request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
         if not account:
             return jsonify({"error": "account is required"}), 400
-        stale_context = ensure_request_liquidatable_context(account)
-        if stale_context is not None:
-            return stale_context
-        payload: dict | None = None
-        try:
-            payload = panel_call("liquidation_execution_payload_for_account", account, require_executor=False, force=force)
-            result = panel_call("execute_self_funded_liquidation_transaction", payload, force=force)
-            record_liquidation_route_success(account, "self_funded_force" if force else "self_funded", result)
-            return jsonify(result)
-        except Exception as exc:
-            response = liquidation_failure_response(account, payload, exc)
-            record_liquidation_route_failure(account, "self_funded_force" if force else "self_funded", response, exc)
-            return jsonify(response), 400
+        response = {
+            "account": account,
+            "error": "self-funded liquidation is disabled; this system executes liquidations through the flashloan executor only",
+            "state": "submission_blocked",
+            "execution_phase": "self_funded_disabled",
+            "blocked_reasons": ["self_funded_execution_disabled", "flashloan_executor_required"],
+            "mode": "flashloan",
+        }
+        return jsonify(response), 400
 
     @app.post("/api/liquidation/account/flashloan")
     def liquidation_account_flashloan_api():
@@ -742,6 +763,8 @@ def register_liquidation_routes(app, panel) -> None:
         page_size = request_int_arg("page_size", 20, minimum=1, maximum=100)
         market_id = request.args.get("market_id", "").strip() or None
         chain_id = _optional_request_int_arg("chain_id")
+        if _is_bnb_venus_request(market_id, chain_id):
+            return jsonify(bnb_venus_accounts_payload(page=page, page_size=page_size))
         database_url = panel_call("database_url_or_none")
         if database_url:
             try:

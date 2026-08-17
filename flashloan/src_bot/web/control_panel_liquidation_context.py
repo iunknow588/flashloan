@@ -10,6 +10,7 @@ _base_schema_status_payload = liquidation_base_module.schema_status_payload
 _base_liquidation_discovery_progress = liquidation_base_module.liquidation_discovery_progress
 _base_liquidation_discovery_window = liquidation_base_module.liquidation_discovery_window
 _base_liquidation_config_health = liquidation_base_module.liquidation_config_health
+_base_liquidation_market_payload = liquidation_base_module.liquidation_market_payload
 _base_liquidation_scan_config_library = liquidation_base_module.liquidation_scan_config_library
 _audit_recent_liquidation_execution_attempts = liquidation_audit_module.recent_liquidation_execution_attempts
 _audit_recent_liquidation_failure_samples = liquidation_audit_module.recent_liquidation_failure_samples
@@ -136,9 +137,13 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _base_liquidation_discovery_window(force_full=force_full)
 
-    def liquidation_config_health(chain_id: int | None = None) -> dict:
+    def liquidation_config_health(market_id: str | None = None, chain_id: int | None = None) -> dict:
         sync_liquidation_module_context()
-        return _base_liquidation_config_health(chain_id=chain_id)
+        return _base_liquidation_config_health(market_id=market_id, chain_id=chain_id)
+
+    def liquidation_market_payload(market_id: str | None = None, chain_id: int | None = None) -> dict:
+        sync_liquidation_module_context()
+        return _base_liquidation_market_payload(market_id=market_id, chain_id=chain_id)
 
     def liquidation_scan_config_library(limit: int = 100, *, market_id: str | None = None, chain_id: int | None = None) -> dict:
         sync_liquidation_module_context()
@@ -156,9 +161,9 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _scan_liquidation_account_tier_summary()
 
-    def liquidation_core_rows_with_execution(database_url: str, limit: int, offset: int = 0) -> list[dict]:
+    def liquidation_core_rows_with_execution(database_url: str, limit: int, offset: int = 0, **kwargs) -> list[dict]:
         sync_liquidation_module_context()
-        return _scan_liquidation_core_rows_with_execution(database_url, limit=limit, offset=offset)
+        return _scan_liquidation_core_rows_with_execution(database_url, limit=limit, offset=offset, **kwargs)
 
     def liquidation_execution_attempts_for_account(
         account: str,
@@ -218,9 +223,9 @@ def install_liquidation_context(panel) -> None:
         sync_liquidation_module_context()
         return _scan_liquidation_health_payload(force=force)
 
-    def liquidation_account_payload(account: str) -> dict:
+    def liquidation_account_payload(account: str, *, market_id: str | None = None, chain_id: int | None = None) -> dict:
         sync_liquidation_module_context()
-        return _scan_liquidation_account_payload(account)
+        return _scan_liquidation_account_payload(account, market_id=market_id, chain_id=chain_id)
 
     def liquidation_account_cached_payload(account: str, *, market_id: str | None = None, chain_id: int | None = None) -> dict:
         sync_liquidation_module_context()
@@ -249,6 +254,7 @@ def install_liquidation_context(panel) -> None:
     panel.liquidation_discovery_progress = liquidation_discovery_progress
     panel.liquidation_discovery_window = liquidation_discovery_window
     panel.liquidation_config_health = liquidation_config_health
+    panel.liquidation_market_payload = liquidation_market_payload
     panel.liquidation_scan_config_library = liquidation_scan_config_library
     panel.recent_liquidation_execution_attempts = recent_liquidation_execution_attempts
     panel.recent_liquidation_failure_samples = recent_liquidation_failure_samples

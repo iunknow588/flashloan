@@ -1,0 +1,10 @@
+{
+  "vtoken": "0xecA88125a5ADbe82614ffC12D0DB554E2e2867C8",
+  "event": "Borrow",
+  "from_block": 114523389,
+  "to_block": 116251389,
+  "current_from_block": 114523652,
+  "current_to_block": 114523661,
+  "event_count": 0,
+  "error": "413 Client Error: Request Entity Too Large for url: https://ultra-prettiest-frost.bsc.quiknode.pro/a1756ab6e43e3347797d64bccf5416f5b4d63995"
+}

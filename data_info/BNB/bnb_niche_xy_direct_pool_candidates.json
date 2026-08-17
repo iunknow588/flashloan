@@ -1,0 +1,256 @@
+{
+  "generatedAt": "2026-08-15T15:13:18Z",
+  "source": "CoinGecko exchange tickers: pancakeswap-v3-bsc, enriched by BNB RPC ERC20 symbol/name",
+  "pagesScanned": 12,
+  "filters": {
+    "excludedBaseSymbols": [
+      "BNB",
+      "BTC",
+      "BTCB",
+      "BUSD",
+      "CAKE",
+      "DAI",
+      "ETH",
+      "FDUSD",
+      "TUSD",
+      "USD1",
+      "USDC",
+      "USDD",
+      "USDT",
+      "WBNB",
+      "WBTC",
+      "WETH"
+    ],
+    "minVolumeUsdH24": 1000,
+    "note": "CoinGecko ticker endpoint does not expose pool address/reserve for these rows; use tradeUrl token pair for follow-up pool lookup."
+  },
+  "candidateCount": 7,
+  "fetchErrors": [],
+  "candidates": [
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "apyUSD / apxUSD",
+      "baseSymbol": "apyUSD",
+      "baseName": "apyUSD",
+      "base": "0xa14556f13516c53ff035858ffd21e1625e7eadfd",
+      "quoteSymbol": "apxUSD",
+      "quoteName": "apxUSD",
+      "quote": "0x6b3788fd6604bbf03c5378d24e57bb334baad4af",
+      "volumeUsdH24": 58576.0,
+      "last": 1.3967792274,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0xa14556f13516c53ff035858ffd21e1625e7eadfd&outputCurrency=0x6b3788fd6604bbf03c5378d24e57bb334baad4af",
+      "pancakeV3Pools": [
+        {
+          "fee": 2500,
+          "pool": "0x542b68f784403953713e77D1E792A92b1471DD85",
+          "liquidity": "12496135739482449684273899",
+          "tick": -3317,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 1,
+      "maxActiveLiquidity": 12496135739482449684273899
+    },
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "ZEC / PIRATE",
+      "baseSymbol": "ZEC",
+      "baseName": "Zcash Token",
+      "base": "0x1ba42e5193dfa8b03d15dd1b86a3113bbbef8eeb",
+      "quoteSymbol": "PIRATE",
+      "quoteName": "PirateCash",
+      "quote": "0xafcc12e4040615e7afe9fb4330eb3d9120acac05",
+      "volumeUsdH24": 9889.63,
+      "last": 24694.8917462165,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0x1ba42e5193dfa8b03d15dd1b86a3113bbbef8eeb&outputCurrency=0xafcc12e4040615e7afe9fb4330eb3d9120acac05",
+      "pancakeV3Pools": [
+        {
+          "fee": 500,
+          "pool": "0xB8B78bDB09Aa6e9E65a87D5c36CAA263e51fd268",
+          "liquidity": "310232384590820640",
+          "tick": -129126,
+          "unlocked": true
+        },
+        {
+          "fee": 10000,
+          "pool": "0xE5ce524F957a56b8933B016D3a8f5Af7fc5AB735",
+          "liquidity": "0",
+          "tick": -154969,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 2,
+      "maxActiveLiquidity": 310232384590820640
+    },
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "VC / VINU",
+      "baseSymbol": "VC",
+      "baseName": "VinuChain",
+      "base": "0x2bf83d080d8bc4715984e75e5b3d149805d11751",
+      "quoteSymbol": "VINU",
+      "quoteName": "Vita Inu",
+      "quote": "0xfebe8c1ed424dbf688551d4e2267e7a53698f0aa",
+      "volumeUsdH24": 1771.86,
+      "last": 328163.937641353,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0x2bf83d080d8bc4715984e75e5b3d149805d11751&outputCurrency=0xfebe8c1ed424dbf688551d4e2267e7a53698f0aa",
+      "pancakeV3Pools": [
+        {
+          "fee": 2500,
+          "pool": "0xdD725146FDc3a31bBc58C210B6cEea39E0d20331",
+          "liquidity": "0",
+          "tick": 124065,
+          "unlocked": true
+        },
+        {
+          "fee": 10000,
+          "pool": "0x35CbE5f60ba3FcF48fb3A3E968dE8803b998f3EC",
+          "liquidity": "81608495008194232253235362070",
+          "tick": 126930,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 2,
+      "maxActiveLiquidity": 81608495008194232253235362070
+    },
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "mubarak / TST",
+      "baseSymbol": "mubarak",
+      "baseName": "mubarak",
+      "base": "0x5c85d6c6825ab4032337f11ee92a72df936b46f6",
+      "quoteSymbol": "TST",
+      "quoteName": "Test",
+      "quote": "0x86bb94ddd16efc8bc58e6b056e8df71d9e666429",
+      "volumeUsdH24": 1688.03,
+      "last": 1.1455391979,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0x5c85d6c6825ab4032337f11ee92a72df936b46f6&outputCurrency=0x86bb94ddd16efc8bc58e6b056e8df71d9e666429",
+      "pancakeV3Pools": [
+        {
+          "fee": 2500,
+          "pool": "0xf2aC982D1C8Ba9d7C014eC61789DaDB367c5B06e",
+          "liquidity": "318987366242871897185043",
+          "tick": 1381,
+          "unlocked": true
+        },
+        {
+          "fee": 10000,
+          "pool": "0x544590F52fC6d24f5eA1a269cf586122906d0301",
+          "liquidity": "0",
+          "tick": 185,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 2,
+      "maxActiveLiquidity": 318987366242871897185043
+    },
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "ZEC / COSA",
+      "baseSymbol": "ZEC",
+      "baseName": "Zcash Token",
+      "base": "0x1ba42e5193dfa8b03d15dd1b86a3113bbbef8eeb",
+      "quoteSymbol": "COSA",
+      "quoteName": "Cosanta",
+      "quote": "0x5f980533b994c93631a639deda7892fc49995839",
+      "volumeUsdH24": 1567.67,
+      "last": 204.4184755539,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0x1ba42e5193dfa8b03d15dd1b86a3113bbbef8eeb&outputCurrency=0x5f980533b994c93631a639deda7892fc49995839",
+      "pancakeV3Pools": [
+        {
+          "fee": 500,
+          "pool": "0x57347Dcc5c492ece7C337E7aa417C7d282c4F2a6",
+          "liquidity": "7161658108262965",
+          "tick": -177067,
+          "unlocked": true
+        },
+        {
+          "fee": 10000,
+          "pool": "0x7C47ECdcB81a758d2ddb79aa3f0d966c0d8A28f8",
+          "liquidity": "0",
+          "tick": -180093,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 2,
+      "maxActiveLiquidity": 7161658108262965
+    },
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "CDL / FORM",
+      "baseSymbol": "CDL",
+      "baseName": "Creditlink",
+      "base": "0x84575b87395c970f1f48e87d87a8db36ed653716",
+      "quoteSymbol": "FORM",
+      "quoteName": "FORM Token",
+      "quote": "0x5b73a93b4e5e4f1fd27d8b3f8c97d69908b5e284",
+      "volumeUsdH24": 1086.71,
+      "last": 0.02246927194,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0x84575b87395c970f1f48e87d87a8db36ed653716&outputCurrency=0x5b73a93b4e5e4f1fd27d8b3f8c97d69908b5e284",
+      "pancakeV3Pools": [
+        {
+          "fee": 100,
+          "pool": "0xdF82aa45BBAF8daB7471678568e7276d9B3b146f",
+          "liquidity": "173550450985703997391052",
+          "tick": 37958,
+          "unlocked": true
+        },
+        {
+          "fee": 2500,
+          "pool": "0x321C07B99Eb79950C288bB60592AE461Ca24E229",
+          "liquidity": "0",
+          "tick": 27288,
+          "unlocked": true
+        },
+        {
+          "fee": 10000,
+          "pool": "0x0B7EC5da331bCc493398347375eD5d80477Cd322",
+          "liquidity": "0",
+          "tick": 25262,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 3,
+      "maxActiveLiquidity": 173550450985703997391052
+    },
+    {
+      "network": "bsc",
+      "dexName": "PancakeSwap V3 (BSC)",
+      "pairName": "客服小何 / 哈基米",
+      "baseSymbol": "客服小何",
+      "baseName": "客服小何",
+      "base": "0x3ac8e2c113d5d7824ac6ebe82a3c60b1b9d64444",
+      "quoteSymbol": "哈基米",
+      "quoteName": "哈基米",
+      "quote": "0x82ec31d69b3c289e541b50e30681fd1acad24444",
+      "volumeUsdH24": 1061.61,
+      "last": 0.2266422444,
+      "trustScore": null,
+      "tradeUrl": "https://pancakeswap.finance/swap?inputCurrency=0x3ac8e2c113d5d7824ac6ebe82a3c60b1b9d64444&outputCurrency=0x82ec31d69b3c289e541b50e30681fd1acad24444",
+      "pancakeV3Pools": [
+        {
+          "fee": 10000,
+          "pool": "0x8C9605D48b359039Ea3864E8748DdB710184d38B",
+          "liquidity": "1411482037603206666529041",
+          "tick": -14943,
+          "unlocked": true
+        }
+      ],
+      "activePoolCount": 1,
+      "maxActiveLiquidity": 1411482037603206666529041
+    }
+  ],
+  "enrichedByRpcAtBlock": 116102666
+}

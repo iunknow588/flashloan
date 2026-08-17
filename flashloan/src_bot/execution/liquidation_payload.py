@@ -8,10 +8,16 @@ from typing import Any
 from web3 import Web3
 
 from core.sensitive_data import redact_sensitive_text
+from core.market_config import liquidation_market_config
 from execution.dex_costs import ROUTER_ABI, USDC
 from execution.liquidation_amounts import build_liquidation_amounts
 
 WAVAX = "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7"
+WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+BNB_USDT = "0x55d398326f99059fF775485246999027B3197955"
+BNB_USDC = "0x8AC76a51cc950d9822D68b83fe1ad97B32cd580d"
+DEFAULT_AVALANCHE_INTERMEDIATE_ASSETS = (USDC, WAVAX)
+DEFAULT_BNB_INTERMEDIATE_ASSETS = (WBNB, BNB_USDT, BNB_USDC)
 
 
 @dataclass(frozen=True)
@@ -40,6 +46,39 @@ def _decimals_value(value: Any) -> int:
         return max(0, int(value))
     except (TypeError, ValueError):
         return 18
+
+
+def _report_network(report: dict[str, Any]) -> str:
+    context = report.get("context") or {}
+    market = context.get("market") or {}
+    candidates = [
+        market.get("network"),
+        context.get("network"),
+        context.get("market_network"),
+        context.get("chain_network"),
+    ]
+    market_id = str(context.get("market_id") or market.get("market_id") or "").strip().lower()
+    if market_id.startswith("bnb"):
+        candidates.insert(0, "bnb")
+    elif market_id.startswith("avalanche"):
+        candidates.insert(0, "avalanche")
+    fallback = liquidation_market_config().network
+    for value in candidates + [fallback]:
+        network = str(value or "").strip().lower()
+        if network:
+            return network
+    return "avalanche"
+
+
+def _resolve_swap_intermediate_assets(
+    report: dict[str, Any],
+    config: LiquidationExecutionPayloadConfig,
+) -> tuple[str, ...]:
+    if config.swap_intermediate_assets != DEFAULT_AVALANCHE_INTERMEDIATE_ASSETS:
+        return config.swap_intermediate_assets
+    if _report_network(report) == "bnb":
+        return DEFAULT_BNB_INTERMEDIATE_ASSETS
+    return DEFAULT_AVALANCHE_INTERMEDIATE_ASSETS
 
 
 def profit_base_to_debt_units(
@@ -218,6 +257,7 @@ def build_liquidation_execution_payload(
         or candidate.get("min_debt_asset_out")
         or 0
     )
+    intermediate_assets = _resolve_swap_intermediate_assets(report, config)
     if collateral_asset.lower() != debt_asset.lower() and min_collateral_swap_out <= 0:
         collateral_amount = int(candidate.get("max_collateral_to_liquidate") or 0)
         rpc_url = str((report.get("context") or {}).get("rpc_url") or "").strip()
@@ -229,7 +269,7 @@ def build_liquidation_execution_payload(
                 debt_asset=debt_asset,
                 collateral_amount=collateral_amount,
                 slippage_bps=config.slippage_bps,
-                intermediate_assets=config.swap_intermediate_assets,
+                intermediate_assets=intermediate_assets,
             )
             min_collateral_swap_out = int(dex_quote["min_amount_out"])
             swap_path = list(dex_quote.get("path") or [])

@@ -2,6 +2,9 @@ import pytest
 
 from execution.liquidation_amounts import build_liquidation_amounts, token_amount
 from execution.liquidation_payload import (
+    BNB_USDC,
+    BNB_USDT,
+    WBNB,
     LiquidationExecutionPayloadConfig,
     build_liquidation_execution_payload,
     liquidation_swap_quote_paths,
@@ -238,3 +241,52 @@ def test_liquidation_payload_requires_swap_path_when_min_out_is_precomputed():
             router_address="0x0000000000000000000000000000000000000005",
             deadline=123456,
         )
+
+
+def test_liquidation_payload_uses_bnb_intermediate_assets_from_report_context(monkeypatch):
+    from execution import liquidation_payload
+
+    captured = {}
+
+    def fake_quote(**kwargs):
+        captured.update(kwargs)
+        return {
+            "path": [kwargs["collateral_asset"], WBNB, kwargs["debt_asset"]],
+            "min_amount_out": "995",
+            "quoted_amount_out": "1000",
+            "viable": True,
+        }
+
+    monkeypatch.setattr(liquidation_payload, "quote_liquidation_collateral_swap", fake_quote)
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "context": {
+            "rpc_url": "https://bsc.example",
+            "market": {"market_id": "bnb-venus-core", "network": "bnb"},
+        },
+        "execution_plan": {"execution_ready": True},
+        "recommended_candidate": {
+            "collateral_asset": "0x0000000000000000000000000000000000000002",
+            "debt_asset": "0x0000000000000000000000000000000000000003",
+            "debt_decimals": 6,
+            "debt_price": 1,
+            "max_collateral_to_liquidate": 1000,
+            "amount_to_pass_to_liquidation_call": 100,
+            "estimated_profit": {"net_profit_base": 123},
+        },
+    }
+
+    payload = build_liquidation_execution_payload(
+        report,
+        executor_address="0x0000000000000000000000000000000000000004",
+        router_address="0x0000000000000000000000000000000000000005",
+        deadline=123456,
+    )
+
+    assert captured["intermediate_assets"] == (WBNB, BNB_USDT, BNB_USDC)
+    assert payload["request"]["swapPath"] == [
+        "0x0000000000000000000000000000000000000002",
+        WBNB,
+        "0x0000000000000000000000000000000000000003",
+    ]

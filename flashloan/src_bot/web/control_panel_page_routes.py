@@ -73,6 +73,11 @@ def register_page_routes(app, panel) -> None:
     def binance_market_panel():
         return _html_response(panel.BINANCE_MARKET_TEMPLATE_PATH)
 
+    @app.get("/dex-pools")
+    @app.get("/candidate-pools")
+    def dex_pool_candidates_panel():
+        return _html_response(panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH)
+
     @app.get("/config")
     def config_panel():
         return panel.render_control_panel()

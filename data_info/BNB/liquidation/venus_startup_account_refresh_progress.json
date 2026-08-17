@@ -1,0 +1,16 @@
+{
+  "vtoken": "0xecA88125a5ADbe82614ffC12D0DB554E2e2867C8",
+  "event": "Borrow",
+  "from_block": 116259256,
+  "to_block": 116280878,
+  "current_from_block": 116261113,
+  "current_to_block": 116261190,
+  "event_count": 0,
+  "error": "all BNB RPCs failed: rpc[0]: 403 Client Error: Forbidden for url: https://bsc-rpc.publicnode.com/ | rpc[1]: 403 Client Error: Forbidden for url: https://bsc.publicnode.com/",
+  "rpc_failures": [
+    "rpc[0]: 403 Client Error: Forbidden for url: https://bsc-rpc.publicnode.com/",
+    "rpc[1]: 403 Client Error: Forbidden for url: https://bsc.publicnode.com/"
+  ],
+  "events_jsonl": "data_info\\BNB\\liquidation\\venus_borrower_events_2mo.jsonl",
+  "persisted_event_count": 7
+}

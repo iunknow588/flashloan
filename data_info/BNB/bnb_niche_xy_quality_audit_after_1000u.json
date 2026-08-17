@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-08-16T01:38:24Z",
+  "summary": {
+    "nicheTokenCount": 13,
+    "nichePairCount": 7,
+    "tokensReachableToUsdcWithinTwoHops": 2,
+    "tokensUnresolvedToUsdcWithinTwoHops": 11,
+    "lookupStatus": "static_pool_existence_and_state_only",
+    "qualityStatus": "qualified_pools_only_for_routes",
+    "qualityRules": {
+      "minSideUnits": "100",
+      "minStableSideUnitsForV2Bridge": "50000",
+      "minV3ActiveLiquidity": "1000000000000000000",
+      "bridgePreflightUsdc": "1000",
+      "minBridgeRoundtripReturnRatio": "0.90"
+    }
+  },
+  "pairs": [
+    {
+      "pair": "apyUSD / apxUSD",
+      "x": "apyUSD",
+      "xRoutes": 0,
+      "y": "apxUSD",
+      "yRoutes": 0,
+      "qualifiedDirectPools": 1,
+      "status": "rejected",
+      "reasons": [
+        "apyUSD_no_1000u_to_usdc_route",
+        "apxUSD_no_1000u_to_usdc_route"
+      ]
+    },
+    {
+      "pair": "ZEC / PIRATE",
+      "x": "ZEC",
+      "xRoutes": 3,
+      "y": "PIRATE",
+      "yRoutes": 0,
+      "qualifiedDirectPools": 0,
+      "status": "rejected",
+      "reasons": [
+        "xy_direct_pool_not_qualified",
+        "PIRATE_no_1000u_to_usdc_route"
+      ]
+    },
+    {
+      "pair": "VC / VINU",
+      "x": "VC",
+      "xRoutes": 0,
+      "y": "VINU",
+      "yRoutes": 0,
+      "qualifiedDirectPools": 2,
+      "status": "rejected",
+      "reasons": [
+        "VC_no_1000u_to_usdc_route",
+        "VINU_no_1000u_to_usdc_route"
+      ]
+    },
+    {
+      "pair": "mubarak / TST",
+      "x": "mubarak",
+      "xRoutes": 0,
+      "y": "TST",
+      "yRoutes": 0,
+      "qualifiedDirectPools": 1,
+      "status": "rejected",
+      "reasons": [
+        "mubarak_no_1000u_to_usdc_route",
+        "TST_no_1000u_to_usdc_route"
+      ]
+    },
+    {
+      "pair": "ZEC / COSA",
+      "x": "ZEC",
+      "xRoutes": 3,
+      "y": "COSA",
+      "yRoutes": 0,
+      "qualifiedDirectPools": 0,
+      "status": "rejected",
+      "reasons": [
+        "xy_direct_pool_not_qualified",
+        "COSA_no_1000u_to_usdc_route"
+      ]
+    },
+    {
+      "pair": "CDL / FORM",
+      "x": "CDL",
+      "xRoutes": 0,
+      "y": "FORM",
+      "yRoutes": 0,
+      "qualifiedDirectPools": 1,
+      "status": "rejected",
+      "reasons": [
+        "CDL_no_1000u_to_usdc_route",
+        "FORM_no_1000u_to_usdc_route"
+      ]
+    },
+    {
+      "pair": "客服小何 / 哈基米",
+      "x": "客服小何",
+      "xRoutes": 0,
+      "y": "哈基米",
+      "yRoutes": 3,
+      "qualifiedDirectPools": 1,
+      "status": "rejected",
+      "reasons": [
+        "客服小何_no_1000u_to_usdc_route"
+      ]
+    }
+  ]
+}

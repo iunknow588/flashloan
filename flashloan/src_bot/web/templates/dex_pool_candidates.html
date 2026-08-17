@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Avalanche 候选池子</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0; font-size: 16px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button, input, select { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    input { min-width: 240px; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .metric { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .metric span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.45; margin-bottom: 18px; }
+    .pair-section { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; margin-bottom: 14px; overflow: hidden; }
+    .pair-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 12px 14px; border-bottom: 1px solid #e4e7ec; background: #fbfcfe; }
+    .pair-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .pair-meta { color: #667085; font-size: 12px; line-height: 1.45; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+    .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
+    .badge.improvable { background: #fffbeb; color: #b7791f; border: 1px solid #fde68a; }
+    .badge.reject { background: #f3f4f6; color: #667085; border: 1px solid #d0d5dd; }
+    .badge.neutral { background: #eef6f4; color: #0f766e; border: 1px solid #cfe8e3; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #e4e7ec; padding: 8px 9px; text-align: right; white-space: nowrap; vertical-align: top; }
+    th:first-child, td:first-child { text-align: left; }
+    td.addr { font-family: Consolas, "Courier New", monospace; }
+    .muted { color: #667085; }
+    .negative { color: #b42318; }
+    .positive { color: #15803d; }
+    .improvable { color: #b7791f; }
+    .reason-box { padding: 10px 14px; color: #475467; font-size: 12px; line-height: 1.5; border-top: 1px solid #e4e7ec; }
+    .empty { padding: 18px 14px; color: #667085; }
+    .filters-line { color: #475467; font-size: 12px; margin-bottom: 12px; line-height: 1.45; }
+    main, table, td, th, .metric, .notice, .pair-section { user-select: text; }
+    button, input, select { user-select: none; }
+    @media (max-width: 860px) {
+      header { display: block; }
+      nav { margin-top: 10px; }
+      input { min-width: 160px; width: 100%; }
+      .pair-head { display: block; }
+      .pair-meta { margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Avalanche 候选池子</h1>
+    <nav>
+      <a href="/liquidation">清算</a>
+      <a href="/account-scan">账户扫描</a>
+      <a href="/market-observation">市场观察</a>
+      <a href="/dex-arbitrage">DEX 套利</a>
+      <a href="/dex-pools">候选池子</a>
+      <a href="/execution">执行</a>
+      <a href="/config">配置</a>
+    </nav>
+    <div id="message"></div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="primary" id="refreshBtn">刷新页面数据</button>
+      <input id="searchInput" type="search" placeholder="搜索交易对、池子地址">
+      <select id="qualityFilter">
+        <option value="quality" selected>只看有高质量池</option>
+        <option value="all">显示全部交易对</option>
+        <option value="missing">只看无高质量池</option>
+      </select>
+      <span id="refreshMeta" class="muted">等待数据</span>
+    </div>
+
+    <section class="summary-grid">
+      <div class="metric"><small>静态表池子</small><strong id="staticPools">-</strong><span id="staticPairs">-</span></div>
+      <div class="metric"><small>四槽静态候选覆盖</small><strong id="preferredPools">-</strong><span id="preferredPairs">-</span></div>
+      <div class="metric"><small>严格高质量</small><strong id="strictPools">-</strong><span id="strictPairs">-</span></div>
+      <div class="metric"><small>链上快照</small><strong id="blockNumber">-</strong><span id="generatedAt">-</span></div>
+    </section>
+
+    <div class="notice">
+      本页展示 Avalanche L1 静态池表里的候选池子。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。静态候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。输出价值保留率以约 1,000 USD 探针调用 Quoter 计算：100% 表示价值基本完整保留，0% 表示几乎没有有效输出，超过 100% 也不等于最终套利利润。
+    </div>
+    <div id="filtersLine" class="filters-line"></div>
+    <section id="pairList"></section>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const shortAddress = value => {
+      const text = String(value || "").trim();
+      return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
+    };
+    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const num = value => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return "-";
+      if (Math.abs(parsed) >= 1000) return parsed.toLocaleString(undefined, {maximumFractionDigits: 2});
+      return parsed.toLocaleString(undefined, {maximumFractionDigits: 8});
+    };
+    const retentionPct = value => {
+      const lossPct = Number(value);
+      if (!Number.isFinite(lossPct)) return "-";
+      return `${(100 - lossPct).toFixed(4)}%`;
+    };
+    const retentionClass = value => {
+      const lossPct = Number(value);
+      if (!Number.isFinite(lossPct)) return "";
+      return 100 - lossPct >= 100 ? "positive" : "negative";
+    };
+    const IMPROVABLE_MIN_TVL_USD = 1000;
+    const IMPROVABLE_MIN_RETENTION_PCT = 50;
+    const displayStatus = row => {
+      if (String(row?.quality || "").toLowerCase() === "pass") return "recommended";
+      const tvl = Number((row?.balances || {}).tvlUsd);
+      const q01 = Number((row?.quoteSummary || {}).token0ToToken1?.outputLossPct);
+      const q10 = Number((row?.quoteSummary || {}).token1ToToken0?.outputLossPct);
+      const r01 = Number.isFinite(q01) ? 100 - q01 : null;
+      const r10 = Number.isFinite(q10) ? 100 - q10 : null;
+      if (
+        Number.isFinite(tvl) &&
+        tvl >= IMPROVABLE_MIN_TVL_USD &&
+        r01 !== null &&
+        r10 !== null &&
+        Math.max(r01, r10) >= IMPROVABLE_MIN_RETENTION_PCT
+      ) return "improvable";
+      return "rejected";
+    };
+    const statusRank = status => ({recommended: 0, improvable: 1, rejected: 2})[status] ?? 3;
+    const statusLabel = status => ({recommended: "推荐", improvable: "可改善", rejected: "拒绝"})[status] || "拒绝";
+    const statusBadge = status => status === "recommended"
+      ? '<span class="badge good">推荐</span>'
+      : status === "improvable"
+        ? '<span class="badge improvable">可改善</span>'
+        : '<span class="badge reject">拒绝</span>';
+    const statusTextClass = status => status === "recommended" ? "positive" : status === "improvable" ? "improvable" : "muted";
+    const sortPools = rows => (Array.isArray(rows) ? rows.slice() : []).sort((a, b) => {
+      const rankDiff = statusRank(displayStatus(a)) - statusRank(displayStatus(b));
+      if (rankDiff) return rankDiff;
+      return Number((b?.balances || {}).tvlUsd || 0) - Number((a?.balances || {}).tvlUsd || 0);
+    });
+    let latestPayload = null;
+
+    async function api(path) {
+      const resp = await fetch(path, {headers: {"Accept": "application/json"}, cache: "no-cache"});
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      return data;
+    }
+
+    function poolRowsHtml(rows) {
+      const normalized = sortPools(rows).slice(0, 4);
+      while (normalized.length < 4) normalized.push(null);
+      return normalized.map((row, index) => {
+        if (!row) {
+          return `<tr>
+            <td>${index + 1}</td>
+            <td class="addr">-</td>
+            <td>-</td>
+            <td><span class="badge reject">空槽</span></td>
+            <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+          </tr>`;
+        }
+        const balances = row.balances || {};
+        const q01 = (row.quoteSummary || {}).token0ToToken1 || {};
+        const q10 = (row.quoteSummary || {}).token1ToToken0 || {};
+        const status = displayStatus(row);
+        return `<tr>
+          <td>${index + 1}</td>
+          <td class="addr ${statusTextClass(status)}" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
+          <td>${esc(row.fee)}</td>
+          <td>${statusBadge(status)}</td>
+          <td>${num(balances.tvlUsd)}</td>
+          <td>${num(balances.token0Usd)}</td>
+          <td>${num(balances.token1Usd)}</td>
+          <td>${esc(row.liquidity)}</td>
+          <td>${esc(row.tick)}</td>
+          <td class="${retentionClass(q01.outputLossPct)}">${retentionPct(q01.outputLossPct)}<br><span class="muted">${esc(row.token0Symbol)} -> ${esc(row.token1Symbol)}</span></td>
+          <td class="${retentionClass(q10.outputLossPct)}">${retentionPct(q10.outputLossPct)}<br><span class="muted">${esc(row.token1Symbol)} -> ${esc(row.token0Symbol)}</span></td>
+        </tr>`;
+      }).join("");
+    }
+
+     function rejectedPreviewHtml(rows) {
+       if (!rows.length) return "";
+       return `<div class="table-wrap"><table>
+         <thead><tr><th>池子</th><th>fee</th><th>TVL USD</th><th>质量</th></tr></thead>
+         <tbody>${sortPools(rows).map(row => {
+           const status = displayStatus(row);
+           return `<tr>
+           <td class="addr ${statusTextClass(status)}" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
+           <td>${esc(row.fee)}</td>
+           <td>${num((row.balances || {}).tvlUsd)}</td>
+           <td>${statusBadge(status)}</td>
+         </tr>`;
+         }).join("")}</tbody>
+       </table></div>`;
+    }
+
+    function renderPairs(payload) {
+      const query = $("searchInput").value.trim().toLowerCase();
+      const filter = $("qualityFilter").value;
+      const pairs = (payload.pairs || []).filter(pair => {
+        const hasPreferred = Number(pair.preferredPoolCount || 0) > 0;
+        if (filter === "quality" && !hasPreferred) return false;
+        if (filter === "missing" && hasPreferred) return false;
+        if (!query) return true;
+        const text = [
+          pair.symbolPair,
+          pair.addressPair,
+          pair.tokenX,
+          pair.tokenY,
+           ...(pair.qualityPools || []).map(row => row.pool),
+           ...(pair.rejectedPools || []).map(row => row.pool),
+        ].join(" ").toLowerCase();
+        return text.includes(query);
+      });
+      $("pairList").innerHTML = pairs.map(pair => `
+        <article class="pair-section">
+          <div class="pair-head">
+            <div>
+              <div class="pair-title">
+                <h2>${esc(pair.symbolPair)}</h2>
+              <span class="badge ${Number(pair.preferredPoolCount || 0) >= 4 ? "good" : "warn"}">静态候选 ${esc(pair.preferredPoolCount)} / 4</span>
+              <span class="badge ${Number(pair.strictQualityPoolCount || 0) >= 4 ? "good" : "warn"}">严格高质量 ${esc(pair.strictQualityPoolCount)}</span>
+              <span class="badge neutral">五槽窗口 ${esc(pair.executionPoolCount)}</span>
+              <span class="badge neutral">拒绝 ${esc(pair.rejectedPoolCount)}</span>
+            </div>
+              <div class="pair-meta">tokenX ${esc(pair.tokenXSymbol)} ${esc(pair.tokenX)} | tokenY ${esc(pair.tokenYSymbol)} ${esc(pair.tokenY)}</div>
+            </div>
+             <div class="pair-meta">拒绝池：${esc(pair.rejectedPoolCount || 0)}</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th><th>池子</th><th>fee</th><th>质量</th><th>TVL USD</th><th>token0 USD</th><th>token1 USD</th><th>liquidity</th><th>tick</th><th>0→1 输出价值保留率</th><th>1→0 输出价值保留率</th>
+                </tr>
+              </thead>
+              <tbody>${poolRowsHtml((pair.preferredPools || []).slice(0, 4))}</tbody>
+            </table>
+          </div>
+          <div class="reason-box">
+            <strong>未入选池预览</strong>
+            ${rejectedPreviewHtml(pair.rejectedPools || []) || '<div class="muted">没有未入选池。</div>'}
+          </div>
+        </article>
+      `).join("") || '<div class="notice">没有匹配的交易对。</div>';
+    }
+
+    function render(payload) {
+      const summary = payload.summary || {};
+      const source = payload.poolStaticTable || {};
+      const filters = payload.filters || {};
+      $("staticPools").textContent = summary.staticPoolCount || summary.discoveredPoolCount || "-";
+      $("staticPairs").textContent = `交易对 ${summary.staticPairCount || summary.discoveredPairCount || "-"}`;
+      $("preferredPools").textContent = summary.preferredPoolCount || summary.executionPoolCount || summary.qualityPoolCount || "-";
+      $("preferredPairs").textContent = `交易对 ${summary.preferredPairCount || summary.pairsWithPreferredPools || "-"}`;
+      $("strictPools").textContent = summary.strictQualityPoolCount || summary.qualityPoolCount || "-";
+      $("strictPairs").textContent = `交易对 ${summary.strictQualityPairCount || summary.pairsWithStrictQualityPools || "-"}`;
+      $("blockNumber").textContent = source.generatedBlockNumber || "-";
+      $("generatedAt").textContent = fmtTime(source.generatedAt);
+      $("filtersLine").textContent = `来源 ${source.path || "-"} | Factory ${source.factory || "-"} | Quoter ${source.quoter || "-"} | 网络 ${source.network || "-"} chainId ${source.chainId || "-"}`;
+      $("refreshMeta").textContent = `页面读取 ${fmtTime(new Date().toISOString())}`;
+      renderPairs(payload);
+    }
+
+    async function refresh() {
+      $("message").textContent = "加载中";
+      try {
+        latestPayload = await api("/api/dex-pools/candidates");
+        render(latestPayload);
+        $("message").textContent = "已更新";
+      } catch (err) {
+        $("message").textContent = err.message;
+      }
+    }
+
+    $("refreshBtn").onclick = refresh;
+    $("searchInput").oninput = () => latestPayload && renderPairs(latestPayload);
+    $("qualityFilter").onchange = () => latestPayload && renderPairs(latestPayload);
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

@@ -36,6 +36,7 @@ from runtime.cow_arbitrage_daemon import (
     ensure_cow_quote_daemon_running,
     retain_cow_candidate_networks,
 )
+from runtime.ui_signal_pool_evidence import record_ui_signal_pool_evidence
 from intent_trade import submit_cow_intent_trade
 from web.control_panel_cow_pause import (
     clear_cow_submission_pause_guard,
@@ -73,6 +74,8 @@ COW_EXECUTION_REVIEW_CATEGORIES = [
     COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
     COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
 ]
+DEX_ARBITRAGE_SUPPORTED_NETWORK = "bnb"
+DEX_POOL_STATIC_TABLE_PATH = SRC_ROOT / "runtime" / "cache" / "bnb_arbitrage_pool_static_table.json"
 
 
 def panel_call(name: str, *args, **kwargs):
@@ -84,6 +87,265 @@ def _cow_submission_pause_guard(*, database_url: str | None = None) -> dict:
         return cow_submission_pause_guard_status(database_url=database_url)
     except TypeError:
         return cow_submission_pause_guard_status()
+
+
+def _read_json_object(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _string_number(value) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed and parsed not in (float("inf"), float("-inf")) else None
+
+
+def _pool_address(row: dict) -> str:
+    return str(row.get("pool") or row.get("pool_address") or row.get("address") or "").strip()
+
+
+def _reject_reason_counts(rows: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        for reason in row.get("rejectReasons") or row.get("reject_reasons") or []:
+            text = str(reason or "").strip()
+            if text:
+                counts[text] = counts.get(text, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def _pool_quote_summary(row: dict) -> dict:
+    quotes = row.get("quotes") if isinstance(row.get("quotes"), dict) else {}
+    quote01 = quotes.get("token0ToToken1") if isinstance(quotes.get("token0ToToken1"), dict) else {}
+    quote10 = quotes.get("token1ToToken0") if isinstance(quotes.get("token1ToToken0"), dict) else {}
+    return {
+        "probeUsd": quotes.get("probeUsd"),
+        "token0ToToken1": {
+            "ok": bool(quote01.get("ok")),
+            "amountIn": quote01.get("amountIn"),
+            "amountOut": quote01.get("amountOut"),
+            "amountInUsd": quote01.get("amountInUsd"),
+            "amountOutUsd": quote01.get("amountOutUsd"),
+            "dexRateOutPerIn": quote01.get("dexRateOutPerIn"),
+            "referenceRateOutPerIn": quote01.get("referenceRateOutPerIn"),
+            "deviationPct": quote01.get("deviationPct"),
+            "outputLossPct": quote01.get("outputLossPct"),
+            "gas": quote01.get("gas"),
+            "reason": quote01.get("reason"),
+        },
+        "token1ToToken0": {
+            "ok": bool(quote10.get("ok")),
+            "amountIn": quote10.get("amountIn"),
+            "amountOut": quote10.get("amountOut"),
+            "amountInUsd": quote10.get("amountInUsd"),
+            "amountOutUsd": quote10.get("amountOutUsd"),
+            "dexRateOutPerIn": quote10.get("dexRateOutPerIn"),
+            "referenceRateOutPerIn": quote10.get("referenceRateOutPerIn"),
+            "deviationPct": quote10.get("deviationPct"),
+            "outputLossPct": quote10.get("outputLossPct"),
+            "gas": quote10.get("gas"),
+            "reason": quote10.get("reason"),
+        },
+    }
+
+
+def _pool_candidate_row(row: dict) -> dict:
+    balances = row.get("balances") if isinstance(row.get("balances"), dict) else {}
+    tvl = _string_number(balances.get("tvlUsd"))
+    return {
+        "pool": _pool_address(row),
+        "fee": str(row.get("fee") or ""),
+        "quality": str(row.get("quality") or ""),
+        "rejectReasons": row.get("rejectReasons") or [],
+        "token0": row.get("token0"),
+        "token1": row.get("token1"),
+        "token0Symbol": row.get("token0Symbol") or row.get("token0_symbol"),
+        "token1Symbol": row.get("token1Symbol") or row.get("token1_symbol"),
+        "liquidity": str(row.get("liquidity") or ""),
+        "tick": str(row.get("tick") or ""),
+        "sqrtPriceX96": str(row.get("sqrtPriceX96") or ""),
+        "balances": {
+            "token0": balances.get("token0"),
+            "token1": balances.get("token1"),
+            "token0Usd": balances.get("token0Usd"),
+            "token1Usd": balances.get("token1Usd"),
+            "tvlUsd": balances.get("tvlUsd"),
+        },
+        "quoteSummary": _pool_quote_summary(row),
+        "_sortTvlUsd": tvl if tvl is not None else -1.0,
+    }
+
+
+def _bnb_pool_candidate_row(row: dict) -> dict:
+    status = str(row.get("status") or "rejected").lower()
+    quality = "pass" if status == "recommended" else status
+    tvl = _string_number(row.get("tvlUsd"))
+    return {
+        "pool": _pool_address(row),
+        "fee": str(row.get("fee") or ""),
+        "quality": quality,
+        "rejectReasons": [],
+        "token0": row.get("token0"),
+        "token1": row.get("token1"),
+        "token0Symbol": row.get("token0Symbol"),
+        "token1Symbol": row.get("token1Symbol"),
+        "liquidity": str(row.get("liquidity") or ""),
+        "tick": str(row.get("tick") or ""),
+        "sqrtPriceX96": str(row.get("sqrtPriceX96") or ""),
+        "balances": {
+            "token0": row.get("token0Amount"),
+            "token1": row.get("token1Amount"),
+            "token0Usd": row.get("token0Usd"),
+            "token1Usd": row.get("token1Usd"),
+            "tvlUsd": row.get("tvlUsd"),
+        },
+        "quoteSummary": {},
+        "_sortTvlUsd": tvl if tvl is not None else -1.0,
+    }
+
+
+def _bnb_dex_pool_candidates_payload(table: dict, pool_cache_path: Path) -> dict:
+    groups: dict[str, list[dict]] = {}
+    for row in table.get("pools") or []:
+        if not isinstance(row, dict) or not _pool_address(row):
+            continue
+        groups.setdefault(str(row.get("symbolPair") or "unknown"), []).append(row)
+    pair_reports = []
+    for pair, rows in groups.items():
+        all_rows = [_bnb_pool_candidate_row(row) for row in rows]
+        strict_rows = [row for row in all_rows if str(row.get("quality") or "").lower() == "pass"]
+        preferred_rows = list(strict_rows)
+        rejected_rows = [row for row in all_rows if row not in strict_rows]
+        for row in all_rows:
+            row.pop("_sortTvlUsd", None)
+        pair_reports.append(
+            {
+                "symbolPair": pair,
+                "addressPair": "",
+                "tokenX": "",
+                "tokenY": "",
+                "tokenXSymbol": rows[0].get("token0Symbol") if rows else "",
+                "tokenYSymbol": rows[0].get("token1Symbol") if rows else "",
+                "allPoolCount": str(len(all_rows)),
+                "strictQualityPoolCount": str(len(strict_rows)),
+                "preferredPoolCount": str(len(preferred_rows)),
+                "executionPoolCount": str(min(5, len(preferred_rows))),
+                "rejectedPoolCount": str(len(rejected_rows)),
+                "hasStrictQualityPools": bool(strict_rows),
+                "hasPreferredPools": bool(preferred_rows),
+                "strictQualityPools": strict_rows,
+                "preferredPools": preferred_rows,
+                "executionPools": preferred_rows[:5],
+                "rejectedPools": rejected_rows[:5],
+                "rejectReasonCounts": {},
+            }
+        )
+    pair_reports.sort(key=lambda item: (-int(item["preferredPoolCount"]), str(item["symbolPair"])))
+    summary = table.get("summary") if isinstance(table.get("summary"), dict) else {}
+    return {
+        "mode": "dex_pool_candidates",
+        "poolStaticTable": {
+            "path": str(pool_cache_path),
+            "exists": pool_cache_path.exists(),
+            "mode": "bnb_static_pool_table",
+            "network": table.get("network"),
+            "chainId": table.get("chainId"),
+            "generatedAt": table.get("generatedAt"),
+            "generatedBlockNumber": table.get("generatedBlockNumber"),
+            "sourceDiscoveryBlockNumber": None,
+            "sourceDiscoveryFetchedAt": None,
+            "factory": None,
+            "router": None,
+            "quoter": None,
+        },
+        "filters": {"status": "recommended pools are high quality candidates"},
+        "summary": {
+            **summary,
+            "pairTableCount": str(len(pair_reports)),
+            "pairsWithStrictQualityPools": str(sum(1 for item in pair_reports if item["hasStrictQualityPools"])),
+            "pairsWithPreferredPools": str(sum(1 for item in pair_reports if item["hasPreferredPools"])),
+        },
+        "pairs": pair_reports,
+    }
+
+
+def dex_pool_candidates_payload(pool_cache_path: Path = DEX_POOL_STATIC_TABLE_PATH) -> dict:
+    table = _read_json_object(pool_cache_path)
+    if str(table.get("network") or "").lower() == "bnb":
+        return _bnb_dex_pool_candidates_payload(table, pool_cache_path)
+    pair_reports = []
+    for pair in table.get("pairs") or []:
+        if not isinstance(pair, dict):
+            continue
+        all_rows = [row for row in pair.get("allPools") or [] if isinstance(row, dict) and _pool_address(row)]
+        strict_rows = [_pool_candidate_row(row) for row in all_rows if str(row.get("quality") or "").lower() == "pass"]
+        preferred_rows = [_pool_candidate_row(row) for row in (pair.get("preferredPools") or []) if isinstance(row, dict) and _pool_address(row)]
+        execution_rows = [_pool_candidate_row(row) for row in (pair.get("executionPools") or []) if isinstance(row, dict) and _pool_address(row)]
+        rejected_rows = [_pool_candidate_row(row) for row in all_rows if str(row.get("quality") or "").lower() != "pass"]
+        strict_rows.sort(key=lambda row: (-row["_sortTvlUsd"], int(row.get("fee") or 0)))
+        preferred_rows.sort(key=lambda row: (-row["_sortTvlUsd"], int(row.get("fee") or 0)))
+        execution_rows.sort(key=lambda row: (-row["_sortTvlUsd"], int(row.get("fee") or 0)))
+        rejected_rows.sort(key=lambda row: (-row["_sortTvlUsd"], int(row.get("fee") or 0)))
+        for row in strict_rows + preferred_rows + execution_rows + rejected_rows:
+            row.pop("_sortTvlUsd", None)
+        pair_reports.append(
+            {
+                "symbolPair": pair.get("symbolPair"),
+                "addressPair": pair.get("addressPair"),
+                "tokenX": pair.get("tokenX"),
+                "tokenY": pair.get("tokenY"),
+                "tokenXSymbol": pair.get("tokenXSymbol"),
+                "tokenYSymbol": pair.get("tokenYSymbol"),
+                "allPoolCount": str(len(all_rows)),
+                "strictQualityPoolCount": str(len(strict_rows)),
+                "preferredPoolCount": str(len(preferred_rows)),
+                "executionPoolCount": str(len(execution_rows)),
+                "rejectedPoolCount": str(len(rejected_rows)),
+                "hasStrictQualityPools": bool(strict_rows),
+                "hasPreferredPools": bool(preferred_rows),
+                "strictQualityPools": strict_rows,
+                "preferredPools": preferred_rows,
+                "executionPools": execution_rows,
+                "rejectedPools": rejected_rows[:5],
+                "rejectReasonCounts": _reject_reason_counts(all_rows),
+            }
+        )
+    pair_reports.sort(
+        key=lambda item: (
+            -int(item.get("preferredPoolCount") or 0),
+            str(item.get("symbolPair") or ""),
+        )
+    )
+    return {
+        "mode": "dex_pool_candidates",
+        "poolStaticTable": {
+            "path": str(pool_cache_path),
+            "exists": pool_cache_path.exists(),
+            "mode": table.get("mode"),
+            "network": table.get("network"),
+            "chainId": table.get("chainId") or table.get("chain_id"),
+            "generatedAt": table.get("generatedAt"),
+            "generatedBlockNumber": table.get("generatedBlockNumber"),
+            "sourceDiscoveryBlockNumber": table.get("sourceDiscoveryBlockNumber"),
+            "sourceDiscoveryFetchedAt": table.get("sourceDiscoveryFetchedAt"),
+            "factory": table.get("factory"),
+            "router": table.get("router"),
+            "quoter": table.get("quoter"),
+        },
+        "filters": table.get("filters") or {},
+        "summary": {
+            **(table.get("summary") if isinstance(table.get("summary"), dict) else {}),
+            "pairTableCount": str(len(pair_reports)),
+            "pairsWithStrictQualityPools": str(sum(1 for item in pair_reports if item["hasStrictQualityPools"])),
+            "pairsWithPreferredPools": str(sum(1 for item in pair_reports if item["hasPreferredPools"])),
+        },
+        "pairs": pair_reports,
+    }
 
 
 def _set_cow_submission_pause_guard(*, paused: bool, reason: str | None = None, database_url: str | None = None) -> dict:
@@ -113,11 +375,16 @@ def data_error_message(error: object | None) -> str | None:
 
 def _request_networks_arg() -> list[str]:
     raw = request.args.get("cow_networks", "") or request.args.get("cow_network", "")
-    return [
+    requested = [
         item.strip().lower()
         for item in raw.split(",")
         if item.strip()
     ]
+    return [network for network in requested if network == DEX_ARBITRAGE_SUPPORTED_NETWORK]
+
+
+def _request_cow_network_arg() -> str:
+    return DEX_ARBITRAGE_SUPPORTED_NETWORK
 
 
 def _filter_network_claims(claims: list[dict], networks: list[str]) -> list[dict]:
@@ -382,6 +649,13 @@ def record_cow_market_candidates_safely(
         daemon = ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
         daemon_result = daemon.status()
     return {**recording, "queue": queue_result, "daemon": daemon_result}
+
+
+def record_ui_signal_pool_evidence_safely(market_state: dict, *, extremes: dict | None = None) -> dict:
+    try:
+        return record_ui_signal_pool_evidence(market_state=market_state, extremes=extremes)
+    except Exception as exc:
+        return {"recorded": False, "reason": "error", "error": data_error_message(exc)}
 
 
 def request_int_arg(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
@@ -783,7 +1057,7 @@ def register_data_routes(app, panel) -> None:
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
         min_side_change_percent = float(thresholds["min_side_change_percent"])
         min_token_price_usd = float(thresholds["min_token_price_usd"])
-        cow_network = request.args.get("cow_network", "").strip() or None
+        cow_network = _request_cow_network_arg()
         database_url = panel_call("database_url_or_none")
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
@@ -855,6 +1129,10 @@ def register_data_routes(app, panel) -> None:
             fallback_reason=market_state.get("fallback_reason"),
             database_url=database_url,
         )
+        market_state["pool_evidence_recording"] = record_ui_signal_pool_evidence_safely(
+            market_state,
+            extremes=extremes,
+        )
         return jsonify(market_state)
 
     @app.get("/api/binance-market/states")
@@ -867,18 +1145,14 @@ def register_data_routes(app, panel) -> None:
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
         min_side_change_percent = float(thresholds["min_side_change_percent"])
         min_token_price_usd = float(thresholds["min_token_price_usd"])
-        requested = [
-            item.strip().lower()
-            for item in (request.args.get("cow_networks", "") or "").split(",")
-            if item.strip()
-        ]
+        requested = _request_networks_arg()
         mainnet_networks = [
             item["network"]
             for item in cow_network_options()["networks"]
             if not item.get("testnet")
         ]
         if not requested:
-            requested = ["avalanche"]
+            requested = [DEX_ARBITRAGE_SUPPORTED_NETWORK]
         requested = [
             network
             for index, network in enumerate(requested)
@@ -941,6 +1215,10 @@ def register_data_routes(app, panel) -> None:
             market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
             market_state["cow_top"] = list(market_state.get("top") or [])[:DEFAULT_BINANCE_RAW_SIDE_LIMIT]
             market_state["cow_bottom"] = list(market_state.get("bottom") or [])[:DEFAULT_BINANCE_RAW_SIDE_LIMIT]
+            market_state["pool_evidence_recording"] = record_ui_signal_pool_evidence_safely(
+                market_state,
+                extremes=extremes,
+            )
             states[network] = market_state
             market_states_for_history.append(market_state)
         history_recording = record_cow_market_candidates_safely(
@@ -977,7 +1255,7 @@ def register_data_routes(app, panel) -> None:
 
     @app.get("/api/binance-market/cow-tokens")
     def binance_market_cow_tokens():
-        cow_network = request.args.get("cow_network", "").strip() or None
+        cow_network = _request_cow_network_arg()
         database_url = panel_call("database_url_or_none")
         token_cache = load_cow_supported_token_registry(
             cow_network=cow_network,
@@ -996,7 +1274,7 @@ def register_data_routes(app, panel) -> None:
 
     @app.post("/api/binance-market/cow-tokens/refresh")
     def binance_market_cow_tokens_refresh():
-        cow_network = request.args.get("cow_network", "").strip() or None
+        cow_network = _request_cow_network_arg()
         database_url = panel_call("database_url_or_none")
         try:
             payload = refresh_cow_supported_token_cache(
@@ -1019,7 +1297,7 @@ def register_data_routes(app, panel) -> None:
         min_spread_percent = float(thresholds["adjusted_min_spread_percent"])
         min_side_change_percent = float(thresholds["min_side_change_percent"])
         min_token_price_usd = float(thresholds["min_token_price_usd"])
-        cow_network = request.args.get("cow_network", "").strip() or None
+        cow_network = _request_cow_network_arg()
         database_url = panel_call("database_url_or_none")
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
@@ -1067,7 +1345,7 @@ def register_data_routes(app, panel) -> None:
         min_side_change_percent = float(thresholds["min_side_change_percent"])
         min_token_price_usd = float(thresholds["min_token_price_usd"])
         owner = request.args.get("owner", "").strip() or None
-        cow_network = request.args.get("cow_network", "").strip() or None
+        cow_network = _request_cow_network_arg()
         database_url = panel_call("database_url_or_none")
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
@@ -1115,6 +1393,10 @@ def register_data_routes(app, panel) -> None:
             market_state["pairs"] = fallback_pairs
             market_state["pair_count"] = len(fallback_pairs)
             market_state["quote_candidate_source"] = "cow_network_claim_top_bottom"
+        market_state["pool_evidence_recording"] = record_ui_signal_pool_evidence_safely(
+            market_state,
+            extremes=extremes,
+        )
         try:
             payload = build_cow_quote_verification(
                 market_state,
@@ -1294,6 +1576,10 @@ def register_data_routes(app, panel) -> None:
     @app.get("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause():
         return jsonify(_cow_submission_pause_guard(database_url=panel_call("database_url_or_none")))
+
+    @app.get("/api/dex-pools/candidates")
+    def dex_pool_candidates():
+        return jsonify(dex_pool_candidates_payload())
 
     @app.post("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause_update():

@@ -103,6 +103,17 @@ def test_liquidation_config_health_reports_invalid_chain_id_without_raising(monk
     assert "CHAIN_ID must be an integer" in health["errors"]
 
 
+def test_bnb_venus_defaults_to_observation_mode(monkeypatch):
+    clear_liquidation_env(monkeypatch)
+    monkeypatch.setenv("LIQUIDATION_MARKET_ID", "bnb-venus-core")
+
+    health = liquidation_config_health(chain_id=56)
+
+    assert health["execution_enabled"] is False
+    assert health["market"]["protocol"] == "venus_core"
+    assert any("not executable by the current protocol adapter" in warning for warning in health["warnings"])
+
+
 def test_liquidation_config_health_warns_when_auto_execute_waits_for_manual_test(monkeypatch):
     clear_liquidation_env(monkeypatch)
     monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")

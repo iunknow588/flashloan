@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-08-16T22:40:33Z",
+  "status": "rpc_retrying",
+  "ok": true,
+  "process": {
+    "pid": 24552,
+    "alive": true
+  },
+  "registry": {
+    "path": "data_info\\BNB\\liquidation\\venus_borrower_registry.json",
+    "account_count": 10,
+    "event_count": 19,
+    "scan_complete": false,
+    "scan_mode": "historical_backfill",
+    "discovery_mode": "borrow_events_only",
+    "from_block": 104782916,
+    "to_block": 116297160,
+    "age_seconds": 25613.353254556656
+  },
+  "events": {
+    "path": "data_info\\BNB\\liquidation\\venus_borrower_events_2mo.jsonl",
+    "line_count": 19
+  },
+  "market_progress": {
+    "path": "data_info\\BNB\\liquidation\\venus_two_month_market_scan_progress.json",
+    "status": "running_market",
+    "market_index": 1,
+    "market_count": 52,
+    "selected_market_count": 52,
+    "vtoken": "0xC4eF4229FEc74Ccfe17B2bdeF7715fAC740BA0ba",
+    "vtoken_count": 8,
+    "market_end_index": 8,
+    "from_block": 104782916,
+    "to_block": 116297160,
+    "recent_blocks": 0,
+    "rpc_urls": [
+      "https://bsc-rpc.publicnode.com",
+      "https://bsc.publicnode.com"
+    ]
+  },
+  "borrow_progress": {
+    "path": "data_info\\BNB\\liquidation\\venus_borrow_scan_progress.json",
+    "vtoken": null,
+    "event": "Borrow",
+    "current_from_block": 116287332,
+    "current_to_block": 116287339,
+    "from_block": 104782916,
+    "to_block": 116297160,
+    "persisted_event_count": 19,
+    "age_seconds": 0.0,
+    "error": "all BNB RPCs failed; retrying",
+    "rpc_failures": [
+      "rpc[0]: 403 Client Error: Forbidden for url: https://bsc-rpc.publicnode.com/",
+      "rpc[1]: 403 Client Error: Forbidden for url: https://bsc.publicnode.com/"
+    ],
+    "retry_attempt": 2,
+    "retry_after_seconds": 10.0
+  },
+  "audit": {
+    "status": "warning",
+    "ok": true,
+    "warnings": [
+      "registry_scan_incomplete"
+    ],
+    "errors": [],
+    "paths": {
+      "json": "data_info\\BNB\\liquidation\\venus_file_state_audit.json",
+      "markdown": "data_info\\BNB\\liquidation\\venus_file_state_audit.md"
+    }
+  }
+}

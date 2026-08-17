@@ -67,9 +67,9 @@
         <button id="monitorBtn">5秒监控</button>
         <button id="stopMonitorBtn" disabled>停止监控</button>
         <button id="preflightBtn">预演</button>
-        <button class="primary" id="executeBtn">执行清算</button>
-        <button id="flashloanBtn">闪电贷清算</button>
-        <button class="danger" id="forceExecuteBtn">强制自有资金清算</button>
+        <button class="primary" id="executeBtn">闪电贷清算</button>
+        <button id="flashloanBtn" hidden>闪电贷清算</button>
+        <button class="danger" id="forceExecuteBtn" hidden disabled>自有资金已禁用</button>
         <button class="danger" id="forceFlashloanBtn">强制闪电贷清算</button>
       </div>
       <div id="accountMeta">等待输入账户地址。</div>
@@ -423,13 +423,13 @@
     }
     async function refreshAccountAudit(account) {
       try {
-        const attempts = await api(`/api/liquidation/account/${encodeURIComponent(account)}/attempts?limit=20`, {timeoutMs: 10000});
+        const attempts = await api(`/api/liquidation/account/${encodeURIComponent(account)}/attempts?${accountApiQuery(account, {limit: 20})}`, {timeoutMs: 10000});
         $("accountAttemptBody").innerHTML = (attempts.attempts || []).map(row => {
           const receipt = row.receipt && row.receipt.status !== undefined ? row.receipt.status : "-";
           const tx = row.tx_hash || "-";
           return `<tr><td>${row.id}</td><td>${row.mode || "-"}</td><td>${userFacingAuditStatus(row)}</td><td>${row.execution_phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td colspan="2">${userFacingAuditStatus(row)}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
         }).join("") || '<tr><td colspan="9">暂无执行尝试</td></tr>';
-        const samples = await api(`/api/liquidation/account/${encodeURIComponent(account)}/samples?limit=20`, {timeoutMs: 10000});
+        const samples = await api(`/api/liquidation/account/${encodeURIComponent(account)}/samples?${accountApiQuery(account, {limit: 20})}`, {timeoutMs: 10000});
         $("accountSampleBody").innerHTML = (samples.samples || []).map(row => {
           const p = row.payload || {};
           const phase = p.execution_phase || row.execution_phase || "-";
@@ -455,7 +455,7 @@
       }
       actionRunning = true;
       try {
-        const endpoint = mode === "preflight" ? `${encodeURIComponent(account)}/static-call-and-save` : mode === "flashloan" || mode === "force_flashloan" ? "flashloan" : "execute";
+        const endpoint = mode === "preflight" ? `${encodeURIComponent(account)}/static-call-and-save` : "flashloan";
         const query = mode === "preflight" ? "" : `?${accountApiQuery(account, forced ? {force: "1"} : {})}`;
         const data = await api(`/api/liquidation/account/${endpoint}${query}`, {method:"POST", body:"{}", timeoutMs: 45000});
         renderActionDetail(data);
@@ -517,9 +517,9 @@
     $("monitorBtn").onclick = startMonitor;
     $("stopMonitorBtn").onclick = () => stopMonitor();
     $("preflightBtn").onclick = () => action("preflight");
-    $("executeBtn").onclick = () => action("execute");
+    $("executeBtn").onclick = () => action("flashloan");
     $("flashloanBtn").onclick = () => action("flashloan");
-    $("forceExecuteBtn").onclick = () => action("force_execute");
+    $("forceExecuteBtn").onclick = () => action("force_flashloan");
     $("forceFlashloanBtn").onclick = () => action("force_flashloan");
     $("accountInput").addEventListener("keydown", event => {
       if (event.key === "Enter") {

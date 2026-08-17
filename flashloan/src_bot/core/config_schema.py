@@ -6,7 +6,7 @@ from typing import Any
 
 from web3 import Web3
 
-from core.market_config import DEFAULT_AVALANCHE_CHAIN_ID, liquidation_market_config
+from core.market_config import DEFAULT_AVALANCHE_CHAIN_ID, liquidation_market_config, liquidation_market_config_for
 
 AVALANCHE_C_CHAIN_ID = DEFAULT_AVALANCHE_CHAIN_ID
 
@@ -154,9 +154,13 @@ def _private_key_owner_check() -> ConfigCheck:
     )
 
 
-def liquidation_config_health(chain_id: int | None = None) -> dict[str, Any]:
-    market = liquidation_market_config()
-    execution_enabled = _env_bool("LIQUIDATION_EXECUTION_ENABLED", True)
+def liquidation_config_health(market_id: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
+    market = (
+        liquidation_market_config_for(market_id=market_id, chain_id=chain_id)
+        if market_id is not None
+        else liquidation_market_config()
+    )
+    execution_enabled = _env_bool("LIQUIDATION_EXECUTION_ENABLED", bool(market.protocol_supported))
     auto_execute_requested = _env_bool("LIQUIDATION_AUTO_EXECUTE", True)
     manual_test_completed = _env_bool("LIQUIDATION_MANUAL_TEST_COMPLETED", True)
     checks = [
@@ -206,12 +210,21 @@ def liquidation_config_health(chain_id: int | None = None) -> dict[str, Any]:
     if not market.protocol_supported:
         checks.append(
             ConfigCheck(
-                "LIQUIDATION_PROTOCOL",
+                "LIQUIDATION_PROTOCOL_OBSERVATION_MODE",
                 False,
-                "error" if execution_enabled else "warning",
+                "warning",
                 f"{market.protocol} is not executable by the current protocol adapter",
             )
         )
+        if execution_enabled:
+            checks.append(
+                ConfigCheck(
+                    "LIQUIDATION_PROTOCOL",
+                    False,
+                    "error",
+                    f"{market.protocol} is not executable by the current protocol adapter",
+                )
+            )
     if not market.evm_compatible:
         checks.append(
             ConfigCheck(

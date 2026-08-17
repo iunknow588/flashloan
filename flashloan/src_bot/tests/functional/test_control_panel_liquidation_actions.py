@@ -379,36 +379,20 @@ def test_liquidation_preflight_path_api_returns_static_call_status(monkeypatch):
     assert data["preflight"]["static_call_passed"] is True
 
 
-def test_liquidation_account_execute_api_returns_self_funded_tx_details(monkeypatch):
+def test_liquidation_account_execute_api_blocks_self_funded_path(monkeypatch):
     from web import control_panel
 
-    captured = {}
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account})
-    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: captured.setdefault("attempt", kwargs))
-    monkeypatch.setattr(
-        control_panel,
-        "execute_self_funded_liquidation_transaction",
-        lambda payload, force=False: {
-            "account_report": {"account": payload["account"], "summary": {}},
-            "execution_controls": {"execution_enabled": True},
-            "execution_phase": "confirmed_success",
-            "mode": "self_funded",
-            "sender": "0xsender",
-            "receipt": {"transaction_hash": "0xabc", "status": 1},
-            "tx_hash": "0xabc",
-        },
-    )
+    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: (_ for _ in ()).throw(AssertionError("disabled path should not write audit")))
 
     response = app.test_client().post(
         "/api/liquidation/account/execute?account=0x0000000000000000000000000000000000000001"
     )
     data = response.get_json()
 
-    assert response.status_code == 200
-    assert data["mode"] == "self_funded"
-    assert data["tx_hash"] == "0xabc"
-    assert data["receipt"]["status"] == 1
-    assert captured["attempt"]["preflight"]["execution_phase"] == "confirmed_success"
+    assert response.status_code == 400
+    assert data["state"] == "submission_blocked"
+    assert data["execution_phase"] == "self_funded_disabled"
+    assert data["blocked_reasons"] == ["self_funded_execution_disabled", "flashloan_executor_required"]
 
 
 def test_liquidation_account_flashloan_api_returns_tx_details(monkeypatch):
@@ -468,36 +452,18 @@ def test_liquidation_route_success_records_tx_hash_from_receipt(monkeypatch):
     assert captured["preflight"]["receipt_status"] == 1
 
 
-def test_liquidation_account_execute_api_passes_force_flag(monkeypatch):
+def test_liquidation_account_execute_api_blocks_self_funded_force(monkeypatch):
     from web import control_panel
 
-    captured = {}
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: {"account": account, "payload_force": kwargs.get("force")})
-    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: captured.setdefault("attempt", kwargs))
-    monkeypatch.setattr(
-        control_panel,
-        "execute_self_funded_liquidation_transaction",
-        lambda payload, force=False: {
-            "account_report": {"account": payload["account"], "summary": {}},
-            "execution_controls": {"execution_enabled": False, "manual_force": force},
-            "mode": "self_funded",
-            "sender": "0xsender",
-            "request": {},
-            "receipt": {"transaction_hash": "0xabc", "status": 1},
-            "tx_hash": "0xabc",
-            "payload_force": payload["payload_force"],
-        },
-    )
+    monkeypatch.setattr(control_panel, "record_liquidation_execution_attempt_safely", lambda **kwargs: (_ for _ in ()).throw(AssertionError("disabled path should not write audit")))
 
     response = app.test_client().post(
         "/api/liquidation/account/execute?account=0x0000000000000000000000000000000000000001&force=1"
     )
     data = response.get_json()
 
-    assert response.status_code == 200
-    assert data["payload_force"] is True
-    assert data["execution_controls"]["manual_force"] is True
-    assert captured["attempt"]["mode"] == "self_funded_force"
+    assert response.status_code == 400
+    assert data["execution_phase"] == "self_funded_disabled"
 
 
 def test_liquidation_account_flashloan_api_passes_force_flag(monkeypatch):
@@ -548,16 +514,11 @@ def _failing_payload(account, **kwargs):
     }
 
 
-def test_liquidation_account_execute_api_returns_context_on_failure(monkeypatch):
+def test_liquidation_account_execute_api_blocks_without_building_payload(monkeypatch):
     from web import control_panel
 
     captured = {}
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: _failing_payload(account))
-    monkeypatch.setattr(
-        control_panel,
-        "execute_self_funded_liquidation_transaction",
-        lambda payload, force=False: (_ for _ in ()).throw(RuntimeError("self funded liquidation failed")),
-    )
+    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: (_ for _ in ()).throw(AssertionError("payload should not be built")))
     monkeypatch.setattr(
         control_panel,
         "record_liquidation_execution_attempt_safely",
@@ -570,16 +531,9 @@ def test_liquidation_account_execute_api_returns_context_on_failure(monkeypatch)
     data = response.get_json()
 
     assert response.status_code == 400
-    assert data["error"] == "self funded liquidation failed"
-    assert data["execution_phase"] == "ready_to_submit"
-    assert data["request"]["debtToCover"] == "1000"
-    assert data["preflight"]["static_call_required"] is True
-    assert data["account_report"]["summary"]["status"] == "liquidatable"
-    assert data["execution_plan"]["execution_ready"] is True
-    assert captured["preflight"]["execution_phase"] == "ready_to_submit"
-    assert captured["mode"] == "self_funded"
-    assert captured["state"] == "submission_failed"
-    assert captured["error"] == "self funded liquidation failed"
+    assert data["execution_phase"] == "self_funded_disabled"
+    assert data["state"] == "submission_blocked"
+    assert captured == {}
 
 
 def test_liquidation_account_flashloan_api_returns_context_on_failure(monkeypatch):
@@ -658,22 +612,11 @@ def test_liquidation_account_static_call_and_save_api_records_attempt(monkeypatc
     assert captured["state"] == "static_call_passed"
 
 
-def test_liquidation_account_execute_failure_archives_canonical_submission_failed(monkeypatch):
+def test_liquidation_account_execute_disabled_archives_canonical_submission_failed(monkeypatch):
     from web import control_panel
 
     account = "0x0000000000000000000000000000000000000001"
     captured = {}
-    payload = _failing_payload(account) | {
-        "state": "submission_allowed",
-        "submission_allowed": True,
-        "dex_quote": {"quote_block": 123},
-    }
-    monkeypatch.setattr(control_panel, "liquidation_execution_payload_for_account", lambda account, **kwargs: payload)
-    monkeypatch.setattr(
-        control_panel,
-        "execute_self_funded_liquidation_transaction",
-        lambda payload, force=False: (_ for _ in ()).throw(RuntimeError("broadcast rejected")),
-    )
     monkeypatch.setattr(
         control_panel,
         "record_liquidation_execution_attempt_safely",
@@ -684,12 +627,9 @@ def test_liquidation_account_execute_failure_archives_canonical_submission_faile
     data = response.get_json()
 
     assert response.status_code == 400
-    assert data["state"] == "submission_allowed"
-    assert captured["state"] == "submission_failed"
-    assert captured["quote"] == {"quote_block": 123}
-    assert captured["preflight"]["execution_phase"] == "ready_to_submit"
-    assert captured["preflight"]["route_failure_state"] == "submission_failed"
-    assert captured["error"] == "broadcast rejected"
+    assert data["state"] == "submission_blocked"
+    assert data["blocked_reasons"] == ["self_funded_execution_disabled", "flashloan_executor_required"]
+    assert captured == {}
 
 
 def test_liquidation_account_flashloan_receipt_zero_archives_confirmed_failed(monkeypatch):

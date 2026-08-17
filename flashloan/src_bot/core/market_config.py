@@ -8,6 +8,10 @@ from typing import Any
 
 DEFAULT_AVALANCHE_MARKET_ID = "avalanche-aave-v3"
 DEFAULT_AVALANCHE_CHAIN_ID = 43114
+DEFAULT_AVALANCHE_ROUTER_ADDRESS = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4"
+DEFAULT_BNB_MARKET_ID = "bnb-venus-core"
+DEFAULT_BNB_CHAIN_ID = 56
+DEFAULT_BNB_PANCAKE_ROUTER_ADDRESS = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
 
 
 KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
@@ -20,9 +24,16 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
     },
     "bnb-aave-v3": {
         "network": "bnb",
-        "chain_id": 56,
+        "chain_id": DEFAULT_BNB_CHAIN_ID,
         "native_symbol": "BNB",
         "protocol": "aave_v3",
+        "rpc_env_prefixes": ("BNB", "BSC"),
+    },
+    DEFAULT_BNB_MARKET_ID: {
+        "network": "bnb",
+        "chain_id": DEFAULT_BNB_CHAIN_ID,
+        "native_symbol": "BNB",
+        "protocol": "venus_core",
         "rpc_env_prefixes": ("BNB", "BSC"),
     },
 }
@@ -41,6 +52,13 @@ PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
         "executor": "EvmLiquidationExecutor",
         "supported": True,
         "notes": "EVM Aave V3 style health factor, reserve data, liquidationCall, and executor payloads.",
+    },
+    "venus_core": {
+        "evm": True,
+        "adapter": "VenusCoreAdapter",
+        "executor": "VenusLiquidationExecutor",
+        "supported": False,
+        "notes": "Venus Core Pool observation mode uses a dedicated protocol adapter; execution remains gated until the Venus executor is deployed.",
     },
     "hyperliquid_native": {
         "evm": False,
@@ -181,7 +199,24 @@ def _rpc_urls_for(profile: dict[str, Any]) -> tuple[str, ...]:
                 "https://avalanche-c-chain-rpc.publicnode.com",
             ]
         )
+    if profile.get("network") == "bnb":
+        candidates.extend(
+            [
+                "https://bsc-dataseed.binance.org",
+                "https://rpc.ankr.com/bsc",
+                "https://bsc.publicnode.com",
+            ]
+        )
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
+
+
+def _dex_router_for(profile: dict[str, Any]) -> str:
+    explicit = _first_env("LIQUIDATION_DEX_ROUTER_ADDRESS")
+    if explicit:
+        return explicit
+    if str(profile.get("network") or "").strip().lower() == "bnb":
+        return _first_env("BNB_DEX_ROUTER_ADDRESS", "PANCAKE_ROUTER_ADDRESS", "PANCAKESWAP_V2_ROUTER_ADDRESS") or DEFAULT_BNB_PANCAKE_ROUTER_ADDRESS
+    return _first_env("DEX_ROUTER_ADDRESS") or DEFAULT_AVALANCHE_ROUTER_ADDRESS
 
 
 def liquidation_market_config() -> ChainMarketConfig:
@@ -213,7 +248,7 @@ def liquidation_market_config_for(
         pool_address=_first_env("LIQUIDATION_POOL_ADDRESS", "AAVE_POOL_ADDRESS"),
         protocol_data_provider_address=_first_env("LIQUIDATION_PROTOCOL_DATA_PROVIDER_ADDRESS", "AAVE_PROTOCOL_DATA_PROVIDER_ADDRESS"),
         liquidation_data_provider_address=_first_env("LIQUIDATION_DATA_PROVIDER_ADDRESS", "AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS"),
-        dex_router_address=_first_env("LIQUIDATION_DEX_ROUTER_ADDRESS", "DEX_ROUTER_ADDRESS"),
+        dex_router_address=_dex_router_for(profile),
         executor_address=_first_env("LIQUIDATION_EXECUTOR_ADDRESS"),
         executor_owner_address=_first_env("LIQUIDATION_EXECUTOR_OWNER_ADDRESS"),
         multicall3_address=_first_env(

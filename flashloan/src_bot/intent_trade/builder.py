@@ -14,7 +14,7 @@ from strategy.limits import (
 
 DEFAULT_INTENT_BORROW_AMOUNT = Decimal("1000")
 DEFAULT_INTENT_BORROW_SYMBOL = "USDC"
-DEFAULT_INTENT_NETWORK = "avalanche"
+DEFAULT_INTENT_NETWORK = "bnb"
 
 
 def _decimal_value(value: Any) -> Decimal | None:

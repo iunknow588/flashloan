@@ -12,6 +12,14 @@ from typing import Any, Callable
 from core.sensitive_data import redact_sensitive_text
 from execution.gas_estimator import build_gas_params, estimate_gas_price
 from execution.private_tx import send_raw_transaction_private_first
+from intent_trade.chains.avalanche.config import (
+    AVALANCHE_CHAIN_ID,
+    AVALANCHE_RPC_ENV,
+    AVALANCHE_USDC_ADDRESS,
+    FUJI_CHAIN_ID,
+    FUJI_RPC_ENV,
+    FUJI_USDC_ADDRESS,
+)
 from intent_trade.builder import (
     DEFAULT_INTENT_BORROW_SYMBOL,
     build_cow_intent_trade,
@@ -42,8 +50,7 @@ DEFAULT_DIRECT_CIRCUIT_COOLDOWN_SECONDS = 3600
 DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS = 120
 DEFAULT_GAS_TOKEN_PRICE_MAX_DEVIATION_BPS = 100
 SRC_ROOT = Path(__file__).resolve().parents[1]
-AVALANCHE_USDC_ADDRESS = "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e"
-FUJI_USDC_ADDRESS = "0x5425890298aed601595a70ab815c96711a31bc65"
+BNB_USDC_ADDRESS = "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
 STABLE_EXERCISE_SYMBOLS = {
     "USDC",
     "USDC.E",
@@ -59,8 +66,24 @@ STABLE_EXERCISE_SYMBOLS = {
     "SUSDE",
 }
 DIRECT_ONCHAIN_NETWORKS = {
-    "avalanche": {"chain_id": 43114, "testnet": False, "rpc_env": ("AVALANCHE_RPC_URL", "AVALANCHE_RPC")},
-    "fuji": {"chain_id": 43113, "testnet": True, "rpc_env": ("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL")},
+    "avalanche": {
+        "chain_id": AVALANCHE_CHAIN_ID,
+        "testnet": False,
+        "rpc_env": AVALANCHE_RPC_ENV,
+        "unified_executor_supported": True,
+    },
+    "fuji": {
+        "chain_id": FUJI_CHAIN_ID,
+        "testnet": True,
+        "rpc_env": FUJI_RPC_ENV,
+        "unified_executor_supported": True,
+    },
+    "bnb": {
+        "chain_id": 56,
+        "testnet": False,
+        "rpc_env": ("BNB_RPC_URL", "BSC_RPC_URL", "BNB_RPC", "BSC_RPC"),
+        "unified_executor_supported": False,
+    },
 }
 DIRECT_ONCHAIN_NETWORK_ALIASES = {
     "avax": "avalanche",
@@ -70,6 +93,11 @@ DIRECT_ONCHAIN_NETWORK_ALIASES = {
     "avalanche-fuji": "fuji",
     "fuji": "fuji",
     "43113": "fuji",
+    "bnb": "bnb",
+    "bsc": "bnb",
+    "bnb-chain": "bnb",
+    "binance-smart-chain": "bnb",
+    "56": "bnb",
 }
 ROUTE_DECISION_COMPONENTS = [
     {"name": "viable", "type": "bool"},
@@ -475,6 +503,11 @@ def _direct_rpc_url(network: str) -> tuple[str, tuple[str, ...]]:
     config = DIRECT_ONCHAIN_NETWORKS.get(network, DIRECT_ONCHAIN_NETWORKS["avalanche"])
     names = tuple(config["rpc_env"])
     return _env(*names), names
+
+
+def _unified_executor_supported_for_network(network: str) -> bool:
+    normalized = _normalize_direct_onchain_network(network)
+    return bool(DIRECT_ONCHAIN_NETWORKS.get(normalized, {}).get("unified_executor_supported", False))
 
 
 def _positive_int_value(value: Any, *, default: int = 0) -> int:
@@ -930,7 +963,7 @@ def _runtime_pool_cache_path() -> Path:
     raw = _env(
         "TRIANGULAR_RUNTIME_POOL_CACHE_FILE",
         "PINAX_POOL_DISCOVERY_CACHE_FILE",
-        default="runtime/cache/avalanche_v3_pools.json",
+        default="runtime/cache/avalanche_l1_pool_static_table.json",
     )
     path = Path(raw)
     return path if path.is_absolute() else SRC_ROOT / path
@@ -1912,6 +1945,8 @@ def _usdc_address_for_network(network: str | None = None, cache: dict[str, Any] 
     normalized_network = _normalize_direct_onchain_network(network)
     if normalized_network == "fuji":
         return FUJI_USDC_ADDRESS
+    if normalized_network == "bnb":
+        return BNB_USDC_ADDRESS
     return AVALANCHE_USDC_ADDRESS
 
 
@@ -2032,8 +2067,10 @@ def _symbol_aliases(symbol: str) -> set[str]:
         "WAVAX": {"AVAX"},
         "ETH": {"WETH", "WETH.E"},
         "WETH": {"ETH", "WETH.E"},
-        "BTC": {"WBTC", "WBTC.E", "BTC.B"},
-        "WBTC": {"BTC", "WBTC.E", "BTC.B"},
+        "BTC": {"BTC.B"},
+        "BTC.B": {"BTC"},
+        "WBTC": {"WBTC.E"},
+        "WBTC.E": {"WBTC"},
         "AAVE": {"AAVE.E"},
     }
     aliases.update(wrapped.get(value, set()))
@@ -2072,7 +2109,23 @@ def _cache_pool_candidates_for_pair(cache: dict[str, Any], x_symbol: str, y_symb
             continue
         token_x = entry_x if same_order else entry_y
         token_y = entry_y if same_order else entry_x
-        nested = entry.get("pools") if isinstance(entry.get("pools"), list) else [entry]
+        nested = entry.get("preferredPools") if isinstance(entry.get("preferredPools"), list) else None
+        if not nested:
+            nested = entry.get("qualityPools") if isinstance(entry.get("qualityPools"), list) else None
+        if not nested:
+            nested = entry.get("pools") if isinstance(entry.get("pools"), list) else [entry]
+        is_quality_annotated = any(
+            isinstance(pool, dict) and str(pool.get("quality") or "").strip()
+            for pool in (
+                entry.get("preferredPools")
+                if isinstance(entry.get("preferredPools"), list)
+                else entry.get("qualityPools")
+                if isinstance(entry.get("qualityPools"), list)
+                else entry.get("pools")
+                if isinstance(entry.get("pools"), list)
+                else []
+            )
+        )
         for pool in nested:
             if not isinstance(pool, dict):
                 continue
@@ -2081,6 +2134,12 @@ def _cache_pool_candidates_for_pair(cache: dict[str, Any], x_symbol: str, y_symb
             )
             pool_address = _normalize_pair_address(pool.get("pool") or pool.get("pool_address") or pool.get("address"))
             if adapter_kind != 1 or not pool_address:
+                continue
+            if (
+                is_quality_annotated
+                and not isinstance(entry.get("preferredPools"), list)
+                and str(pool.get("quality") or "").lower() not in {"pass", ""}
+            ):
                 continue
             candidate = {"adapterKind": 1, "pool": pool_address}
             if candidate not in pools:
@@ -3386,10 +3445,15 @@ def build_triangular_onchain_intent_trade(
     )
     protocol = {
         "kind": "unified_flashloan_mev_executor_runtime_v1",
-        "enabled": True,
+        "enabled": _unified_executor_supported_for_network(network),
         "network": network,
         "chain_id": chain_id,
         "testnet": testnet,
+        "execution_support": (
+            "supported"
+            if _unified_executor_supported_for_network(network)
+            else "bnb_executor_adapter_unverified"
+        ),
         "owner_address": _env("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "TRIANGULAR_CONTROLLER_OWNER_ADDRESS"),
         "unified_executor_address": unified_executor_address,
         "executor_address": unified_executor_address,
@@ -3412,7 +3476,9 @@ def build_triangular_onchain_intent_trade(
     intent["submission_protocol"] = "direct_onchain"
     intent["submission_mode"] = "direct_onchain"
     intent["direct_onchain_ready"] = bool(
-        protocol["unified_executor_address"] and (protocol["runtime_trades"] or protocol["runtime_route_groups"])
+        protocol["enabled"]
+        and protocol["unified_executor_address"]
+        and (protocol["runtime_trades"] or protocol["runtime_route_groups"])
     )
     return intent
 
@@ -4210,6 +4276,18 @@ def submit_direct_onchain_trade(
 ) -> dict[str, Any]:
     intent = quote_payload.get("cow_flashloan_intent") if isinstance(quote_payload, dict) else None
     protocol = intent.get("direct_onchain_protocol") if isinstance(intent, dict) else None
+    if isinstance(protocol, dict) and not protocol.get("enabled", True):
+        network = _normalize_direct_onchain_network(protocol.get("network") or "")
+        if network == "bnb":
+            return {
+                "ok": False,
+                "submitted": False,
+                "status": "bnb_executor_adapter_unverified",
+                "blocked_reason": "bnb_executor_adapter_unverified",
+                "error": "BNB direct execution is disabled until a BNB-specific flash-loan executor adapter is verified",
+                "network": network,
+                "chain_id": DIRECT_ONCHAIN_NETWORKS["bnb"]["chain_id"],
+            }
     if not isinstance(protocol, dict) or not protocol.get("enabled", True):
         return {
             "ok": False,
@@ -4228,6 +4306,16 @@ def submit_direct_onchain_trade(
             "status": "order_submission_network_unsupported",
             "blocked_reason": "order_submission_network_unsupported",
             "error": str(exc),
+        }
+    if not _unified_executor_supported_for_network(network):
+        return {
+            "ok": False,
+            "submitted": False,
+            "status": "bnb_executor_adapter_unverified",
+            "blocked_reason": "bnb_executor_adapter_unverified",
+            "error": "BNB direct execution is disabled until a BNB-specific flash-loan executor adapter is verified",
+            "network": network,
+            "chain_id": expected_chain_id,
         }
 
     executor_address = str(

@@ -66,6 +66,26 @@ def _sdk_missing_status() -> dict:
     }
 
 
+def _fake_pool_filter(symbols: list[str], pairs: list[tuple[str, str]]) -> dict:
+    pair_map = {
+        tuple(sorted((left.upper(), right.upper()))): {
+            "pair": f"{left.upper()}:{right.upper()}",
+            "effectivePoolCount": 2,
+        }
+        for left, right in pairs
+    }
+    return {
+        "loaded": True,
+        "source": "test",
+        "pair_count": len(pair_map),
+        "symbols": [symbol.upper() for symbol in symbols],
+        "pairs": pair_map,
+        "cache_block_number": "1",
+        "fetched_at": "test",
+        "error": None,
+    }
+
+
 def test_query_window_timing_identifies_previous_window_and_lagging_quote():
     timing = _query_window_timing(
         [
@@ -207,26 +227,21 @@ def test_binance_market_state_filters_cow_supported_tokens_before_ranking():
         top_limit=5,
         bottom_limit=5,
         pair_side_limit=5,
-        cow_network="sepolia",
+        cow_network="avalanche",
         min_spread_percent=1.0,
         registry=registry,
     )
 
-    assert [row["base_symbol"] for row in payload["top"]] == ["AAA"]
-    assert [row["base_symbol"] for row in payload["bottom"]] == ["BBB"]
+    assert [row["base_symbol"] for row in payload["top"]] == []
+    assert [row["base_symbol"] for row in payload["bottom"]] == []
     assert [row["base_symbol"] for row in payload["raw_top"]][:2] == ["UNSUPPORTEDTOP", "AAA"]
     assert [row["base_symbol"] for row in payload["raw_bottom"]][:2] == ["UNSUPPORTEDBOTTOM", "BBB"]
     assert payload["cow_filter"]["enabled"] is True
-    assert payload["cow_filter"]["supported_symbol_count"] == 2
-    assert payload["cow_filter"]["unsupported_symbol_count"] == 2
+    assert payload["cow_filter"]["pool_filter"]["enabled"] is True
     assert payload["cow_filter"]["market_excluded_symbol_count"] == 4
     assert payload["cow_filter"]["min_side_change_percent"] == 0.3
     assert payload["cow_filter"]["min_token_price_usd"] == 0.01
-    assert payload["pair_count"] == 1
-    assert [(pair["x_base_symbol"], pair["y_base_symbol"]) for pair in payload["pairs"]] == [
-        ("AAA", "BBB"),
-    ]
-    assert all(pair["window_spread_percent"] > 1.0 for pair in payload["pairs"])
+    assert payload["pair_count"] == 0
 
 
 def test_binance_market_state_honors_requested_raw_side_limit_up_to_50():
@@ -277,7 +292,7 @@ def test_binance_market_state_keeps_raw_50_separate_from_explicit_network_displa
         bottom_limit=50,
         pair_side_limit=5,
         cow_display_limit=5,
-        cow_network="bnb",
+        cow_network=None,
         registry=registry,
         min_spread_percent=1.0,
     )
@@ -828,7 +843,7 @@ def test_binance_market_state_uses_pair_spread_threshold_for_trades():
         aave_symbols=[],
         arbitrage_config=config,
         pair_side_limit=1,
-        cow_network="bnb",
+        cow_network=None,
         registry=registry,
         min_spread_percent=2.0,
         min_side_change_percent=0.05,
@@ -861,7 +876,7 @@ def test_binance_market_state_pair_spread_can_pass_below_old_side_threshold():
         aave_symbols=[],
         arbitrage_config=config,
         pair_side_limit=1,
-        cow_network="bnb",
+        cow_network=None,
         registry=registry,
         min_spread_percent=1.5,
         min_side_change_percent=0.05,
@@ -871,7 +886,49 @@ def test_binance_market_state_pair_spread_can_pass_below_old_side_threshold():
     assert payload["pairs"][0]["window_spread_percent"] > 1.5
 
 
-def test_cow_network_market_claims_lists_each_mainnet_support_set():
+def test_binance_market_state_requires_avalanche_v3_pool_route(monkeypatch):
+    extremes = {
+        "basket": [
+            _row("AAAUSDT", 10.0, 10.8),
+            _row("BBBUSDT", 10.0, 9.4),
+            _row("CCCUSDT", 10.0, 10.7),
+        ],
+        "sample_count": 3,
+    }
+    registry = {
+        "USDC": CowToken("USDC", "0x" + "1" * 40, 6, "test"),
+        "AAA": CowToken("AAA", "0x" + "2" * 40, 18, "test"),
+        "BBB": CowToken("BBB", "0x" + "3" * 40, 18, "test"),
+        "CCC": CowToken("CCC", "0x" + "4" * 40, 18, "test"),
+    }
+    monkeypatch.setattr(
+        "market.binance_market.service._load_avalanche_v3_pool_filter",
+        lambda: _fake_pool_filter(
+            ["USDC", "AAA", "BBB", "CCC"],
+            [("USDC", "AAA"), ("USDC", "BBB"), ("USDC", "CCC"), ("AAA", "BBB")],
+        ),
+    )
+    config = ArbitrageConfig(notional_usd=1000.0, trade_fee_percent=0.1, flashloan_fee_percent=0.05)
+
+    payload = build_binance_market_state(
+        extremes,
+        aave_symbols=[],
+        arbitrage_config=config,
+        pair_side_limit=2,
+        cow_network="avalanche",
+        registry=registry,
+        min_spread_percent=1.0,
+        min_side_change_percent=0.05,
+    )
+
+    assert payload["pair_count"] == 1
+    assert [(pair["x_base_symbol"], pair["y_base_symbol"]) for pair in payload["pairs"]] == [("AAA", "BBB")]
+    assert payload["pairs"][0]["pool_assembly_supported"] is True
+    assert payload["pairs"][0]["pool_assembly"]["missingPairs"] == []
+    assert payload["cow_filter"]["pool_filter"]["rejected_pair_count"] == 1
+
+
+def test_cow_network_market_claims_only_lists_avalanche_pool_supported_set(monkeypatch):
     extremes = {
         "basket": [
             _row("AAAUSDT", 10.0, 10.8),
@@ -882,6 +939,14 @@ def test_cow_network_market_claims_lists_each_mainnet_support_set():
         ],
         "sample_count": 5,
     }
+    monkeypatch.setattr(
+        "market.binance_market.service._load_avalanche_v3_pool_filter",
+        lambda: _fake_pool_filter(
+            ["USDC", "AAA", "BBB"],
+            [("USDC", "AAA"), ("USDC", "BBB"), ("AAA", "BBB")],
+        ),
+    )
+
     claims = build_cow_network_market_claims(
         extremes,
         {
@@ -911,16 +976,16 @@ def test_cow_network_market_claims_lists_each_mainnet_support_set():
 
     by_network = {item["network"]: item for item in claims}
     assert "sepolia" not in by_network
+    assert "bnb" not in by_network
     assert [row["base_symbol"] for row in by_network["avalanche"]["top"]] == ["AAA"]
     assert [row["base_symbol"] for row in by_network["avalanche"]["bottom"]] == ["BBB"]
-    assert [row["base_symbol"] for row in by_network["bnb"]["top"]] == ["CCC"]
-    assert [row["base_symbol"] for row in by_network["bnb"]["bottom"]] == ["DDD"]
-    assert by_network["bnb"]["market_excluded_symbol_count"] == 1
-    assert by_network["bnb"]["min_side_change_percent"] == 0.3
-    assert by_network["bnb"]["pair_count"] == 1
+    assert by_network["avalanche"]["market_excluded_symbol_count"] == 1
+    assert by_network["avalanche"]["min_side_change_percent"] == 0.3
+    assert by_network["avalanche"]["pair_count"] == 1
+    assert by_network["avalanche"]["pool_filter"]["rejected_pair_count"] == 0
 
 
-def test_cow_network_market_claims_do_not_exclude_shared_tokens_between_networks():
+def test_cow_network_market_claims_excludes_avalanche_tokens_without_pool_route(monkeypatch):
     extremes = {
         "basket": [
             _row("AAAUSDT", 10.0, 10.8),
@@ -933,6 +998,11 @@ def test_cow_network_market_claims_do_not_exclude_shared_tokens_between_networks
         "BBB": CowToken("BBB", "0x" + "2" * 40, 18, "test"),
     }
 
+    monkeypatch.setattr(
+        "market.binance_market.service._load_avalanche_v3_pool_filter",
+        lambda: _fake_pool_filter(["USDC", "AAA", "BBB"], [("USDC", "AAA"), ("USDC", "BBB")]),
+    )
+
     claims = build_cow_network_market_claims(
         extremes,
         {
@@ -944,12 +1014,13 @@ def test_cow_network_market_claims_do_not_exclude_shared_tokens_between_networks
     )
 
     by_network = {item["network"]: item for item in claims}
+    assert "polygon" not in by_network
     assert [row["base_symbol"] for row in by_network["avalanche"]["top"]] == ["AAA"]
     assert [row["base_symbol"] for row in by_network["avalanche"]["bottom"]] == ["BBB"]
-    assert [row["base_symbol"] for row in by_network["polygon"]["top"]] == ["AAA"]
-    assert [row["base_symbol"] for row in by_network["polygon"]["bottom"]] == ["BBB"]
-    assert by_network["avalanche"]["pair_count"] == 1
-    assert by_network["polygon"]["pair_count"] == 1
+    assert by_network["avalanche"]["top"][0]["pool_route_supported"] is False
+    assert by_network["avalanche"]["bottom"][0]["pool_route_supported"] is False
+    assert by_network["avalanche"]["pair_count"] == 0
+    assert by_network["avalanche"]["pool_filter"]["rejected_pair_count"] == 1
 
 
 def test_cow_supported_market_overview_lists_union_top_bottom_50_without_chain_exclusion():
@@ -1936,21 +2007,9 @@ def test_cow_network_options_exposes_supported_networks():
 
     options = cow_network_options()
 
-    assert options["default_network"] == "avalanche"
-    assert {item["network"] for item in options["networks"]} == {
-        "ethereum",
-        "gnosis",
-        "arbitrum_one",
-        "base",
-        "polygon",
-        "avalanche",
-        "bnb",
-        "linea",
-        "plasma",
-        "ink",
-        "sepolia",
-    }
-    assert {item["label"] for item in options["networks"]} >= {"BNB Chain", "Arbitrum One"}
+    assert options["default_network"] == "bnb"
+    assert {item["network"] for item in options["networks"]} == {"bnb"}
+    assert {item["label"] for item in options["networks"]} == {"BNB Chain"}
 
 
 def test_cow_supported_token_cache_refreshes_file_and_loads_registry(tmp_path, monkeypatch):
@@ -1987,9 +2046,9 @@ def test_cow_supported_token_cache_dedupes_duplicate_addresses(tmp_path, monkeyp
         ],
     )
 
-    refreshed = refresh_cow_supported_token_cache(cow_network="bnb", cache_path=cache_path)
+    refreshed = refresh_cow_supported_token_cache(cow_network="polygon", cache_path=cache_path)
     loaded = load_cow_supported_token_registry(
-        cow_network="bnb",
+        cow_network="polygon",
         cache_path=cache_path,
         allow_live_fallback=False,
     )

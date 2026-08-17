@@ -1,0 +1,55 @@
+{
+  "startedAt": "2026-08-15T04:17:07.036Z",
+  "endedAt": "2026-08-15T04:27:07.862Z",
+  "durationSeconds": 600.0,
+  "intervalSeconds": 0.2,
+  "sampleCount": 148,
+  "errorCount": 0,
+  "jsonlPath": "E:\\2026OPC大赛\\flashLoan\\data_info\\two_loop_observation_20260815T041706Z.jsonl",
+  "routes": [
+    {
+      "routeKey": "usdc_btc_wavax_usdc",
+      "path": "USDC -> BTC.b -> WAVAX -> USDC",
+      "targetPair": "BTC.b/WAVAX",
+      "startSymbol": "USDC",
+      "startAmount": 1000.0,
+      "maxFinalAmount": 980.313769,
+      "maxNetBeforeGas": -20.186231,
+      "profitableBeforeGasCount": 0,
+      "bestObservedAt": "2026-08-15T04:17:27.593Z"
+    },
+    {
+      "routeKey": "usdc_wavax_btc_usdc",
+      "path": "USDC -> WAVAX -> BTC.b -> USDC",
+      "targetPair": "BTC.b/WAVAX",
+      "startSymbol": "USDC",
+      "startAmount": 1000.0,
+      "maxFinalAmount": 977.8398,
+      "maxNetBeforeGas": -22.6602,
+      "profitableBeforeGasCount": 0,
+      "bestObservedAt": "2026-08-15T04:24:51.663Z"
+    },
+    {
+      "routeKey": "usdt_wavax_weth_usdt",
+      "path": "USDt -> WAVAX -> WETH.e -> USDt",
+      "targetPair": "WAVAX/WETH.e",
+      "startSymbol": "USDt",
+      "startAmount": 100.0,
+      "maxFinalAmount": 97.320222,
+      "maxNetBeforeGas": -2.729778,
+      "profitableBeforeGasCount": 0,
+      "bestObservedAt": "2026-08-15T04:24:35.189Z"
+    },
+    {
+      "routeKey": "usdt_weth_wavax_usdt",
+      "path": "USDt -> WETH.e -> WAVAX -> USDt",
+      "targetPair": "WAVAX/WETH.e",
+      "startSymbol": "USDt",
+      "startAmount": 100.0,
+      "maxFinalAmount": 97.228162,
+      "maxNetBeforeGas": -2.821838,
+      "profitableBeforeGasCount": 0,
+      "bestObservedAt": "2026-08-15T04:22:45.213Z"
+    }
+  ]
+}

@@ -413,6 +413,41 @@ def test_direct_onchain_network_can_target_fuji_without_cow_network_config(monke
     assert testnet is True
 
 
+def test_direct_onchain_network_can_target_bnb_in_shadow_only_mode(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("TRIANGULAR_DIRECT_NETWORK", "bsc")
+
+    network, chain_id, testnet = direct._resolve_direct_onchain_network({})
+
+    assert network == "bnb"
+    assert chain_id == 56
+    assert testnet is False
+    assert direct._usdc_address_for_network("56") == "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+    assert direct._unified_executor_supported_for_network("bnb") is False
+
+
+def test_bnb_direct_submission_is_explicitly_disabled(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+
+    result = direct.submit_direct_onchain_trade(
+        quote_payload={
+            "cow_flashloan_intent": {
+                "direct_onchain_protocol": {
+                    "enabled": False,
+                    "network": "bnb",
+                    "chain_id": 56,
+                }
+            }
+        },
+        opportunity={},
+        timeout_seconds=1,
+    )
+
+    assert result["submitted"] is False
+    assert result["status"] == "bnb_executor_adapter_unverified"
+    assert result["network"] == "bnb"
+
+
 def test_direct_onchain_rpc_prefers_fuji_rpc_for_fuji(monkeypatch):
     _clear_direct_pair_env(monkeypatch)
     monkeypatch.setenv("AVALANCHE_RPC_URL", "https://mainnet.example")

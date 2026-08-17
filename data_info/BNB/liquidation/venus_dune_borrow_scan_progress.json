@@ -1,0 +1,22 @@
+{
+  "status": "completed",
+  "ok": true,
+  "source": "dune_bnb_logs_distinct_borrowers",
+  "mode": "accounts",
+  "execution_id": "01M06E9EG97FRKSZX7ASNVZQ0N",
+  "row_count": 3864,
+  "event_count": 57456,
+  "account_count": 3864,
+  "paths": {
+    "json": "data_info\\BNB\\liquidation\\venus_borrower_registry.json",
+    "accounts": "data_info\\BNB\\liquidation\\venus_borrower_accounts.txt",
+    "progress": "E:\\2026OPC大赛\\flashLoan\\data_info\\BNB\\liquidation\\venus_dune_borrow_scan_progress.json"
+  },
+  "audit": {
+    "status": "ok",
+    "paths": {
+      "json": "data_info\\BNB\\liquidation\\venus_file_state_audit.json",
+      "markdown": "data_info\\BNB\\liquidation\\venus_file_state_audit.md"
+    }
+  }
+}

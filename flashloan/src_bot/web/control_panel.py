@@ -141,6 +141,7 @@ LIQUIDATION_ACCOUNT_TEMPLATE_PATH = WEB_DIR / "templates" / "liquidation_account
 EXCHANGE_MATRIX_TEMPLATE_PATH = WEB_DIR / "templates" / "exchange_matrix.html"
 OPPORTUNITY_HEALTH_TEMPLATE_PATH = WEB_DIR / "templates" / "opportunity_health.html"
 BINANCE_MARKET_TEMPLATE_PATH = WEB_DIR / "templates" / "binance_market.html"
+DEX_POOL_CANDIDATES_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_pool_candidates.html"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
 LATEST_EXECUTABLE_SIGNAL_PATH = STATE_DIR / "latest_executable_signal.json"
 LATEST_EXTREMES_PATH = STATE_DIR / "latest_extremes.json"
@@ -166,6 +167,8 @@ observer_supervisor_state = observer_runtime_service.supervisor_state
 liquidation_engine_instance: Optional[LiquidationEngine] = None
 liquidation_engine_thread: Optional[threading.Thread] = None
 liquidation_engine_lock = threading.Lock()
+bnb_venus_watcher_thread: Optional[threading.Thread] = None
+bnb_venus_watcher_lock = threading.Lock()
 _scan_initialize_liquidation_runtime = liquidation_scan_module.initialize_liquidation_runtime
 observer_start_progress = observer_runtime_service.observer_start_progress
 control_status = observer_runtime_service.control_status
@@ -1103,6 +1106,50 @@ def start_liquidation_engine_runtime(*, force: bool = False) -> dict:
         }
 
 
+def bnb_venus_watcher_enabled() -> bool:
+    return os.getenv("BNB_VENUS_WATCHER_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def start_bnb_venus_watcher_runtime() -> dict:
+    global bnb_venus_watcher_thread
+    if not bnb_venus_watcher_enabled():
+        return {"enabled": False, "started": False, "reason": "BNB_VENUS_WATCHER_ENABLED is false"}
+    with bnb_venus_watcher_lock:
+        if bnb_venus_watcher_thread is not None and bnb_venus_watcher_thread.is_alive():
+            return {"enabled": True, "started": False, "reason": "already_running"}
+        duration_seconds = parse_env_float("BNB_VENUS_WATCHER_DURATION_SECONDS", 86_400, minimum=1)[0]
+        interval_seconds = parse_env_float("BNB_VENUS_WATCHER_INTERVAL_SECONDS", 1, minimum=0.1)[0]
+
+        def runner() -> None:
+            try:
+                from tools.watch_bnb_venus_liquidations import main as watch_bnb_venus_liquidations
+
+                watch_bnb_venus_liquidations(
+                    [
+                        "--duration-seconds",
+                        str(duration_seconds),
+                        "--interval-seconds",
+                        str(interval_seconds),
+                        "--disable-startup-account-refresh",
+                    ]
+                )
+            except Exception as exc:
+                set_control_status("error", "start BNB Venus watcher", redact_sensitive_text(exc), 0)
+
+        bnb_venus_watcher_thread = threading.Thread(
+            target=runner,
+            name="bnb-venus-health-watcher",
+            daemon=True,
+        )
+        bnb_venus_watcher_thread.start()
+        return {
+            "enabled": True,
+            "started": True,
+            "duration_seconds": duration_seconds,
+            "interval_seconds": interval_seconds,
+        }
+
+
 def initialize_liquidation_runtime() -> None:
     if liquidation_engine_autostart_enabled():
         try:
@@ -1114,6 +1161,10 @@ def initialize_liquidation_runtime() -> None:
             start_observer_runtime_async()
         except Exception as exc:
             set_control_status("error", "start observer", redact_sensitive_text(exc), 0)
+    try:
+        start_bnb_venus_watcher_runtime()
+    except Exception as exc:
+        set_control_status("error", "start BNB Venus watcher", redact_sensitive_text(exc), 0)
     ui_scan_enabled = os.getenv("LIQUIDATION_UI_SCAN_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
     if ui_scan_enabled:
         _scan_initialize_liquidation_runtime()

@@ -29,7 +29,7 @@ from core.config_schema import (
     parse_env_int,
 )
 from core.env_loader import load_env_files, resolve_env_path
-from core.market_config import liquidation_market_config, supported_market_summaries
+from core.market_config import liquidation_market_config, liquidation_market_config_for, supported_market_summaries
 from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
 from market.observer import env_urls
@@ -208,9 +208,14 @@ def aave_rpc_urls() -> list[str]:
     return candidates
 
 
-def liquidation_market_payload() -> dict:
+def liquidation_market_payload(market_id: str | None = None, chain_id: int | None = None) -> dict:
+    market = (
+        liquidation_market_config_for(market_id=market_id, chain_id=chain_id)
+        if market_id is not None or chain_id is not None
+        else liquidation_market_config()
+    )
     return {
-        "active": liquidation_market_config().as_dict(),
+        "active": market.as_dict(),
         "supported_markets": supported_market_summaries(),
     }
 
@@ -451,12 +456,10 @@ def liquidation_execution_controls() -> dict:
         database_url=database_url_or_none(),
     )
     return {
-        "execution_enabled": env_bool("LIQUIDATION_EXECUTION_ENABLED", True),
+        "execution_enabled": bool(config_health.get("execution_enabled")),
         "require_static_call": env_bool("LIQUIDATION_REQUIRE_STATIC_CALL", True),
         "require_fork_simulation": env_bool("LIQUIDATION_REQUIRE_FORK_SIMULATION", True),
-        "self_funded_ready": bool(
-            liquidation_self_funded_private_key() and aave_pool_address()
-        ),
+        "self_funded_ready": False,
         "owner_configured": bool(liquidation_executor_owner_address()),
         "private_key_configured": bool(liquidation_executor_private_key()),
         "flashloan_executor_configured": bool(
@@ -489,8 +492,8 @@ def liquidation_execution_controls() -> dict:
     }
 
 
-def liquidation_config_health(chain_id: int | None = None) -> dict:
-    return build_liquidation_config_health(chain_id=chain_id)
+def liquidation_config_health(market_id: str | None = None, chain_id: int | None = None) -> dict:
+    return build_liquidation_config_health(market_id=market_id, chain_id=chain_id)
 
 
 def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:

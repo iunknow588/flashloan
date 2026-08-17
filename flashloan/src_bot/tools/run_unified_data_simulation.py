@@ -1,8 +1,10 @@
-"""Create a local-only paper-profit report from the latest market observer snapshot.
+"""Create a local-only signal report from the latest market observer snapshot.
 
 This tool never connects to a chain, uses no signer, and cannot deploy or broadcast.
-It turns observer data into a reproducible paper route plus an intent_trade draft for
-later fork/static-call verification.
+It turns observer data into a reproducible signal route plus an intent_trade draft
+for later Avalanche preview/static-call verification.  The signal route is not a
+profit proof: executable profit must come from the deployed contract's current
+Quoter/static-call flow.
 """
 
 from __future__ import annotations
@@ -103,7 +105,7 @@ def simulation_defaults() -> dict[str, float | int]:
     }
 
 
-def _paper_profit_estimate(
+def _signal_only_estimate(
     simulation: dict[str, Any] | None,
     *,
     gas_reserve_usdc: float,
@@ -111,25 +113,99 @@ def _paper_profit_estimate(
     slippage_penalty_usdc: float,
     other_known_costs_usdc: float,
 ) -> dict[str, Any]:
-    paper_profit = float((simulation or {}).get("net_signal_profit_usd") or 0.0)
-    total_external_costs = (
+    signal_profit = float((simulation or {}).get("net_signal_profit_usd") or 0.0)
+    configured_deductions = (
         max(0.0, gas_reserve_usdc)
         + max(0.0, public_mempool_penalty_usdc)
         + max(0.0, slippage_penalty_usdc)
         + max(0.0, other_known_costs_usdc)
     )
-    net_profit = paper_profit - total_external_costs
+    signal_after_deductions = signal_profit - configured_deductions
     return {
-        "paperRouteProfitUsdc": round(paper_profit, 8),
+        "paperSignalProfitUsdc": round(signal_profit, 8),
+        "signalNetAfterConfiguredDeductionsUsdc": round(signal_after_deductions, 8),
         "gasReserveUsdc": round(max(0.0, gas_reserve_usdc), 8),
         "publicMempoolRiskPenaltyUsdc": round(
             max(0.0, public_mempool_penalty_usdc), 8
         ),
         "slippageRiskPenaltyUsdc": round(max(0.0, slippage_penalty_usdc), 8),
         "otherKnownCostsUsdc": round(max(0.0, other_known_costs_usdc), 8),
-        "estimatedNetProfitUsdc": round(net_profit, 8),
-        "profitableOnPaper": net_profit > 0,
-        "semantics": "local_price_path_estimate_not_onchain_quote_or_profit_proof",
+        "signalOnly": True,
+        "contractFlowVerified": False,
+        "actionableProfit": False,
+        "profitableOnPaper": False,
+        "deprecatedFields": {
+            "profitableOnPaper": "always false; paper/window data is only a signal and cannot prove executable profit",
+            "estimatedNetProfitUsdc": "removed; use contractFlowProfitReview.netProfitUsdc after preview/static-call",
+        },
+        "semantics": (
+            "binance_window_signal_only_not_current_avalanche_dex_quote_or_contract_profit"
+        ),
+    }
+
+
+def _route_match_from_intent(intent_draft: dict[str, Any] | None) -> dict[str, Any]:
+    protocol = (
+        intent_draft.get("direct_onchain_protocol")
+        if isinstance(intent_draft, dict)
+        else None
+    )
+    match = protocol.get("intent_route_match") if isinstance(protocol, dict) else None
+    return dict(match) if isinstance(match, dict) else {}
+
+
+def _contract_flow_profit_review(
+    *,
+    simulation: dict[str, Any] | None,
+    intent_draft: dict[str, Any] | None,
+) -> dict[str, Any]:
+    route_match = _route_match_from_intent(intent_draft)
+    blockers = [
+        "contract_preview_not_run",
+        "runtime_static_call_not_run",
+        "fresh_onchain_dex_quotes_required",
+        "fresh_avax_usdc_gas_price_required",
+        "broadcast_forbidden",
+    ]
+    if not simulation:
+        blockers.append("no_signal_route_from_current_snapshot")
+    if not route_match.get("matched"):
+        blockers.append("signal_tokens_not_matched_to_avalanche_runtime_route")
+
+    return {
+        "status": "blocked",
+        "eligible": False,
+        "usesCurrentTokenPrices": False,
+        "contractFlowVerified": False,
+        "profitAsset": "USDC",
+        "routeMatch": route_match,
+        "requiredFlow": [
+            "match_signal_tokens_to_avalanche_runtime_route",
+            "previewOrderedRuntimeAutoExecution.call",
+            "runOrderedRuntimeTradesAndExecuteAuto.static_call",
+            "estimateGas_without_broadcast",
+            "fresh_AVAX_USDC_price_for_gas_conversion",
+            "net_profit_after_gas_delivery_cache_mempool_slippage_correlation_penalties",
+        ],
+        "profitBasis": {
+            "quotedFinalUsdc": None,
+            "premiumUsdc": None,
+            "requiredFinalUsdc": None,
+            "protectedMinFinalUsdc": None,
+            "expectedProfitUsdc": None,
+            "gasCostUsdc": None,
+            "deliveryCostUsdc": None,
+            "cacheRiskPenaltyUsdc": None,
+            "publicMempoolRiskPenaltyUsdc": None,
+            "slippageRiskPenaltyUsdc": None,
+            "routeCorrelationPenaltyUsdc": None,
+            "netProfitUsdc": None,
+        },
+        "calculation": (
+            "netProfit = expectedProfit - gasCost - deliveryCost - cacheRiskPenalty "
+            "- publicMempoolRiskPenalty - slippageRiskPenalty - routeCorrelationPenalty"
+        ),
+        "blockedReasons": blockers,
     }
 
 
@@ -163,7 +239,7 @@ def build_data_simulation(
         basket_size=max(1, basket_size),
     )
     simulation = simulate_basket(normalized_extremes, config)
-    estimate = _paper_profit_estimate(
+    estimate = _signal_only_estimate(
         simulation,
         gas_reserve_usdc=gas_reserve_usdc,
         public_mempool_penalty_usdc=public_mempool_penalty_usdc,
@@ -174,22 +250,36 @@ def build_data_simulation(
     if simulation:
         intent_draft = build_triangular_onchain_intent_trade(
             f"{simulation['x_symbol']}->{simulation['y_symbol']}",
-            str(estimate["estimatedNetProfitUsdc"]),
+            "0",
             top,
             bottom,
         )
+        protocol = intent_draft.get("direct_onchain_protocol")
+        if isinstance(protocol, dict):
+            protocol["paper_signal_profit_usdc"] = str(estimate["paperSignalProfitUsdc"])
+            protocol["expected_profit_usdc"] = "0"
+            protocol["profit_basis"] = (
+                "contract_preview_required; paper signal is not used as minProfit"
+            )
+    contract_review = _contract_flow_profit_review(
+        simulation=simulation,
+        intent_draft=intent_draft,
+    )
     reasons = [
         "local_data_simulation_only",
-        "dex_quotes_not_verified",
+        "current_dex_quotes_not_verified",
+        "contract_profit_not_verified",
         "runtime_trade_specs_not_exported",
         "fork_static_call_not_verified",
         "mainnet_contract_not_deployed",
         "broadcast_forbidden",
     ]
     if not simulation:
-        reasons.append("no_paper_route_from_current_snapshot")
-    elif not estimate["profitableOnPaper"]:
-        reasons.append("estimated_net_profit_not_positive")
+        reasons.append("no_signal_route_from_current_snapshot")
+    if not contract_review["eligible"]:
+        reasons.extend(
+            reason for reason in contract_review["blockedReasons"] if reason not in reasons
+        )
     return {
         "generatedAt": _utc_now_iso(),
         "mode": "local_data_simulation",
@@ -211,12 +301,13 @@ def build_data_simulation(
         },
         "paperSimulation": simulation,
         "profitEstimate": estimate,
+        "contractFlowProfitReview": contract_review,
         "intentTradeDraft": intent_draft,
         "deploymentEligible": False,
         "broadcastEligible": False,
         "nextRequiredStage": (
-            "export_runtime_trade_specs_then_run_avalanche_fork_static_call"
-            if estimate["profitableOnPaper"]
+            "match_signal_tokens_then_run_avalanche_contract_preview_static_call"
+            if simulation
             else "continue_observer_data_collection_and_quote_verification"
         ),
         "blockedReasons": reasons,

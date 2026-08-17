@@ -465,6 +465,67 @@ def test_cow_quotes_route_keeps_display_but_skips_recording_when_submission_paus
     assert data["ranking"][0]["cow_sdk_result"]["status"] == "submission_paused"
 
 
+def test_cow_quotes_route_records_pool_evidence_for_candidate(monkeypatch):
+    from web import control_panel_data_routes as routes
+
+    captured = {}
+
+    monkeypatch.setattr(routes, "panel_call", lambda name, *args, **kwargs: None)
+    monkeypatch.setattr(routes, "safe_latest", lambda loader: {"observed_at": "2026-08-04T00:00:00+00:00"})
+    monkeypatch.setattr(routes, "select_binance_market_extremes", lambda extremes, side_limit=50: {"observed_at": "2026-08-04T00:00:00+00:00"})
+    monkeypatch.setattr(
+        routes,
+        "request_cow_trade_thresholds",
+        lambda amount=None: ({}, 50, {"adjusted_min_spread_percent": "0", "min_side_change_percent": "0", "min_token_price_usd": "0.01"}),
+    )
+    monkeypatch.setattr(
+        routes,
+        "load_cow_supported_token_registry",
+        lambda **kwargs: {"network": "avalanche", "chain_id": 43114, "registry": {}, "source": "memory", "token_count": 0},
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_binance_market_state",
+        lambda *args, **kwargs: {
+            "observed_at": "2026-08-04T00:00:00+00:00",
+            "pairs": [
+                {
+                    "rank": 1,
+                    "pair": "AAA / BBB",
+                    "x_base_symbol": "AAA",
+                    "y_base_symbol": "BBB",
+                    "route_results": [{"route": ["USDC", "AAA", "BBB", "USDC"], "priority_reason": "test"}],
+                }
+            ],
+            "cow_filter": {"network": "avalanche"},
+        },
+    )
+    monkeypatch.setattr(
+        routes,
+        "record_ui_signal_pool_evidence_safely",
+        lambda market_state, extremes=None: captured.setdefault(
+            "evidence",
+            {"recorded": True, "output": "evidence.json", "candidateCount": len(market_state.get("pairs") or [])},
+        ),
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_cow_quote_verification",
+        lambda *args, **kwargs: {
+            "ranking": [],
+            "cow_network": "avalanche",
+            "cow_chain_id": 43114,
+            "precheck": {"routes": []},
+        },
+    )
+    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True})
+
+    data = app.test_client().get("/api/binance-market/cow-quotes?quote_limit=1&amount=1000").get_json()
+
+    assert captured["evidence"]["recorded"] is True
+    assert data["market_state"]["pool_evidence_recording"]["output"] == "evidence.json"
+
+
 def test_cow_quotes_route_submits_ready_orders_when_unpaused(monkeypatch):
     from web import control_panel_data_routes as routes
 
@@ -614,11 +675,11 @@ def test_cow_candidate_queue_api_filters_selected_networks(monkeypatch):
         ),
     )
 
-    response = app.test_client().get("/api/binance-market/cow-candidate-queue?limit=100&cow_networks=avalanche,ethereum")
+    response = app.test_client().get("/api/binance-market/cow-candidate-queue?limit=100&cow_networks=bnb,avalanche")
     data = response.get_json()
 
     assert response.status_code == 200
-    assert data["networks"] == ["avalanche", "ethereum"]
+    assert data["networks"] == ["bnb"]
 
 
 def test_cow_submission_switch_on_clears_stale_candidate_queue(monkeypatch):

@@ -1,0 +1,42 @@
+{
+  "status": "ok",
+  "ok": true,
+  "storage_mode": "file_only",
+  "registry_validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "account_count": 3864,
+    "declared_account_count": 3864,
+    "scan_complete": true,
+    "discovery_mode": "borrow_events_account_only",
+    "storage_mode": "file_only"
+  },
+  "registry": {
+    "path": "data_info\\BNB\\liquidation\\venus_borrower_registry.json",
+    "account_count": 3864,
+    "declared_account_count": 3864,
+    "scan_complete": true,
+    "from_block": null,
+    "to_block": null,
+    "discovery_mode": "borrow_events_account_only",
+    "event_storage_mode": "account_only"
+  },
+  "events": {
+    "path": "E:\\2026OPC大赛\\flashLoan\\data_info\\BNB\\liquidation\\venus_borrower_events_2mo.jsonl",
+    "event_count": 19,
+    "account_count": 10
+  },
+  "market_progress": {
+    "path": "data_info\\BNB\\liquidation\\venus_two_month_market_scan_progress.json",
+    "status": "running_market",
+    "market_count": 52,
+    "selected_market_count": 52,
+    "lookback_from_block": 104782916,
+    "from_block": 104782916,
+    "to_block": 116297160,
+    "recent_blocks": 0
+  },
+  "errors": [],
+  "warnings": []
+}

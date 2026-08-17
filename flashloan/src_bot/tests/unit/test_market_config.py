@@ -1,5 +1,5 @@
 from core.config_schema import liquidation_config_health
-from core.market_config import liquidation_market_config, supported_market_summaries
+from core.market_config import liquidation_market_config, liquidation_market_config_for, supported_market_summaries
 
 
 def _clear_market_env(monkeypatch):
@@ -48,7 +48,25 @@ def test_bnb_aave_market_uses_bnb_rpc_env(monkeypatch):
     assert market.network == "bnb"
     assert market.chain_id == 56
     assert market.native_symbol == "BNB"
-    assert market.rpc_urls == ("https://bsc-rpc.example", "https://bsc-fallback.example")
+    assert market.rpc_urls[:2] == ("https://bsc-rpc.example", "https://bsc-fallback.example")
+    assert "https://bsc-dataseed.binance.org" in market.rpc_urls
+
+
+def test_bnb_venus_market_defaults_to_observation_mode(monkeypatch):
+    _clear_market_env(monkeypatch)
+    monkeypatch.setenv("BNB_RPCS", "https://bsc-rpc.example")
+
+    market = liquidation_market_config_for(chain_id=56)
+
+    assert market.market_id == "bnb-venus-core"
+    assert market.network == "bnb"
+    assert market.protocol == "venus_core"
+    assert market.protocol_supported is False
+    assert market.protocol_adapter == "VenusCoreAdapter"
+    assert market.executor_adapter == "VenusLiquidationExecutor"
+    assert market.rpc_urls[0] == "https://bsc-rpc.example"
+    assert "https://bsc-dataseed.binance.org" in market.rpc_urls
+    assert market.dex_router_address == "0x10ED43C718714eb63d5aA57B78B54704E256024E"
 
 
 def test_config_health_accepts_matching_bnb_chain(monkeypatch):
@@ -78,7 +96,7 @@ def test_hyperliquid_native_is_not_treated_as_evm_aave(monkeypatch):
 
     assert health["market"]["protocol"] == "hyperliquid_native"
     assert health["market"]["protocol_supported"] is False
-    assert any("not executable by the current protocol adapter" in error for error in health["errors"])
+    assert any("not executable by the current protocol adapter" in warning for warning in health["warnings"])
 
 
 def test_supported_market_summaries_classifies_migration_type():

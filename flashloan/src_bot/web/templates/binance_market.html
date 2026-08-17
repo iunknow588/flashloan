@@ -96,6 +96,7 @@
       <a href="/account-scan">账户扫描</a>
       <a href="/market-observation">市场观察</a>
       <a href="/dex-arbitrage">DEX 套利</a>
+      <a href="/dex-pools">候选池子</a>
       <a href="/exchange-matrix">兑换矩阵</a>
       <a href="/execution">执行</a>
       <a href="/config">配置</a>
@@ -295,7 +296,7 @@
     let lastAutoCowQuoteKey = "";
     let lastAutoCowQuoteAt = 0;
     const AUTO_COW_QUOTE_MIN_INTERVAL_MS = 1000;
-    const DEFAULT_SELECTED_NETWORKS = ["avalanche"];
+    const DEFAULT_SELECTED_NETWORKS = ["bnb"];
     const networkPanels = new Map();
     const COW_ATTEMPT_PAGE_SIZE = 10;
     const cowAttemptHistoryPages = {not_executable: 0, execution_failed: 0, execution_success: 0};
@@ -364,7 +365,7 @@
     const routePath = route => (route.route || route.route_symbols || []).map(displaySymbol).join(" -> ") || "-";
     const selectedNetworkIds = () => Array.from(document.querySelectorAll("input[name='cow_network']:checked")).map(item => item.value);
     const activeNetworkPanels = () => selectedNetworkIds().map(network => networkPanels.get(network)).filter(Boolean);
-    const primaryNetwork = () => selectedNetworkIds()[0] || cowConfig?.default_network || "avalanche";
+    const primaryNetwork = () => selectedNetworkIds()[0] || cowConfig?.default_network || "bnb";
     const selectedNetworkClaims = claims => {
       const selected = new Set(selectedNetworkIds());
       return (claims || []).filter(claim => selected.has(claim.network));

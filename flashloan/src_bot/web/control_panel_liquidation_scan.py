@@ -53,6 +53,12 @@ from liquidation.scan_presenter import (
     build_health_summary,
     display_health_rows,
 )
+from web.control_panel_bnb_venus import (
+    BNB_CHAIN_ID,
+    BNB_MARKET_ID,
+    bnb_venus_account_payload,
+    bnb_venus_borrow_pool_payload,
+)
 
 globals().update({name: value for name, value in vars(liquidation_base).items() if not name.startswith("_")})
 
@@ -405,6 +411,15 @@ def _market_call_kwargs(market_id: str | None = None, chain_id: int | None = Non
     if chain_id is not None:
         kwargs["chain_id"] = chain_id
     return kwargs
+
+
+def _is_bnb_venus_scope(market_id: str | None = None, chain_id: int | None = None) -> bool:
+    if str(market_id or "").strip().lower() == BNB_MARKET_ID:
+        return True
+    try:
+        return market_id is None and int(chain_id) == BNB_CHAIN_ID
+    except (TypeError, ValueError):
+        return False
 
 
 def _database_block_reason(configured: bool, error: str | None) -> str:
@@ -893,6 +908,13 @@ def liquidation_borrow_pool_payload(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> dict:
+    if _is_bnb_venus_scope(market_id, chain_id):
+        return bnb_venus_borrow_pool_payload(
+            page_size=page_size,
+            risk_page=_page_value(risk_page if risk_page is not None else page),
+            high_page=_page_value(high_page if high_page is not None else page),
+            core_page=_page_value(core_page if core_page is not None else page),
+        )
     database_url = database_url_or_none()
     if not database_url:
         return _borrow_pool_blocked_payload(
@@ -986,6 +1008,13 @@ def liquidation_borrow_pool_scan_payload(
     risk_page = _page_value(risk_page if risk_page is not None else page)
     high_page = _page_value(high_page if high_page is not None else page)
     core_page = _page_value(core_page if core_page is not None else page)
+    if _is_bnb_venus_scope(market_id, chain_id):
+        return bnb_venus_borrow_pool_payload(
+            page_size=page_size,
+            risk_page=risk_page,
+            high_page=high_page,
+            core_page=core_page,
+        )
     database_url = database_url_or_none()
     if not database_url:
         return _borrow_pool_blocked_payload(
@@ -1374,7 +1403,14 @@ def liquidation_health_payload(force: bool = False) -> dict:
         LIQUIDATION_SCAN_LOCK.release()
 
 
-def liquidation_account_payload(account: str) -> dict:
+def liquidation_account_payload(
+    account: str,
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> dict:
+    if _is_bnb_venus_scope(market_id, chain_id):
+        return bnb_venus_account_payload(account)
     raw_account = account.strip()
     if not raw_account:
         raise ValueError("account is required")
@@ -1405,6 +1441,7 @@ def liquidation_account_payload(account: str) -> dict:
         "liquidation_data_provider_address": liquidation_data_provider_address() or None,
         "reserve_asset_count": len(reserve_assets),
         "error": asset_error,
+        "market": liquidation_market_config().as_dict(),
     }
     return report
 
@@ -1416,6 +1453,8 @@ def liquidation_account_cached_payload(
     chain_id: int | None = None,
 ) -> dict:
     checksum = Web3.to_checksum_address(str(account or "").strip())
+    if _is_bnb_venus_scope(market_id, chain_id):
+        return bnb_venus_account_payload(checksum)
     database_url = database_url_or_none()
     if not database_url:
         return {"found": False, "cached": True, "account": checksum, "error": "DATABASE_URL is required"}

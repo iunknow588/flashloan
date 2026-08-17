@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档阅读器</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23161b22'/%3E%3Cpath d='M8 10h16v3H8zm0 5h16v3H8zm0 5h10v3H8z' fill='%233081f7'/%3E%3C/svg%3E">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif; background: #0d1117; color: #e6edf3; height: 100vh; display: flex; }
+.sidebar { width: 320px; background: #161b22; border-right: 1px solid #30363d; display: flex; flex-direction: column; }
+.sidebar-header { padding: 20px; border-bottom: 1px solid #30363d; }
+.sidebar-header h1 { font-size: 18px; font-weight: 600; color: #e6edf3; }
+.sidebar-header p { font-size: 12px; color: #8b949e; margin-top: 4px; }
+.search-box { padding: 12px 20px; border-bottom: 1px solid #30363d; }
+.search-box input { width: 100%; padding: 8px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 14px; }
+.search-box input::placeholder { color: #6e7681; }
+.nav-content { flex: 1; overflow-y: auto; padding: 12px; }
+.nav-group { margin-bottom: 16px; }
+.nav-group-title { font-size: 12px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; }
+.nav-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; color: #c9d1d9; transition: background 0.2s; }
+.nav-item:hover { background: #21262d; }
+.nav-item.active { background: #2f81f7; color: white; }
+.main-content { flex: 1; overflow-y: auto; padding: 40px; }
+.doc-header { margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid #30363d; }
+.doc-header h1 { font-size: 32px; font-weight: 700; color: #e6edf3; margin-bottom: 8px; }
+.doc-meta { font-size: 14px; color: #8b949e; }
+.doc-body { font-size: 16px; line-height: 1.8; color: #c9d1d9; }
+.doc-body h2 { font-size: 24px; font-weight: 600; color: #e6edf3; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #30363d; cursor: row-resize; user-select: none; position: relative; }
+.doc-body h2::after { content: ' ⋮⋮ '; color: #6e7681; font-size: 12px; position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.doc-body h2:hover { background: rgba(48,129,247,0.1); border-radius: 4px; }
+.doc-body p { margin-bottom: 16px; }
+.doc-body code { background: #21262d; padding: 2px 6px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+.doc-body pre { background: #161b22; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 16px 0; }
+.doc-body pre code { background: none; padding: 0; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #8b949e; }
+.empty-state h2 { font-size: 24px; margin-bottom: 8px; }
+.empty-state p { font-size: 14px; }
+
+/* 打印时隐藏左侧边栏 */
+@media print {
+  .sidebar { display: none !important; }
+  .main-content { 
+    margin-left: 0 !important; 
+    padding: 20px !important; 
+    width: 100% !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .doc-body {
+    overflow: visible !important;
+  }
+  .doc-body pre {
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+  }
+  /* h2 作为分页分割点 */
+  .doc-body h2 {
+    page-break-before: always !important;
+    break-before: page !important;
+    cursor: default !important;
+  }
+  .doc-body h2:first-of-type {
+    page-break-before: auto !important;
+    break-before: auto !important;
+  }
+  .doc-body h2::after { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h1>文档中心</h1>
+    <p>文档阅读与管理系统</p>
+  </div>
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="搜索文档名称或内容...">
+  </div>
+  <div class="nav-content" id="navContent">
+    <div style="padding:20px;color:#8b949e">正在加载文档索引...</div>
+  </div>
+</div>
+<div class="main-content" id="mainContent">
+  <div class="empty-state">
+    <h2>欢迎使用文档阅读器</h2>
+    <p>请从左侧选择文档开始阅读</p>
+  </div>
+</div>
+<script>
+let docIndex = null;
+let currentDocPath = null;
+
+// 加载索引文件
+fetch('_file_index.json')
+  .then(response => response.json())
+  .then(data => {
+    docIndex = data;
+    renderSidebar();
+  })
+  .catch(err => {
+    console.error('加载索引失败:', err);
+    document.getElementById('navContent').innerHTML = '<div style="padding:20px;color:#f85149">加载文档索引失败</div>';
+  });
+
+function renderSidebar() {
+  if (!docIndex || !docIndex.groups) return;
+  
+  const navContent = document.getElementById('navContent');
+  navContent.innerHTML = '';
+  
+  // 遍历分组
+  for (const [groupId, groupLabel] of Object.entries(docIndex.groups)) {
+    const groupFiles = docIndex.files.filter(f => f.group === groupId);
+    if (groupFiles.length === 0) continue;
+    
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'nav-group';
+    
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'nav-group-title';
+    titleDiv.textContent = groupLabel;
+    groupDiv.appendChild(titleDiv);
+    
+    groupFiles.forEach(file => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'nav-item';
+      itemDiv.textContent = file.label || file.title || file.path;
+      itemDiv.onclick = function() { loadDoc(file.path, this); };
+      groupDiv.appendChild(itemDiv);
+    });
+    
+    navContent.appendChild(groupDiv);
+  }
+}
+
+function loadDoc(filePath, clickedElement) {
+  currentDocPath = filePath;
+  
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+  if (clickedElement) clickedElement.classList.add('active');
+  
+  // 获取文件扩展名
+  const ext = filePath.split('.').pop().toLowerCase();
+  
+  // 文件在上一级目录，添加 ../ 前缀
+  const actualPath = '../' + filePath;
+  
+  if (ext === 'json') {
+    loadJsonDoc(actualPath);
+  } else {
+    loadMarkdownDoc(actualPath);
+  }
+}
+
+function loadMarkdownDoc(filePath) {
+  fetch(filePath)
+    .then(response => {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.text();
+    })
+    .then(content => {
+      // 保留原生 HTML 表格块，其余内容仍按 Markdown 文本处理
+      const rawBlocks = [];
+      let html = content.replace(/<table[\s\S]*?<\/table>/gi, match => {
+        rawBlocks.push(match);
+        return `__RAW_HTML_BLOCK_${rawBlocks.length - 1}__`;
+      });
+
+      html = html
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      // 标题
+      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+      
+      // 粗体
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      
+      // 代码块
+      html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+      
+      // 行内代码
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      
+      // 换行
+      html = html.replace(/\n/g, '<br>');
+
+      // 还原原生 HTML 表格块
+      html = html.replace(/__RAW_HTML_BLOCK_(\d+)__/g, (_, index) => rawBlocks[Number(index)] || '');
+      
+      const fileInfo = docIndex.files.find(f => f.path === filePath);
+      const title = fileInfo ? (fileInfo.title || fileInfo.label) : filePath;
+      
+      document.getElementById('mainContent').innerHTML = 
+        '<div class="doc-header"><h1>' + title + '</h1><div class="doc-meta">' + 
+        (fileInfo ? (fileInfo.size_str + ' | ' + fileInfo.group) : '') + 
+        '</div></div><div class="doc-body">' + html + '</div>';
+      
+      // 打印时确保内容完整显示
+      if (window.matchMedia) {
+        const mediaQueryList = window.matchMedia('print');
+        mediaQueryList.addEventListener('change', function(mql) {
+          if (mql.matches) {
+            document.querySelectorAll('.doc-body pre').forEach(function(pre) {
+              pre.style.overflow = 'visible';
+              pre.style.whiteSpace = 'pre-wrap';
+            });
+            // 应用用户设置的分页点
+            document.querySelectorAll('.doc-body h2').forEach(function(h2) {
+              if (h2.getAttribute('data-page-break') === 'true') {
+                h2.style.pageBreakBefore = 'always';
+                h2.style.breakBefore = 'page';
+              } else {
+                h2.style.pageBreakBefore = '';
+                h2.style.breakBefore = '';
+              }
+            });
+          }
+        });
+      }
+    })
+    .catch(err => {
+      document.getElementById('mainContent').innerHTML = 
+        '<div class="empty-state"><h2>加载失败</h2><p>' + err.message + '</p></div>';
+    });
+}
+
+function loadJsonDoc(filePath) {
+  fetch(filePath)
+    .then(response => response.json())
+    .then(data => {
+      const jsonStr = JSON.stringify(data, null, 2);
+      const escaped = jsonStr
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      const fileInfo = docIndex.files.find(f => f.path === filePath);
+      const title = fileInfo ? (fileInfo.title || fileInfo.label) : filePath;
+      
+      document.getElementById('mainContent').innerHTML = 
+        '<div class="doc-header"><h1>' + title + '</h1><div class="doc-meta">JSON | ' + 
+        (fileInfo ? fileInfo.size_str : '') + 
+        '</div></div><div class="doc-body"><pre><code>' + escaped + '</code></pre></div>';
+      
+      // 打印时确保内容完整显示
+      if (window.matchMedia) {
+        const mediaQueryList = window.matchMedia('print');
+        mediaQueryList.addEventListener('change', function(mql) {
+          if (mql.matches) {
+            document.querySelectorAll('.doc-body pre').forEach(function(pre) {
+              pre.style.overflow = 'visible';
+              pre.style.whiteSpace = 'pre-wrap';
+            });
+            // 应用用户设置的分页点
+            document.querySelectorAll('.doc-body h2').forEach(function(h2) {
+              if (h2.getAttribute('data-page-break') === 'true') {
+                h2.style.pageBreakBefore = 'always';
+                h2.style.breakBefore = 'page';
+              } else {
+                h2.style.pageBreakBefore = '';
+                h2.style.breakBefore = '';
+              }
+            });
+          }
+        });
+      }
+    })
+    .catch(err => {
+      document.getElementById('mainContent').innerHTML = 
+        '<div class="empty-state"><h2>加载失败</h2><p>' + err.message + '</p></div>';
+    });
+}
+
+document.getElementById('searchInput').addEventListener('input', function(e) {
+  const query = e.target.value.toLowerCase();
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.style.display = item.textContent.toLowerCase().includes(query) ? 'block' : 'none';
+  });
+});
+
+// 页面分割交互：点击 h2 切换打印分页
+function initPageBreakControls() {
+  document.querySelectorAll('.doc-body h2').forEach(function(h2) {
+    h2.addEventListener('click', function(e) {
+      // 仅左键点击，且非打印状态
+      if (e.button !== 0 || window.matchMedia('print').matches) return;
+      
+      const isBreak = h2.getAttribute('data-page-break') === 'true';
+      if (isBreak) {
+        h2.removeAttribute('data-page-break');
+        h2.style.borderLeft = '';
+        h2.style.paddingLeft = '';
+        h2.title = '点击设置打印分页';
+      } else {
+        h2.setAttribute('data-page-break', 'true');
+        h2.style.borderLeft = '4px solid #2f81f7';
+        h2.style.paddingLeft = '12px';
+        h2.title = '已设置打印分页，再次点击取消';
+      }
+    });
+    h2.title = '点击设置打印分页';
+  });
+}
+
+// 监听内容变化，为新加载的 h2 添加交互
+const observer = new MutationObserver(function(mutations) {
+  initPageBreakControls();
+});
+observer.observe(document.getElementById('mainContent'), { childList: true, subtree: true });
+</script>
+</body>
+</html>

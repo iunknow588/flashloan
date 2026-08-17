@@ -834,8 +834,12 @@ def build_cow_market_claim_pairs(
     for x in claim.get("top") or []:
         if not isinstance(x, dict):
             continue
+        if x.get("pool_route_supported") is False:
+            continue
         for y in claim.get("bottom") or []:
             if not isinstance(y, dict):
+                continue
+            if y.get("pool_route_supported") is False:
                 continue
             pair = _claim_pair_row(x, y, len(pairs) + 1, amount=amount)
             if not pair:

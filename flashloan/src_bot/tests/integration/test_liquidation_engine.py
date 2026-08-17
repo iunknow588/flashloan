@@ -106,6 +106,18 @@ def test_engine_config_from_env_allows_auto_execute_only_after_manual_test(monke
     assert config.auto_execute is True
 
 
+def test_engine_config_disables_auto_execute_for_unsupported_market(monkeypatch):
+    monkeypatch.setenv("LIQUIDATION_MARKET_ID", "bnb-venus-core")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
+    monkeypatch.setenv("LIQUIDATION_MANUAL_TEST_COMPLETED", "true")
+
+    config = LiquidationEngineConfig.from_env()
+
+    assert config.auto_execute_requested is True
+    assert config.manual_test_completed is True
+    assert config.auto_execute is False
+
+
 def test_engine_observe_mode_runs_static_call_without_submit():
     records = []
     submitted = []

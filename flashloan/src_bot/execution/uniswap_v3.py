@@ -103,6 +103,16 @@ UNISWAP_V3_QUOTER_V2_ABI = [
         "stateMutability": "view",
         "type": "function",
     },
+    {
+        "inputs": [
+            {"internalType": "bytes", "name": "path", "type": "bytes"},
+            {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+        ],
+        "name": "quoteExactInput",
+        "outputs": [{"internalType": "uint256", "name": "amountOut", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
 ]
 
 UNISWAP_V3_SWAP_ROUTER_ABI = [
@@ -206,13 +216,23 @@ def swap_router_contract(w3: Web3, router_address: str):
     return w3.eth.contract(address=Web3.to_checksum_address(router_address), abi=UNISWAP_V3_SWAP_ROUTER_ABI)
 
 
-def snapshot_v3_pool(w3: Web3, pool_address: str) -> V3PoolSnapshot:
+def _call_at(function: Any, block_identifier: int | str | None = None) -> Any:
+    if block_identifier is None:
+        return function.call()
+    return function.call(block_identifier=block_identifier)
+
+
+def snapshot_v3_pool(
+    w3: Web3,
+    pool_address: str,
+    block_identifier: int | str | None = None,
+) -> V3PoolSnapshot:
     contract = pool_contract(w3, pool_address)
-    token0 = Web3.to_checksum_address(contract.functions.token0().call())
-    token1 = Web3.to_checksum_address(contract.functions.token1().call())
-    fee = int(contract.functions.fee().call())
-    liquidity = int(contract.functions.liquidity().call())
-    slot0 = contract.functions.slot0().call()
+    token0 = Web3.to_checksum_address(_call_at(contract.functions.token0(), block_identifier))
+    token1 = Web3.to_checksum_address(_call_at(contract.functions.token1(), block_identifier))
+    fee = int(_call_at(contract.functions.fee(), block_identifier))
+    liquidity = int(_call_at(contract.functions.liquidity(), block_identifier))
+    slot0 = _call_at(contract.functions.slot0(), block_identifier)
     sqrt_price_x96 = int(slot0[0])
     tick = int(slot0[1])
     return V3PoolSnapshot(
@@ -234,9 +254,10 @@ def quote_v3_exact_input_single(
     fee: int,
     amount_in: int,
     sqrt_price_limit_x96: int = 0,
+    block_identifier: int | str | None = None,
 ) -> tuple[int, int, int, int]:
     quoter = quoter_contract(w3, quoter_address)
-    amount_out, sqrt_price_x96_after, initialized_ticks_crossed, gas_estimate = quoter.functions.quoteExactInputSingle(
+    call = quoter.functions.quoteExactInputSingle(
         {
             "tokenIn": Web3.to_checksum_address(token_in),
             "tokenOut": Web3.to_checksum_address(token_out),
@@ -244,7 +265,8 @@ def quote_v3_exact_input_single(
             "fee": int(fee),
             "sqrtPriceLimitX96": int(sqrt_price_limit_x96),
         }
-    ).call()
+    )
+    amount_out, sqrt_price_x96_after, initialized_ticks_crossed, gas_estimate = _call_at(call, block_identifier)
     return int(amount_out), int(sqrt_price_x96_after), int(initialized_ticks_crossed), int(gas_estimate)
 
 
@@ -268,6 +290,39 @@ def quote_v3_exact_output_single(
         }
     ).call()
     return int(amount_in), int(sqrt_price_x96_after), int(initialized_ticks_crossed), int(gas_estimate)
+
+
+def encode_v3_path(tokens: list[str], fees: list[int]) -> bytes:
+    if len(tokens) < 2 or len(fees) != len(tokens) - 1:
+        raise ValueError("V3 path requires n tokens and n-1 fees")
+    encoded = bytearray()
+    for index, token in enumerate(tokens):
+        encoded.extend(bytes.fromhex(Web3.to_checksum_address(token)[2:]))
+        if index < len(fees):
+            fee = int(fees[index])
+            if fee <= 0 or fee > 16_777_215:
+                raise ValueError("V3 fee must fit uint24")
+            encoded.extend(fee.to_bytes(3, "big"))
+    return bytes(encoded)
+
+
+def quote_v3_exact_input_path(
+    w3: Web3,
+    quoter_address: str,
+    tokens: list[str],
+    fees: list[int],
+    amount_in: int,
+    block_identifier: int | str | None = None,
+) -> int:
+    quoter = quoter_contract(w3, quoter_address)
+    call = quoter.functions.quoteExactInput(
+        encode_v3_path(tokens, fees),
+        int(amount_in),
+    )
+    amount_out = call.call(block_identifier=block_identifier) if block_identifier is not None else call.call()
+    if isinstance(amount_out, (list, tuple)):
+        amount_out = amount_out[0]
+    return int(amount_out)
 
 
 def quote_v3_pool(w3: Web3, pool_address: str, quoter_address: str, amount_in: int, token_in: str | None = None) -> V3PoolQuote:
