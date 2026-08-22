@@ -60,6 +60,7 @@
     .modal-head { height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-bottom: 1px solid #d9dee7; background: #fff; }
     .modal-head strong { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .modal-frame { width: 100%; height: calc(100% - 46px); border: 0; background: #f6f7f9; }
+    .legacy-market-scope { display: none !important; }
   </style>
 </head>
 <body>
@@ -73,7 +74,7 @@
       <div><small>系统信息</small><strong id="systemVersion">-</strong></div>
       <span id="systemVersionMeta">等待中</span>
     </section>
-    <section class="system-info-strip" aria-label="Chain market">
+    <section class="system-info-strip legacy-market-scope" aria-label="Legacy market scope">
       <div><small>Chain market</small><strong id="activeChainMarket">Loading</strong></div>
       <div class="toolbar" style="margin:0">
         <label for="liquidationMarketSelect">Market</label>
@@ -278,7 +279,7 @@
     const accountPageState = { page: 1, pageCount: 1 };
     const borrowPageState = { risk: 1, high: 1, core: 1 };
     const accountDetailBasePath = "/liquidation/account?account=";
-    const isAccountScanPage = () => location.pathname === "/account-scan";
+    const isAccountScanPage = () => ["/account-scan", "/bot/account-scan"].includes(location.pathname);
     const fmtTime = v => v ? new Date(v).toLocaleString([], { hour12: false }) : "-";
     const moneyText = v => Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }) : "-";
     const statusCls = v => ({ healthy: "status-healthy", liquidatable: "status-liquidatable", candidate: "status-candidate", warning: "status-candidate" }[String(v || "").toLowerCase()] || "status-watching");
@@ -545,9 +546,10 @@
     async function refreshMarketScope() {
       try {
         const query = appendMarketParams(new URLSearchParams());
-        const d = await api(`/api/liquidation/market${query.toString() ? `?${query}` : ""}`);
+        const d = await api(`/api/chain-selection?feature=liquidation${query.toString() ? `&${query}` : ""}`);
         const active = d.active || {};
-        const supported = Array.isArray(d.supported_markets) ? d.supported_markets : [];
+        const selected = d.selected || {};
+        const supported = Array.isArray(d.available) ? d.available : [];
         const selector = $("liquidationMarketSelect");
         const currentKey = selectedMarket.market_id ? `${selectedMarket.market_id}:${selectedMarket.chain_id}` : "";
         selector.innerHTML = supported.map(item => {
@@ -555,9 +557,9 @@
           const label = `${item.network || item.market_id} / ${item.protocol || "-"} / ${item.chain_id || "-"}`;
           return `<option value="${key}" data-market-id="${item.market_id || ""}" data-chain-id="${item.chain_id || ""}">${label}</option>`;
         }).join("");
-        if (!selectedMarket.market_id) {
-          selectedMarket.market_id = active.market_id || "";
-          selectedMarket.chain_id = active.chain_id || "";
+        if (!selectedMarket.market_id || !selectedMarket.chain_id) {
+          selectedMarket.market_id = selected.market_id || "";
+          selectedMarket.chain_id = selected.chain_id || "";
         }
         selector.value = currentKey || `${selectedMarket.market_id}:${selectedMarket.chain_id}`;
         $("activeChainMarket").textContent = `${selectedMarket.market_id || active.market_id || "-"} / ${selectedMarket.chain_id || active.chain_id || "-"}`;

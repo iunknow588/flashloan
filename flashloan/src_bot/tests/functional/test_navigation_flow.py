@@ -13,7 +13,29 @@ def test_control_panel_navigation_chain_links_expected_pages():
     binance_market_panel = client.get("/binance-market").get_data(as_text=True)
     dex_arbitrage_panel = client.get("/dex-arbitrage").get_data(as_text=True)
 
-    for link in ["/liquidation", "/account-scan", "/market-observation", "/dex-arbitrage", "/execution", "/audit", "/config"]:
+    assert 'data-app-shell="true"' in control_panel
+    assert 'data-global-chain-selector="true"' in control_panel
+    assert "BOT 清算" in control_panel
+    assert "DEX 套利" in control_panel
+    assert 'data-shell-link="/dex/robinhood-shadow"' not in control_panel
+    assert "系统与分析" in control_panel
+
+    for link in [
+        "/bot",
+        "/bot/borrow-pool",
+        "/bot/account-scan",
+        "/bot/execution",
+        "/bot/audit",
+        "/dex",
+        "/dex/market-observation",
+        "/dex/candidates",
+        "/dex/quotes",
+        "/dex/submissions",
+        "/ops",
+        "/settings",
+        "/analytics/exchange-matrix",
+        "/analytics/opportunity-health",
+    ]:
         assert link in control_panel
 
     assert "债务池" in control_panel
@@ -23,10 +45,26 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "清算执行" in control_panel
     assert "执行审计" in control_panel
     assert "系统配置" in control_panel
-    assert "机会诊断" not in control_panel
-    assert "兑换矩阵" not in control_panel
-
-    for path in ["/account-scan", "/market-observation", "/dex-arbitrage", "/config", "/audit", "/execution"]:
+    for path in [
+        "/account-scan",
+        "/market-observation",
+        "/dex-arbitrage",
+        "/config",
+        "/audit",
+        "/execution",
+        "/bot",
+        "/bot/account-scan",
+        "/bot/execution",
+        "/bot/audit",
+        "/dex",
+        "/dex/market-observation",
+        "/dex/candidates",
+        "/dex/quotes",
+        "/dex/submissions",
+        "/settings",
+        "/analytics/exchange-matrix",
+        "/analytics/opportunity-health",
+    ]:
         assert client.get(path).status_code == 200
 
     assert "enforceDebtPoolPrereq" in liquidation_panel
@@ -62,7 +100,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'name="cow_network"' in binance_market_panel
     assert "quoteAmountInput" in binance_market_panel
     assert 'value="sepolia"' not in binance_market_panel
-    assert 'DEFAULT_SELECTED_NETWORKS = ["avalanche"]' in binance_market_panel
+    assert 'DEFAULT_SELECTED_NETWORKS = ["bnb"]' in binance_market_panel
     assert "networks.filter(item => !item.testnet).sort" in binance_market_panel
     assert "amount=${encodeURIComponent(amount)}" in binance_market_panel
     assert "cow_networks=${encodeURIComponent(networks.join(\",\"))}" in binance_market_panel
@@ -152,7 +190,13 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "当前盘面卖出" in binance_market_panel
     assert "slip" in binance_market_panel
     assert "currentMarketState = data || null;\n      latestCowQuotes = null" not in binance_market_panel
-    assert dex_arbitrage_panel == binance_market_panel
+    assert 'data-app-shell="true"' in dex_arbitrage_panel
+    assert 'data-app-shell="true"' in binance_market_panel
+    assert "cowNetworkChecks" in dex_arbitrage_panel
+    assert "cowNetworkChecks" in binance_market_panel
+    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"cow-dex-arbitrage",chain_id:"0"}' in binance_market_panel
+    assert '/static/chain-selector.js' in binance_market_panel
+    assert 'data-chain-selector' in binance_market_panel
 
 
 def test_liquidation_account_page_supports_embedded_execution_detail():
@@ -160,6 +204,7 @@ def test_liquidation_account_page_supports_embedded_execution_detail():
 
     body = client.get("/liquidation/account?account=0x0000000000000000000000000000000000000001&embed=1").get_data(as_text=True)
 
+    assert 'data-app-shell="true"' not in body
     assert "body.embedded header { display: none; }" in body
     assert "document.body.classList.add(\"embedded\")" in body
     assert "refreshAccount(accountParam)" in body

@@ -128,6 +128,7 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any("CREATE TABLE IF NOT EXISTS chain_markets" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS market_scan_policies" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_candidates" in query for query in queries)
+    assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_attempts" in query for query in queries)
     assert any("robinhood-dex-shadow" in str(params) for _query, params in cursor.calls)
     assert any("control_mode TEXT" in query for query in queries)
     assert any("route_hop_constraints_enforced BOOLEAN" in query for query in queries)

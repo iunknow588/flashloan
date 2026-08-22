@@ -24,7 +24,9 @@ def test_control_page_links_exchange_matrix_without_inline_matrix():
 
     control_body = client.get("/").get_data(as_text=True)
 
-    assert "/exchange-matrix" not in control_body
+    assert "/analytics/exchange-matrix" in control_body
+    assert 'href="/exchange-matrix"' not in control_body
+    assert 'data-shell-link="/exchange-matrix"' not in control_body
     assert "5×5 兑换胜率汇总" not in control_body
     assert "5×5 兑换路径矩阵" not in control_body
     assert "refreshLiquidationSettings(" not in control_body
@@ -45,7 +47,9 @@ def test_opportunity_health_page_is_standalone():
 def test_control_page_links_opportunity_health_without_inline_table():
     body = app.test_client().get("/").get_data(as_text=True)
 
-    assert "/opportunity-health" not in body
+    assert "/analytics/opportunity-health" in body
+    assert 'href="/opportunity-health"' not in body
+    assert 'data-shell-link="/opportunity-health"' not in body
     assert "全量机会健康度列表" not in body
     assert "opportunityHealthBody" not in body
 
@@ -145,8 +149,12 @@ def test_liquidation_monitor_shows_statistics_and_removes_arbitrage_navigation()
     assert "liquidationStatsAvgProfit" in body
     assert "liquidationStatsFailureBody" in body
     assert "renderLiquidationStats" in body
-    assert "/exchange-matrix" not in body
-    assert "/opportunity-health" not in body
+    assert "/analytics/exchange-matrix" in body
+    assert "/analytics/opportunity-health" in body
+    assert 'href="/exchange-matrix"' not in body
+    assert 'data-shell-link="/exchange-matrix"' not in body
+    assert 'href="/opportunity-health"' not in body
+    assert 'data-shell-link="/opportunity-health"' not in body
     assert "债务池" in body
     assert "账户扫描" in body
     assert "市场观察" in body

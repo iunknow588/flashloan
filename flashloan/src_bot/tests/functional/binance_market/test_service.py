@@ -2008,8 +2008,21 @@ def test_cow_network_options_exposes_supported_networks():
     options = cow_network_options()
 
     assert options["default_network"] == "bnb"
-    assert {item["network"] for item in options["networks"]} == {"bnb"}
-    assert {item["label"] for item in options["networks"]} == {"BNB Chain"}
+    assert {item["network"] for item in options["networks"]} == {
+        "ethereum",
+        "gnosis",
+        "arbitrum_one",
+        "base",
+        "polygon",
+        "avalanche",
+        "bnb",
+        "linea",
+        "plasma",
+        "ink",
+        "sepolia",
+    }
+    assert any(item["label"] == "BNB Chain" for item in options["networks"])
+    assert any(item["network"] == "sepolia" and item["testnet"] is True for item in options["networks"])
 
 
 def test_cow_supported_token_cache_refreshes_file_and_loads_registry(tmp_path, monkeypatch):

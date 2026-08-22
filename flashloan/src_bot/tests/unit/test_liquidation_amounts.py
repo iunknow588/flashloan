@@ -11,6 +11,7 @@ from execution.liquidation_payload import (
     profit_base_to_debt_units,
     validate_min_profit_consistency,
 )
+from liquidation.execution_target import normalize_execution_target, select_execution_candidate
 
 
 def test_token_amount_handles_units_and_decimals():
@@ -115,6 +116,119 @@ def test_liquidation_payload_includes_structured_amounts():
     assert payload["request"]["gasLimit"] == "0"
     assert payload["amounts"]["debt"]["debt_to_cover_amount"] == 1.0
     assert payload["amounts"]["profit"]["legacy_net_profit_base"] == 123.0
+    assert payload["execution_target"]["borrow_index"] == 1
+    assert payload["execution_target"]["candidate_index"] == 0
+    assert len(payload["execution_target"]["target_hash"]) == 64
+
+
+def test_liquidation_payload_can_select_a_specific_borrow_index():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "summary": {"status": "liquidatable"},
+        "execution_plan": {"execution_ready": True},
+        "liquidation_candidates": [
+            {
+                "collateral_asset": "0x0000000000000000000000000000000000000002",
+                "debt_asset": "0x0000000000000000000000000000000000000003",
+                "debt_decimals": 6,
+                "debt_price": 1,
+                "amount_to_pass_to_liquidation_call": 1_000_000,
+                "min_collateral_swap_out": 1_050_000,
+                "swap_path": [
+                    "0x0000000000000000000000000000000000000002",
+                    "0x0000000000000000000000000000000000000003",
+                ],
+                "estimated_profit": {"net_profit_base": 50},
+            },
+            {
+                "collateral_asset": "0x0000000000000000000000000000000000000004",
+                "debt_asset": "0x0000000000000000000000000000000000000005",
+                "debt_decimals": 6,
+                "debt_price": 1,
+                "amount_to_pass_to_liquidation_call": 2_000_000,
+                "min_collateral_swap_out": 2_050_000,
+                "swap_path": [
+                    "0x0000000000000000000000000000000000000004",
+                    "0x0000000000000000000000000000000000000005",
+                ],
+                "estimated_profit": {"net_profit_base": 80},
+            },
+        ],
+    }
+
+    payload = build_liquidation_execution_payload(
+        report,
+        executor_address="0x0000000000000000000000000000000000000006",
+        router_address="0x0000000000000000000000000000000000000007",
+        deadline=123456,
+        borrow_index=2,
+    )
+
+    assert payload["request"]["collateralAsset"] == "0x0000000000000000000000000000000000000004"
+    assert payload["request"]["debtAsset"] == "0x0000000000000000000000000000000000000005"
+    assert payload["execution_target"]["borrow_index"] == 2
+    assert payload["execution_target"]["candidate_index"] == 1
+    assert len(payload["execution_target"]["target_hash"]) == 64
+
+
+def test_execution_target_normalization_rejects_mismatched_indexes():
+    with pytest.raises(ValueError, match="different liquidation candidates"):
+        normalize_execution_target(
+            "0x0000000000000000000000000000000000000001",
+            borrow_index=2,
+            candidate_index=0,
+        )
+
+
+def test_select_execution_candidate_can_fall_back_to_first_candidate():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "liquidation_candidates": [
+            {"collateral_asset": "0x2", "debt_asset": "0x3", "amount_to_pass_to_liquidation_call": 1},
+            {"collateral_asset": "0x4", "debt_asset": "0x5", "amount_to_pass_to_liquidation_call": 2},
+        ],
+    }
+
+    candidate, execution_target = select_execution_candidate(
+        report,
+        target=normalize_execution_target("0x0000000000000000000000000000000000000001"),
+    )
+
+    assert candidate["collateral_asset"] == "0x2"
+    assert execution_target["borrow_index"] == 1
+
+
+def test_execution_target_hash_is_stable_and_candidate_specific():
+    report = {
+        "account": "0x0000000000000000000000000000000000000001",
+        "liquidation_candidates": [
+            {"collateral_asset": "0x2", "debt_asset": "0x3", "amount_to_pass_to_liquidation_call": 1},
+            {"collateral_asset": "0x4", "debt_asset": "0x5", "amount_to_pass_to_liquidation_call": 2},
+        ],
+    }
+
+    first_target = normalize_execution_target(
+        "0x0000000000000000000000000000000000000001",
+        borrow_index=1,
+        market_id="avalanche-aave-v3",
+    )
+    first_again = normalize_execution_target(
+        "0x0000000000000000000000000000000000000001",
+        candidate_index=0,
+        market_id="avalanche-aave-v3",
+    )
+    second_target = normalize_execution_target(
+        "0x0000000000000000000000000000000000000001",
+        borrow_index=2,
+        market_id="avalanche-aave-v3",
+    )
+
+    _, first = select_execution_candidate(report, target=first_target)
+    _, repeated = select_execution_candidate(report, target=first_again)
+    _, second = select_execution_candidate(report, target=second_target)
+
+    assert first["target_hash"] == repeated["target_hash"]
+    assert first["target_hash"] != second["target_hash"]
 
 
 def test_profit_base_to_debt_units_converts_usd_profit_to_debt_token_units():

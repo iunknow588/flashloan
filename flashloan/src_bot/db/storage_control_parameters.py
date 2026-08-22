@@ -3,27 +3,28 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from db.storage_common import db_connection
+from db.storage_common import db_connection, db_transaction
 
 
 def ensure_control_panel_parameters_table(database_url: str, *, connect_timeout: int = 8) -> None:
     with db_connection(database_url, connect_timeout=connect_timeout) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS control_panel_parameters (
-                    namespace TEXT NOT NULL,
-                    parameter_key TEXT NOT NULL,
-                    value_json TEXT NOT NULL,
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    PRIMARY KEY (namespace, parameter_key)
+        with db_transaction(connection, operation="control_parameters.upsert"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS control_panel_parameters (
+                        namespace TEXT NOT NULL,
+                        parameter_key TEXT NOT NULL,
+                        value_json TEXT NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (namespace, parameter_key)
+                    )
+                    """
                 )
-                """
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_control_panel_parameters_namespace "
-                "ON control_panel_parameters(namespace, updated_at DESC)"
-            )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_control_panel_parameters_namespace "
+                    "ON control_panel_parameters(namespace, updated_at DESC)"
+                )
 
 
 def _encode_parameter_value(value: Any) -> str:
@@ -67,16 +68,17 @@ def save_control_panel_parameter_map(
         for key, value in values.items()
     ]
     with db_connection(database_url, connect_timeout=connect_timeout) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO control_panel_parameters (namespace, parameter_key, value_json, updated_at)
-                VALUES (%s, %s, %s, NOW())
-                ON CONFLICT (namespace, parameter_key)
-                DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = NOW()
-                """,
-                rows,
-            )
+        with db_transaction(connection, operation="control_parameters.delete"):
+            with connection.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO control_panel_parameters (namespace, parameter_key, value_json, updated_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (namespace, parameter_key)
+                    DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = NOW()
+                    """,
+                    rows,
+                )
     return dict(values)
 
 

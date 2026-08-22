@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.config_schema import parse_env_int
 from core.env_loader import resolve_env_path
 from db.storage_control_parameters import load_control_panel_parameter_map, save_control_panel_parameter_map
 
@@ -125,12 +126,26 @@ def write_page_parameter_file(page_key: str, payload: dict[str, Any]) -> None:
     write_json_parameter(page_parameter_config(page_key).path, payload)
 
 
+def _page_parameter_connect_timeout() -> int:
+    value, _ = parse_env_int("CONTROL_PANEL_DB_CONNECT_TIMEOUT_SECONDS", 1, minimum=1)
+    return max(1, min(int(value), 5))
+
+
 def load_page_parameter_map(database_url: str, page_key: str) -> dict[str, Any]:
-    return load_control_panel_parameter_map(database_url, page_parameter_config(page_key).namespace)
+    return load_control_panel_parameter_map(
+        database_url,
+        page_parameter_config(page_key).namespace,
+        connect_timeout=_page_parameter_connect_timeout(),
+    )
 
 
 def save_page_parameter_map(database_url: str, page_key: str, values: dict[str, Any]) -> dict[str, Any]:
-    return save_control_panel_parameter_map(database_url, page_parameter_config(page_key).namespace, values)
+    return save_control_panel_parameter_map(
+        database_url,
+        page_parameter_config(page_key).namespace,
+        values,
+        connect_timeout=_page_parameter_connect_timeout(),
+    )
 
 
 def sync_page_parameter_file(page_key: str, payload: dict[str, Any]) -> None:

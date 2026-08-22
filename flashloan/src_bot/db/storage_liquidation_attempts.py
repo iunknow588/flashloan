@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
-from db.storage_common import db_connection, require_psycopg
+from db.storage_common import db_connection, db_transaction, require_psycopg
 from db.storage_liquidation_failures import (
     load_liquidation_failure_samples_for_account,
     load_recent_liquidation_failure_samples,
@@ -39,37 +39,38 @@ def record_liquidation_execution_attempt(
     psycopg = require_psycopg()
     scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO liquidation_execution_attempts (
-                    market_id, chain_id, network, protocol,
-                    account, mode, state, blocked_reasons_json,
-                    request_json, quote_json, preflight_json,
-                    tx_hash, receipt_json, error, created_at, updated_at
+        with db_transaction(connection, operation="liquidation.execution_attempt"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO liquidation_execution_attempts (
+                        market_id, chain_id, network, protocol,
+                        account, mode, state, blocked_reasons_json,
+                        request_json, quote_json, preflight_json,
+                        tx_hash, receipt_json, error, created_at, updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    RETURNING id
+                    """,
+                    (
+                        scope["market_id"],
+                        scope["chain_id"],
+                        scope["network"],
+                        scope["protocol"],
+                        account,
+                        mode,
+                        state,
+                        json.dumps(blocked_reasons or [], ensure_ascii=True, separators=(",", ":")),
+                        json.dumps(request_payload or {}, ensure_ascii=True, separators=(",", ":")),
+                        json.dumps(quote or {}, ensure_ascii=True, separators=(",", ":")),
+                        json.dumps(preflight or {}, ensure_ascii=True, separators=(",", ":")),
+                        tx_hash,
+                        json.dumps(receipt or {}, ensure_ascii=True, separators=(",", ":")),
+                        error,
+                    ),
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-                RETURNING id
-                """,
-                (
-                    scope["market_id"],
-                    scope["chain_id"],
-                    scope["network"],
-                    scope["protocol"],
-                    account,
-                    mode,
-                    state,
-                    json.dumps(blocked_reasons or [], ensure_ascii=True, separators=(",", ":")),
-                    json.dumps(request_payload or {}, ensure_ascii=True, separators=(",", ":")),
-                    json.dumps(quote or {}, ensure_ascii=True, separators=(",", ":")),
-                    json.dumps(preflight or {}, ensure_ascii=True, separators=(",", ":")),
-                    tx_hash,
-                    json.dumps(receipt or {}, ensure_ascii=True, separators=(",", ":")),
-                    error,
-                ),
-            )
-            row = cursor.fetchone()
-            return int(row[0]) if row else 0
+                row = cursor.fetchone()
+                return int(row[0]) if row else 0
 
 
 def load_recent_liquidation_execution_attempts(

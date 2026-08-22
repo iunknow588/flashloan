@@ -18,6 +18,37 @@ def _rows(*accounts):
     return [{"account": account} for account in accounts]
 
 
+def test_scan_selection_package_is_independent_from_web_module(monkeypatch):
+    from liquidation import scan_selection
+
+    class Config:
+        core_opportunity_refresh_seconds = 1
+        high_frequency_refresh_seconds = 300
+        borrow_health_refresh_seconds = 1800
+
+    monkeypatch.setattr(scan_selection.time, "monotonic", lambda: 1000.0)
+    cache = {
+        "last_core_scan_monotonic": 999.0,
+        "last_high_frequency_scan_monotonic": 999.0,
+        "last_borrow_health_scan_monotonic": 999.0,
+    }
+
+    selection = scan_selection.select_accounts(
+        "postgresql://example",
+        ["0x1", "0x2", "0x1"],
+        Config(),
+        scan_cache=cache,
+        core_loader=lambda database_url, limit=100, **kwargs: _rows("0x2"),
+        high_frequency_loader=lambda database_url, limit=100, **kwargs: _rows("0x1"),
+        market_kwargs_builder=lambda market_id, chain_id: {},
+        force=True,
+    )
+
+    assert selection["strategy"] == "borrow_health_full"
+    assert selection["selected_accounts"] == ["0x1", "0x2"]
+    assert selection["account_count"] == 2
+
+
 def test_liquidation_core_rows_with_execution_attaches_execution_summary(monkeypatch):
     from web import control_panel_liquidation_scan as scan
 

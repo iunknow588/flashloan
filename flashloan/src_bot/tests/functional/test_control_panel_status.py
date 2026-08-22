@@ -877,14 +877,13 @@ def test_liquidation_control_summary_redacts_database_errors(monkeypatch):
 
 def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_path):
     from web import control_panel
-    from web import control_panel_data_routes
+    from web.data_routes import liquidation_data
 
     report_path = tmp_path / "daily.json"
-    monkeypatch.setattr(control_panel_data_routes, "liquidation_observation_report_path", lambda: report_path)
+    monkeypatch.setattr(liquidation_data, "liquidation_observation_report_path", lambda: report_path)
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel_data_routes, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel_data_routes, "build_liquidation_observation_report", lambda database_url: {"generated_at": "2026-07-31T00:00:00+00:00", "borrow_pool": {"count": 1}, "core_opportunities": {"count": 2}, "execution": {"stats": {"total": 3}}})
-    monkeypatch.setattr(control_panel_data_routes, "write_liquidation_observation_report", lambda report, path: path.write_text(__import__("json").dumps(report), encoding="utf-8") or path)
+    monkeypatch.setattr(liquidation_data, "build_liquidation_observation_report", lambda database_url: {"generated_at": "2026-07-31T00:00:00+00:00", "borrow_pool": {"count": 1}, "core_opportunities": {"count": 2}, "execution": {"stats": {"total": 3}}})
+    monkeypatch.setattr(liquidation_data, "write_liquidation_observation_report", lambda report, path: path.write_text(__import__("json").dumps(report), encoding="utf-8") or path)
 
     response = app.test_client().post("/api/liquidation/reports/daily")
     data = response.get_json()
@@ -896,19 +895,19 @@ def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_p
 
 def test_liquidation_daily_report_redacts_build_errors(monkeypatch, tmp_path):
     from web import control_panel
-    from web import control_panel_data_routes
+    from web.data_routes import liquidation_data
 
     database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
     private_key = "0x" + "1" * 64
     report_path = tmp_path / "daily.json"
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
-    monkeypatch.setattr(control_panel_data_routes, "liquidation_observation_report_path", lambda: report_path)
+    monkeypatch.setattr(liquidation_data, "liquidation_observation_report_path", lambda: report_path)
 
     def fail_report(_database_url):
         raise RuntimeError(f"report failed: {database_url} private_key={private_key}")
 
-    monkeypatch.setattr(control_panel_data_routes, "build_liquidation_observation_report", fail_report)
+    monkeypatch.setattr(liquidation_data, "build_liquidation_observation_report", fail_report)
 
     response = app.test_client().post("/api/liquidation/reports/daily")
     data = response.get_json()

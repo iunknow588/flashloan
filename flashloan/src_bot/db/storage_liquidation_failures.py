@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
-from db.storage_common import db_connection, require_psycopg
+from db.storage_common import db_connection, db_transaction, require_psycopg
 
 
 def _market_scope(market_id: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
@@ -45,25 +45,26 @@ def record_liquidation_failure_sample(
     require_psycopg()
     scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO liquidation_failure_samples (
-                    market_id, chain_id, network, protocol,
-                    account, block_number, collateral_asset, debt_asset,
-                    failure_type, failure_reason, payload_json, source, created_at
+        with db_transaction(connection, operation="liquidation.failure_sample"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO liquidation_failure_samples (
+                        market_id, chain_id, network, protocol,
+                        account, block_number, collateral_asset, debt_asset,
+                        failure_type, failure_reason, payload_json, source, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    RETURNING id
+                    """,
+                    (
+                        scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"],
+                        account, block_number, collateral_asset, debt_asset, failure_type,
+                        failure_reason, json.dumps(payload or {}, ensure_ascii=True, separators=(",", ":")), source,
+                    ),
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                RETURNING id
-                """,
-                (
-                    scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"],
-                    account, block_number, collateral_asset, debt_asset, failure_type,
-                    failure_reason, json.dumps(payload or {}, ensure_ascii=True, separators=(",", ":")), source,
-                ),
-            )
-            row = cursor.fetchone()
-            return int(row[0]) if row else 0
+                row = cursor.fetchone()
+                return int(row[0]) if row else 0
 
 
 def _failure_row(row, scope: dict[str, Any]) -> dict[str, Any]:

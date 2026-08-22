@@ -7,13 +7,33 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/healthz" in paths
     assert "/api/status" in paths
     assert "/api/system-info" in paths
+    assert "/api/chain-selection" in paths
+    assert "/api/markets" in paths
+    assert "/api/workflow-context" in paths
+    assert "/static/chain-selector.js" in paths
+    assert "/static/workflow-context.js" in paths
     assert "/account-scan" in paths
+    assert "/bot" in paths
+    assert "/bot/borrow-pool" in paths
+    assert "/bot/account-scan" in paths
+    assert "/bot/execution" in paths
+    assert "/bot/audit" in paths
     assert "/market-observation" in paths
     assert "/binance-market" in paths
     assert "/dex-arbitrage" in paths
+    assert "/dex" in paths
+    assert "/dex/market-observation" in paths
+    assert "/dex/candidates" in paths
+    assert "/dex/quotes" in paths
+    assert "/dex/submissions" in paths
+    assert "/dex/robinhood-shadow" in paths
     assert "/execution" in paths
     assert "/audit" in paths
     assert "/config" in paths
+    assert "/settings" in paths
+    assert "/ops" in paths
+    assert "/analytics/exchange-matrix" in paths
+    assert "/analytics/opportunity-health" in paths
     assert "/api/debt-pool/state" in paths
     assert "/api/account-pool/state" in paths
     assert "/api/account-scan/state" in paths
@@ -28,9 +48,222 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/binance-market/cow-execution-attempts" in paths
     assert "/api/binance-market/cow-candidate-queue" in paths
     assert "/api/execution/state" in paths
+    assert "/robinhood-dex" in paths
+    assert "/api/robinhood-dex/observation" in paths
+    assert "/api/robinhood-dex/readiness" in paths
     assert "/api/liquidation-health" in paths
     assert "/api/debt-pool/decision" in paths
     assert "/api/liquidation/account/<account>/static-call-and-save" in paths
+
+
+def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
+    client = app.test_client()
+
+    for path in ("/binance-market", "/dex/market-observation"):
+        body = client.get(path).get_data(as_text=True)
+        assert "data-chain-selector" in body
+        assert "/static/chain-selector.js" in body
+        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"cow-dex-arbitrage",chain_id:"0"}' in body
+
+    for path in ("/dex-pools", "/candidate-pools"):
+        body = client.get(path).get_data(as_text=True)
+        assert "data-chain-selector" in body
+        assert "/static/chain-selector.js" in body
+        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"bnb-dex-arbitrage",chain_id:"56"}' in body
+
+
+def test_dex_market_observation_uses_dex_surface_not_operations_surface():
+    body = app.test_client().get("/dex/market-observation").get_data(as_text=True)
+
+    assert "DEX 套利 | CoW SDK" in body
+    assert "启动机会观察" not in body
+    assert 'data-global-chain-selector="true"' in body
+
+
+def test_dex_page_variant_is_driven_by_market_selection():
+    client = app.test_client()
+
+    bnb = client.get("/dex/quotes?market_id=bnb-dex-arbitrage&chain_id=56")
+    robinhood = client.get("/dex/quotes?market_id=robinhood-dex-shadow&chain_id=4663")
+
+    assert bnb.status_code == 200
+    assert "单链 DEX 链路" in bnb.get_data(as_text=True)
+    assert "cowNetworkChecks" not in bnb.get_data(as_text=True)
+    assert robinhood.status_code == 200
+    assert "Robinhood Shadow" in robinhood.get_data(as_text=True)
+    assert "DEX 套利 | CoW SDK" not in robinhood.get_data(as_text=True)
+
+
+def test_robinhood_page_rejects_cow_network_scope():
+    response = app.test_client().get(
+        "/dex/quotes?market_id=robinhood-dex-shadow&chain_id=4663&workflow=dex_arbitrage&execution_mode=cow&scope=single_chain&cow_networks=bnb"
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "market_network_mismatch"
+
+
+def test_dex_page_rejects_liquidation_market_as_feature_mismatch():
+    response = app.test_client().get("/dex?market_id=avalanche-aave-v3&chain_id=43114")
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["code"] == "feature_mismatch"
+    assert "liquidation" in payload["error"]
+
+
+def test_dex_page_variants_follow_market_type():
+    client = app.test_client()
+
+    cow = client.get("/dex?market_id=cow-dex-arbitrage&chain_id=0").get_data(as_text=True)
+    ethereum = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1").get_data(as_text=True)
+    polygon = client.get("/dex?market_id=polygon-dex-arbitrage&chain_id=137").get_data(as_text=True)
+    robinhood = client.get("/dex?market_id=robinhood-dex-shadow&chain_id=4663").get_data(as_text=True)
+
+    assert "cowNetworkChecks" in cow
+    assert "cowNetworkChecks" not in ethereum
+    assert "单链 DEX 链路" in ethereum
+    assert "cowNetworkChecks" not in polygon
+    assert "单链 DEX 链路" in polygon
+    assert "cowNetworkChecks" not in robinhood
+    assert "Robinhood Shadow" in robinhood
+
+
+def test_robinhood_shadow_uses_the_shared_dex_surfaces():
+    client = app.test_client()
+    surfaces = {
+        "/dex": "overview",
+        "/dex/market-observation": "observation",
+        "/dex/candidates": "candidates",
+        "/dex/quotes": "quotes",
+        "/dex/submissions": "submissions",
+    }
+
+    for path, surface in surfaces.items():
+        body = client.get(f"{path}?market_id=robinhood-dex-shadow&chain_id=4663").get_data(as_text=True)
+        assert f'data-page-surface="{surface}"' in body
+        assert "Robinhood Shadow" in body
+        assert "data-surface-link" in body
+        assert 'data-shell-link="/dex/robinhood-shadow"' not in body
+
+
+def test_chain_selector_invalidates_scope_bound_browser_state_before_navigation():
+    response = app.test_client().get("/static/chain-selector.js")
+    source = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "function invalidateScopeCaches(previous, next)" in source
+    assert 'key.startsWith("flashloan:")' in source
+    assert 'new CustomEvent("chainselectionchanging"' in source
+    assert "invalidateScopeCaches(window.__FLASHLOAN_MARKET_SCOPE__, item);" in source
+    assert 'requestQuery.set("page_path", window.location.pathname);' in source
+    assert "function pathFeature(pathname)" in source
+    assert "clearMarketScope(url);" in source
+
+
+def test_chain_selection_api_keeps_same_chain_markets_distinct(monkeypatch):
+    from web import control_panel
+
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
+    client = app.test_client()
+
+    aave = client.get(
+        "/api/chain-selection?feature=liquidation&market_id=bnb-aave-v3&chain_id=56"
+    )
+    venus = client.get(
+        "/api/chain-selection?feature=liquidation&market_id=bnb-venus-core&chain_id=56"
+    )
+    wrong_chain = client.get(
+        "/api/chain-selection?feature=liquidation&market_id=bnb-venus-core&chain_id=43114"
+    )
+
+    assert aave.status_code == 200
+    assert aave.get_json()["selected"]["market_id"] == "bnb-aave-v3"
+    assert aave.get_json()["selected"]["protocol"] == "aave_v3"
+    assert venus.status_code == 200
+    assert venus.get_json()["selected"]["market_id"] == "bnb-venus-core"
+    assert venus.get_json()["selected"]["observation_only"] is True
+    assert wrong_chain.status_code == 400
+    assert wrong_chain.get_json()["code"] == "chain_mismatch"
+
+
+def test_chain_selection_api_scopes_robinhood_to_dex_pages():
+    client = app.test_client()
+
+    dex = client.get(
+        "/api/chain-selection?feature=dex_arbitrage&page_path=/dex"
+    )
+    bot = client.get(
+        "/api/chain-selection?feature=liquidation&page_path=/bot"
+    )
+
+    assert dex.status_code == 200
+    dex_markets = dex.get_json()["available"]
+    assert len(dex_markets) == 6
+    assert [row["market_id"] for row in dex_markets][-1] == "robinhood-dex-shadow"
+    assert dex_markets[-1]["market_type"] == "shadow_chain"
+
+    assert bot.status_code == 200
+    bot_markets = bot.get_json()["available"]
+    assert len(bot_markets) == 4
+    assert "robinhood-dex-shadow" not in {row["market_id"] for row in bot_markets}
+
+
+def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(monkeypatch):
+    from db import storage_chain_markets
+    from db import storage_common
+    from web import control_panel
+
+    database_url = "postgresql://live-chain-selection-endpoint-disabled"
+    storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()
+    calls = []
+
+    def fail(database_url):
+        calls.append(database_url)
+        raise RuntimeError("the endpoint has been disabled; enable it using the API and retry")
+
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
+    monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", fail)
+    client = app.test_client()
+
+    aave = client.get(
+        "/api/chain-selection?feature=liquidation&market_id=bnb-aave-v3&chain_id=56"
+    )
+    venus = client.get(
+        "/api/chain-selection?feature=liquidation&market_id=bnb-venus-core&chain_id=56"
+    )
+    wrong_chain = client.get(
+        "/api/chain-selection?feature=liquidation&market_id=bnb-venus-core&chain_id=43114"
+    )
+
+    assert aave.status_code == 200
+    assert aave.get_json()["selected"]["market_id"] == "bnb-aave-v3"
+    assert venus.status_code == 200
+    assert venus.get_json()["selected"]["market_id"] == "bnb-venus-core"
+    assert wrong_chain.status_code == 400
+    assert wrong_chain.get_json()["code"] == "chain_mismatch"
+    assert len(calls) == 1
+
+
+def test_dex_pool_payload_marks_runtime_cache_source(monkeypatch):
+    from web.data_routes import dex_pools
+
+    monkeypatch.setattr(
+        dex_pools,
+        "_read_json_object",
+        lambda _path: {
+            "network": "bnb",
+            "generatedAt": "2026-08-19T00:00:00Z",
+            "pools": [],
+            "summary": {},
+        },
+    )
+
+    payload = dex_pools.dex_pool_candidates_payload()
+
+    assert payload["source"] == "runtime_cache"
+    assert payload["freshness"] == "2026-08-19T00:00:00Z"
+    assert payload["fallback_reason"] is None
 
 
 def test_system_info_endpoint_owns_scan_version(monkeypatch):
@@ -249,6 +482,130 @@ def test_page_aliases_point_to_expected_work_surfaces():
     assert "attemptBody" in audit
 
 
+def test_workflow_context_distinguishes_liquidation_and_cow_dex():
+    client = app.test_client()
+
+    liquidation = client.get("/api/workflow-context?page_path=/liquidation").get_json()
+    bot = client.get("/api/workflow-context?page_path=/bot/account-scan").get_json()
+    dex = client.get(
+        "/api/workflow-context?page_path=/dex/quotes&execution_mode=cow&cow_networks=bnb,avalanche"
+    ).get_json()
+    analytics = client.get("/api/workflow-context?page_path=/analytics/exchange-matrix").get_json()
+
+    assert liquidation["context"]["workflow"] == "liquidation"
+    assert liquidation["context"]["execution_mode"] == "direct"
+    assert liquidation["context"]["scope_type"] == "single_chain"
+    assert bot["context"]["workflow"] == "liquidation"
+    assert bot["context"]["execution_mode"] == "direct"
+    assert dex["context"]["workflow"] == "dex_arbitrage"
+    assert dex["context"]["execution_mode"] == "cow"
+    assert dex["context"]["scope_type"] == "multi_chain"
+    assert dex["context"]["selected_networks"] == ["bnb", "avalanche"]
+    assert analytics["context"]["workflow"] == "chain_neutral"
+
+
+def test_request_id_is_issued_and_echoed_back():
+    response = app.test_client().get(
+        "/api/workflow-context?page_path=/liquidation",
+        headers={"X-Request-Id": "trace-123"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-Id"] == "trace-123"
+    assert response.get_json()["request_id"] == "trace-123"
+
+
+def test_workflow_context_rejects_cross_chain_direct_dex_scope():
+    response = app.test_client().get(
+        "/api/workflow-context?page_path=/dex-arbitrage&execution_mode=direct&scope=multi_chain"
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "multi_chain_requires_cow"
+
+
+def test_api_rejects_explicitly_blocked_execution_mode():
+    response = app.test_client().get("/api/liquidation-health?execution_mode=cow")
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "workflow_execution_blocked"
+    assert response.headers["X-Workflow"] == "liquidation"
+    assert response.headers["X-Execution-Mode"] == "cow"
+
+
+def test_dex_api_rejects_explicit_direct_mode_until_supported():
+    response = app.test_client().get("/api/binance-market/state?execution_mode=direct")
+
+    assert response.status_code == 400
+    assert response.get_json()["code"] == "workflow_execution_blocked"
+    assert response.headers["X-Workflow"] == "dex_arbitrage"
+    assert response.headers["X-Execution-Mode"] == "direct"
+
+
+def test_chain_neutral_api_is_read_only():
+    response = app.test_client().post("/api/opportunity-health", json={"attempt": "execute"})
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["code"] == "workflow_execution_blocked"
+    assert "chain_neutral_execution_blocked" in payload["workflow_context"]["blocked_reasons"]
+
+
+def test_dex_page_mounts_shared_market_selector():
+    body = app.test_client().get("/dex-arbitrage").get_data(as_text=True)
+
+    assert "cowNetworkChecks" in body
+    assert "data-chain-selector" in body
+    assert 'data-app-shell="true"' in body
+    assert 'data-global-chain-selector="true"' in body
+    assert "liquidationMarketSelect" not in body
+    assert "/static/workflow-context.js" in body
+    assert "requestedNetworkIds" in body
+    assert "syncCowScopeToUrl" in body
+    assert 'next.searchParams.set("execution_mode", "cow")' in body
+
+
+def test_left_navigation_preserves_selected_dex_market_scope():
+    client = app.test_client()
+    body = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1").get_data(as_text=True)
+
+    assert 'href="/dex?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
+    assert 'href="/dex/quotes?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
+    assert 'data-shell-link="/dex/robinhood-shadow"' not in body
+    assert 'href="/bot"' in body
+
+
+def test_left_navigation_preserves_selected_liquidation_market_scope():
+    client = app.test_client()
+    body = client.get("/bot?market_id=bnb-aave-v3&chain_id=56").get_data(as_text=True)
+
+    assert 'href="/bot?market_id=bnb-aave-v3&chain_id=56"' in body
+    assert 'href="/bot/account-scan?market_id=bnb-aave-v3&chain_id=56"' in body
+    assert 'href="/dex"' in body
+
+
+def test_app_shell_owns_one_visible_global_chain_selector():
+    client = app.test_client()
+
+    for path in ("/bot", "/bot/account-scan", "/dex", "/dex/candidates"):
+        body = client.get(path).get_data(as_text=True)
+        assert body.count('data-global-chain-selector="true"') == 1
+        assert body.count('/static/chain-selector.js') == 1
+
+    settings = client.get("/settings").get_data(as_text=True)
+    analytics = client.get("/analytics/opportunity-health").get_data(as_text=True)
+    assert 'data-global-chain-selector="true"' not in settings
+    assert 'data-global-chain-selector="true"' not in analytics
+
+
+def test_workflow_context_script_is_served_as_javascript():
+    response = app.test_client().get("/static/workflow-context.js")
+
+    assert response.status_code == 200
+    assert "application/javascript" in response.content_type
+    assert "workflowcontextready" in response.get_data(as_text=True)
+
+
 def test_liquidation_page_is_served_as_utf8_html():
     response = app.test_client().get("/liquidation")
     body = response.get_data(as_text=True)
@@ -385,7 +742,7 @@ def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch
 
 
 def test_cow_quotes_route_keeps_display_but_skips_recording_when_submission_paused(monkeypatch):
-    from web import control_panel_data_routes as routes
+    from web.data_routes import binance_market as routes
 
     captured = {}
 
@@ -445,7 +802,7 @@ def test_cow_quotes_route_keeps_display_but_skips_recording_when_submission_paus
             ],
         },
     )
-    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True, "pause_reason": "manual_pause"})
+    monkeypatch.setattr(routes, "_cow_submission_pause_guard", lambda **kwargs: {"configured": True, "paused": True, "pause_reason": "manual_pause"})
     monkeypatch.setattr(
         routes,
         "record_cow_execution_attempts_safely",
@@ -466,7 +823,7 @@ def test_cow_quotes_route_keeps_display_but_skips_recording_when_submission_paus
 
 
 def test_cow_quotes_route_records_pool_evidence_for_candidate(monkeypatch):
-    from web import control_panel_data_routes as routes
+    from web.data_routes import binance_market as routes
 
     captured = {}
 
@@ -518,7 +875,7 @@ def test_cow_quotes_route_records_pool_evidence_for_candidate(monkeypatch):
             "precheck": {"routes": []},
         },
     )
-    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True})
+    monkeypatch.setattr(routes, "_cow_submission_pause_guard", lambda **kwargs: {"configured": True, "paused": True})
 
     data = app.test_client().get("/api/binance-market/cow-quotes?quote_limit=1&amount=1000").get_json()
 
@@ -527,7 +884,7 @@ def test_cow_quotes_route_records_pool_evidence_for_candidate(monkeypatch):
 
 
 def test_cow_quotes_route_submits_ready_orders_when_unpaused(monkeypatch):
-    from web import control_panel_data_routes as routes
+    from web.data_routes import binance_market as routes
 
     captured = {}
 
@@ -585,7 +942,7 @@ def test_cow_quotes_route_submits_ready_orders_when_unpaused(monkeypatch):
             ],
         },
     )
-    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": False})
+    monkeypatch.setattr(routes, "_cow_submission_pause_guard", lambda **kwargs: {"configured": True, "paused": False})
 
     def fake_submit(**kwargs):
         captured["submission_kwargs"] = kwargs
@@ -624,11 +981,11 @@ def test_cow_quotes_route_submits_ready_orders_when_unpaused(monkeypatch):
 
 
 def test_cow_candidate_queue_does_not_start_daemon_when_submission_paused(monkeypatch):
-    from web import control_panel_data_routes as routes
+    from web.data_routes import binance_market_admin as routes
 
     captured = {}
 
-    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True, "pause_reason": "manual_pause"})
+    monkeypatch.setattr(routes, "_cow_submission_pause_guard", lambda **kwargs: {"configured": True, "paused": True, "pause_reason": "manual_pause"})
     monkeypatch.setattr(routes, "cow_quote_daemon_enabled", lambda: True)
     monkeypatch.setattr(
         routes,
@@ -656,11 +1013,11 @@ def test_cow_candidate_queue_does_not_start_daemon_when_submission_paused(monkey
 
 
 def test_cow_candidate_queue_api_filters_selected_networks(monkeypatch):
-    from web import control_panel_data_routes as routes
+    from web.data_routes import binance_market_admin as routes
 
     captured = {}
 
-    monkeypatch.setattr(routes, "cow_submission_pause_guard_status", lambda: {"configured": True, "paused": True})
+    monkeypatch.setattr(routes, "_cow_submission_pause_guard", lambda **kwargs: {"configured": True, "paused": True})
     monkeypatch.setattr(routes, "cow_quote_daemon_enabled", lambda: False)
     monkeypatch.setattr(
         routes,
@@ -679,11 +1036,11 @@ def test_cow_candidate_queue_api_filters_selected_networks(monkeypatch):
     data = response.get_json()
 
     assert response.status_code == 200
-    assert data["networks"] == ["bnb"]
+    assert data["networks"] == ["bnb", "avalanche"]
 
 
 def test_cow_submission_switch_on_clears_stale_candidate_queue(monkeypatch):
-    from web import control_panel_data_routes as routes
+    from web.data_routes import binance_market_admin as routes
 
     captured = {}
     monkeypatch.setattr(

@@ -90,8 +90,8 @@ python -m pytest flashloan/src_bot/tests/functional -q
 # 清算相关（排除网络测试）
 python -m pytest flashloan/src_bot/tests -k "liquidation and not network" -q
 
-# DEX回归测试
-python -m pytest flashloan/srcs_dex/tests -q
+# 历史 DEX 回归测试
+# 归档目录位于 back/legacy-python/srcs_dex，不属于活动测试入口。
 ```
 
 ## 测试约定

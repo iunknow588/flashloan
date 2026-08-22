@@ -3,31 +3,32 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from db.storage_common import db_connection
+from db.storage_common import db_connection, db_transaction
 
 
 def ensure_cow_supported_tokens_table(database_url: str) -> None:
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS cow_supported_tokens (
-                    network TEXT NOT NULL,
-                    chain_id INTEGER NOT NULL,
-                    symbol TEXT NOT NULL,
-                    address TEXT NOT NULL,
-                    decimals INTEGER NOT NULL,
-                    source TEXT NOT NULL,
-                    token_json TEXT NOT NULL,
-                    refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    PRIMARY KEY (network, address)
+        with db_transaction(connection, operation="cow.supported_tokens.replace"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS cow_supported_tokens (
+                        network TEXT NOT NULL,
+                        chain_id INTEGER NOT NULL,
+                        symbol TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        decimals INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        token_json TEXT NOT NULL,
+                        refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        PRIMARY KEY (network, address)
+                    )
+                    """
                 )
-                """
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_cow_supported_tokens_network_symbol "
-                "ON cow_supported_tokens(network, symbol)"
-            )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cow_supported_tokens_network_symbol "
+                    "ON cow_supported_tokens(network, symbol)"
+                )
 
 
 def replace_cow_supported_tokens(database_url: str, *, network: str, chain_id: int, tokens: list[dict[str, Any]]) -> int:
@@ -45,18 +46,19 @@ def replace_cow_supported_tokens(database_url: str, *, network: str, chain_id: i
         for token in tokens
     ]
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM cow_supported_tokens WHERE network = %s", (network,))
-            if values:
-                cursor.executemany(
-                    """
-                    INSERT INTO cow_supported_tokens (
-                        network, chain_id, symbol, address, decimals, source, token_json
+        with db_transaction(connection, operation="cow.supported_tokens.refresh"):
+            with connection.cursor() as cursor:
+                cursor.execute("DELETE FROM cow_supported_tokens WHERE network = %s", (network,))
+                if values:
+                    cursor.executemany(
+                        """
+                        INSERT INTO cow_supported_tokens (
+                            network, chain_id, symbol, address, decimals, source, token_json
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        values,
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    values,
-                )
     return len(values)
 
 

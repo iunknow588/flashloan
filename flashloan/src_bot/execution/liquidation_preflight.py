@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from liquidation.target_reassessment import reassess_execution_target
+
 
 DEFAULT_MAX_PAYLOAD_AGE_SECONDS = 30
 DEFAULT_MAX_QUOTE_AGE_SECONDS = 15
@@ -38,6 +40,9 @@ HARD_BLOCK_REASONS = {
     "fallback_flashloan_premium",
     "fork_simulation_required",
     "fork_simulation_failed",
+    "target_report_expired",
+    "target_candidate_changed",
+    "target_candidate_missing",
     *CONFIG_BLOCK_REASONS,
 }
 
@@ -138,6 +143,17 @@ def evaluate_liquidation_submission(
     dex_quote = payload.get("dex_quote") or {}
     candidate, profit = _candidate_profit(payload)
     blocked: list[str] = []
+
+    execution_target = payload.get("execution_target") or {}
+    if execution_target:
+        target_check = reassess_execution_target(
+            account_report,
+            execution_target,
+            max_age_seconds=float(controls.get("max_target_age_seconds") or controls.get("max_payload_age_seconds") or DEFAULT_MAX_PAYLOAD_AGE_SECONDS),
+            now=now,
+        )
+        for reason in target_check.get("blocked_reasons") or []:
+            _append_once(blocked, str(reason))
 
     if not controls.get("execution_enabled"):
         _append_once(blocked, "execution_disabled")
@@ -301,6 +317,7 @@ def evaluate_liquidation_submission(
             "config_errors": list(controls.get("config_errors") or []),
             "chain_id": controls.get("chain_id"),
             "expected_chain_id": controls.get("expected_chain_id"),
+            "target_reassessment": target_check if execution_target else None,
         },
     }
 

@@ -30,19 +30,76 @@ def test_refactored_helper_modules_stay_under_line_limits():
         "account_pool/state.py": 300,
         "debt_pool/workflow.py": 300,
         "liquidation/account_backfill.py": 300,
+        "liquidation/account_payload_service.py": 150,
+        "liquidation/health_scan_workflow.py": 250,
         "liquidation/scan_presenter.py": 300,
+        "liquidation/scan_orchestrator.py": 220,
+        "liquidation/scan_payload_service.py": 420,
+        "liquidation/borrow_pool_scan_service.py": 350,
+        "liquidation/account_backfill_workflow.py": 220,
+        "liquidation/refresh_service.py": 150,
+        "liquidation/scan_selection.py": 250,
+        "liquidation/scan_request.py": 160,
+        "liquidation/execution_broadcast.py": 100,
+        "liquidation/execution_orchestrator.py": 650,
+        "liquidation/execution_receipt.py": 150,
         "liquidation/execution_service.py": 100,
+        "liquidation/execution_static_call.py": 100,
+        "liquidation/execution_submission_gate.py": 120,
+        "liquidation/execution_target.py": 150,
+        "liquidation/execution_state.py": 220,
         "liquidation/submission_service.py": 150,
         "liquidation/scan_summary_service.py": 100,
         "execution/static_call.py": 300,
         "execution/receipt_formatter.py": 100,
         "intent_trade/builder.py": 300,
         "intent_trade/direct.py": 480,
+        "intent_trade/direct_intent.py": 180,
+        "intent_trade/direct_onchain_config.py": 300,
+        "intent_trade/direct_symbols.py": 140,
+        "intent_trade/direct_submission.py": 650,
+        "intent_trade/direct_submission_preflight.py": 240,
+        "intent_trade/direct_submission_context.py": 120,
+        "intent_trade/direct_unified.py": 500,
+        "intent_trade/direct_unified_broadcast.py": 300,
+        "intent_trade/direct_unified_cache.py": 400,
+        "intent_trade/direct_unified_candidates.py": 700,
+        "intent_trade/direct_unified_cost.py": 500,
+        "intent_trade/direct_unified_evidence.py": 250,
+        "intent_trade/direct_unified_preflight.py": 520,
+        "intent_trade/direct_unified_reports.py": 320,
+        "intent_trade/direct_unified_reserve.py": 160,
         "config/intent_trade.py": 300,
         "page_state/models.py": 300,
         "page_state/store.py": 300,
         "observer_runtime/service.py": 250,
         "cow_flashloan/order_submission.py": 300,
+        "market/binance_market/cow_tokens.py": 350,
+        "market/binance_market/cow_math.py": 400,
+        "market/binance_market/candidate_service.py": 120,
+        "market/binance_market/quote_service.py": 400,
+        "market/binance_market/submission_readiness.py": 120,
+        "market/binance_market/submission_service.py": 220,
+        "core/workflow.py": 300,
+        "core/contracts.py": 180,
+        "web/workflow_context.py": 100,
+        "web/control_panel_market.py": 450,
+        "web/control_panel_liquidation_borrow_pool.py": 240,
+        "web/control_panel_liquidation_borrow_pool_payload.py": 180,
+        "web/control_panel_liquidation_scan.py": 520,
+        "web/control_panel_liquidation_scan_support.py": 300,
+        "web/control_panel_opportunity_health.py": 200,
+        "web/control_panel_data.py": 200,
+        "web/control_panel_data_cache.py": 150,
+        "web/control_panel_data_db.py": 500,
+        "web/control_panel_data_routes.py": 500,
+        "web/control_panel_liquidation_execute.py": 500,
+        "web/data_routes/binance_market.py": 500,
+        "web/data_routes/binance_market_admin.py": 300,
+        "web/data_routes/binance_market_cow.py": 200,
+        "web/data_routes/dex_pools.py": 350,
+        "web/data_routes/liquidation_data.py": 250,
+        "web/data_routes/market_analysis.py": 500,
         "db/storage_liquidation.py": 250,
         "db/storage_liquidation_accounts.py": 300,
         "db/storage_liquidation_attempts.py": 300,
@@ -65,6 +122,42 @@ def test_key_modules_stop_using_the_storage_aggregator():
         source = (SRC_ROOT / relative_path).read_text(encoding="utf-8")
         for forbidden_import in forbidden_imports:
             assert forbidden_import not in source, f"{relative_path} still imports the storage aggregator"
+
+
+def test_core_and_workflow_packages_keep_layer_boundaries():
+    core_sources = [
+        path for path in (SRC_ROOT / "core").rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+    liquidation_sources = [
+        path for path in (SRC_ROOT / "liquidation").rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+    intent_sources = [
+        path for path in (SRC_ROOT / "intent_trade").rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+
+    def has_module_import(source: str, module_name: str) -> bool:
+        pattern = rf"^\s*(from\s+{re.escape(module_name)}(?=[\s.])|import\s+{re.escape(module_name)}(?=[\s.]))"
+        return any(re.match(pattern, line) for line in source.splitlines())
+
+    assert all(
+        not has_module_import(path.read_text(encoding="utf-8"), "web")
+        for path in core_sources
+    )
+    assert all(
+        not has_module_import(path.read_text(encoding="utf-8"), "intent_trade")
+        for path in liquidation_sources
+    )
+    assert all(
+        not has_module_import(path.read_text(encoding="utf-8"), "web")
+        for path in liquidation_sources
+    )
+    assert all(
+        not has_module_import(path.read_text(encoding="utf-8"), "liquidation")
+        for path in intent_sources
+    )
 
 
 def test_cow_intent_construction_stays_out_of_runtime_and_web_layers():
@@ -225,9 +318,9 @@ def test_page_status_enums_do_not_include_cross_page_route_nodes():
 
 
 def test_cow_quotes_route_defines_quote_timeout_before_use():
-    source = (SRC_ROOT / "web/control_panel_data_routes.py").read_text(encoding="utf-8")
+    source = (SRC_ROOT / "web/data_routes/binance_market.py").read_text(encoding="utf-8")
     function_start = source.index("def binance_market_cow_quotes():")
-    function_end = source.index("@app.get(\"/api/binance-market/cow-execution-attempts\")", function_start)
+    function_end = source.index("from web.data_routes.binance_market_admin import", function_start)
     body = source[function_start:function_end]
 
     assignment_at = body.index("quote_timeout_seconds = request_float_arg")
@@ -237,13 +330,13 @@ def test_cow_quotes_route_defines_quote_timeout_before_use():
 
 
 def test_cow_quotes_route_applies_pause_guard_after_sdk_quote_verification():
-    source = (SRC_ROOT / "web/control_panel_data_routes.py").read_text(encoding="utf-8")
+    source = (SRC_ROOT / "web/data_routes/binance_market.py").read_text(encoding="utf-8")
     function_start = source.index("def binance_market_cow_quotes():")
-    function_end = source.index("@app.get(\"/api/binance-market/cow-execution-attempts\")", function_start)
+    function_end = source.index("from web.data_routes.binance_market_admin import", function_start)
     body = source[function_start:function_end]
 
     verification_at = body.index("payload = build_cow_quote_verification(")
-    pause_at = body.index("pause_guard = cow_submission_pause_guard_status()")
+    pause_at = body.index("pause_guard = _cow_submission_pause_guard(")
     recording_at = body.index("payload[\"history_recording\"] = record_cow_execution_attempts_safely(")
 
     assert verification_at < pause_at < recording_at

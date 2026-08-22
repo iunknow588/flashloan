@@ -11,6 +11,7 @@ from core.sensitive_data import redact_sensitive_text
 from core.market_config import liquidation_market_config
 from execution.dex_costs import ROUTER_ABI, USDC
 from execution.liquidation_amounts import build_liquidation_amounts
+from liquidation.execution_target import normalize_execution_target, select_execution_candidate
 
 WAVAX = "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7"
 WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
@@ -227,19 +228,27 @@ def build_liquidation_execution_payload(
     router_address: str,
     deadline: int,
     config: LiquidationExecutionPayloadConfig = LiquidationExecutionPayloadConfig(),
+    borrow_index: int | None = None,
+    candidate_index: int | None = None,
 ) -> dict[str, Any]:
     summary = report.get("summary") or {}
     execution_plan = report.get("execution_plan") or {}
     if summary.get("status") != "liquidatable":
         raise ValueError("account is not liquidatable")
 
-    candidate = report.get("recommended_candidate") or {}
-    if not candidate:
-        raise ValueError("no executable liquidation candidate; a debt/collateral pair is required")
+    context = report.get("context") or {}
+    market = context.get("market") or {}
+    target = normalize_execution_target(
+        str(report.get("account") or ""),
+        borrow_index=borrow_index,
+        candidate_index=candidate_index,
+        market_id=context.get("market_id") or market.get("market_id"),
+    )
+    candidate, execution_target = select_execution_candidate(report, target=target)
     if execution_plan and not execution_plan.get("execution_ready"):
         raise ValueError("liquidation execution plan is not ready")
 
-    account = _checksum(str(report.get("account") or ""))
+    account = target.account
     collateral_asset = _checksum(str(candidate.get("collateral_asset") or ""))
     debt_asset = _checksum(str(candidate.get("debt_asset") or ""))
     debt_to_cover = int(candidate.get("amount_to_pass_to_liquidation_call") or candidate.get("max_debt_to_liquidate") or 0)
@@ -327,6 +336,7 @@ def build_liquidation_execution_payload(
         "router": _checksum(router_address),
         "method": "requestLiquidation",
         "payload_built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "execution_target": execution_target,
         "request": request,
         "preflight": {
             "static_call_required": True,

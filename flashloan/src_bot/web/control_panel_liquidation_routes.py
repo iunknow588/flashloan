@@ -6,6 +6,7 @@ from core.sensitive_data import redact_sensitive_text
 from core.market_config import DEFAULT_BNB_CHAIN_ID, DEFAULT_BNB_MARKET_ID
 from debt_pool import validate_liquidatable_context
 from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from liquidation.scan_request import parse_scan_request
 from web.control_panel_bnb_venus import bnb_venus_accounts_payload
 from web.route_context import RouteContext
 
@@ -68,6 +69,17 @@ def _request_market_kwargs() -> dict:
         kwargs["market_id"] = market_id
     if chain_id is not None:
         kwargs["chain_id"] = chain_id
+    return kwargs
+
+
+def _request_execution_target_kwargs() -> dict:
+    kwargs = {}
+    borrow_index = _optional_request_int_arg("borrow_index")
+    candidate_index = _optional_request_int_arg("candidate_index")
+    if borrow_index is not None:
+        kwargs["borrow_index"] = borrow_index
+    if candidate_index is not None:
+        kwargs["candidate_index"] = candidate_index
     return kwargs
 
 
@@ -363,23 +375,15 @@ def register_liquidation_routes(app, panel) -> None:
 
     @app.get("/api/liquidation/borrow-pool")
     def liquidation_borrow_pool_api():
-        market_kwargs = _request_market_kwargs()
-        pagination_requested = any(
-            name in request.args
-            for name in ("page_size", "risk_page", "high_page", "core_page", "market_id", "chain_id")
-        )
-        if not pagination_requested:
-            return jsonify(panel_call("liquidation_borrow_pool_payload", **market_kwargs))
-        page_size = request_int_arg("page_size", 20, minimum=1, maximum=100)
+        parsed = parse_scan_request(request.args)
+        if not parsed.pagination_requested:
+            return jsonify(panel_call("liquidation_borrow_pool_payload", **parsed.market.as_kwargs()))
         return jsonify(
             panel_call(
                 "liquidation_borrow_pool_payload",
-                page_size=page_size,
-                risk_page=request_int_arg("risk_page", 1, minimum=1),
-                high_page=request_int_arg("high_page", 1, minimum=1),
-                core_page=request_int_arg("core_page", 1, minimum=1),
                 skip_schema=True,
-                **market_kwargs,
+                **parsed.pagination.as_kwargs(),
+                **parsed.market.as_kwargs(),
             )
         )
 
@@ -391,27 +395,19 @@ def register_liquidation_routes(app, panel) -> None:
     @app.post("/api/liquidation/borrow-pool/scan")
     def liquidation_borrow_pool_scan_api():
         payload = request.get_json(silent=True) or {}
-        market_kwargs = _request_market_kwargs()
-        force = (
-            request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
-            or str(payload.get("force", "")).strip().lower() in {"1", "true", "yes"}
-        )
-        pagination_requested = any(
-            name in request.args
-            for name in ("page_size", "risk_page", "high_page", "core_page", "market_id", "chain_id")
-        )
-        if not pagination_requested:
-            return jsonify(panel_call("liquidation_borrow_pool_scan_payload", force=force, **market_kwargs))
-        page_size = request_int_arg("page_size", 20, minimum=1, maximum=100)
+        parsed = parse_scan_request(request.args, payload)
+        if not parsed.pagination_requested:
+            return jsonify(
+                panel_call(
+                    "liquidation_borrow_pool_scan_payload",
+                    force=parsed.force,
+                    **parsed.market.as_kwargs(),
+                )
+            )
         return jsonify(
             panel_call(
                 "liquidation_borrow_pool_scan_payload",
-                force=force,
-                page_size=page_size,
-                risk_page=request_int_arg("risk_page", 1, minimum=1),
-                high_page=request_int_arg("high_page", 1, minimum=1),
-                core_page=request_int_arg("core_page", 1, minimum=1),
-                **market_kwargs,
+                **parsed.as_kwargs(),
             )
         )
 
@@ -643,6 +639,7 @@ def register_liquidation_routes(app, panel) -> None:
                     account,
                     deadline_seconds=deadline_seconds,
                     allow_zero_min_out=allow_zero_min_out,
+                    **_request_execution_target_kwargs(),
                 )
             )
         except Exception as exc:
@@ -664,7 +661,7 @@ def register_liquidation_routes(app, panel) -> None:
         if stale_context is not None:
             return stale_context
         try:
-            payload = panel_call("liquidation_execution_payload_for_account", account)
+            payload = panel_call("liquidation_execution_payload_for_account", account, **_request_execution_target_kwargs())
             return jsonify(panel_call("simulate_liquidation_static_call", payload))
         except Exception as exc:
             return jsonify({"error": route_error_message(exc), "account": account}), 400
@@ -679,7 +676,7 @@ def register_liquidation_routes(app, panel) -> None:
             return stale_context
         payload: dict | None = None
         try:
-            payload = panel_call("liquidation_execution_payload_for_account", account)
+            payload = panel_call("liquidation_execution_payload_for_account", account, **_request_execution_target_kwargs())
             result = panel_call("simulate_liquidation_static_call", payload)
             preflight = result.get("preflight") or {}
             state = "static_call_passed" if preflight.get("static_call_passed") else "static_call_failed"
@@ -709,7 +706,7 @@ def register_liquidation_routes(app, panel) -> None:
         if stale_context is not None:
             return stale_context
         try:
-            payload = panel_call("liquidation_execution_payload_for_account", account)
+            payload = panel_call("liquidation_execution_payload_for_account", account, **_request_execution_target_kwargs())
             return jsonify(panel_call("simulate_liquidation_static_call", payload))
         except Exception as exc:
             return jsonify({"error": route_error_message(exc), "account": account}), 400
@@ -740,7 +737,12 @@ def register_liquidation_routes(app, panel) -> None:
             return stale_context
         payload: dict | None = None
         try:
-            payload = panel_call("liquidation_execution_payload_for_account", account, force=force)
+            payload = panel_call(
+                "liquidation_execution_payload_for_account",
+                account,
+                force=force,
+                **_request_execution_target_kwargs(),
+            )
             result = panel_call("execute_flashloan_liquidation_transaction", payload, force=force)
             record_liquidation_route_success(account, "flashloan_force" if force else "flashloan", result)
             return jsonify(result)

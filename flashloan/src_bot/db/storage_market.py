@@ -1,6 +1,6 @@
 import json
 
-from db.storage_common import db_connection, require_psycopg, utc_from_ms
+from db.storage_common import db_connection, db_transaction, require_psycopg, utc_from_ms
 def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
     if not rows:
         return
@@ -17,17 +17,18 @@ def append_binance_price_history(database_url: str, rows: list[dict]) -> None:
     ]
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO binance_price_history (
-                    observed_at, symbol, price, event_time, source
+        with db_transaction(connection, operation="market.binance_price_history.append"):
+            with connection.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO binance_price_history (
+                        observed_at, symbol, price, event_time, source
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (symbol, event_time, source) DO NOTHING
+                    """,
+                    values,
                 )
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, event_time, source) DO NOTHING
-                """,
-                values,
-            )
 
 
 def append_binance_candidate_price_history(database_url: str, rows: list[dict]) -> None:
@@ -51,18 +52,19 @@ def append_binance_candidate_price_history(database_url: str, rows: list[dict]) 
     ]
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO binance_candidate_price_history (
-                    observed_at, symbol, price_usdc, source_price, usdc_usdt_price,
-                    change_percent, rank_side, rank_position, event_time, source
+        with db_transaction(connection, operation="market.observation.append"):
+            with connection.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO binance_candidate_price_history (
+                        observed_at, symbol, price_usdc, source_price, usdc_usdt_price,
+                        change_percent, rank_side, rank_position, event_time, source
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (symbol, event_time, source) DO NOTHING
+                    """,
+                    values,
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, event_time, source) DO NOTHING
-                """,
-                values,
-            )
 
 
 def append_binance_pair_price_history(database_url: str, rows: list[dict]) -> None:
@@ -85,18 +87,19 @@ def append_binance_pair_price_history(database_url: str, rows: list[dict]) -> No
     ]
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO binance_pair_price_history (
-                    observed_at, x_symbol, y_symbol, x_usdc_price, y_usdc_price,
-                    x_y_price, window_seconds, event_time, source
+        with db_transaction(connection, operation="market.velocity_snapshot.append"):
+            with connection.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO binance_pair_price_history (
+                        observed_at, x_symbol, y_symbol, x_usdc_price, y_usdc_price,
+                        x_y_price, window_seconds, event_time, source
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (x_symbol, y_symbol, event_time, source) DO NOTHING
+                    """,
+                    values,
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (x_symbol, y_symbol, event_time, source) DO NOTHING
-                """,
-                values,
-            )
 
 
 def append_observations(database_url: str, rows: list[dict]) -> None:
@@ -120,19 +123,20 @@ def append_observations(database_url: str, rows: list[dict]) -> None:
     ]
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                INSERT INTO observations (
-                    observed_at, symbol, asset, binance_price, binance_event_time,
-                    aave_price, aave_block, diff_percent,
-                    binance_age_seconds, aave_age_seconds
+        with db_transaction(connection, operation="market.velocity_timepoint.append"):
+            with connection.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO observations (
+                        observed_at, symbol, asset, binance_price, binance_event_time,
+                        aave_price, aave_block, diff_percent,
+                        binance_age_seconds, aave_age_seconds
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (symbol, binance_event_time, aave_block) DO NOTHING
+                    """,
+                    values,
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, binance_event_time, aave_block) DO NOTHING
-                """,
-                values,
-            )
 
 
 def append_binance_extremes(database_url: str, extremes: dict) -> None:
@@ -179,33 +183,34 @@ def append_binance_extremes(database_url: str, extremes: dict) -> None:
     )
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO binance_window_extremes (
-                    observed_at, window_seconds, sample_count,
-                    top_symbol_1, top_change_percent_1,
-                    top_start_price_1, top_end_price_1,
-                    top_start_time_1, top_end_time_1,
-                    top_symbol_2, top_change_percent_2,
-                    top_start_price_2, top_end_price_2,
-                    top_start_time_2, top_end_time_2,
-                    bottom_symbol_1, bottom_change_percent_1,
-                    bottom_start_price_1, bottom_end_price_1,
-                    bottom_start_time_1, bottom_end_time_1,
-                    bottom_symbol_2, bottom_change_percent_2,
-                    bottom_start_price_2, bottom_end_price_2,
-                    bottom_start_time_2, bottom_end_time_2,
-                    top_json, bottom_json
+        with db_transaction(connection, operation="market.arbitrage_simulation.append"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO binance_window_extremes (
+                        observed_at, window_seconds, sample_count,
+                        top_symbol_1, top_change_percent_1,
+                        top_start_price_1, top_end_price_1,
+                        top_start_time_1, top_end_time_1,
+                        top_symbol_2, top_change_percent_2,
+                        top_start_price_2, top_end_price_2,
+                        top_start_time_2, top_end_time_2,
+                        bottom_symbol_1, bottom_change_percent_1,
+                        bottom_start_price_1, bottom_end_price_1,
+                        bottom_start_time_1, bottom_end_time_1,
+                        bottom_symbol_2, bottom_change_percent_2,
+                        bottom_start_price_2, bottom_end_price_2,
+                        bottom_start_time_2, bottom_end_time_2,
+                        top_json, bottom_json
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s
+                    )
+                    """,
+                    values,
                 )
-                VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s
-                )
-                """,
-                values,
-            )
 
 
 def append_arbitrage_simulation(database_url: str, simulation: dict) -> None:
@@ -263,33 +268,34 @@ def append_arbitrage_simulation(database_url: str, simulation: dict) -> None:
     )
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO arbitrage_simulations (
-                    observed_at, window_seconds, sample_count, a_symbol, b_symbol,
-                    a_change_percent, b_change_percent, a_start_price, a_end_price,
-                    b_start_price, b_end_price, notional_usd, trade_fee_percent,
-                    flashloan_fee_percent, borrowed_b, a_bought,
-                    usdt_after_selling_a, b_rebought, b_to_repay, profit_b,
-                    profit_usd, paper_route_profit_usd, candidate_score_usd,
-                    profit_percent, candidate_score_percent, gross_relative_edge_percent,
-                    window_spread_percent, min_window_spread_percent, min_paper_profit_usd,
-                    fee_reserve_percent, fee_reserve_usd, net_signal_profit_usd,
-                    signal, blocked_reasons_json, profitable,
-                    candidate_pair_count, evaluated_strategy_count, best_strategy,
-                    m1_profit_usd, m2_profit_usd,
-                    selected_signed_profit_usd, selected_direction_score_usd,
-                    selected_expected_profit_usd,
-                    route_symbols_json, borrow_symbol, swap_symbol,
-                    strategy, execution_plan_json
+        with db_transaction(connection, operation="market.executable_signal.append"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO arbitrage_simulations (
+                        observed_at, window_seconds, sample_count, a_symbol, b_symbol,
+                        a_change_percent, b_change_percent, a_start_price, a_end_price,
+                        b_start_price, b_end_price, notional_usd, trade_fee_percent,
+                        flashloan_fee_percent, borrowed_b, a_bought,
+                        usdt_after_selling_a, b_rebought, b_to_repay, profit_b,
+                        profit_usd, paper_route_profit_usd, candidate_score_usd,
+                        profit_percent, candidate_score_percent, gross_relative_edge_percent,
+                        window_spread_percent, min_window_spread_percent, min_paper_profit_usd,
+                        fee_reserve_percent, fee_reserve_usd, net_signal_profit_usd,
+                        signal, blocked_reasons_json, profitable,
+                        candidate_pair_count, evaluated_strategy_count, best_strategy,
+                        m1_profit_usd, m2_profit_usd,
+                        selected_signed_profit_usd, selected_direction_score_usd,
+                        selected_expected_profit_usd,
+                        route_symbols_json, borrow_symbol, swap_symbol,
+                        strategy, execution_plan_json
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    values,
                 )
-                VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                )
-                """,
-                values,
-            )

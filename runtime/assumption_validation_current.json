@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-21T00:10:21.312556+00:00",
+  "market": {
+    "market_id": "avalanche-aave-v3",
+    "namespace": "avalanche-aave-v3",
+    "feature": "liquidation",
+    "display_name": "Avalanche Aave V3 Liquidation",
+    "network": "avalanche",
+    "protocol": "aave_v3",
+    "chain_id": 43114,
+    "native_symbol": "AVAX",
+    "wrapped_native_address": "",
+    "explorer_url": "",
+    "rpc_urls": [
+      "https://api.avax.network/ext/bc/C/rpc",
+      "https://rpc.ankr.com/avalanche",
+      "https://avalanche-c-chain-rpc.publicnode.com"
+    ],
+    "pool_address": "",
+    "protocol_data_provider_address": "",
+    "liquidation_data_provider_address": "",
+    "dex_router_address": "0x60aE616a2155Ee3d9A68541Ba4544862310933d4",
+    "executor_address": "",
+    "executor_owner_address": "",
+    "multicall3_address": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "protocol_supported": true,
+    "evm_compatible": true,
+    "protocol_adapter": "AaveV3Adapter",
+    "executor_adapter": "EvmLiquidationExecutor",
+    "observation_only": false,
+    "enabled": true,
+    "is_default": true
+  },
+  "inputs": {
+    "liquidation_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\logs\\liquidation_events.jsonl",
+    "cow_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\logs\\cow_execution_attempts.jsonl",
+    "scan_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\logs\\liquidation_health_scans.jsonl"
+  },
+  "liquidation_profit": {
+    "status": "no_data",
+    "event_count": 0,
+    "calculated_count": 0,
+    "positive_count": 0,
+    "average_net_profit_usd": null,
+    "p50_net_profit_usd": null,
+    "p90_net_profit_usd": null,
+    "missing_input_counts": {}
+  },
+  "cow_settlement": {
+    "status": "calculated",
+    "attempt_count": 9,
+    "quote_success_count": 0,
+    "submitted_count": 0,
+    "settled_count": 0,
+    "quote_to_submit_rate": null,
+    "quote_to_settlement_rate": null,
+    "quote_to_submit_delay_seconds": {
+      "status": "missing_timestamps",
+      "sample_count": 0,
+      "p50": null,
+      "p90": null
+    },
+    "quote_to_settlement_delay_seconds": {
+      "status": "missing_timestamps",
+      "sample_count": 0,
+      "p50": null,
+      "p90": null
+    },
+    "missing_settlement_timestamp_count": 0
+  },
+  "scan_windows": {
+    "status": "insufficient_window_data",
+    "liquidatable_account_count": 0,
+    "episode_count": 0,
+    "survival_seconds": {
+      "p50": null,
+      "p90": null,
+      "average": null
+    },
+    "coverage": {}
+  },
+  "rpc": {
+    "status": "not_probed",
+    "configured_count": 3,
+    "urls": [
+      "https://api.avax.network/ext/bc/C/rpc",
+      "https://rpc.ankr.com/avalanche",
+      "https://avalanche-c-chain-rpc.publicnode.com"
+    ]
+  },
+  "database": {
+    "pool_enabled": "true",
+    "pool_min_size": "2",
+    "pool_max_size": "10",
+    "transaction_boundary": "db_connection context commits on normal exit and rolls back on exception",
+    "live_lock_benchmark": "not_run"
+  }
+}

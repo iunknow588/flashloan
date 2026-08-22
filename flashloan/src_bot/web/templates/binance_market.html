@@ -330,7 +330,8 @@
     };
 
     const api = async (path, options = {}) => {
-      const response = await fetch(path, {
+      const requestPath = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      const response = await fetch(requestPath, {
         ...options,
         headers: {"Accept": "application/json", ...(options.headers || {})},
       });
@@ -364,6 +365,25 @@
     const cls = value => Number.isFinite(Number(value)) ? (Number(value) >= 0 ? "positive" : "negative") : "";
     const routePath = route => (route.route || route.route_symbols || []).map(displaySymbol).join(" -> ") || "-";
     const selectedNetworkIds = () => Array.from(document.querySelectorAll("input[name='cow_network']:checked")).map(item => item.value);
+    const requestedNetworkIds = () => {
+      const query = new URLSearchParams(window.location.search);
+      return (query.get("cow_networks") || query.get("cow_network") || "")
+        .split(",")
+        .map(item => item.trim().toLowerCase())
+        .filter(Boolean);
+    };
+    const syncCowScopeToUrl = () => {
+      const networks = selectedNetworkIds();
+      const next = new URL(window.location.href);
+      next.searchParams.set("workflow", "dex_arbitrage");
+      next.searchParams.set("execution_mode", "cow");
+      next.searchParams.set("scope", networks.length > 1 ? "multi_chain" : "single_chain");
+      if (networks.length) next.searchParams.set("cow_networks", networks.join(","));
+      else next.searchParams.delete("cow_networks");
+      next.searchParams.delete("cow_network");
+      window.history.replaceState({}, "", next.pathname + (next.search ? next.search : ""));
+      window.WorkflowContext?.init?.().catch(error => { console.error("workflow context:", error); });
+    };
     const activeNetworkPanels = () => selectedNetworkIds().map(network => networkPanels.get(network)).filter(Boolean);
     const primaryNetwork = () => selectedNetworkIds()[0] || cowConfig?.default_network || "bnb";
     const selectedNetworkClaims = claims => {
@@ -1077,7 +1097,11 @@
         const rightRank = rightIndex >= 0 ? rightIndex : DEFAULT_SELECTED_NETWORKS.length + networks.indexOf(right);
         return leftRank - rightRank;
       });
-      const selectedSet = new Set(DEFAULT_SELECTED_NETWORKS.filter(name => uiNetworks.some(item => item.network === name)));
+      const requestedSet = new Set(requestedNetworkIds());
+      const selectedSet = new Set(
+        (requestedSet.size ? requestedSet : DEFAULT_SELECTED_NETWORKS)
+          .filter(name => uiNetworks.some(item => item.network === name))
+      );
       if (!selectedSet.size && uiNetworks[0]?.network) selectedSet.add(uiNetworks[0].network);
       $("cowNetworkChecks").innerHTML = uiNetworks.map(item => {
         const label = `${item.label || item.network} (${item.chain_id})`;
@@ -1086,6 +1110,7 @@
       }).join("");
       $("refreshMeta").textContent = selectedSet.size ? `CoW 多链 ${Array.from(selectedSet).join(", ")}` : "CoW -";
       renderCowIdentity(selectedCowConfig(primaryNetwork()));
+      syncCowScopeToUrl();
     }
     function quoteKey(pairRank, priorityReason, pair) {
       return `${pair || ""}:${pairRank || ""}:${priorityReason || ""}`;
@@ -1724,7 +1749,8 @@
         $("message").textContent = `正在刷新 ${targets.length} 个 CoW 主网支持代币`;
         const refreshed = [];
         for (const network of targets) {
-          const response = await fetch(`/api/binance-market/cow-tokens/refresh?cow_network=${encodeURIComponent(network)}`, {method: "POST", headers: {"Accept": "application/json"}});
+          const tokenPath = `/api/binance-market/cow-tokens/refresh?cow_network=${encodeURIComponent(network)}`;
+          const response = await fetch(window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(tokenPath) : tokenPath, {method: "POST", headers: {"Accept": "application/json"}});
           const data = await response.json();
           if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
           refreshed.push(`${data.network}:${data.token_count || 0}`);
@@ -1770,6 +1796,7 @@
       renderCowIdentity();
       renderNetworkOpportunityCards();
       renderNetworkClaims(currentNetworkClaims());
+      syncCowScopeToUrl();
       refresh().then(refreshCowSupport);
     };
     $("sideLimitSelect").onchange = () => { latestCowQuotes = null; latestCowSupport = null; networkPanels.clear(); refresh().then(refreshCowSupport); };

@@ -3,7 +3,7 @@
 import asyncio
 from copy import deepcopy
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 import json
 import os
 from pathlib import Path
@@ -26,6 +26,7 @@ from cow_flashloan.order_submission import (
 )
 from intent_trade import bind_cow_intent_context, build_triangular_onchain_intent_trade
 from cow_flashloan.routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
+from cow_flashloan.network_scope import supported_cow_networks
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
 from market.velocity_candidates import base_token_symbol, top_bottom_from_extremes
@@ -41,14 +42,41 @@ from strategy.limits import (
     DEFAULT_MIN_TOKEN_PRICE_USD,
     DEFAULT_BINANCE_RAW_SIDE_LIMIT,
 )
+from market.binance_market.cow_tokens import (
+    DEFAULT_COW_TEST_NETWORK,
+    DEFAULT_COW_TOKEN_CACHE_PATH,
+    _bnb_static_market_registry,
+    _market_registry_for_network,
+    _resolve_cow_market_symbol,
+    load_cow_supported_token_registry,
+    refresh_cow_supported_token_cache,
+)
+from market.binance_market.cow_math import (
+    _amount_from_price_rule,
+    _decimal_percent_delta,
+    _decimal_rank_analysis,
+    _decimal_or_none,
+    _decimal_text,
+    _decimal_value,
+    _exchange_rate_candidates,
+    _market_price_candidates,
+    _query_guard_analysis,
+    _query_window_timing,
+    _select_decimal_candidate,
+    _selected_decimal_text,
+    _selected_source,
+    _serialize_decimal_candidates,
+    cost_adjusted_cow_thresholds,
+)
+from market.binance_market.state_service import select_market_state
+from market.binance_market.submission_readiness import build_submission_readiness
+from market.binance_market.candidate_service import build_pair_candidates
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AAVE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "aave_reserve_assets.json"
 DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "state" / "binance_market_snapshot.json"
-DEFAULT_COW_TOKEN_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "cow_supported_tokens.json"
 DEFAULT_AVALANCHE_V3_POOL_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 DEFAULT_BNB_POOL_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "bnb_arbitrage_pool_static_table.json"
-DEFAULT_COW_TEST_NETWORK = "bnb"
 DEFAULT_COW_FLASHLOAN_CONTROL_MODE = "intent"
 DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS = 120.0
 COW_NETWORK_LABELS = {
@@ -78,8 +106,6 @@ WRAPPED_SYMBOL_ALIASES = {
     "BNB": ("WBNB",),
     "XDAI": ("WXDAI", "WDAI"),
 }
-_COW_TOKEN_CACHE_LOCK = threading.Lock()
-_COW_TOKEN_MEMORY_CACHE: dict[str, dict[str, Any]] = {}
 _POOL_STATIC_TABLE_LOCK = threading.Lock()
 _POOL_STATIC_TABLE_MEMORY_CACHE: dict[str, dict[str, Any]] = {}
 STABLE_ROUTE_CANDIDATES = (
@@ -111,164 +137,9 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
-def _decimal_value(value: Any) -> Decimal | None:
-    try:
-        parsed = Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
-        return None
-    return parsed if parsed.is_finite() else None
-
-
-def _decimal_text(value: Decimal | None) -> str | None:
-    if value is None:
-        return None
-    return format(value.normalize(), "f")
-
-
 def _cow_flashloan_control_mode() -> str:
     # Only intent mode is implemented right now.
     return "intent"
-
-
-def cost_adjusted_cow_thresholds(
-    *,
-    requested_min_spread_percent: float = DEFAULT_MIN_COW_SPREAD_PERCENT,
-    amount: str | int | float | Decimal = "1000",
-    arbitrage_config: ArbitrageConfig | None = None,
-    slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
-    min_profit_percent: Decimal = DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT,
-) -> dict[str, Any]:
-    notional = _decimal_value(amount)
-    if notional is None or notional <= 0:
-        configured_notional = getattr(arbitrage_config, "notional_usd", None) if arbitrage_config else None
-        notional = _decimal_value(configured_notional) or Decimal("1000")
-    trade_fee_percent = _decimal_value(getattr(arbitrage_config, "trade_fee_percent", 0) if arbitrage_config else 0) or Decimal("0")
-    flashloan_fee_percent = _decimal_value(getattr(arbitrage_config, "flashloan_fee_percent", 0) if arbitrage_config else 0) or Decimal("0")
-    fee_reserve_percent = _decimal_value(getattr(arbitrage_config, "fee_reserve_percent", 0) if arbitrage_config else 0) or Decimal("0")
-    requested_spread = _decimal_value(requested_min_spread_percent) or Decimal(str(DEFAULT_MIN_COW_SPREAD_PERCENT))
-    configured_min_profit_percent = max(Decimal("0"), _decimal_value(min_profit_percent) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT)
-    min_profit_usd = notional * configured_min_profit_percent / Decimal("100")
-    route_trade_fee_percent = trade_fee_percent * Decimal(DEFAULT_COW_TRADE_FEE_SIDE_COUNT)
-    route_cost_percent = route_trade_fee_percent + flashloan_fee_percent + fee_reserve_percent + configured_min_profit_percent
-    adjusted_spread = max(Decimal("0"), route_cost_percent)
-    side_threshold = Decimal(str(DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT))
-    return {
-        "requested_min_spread_percent": _decimal_text(requested_spread),
-        "adjusted_min_spread_percent": _decimal_text(adjusted_spread),
-        "min_window_spread_percent": _decimal_text(adjusted_spread),
-        "min_side_change_percent": _decimal_text(side_threshold),
-        "min_token_price_usd": _decimal_text(Decimal(str(DEFAULT_MIN_TOKEN_PRICE_USD))),
-        "amount": _decimal_text(notional),
-        "trade_fee_percent_per_hop": _decimal_text(trade_fee_percent),
-        "trade_fee_side_count": DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
-        "route_hop_count": DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
-        "route_trade_fee_percent": _decimal_text(route_trade_fee_percent),
-        "flashloan_fee_percent": _decimal_text(flashloan_fee_percent),
-        "fee_reserve_percent": _decimal_text(fee_reserve_percent),
-        "slippage_bps": max(0, min(int(slippage_bps), 5000)),
-        "slippage_percent": None,
-        "slippage_model": "dynamic_target_minus_acceptable_price",
-        "min_profit_usd": _decimal_text(min_profit_usd),
-        "min_profit_percent": _decimal_text(configured_min_profit_percent),
-        "route_cost_floor_percent": _decimal_text(route_cost_percent),
-        "threshold_rule": f"gain - loss > dynamic_min_window_spread_percent; side display > {side_threshold}%",
-    }
-
-
-def _median_decimal(values: list[Decimal]) -> Decimal | None:
-    if not values:
-        return None
-    ordered = sorted(values)
-    return ordered[len(ordered) // 2]
-
-
-def _market_price_candidates(
-    symbol: str,
-    rows: dict[str, dict[str, Any]],
-    *,
-    query_price: Decimal | None,
-) -> list[dict[str, Any]]:
-    key = str(symbol or "").upper()
-    row = rows.get(key) or {}
-    candidates = []
-    for source, value in (
-        ("previous_window", _decimal_value(row.get("start_price"))),
-        ("current_window", _decimal_value(row.get("current_price"))),
-        ("query_quote", query_price),
-    ):
-        if value is not None and value > 0:
-            candidates.append({"source": source, "price": value})
-    return candidates
-
-
-def _exchange_rate_candidates(
-    from_symbol: str,
-    to_symbol: str,
-    rows: dict[str, dict[str, Any]],
-    *,
-    query_rate: Decimal | None,
-) -> list[dict[str, Any]]:
-    from_key = str(from_symbol or "").upper()
-    to_key = str(to_symbol or "").upper()
-    from_row = rows.get(from_key) or {}
-    to_row = rows.get(to_key) or {}
-    candidates = []
-    for source, from_price, to_price in (
-        ("previous_window", _decimal_value(from_row.get("start_price")), _decimal_value(to_row.get("start_price"))),
-        ("current_window", _decimal_value(from_row.get("current_price")), _decimal_value(to_row.get("current_price"))),
-        ("query_quote", None, None),
-    ):
-        if source == "query_quote":
-            rate = query_rate
-        elif from_price is not None and to_price is not None and to_price > 0:
-            rate = from_price / to_price
-        else:
-            rate = None
-        if rate is not None and rate > 0:
-            candidates.append({"source": source, "rate": rate})
-    return candidates
-
-
-def _serialize_decimal_candidates(
-    candidates: list[dict[str, Any]],
-    value_key: str,
-) -> list[dict[str, Any]]:
-    return [
-        {
-            **{key: value for key, value in item.items() if key != value_key},
-            value_key: _decimal_text(item.get(value_key)),
-        }
-        for item in candidates
-    ]
-
-
-def _select_decimal_candidate(
-    candidates: list[dict[str, Any]],
-    value_key: str,
-    mode: str,
-) -> dict[str, Any] | None:
-    valid = [item for item in candidates if isinstance(item.get(value_key), Decimal) and item[value_key] > 0]
-    if not valid:
-        return None
-    if mode == "min":
-        return min(valid, key=lambda item: item[value_key])
-    if mode == "max":
-        return max(valid, key=lambda item: item[value_key])
-    target_value = _median_decimal([item[value_key] for item in valid])
-    for item in valid:
-        if item[value_key] == target_value:
-            return item
-    return None
-
-
-def _selected_decimal_text(candidate: dict[str, Any] | None, value_key: str) -> str | None:
-    if not candidate:
-        return None
-    return _decimal_text(candidate.get(value_key))
-
-
-def _selected_source(candidate: dict[str, Any] | None) -> str | None:
-    return str(candidate.get("source")) if candidate else None
 
 
 def _symbol_alias_set(symbol: str) -> set[str]:
@@ -664,424 +535,8 @@ def _filter_pairs_by_pool_route_support(
     return list(keep_top.values()), list(keep_bottom.values()), rejected
 
 
-def _decimal_rank_analysis(
-    candidates: list[dict[str, Any]],
-    value_key: str,
-    *,
-    query_source: str = "query_quote",
-) -> dict[str, Any]:
-    valid = [
-        item
-        for item in candidates
-        if isinstance(item.get(value_key), Decimal) and item[value_key] > 0
-    ]
-    if not valid:
-        return {"source": query_source, "rank": None, "total": 0, "position": None, "ordered_sources": []}
-    ordered = sorted(valid, key=lambda item: item[value_key])
-    ordered_sources = [
-        {
-            "source": item.get("source"),
-            value_key: _decimal_text(item.get(value_key)),
-        }
-        for item in ordered
-    ]
-    query_index = next((index for index, item in enumerate(ordered) if item.get("source") == query_source), None)
-    if query_index is None:
-        return {"source": query_source, "rank": None, "total": len(ordered), "position": None, "ordered_sources": ordered_sources}
-    labels = {0: "lowest", len(ordered) - 1: "highest"}
-    return {
-        "source": query_source,
-        "rank": query_index + 1,
-        "total": len(ordered),
-        "position": labels.get(query_index, "middle"),
-        "ordered_sources": ordered_sources,
-    }
-
-
-def _decimal_percent_delta(actual: Decimal | None, expected: Decimal | None) -> str | None:
-    if actual is None or expected is None or expected == 0:
-        return None
-    return _decimal_text((actual - expected) / expected * Decimal("100"))
-
-
-def _query_window_timing(
-    candidates: list[dict[str, Any]],
-    value_key: str,
-    *,
-    query_value: Decimal | None,
-) -> dict[str, Any]:
-    previous = next(
-        (
-            item.get(value_key)
-            for item in candidates
-            if item.get("source") == "previous_window" and isinstance(item.get(value_key), Decimal)
-        ),
-        None,
-    )
-    current = next(
-        (
-            item.get(value_key)
-            for item in candidates
-            if item.get("source") == "current_window" and isinstance(item.get(value_key), Decimal)
-        ),
-        None,
-    )
-    if query_value is None or previous is None or current is None:
-        return {
-            "available": False,
-            "basis": value_key,
-            "reason": "missing_query_or_window_value",
-            "closer_to": None,
-            "timing_vs_current_window": None,
-        }
-    previous_distance = abs(query_value - previous)
-    current_distance = abs(query_value - current)
-    closer_to = "previous_window" if previous_distance <= current_distance else "current_window"
-    if current == previous:
-        timing = "flat_window"
-    elif current > previous:
-        timing = "lagging" if query_value < current else "leading"
-    else:
-        timing = "lagging" if query_value > current else "leading"
-    return {
-        "available": True,
-        "basis": value_key,
-        "previous_window": _decimal_text(previous),
-        "current_window": _decimal_text(current),
-        "query_quote": _decimal_text(query_value),
-        "closer_to": closer_to,
-        "timing_vs_current_window": timing,
-        "query_vs_previous_percent": _decimal_percent_delta(query_value, previous),
-        "query_vs_current_percent": _decimal_percent_delta(query_value, current),
-        "previous_to_current_percent": _decimal_percent_delta(current, previous),
-        "interpretation": (
-            "CoW quote is closer to the earlier Binance window"
-            if closer_to == "previous_window"
-            else "CoW quote is closer to the current Binance window"
-        ),
-    }
-
-
-def _query_guard_analysis(
-    *,
-    role: str,
-    query_value: Decimal | None,
-    target_value: Decimal | None,
-    acceptable_value: Decimal | None,
-) -> dict[str, Any]:
-    if query_value is None or target_value is None:
-        return {"status": "missing_query", "favorable": False, "reason": "missing query or target value"}
-    if role == "buy_price_ceiling":
-        favorable = query_value <= target_value
-        acceptable = acceptable_value is not None and query_value <= acceptable_value
-        if favorable:
-            status = "better_than_target"
-            reason = "query price is below or equal to own buy target"
-        elif acceptable:
-            status = "within_slippage_guard"
-            reason = "query price is above target but within own acceptable buy price"
-        else:
-            status = "worse_than_guard"
-            reason = "query price is above own acceptable buy price"
-    elif role == "sell_price_floor":
-        favorable = query_value >= target_value
-        acceptable = acceptable_value is not None and query_value >= acceptable_value
-        if favorable:
-            status = "better_than_target"
-            reason = "query price is above or equal to own sell target"
-        elif acceptable:
-            status = "within_slippage_guard"
-            reason = "query price is below target but within own acceptable sell price"
-        else:
-            status = "worse_than_guard"
-            reason = "query price is below own acceptable sell price"
-    elif role == "network_optimized_reference":
-        favorable = query_value >= target_value
-        acceptable = acceptable_value is not None and query_value >= acceptable_value
-        if favorable:
-            status = "better_than_target"
-            reason = "query exchange rate is above or equal to own target rate"
-        elif acceptable:
-            status = "within_slippage_guard"
-            reason = "query exchange rate is within own rate guard"
-        else:
-            status = "worse_than_guard"
-            reason = "query exchange rate is below own target rate"
-    else:
-        favorable = False
-        acceptable = True
-        status = "not_applicable"
-        reason = "stable reference step"
-    return {
-        "status": status,
-        "favorable": favorable,
-        "acceptable": acceptable,
-        "reason": reason,
-        "query_value": _decimal_text(query_value),
-        "target_value": _decimal_text(target_value),
-        "acceptable_value": _decimal_text(acceptable_value),
-    }
-
-
-def _amount_from_price_rule(
-    *,
-    role: str,
-    sell_amount: Decimal,
-    price_or_rate: Decimal | None,
-) -> Decimal | None:
-    if price_or_rate is None or price_or_rate <= 0 or sell_amount <= 0:
-        return None
-    if role == "buy_price_ceiling":
-        return sell_amount / price_or_rate
-    if role == "sell_price_floor":
-        return sell_amount * price_or_rate
-    if role == "network_optimized_reference":
-        return sell_amount * price_or_rate
-    return None
-
-
 def _stable_symbol(symbol: str) -> bool:
     return str(symbol or "").upper() in {"USDC", "USDT"}
-
-
-def _cow_symbol_candidates(symbol: str) -> tuple[str, ...]:
-    value = str(symbol or "").strip().upper()
-    aliases = WRAPPED_SYMBOL_ALIASES.get(value, ())
-    return (value, *aliases)
-
-
-def _resolve_cow_market_symbol(symbol: str, registry: dict[str, Any]) -> dict[str, Any] | None:
-    for candidate in _cow_symbol_candidates(symbol):
-        try:
-            token = resolve_token(candidate, registry)
-            return {
-                "symbol": token.symbol,
-                "address": token.address,
-                "decimals": token.decimals,
-                "source": token.source,
-                "matched_from": symbol,
-            }
-        except Exception:
-            continue
-    return None
-
-
-def _token_to_dict(token: CowToken | dict[str, Any]) -> dict[str, Any]:
-    if isinstance(token, CowToken):
-        return {
-            "symbol": token.symbol,
-            "address": token.address,
-            "decimals": token.decimals,
-            "source": token.source,
-        }
-    return {
-        "symbol": str(token.get("symbol") or "").upper(),
-        "address": str(token.get("address") or "").lower(),
-        "decimals": int(token.get("decimals") or 0),
-        "source": str(token.get("source") or ""),
-    }
-
-
-def _tokens_to_registry(tokens: list[dict[str, Any]]) -> dict[str, CowToken]:
-    by_address: dict[str, CowToken] = {}
-    for item in tokens:
-        try:
-            token = CowToken(
-                str(item["symbol"]).upper(),
-                str(item["address"]).lower(),
-                int(item["decimals"]),
-                str(item.get("source") or "cow_supported_cache"),
-            )
-        except (KeyError, TypeError, ValueError):
-            continue
-        by_address.setdefault(token.address, token)
-    symbol_counts: dict[str, int] = {}
-    for token in by_address.values():
-        symbol_counts[token.symbol.upper()] = symbol_counts.get(token.symbol.upper(), 0) + 1
-    registry = dict(by_address)
-    for token in by_address.values():
-        if symbol_counts.get(token.symbol.upper()) == 1:
-            registry[token.symbol.upper()] = token
-    return registry
-
-
-def _bnb_static_market_tokens() -> list[dict[str, Any]]:
-    """Return only the exact token identities included in the BNB static table."""
-    from intent_trade.chains.bnb import config as bnb
-
-    return [
-        {
-            "symbol": token.symbol,
-            "address": token.address,
-            "decimals": token.decimals,
-            "source": "bnb_static_pool_table",
-        }
-        for token in bnb.TOKENS.values()
-    ]
-
-
-def _bnb_static_market_registry() -> dict[str, CowToken]:
-    """Use the BNB static-table token identities for local DEX route assembly."""
-    return _tokens_to_registry(_bnb_static_market_tokens())
-
-
-def _market_registry_for_network(network: str, registry: dict[str, Any] | None) -> dict[str, Any]:
-    if registry:
-        return registry
-    if str(network or "").lower() == "bnb":
-        return _bnb_static_market_registry()
-    return {}
-
-
-def _dedupe_tokens_by_address(tokens: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    deduped = []
-    seen: set[str] = set()
-    for token in tokens:
-        address = str(token.get("address") or "").strip().lower()
-        if not address or address in seen:
-            continue
-        copied = dict(token)
-        copied["address"] = address
-        deduped.append(copied)
-        seen.add(address)
-    return deduped
-
-
-def _read_cow_token_file(cache_path: Path, network: str) -> list[dict[str, Any]]:
-    try:
-        payload = json.loads(cache_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-    networks = payload.get("networks") if isinstance(payload, dict) else {}
-    item = networks.get(network) if isinstance(networks, dict) else None
-    tokens = item.get("tokens") if isinstance(item, dict) else None
-    return tokens if isinstance(tokens, list) else []
-
-
-def _write_cow_token_file(cache_path: Path, *, network: str, chain_id: int, tokens: list[dict[str, Any]]) -> None:
-    try:
-        payload = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
-    except (OSError, json.JSONDecodeError):
-        payload = {}
-    networks = payload.setdefault("networks", {})
-    networks[network] = {
-        "network": network,
-        "chain_id": int(chain_id),
-        "refreshed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "token_count": len(tokens),
-        "tokens": tokens,
-    }
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
-
-
-def _memory_cow_tokens(network: str) -> list[dict[str, Any]]:
-    with _COW_TOKEN_CACHE_LOCK:
-        item = _COW_TOKEN_MEMORY_CACHE.get(network)
-        if not item:
-            return []
-        return list(item.get("tokens") or [])
-
-
-def _store_memory_cow_tokens(network: str, tokens: list[dict[str, Any]], *, source: str) -> None:
-    with _COW_TOKEN_CACHE_LOCK:
-        _COW_TOKEN_MEMORY_CACHE[network] = {
-            "tokens": list(tokens),
-            "source": source,
-            "loaded_at": time.time(),
-        }
-
-
-def refresh_cow_supported_token_cache(
-    *,
-    cow_network: str | None = DEFAULT_COW_TEST_NETWORK,
-    database_url: str | None = None,
-    cache_path: Path = DEFAULT_COW_TOKEN_CACHE_PATH,
-) -> dict[str, Any]:
-    network_config = cow_network_config(network=cow_network)
-    if network_config.network == "bnb":
-        tokens = _bnb_static_market_tokens()
-        _write_cow_token_file(cache_path, network=network_config.network, chain_id=network_config.chain_id, tokens=tokens)
-        _store_memory_cow_tokens(network_config.network, tokens, source="bnb_static_pool_table")
-        return {
-            "network": network_config.network,
-            "chain_id": network_config.chain_id,
-            "token_count": len(tokens),
-            "database_saved": False,
-            "file_cache": str(cache_path),
-            "source": "bnb_static_pool_table",
-        }
-    tokens = _dedupe_tokens_by_address(
-        [_token_to_dict(token) for token in load_cow_token_list(network=network_config.network)]
-    )
-    if database_url:
-        replace_cow_supported_tokens(
-            database_url,
-            network=network_config.network,
-            chain_id=network_config.chain_id,
-            tokens=tokens,
-        )
-    _write_cow_token_file(cache_path, network=network_config.network, chain_id=network_config.chain_id, tokens=tokens)
-    _store_memory_cow_tokens(network_config.network, tokens, source="refresh")
-    return {
-        "network": network_config.network,
-        "chain_id": network_config.chain_id,
-        "token_count": len(tokens),
-        "database_saved": bool(database_url),
-        "file_cache": str(cache_path),
-        "source": "cow_token_list",
-    }
-
-
-def load_cow_supported_token_registry(
-    *,
-    cow_network: str | None = DEFAULT_COW_TEST_NETWORK,
-    database_url: str | None = None,
-    cache_path: Path = DEFAULT_COW_TOKEN_CACHE_PATH,
-    allow_live_fallback: bool = True,
-) -> dict[str, Any]:
-    network_config = cow_network_config(network=cow_network)
-    if network_config.network == "bnb":
-        tokens = _bnb_static_market_tokens()
-        return {
-            "network": network_config.network,
-            "chain_id": network_config.chain_id,
-            "source": "bnb_static_pool_table",
-            "token_count": len(tokens),
-            "tokens": tokens,
-            "registry": _bnb_static_market_registry(),
-        }
-    source = "memory"
-    tokens = _memory_cow_tokens(network_config.network)
-    if not tokens and database_url:
-        try:
-            tokens = load_cow_supported_tokens(database_url, network=network_config.network)
-            source = "database"
-        except Exception:
-            tokens = []
-    if not tokens:
-        tokens = _read_cow_token_file(cache_path, network_config.network)
-        source = "file"
-    if not tokens and allow_live_fallback:
-        refreshed = refresh_cow_supported_token_cache(
-            cow_network=network_config.network,
-            database_url=database_url,
-            cache_path=cache_path,
-        )
-        tokens = _memory_cow_tokens(network_config.network)
-        source = f"live_refresh:{refreshed['source']}"
-    if tokens:
-        _store_memory_cow_tokens(network_config.network, tokens, source=source)
-    return {
-        "network": network_config.network,
-        "chain_id": network_config.chain_id,
-        "source": source if tokens else "empty",
-        "token_count": len(tokens),
-        "tokens": tokens,
-        "registry": _tokens_to_registry(tokens),
-    }
-
-
 def _basket_rows_from_extremes(extremes: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(extremes, dict):
         return []
@@ -1629,13 +1084,6 @@ def _pair_quote_candidates(
     return row
 
 
-def _decimal_or_none(value: Any) -> Decimal | None:
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
-        return None
-
-
 def _cow_quote_error_info(error: Any) -> dict[str, Any]:
     text = str(error or "").strip()
     lowered = text.lower()
@@ -1679,8 +1127,9 @@ def _cow_quote_error_info(error: Any) -> dict[str, Any]:
 
 def cow_network_options() -> dict[str, Any]:
     networks = []
-    for name, config in SUPPORTED_COW_NETWORKS.items():
-        if config.network != "bnb":
+    for name in supported_cow_networks(include_testnet=True):
+        config = SUPPORTED_COW_NETWORKS[name]
+        if not config.network:
             continue
         account = cow_account_config(config.network)
         networks.append(
@@ -1919,37 +1368,28 @@ def select_binance_market_extremes(
     persist_snapshot: bool = True,
     max_previous_age_seconds: float | None = DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS,
 ) -> dict[str, Any] | None:
-    if not needs_binance_rest_snapshot(realtime_extremes, side_limit=side_limit):
-        selected = dict(realtime_extremes or {})
-        selected.setdefault("market_state_source", "realtime_extremes")
-        return selected
-    snapshot = read_binance_market_snapshot(snapshot_path)
-    previous_snapshot = _previous_window_snapshot(
-        snapshot,
-        max_age_seconds=max_previous_age_seconds,
-    )
-    try:
-        selected = build_binance_rest_market_snapshot(
-            side_limit=side_limit,
-            previous_snapshot=previous_snapshot,
+    return select_market_state(
+        realtime_extremes,
+        side_limit=side_limit,
+        snapshot_path=snapshot_path,
+        max_previous_age_seconds=max_previous_age_seconds,
+        needs_refresh=lambda state, limit: needs_binance_rest_snapshot(state, side_limit=limit),
+        read_snapshot=read_binance_market_snapshot,
+        previous_snapshot=lambda snapshot, max_age: _previous_window_snapshot(
+            snapshot,
+            max_age_seconds=max_age,
+        ),
+        build_snapshot=lambda previous, limit: build_binance_rest_market_snapshot(
+            side_limit=limit,
+            previous_snapshot=previous,
             current_rows=current_rows,
-        )
-        selected["market_state_source"] = "rest_interval_live"
-        selected["fallback_reason"] = (
-            "latest_extremes_insufficient"
-            if previous_snapshot is not None
-            else "previous_window_missing_or_stale"
-        )
-        if persist_snapshot:
-            write_binance_market_snapshot(selected, snapshot_path)
-        return selected
-    except Exception:
-        if snapshot and not needs_binance_rest_snapshot(snapshot, side_limit=side_limit):
-            selected = dict(snapshot)
-            selected["market_state_source"] = "snapshot_file_stale_fallback"
-            selected["fallback_reason"] = "rest_interval_refresh_failed"
-            return selected
-        raise
+        ),
+        persist_snapshot=(
+            write_binance_market_snapshot
+            if persist_snapshot
+            else lambda _selected, _path: None
+        ),
+    )
 
 
 def _cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) -> list[dict[str, Any]]:
@@ -2623,6 +2063,20 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         and order_submission_network_supported
         and order_submission_signer_ready
     )
+    quote_submission_blocked = bool(quote_error_type and not quote_available)
+    submission_gate = build_submission_readiness(
+        checks_passed=checks_passed,
+        route_supported=route_supported,
+        quote_available=quote_available,
+        submission_requested=order_submission_requested,
+        adapter_available=order_submission_adapter_available,
+        sdk_ready=order_submission_sdk_ready,
+        network_supported=order_submission_network_supported,
+        signer_ready=order_submission_signer_ready,
+        quote_submission_blocked=quote_submission_blocked,
+        quote_error_type=quote_error_type,
+        existing_reasons=reasons,
+    )
     if not route_supported:
         status = "unsupported"
     elif not pure_intent_ready:
@@ -2657,7 +2111,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "control_mode_default": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
         "status": status,
         "checks_passed": checks_passed,
-        "can_submit_order": checks_passed and order_submission_enabled,
+        "can_submit_order": checks_passed and order_submission_enabled and not quote_submission_blocked,
         "order_submission_requested": order_submission_requested,
         "order_submission_enabled": order_submission_enabled,
         "order_submission_adapter_available": order_submission_adapter_available,
@@ -2670,9 +2124,10 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
         "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),
         "min_final_amount": _decimal_text(min_final_amount),
-        "auto_execute_blocked": checks_passed and not order_submission_enabled,
+        "auto_execute_blocked": checks_passed and (not order_submission_enabled or quote_submission_blocked),
         "route_supported": route_supported,
         "quote_available": quote_available,
+        "quote_submission_blocked": quote_submission_blocked,
         "profit_prediction_disabled": True,
         "profit_prediction_mode": "disabled_intent_only_sdk_settlement",
         "pure_intent_ready": pure_intent_ready,
@@ -2714,6 +2169,7 @@ def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "quote_error_retryable": quote_error.get("retryable"),
         "quote_error_raw": quote_error.get("raw"),
         "reasons": reasons,
+        "submission_gate": submission_gate,
     }
 
 
@@ -3024,326 +2480,5 @@ def build_cow_supported_market_overview(
     }
 
 
-def build_binance_market_state(
-    extremes: dict[str, Any] | None,
-    *,
-    aave_symbols: list[str],
-    arbitrage_config: ArbitrageConfig,
-    top_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
-    bottom_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
-    pair_side_limit: int = 5,
-    cow_display_limit: int | None = None,
-    slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
-    cow_network: str | None = None,
-    min_spread_percent: float = 0.0,
-    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
-    min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
-    threshold_detail: dict[str, Any] | None = None,
-    registry: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    pair_side_limit = max(1, min(int(pair_side_limit), 5))
-    top_limit = max(1, min(int(top_limit), DEFAULT_BINANCE_RAW_SIDE_LIMIT))
-    bottom_limit = max(1, min(int(bottom_limit), DEFAULT_BINANCE_RAW_SIDE_LIMIT))
-    if cow_display_limit is not None:
-        cow_display_limit = max(1, min(int(cow_display_limit), DEFAULT_BINANCE_RAW_SIDE_LIMIT))
-    market_rows = _basket_rows_from_extremes(extremes)
-    eligible_market_rows, excluded_market_rows = _eligible_market_rows(
-        market_rows,
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-    )
-    raw_top_all, raw_bottom_all = _rank_supported_extremes(
-        _price_filtered_market_rows(
-            market_rows,
-            min_token_price_usd=min_token_price_usd,
-        ),
-        max(top_limit, bottom_limit, pair_side_limit),
-        min_side_change_percent=0.0,
-        min_token_price_usd=min_token_price_usd,
-    )
-    raw_top = raw_top_all[: max(1, int(top_limit))]
-    raw_bottom = raw_bottom_all[: max(1, int(bottom_limit))]
-    network_display_limit = max(1, int(cow_display_limit if cow_display_limit is not None else top_limit))
-    cow_filter = None
-    if cow_network:
-        network_config = cow_network_config(network=cow_network)
-        if network_config.network == "bnb":
-            token_registry = _bnb_static_market_registry()
-        else:
-            token_registry = registry if registry is not None else build_token_registry(
-                aave_cache_path=DEFAULT_AAVE_CACHE_PATH,
-                include_cow_token_list=True,
-                cow_network=network_config.network,
-            )
-            token_registry = _market_registry_for_network(network_config.network, token_registry)
-        supported_rows, unsupported_rows = _cow_supported_market_rows(
-            eligible_market_rows,
-            token_registry,
-        )
-        pool_filter = _pool_filter_for_network(network_config.network)
-        pool_supported_rows, pool_unsupported_rows = _filter_rows_by_pool_symbol_support(
-            supported_rows,
-            pool_filter,
-            network=network_config.network,
-        )
-        top_all, bottom_all = _rank_supported_extremes(
-            pool_supported_rows,
-            max(top_limit, bottom_limit, pair_side_limit),
-            min_side_change_percent=min_side_change_percent,
-            min_token_price_usd=min_token_price_usd,
-        )
-        cow_filter = {
-            "network": network_config.network,
-            "chain_id": network_config.chain_id,
-            "enabled": True,
-            "supported_symbol_count": len(pool_supported_rows),
-            "unsupported_symbol_count": len(unsupported_rows) + len(pool_unsupported_rows),
-            "market_eligible_symbol_count": len(eligible_market_rows),
-            "market_excluded_symbol_count": len(excluded_market_rows),
-            "min_side_change_percent": float(min_side_change_percent),
-            "min_token_price_usd": float(min_token_price_usd),
-            "cow_display_limit": network_display_limit,
-            "min_spread_percent": max(0.0, float(min_spread_percent)),
-            "threshold_detail": threshold_detail or {},
-                "pool_filter": {
-                "enabled": network_config.network in {"avalanche", "bnb"},
-                "loaded": bool(pool_filter and pool_filter.get("loaded")),
-                "source": (pool_filter or {}).get("source"),
-                "pair_count": (pool_filter or {}).get("pair_count"),
-                "cache_block_number": (pool_filter or {}).get("cache_block_number"),
-                "fetched_at": (pool_filter or {}).get("fetched_at"),
-                "symbol_supported_count": len(pool_supported_rows),
-                "symbol_unsupported_count": len(pool_unsupported_rows),
-                "error": (pool_filter or {}).get("error"),
-            },
-        }
-    else:
-        top_all, bottom_all = raw_top_all, raw_bottom_all
-        cow_filter = {
-            "enabled": False,
-            "market_eligible_symbol_count": len(eligible_market_rows),
-            "market_excluded_symbol_count": len(excluded_market_rows),
-            "min_side_change_percent": float(min_side_change_percent),
-            "min_token_price_usd": float(min_token_price_usd),
-            "cow_display_limit": network_display_limit,
-            "min_spread_percent": max(0.0, float(min_spread_percent)),
-            "threshold_detail": threshold_detail or {},
-        }
-    top = top_all[: network_display_limit]
-    bottom = bottom_all[: network_display_limit]
-    pair_top = top_all[: max(1, int(pair_side_limit))]
-    pair_bottom = bottom_all[: max(1, int(pair_side_limit))]
-    basket_rows = top_all + bottom_all
-    if isinstance(extremes, dict) and isinstance(extremes.get("basket"), list):
-        basket_top, basket_bottom = top_bottom_from_extremes(extremes, side_limit=1000)
-        basket_rows = basket_top + basket_bottom
-    by_symbol = _rows_by_symbol(basket_rows)
-    aave_rows = []
-    for symbol in dict.fromkeys(str(item).upper() for item in aave_symbols if item):
-        row = by_symbol.get(symbol)
-        aave_rows.append(
-            {
-                "symbol": symbol,
-                "change_percent": row.get("change_percent") if row else None,
-                "start_price": row.get("start_price") if row else None,
-                "current_price": row.get("current_price") if row else None,
-                "price_source": row.get("price_source") if row else None,
-                "window_ready": bool(row.get("window_ready")) if row else False,
-                "tracked": row is not None,
-            }
-        )
-    pairs = []
-    pool_pair_rejections = []
-    min_spread = max(0.0, float(min_spread_percent))
-    for x in pair_top:
-        for y in pair_bottom:
-            if x["symbol"] == y["symbol"]:
-                continue
-            spread = (
-                float(x["change_percent"]) - float(y["change_percent"])
-                if x["change_percent"] is not None and y["change_percent"] is not None
-                else None
-            )
-            if spread is None or spread <= min_spread:
-                continue
-            pool_support = _pool_route_support(
-                str(x.get("base_symbol") or ""),
-                str(y.get("base_symbol") or ""),
-                network=(cow_filter or {}).get("network") if cow_filter else None,
-                pool_filter=pool_filter if cow_network else None,
-            ) if cow_network else {"supported": True}
-            if cow_network and not pool_support.get("supported"):
-                pool_pair_rejections.append(
-                    {
-                        "pair": f"{x.get('base_symbol')}:{y.get('base_symbol')}",
-                        "missingPairs": pool_support.get("missingPairs") or [],
-                        "reason": pool_support.get("reason"),
-                    }
-                )
-                continue
-            row = _pair_quote_candidates(x, y, arbitrage_config, slippage_bps=slippage_bps)
-            if cow_network:
-                row["pool_assembly_supported"] = True
-                row["pool_assembly"] = pool_support
-            row["grid_rank"] = len(pairs) + 1
-            row["rank"] = row["grid_rank"]
-            pairs.append(row)
-    ranked_pairs = pairs
-    if cow_filter and isinstance(cow_filter.get("pool_filter"), dict):
-        cow_filter["pool_filter"]["rejected_pair_count"] = len(pool_pair_rejections)
-        cow_filter["pool_filter"]["rejected_pairs"] = pool_pair_rejections[:20]
-    return {
-        "observed_at": extremes.get("observed_at") if isinstance(extremes, dict) else None,
-        "window_seconds": extremes.get("window_seconds") if isinstance(extremes, dict) else None,
-        "sample_count": extremes.get("sample_count") if isinstance(extremes, dict) else 0,
-        "observation_universe_size": extremes.get("observation_universe_size") if isinstance(extremes, dict) else 0,
-        "price_source": extremes.get("price_source") if isinstance(extremes, dict) else None,
-        "market_state_source": extremes.get("market_state_source") if isinstance(extremes, dict) else None,
-        "fallback_reason": extremes.get("fallback_reason") if isinstance(extremes, dict) else None,
-        "top_limit": top_limit,
-        "bottom_limit": bottom_limit,
-        "raw_top": raw_top,
-        "raw_bottom": raw_bottom,
-        "pair_count": len(pairs),
-        "top": top,
-        "bottom": bottom,
-        "aave_rows": aave_rows,
-        "pairs": ranked_pairs,
-        "best": None,
-        "notional_usd": arbitrage_config.notional_usd,
-        "slippage_bps": max(0, min(int(slippage_bps), 5000)),
-        "cow_filter": cow_filter,
-        "quote_verified": False,
-        "estimation_available": False,
-        "candidate_basis": "binance_token_names_only",
-    }
-
-
-def build_cow_quote_verification(
-    market_state: dict[str, Any],
-    *,
-    amount: str | int | float | Decimal = "1000",
-    quote_limit: int = 5,
-    owner: str | None = None,
-    cow_network: str | None = None,
-    price_quality: str = "fast",
-    valid_for: int = 60,
-    quote_timeout_seconds: int | float = 8,
-    aave_cache_path: Path = DEFAULT_AAVE_CACHE_PATH,
-    registry: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    selected_network = cow_network or os.getenv("COW_REALTIME_QUOTE_NETWORK") or os.getenv("COW_NETWORK") or DEFAULT_COW_TEST_NETWORK
-    network_config = cow_network_config(network=selected_network)
-    account_config = cow_account_config(network_config.network)
-    requested_owner = str(owner or "").strip()
-    owner = requested_owner or account_config.owner
-    owner_source = "request.owner" if requested_owner else account_config.owner_source
-    ranked_pairs = list(market_state.get("pairs") or [])
-    selected_pairs = ranked_pairs[: max(1, min(int(quote_limit), 5))]
-    route_specs = [spec for pair in selected_pairs for spec in _cow_route_specs(pair, amount)]
-    token_registry = registry if registry is not None else build_token_registry(
-        aave_cache_path=aave_cache_path,
-        include_cow_token_list=True,
-        cow_network=network_config.network,
-    )
-    precheck_routes = [
-        _cow_route_support(spec, token_registry, cow_network=network_config.network)
-        for spec in route_specs
-    ]
-    precheck_by_route = {
-        (item.get("pair"), item.get("pair_rank"), item.get("priority_reason")): item
-        for item in precheck_routes
-    }
-    results = []
-    for spec in route_specs:
-        support = precheck_by_route.get((spec.get("pair"), spec.get("pair_rank"), spec.get("priority_reason")), {})
-        if support.get("supported"):
-            result = evaluate_cow_route(
-                spec,
-                registry=token_registry,
-                default_amount=amount,
-                owner=owner,
-                cow_network=network_config.network,
-                price_quality=price_quality,
-                valid_for=valid_for,
-                quote_timeout_seconds=quote_timeout_seconds,
-            )
-        else:
-            path = spec.get("path") or []
-            result = {
-                "name": spec.get("name"),
-                "path": path,
-                "input_amount": str(amount),
-                "input_symbol": path[0] if path else None,
-                "final_symbol": path[-1] if path else None,
-                "viable": False,
-                "error": support.get("error") or "CoW token support precheck failed",
-                "cow_sdk_result": {
-                    "status": "not_called",
-                    "reason": support.get("error") or "CoW token support precheck failed",
-                    "controller": "cow_sdk",
-                },
-                "hops": [],
-            }
-        result["pair"] = spec.get("pair")
-        result["pair_rank"] = spec.get("pair_rank")
-        result["priority_reason"] = spec.get("priority_reason")
-        result["edge_hint_percent"] = spec.get("edge_hint_percent")
-        result["cow_support"] = support
-        final_amount = _decimal_or_none(result.get("final_amount"))
-        input_amount = _decimal_or_none(result.get("input_amount"))
-        result["final_delta_amount"] = None
-        result["profit_prediction_disabled"] = True
-        result["profit_prediction_mode"] = "disabled_intent_only_sdk_settlement"
-        cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
-        result["cow_flashloan_intent"] = _cow_pure_profit_intent(
-            amount=result.get("input_amount") or amount,
-            input_symbol=result.get("input_symbol"),
-            final_symbol=result.get("final_symbol"),
-            path=result.get("path") or spec.get("path") or [],
-            owner=owner,
-            cow_network=network_config.network,
-            cow_chain_id=network_config.chain_id,
-            threshold_detail=cow_filter.get("threshold_detail") if isinstance(cow_filter, dict) else {},
-            market_state=market_state,
-            link_name=result.get("priority_reason") or spec.get("priority_reason") or result.get("name") or spec.get("name"),
-        )
-        result["binance_execution_plan"] = _apply_cow_quote_analysis(spec.get("binance_execution_plan"), result)
-        _attach_cow_flashloan_sdk_plan(result, result.get("binance_execution_plan"), token_registry)
-        result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, {})
-        result["execution_precheck"] = _cow_execution_precheck(result)
-        result["cow_sdk_result"] = _cow_sdk_result_snapshot(result, result["execution_precheck"])
-        result["costs"] = _cow_cost_summary(result, final_delta_amount=None)
-        result["quote_verified"] = True
-        results.append(result)
-    ranking = rank_cow_routes(results)
-    opportunities = [
-        item
-        for item in ranking
-        if (item.get("execution_precheck") or {}).get("checks_passed")
-    ]
-    return {
-        "observed_at": market_state.get("observed_at"),
-        "amount": str(amount),
-        "owner": owner,
-        "owner_source": owner_source,
-        "cow_network": network_config.network,
-        "cow_chain_id": network_config.chain_id,
-        "cow_testnet": network_config.testnet,
-        "price_quality": price_quality,
-        "valid_for": valid_for,
-        "selected_pair_count": len(selected_pairs),
-        "route_count": len(route_specs),
-        "supported_route_count": sum(1 for item in precheck_routes if item["supported"]),
-        "unsupported_route_count": sum(1 for item in precheck_routes if not item["supported"]),
-        "viable_count": sum(1 for item in ranking if item.get("viable")),
-        "opportunity_count": len(opportunities),
-        "precheck": {
-            "routes": precheck_routes,
-        },
-        "best": opportunities[0] if opportunities else (ranking[0] if ranking else None),
-        "best_opportunity": opportunities[0] if opportunities else None,
-        "opportunities": opportunities,
-        "ranking": ranking,
-    }
+from market.binance_market.quote_service import build_binance_market_state, build_cow_quote_verification
 

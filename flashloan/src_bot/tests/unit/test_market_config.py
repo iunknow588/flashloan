@@ -1,5 +1,16 @@
+import pytest
+
 from core.config_schema import liquidation_config_health
 from core.market_config import (
+    DEFAULT_BNB_DEX_MARKET_ID,
+    DEFAULT_COW_DEX_MARKET_ID,
+    DEFAULT_COW_VIRTUAL_CHAIN_ID,
+    DEFAULT_ETHEREUM_DEX_MARKET_ID,
+    DEFAULT_POLYGON_DEX_MARKET_ID,
+    DEFAULT_AVALANCHE_DEX_MARKET_ID,
+    MARKET_TYPE_EXECUTION_RAIL,
+    MARKET_TYPE_NATIVE_CHAIN,
+    MARKET_TYPE_SHADOW_CHAIN,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     liquidation_market_config,
     liquidation_market_config_for,
@@ -19,6 +30,7 @@ def _clear_market_env(monkeypatch):
         "LIQUIDATION_PROTOCOL_DATA_PROVIDER_ADDRESS",
         "LIQUIDATION_DATA_PROVIDER_ADDRESS",
         "LIQUIDATION_DEX_ROUTER_ADDRESS",
+        "LIQUIDATION_MULTICALL3_ADDRESS",
         "LIQUIDATION_RPCS",
         "LIQUIDATION_RPC",
         "BNB_RPCS",
@@ -114,6 +126,17 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries["bnb-aave-v3"]["migration_type"] == "config_and_new_executor_deployment"
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["observation_only"] is True
+    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
+    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["network"] == "bnb"
+    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["is_default"] is False
+    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["is_default"] is True
+    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["chain_id"] == DEFAULT_COW_VIRTUAL_CHAIN_ID
+    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_EXECUTION_RAIL
+    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[DEFAULT_ETHEREUM_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[DEFAULT_POLYGON_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
     assert summaries["hyperliquid-native"]["migration_type"] == "new_protocol_adapter_required"
 
 
@@ -133,6 +156,22 @@ def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
     assert market.rpc_urls[0] == "https://robinhood-alchemy.example"
     assert market.protocol_supported is False
     assert market.observation_only is True
+
+
+def test_cow_dex_market_keeps_virtual_chain_zero(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    market = liquidation_market_config_for(
+        DEFAULT_COW_DEX_MARKET_ID,
+        chain_id=DEFAULT_COW_VIRTUAL_CHAIN_ID,
+        feature="dex_arbitrage",
+    )
+
+    assert market.chain_id == 0
+    assert market.network == "cow"
+    assert market.market_type == MARKET_TYPE_EXECUTION_RAIL
+    assert market.protocol == "cow_protocol"
+    assert market.is_default is True
 
 
 def test_supported_market_summaries_prefers_database_rows_when_available(monkeypatch):
@@ -165,3 +204,84 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
     summaries = {row["market_id"]: row for row in supported_market_summaries("postgresql://disabled")}
 
     assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in summaries
+
+
+def test_supported_market_summaries_short_circuits_repeated_database_failures(monkeypatch):
+    import db.storage_chain_markets as storage_chain_markets
+    import db.storage_common as storage_common
+
+    database_url = "postgresql://chain-market-endpoint-disabled"
+    storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()
+    calls = []
+
+    def fail(database_url):
+        calls.append(database_url)
+        raise RuntimeError("the endpoint has been disabled; enable it using the API and retry")
+
+    monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", fail)
+
+    first = supported_market_summaries(database_url)
+    second = supported_market_summaries(database_url)
+
+    assert first == second
+    assert len(calls) == 1
+    assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in {row["market_id"] for row in first}
+
+
+def test_market_scope_rejects_chain_and_feature_mismatch(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    with pytest.raises(ValueError, match="belongs to chain_id"):
+        liquidation_market_config_for("bnb-venus-core", chain_id=43114)
+    with pytest.raises(ValueError, match="no liquidation market"):
+        liquidation_market_config_for(chain_id=4663)
+
+
+def test_robinhood_market_never_inherits_avalanche_router(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    market = liquidation_market_config_for(
+        DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+        chain_id=4663,
+        feature="dex_arbitrage",
+    )
+
+    assert market.dex_router_address == ""
+
+
+def test_market_scan_policy_prefers_database_rows(monkeypatch):
+    import db.storage_chain_markets as storage_chain_markets
+    from core.market_scan_policy import market_scan_refresh_profile
+
+    monkeypatch.setattr(
+        storage_chain_markets,
+        "load_market_scan_policies",
+        lambda _database_url, **_kwargs: [
+            {
+                "pool_tier": "normal",
+                "refresh_interval_seconds": 77,
+                "enabled": True,
+            },
+            {
+                "pool_tier": "high_frequency",
+                "refresh_interval_seconds": 33,
+                "enabled": True,
+            },
+            {
+                "pool_tier": "core",
+                "refresh_interval_seconds": 4,
+                "enabled": True,
+            },
+        ],
+    )
+
+    profile = market_scan_refresh_profile(
+        "bnb-venus-core",
+        database_url="postgresql://example",
+    )
+
+    assert profile == {
+        "borrow_health_refresh_seconds": 77.0,
+        "high_frequency_refresh_seconds": 33.0,
+        "core_opportunity_refresh_seconds": 4.0,
+    }

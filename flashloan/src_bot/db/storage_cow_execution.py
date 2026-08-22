@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from db.storage_common import db_connection
+from db.storage_common import db_connection, db_transaction
 
 DEFAULT_COW_EXECUTION_RETENTION_DAYS = 7
 COW_EXECUTION_RETENTION_LOCAL_TZ = timezone(timedelta(hours=8), "Asia/Shanghai")
@@ -521,55 +521,56 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 def ensure_cow_execution_attempts_table(database_url: str) -> None:
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS cow_execution_attempts (
-                    id BIGSERIAL PRIMARY KEY,
-                    observed_at TIMESTAMPTZ,
-                    network TEXT NOT NULL,
-                    chain_id INTEGER,
-                    owner_address TEXT,
-                    pair TEXT,
-                    pair_rank INTEGER,
-                    priority_reason TEXT,
-                    route_path_json TEXT,
-                    state TEXT NOT NULL,
-                    execution_phase TEXT NOT NULL,
-                    checks_passed BOOLEAN NOT NULL DEFAULT FALSE,
-                    can_submit_order BOOLEAN NOT NULL DEFAULT FALSE,
-                    order_submission_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-                    auto_execute_requested BOOLEAN NOT NULL DEFAULT FALSE,
-                    control_mode TEXT,
-                    route_hop_constraints_enforced BOOLEAN NOT NULL DEFAULT FALSE,
-                    final_delta_amount TEXT,
-                    final_symbol TEXT,
-                    blocked_reasons_json TEXT,
-                    cow_flashloan_intent_json TEXT,
-                    cow_sdk_result_json TEXT,
-                    quote_json TEXT,
-                    precheck_json TEXT,
-                    market_state_json TEXT,
-                    error TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        with db_transaction(connection, operation="cow.execution_attempts"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS cow_execution_attempts (
+                        id BIGSERIAL PRIMARY KEY,
+                        observed_at TIMESTAMPTZ,
+                        network TEXT NOT NULL,
+                        chain_id INTEGER,
+                        owner_address TEXT,
+                        pair TEXT,
+                        pair_rank INTEGER,
+                        priority_reason TEXT,
+                        route_path_json TEXT,
+                        state TEXT NOT NULL,
+                        execution_phase TEXT NOT NULL,
+                        checks_passed BOOLEAN NOT NULL DEFAULT FALSE,
+                        can_submit_order BOOLEAN NOT NULL DEFAULT FALSE,
+                        order_submission_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                        auto_execute_requested BOOLEAN NOT NULL DEFAULT FALSE,
+                        control_mode TEXT,
+                        route_hop_constraints_enforced BOOLEAN NOT NULL DEFAULT FALSE,
+                        final_delta_amount TEXT,
+                        final_symbol TEXT,
+                        blocked_reasons_json TEXT,
+                        cow_flashloan_intent_json TEXT,
+                        cow_sdk_result_json TEXT,
+                        quote_json TEXT,
+                        precheck_json TEXT,
+                        market_state_json TEXT,
+                        error TEXT,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
                 )
-                """
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_network_time "
-                "ON cow_execution_attempts(network, created_at DESC)"
-            )
-            cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_state_time "
-                "ON cow_execution_attempts(state, created_at DESC)"
-            )
-            cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS control_mode TEXT")
-            cursor.execute(
-                "ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS "
-                "route_hop_constraints_enforced BOOLEAN NOT NULL DEFAULT FALSE"
-            )
-            cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_flashloan_intent_json TEXT")
-            cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_sdk_result_json TEXT")
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_network_time "
+                    "ON cow_execution_attempts(network, created_at DESC)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_cow_execution_attempts_state_time "
+                    "ON cow_execution_attempts(state, created_at DESC)"
+                )
+                cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS control_mode TEXT")
+                cursor.execute(
+                    "ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS "
+                    "route_hop_constraints_enforced BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+                cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_flashloan_intent_json TEXT")
+                cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_sdk_result_json TEXT")
 
 
 def _attempt_from_quote(
@@ -913,56 +914,60 @@ def prune_cow_execution_attempts(database_url: str, retention_days: int = DEFAUL
     now = datetime.now(timezone.utc)
     prune_scan_before = _local_midnight(now).astimezone(timezone.utc)
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    id, observed_at, network, chain_id, owner_address,
-                    pair, pair_rank, priority_reason, route_path_json,
-                    state, execution_phase, checks_passed, can_submit_order,
-                    order_submission_enabled, auto_execute_requested,
-                    final_delta_amount, final_symbol, blocked_reasons_json,
-                    error, created_at, quote_json, precheck_json, market_state_json
-                FROM cow_execution_attempts
-                WHERE created_at < %s
-                LIMIT 5000
-                """,
-                (prune_scan_before,),
-            )
-            expired_ids = []
-            for row in cursor.fetchall():
-                item = {
-                    "id": int(row[0]),
-                    "observed_at": row[1],
-                    "network": row[2],
-                    "chain_id": row[3],
-                    "owner_address": row[4],
-                    "pair": row[5],
-                    "pair_rank": row[6],
-                    "priority_reason": row[7],
-                    "route_path": _json_loads(row[8], []),
-                    "state": row[9],
-                    "execution_phase": row[10],
-                    "checks_passed": bool(row[11]),
-                    "can_submit_order": bool(row[12]),
-                    "order_submission_enabled": bool(row[13]),
-                    "auto_execute_requested": bool(row[14]),
-                    "final_delta_amount": row[15],
-                    "final_symbol": row[16],
-                    "blocked_reasons": _json_loads(row[17], []),
-                    "error": row[18],
-                    "created_at": row[19],
-                    "quote": _json_loads(row[20], {}),
-                    "precheck": _json_loads(row[21], {}),
-                    "market_state": _json_loads(row[22], {}),
-                }
-                if not _category_within_retention(item, now=now):
-                    expired_ids.append(int(row[0]))
-            if not expired_ids:
-                return 0
-            cursor.execute("DELETE FROM cow_execution_attempts WHERE id = ANY(%s)", (expired_ids,))
-            return int(cursor.rowcount or 0)
+        with db_transaction(connection, operation="cow.execution_history"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        id, observed_at, network, chain_id, owner_address,
+                        pair, pair_rank, priority_reason, route_path_json,
+                        state, execution_phase, checks_passed, can_submit_order,
+                        order_submission_enabled, auto_execute_requested,
+                        final_delta_amount, final_symbol, blocked_reasons_json,
+                        error, created_at, quote_json, precheck_json, market_state_json
+                    FROM cow_execution_attempts
+                    WHERE created_at < %s
+                    LIMIT 5000
+                    """,
+                    (prune_scan_before,),
+                )
+                expired_ids = []
+                for row in cursor.fetchall():
+                    item = {
+                        "id": int(row[0]),
+                        "observed_at": row[1],
+                        "network": row[2],
+                        "chain_id": row[3],
+                        "owner_address": row[4],
+                        "pair": row[5],
+                        "pair_rank": row[6],
+                        "priority_reason": row[7],
+                        "route_path": _json_loads(row[8], []),
+                        "state": row[9],
+                        "execution_phase": row[10],
+                        "checks_passed": bool(row[11]),
+                        "can_submit_order": bool(row[12]),
+                        "order_submission_enabled": bool(row[13]),
+                        "auto_execute_requested": bool(row[14]),
+                        "final_delta_amount": row[15],
+                        "final_symbol": row[16],
+                        "blocked_reasons": _json_loads(row[17], []),
+                        "error": row[18],
+                        "created_at": row[19],
+                        "quote": _json_loads(row[20], {}),
+                        "precheck": _json_loads(row[21], {}),
+                        "market_state": _json_loads(row[22], {}),
+                    }
+                    if not _category_within_retention(item, now=now):
+                        expired_ids.append(int(row[0]))
+                if not expired_ids:
+                    return 0
+                cursor.execute("DELETE FROM cow_execution_attempts WHERE id = ANY(%s)", (expired_ids,))
+                return int(cursor.rowcount or 0)
 
+
+# === WRITE OPERATIONS ===
+# These helpers create, deduplicate, prune, and persist attempt records.
 
 def record_cow_execution_attempts(
     database_url: str,
@@ -978,81 +983,82 @@ def record_cow_execution_attempts(
         prune_cow_execution_attempts(database_url, retention_days=retention_days)
     ids = []
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            for item in attempts:
-                route_path_json = _json_text(item.get("route_path") or [])
-                if dedupe_market_candidates and _is_market_candidate(item):
+        with db_transaction(connection, operation="cow.candidate_queue"):
+            with connection.cursor() as cursor:
+                for item in attempts:
+                    route_path_json = _json_text(item.get("route_path") or [])
+                    if dedupe_market_candidates and _is_market_candidate(item):
+                        cursor.execute(
+                            """
+                            SELECT id
+                            FROM cow_execution_attempts
+                            WHERE observed_at IS NOT DISTINCT FROM %s
+                              AND network IS NOT DISTINCT FROM %s
+                              AND pair IS NOT DISTINCT FROM %s
+                              AND pair_rank IS NOT DISTINCT FROM %s
+                              AND priority_reason IS NOT DISTINCT FROM %s
+                              AND route_path_json IS NOT DISTINCT FROM %s
+                              AND execution_phase IS NOT DISTINCT FROM %s
+                            LIMIT 1
+                            """,
+                            (
+                                item.get("observed_at"),
+                                item.get("network"),
+                                item.get("pair"),
+                                item.get("pair_rank"),
+                                item.get("priority_reason"),
+                                route_path_json,
+                                item.get("execution_phase") or "market_candidate",
+                            ),
+                        )
+                        if cursor.fetchone():
+                            continue
                     cursor.execute(
                         """
-                        SELECT id
-                        FROM cow_execution_attempts
-                        WHERE observed_at IS NOT DISTINCT FROM %s
-                          AND network IS NOT DISTINCT FROM %s
-                          AND pair IS NOT DISTINCT FROM %s
-                          AND pair_rank IS NOT DISTINCT FROM %s
-                          AND priority_reason IS NOT DISTINCT FROM %s
-                          AND route_path_json IS NOT DISTINCT FROM %s
-                          AND execution_phase IS NOT DISTINCT FROM %s
-                        LIMIT 1
+                        INSERT INTO cow_execution_attempts (
+                            observed_at, network, chain_id, owner_address,
+                            pair, pair_rank, priority_reason, route_path_json,
+                            state, execution_phase, checks_passed, can_submit_order,
+                            order_submission_enabled, auto_execute_requested,
+                            control_mode, route_hop_constraints_enforced,
+                            final_delta_amount, final_symbol, blocked_reasons_json,
+                            cow_flashloan_intent_json, cow_sdk_result_json,
+                            quote_json, precheck_json, market_state_json, error, created_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                        RETURNING id
                         """,
                         (
                             item.get("observed_at"),
                             item.get("network"),
+                            item.get("chain_id"),
+                            item.get("owner_address"),
                             item.get("pair"),
                             item.get("pair_rank"),
                             item.get("priority_reason"),
                             route_path_json,
-                            item.get("execution_phase") or "market_candidate",
+                            item.get("state") or "unknown",
+                            item.get("execution_phase") or "quote_precheck",
+                            bool(item.get("checks_passed")),
+                            bool(item.get("can_submit_order")),
+                            bool(item.get("order_submission_enabled")),
+                            bool(item.get("auto_execute_requested")),
+                            _cow_control_mode_from_attempt(item),
+                            _route_hop_constraints_enforced_from_attempt(item),
+                            item.get("final_delta_amount"),
+                            item.get("final_symbol"),
+                            _json_text(item.get("blocked_reasons") or []),
+                            _json_text(_cow_intent_from_attempt(item)),
+                            _json_text(_cow_sdk_result_from_attempt(item)),
+                            _json_text(item.get("quote") or {}),
+                            _json_text(item.get("precheck") or {}),
+                            _json_text(item.get("market_state") or {}),
+                            item.get("error"),
                         ),
                     )
-                    if cursor.fetchone():
-                        continue
-                cursor.execute(
-                    """
-                    INSERT INTO cow_execution_attempts (
-                        observed_at, network, chain_id, owner_address,
-                        pair, pair_rank, priority_reason, route_path_json,
-                        state, execution_phase, checks_passed, can_submit_order,
-                        order_submission_enabled, auto_execute_requested,
-                        control_mode, route_hop_constraints_enforced,
-                        final_delta_amount, final_symbol, blocked_reasons_json,
-                        cow_flashloan_intent_json, cow_sdk_result_json,
-                        quote_json, precheck_json, market_state_json, error, created_at
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                    RETURNING id
-                    """,
-                    (
-                        item.get("observed_at"),
-                        item.get("network"),
-                        item.get("chain_id"),
-                        item.get("owner_address"),
-                        item.get("pair"),
-                        item.get("pair_rank"),
-                        item.get("priority_reason"),
-                        route_path_json,
-                        item.get("state") or "unknown",
-                        item.get("execution_phase") or "quote_precheck",
-                        bool(item.get("checks_passed")),
-                        bool(item.get("can_submit_order")),
-                        bool(item.get("order_submission_enabled")),
-                        bool(item.get("auto_execute_requested")),
-                        _cow_control_mode_from_attempt(item),
-                        _route_hop_constraints_enforced_from_attempt(item),
-                        item.get("final_delta_amount"),
-                        item.get("final_symbol"),
-                        _json_text(item.get("blocked_reasons") or []),
-                        _json_text(_cow_intent_from_attempt(item)),
-                        _json_text(_cow_sdk_result_from_attempt(item)),
-                        _json_text(item.get("quote") or {}),
-                        _json_text(item.get("precheck") or {}),
-                        _json_text(item.get("market_state") or {}),
-                        item.get("error"),
-                    ),
-                )
-                row = cursor.fetchone()
-                if row:
-                    ids.append(int(row[0]))
+                    row = cursor.fetchone()
+                    if row:
+                        ids.append(int(row[0]))
     return ids
 
 
@@ -1108,6 +1114,9 @@ def append_cow_execution_attempts_jsonl(
             handle.write(_json_text(item) + "\n")
     return len(additions)
 
+
+# === READ OPERATIONS ===
+# These helpers only load or filter attempt history and JSONL snapshots.
 
 def load_recent_cow_execution_attempts_jsonl(
     path: Path,

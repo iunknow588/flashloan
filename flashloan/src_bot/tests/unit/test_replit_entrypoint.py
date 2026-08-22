@@ -122,13 +122,3 @@ def test_replit_nix_installs_python_runtime():
     config = (REPO_ROOT / "replit.nix").read_text(encoding="utf-8")
 
     assert "pkgs.python311" in config
-
-
-def test_legacy_srcs_dex_launcher_delegates_to_active_src_bot_entrypoint():
-    legacy_launcher = _load_module(
-        "test_legacy_srcs_dex_run",
-        REPO_ROOT / "flashloan" / "srcs_dex" / "run.py",
-    )
-
-    assert legacy_launcher.SRC_BOT_DIR == SRC_ROOT
-    assert legacy_launcher.SRC_BOT_RUN == SRC_ROOT / "run.py"

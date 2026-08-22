@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
-from db.storage_common import db_connection, require_psycopg
+from db.storage_common import db_connection, db_transaction, require_psycopg
 from db.storage_liquidation_reports import (
     account_report_with_summary,
     account_report_recovery_needs,
@@ -204,8 +204,9 @@ def record_liquidation_account_scans(
         return 0
     require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            return write_liquidation_account_scan_reports(cursor, reports)
+        with db_transaction(connection, operation="liquidation.account_scans"):
+            with connection.cursor() as cursor:
+                return write_liquidation_account_scan_reports(cursor, reports)
 
 
 def record_liquidation_account_scan(database_url: str, report: dict[str, Any]) -> None:

@@ -15,7 +15,10 @@ def _default_transport(url: str, payload: dict[str, Any], timeout_seconds: float
     req = request.Request(
         url,
         data=body,
-        headers={"content-type": "application/json"},
+        headers={
+            "content-type": "application/json",
+            "user-agent": "flashloan-robinhood-readonly-probe/1.0",
+        },
         method="POST",
     )
     with request.urlopen(req, timeout=timeout_seconds) as response:
@@ -134,4 +137,3 @@ def probe_robinhood_rpc(
 
     report["ok"] = bool(checks) and all(bool(check.get("ok")) for check in checks)
     return report
-

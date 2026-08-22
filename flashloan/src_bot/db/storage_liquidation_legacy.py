@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
-from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, db_connection, dedicated_db_connection, require_psycopg
+from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, db_connection, db_transaction, dedicated_db_connection, require_psycopg
 
 
 def _upsert_scan_config_snapshot_cursor(
@@ -89,44 +89,45 @@ def record_liquidation_discovery_scan(
     psycopg = require_psycopg()
     scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO liquidation_discovery_scans (
-                    market_id, chain_id, network, protocol,
-                    mode, status, rpc_url, pool_address,
-                    from_block, to_block, scan_start_at, scan_end_at,
-                    discovered_count, error, created_at
+        with db_transaction(connection):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO liquidation_discovery_scans (
+                        market_id, chain_id, network, protocol,
+                        mode, status, rpc_url, pool_address,
+                        from_block, to_block, scan_start_at, scan_end_at,
+                        discovered_count, error, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (market_id, chain_id, mode, pool_address, from_block, to_block) DO UPDATE SET
+                        network = EXCLUDED.network,
+                        protocol = EXCLUDED.protocol,
+                        status = EXCLUDED.status,
+                        rpc_url = EXCLUDED.rpc_url,
+                        scan_start_at = EXCLUDED.scan_start_at,
+                        scan_end_at = EXCLUDED.scan_end_at,
+                        discovered_count = EXCLUDED.discovered_count,
+                        error = EXCLUDED.error,
+                        created_at = NOW()
+                    """,
+                    (
+                        scope["market_id"],
+                        scope["chain_id"],
+                        scope["network"],
+                        scope["protocol"],
+                        mode,
+                        status,
+                        rpc_url,
+                        pool_address,
+                        int(from_block),
+                        int(to_block),
+                        scan_start_at,
+                        scan_end_at,
+                        int(discovered_count),
+                        error,
+                    ),
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (market_id, chain_id, mode, pool_address, from_block, to_block) DO UPDATE SET
-                    network = EXCLUDED.network,
-                    protocol = EXCLUDED.protocol,
-                    status = EXCLUDED.status,
-                    rpc_url = EXCLUDED.rpc_url,
-                    scan_start_at = EXCLUDED.scan_start_at,
-                    scan_end_at = EXCLUDED.scan_end_at,
-                    discovered_count = EXCLUDED.discovered_count,
-                    error = EXCLUDED.error,
-                    created_at = NOW()
-                """,
-                (
-                    scope["market_id"],
-                    scope["chain_id"],
-                    scope["network"],
-                    scope["protocol"],
-                    mode,
-                    status,
-                    rpc_url,
-                    pool_address,
-                    int(from_block),
-                    int(to_block),
-                    scan_start_at,
-                    scan_end_at,
-                    int(discovered_count),
-                    error,
-                ),
-            )
 
 
 def liquidation_discovery_scan_progress(
@@ -193,38 +194,39 @@ def record_liquidation_scan_config_snapshot(
     item.setdefault("chain_id", scope["chain_id"])
     psycopg = require_psycopg()
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO liquidation_scan_config_library (
-                    market_id, chain_id, network, protocol,
-                    config_key, category, source_table, source_key,
-                    active, payload_json, updated_at
+        with db_transaction(connection):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO liquidation_scan_config_library (
+                        market_id, chain_id, network, protocol,
+                        config_key, category, source_table, source_key,
+                        active, payload_json, updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (market_id, chain_id, config_key) DO UPDATE SET
+                        network = EXCLUDED.network,
+                        protocol = EXCLUDED.protocol,
+                        category = EXCLUDED.category,
+                        source_table = EXCLUDED.source_table,
+                        source_key = EXCLUDED.source_key,
+                        active = EXCLUDED.active,
+                        payload_json = EXCLUDED.payload_json,
+                        updated_at = NOW()
+                    """,
+                    (
+                        scope["market_id"],
+                        scope["chain_id"],
+                        scope["network"],
+                        scope["protocol"],
+                        key,
+                        str(category or "scan"),
+                        table,
+                        str(source_key) if source_key is not None else None,
+                        bool(active),
+                        json.dumps(item, ensure_ascii=True, separators=(",", ":")),
+                    ),
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (market_id, chain_id, config_key) DO UPDATE SET
-                    network = EXCLUDED.network,
-                    protocol = EXCLUDED.protocol,
-                    category = EXCLUDED.category,
-                    source_table = EXCLUDED.source_table,
-                    source_key = EXCLUDED.source_key,
-                    active = EXCLUDED.active,
-                    payload_json = EXCLUDED.payload_json,
-                    updated_at = NOW()
-                """,
-                (
-                    scope["market_id"],
-                    scope["chain_id"],
-                    scope["network"],
-                    scope["protocol"],
-                    key,
-                    str(category or "scan"),
-                    table,
-                    str(source_key) if source_key is not None else None,
-                    bool(active),
-                    json.dumps(item, ensure_ascii=True, separators=(",", ":")),
-                ),
-            )
     return item
 
 
@@ -289,92 +291,93 @@ def rebuild_liquidation_scan_config_library(database_url: str) -> dict[str, Any]
     psycopg = require_psycopg()
     rebuilt: list[str] = []
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                    COUNT(*) AS total_count,
-                    COUNT(*) FILTER (WHERE active = TRUE) AS active_count,
-                    COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'hot') AS hot_count,
-                    COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'warm') AS warm_count,
-                    COUNT(*) FILTER (WHERE active = TRUE AND (activity_tier = 'cold' OR activity_tier IS NULL)) AS cold_count,
-                    MIN(scan_start_at) AS earliest_scan_start_at,
-                    MAX(scan_end_at) AS latest_scan_end_at
-                FROM liquidation_accounts
-                """
-            )
-            row = cursor.fetchone() or (0, 0, 0, 0, 0, None, None)
-            cursor.execute(
-                """
-                SELECT account
-                FROM liquidation_accounts
-                WHERE active = TRUE
-                ORDER BY
-                    CASE
-                        WHEN activity_tier = 'hot' THEN 0
-                        WHEN activity_tier = 'warm' THEN 1
-                        WHEN activity_tier = 'cold' THEN 2
-                        ELSE 1
-                    END,
-                    COALESCE(last_scanned_at, scan_end_at, updated_at) DESC,
-                    account ASC
-                LIMIT 100
-                """
-            )
-            sample_accounts = [str(item[0]) for item in cursor.fetchall() if item and item[0]]
-            _upsert_scan_config_snapshot_cursor(
-                cursor,
-                config_key="liquidation_accounts.latest",
-                source_table="liquidation_accounts",
-                market_id=scope["market_id"],
-                chain_id=scope["chain_id"],
-                payload={
-                    "total_count": int(row[0] or 0),
-                    "active_count": int(row[1] or 0),
-                    "hot_count": int(row[2] or 0),
-                    "warm_count": int(row[3] or 0),
-                    "cold_count": int(row[4] or 0),
-                    "earliest_scan_start_at": row[5].isoformat() if row[5] else None,
-                    "latest_scan_end_at": row[6].isoformat() if row[6] else None,
-                    "sample_accounts": sample_accounts,
-                    "rebuilt_from_existing_tables": True,
-                },
-            )
-            rebuilt.append("liquidation_accounts.latest")
-
-            cursor.execute(
-                """
-                SELECT mode, status, rpc_url, pool_address, from_block, to_block,
-                       scan_start_at, scan_end_at, discovered_count, error
-                FROM liquidation_discovery_scans
-                WHERE status = 'success'
-                ORDER BY created_at DESC, id DESC
-                LIMIT 1
-                """
-            )
-            row = cursor.fetchone()
-            if row:
-                payload = {
-                    "mode": row[0],
-                    "status": row[1],
-                    "rpc_url": row[2],
-                    "pool_address": row[3],
-                    "from_block": int(row[4]),
-                    "to_block": int(row[5]),
-                    "scan_start_at": row[6].isoformat() if row[6] else None,
-                    "scan_end_at": row[7].isoformat() if row[7] else None,
-                    "discovered_count": int(row[8] or 0),
-                    "error": row[9],
-                    "rebuilt_from_existing_tables": True,
-                }
+        with db_transaction(connection):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        COUNT(*) AS total_count,
+                        COUNT(*) FILTER (WHERE active = TRUE) AS active_count,
+                        COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'hot') AS hot_count,
+                        COUNT(*) FILTER (WHERE active = TRUE AND activity_tier = 'warm') AS warm_count,
+                        COUNT(*) FILTER (WHERE active = TRUE AND (activity_tier = 'cold' OR activity_tier IS NULL)) AS cold_count,
+                        MIN(scan_start_at) AS earliest_scan_start_at,
+                        MAX(scan_end_at) AS latest_scan_end_at
+                    FROM liquidation_accounts
+                    """
+                )
+                row = cursor.fetchone() or (0, 0, 0, 0, 0, None, None)
+                cursor.execute(
+                    """
+                    SELECT account
+                    FROM liquidation_accounts
+                    WHERE active = TRUE
+                    ORDER BY
+                        CASE
+                            WHEN activity_tier = 'hot' THEN 0
+                            WHEN activity_tier = 'warm' THEN 1
+                            WHEN activity_tier = 'cold' THEN 2
+                            ELSE 1
+                        END,
+                        COALESCE(last_scanned_at, scan_end_at, updated_at) DESC,
+                        account ASC
+                    LIMIT 100
+                    """
+                )
+                sample_accounts = [str(item[0]) for item in cursor.fetchall() if item and item[0]]
                 _upsert_scan_config_snapshot_cursor(
                     cursor,
-                    config_key="liquidation_discovery_scans.latest_success",
-                    source_table="liquidation_discovery_scans",
-                    payload=payload,
-                    active=True,
+                    config_key="liquidation_accounts.latest",
+                    source_table="liquidation_accounts",
+                    market_id=scope["market_id"],
+                    chain_id=scope["chain_id"],
+                    payload={
+                        "total_count": int(row[0] or 0),
+                        "active_count": int(row[1] or 0),
+                        "hot_count": int(row[2] or 0),
+                        "warm_count": int(row[3] or 0),
+                        "cold_count": int(row[4] or 0),
+                        "earliest_scan_start_at": row[5].isoformat() if row[5] else None,
+                        "latest_scan_end_at": row[6].isoformat() if row[6] else None,
+                        "sample_accounts": sample_accounts,
+                        "rebuilt_from_existing_tables": True,
+                    },
                 )
-                rebuilt.append("liquidation_discovery_scans.latest_success")
+                rebuilt.append("liquidation_accounts.latest")
+
+                cursor.execute(
+                    """
+                    SELECT mode, status, rpc_url, pool_address, from_block, to_block,
+                           scan_start_at, scan_end_at, discovered_count, error
+                    FROM liquidation_discovery_scans
+                    WHERE status = 'success'
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                    """
+                )
+                row = cursor.fetchone()
+                if row:
+                    payload = {
+                        "mode": row[0],
+                        "status": row[1],
+                        "rpc_url": row[2],
+                        "pool_address": row[3],
+                        "from_block": int(row[4]),
+                        "to_block": int(row[5]),
+                        "scan_start_at": row[6].isoformat() if row[6] else None,
+                        "scan_end_at": row[7].isoformat() if row[7] else None,
+                        "discovered_count": int(row[8] or 0),
+                        "error": row[9],
+                        "rebuilt_from_existing_tables": True,
+                    }
+                    _upsert_scan_config_snapshot_cursor(
+                        cursor,
+                        config_key="liquidation_discovery_scans.latest_success",
+                        source_table="liquidation_discovery_scans",
+                        payload=payload,
+                        active=True,
+                    )
+                    rebuilt.append("liquidation_discovery_scans.latest_success")
 
             pool_specs = [
                 ("liquidation_borrow_health_pool.latest", "liquidation_borrow_health_pool", "health_factor ASC, updated_at DESC"),
@@ -417,44 +420,44 @@ def rebuild_liquidation_scan_config_library(database_url: str) -> dict[str, Any]
                 )
                 rebuilt.append(config_key)
 
-            cursor.execute(
-                """
-                SELECT id, started_at, finished_at, status, account_count, scanned_count,
-                       risk_count, error_count, entered_count, exited_count, rpc_url,
-                       block_number, watch_health_factor, error, metadata_json
-                FROM liquidation_borrow_health_scan_batches
-                ORDER BY started_at DESC, id DESC
-                LIMIT 1
-                """
-            )
-            row = cursor.fetchone()
-            if row:
-                _upsert_scan_config_snapshot_cursor(
-                    cursor,
-                    config_key="liquidation_borrow_health_scan_batches.latest",
-                    source_table="liquidation_borrow_health_scan_batches",
-                    source_key=str(row[0]),
-                    payload={
-                        "batch_id": int(row[0]),
-                        "started_at": row[1].isoformat() if row[1] else None,
-                        "finished_at": row[2].isoformat() if row[2] else None,
-                        "status": row[3],
-                        "account_count": int(row[4] or 0),
-                        "scanned_count": int(row[5] or 0),
-                        "risk_count": int(row[6] or 0),
-                        "error_count": int(row[7] or 0),
-                        "entered_count": int(row[8] or 0),
-                        "exited_count": int(row[9] or 0),
-                        "rpc_url": row[10],
-                        "block_number": int(row[11]) if row[11] is not None else None,
-                        "watch_health_factor": float(row[12]) if row[12] is not None else None,
-                        "error": row[13],
-                        "metadata": _json_or_default(row[14], {}),
-                        "rebuilt_from_existing_tables": True,
-                    },
-                    active=True,
+                cursor.execute(
+                    """
+                    SELECT id, started_at, finished_at, status, account_count, scanned_count,
+                           risk_count, error_count, entered_count, exited_count, rpc_url,
+                           block_number, watch_health_factor, error, metadata_json
+                    FROM liquidation_borrow_health_scan_batches
+                    ORDER BY started_at DESC, id DESC
+                    LIMIT 1
+                    """
                 )
-                rebuilt.append("liquidation_borrow_health_scan_batches.latest")
+                row = cursor.fetchone()
+                if row:
+                    _upsert_scan_config_snapshot_cursor(
+                        cursor,
+                        config_key="liquidation_borrow_health_scan_batches.latest",
+                        source_table="liquidation_borrow_health_scan_batches",
+                        source_key=str(row[0]),
+                        payload={
+                            "batch_id": int(row[0]),
+                            "started_at": row[1].isoformat() if row[1] else None,
+                            "finished_at": row[2].isoformat() if row[2] else None,
+                            "status": row[3],
+                            "account_count": int(row[4] or 0),
+                            "scanned_count": int(row[5] or 0),
+                            "risk_count": int(row[6] or 0),
+                            "error_count": int(row[7] or 0),
+                            "entered_count": int(row[8] or 0),
+                            "exited_count": int(row[9] or 0),
+                            "rpc_url": row[10],
+                            "block_number": int(row[11]) if row[11] is not None else None,
+                            "watch_health_factor": float(row[12]) if row[12] is not None else None,
+                            "error": row[13],
+                            "metadata": _json_or_default(row[14], {}),
+                            "rebuilt_from_existing_tables": True,
+                        },
+                        active=True,
+                    )
+                    rebuilt.append("liquidation_borrow_health_scan_batches.latest")
     return {"rebuilt_count": len(rebuilt), "config_keys": rebuilt}
 
 
@@ -501,36 +504,37 @@ def upsert_liquidation_accounts(
         else "ON CONFLICT (market_id, chain_id, account) DO NOTHING"
     )
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                f"""
-                INSERT INTO liquidation_accounts (
-                    market_id, chain_id, network, protocol,
-                    account, source, active, scan_start_at, scan_end_at, added_at, updated_at
+        with db_transaction(connection):
+            with connection.cursor() as cursor:
+                cursor.executemany(
+                    f"""
+                    INSERT INTO liquidation_accounts (
+                        market_id, chain_id, network, protocol,
+                        account, source, active, scan_start_at, scan_end_at, added_at, updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    {conflict_clause}
+                    """,
+                    values,
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-                {conflict_clause}
-                """,
-                values,
-            )
-            _upsert_scan_config_snapshot_cursor(
-                cursor,
-                config_key="liquidation_accounts.latest",
-                source_table="liquidation_accounts",
-                payload={
-                    "source": source,
-                    "active": bool(active),
-                    "update_existing": bool(update_existing),
-                    "account_count": len(unique_accounts),
-                    "market_id": scope["market_id"],
-                    "chain_id": scope["chain_id"],
-                    "network": scope["network"],
-                    "protocol": scope["protocol"],
-                    "scan_start_at": started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at),
-                    "scan_end_at": now.isoformat() if hasattr(now, "isoformat") else str(now),
-                    "sample_accounts": unique_accounts[:100],
-                },
-            )
+                _upsert_scan_config_snapshot_cursor(
+                    cursor,
+                    config_key="liquidation_accounts.latest",
+                    source_table="liquidation_accounts",
+                    payload={
+                        "source": source,
+                        "active": bool(active),
+                        "update_existing": bool(update_existing),
+                        "account_count": len(unique_accounts),
+                        "market_id": scope["market_id"],
+                        "chain_id": scope["chain_id"],
+                        "network": scope["network"],
+                        "protocol": scope["protocol"],
+                        "scan_start_at": started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at),
+                        "scan_end_at": now.isoformat() if hasattr(now, "isoformat") else str(now),
+                        "sample_accounts": unique_accounts[:100],
+                    },
+                )
     return unique_accounts
 
 

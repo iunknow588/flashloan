@@ -236,6 +236,30 @@ def test_liquidation_account_payload_api_returns_execution_payload(monkeypatch):
     assert data["preflight"]["static_call_required"] is True
 
 
+def test_liquidation_account_payload_api_passes_borrow_index(monkeypatch):
+    from web import control_panel
+
+    captured = {}
+
+    monkeypatch.setattr(control_panel, "liquidation_executor_address", lambda: "0x0000000000000000000000000000000000000004")
+    monkeypatch.setattr(control_panel, "dex_router_address", lambda: "0x0000000000000000000000000000000000000005")
+    monkeypatch.setattr(
+        control_panel,
+        "liquidation_execution_payload_for_account",
+        lambda account, **kwargs: captured.update({"account": account, **kwargs}) or {
+            "account": account,
+            "request": {"collateralAsset": "0x0000000000000000000000000000000000000002"},
+        },
+    )
+
+    response = app.test_client().get(
+        "/api/liquidation/account/payload?account=0x0000000000000000000000000000000000000001&borrow_index=2"
+    )
+
+    assert response.status_code == 200
+    assert captured["borrow_index"] == 2
+
+
 def test_liquidation_account_cached_api_returns_pool_snapshot(monkeypatch):
     from web import control_panel
 

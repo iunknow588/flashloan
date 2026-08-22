@@ -7,7 +7,7 @@ from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
 from core.config_schema import parse_env_float
-from db.storage_common import db_connection, require_psycopg
+from db.storage_common import db_connection, db_transaction, require_psycopg
 from db.storage_liquidation_accounts import write_liquidation_account_scan_reports
 from db.storage_liquidation_reports import (
     account_report_with_summary as _account_report_with_summary,
@@ -279,6 +279,9 @@ def _core_profit_assessment(
     }
 
 
+# === WRITE OPERATIONS ===
+# These helpers upsert scan snapshots and refresh pool state.
+
 def sync_liquidation_borrow_health_pool(
     database_url: str,
     rows: list[dict[str, Any]],
@@ -295,128 +298,70 @@ def sync_liquidation_borrow_health_pool(
     core_accounts: list[str] = []
     wrote_anything = False
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT account FROM liquidation_borrow_health_pool
-                WHERE active = TRUE AND market_id = %s AND chain_id = %s
-                """,
-                (scope["market_id"], scope["chain_id"]),
-            )
-            previous_active = {str(row[0]) for row in cursor.fetchall()}
-            for row in rows:
-                account = str(row.get("account") or "").strip()
-                health_factor = row.get("health_factor")
-                if not account or not isinstance(health_factor, (int, float)):
-                    continue
-                is_active = float(health_factor) < float(watch_health_factor)
-                tier = liquidation_pool_tier(health_factor)
-                if is_active:
-                    active_accounts.append(account)
-                if tier == "high_frequency":
-                    high_frequency_accounts.append(account)
-                summary = {
-                    "health_factor": health_factor,
-                    "status": row.get("status"),
-                    "health_factor_band": row.get("health_factor_band"),
-                    "candidate_count": len(row.get("liquidation_candidates") or []),
-                    "pool_tier": tier,
-                }
-                borrow_payload = {
-                    "market_id": scope["market_id"],
-                    "chain_id": scope["chain_id"],
-                    "account": account,
-                    "health_factor": health_factor,
-                    "status": row.get("status"),
-                    "health_factor_band": row.get("health_factor_band"),
-                    "total_collateral_base": row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
-                    "total_debt_base": row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
-                    "candidate_count": len(row.get("liquidation_candidates") or []),
-                    "summary_json": summary,
-                    "report_json": row,
-                    "active": is_active,
-                }
-                if _write_changed(database_url, "liquidation_borrow_health_pool", _scoped_account_key(scope, account), borrow_payload):
-                    cursor.execute(
-                        """
-                        INSERT INTO liquidation_borrow_health_pool (
-                            market_id, chain_id, network, protocol,
-                            account, health_factor, status, health_factor_band,
-                            total_collateral_base, total_debt_base, candidate_count,
-                            summary_json, report_json, active, last_scanned_at, updated_at
-                        )
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
-                        ON CONFLICT (market_id, chain_id, account) DO UPDATE SET
-                            network = EXCLUDED.network,
-                            protocol = EXCLUDED.protocol,
-                            health_factor = EXCLUDED.health_factor,
-                            status = EXCLUDED.status,
-                            health_factor_band = EXCLUDED.health_factor_band,
-                            total_collateral_base = EXCLUDED.total_collateral_base,
-                            total_debt_base = EXCLUDED.total_debt_base,
-                            candidate_count = EXCLUDED.candidate_count,
-                            summary_json = EXCLUDED.summary_json,
-                            report_json = EXCLUDED.report_json,
-                            active = EXCLUDED.active,
-                            last_scanned_at = NOW(),
-                            updated_at = NOW()
-                        """,
-                        (
-                            scope["market_id"],
-                            scope["chain_id"],
-                            scope["network"],
-                            scope["protocol"],
-                            account,
-                            health_factor,
-                            row.get("status"),
-                            row.get("health_factor_band"),
-                            row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
-                            row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
-                            len(row.get("liquidation_candidates") or []),
-                            json.dumps(summary, ensure_ascii=True, separators=(",", ":")),
-                            json.dumps(row, ensure_ascii=True, separators=(",", ":")),
-                            is_active,
-                        ),
-                    )
-                    wrote_anything = True
-                if tier == "high_frequency":
-                    enriched = enrich_liquidation_tier(row)
-                    high_payload = {
+        with db_transaction(connection, operation="liquidation.borrow_health_scan_batch"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT account FROM liquidation_borrow_health_pool
+                    WHERE active = TRUE AND market_id = %s AND chain_id = %s
+                    """,
+                    (scope["market_id"], scope["chain_id"]),
+                )
+                previous_active = {str(row[0]) for row in cursor.fetchall()}
+                for row in rows:
+                    account = str(row.get("account") or "").strip()
+                    health_factor = row.get("health_factor")
+                    if not account or not isinstance(health_factor, (int, float)):
+                        continue
+                    is_active = float(health_factor) < float(watch_health_factor)
+                    tier = liquidation_pool_tier(health_factor)
+                    if is_active:
+                        active_accounts.append(account)
+                    if tier == "high_frequency":
+                        high_frequency_accounts.append(account)
+                    summary = {
+                        "health_factor": health_factor,
+                        "status": row.get("status"),
+                        "health_factor_band": row.get("health_factor_band"),
+                        "candidate_count": len(row.get("liquidation_candidates") or []),
+                        "pool_tier": tier,
+                    }
+                    borrow_payload = {
                         "market_id": scope["market_id"],
                         "chain_id": scope["chain_id"],
                         "account": account,
                         "health_factor": health_factor,
                         "status": row.get("status"),
+                        "health_factor_band": row.get("health_factor_band"),
                         "total_collateral_base": row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
                         "total_debt_base": row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
                         "candidate_count": len(row.get("liquidation_candidates") or []),
-                        "priority_score": enriched["priority_score"],
                         "summary_json": summary,
                         "report_json": row,
-                        "active": True,
+                        "active": is_active,
                     }
-                    if _write_changed(database_url, "liquidation_high_frequency_pool", _scoped_account_key(scope, account), high_payload):
+                    if _write_changed(database_url, "liquidation_borrow_health_pool", _scoped_account_key(scope, account), borrow_payload):
                         cursor.execute(
                             """
-                            INSERT INTO liquidation_high_frequency_pool (
+                            INSERT INTO liquidation_borrow_health_pool (
                                 market_id, chain_id, network, protocol,
-                                account, health_factor, status, total_collateral_base,
-                                total_debt_base, candidate_count, priority_score,
+                                account, health_factor, status, health_factor_band,
+                                total_collateral_base, total_debt_base, candidate_count,
                                 summary_json, report_json, active, last_scanned_at, updated_at
                             )
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,NOW(),NOW())
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW())
                             ON CONFLICT (market_id, chain_id, account) DO UPDATE SET
                                 network = EXCLUDED.network,
                                 protocol = EXCLUDED.protocol,
                                 health_factor = EXCLUDED.health_factor,
                                 status = EXCLUDED.status,
+                                health_factor_band = EXCLUDED.health_factor_band,
                                 total_collateral_base = EXCLUDED.total_collateral_base,
                                 total_debt_base = EXCLUDED.total_debt_base,
                                 candidate_count = EXCLUDED.candidate_count,
-                                priority_score = EXCLUDED.priority_score,
                                 summary_json = EXCLUDED.summary_json,
                                 report_json = EXCLUDED.report_json,
-                                active = TRUE,
+                                active = EXCLUDED.active,
                                 last_scanned_at = NOW(),
                                 updated_at = NOW()
                             """,
@@ -428,202 +373,261 @@ def sync_liquidation_borrow_health_pool(
                                 account,
                                 health_factor,
                                 row.get("status"),
+                                row.get("health_factor_band"),
                                 row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
                                 row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
                                 len(row.get("liquidation_candidates") or []),
-                                enriched["priority_score"],
-                                _json(summary),
-                                _json(row),
+                                json.dumps(summary, ensure_ascii=True, separators=(",", ":")),
+                                json.dumps(row, ensure_ascii=True, separators=(",", ":")),
+                                is_active,
                             ),
                         )
                         wrote_anything = True
-                core_viable = tier == "core" and _core_opportunity_viable(row, min_operator_net_profit_usd)
-                if core_viable:
-                    core_accounts.append(account)
-                    candidate = _candidate_for(row)
-                    profit = candidate.get("estimated_profit") or row.get("liquidation_profit") or {}
-                    enriched = enrich_liquidation_tier(row)
-                    profit_assessment = _core_profit_assessment(row, min_operator_net_profit_usd)
-                    blocked_reasons = list(profit_assessment.get("blocked_reasons") or [])
-                    metadata_json = {
-                        "summary": summary,
-                        "report": row,
-                        "recommended_candidate": candidate,
-                        "profit_assessment": profit_assessment,
-                    }
-                    core_payload = {
+                    if tier == "high_frequency":
+                        enriched = enrich_liquidation_tier(row)
+                        high_payload = {
+                            "market_id": scope["market_id"],
+                            "chain_id": scope["chain_id"],
+                            "account": account,
+                            "health_factor": health_factor,
+                            "status": row.get("status"),
+                            "total_collateral_base": row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
+                            "total_debt_base": row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
+                            "candidate_count": len(row.get("liquidation_candidates") or []),
+                            "priority_score": enriched["priority_score"],
+                            "summary_json": summary,
+                            "report_json": row,
+                            "active": True,
+                        }
+                        if _write_changed(database_url, "liquidation_high_frequency_pool", _scoped_account_key(scope, account), high_payload):
+                            cursor.execute(
+                                """
+                                INSERT INTO liquidation_high_frequency_pool (
+                                    market_id, chain_id, network, protocol,
+                                    account, health_factor, status, total_collateral_base,
+                                    total_debt_base, candidate_count, priority_score,
+                                    summary_json, report_json, active, last_scanned_at, updated_at
+                                )
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE,NOW(),NOW())
+                                ON CONFLICT (market_id, chain_id, account) DO UPDATE SET
+                                    network = EXCLUDED.network,
+                                    protocol = EXCLUDED.protocol,
+                                    health_factor = EXCLUDED.health_factor,
+                                    status = EXCLUDED.status,
+                                    total_collateral_base = EXCLUDED.total_collateral_base,
+                                    total_debt_base = EXCLUDED.total_debt_base,
+                                    candidate_count = EXCLUDED.candidate_count,
+                                    priority_score = EXCLUDED.priority_score,
+                                    summary_json = EXCLUDED.summary_json,
+                                    report_json = EXCLUDED.report_json,
+                                    active = TRUE,
+                                    last_scanned_at = NOW(),
+                                    updated_at = NOW()
+                                """,
+                                (
+                                    scope["market_id"],
+                                    scope["chain_id"],
+                                    scope["network"],
+                                    scope["protocol"],
+                                    account,
+                                    health_factor,
+                                    row.get("status"),
+                                    row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
+                                    row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
+                                    len(row.get("liquidation_candidates") or []),
+                                    enriched["priority_score"],
+                                    _json(summary),
+                                    _json(row),
+                                ),
+                            )
+                            wrote_anything = True
+                    core_viable = tier == "core" and _core_opportunity_viable(row, min_operator_net_profit_usd)
+                    if core_viable:
+                        core_accounts.append(account)
+                        candidate = _candidate_for(row)
+                        profit = candidate.get("estimated_profit") or row.get("liquidation_profit") or {}
+                        enriched = enrich_liquidation_tier(row)
+                        profit_assessment = _core_profit_assessment(row, min_operator_net_profit_usd)
+                        blocked_reasons = list(profit_assessment.get("blocked_reasons") or [])
+                        metadata_json = {
+                            "summary": summary,
+                            "report": row,
+                            "recommended_candidate": candidate,
+                            "profit_assessment": profit_assessment,
+                        }
+                        core_payload = {
+                            "market_id": scope["market_id"],
+                            "chain_id": scope["chain_id"],
+                            "account": account,
+                            "health_factor": health_factor,
+                            "priority_score": enriched["priority_score"],
+                            "total_debt_base": row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
+                            "total_collateral_base": row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
+                            "best_debt_asset": candidate.get("debt_asset") or candidate.get("debt_symbol"),
+                            "best_collateral_asset": candidate.get("collateral_asset") or candidate.get("collateral_symbol"),
+                            "debt_to_cover_units": str(candidate.get("amount_to_pass_to_liquidation_call") or candidate.get("max_debt_to_liquidate") or ""),
+                            "estimated_operator_net_profit_usd": _estimated_operator_net_profit_usd(row),
+                            "estimated_gas_cost_usd": profit.get("gas_cost_usd"),
+                            "quote_viable": bool(candidate),
+                            "static_call_status": "pending",
+                            "payload_state": profit_assessment["label"],
+                            "blocked_reasons_json": blocked_reasons,
+                            "metadata_json": metadata_json,
+                            "active": True,
+                        }
+                        if _write_changed(database_url, "liquidation_core_opportunity_pool", _scoped_account_key(scope, account), core_payload):
+                            cursor.execute(
+                                """
+                                INSERT INTO liquidation_core_opportunity_pool (
+                                    market_id, chain_id, network, protocol,
+                                    account, health_factor, priority_score, total_debt_base,
+                                    total_collateral_base, best_debt_asset, best_collateral_asset,
+                                    debt_to_cover_units, estimated_operator_net_profit_usd,
+                                    estimated_gas_cost_usd, quote_viable, static_call_status,
+                                    payload_state, blocked_reasons_json, last_scanned_at,
+                                    updated_at,
+                                    active, metadata_json
+                                )
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW(),TRUE,%s)
+                                ON CONFLICT (market_id, chain_id, account) DO UPDATE SET
+                                    network = EXCLUDED.network,
+                                    protocol = EXCLUDED.protocol,
+                                    health_factor = EXCLUDED.health_factor,
+                                    priority_score = EXCLUDED.priority_score,
+                                    total_debt_base = EXCLUDED.total_debt_base,
+                                    total_collateral_base = EXCLUDED.total_collateral_base,
+                                    best_debt_asset = EXCLUDED.best_debt_asset,
+                                    best_collateral_asset = EXCLUDED.best_collateral_asset,
+                                    debt_to_cover_units = EXCLUDED.debt_to_cover_units,
+                                    estimated_operator_net_profit_usd = EXCLUDED.estimated_operator_net_profit_usd,
+                                    estimated_gas_cost_usd = EXCLUDED.estimated_gas_cost_usd,
+                                    quote_viable = EXCLUDED.quote_viable,
+                                    static_call_status = EXCLUDED.static_call_status,
+                                    payload_state = EXCLUDED.payload_state,
+                                    blocked_reasons_json = EXCLUDED.blocked_reasons_json,
+                                    last_scanned_at = NOW(),
+                                    updated_at = NOW(),
+                                    active = TRUE,
+                                    metadata_json = EXCLUDED.metadata_json
+                                """,
+                                (
+                                    scope["market_id"],
+                                    scope["chain_id"],
+                                    scope["network"],
+                                    scope["protocol"],
+                                    account,
+                                    health_factor,
+                                    enriched["priority_score"],
+                                    row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
+                                    row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
+                                    candidate.get("debt_asset") or candidate.get("debt_symbol"),
+                                    candidate.get("collateral_asset") or candidate.get("collateral_symbol"),
+                                    str(candidate.get("amount_to_pass_to_liquidation_call") or candidate.get("max_debt_to_liquidate") or ""),
+                                    _estimated_operator_net_profit_usd(row),
+                                    profit.get("gas_cost_usd"),
+                                    bool(candidate),
+                                    "pending",
+                                    profit_assessment["label"],
+                                    _json(blocked_reasons),
+                                    _json(metadata_json),
+                                ),
+                            )
+                            wrote_anything = True
+                if _write_changed(
+                    database_url,
+                    "liquidation_borrow_health_pool.active",
+                    f"{scope['market_id']}:{scope['chain_id']}:active_set",
+                    {"active_accounts": sorted(active_accounts), "watch_health_factor": float(watch_health_factor), "market_id": scope["market_id"], "chain_id": scope["chain_id"]},
+                ):
+                    cursor.execute(
+                        "UPDATE liquidation_borrow_health_pool SET active = FALSE, updated_at = NOW() "
+                        "WHERE active = TRUE AND market_id = %s AND chain_id = %s AND health_factor >= %s",
+                        (scope["market_id"], scope["chain_id"], float(watch_health_factor)),
+                    )
+                    wrote_anything = True
+                if _write_changed(
+                    database_url,
+                    "liquidation_high_frequency_pool.active",
+                    f"{scope['market_id']}:{scope['chain_id']}:active_set",
+                    {"active_accounts": sorted(high_frequency_accounts), "market_id": scope["market_id"], "chain_id": scope["chain_id"]},
+                ):
+                    cursor.execute(
+                        "UPDATE liquidation_high_frequency_pool SET active = FALSE, updated_at = NOW() "
+                        "WHERE active = TRUE AND market_id = %s AND chain_id = %s AND NOT (account = ANY(%s))",
+                        (scope["market_id"], scope["chain_id"], high_frequency_accounts or ["__none__"]),
+                    )
+                    wrote_anything = True
+                if _write_changed(
+                    database_url,
+                    "liquidation_core_opportunity_pool.active",
+                    f"{scope['market_id']}:{scope['chain_id']}:active_set",
+                    {"active_accounts": sorted(core_accounts), "market_id": scope["market_id"], "chain_id": scope["chain_id"]},
+                ):
+                    cursor.execute(
+                        "UPDATE liquidation_core_opportunity_pool SET active = FALSE, updated_at = NOW() "
+                        "WHERE active = TRUE AND market_id = %s AND chain_id = %s AND NOT (account = ANY(%s))",
+                        (scope["market_id"], scope["chain_id"], core_accounts or ["__none__"]),
+                    )
+                    wrote_anything = True
+                _upsert_scan_config_snapshot(
+                    cursor,
+                    database_url=database_url,
+                    config_key="liquidation_borrow_health_pool.latest",
+                    source_table="liquidation_borrow_health_pool",
+                    payload={
+                        "watch_health_factor": float(watch_health_factor),
+                        "active_count": len(active_accounts),
                         "market_id": scope["market_id"],
                         "chain_id": scope["chain_id"],
-                        "account": account,
-                        "health_factor": health_factor,
-                        "priority_score": enriched["priority_score"],
-                        "total_debt_base": row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
-                        "total_collateral_base": row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
-                        "best_debt_asset": candidate.get("debt_asset") or candidate.get("debt_symbol"),
-                        "best_collateral_asset": candidate.get("collateral_asset") or candidate.get("collateral_symbol"),
-                        "debt_to_cover_units": str(candidate.get("amount_to_pass_to_liquidation_call") or candidate.get("max_debt_to_liquidate") or ""),
-                        "estimated_operator_net_profit_usd": _estimated_operator_net_profit_usd(row),
-                        "estimated_gas_cost_usd": profit.get("gas_cost_usd"),
-                        "quote_viable": bool(candidate),
-                        "static_call_status": "pending",
-                        "payload_state": profit_assessment["label"],
-                        "blocked_reasons_json": blocked_reasons,
-                        "metadata_json": metadata_json,
-                        "active": True,
-                    }
-                    if _write_changed(database_url, "liquidation_core_opportunity_pool", _scoped_account_key(scope, account), core_payload):
-                        cursor.execute(
-                            """
-                            INSERT INTO liquidation_core_opportunity_pool (
-                                market_id, chain_id, network, protocol,
-                                account, health_factor, priority_score, total_debt_base,
-                                total_collateral_base, best_debt_asset, best_collateral_asset,
-                                debt_to_cover_units, estimated_operator_net_profit_usd,
-                                estimated_gas_cost_usd, quote_viable, static_call_status,
-                                payload_state, blocked_reasons_json, last_scanned_at,
-                                updated_at,
-                                active, metadata_json
-                            )
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),NOW(),TRUE,%s)
-                            ON CONFLICT (market_id, chain_id, account) DO UPDATE SET
-                                network = EXCLUDED.network,
-                                protocol = EXCLUDED.protocol,
-                                health_factor = EXCLUDED.health_factor,
-                                priority_score = EXCLUDED.priority_score,
-                                total_debt_base = EXCLUDED.total_debt_base,
-                                total_collateral_base = EXCLUDED.total_collateral_base,
-                                best_debt_asset = EXCLUDED.best_debt_asset,
-                                best_collateral_asset = EXCLUDED.best_collateral_asset,
-                                debt_to_cover_units = EXCLUDED.debt_to_cover_units,
-                                estimated_operator_net_profit_usd = EXCLUDED.estimated_operator_net_profit_usd,
-                                estimated_gas_cost_usd = EXCLUDED.estimated_gas_cost_usd,
-                                quote_viable = EXCLUDED.quote_viable,
-                                static_call_status = EXCLUDED.static_call_status,
-                                payload_state = EXCLUDED.payload_state,
-                                blocked_reasons_json = EXCLUDED.blocked_reasons_json,
-                                last_scanned_at = NOW(),
-                                updated_at = NOW(),
-                                active = TRUE,
-                                metadata_json = EXCLUDED.metadata_json
-                            """,
-                            (
-                                scope["market_id"],
-                                scope["chain_id"],
-                                scope["network"],
-                                scope["protocol"],
-                                account,
-                                health_factor,
-                                enriched["priority_score"],
-                                row.get("total_debt_base") or row.get("total_debt_in_base_currency"),
-                                row.get("total_collateral_base") or row.get("total_collateral_in_base_currency"),
-                                candidate.get("debt_asset") or candidate.get("debt_symbol"),
-                                candidate.get("collateral_asset") or candidate.get("collateral_symbol"),
-                                str(candidate.get("amount_to_pass_to_liquidation_call") or candidate.get("max_debt_to_liquidate") or ""),
-                                _estimated_operator_net_profit_usd(row),
-                                profit.get("gas_cost_usd"),
-                                bool(candidate),
-                                "pending",
-                                profit_assessment["label"],
-                                _json(blocked_reasons),
-                                _json(metadata_json),
-                            ),
-                        )
+                        "high_frequency_count": len(high_frequency_accounts),
+                        "core_count": len(core_accounts),
+                        "entered_count": len(set(active_accounts) - previous_active),
+                        "exited_count": len(previous_active - set(active_accounts)),
+                        "scan_reference": "borrow-health-sync",
+                        "active_accounts": active_accounts[:100],
+                    },
+                )
+                _upsert_scan_config_snapshot(
+                    cursor,
+                    database_url=database_url,
+                    config_key="liquidation_high_frequency_pool.latest",
+                    source_table="liquidation_high_frequency_pool",
+                    payload={
+                        "watch_health_factor": float(watch_health_factor),
+                        "market_id": scope["market_id"],
+                        "chain_id": scope["chain_id"],
+                        "active_count": len(high_frequency_accounts),
+                        "scan_reference": "borrow-health-sync",
+                        "active_accounts": high_frequency_accounts[:100],
+                    },
+                )
+                _upsert_scan_config_snapshot(
+                    cursor,
+                    database_url=database_url,
+                    config_key="liquidation_core_opportunity_pool.latest",
+                    source_table="liquidation_core_opportunity_pool",
+                    payload={
+                        "watch_health_factor": float(watch_health_factor),
+                        "market_id": scope["market_id"],
+                        "chain_id": scope["chain_id"],
+                        "min_operator_net_profit_usd": float(min_operator_net_profit_usd),
+                        "active_count": len(core_accounts),
+                        "scan_reference": "borrow-health-sync",
+                        "active_accounts": core_accounts[:100],
+                    },
+                )
+                if account_reports:
+                    scan_reports = []
+                    for report in account_reports:
+                        scoped_report = dict(report or {})
+                        scoped_report.setdefault("market_id", scope["market_id"])
+                        scoped_report.setdefault("chain_id", scope["chain_id"])
+                        key = _scoped_account_key(scope, str(scoped_report.get("account") or ""))
+                        if _write_changed(database_url, "liquidation_account_health_scans", key, scoped_report):
+                            scan_reports.append(scoped_report)
+                    if scan_reports:
+                        write_liquidation_account_scan_reports(cursor, scan_reports)
                         wrote_anything = True
-            if _write_changed(
-                database_url,
-                "liquidation_borrow_health_pool.active",
-                f"{scope['market_id']}:{scope['chain_id']}:active_set",
-                {"active_accounts": sorted(active_accounts), "watch_health_factor": float(watch_health_factor), "market_id": scope["market_id"], "chain_id": scope["chain_id"]},
-            ):
-                cursor.execute(
-                    "UPDATE liquidation_borrow_health_pool SET active = FALSE, updated_at = NOW() "
-                    "WHERE active = TRUE AND market_id = %s AND chain_id = %s AND health_factor >= %s",
-                    (scope["market_id"], scope["chain_id"], float(watch_health_factor)),
-                )
-                wrote_anything = True
-            if _write_changed(
-                database_url,
-                "liquidation_high_frequency_pool.active",
-                f"{scope['market_id']}:{scope['chain_id']}:active_set",
-                {"active_accounts": sorted(high_frequency_accounts), "market_id": scope["market_id"], "chain_id": scope["chain_id"]},
-            ):
-                cursor.execute(
-                    "UPDATE liquidation_high_frequency_pool SET active = FALSE, updated_at = NOW() "
-                    "WHERE active = TRUE AND market_id = %s AND chain_id = %s AND NOT (account = ANY(%s))",
-                    (scope["market_id"], scope["chain_id"], high_frequency_accounts or ["__none__"]),
-                )
-                wrote_anything = True
-            if _write_changed(
-                database_url,
-                "liquidation_core_opportunity_pool.active",
-                f"{scope['market_id']}:{scope['chain_id']}:active_set",
-                {"active_accounts": sorted(core_accounts), "market_id": scope["market_id"], "chain_id": scope["chain_id"]},
-            ):
-                cursor.execute(
-                    "UPDATE liquidation_core_opportunity_pool SET active = FALSE, updated_at = NOW() "
-                    "WHERE active = TRUE AND market_id = %s AND chain_id = %s AND NOT (account = ANY(%s))",
-                    (scope["market_id"], scope["chain_id"], core_accounts or ["__none__"]),
-                )
-                wrote_anything = True
-            _upsert_scan_config_snapshot(
-                cursor,
-                database_url=database_url,
-                config_key="liquidation_borrow_health_pool.latest",
-                source_table="liquidation_borrow_health_pool",
-                payload={
-                    "watch_health_factor": float(watch_health_factor),
-                    "active_count": len(active_accounts),
-                    "market_id": scope["market_id"],
-                    "chain_id": scope["chain_id"],
-                    "high_frequency_count": len(high_frequency_accounts),
-                    "core_count": len(core_accounts),
-                    "entered_count": len(set(active_accounts) - previous_active),
-                    "exited_count": len(previous_active - set(active_accounts)),
-                    "scan_reference": "borrow-health-sync",
-                    "active_accounts": active_accounts[:100],
-                },
-            )
-            _upsert_scan_config_snapshot(
-                cursor,
-                database_url=database_url,
-                config_key="liquidation_high_frequency_pool.latest",
-                source_table="liquidation_high_frequency_pool",
-                payload={
-                    "watch_health_factor": float(watch_health_factor),
-                    "market_id": scope["market_id"],
-                    "chain_id": scope["chain_id"],
-                    "active_count": len(high_frequency_accounts),
-                    "scan_reference": "borrow-health-sync",
-                    "active_accounts": high_frequency_accounts[:100],
-                },
-            )
-            _upsert_scan_config_snapshot(
-                cursor,
-                database_url=database_url,
-                config_key="liquidation_core_opportunity_pool.latest",
-                source_table="liquidation_core_opportunity_pool",
-                payload={
-                    "watch_health_factor": float(watch_health_factor),
-                    "market_id": scope["market_id"],
-                    "chain_id": scope["chain_id"],
-                    "min_operator_net_profit_usd": float(min_operator_net_profit_usd),
-                    "active_count": len(core_accounts),
-                    "scan_reference": "borrow-health-sync",
-                    "active_accounts": core_accounts[:100],
-                },
-            )
-            if account_reports:
-                scan_reports = []
-                for report in account_reports:
-                    scoped_report = dict(report or {})
-                    scoped_report.setdefault("market_id", scope["market_id"])
-                    scoped_report.setdefault("chain_id", scope["chain_id"])
-                    key = _scoped_account_key(scope, str(scoped_report.get("account") or ""))
-                    if _write_changed(database_url, "liquidation_account_health_scans", key, scoped_report):
-                        scan_reports.append(scoped_report)
-                if scan_reports:
-                    write_liquidation_account_scan_reports(cursor, scan_reports)
-                    wrote_anything = True
     current_active = set(active_accounts)
     if wrote_anything:
         _invalidate_pool_cache(
@@ -641,6 +645,9 @@ def sync_liquidation_borrow_health_pool(
         "core_count": len(core_accounts),
     }
 
+
+# === READ OPERATIONS ===
+# These helpers only query liquidation pool snapshots and counts.
 
 def load_liquidation_borrow_health_pool(
     database_url: str,
@@ -1211,67 +1218,68 @@ def record_liquidation_borrow_health_scan_batch(
     psycopg = require_psycopg()
     scope = _market_scope(market_id, chain_id)
     with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO liquidation_borrow_health_scan_batches (
-                    market_id, chain_id, network, protocol,
-                    started_at, finished_at, status, account_count, scanned_count,
-                    risk_count, error_count, entered_count, exited_count, rpc_url,
-                    block_number, watch_health_factor, error, metadata_json
+        with db_transaction(connection, operation="liquidation.pool_snapshot"):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO liquidation_borrow_health_scan_batches (
+                        market_id, chain_id, network, protocol,
+                        started_at, finished_at, status, account_count, scanned_count,
+                        risk_count, error_count, entered_count, exited_count, rpc_url,
+                        block_number, watch_health_factor, error, metadata_json
+                    )
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                    """,
+                    (
+                        scope["market_id"],
+                        scope["chain_id"],
+                        scope["network"],
+                        scope["protocol"],
+                        started_at,
+                        finished_at,
+                        status,
+                        int(account_count),
+                        int(scanned_count),
+                        int(risk_count),
+                        int(error_count),
+                        int(entered_count),
+                        int(exited_count),
+                        rpc_url,
+                        block_number,
+                        watch_health_factor,
+                        error,
+                        _json(metadata or {}),
+                    ),
                 )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                RETURNING id
-                """,
-                (
-                    scope["market_id"],
-                    scope["chain_id"],
-                    scope["network"],
-                    scope["protocol"],
-                    started_at,
-                    finished_at,
-                    status,
-                    int(account_count),
-                    int(scanned_count),
-                    int(risk_count),
-                    int(error_count),
-                    int(entered_count),
-                    int(exited_count),
-                    rpc_url,
-                    block_number,
-                    watch_health_factor,
-                    error,
-                    _json(metadata or {}),
-                ),
-            )
-            row = cursor.fetchone()
-            batch_id = int(row[0]) if row else 0
-            _upsert_scan_config_snapshot(
-                cursor,
-                config_key="liquidation_borrow_health_scan_batches.latest",
-                source_table="liquidation_borrow_health_scan_batches",
-                source_key=str(batch_id) if batch_id else None,
-                market_id=scope["market_id"],
-                chain_id=scope["chain_id"],
-                payload={
-                    "batch_id": batch_id,
-                    "market_id": scope["market_id"],
-                    "chain_id": scope["chain_id"],
-                    "status": status,
-                    "account_count": int(account_count),
-                    "scanned_count": int(scanned_count),
-                    "risk_count": int(risk_count),
-                    "error_count": int(error_count),
-                    "entered_count": int(entered_count),
-                    "exited_count": int(exited_count),
-                    "rpc_url": rpc_url,
-                    "block_number": block_number,
-                    "watch_health_factor": watch_health_factor,
-                    "started_at": started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at),
-                    "finished_at": finished_at.isoformat() if hasattr(finished_at, "isoformat") else str(finished_at),
-                    "metadata": metadata or {},
-                },
-            )
+                row = cursor.fetchone()
+                batch_id = int(row[0]) if row else 0
+                _upsert_scan_config_snapshot(
+                    cursor,
+                    config_key="liquidation_borrow_health_scan_batches.latest",
+                    source_table="liquidation_borrow_health_scan_batches",
+                    source_key=str(batch_id) if batch_id else None,
+                    market_id=scope["market_id"],
+                    chain_id=scope["chain_id"],
+                    payload={
+                        "batch_id": batch_id,
+                        "market_id": scope["market_id"],
+                        "chain_id": scope["chain_id"],
+                        "status": status,
+                        "account_count": int(account_count),
+                        "scanned_count": int(scanned_count),
+                        "risk_count": int(risk_count),
+                        "error_count": int(error_count),
+                        "entered_count": int(entered_count),
+                        "exited_count": int(exited_count),
+                        "rpc_url": rpc_url,
+                        "block_number": block_number,
+                        "watch_health_factor": watch_health_factor,
+                        "started_at": started_at.isoformat() if hasattr(started_at, "isoformat") else str(started_at),
+                        "finished_at": finished_at.isoformat() if hasattr(finished_at, "isoformat") else str(finished_at),
+                        "metadata": metadata or {},
+                    },
+                )
     batch = dict(metadata or {})
     batch.update(
         {

@@ -1,9 +1,11 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from collections import deque
+import logging
 import os
 import threading
 import time
-from typing import Iterator
+from typing import Callable, Iterator, TypeVar
 
 from core.config_schema import parse_env_int
 
@@ -51,6 +53,10 @@ SCHEMA_MIGRATIONS = (
         "Persist UI/runtime control parameters in the application database.",
     ),
     (
+        "20260817_robinhood_dex_observation",
+        "Add Robinhood DEX observation attempts and seed market-specific three-pool scan policies.",
+    ),
+    (
         "20260818_chain_market_registry",
         "Persist chain/market registry, scan policies, and current DEX arbitrage candidates.",
     ),
@@ -61,6 +67,10 @@ _POOL_LOCK = threading.Lock()
 _POOLS: dict[str, object] = {}
 _DATABASE_UNAVAILABLE_LOCK = threading.Lock()
 _DATABASE_UNAVAILABLE_UNTIL: dict[str, tuple[float, str]] = {}
+_TRANSACTION_EVENTS_LOCK = threading.Lock()
+_TRANSACTION_EVENTS: deque[dict[str, object]] = deque(maxlen=500)
+_LOGGER = logging.getLogger(__name__)
+_TransactionResult = TypeVar("_TransactionResult")
 
 
 def require_psycopg():
@@ -150,6 +160,7 @@ def _is_connection_termination_error(exc: BaseException) -> bool:
 def is_database_unavailable_error(exc: BaseException) -> bool:
     text = str(exc).lower()
     markers = (
+        "database unavailable",
         "the endpoint has been disabled",
         "enable it using the api and retry",
         "server closed the connection unexpectedly",
@@ -158,9 +169,17 @@ def is_database_unavailable_error(exc: BaseException) -> bool:
         "connection is closed",
         "could not receive data from server",
         "could not send data to server",
+        "could not connect to server",
+        "connection refused",
+        "connection timeout expired",
+        "timeout expired",
+        "network is unreachable",
+        "no route to host",
         "ssl connection has been closed unexpectedly",
     )
-    return any(marker in text for marker in markers)
+    return isinstance(exc, (TimeoutError, ConnectionError, OSError)) or any(
+        marker in text for marker in markers
+    )
 
 
 def _database_unavailable_cooldown_seconds() -> int:
@@ -193,10 +212,13 @@ def database_unavailable_reason(database_url: str | None) -> str | None:
 @contextmanager
 def db_connection(database_url: str, connect_timeout: int = 8) -> Iterator[object]:
     pool = None
-    try:
-        pool = get_connection_pool(database_url, connect_timeout=connect_timeout)
-    except Exception:
-        pool = None
+    # Short UI probes should not wait for a pool's background replenishment;
+    # connect directly and let the caller's fallback circuit handle failure.
+    if int(connect_timeout) > 1:
+        try:
+            pool = get_connection_pool(database_url, connect_timeout=connect_timeout)
+        except Exception:
+            pool = None
     if pool is not None:
         try:
             pool_context = _pool_connection_context(pool, connect_timeout)
@@ -217,6 +239,147 @@ def db_connection(database_url: str, connect_timeout: int = 8) -> Iterator[objec
     psycopg = require_psycopg()
     with psycopg.connect(database_url, connect_timeout=connect_timeout) as connection:
         yield connection
+
+
+def db_transaction(connection: object, operation: str | None = None):
+    return _db_transaction(connection, operation=operation)
+
+
+def run_db_transaction(
+    database_url: str,
+    operation: str,
+    callback: Callable[[object], _TransactionResult],
+    *,
+    connect_timeout: int = 8,
+    max_retries: int = 2,
+    retry_backoff_ms: int = 50,
+) -> _TransactionResult:
+    """Run a callback in an isolated transaction with bounded retry.
+
+    Each retry obtains a fresh connection and transaction. This is important
+    for PostgreSQL deadlocks and serialization failures because the failed
+    transaction cannot safely be reused by the caller.
+    """
+
+    retry_limit = max(0, int(max_retries))
+    backoff_seconds = max(0.0, float(retry_backoff_ms) / 1000.0)
+    for attempt in range(retry_limit + 1):
+        try:
+            with db_connection(database_url, connect_timeout=connect_timeout) as connection:
+                with db_transaction(connection, operation=operation):
+                    return callback(connection)
+        except BaseException as exc:
+            retryable = _transaction_error_kind(exc) in {"deadlock", "serialization_failure"}
+            if not retryable or attempt >= retry_limit:
+                raise
+            _record_transaction_event(
+                operation=str(operation or "unspecified"),
+                outcome="retry",
+                duration_ms=0.0,
+                error=exc,
+                attempt=attempt + 1,
+            )
+            if backoff_seconds:
+                time.sleep(backoff_seconds * (attempt + 1))
+    raise RuntimeError("database transaction retry loop exited unexpectedly")
+
+
+def _transaction_timeout_ms(name: str) -> int:
+    value, _ = parse_env_int(name, 0, minimum=0)
+    return max(0, min(int(value), 3_600_000))
+
+
+def _configure_transaction_limits(connection: object) -> None:
+    """Apply optional per-transaction limits without coupling tests to psycopg."""
+    execute = getattr(connection, "execute", None)
+    if not callable(execute):
+        return
+    lock_timeout = _transaction_timeout_ms("DATABASE_LOCK_TIMEOUT_MS")
+    statement_timeout = _transaction_timeout_ms("DATABASE_STATEMENT_TIMEOUT_MS")
+    if lock_timeout:
+        execute(f"SET LOCAL lock_timeout = '{lock_timeout}ms'")
+    if statement_timeout:
+        execute(f"SET LOCAL statement_timeout = '{statement_timeout}ms'")
+
+
+def _transaction_error_kind(exc: BaseException) -> str:
+    text = str(exc).lower()
+    if "deadlock detected" in text:
+        return "deadlock"
+    if "lock timeout" in text or "canceling statement due to lock timeout" in text:
+        return "lock_timeout"
+    if "statement timeout" in text or "canceling statement due to user request" in text:
+        return "statement_timeout"
+    if "serialization failure" in text or "could not serialize access" in text:
+        return "serialization_failure"
+    return "transaction_error"
+
+
+def _record_transaction_event(
+    *,
+    operation: str,
+    outcome: str,
+    duration_ms: float,
+    error: BaseException | None = None,
+    attempt: int | None = None,
+) -> None:
+    event: dict[str, object] = {
+        "operation": operation,
+        "outcome": outcome,
+        "duration_ms": round(duration_ms, 3),
+        "error_kind": None,
+        "error": None,
+        "retryable": False,
+        "attempt": attempt,
+    }
+    if error is not None:
+        kind = _transaction_error_kind(error)
+        event["error_kind"] = kind
+        event["error"] = str(error).splitlines()[0][:240]
+        event["retryable"] = kind in {"deadlock", "serialization_failure"}
+    with _TRANSACTION_EVENTS_LOCK:
+        _TRANSACTION_EVENTS.append(event)
+    if error is not None:
+        _LOGGER.warning("db transaction %s", event)
+
+
+def database_transaction_events(limit: int = 100) -> list[dict[str, object]]:
+    with _TRANSACTION_EVENTS_LOCK:
+        events = list(_TRANSACTION_EVENTS)
+    return [dict(event) for event in events[-max(1, int(limit)):]]
+
+
+def clear_database_transaction_events() -> None:
+    with _TRANSACTION_EVENTS_LOCK:
+        _TRANSACTION_EVENTS.clear()
+
+
+@contextmanager
+def _db_transaction(connection: object, operation: str | None = None) -> Iterator[object]:
+    operation_name = str(operation or "unspecified").strip() or "unspecified"
+    transaction = getattr(connection, "transaction", None)
+    if not callable(transaction):
+        yield connection
+        return
+    started = time.perf_counter()
+    try:
+        with transaction():
+            _configure_transaction_limits(connection)
+            yield connection
+    except BaseException as exc:
+        _record_transaction_event(
+            operation=operation_name,
+            outcome="rollback",
+            duration_ms=(time.perf_counter() - started) * 1000.0,
+            error=exc,
+        )
+        raise
+    else:
+        _record_transaction_event(
+            operation=operation_name,
+            outcome="commit",
+            duration_ms=(time.perf_counter() - started) * 1000.0,
+        )
 
 
 def dedicated_db_connection(database_url: str, connect_timeout: int = 8):

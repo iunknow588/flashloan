@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>单链 DEX 链路</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; align-items: center; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1180px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 10px; font-size: 15px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .toolbar a, button { min-height: 36px; display: inline-flex; align-items: center; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #fff; color: #0f766e; font-weight: 700; text-decoration: none; }
+    button.primary, .toolbar a.primary { background: #0f766e; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .split { display: grid; grid-template-columns: minmax(320px, .9fr) minmax(360px, 1.1fr); gap: 14px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .card strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .card span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .muted { color: #667085; }
+    .good { color: #15803d; }
+    .bad { color: #b42318; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #e4e7ec; padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    th { width: 220px; color: #475467; background: #fbfcfe; }
+    @media (max-width: 800px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>单链 DEX 链路</h1>
+    <nav>
+      <a href="/dex">DEX 总览</a>
+      <a href="/dex/candidates">候选池子</a>
+      <a href="/dex/quotes">报价与路由</a>
+      <a href="/settings">配置</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="primary" id="refreshBtn">刷新链路状态</button>
+      <a id="candidateLink" href="/dex/candidates">查看候选池子</a>
+      <span id="message" class="muted">等待链路选择</span>
+    </div>
+
+    <section class="grid">
+      <div class="card"><small>当前 DEX 链路</small><strong id="marketName">-</strong><span id="marketId">-</span></div>
+      <div class="card"><small>链</small><strong id="chainName">-</strong><span id="chainId">-</span></div>
+      <div class="card"><small>协议</small><strong id="protocol">-</strong><span id="adapter">-</span></div>
+      <div class="card"><small>执行状态</small><strong id="executionState">-</strong><span id="executionNote">-</span></div>
+    </section>
+
+    <section class="split">
+      <div class="card">
+        <h2>链路边界</h2>
+        <table>
+          <tbody>
+            <tr><th>页面类型</th><td><span class="badge">native_chain</span></td></tr>
+            <tr><th>执行范围</th><td>单链，仅使用当前系统链路的市场配置。</td></tr>
+            <tr><th>CoW 执行网络</th><td>不适用。跨链复选只在 COW 链路页面显示。</td></tr>
+            <tr><th>URL 规则</th><td id="urlRule">-</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>当前配置</h2>
+        <table>
+          <tbody id="configRows">
+            <tr><td class="muted">加载中</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+    function selectedParams() {
+      const current = new URLSearchParams(location.search);
+      const query = new URLSearchParams();
+      query.set("feature", "dex_arbitrage");
+      if (current.get("market_id")) query.set("market_id", current.get("market_id"));
+      if (current.get("chain_id")) query.set("chain_id", current.get("chain_id"));
+      return query;
+    }
+
+    function applyCleanUrl(selection) {
+      const current = new URL(location.href);
+      current.searchParams.delete("cow_network");
+      current.searchParams.delete("cow_networks");
+      current.searchParams.delete("scope");
+      if (selection.market_id) current.searchParams.set("market_id", selection.market_id);
+      if (selection.chain_id !== null && selection.chain_id !== undefined) current.searchParams.set("chain_id", String(selection.chain_id));
+      $("urlRule").textContent = current.pathname + current.search;
+      $("candidateLink").href = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection("/dex/candidates") : "/dex/candidates";
+    }
+
+    function render(payload) {
+      const selected = payload.selected || {};
+      $("marketName").textContent = selected.display_name || selected.market_id || "-";
+      $("marketId").textContent = selected.market_id || "-";
+      $("chainName").textContent = selected.network || "-";
+      $("chainId").textContent = selected.chain_id === null || selected.chain_id === undefined ? "-" : `chainId ${selected.chain_id}`;
+      $("protocol").textContent = selected.protocol || "-";
+      $("adapter").textContent = selected.capabilities?.dex_arbitrage ? "DEX arbitrage scope" : "unknown scope";
+      const executable = selected.capabilities?.execution;
+      $("executionState").textContent = executable ? "可执行" : "观察 / 待部署";
+      $("executionState").className = executable ? "good" : "bad";
+      $("executionNote").textContent = selected.observation_only ? "当前市场仍处于 observation-only" : "已具备执行能力";
+      $("configRows").innerHTML = [
+        ["market_type", selected.market_type],
+        ["market_id", selected.market_id],
+        ["chain_id", selected.chain_id],
+        ["network", selected.network],
+        ["native_symbol", selected.native_symbol],
+        ["protocol", selected.protocol],
+        ["observation_only", selected.observation_only],
+        ["protocol_supported", selected.protocol_supported],
+      ].map(row => `<tr><th>${esc(row[0])}</th><td>${esc(row[1])}</td></tr>`).join("");
+      applyCleanUrl(selected);
+      $("message").textContent = selected.market_type === "native_chain"
+        ? "单链 DEX 页面已加载"
+        : "当前选择不是单链 DEX，系统路由会切换到匹配页面";
+    }
+
+    async function refresh() {
+      $("message").textContent = "读取链路配置中";
+      try {
+        const response = await fetch(`/api/chain-selection?${selectedParams()}`, {cache: "no-cache"});
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+        render(payload);
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+
+    $("refreshBtn").onclick = refresh;
+    refresh();
+  </script>
+</body>
+</html>

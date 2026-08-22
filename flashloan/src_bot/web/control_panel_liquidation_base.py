@@ -30,6 +30,7 @@ from core.config_schema import (
 )
 from core.env_loader import load_env_files, resolve_env_path
 from core.market_config import liquidation_market_config, liquidation_market_config_for, supported_market_summaries
+from core.market_scan_policy import market_scan_refresh_profile as resolve_market_scan_refresh_profile
 from core.sensitive_data import redact_sensitive_text
 from execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
 from market.observer import env_urls
@@ -179,11 +180,43 @@ def liquidation_scan_version() -> str:
 
 
 def liquidation_scan_refresh_profile() -> dict[str, float]:
-    config = liquidation_runtime_config()
+    market = liquidation_market_config()
+    profile = resolve_market_scan_refresh_profile(
+        market.market_id,
+        feature=market.feature,
+        database_url=database_url_or_none(),
+    )
+    configured = read_liquidation_runtime_config_parameters()
+
+    def configured_interval(key: str, fallback: float, minimum: float) -> float:
+        raw = os.getenv(key)
+        if raw is not None:
+            value, error = parse_env_float(key, fallback)
+            if not error:
+                return max(minimum, float(value))
+        if key in configured:
+            try:
+                return max(minimum, float(configured[key]))
+            except (TypeError, ValueError):
+                pass
+        return max(minimum, float(fallback))
+
     return {
-        "borrow_health_refresh_seconds": max(30.0, float(config["LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS"])),
-        "high_frequency_refresh_seconds": max(30.0, float(config["LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS"])),
-        "core_opportunity_refresh_seconds": max(1.0, float(config["LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS"])),
+        "borrow_health_refresh_seconds": configured_interval(
+            "LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS",
+            profile["borrow_health_refresh_seconds"],
+            30.0,
+        ),
+        "high_frequency_refresh_seconds": configured_interval(
+            "LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS",
+            profile["high_frequency_refresh_seconds"],
+            30.0,
+        ),
+        "core_opportunity_refresh_seconds": configured_interval(
+            "LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS",
+            profile["core_opportunity_refresh_seconds"],
+            1.0,
+        ),
     }
 
 def configured_database_url() -> str:
@@ -214,9 +247,12 @@ def liquidation_market_payload(market_id: str | None = None, chain_id: int | Non
         if market_id is not None or chain_id is not None
         else liquidation_market_config()
     )
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if database_unavailable_reason(database_url):
+        database_url = ""
     return {
         "active": market.as_dict(),
-        "supported_markets": supported_market_summaries(),
+        "supported_markets": supported_market_summaries(database_url or None),
     }
 
 

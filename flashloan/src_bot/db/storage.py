@@ -4,6 +4,7 @@
     SCHEMA_MIGRATIONS,
     close_connection_pools,
     db_connection,
+    db_transaction,
     require_psycopg,
     utc_from_ms,
 )
@@ -17,6 +18,10 @@ from db.storage_control_parameters import (
 from db.storage_chain_markets import (
     ensure_chain_market_registry_schema,
     load_chain_market_summaries,
+    load_current_dex_arbitrage_candidates,
+    load_market_scan_policies,
+    record_dex_arbitrage_attempt,
+    replace_current_dex_arbitrage_candidates,
     seed_builtin_chain_markets,
 )
 from db.storage_liquidation import (
@@ -81,6 +86,7 @@ __all__ = [
     "append_observations",
     "close_connection_pools",
     "db_connection",
+    "db_transaction",
     "ensure_chain_market_registry_schema",
     "ensure_control_panel_parameters_table",
     "ensure_database_schema",
@@ -107,6 +113,10 @@ __all__ = [
     "load_control_panel_parameter",
     "load_control_panel_parameter_map",
     "load_chain_market_summaries",
+    "load_current_dex_arbitrage_candidates",
+    "load_market_scan_policies",
+    "record_dex_arbitrage_attempt",
+    "replace_current_dex_arbitrage_candidates",
     "load_schema_migrations",
     "prune_liquidation_accounts",
     "record_liquidation_account_scan",
