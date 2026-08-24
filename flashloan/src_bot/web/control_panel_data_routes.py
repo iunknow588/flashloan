@@ -157,6 +157,59 @@ def _filter_network_claims(claims: list[dict], networks: list[str]) -> list[dict
     ]
 
 
+def _attempt_evidence(row: dict) -> dict:
+    review = row.get("review_summary") if isinstance(row.get("review_summary"), dict) else {}
+    review_evidence = review.get("onchain_evidence") if isinstance(review.get("onchain_evidence"), dict) else {}
+    quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+    quote_evidence = quote.get("live_onchain_evidence") if isinstance(quote.get("live_onchain_evidence"), dict) else {}
+    return review_evidence or quote_evidence or {}
+
+
+def _attempt_evidence_rank(row: dict) -> int:
+    evidence = _attempt_evidence(row)
+    status = str(evidence.get("status") or row.get("priority_reason") or row.get("state") or "").strip().lower()
+    if evidence.get("trustedForExecution") or evidence.get("trusted_for_execution"):
+        return 50
+    if evidence.get("readyForTransactionPreflight") or evidence.get("ready_for_transaction_preflight"):
+        return 40
+    if status == "live_verified":
+        return 35
+    if status in {"not_live_verified", "live_quote_failed"}:
+        return 30
+    if status == "live_evidence_deferred":
+        return 10
+    return 0
+
+
+def _attempt_route_key(row: dict) -> tuple[str, str]:
+    network = str(row.get("network") or row.get("cow_network") or "").strip().lower()
+    pair = str(row.get("pair") or row.get("symbol_pair") or row.get("route_key") or "").strip()
+    if not pair:
+        route = row.get("route_path") if isinstance(row.get("route_path"), list) else []
+        pair = " -> ".join(str(item).strip() for item in route if str(item).strip())
+    return network, pair
+
+
+def _attempt_time_key(row: dict) -> str:
+    return str(row.get("created_at") or row.get("observed_at") or "")
+
+
+def _dedupe_attempts_by_route_evidence(rows: list[dict], *, limit: int) -> list[dict]:
+    best: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        key = _attempt_route_key(row)
+        if not key[1]:
+            key = (key[0], f"__row_{len(best)}_{_attempt_time_key(row)}")
+        current = best.get(key)
+        candidate_score = (_attempt_evidence_rank(row), _attempt_time_key(row))
+        current_score = (_attempt_evidence_rank(current), _attempt_time_key(current)) if current else (-1, "")
+        if current is None or candidate_score > current_score:
+            best[key] = row
+    deduped = list(best.values())
+    deduped.sort(key=lambda item: (_attempt_evidence_rank(item), _attempt_time_key(item)), reverse=True)
+    return deduped[: max(1, int(limit))]
+
+
 def record_cow_attempt_list_safely(
     attempts: list[dict],
     *,
@@ -240,7 +293,7 @@ def _cow_execution_attempt_groups(
     for category in COW_EXECUTION_REVIEW_CATEGORIES:
         rows = loader(limit=limit, networks=networks, category=category)
         rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)
-        rows = rows[: max(1, int(limit))]
+        rows = _dedupe_attempts_by_route_evidence(rows, limit=limit)
         groups[category] = {
             "attempts": rows,
             "count": len(rows),
@@ -258,8 +311,7 @@ def _flatten_cow_execution_groups(groups: dict[str, dict], limit: int) -> list[d
         for group in groups.values()
         for row in group.get("attempts", [])
     ]
-    rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)
-    return rows[: max(1, int(limit))]
+    return _dedupe_attempts_by_route_evidence(rows, limit=limit)
 
 
 def record_cow_market_candidates_safely(

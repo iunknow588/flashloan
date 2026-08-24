@@ -52,8 +52,8 @@
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
-      <div class="metric"><small>可套利路径</small><strong id="pathCount">-</strong><span>已满足闪电贷衔接</span></div>
-      <div class="metric"><small>观察交易对</small><strong id="watchCount">-</strong><span>有候选池但仍需报价</span></div>
+      <div class="metric"><small>可套利路径候选</small><strong id="pathCount">-</strong><span id="pathMeta">围绕可借锚点筛选</span></div>
+      <div class="metric"><small>观察交易对</small><strong id="watchCount">-</strong><span>未进入路径候选</span></div>
       <div class="metric"><small>闪电贷协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
       <div class="metric"><small>池子来源</small><strong id="sourceNetwork">-</strong><span id="sourceMeta">-</span></div>
     </section>
@@ -62,7 +62,12 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const apiPath = path => window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+    const apiPath = path => {
+      const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      const url = new URL(scoped, window.location.origin);
+      url.searchParams.delete("protocols");
+      return url.pathname + (url.search ? url.search : "");
+    };
     async function fetchJson(path) {
       const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
       const data = await response.json();
@@ -71,19 +76,21 @@
     }
     function pairHtml(pair) {
       const linkage = pair.flashLoanLinkage || {};
+      const route = pair.overviewRoute || {};
       const pools = pair.executionPools || pair.preferredPools || [];
       return `<article class="path">
         <div class="path-head">
           <div>
-            <h2>${esc(pair.symbolPair)}</h2>
+            <h2>${esc(route.pathText || pair.symbolPair)}</h2>
             <div class="badges">
-              <span class="badge good">可原子衔接</span>
-              <span class="badge">${esc(linkage.strategy)}</span>
-              <span class="badge">借入 ${esc((linkage.borrow_symbols || []).join(", ") || "-")}</span>
+              <span class="badge good">套利候选</span>
+              <span class="badge">${esc(route.kind === "bridge_pair" ? "桥接路径" : "直接路径")}</span>
+              <span class="badge">借入 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
+              <span class="badge">目标 ${esc(route.targetSymbol || "-")}</span>
               <span class="badge">候选池 ${esc(pools.length)}</span>
             </div>
           </div>
-          <div class="muted">${esc((linkage.route_symbols || []).join(" -> "))}</div>
+          <div class="muted">${esc((route.candidatePairSymbols || []).join(" | ") || (linkage.route_symbols || []).join(" -> "))}</div>
         </div>
         <div class="table-wrap"><table>
           <thead><tr><th>池子</th><th>协议</th><th>费率</th><th>TVL</th><th>深度等级</th></tr></thead>
@@ -101,6 +108,7 @@
         const flash = data.flashLoanLiquidity || {};
         const source = data.poolStaticTable || {};
         $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
+        $("pathMeta").textContent = `直接 ${data.summary?.directAnchorPathCount ?? 0} | 桥接 ${data.summary?.bridgePathCount ?? 0} | 锚点 ${(data.summary?.anchorBorrowSymbols || []).join(", ") || "-"}`;
         $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
         $("flashCount").textContent = (flash.available_protocols || []).length;
         $("flashNames").textContent = (flash.available_protocols || []).join(", ") || "-";

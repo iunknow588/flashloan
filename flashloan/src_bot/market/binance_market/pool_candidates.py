@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
+import re
 from typing import Any
 
 from core.contracts import source_metadata
@@ -45,6 +46,7 @@ FLASH_LOAN_NATIVE_PROTOCOLS = {"aave_v3", "venus_core", "morpho_blue"}
 FLASH_SWAP_PROTOCOLS = {
     "uniswap_v2",
     "uniswap_v3",
+    "uniswap_v4",
     "pancakeswap_v2",
     "pancakeswap_v3",
     "quickswap_v2",
@@ -54,6 +56,8 @@ FLASH_SWAP_PROTOCOLS = {
 }
 DEX_POOL_PROTOCOLS = set(FLASH_SWAP_PROTOCOLS)
 UNISWAPX_DUTCH_V3_CHAIN_IDS = {42161, 43114, 8453, 56, 4663, 4217, 130}
+READABLE_SYMBOL_RE = re.compile(r"^[A-Z0-9.$_\-\u4e00-\u9fff()]+$")
+MAX_READABLE_SYMBOL_LENGTH = 24
 
 
 def _read_json_object(path: Path) -> dict:
@@ -80,10 +84,22 @@ def _string_number(value) -> float | None:
     return parsed if parsed == parsed and parsed not in (float("inf"), float("-inf")) else None
 
 
+def _int_sort_value(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _stable_symbol(symbol: object) -> bool:
     normalized = str(symbol or "").strip().upper()
     bridge_base = normalized[:-2] if normalized.endswith(".E") else normalized
     return normalized in STABLE_SYMBOLS or bridge_base in STABLE_SYMBOLS or normalized.endswith("USD")
+
+
+def _readable_symbol(symbol: object) -> bool:
+    text = str(symbol or "").strip().upper()
+    return bool(text) and len(text) <= MAX_READABLE_SYMBOL_LENGTH and bool(READABLE_SYMBOL_RE.fullmatch(text))
 
 
 def _pair_classification(token0_symbol: object, token1_symbol: object) -> dict[str, Any]:
@@ -206,7 +222,11 @@ def _pool_candidate_row(row: dict) -> dict:
         "_sortTvlUsd": tvl if tvl is not None else -1.0,
     }
     result.update(_pair_classification(result.get("token0Symbol"), result.get("token1Symbol")))
-    result["depthBand"] = _depth_band(result["balances"].get("tvlUsd"))
+    result["depthBand"] = (
+        {"level": "observed", "label": "链上流动性已观察"}
+        if result.get("liquidity") and _string_number(result["balances"].get("tvlUsd")) is None
+        else _depth_band(result["balances"].get("tvlUsd"))
+    )
     return result
 
 
@@ -239,7 +259,11 @@ def _bnb_pool_candidate_row(row: dict) -> dict:
         "_sortTvlUsd": tvl if tvl is not None else -1.0,
     }
     result.update(_pair_classification(result.get("token0Symbol"), result.get("token1Symbol")))
-    result["depthBand"] = _depth_band(result["balances"].get("tvlUsd"))
+    result["depthBand"] = (
+        {"level": "observed", "label": "链上流动性已观察"}
+        if result.get("liquidity") and _string_number(result["balances"].get("tvlUsd")) is None
+        else _depth_band(result["balances"].get("tvlUsd"))
+    )
     return result
 
 
@@ -289,12 +313,14 @@ def _protocol_key(value: object) -> str:
     aliases = {
         "v2": "uniswap_v2",
         "v3": "uniswap_v3",
+        "v4": "uniswap_v4",
         "pancakeswap_v2": "pancakeswap_v2",
         "pancakeswap_v3": "pancakeswap_v3",
         "biswap_v2": "biswap_v2",
         "traderjoe_v2": "traderjoe_v2",
         "uniswap_v2": "uniswap_v2",
         "uniswap_v3": "uniswap_v3",
+        "uniswap_v4": "uniswap_v4",
         "curve": "curve",
         "balancer_v2": "balancer_v2",
         "quickswap_v2": "quickswap_v2",
@@ -303,7 +329,7 @@ def _protocol_key(value: object) -> str:
 
 
 def _pool_protocol(row: dict) -> str:
-    return _protocol_key(row.get("dex") or row.get("protocol") or row.get("adapterKind"))
+    return _protocol_key(row.get("protocol") or row.get("adapterKind") or row.get("dex"))
 
 
 def _dex_pool_protocol_filter(protocols: list[str] | tuple[str, ...] | set[str] | None) -> set[str]:
@@ -553,9 +579,10 @@ def _bnb_dex_pool_candidates_payload(table: dict, pool_cache_path: Path) -> dict
     }
 
 
-def _latest_robinhood_pool_static_table(evidence_root: Path = ROBINHOOD_DEX_EVIDENCE_ROOT) -> tuple[dict[str, Any], Path | None]:
+def _latest_robinhood_pool_static_table(evidence_root: Path | None = None) -> tuple[dict[str, Any], Path | None]:
+    root = evidence_root or ROBINHOOD_DEX_EVIDENCE_ROOT
     try:
-        paths = sorted(evidence_root.glob("*/pool_static_table.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+        paths = sorted(root.glob("*/pool_static_table.json"), key=lambda item: item.stat().st_mtime, reverse=True)
     except OSError:
         return {}, None
     for path in paths:
@@ -647,7 +674,11 @@ def _robinhood_pool_candidate_row(row: dict) -> dict:
         "_sortTvlUsd": tvl if tvl is not None else -1.0,
     }
     result.update(_pair_classification(result.get("token0Symbol"), result.get("token1Symbol")))
-    result["depthBand"] = _depth_band(result["balances"].get("tvlUsd"))
+    result["depthBand"] = (
+        {"level": "observed", "label": "链上流动性已观察"}
+        if result.get("liquidity") and _string_number(result["balances"].get("tvlUsd")) is None
+        else _depth_band(result["balances"].get("tvlUsd"))
+    )
     return result
 
 
@@ -664,6 +695,8 @@ def _robinhood_pool_table_payload(
         if not isinstance(row, dict) or not _pool_address(row):
             continue
         candidate = _robinhood_pool_candidate_row(row)
+        if not _readable_symbol(candidate.get("token0Symbol")) or not _readable_symbol(candidate.get("token1Symbol")):
+            continue
         symbols = [candidate.get("token0Symbol"), candidate.get("token1Symbol")]
         symbol_pair = str(row.get("symbolPair") or ":".join(str(item or "").upper() for item in symbols if item)).strip(":")
         if not symbol_pair:
@@ -672,7 +705,7 @@ def _robinhood_pool_table_payload(
 
     pair_reports = []
     for pair, pool_rows in grouped.items():
-        pool_rows.sort(key=lambda row: (-row["_sortTvlUsd"], int(row.get("fee") or 0)))
+        pool_rows.sort(key=lambda row: (-row["_sortTvlUsd"], _int_sort_value(row.get("fee"))))
         strict_rows = [row for row in pool_rows if str(row.get("quality") or "").lower() == "pass"]
         preferred_rows = list(strict_rows)
         rejected_rows = [row for row in pool_rows if row not in strict_rows]

@@ -7,13 +7,16 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
-    header, main { padding: 18px 24px; }
+    header, main { padding: 18px 28px; }
     header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
-    main { width: min(1420px, 100%); margin: 0 auto; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
     h1 { margin: 0; font-size: 20px; }
     nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
-    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
+    button { min-height: 34px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    button.copy-btn { min-height: 28px; border-color: #d0d5dd; background: #fff; color: #344054; font-size: 12px; }
+    button.danger { border-color: #b42318; background: #b42318; }
+    button:disabled { opacity: .55; cursor: wait; }
     .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric, .panel { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
@@ -23,8 +26,13 @@
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; vertical-align: top; }
-    th:first-child, td:first-child { text-align: left; }
-    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } }
+    th:first-child, td:first-child, th:nth-child(3), td:nth-child(3), th:nth-child(8), td:nth-child(8) { text-align: left; }
+    td.reason { max-width: 360px; white-space: normal; line-height: 1.45; }
+    .badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #eef2f6; color: #344054; }
+    .badge.live { background: #dcfae6; color: #067647; }
+    .badge.static { background: #fff3cd; color: #8a6116; }
+    .badge.fail { background: #fee4e2; color: #b42318; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } main, header { padding-left: 18px; padding-right: 18px; } }
   </style>
 </head>
 <body data-dex-surface-template="submissions">
@@ -41,10 +49,11 @@
   <main>
     <div class="toolbar">
       <button id="refreshBtn">刷新记录</button>
+      <button id="clearBtn" class="danger">清空当前链路记录</button>
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
-      <div class="metric"><small>提交总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
+      <div class="metric"><small>提交/观察总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
       <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>已完成交易</span></div>
       <div class="metric"><small>失败</small><strong id="failedCount">-</strong><span>执行或链上失败</span></div>
       <div class="metric"><small>阻断</small><strong id="blockedCount">-</strong><span>报价后未满足提交条件</span></div>
@@ -52,7 +61,19 @@
     <section class="panel">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>时间</th><th>网络</th><th>交易对</th><th>状态</th><th>原因</th><th>订单/交易</th></tr></thead>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>网络</th>
+              <th>路径</th>
+              <th>证据来源</th>
+              <th>链上区块</th>
+              <th>观察/复核盈亏比例</th>
+              <th>状态</th>
+              <th>原因与复盘要点</th>
+              <th>订单/交易</th>
+            </tr>
+          </thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -60,20 +81,143 @@
   </main>
   <script>
     const $ = id => document.getElementById(id);
+    let latestRows = [];
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const fmtTime = value => value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
+    const apiPath = path => {
+      const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      const url = new URL(scoped, window.location.origin);
+      url.searchParams.delete("protocols");
+      return url.pathname + (url.search ? url.search : "");
+    };
     async function fetchJson(path) {
-      const response = await fetch(path, {cache: "no-cache", headers: {"Accept": "application/json"}});
+      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       return data;
     }
-    function rowHtml(row) {
-      const status = row.category || row.status || row.submission_status || "-";
+    async function postJson(path) {
+      const response = await fetch(apiPath(path), {method: "POST", cache: "no-cache", headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+    function numberValue(value) {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    function evidence(row) {
+      return row.review_summary?.onchain_evidence || row.quote?.live_onchain_evidence || {};
+    }
+    function profitPercent(row) {
+      const ev = evidence(row);
+      const liveBps = numberValue(ev.net_profit_bps || ev.costModel?.netProfitBps);
+      if (liveBps !== null) return {value: liveBps / 100, source: "链上复核"};
+      const review = row.review_summary || {};
+      const plan = review.plan || {};
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || {};
+      const precheck = row.precheck || {};
+      const status = String(ev.status || "").toLowerCase();
+      const staticSource = status === "not_live_verified" && analysis.requiresLiveQuoter ? "第三方参考价" : "静态观察";
+      const direct = numberValue(plan.profit_percent ?? quote.profit_percent ?? precheck.expected_profit_percent);
+      if (direct !== null) return {value: direct, source: staticSource};
+      const bps = numberValue(analysis.netProfitBps);
+      if (bps !== null) return {value: bps / 100, source: staticSource};
+      const profitUsd = numberValue(analysis.netProfitUsd ?? row.final_delta_amount);
+      const notional = numberValue(analysis.notionalUsd ?? quote.input_amount ?? precheck.notional_usd);
+      if (profitUsd !== null && notional !== null && notional > 0) return {value: profitUsd / notional * 100, source: staticSource};
+      return {value: null, source: "-"};
+    }
+    function fmtPct(result) {
+      const parsed = numberValue(result?.value);
+      if (parsed === null) return "-";
+      return `${result.source} ${parsed >= 0 ? "+" : ""}${parsed.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`;
+    }
+    function lines(items) {
+      return (items || []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
+    }
+    async function copyText(text, button) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.setAttribute("readonly", "");
+          area.style.position = "fixed";
+          area.style.left = "-9999px";
+          document.body.appendChild(area);
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+        }
+        const old = button.textContent;
+        button.textContent = "已复制";
+        setTimeout(() => { button.textContent = old; }, 1200);
+      } catch (error) {
+        $("message").textContent = `复制失败：${error.message}`;
+      }
+    }
+    function evidenceBadge(row) {
+      const ev = evidence(row);
+      const status = String(ev.status || "").toLowerCase();
+      if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可执行复核通过</span>';
+      if (status === "live_verified") return '<span class="badge live">链上报价已复核</span>';
+      if (status === "not_live_verified") return '<span class="badge fail">未通过链上复核</span>';
+      if (status && status !== "not_live_verified") return `<span class="badge fail">${esc(status)}</span>`;
+      return '<span class="badge static">静态观察</span>';
+    }
+    function reasonText(row) {
+      const ev = evidence(row);
+      const evReasons = ev.blockers || ev.blockers?.blockers || [];
+      const base = row.reason || row.blocked_reason || (row.blocked_reasons || []).join("，") || (row.reasons || []).join("，") || row.error || "-";
+      const hop = ev.hop_count || ev.hops?.length;
+      const prefix = hop ? `每跳复核 ${hop} 跳。` : "";
+      const reasons = Array.isArray(evReasons) && evReasons.length ? evReasons.join("，") : base;
+      return `${prefix}${reasons}`;
+    }
+    function recordCopyText(row) {
+      const ev = evidence(row);
+      const pct = fmtPct(profitPercent(row));
+      const status = row.review_category || row.category || row.status || row.state || row.submission_status || "-";
       const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
-      const reason = row.reason || row.blocked_reason || (row.reasons || []).join(", ") || row.error || "-";
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || {};
+      const hops = ev.hops?.length ? ev.hops : (quote.hops || analysis.steps || []);
+      return lines([
+        `时间：${fmtTime(row.created_at || row.observed_at || row.updated_at)}`,
+        `网络：${row.network || row.cow_network || "-"}`,
+        `路径：${pair}`,
+        `状态：${status}`,
+        `证据状态：${ev.status || "-"}`,
+        `执行可信：${ev.trustedForExecution || ev.trusted_for_execution ? "是" : "否"}`,
+        `触发区块：${ev.triggerBlockNumber || ev.trigger_block_number || "-"}`,
+        `复核区块：${ev.blockNumber || ev.block_number || "-"}`,
+        `盈亏比例：${pct}`,
+        `订单/交易：${row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-"}`,
+        "",
+        "原因与复盘要点：",
+        reasonText(row),
+        "",
+        "逐跳数据：",
+        ...(hops.length ? hops.map(step => [
+          `${step.hop || "-"}。${step.fromSymbol || step.from_symbol || "-"} -> ${step.toSymbol || step.to_symbol || "-"}`,
+          `协议：${step.protocol || step.dex || "-"}`,
+          `池子：${step.pool || "-"}`,
+          `输入：${step.amountIn || step.inputAmount || "-"} ${step.fromSymbol || step.from_symbol || ""}`,
+          `输出：${step.amountOut || step.outputAmount || "-"} ${step.toSymbol || step.to_symbol || ""}`,
+          `方法：${step.quoteMethod || step.quoteSource || "-"}`,
+        ].join(" | ")) : ["-"]),
+      ]).join("\n");
+    }
+    function rowHtml(row, index) {
+      const status = row.review_category || row.category || row.status || row.state || row.submission_status || "-";
+      const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
+      const ev = evidence(row);
       const order = row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-";
-      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td>${esc(pair)}</td><td>${esc(status)}</td><td>${esc(reason)}</td><td>${esc(order)}</td></tr>`;
+      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td>${esc(pair)}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td>${esc(fmtPct(profitPercent(row)))}</td><td>${esc(status)}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button></td></tr>`;
     }
     async function refresh() {
       $("message").textContent = "正在加载提交记录...";
@@ -84,13 +228,38 @@
         $("failedCount").textContent = data.summary?.failedCount ?? 0;
         $("blockedCount").textContent = data.summary?.blockedCount ?? 0;
         $("source").textContent = data.source || "-";
-        $("rows").innerHTML = (data.attempts || []).map(rowHtml).join("") || '<tr><td colspan="6">暂无提交记录。</td></tr>';
+        latestRows = data.attempts || [];
+        $("rows").innerHTML = latestRows.map(rowHtml).join("") || '<tr><td colspan="9">暂无提交记录。</td></tr>';
         $("message").textContent = "已更新";
       } catch (error) {
         $("message").textContent = error.message;
       }
     }
+    async function clearRecords() {
+      if (!confirm("确认清空当前链路的提交记录和机会复盘记录？")) return;
+      $("clearBtn").disabled = true;
+      $("message").textContent = "正在清空当前链路记录...";
+      try {
+        const data = await postJson("/api/dex/submissions/clear");
+        $("message").textContent = `已清空 ${data.cleared ?? 0} 条记录`;
+        await refresh();
+      } catch (error) {
+        $("message").textContent = error.message;
+      } finally {
+        $("clearBtn").disabled = false;
+      }
+    }
     $("refreshBtn").onclick = refresh;
+    $("clearBtn").onclick = clearRecords;
+    $("rows").addEventListener("click", event => {
+      const button = event.target.closest("[data-copy-record]");
+      if (!button) return;
+      const row = latestRows[Number(button.dataset.copyRecord)];
+      if (row) copyText(recordCopyText(row), button);
+    });
+    window.addEventListener("chainselectionchanged", event => {
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+    });
     refresh();
   </script>
 </body>

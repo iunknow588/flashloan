@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from web.control_panel import app
 
 
@@ -67,8 +69,12 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/dex/overview" in paths
     assert "/api/dex/market-observation" in paths
     assert "/api/dex/quote-routes" in paths
+    assert "/api/dex/opportunity-scanner/start" in paths
+    assert "/api/dex/opportunity-scanner/snapshot" in paths
+    assert "/api/dex/opportunity-scanner/scan-now" in paths
     assert "/api/dex/quote-request" in paths
     assert "/api/dex/submissions" in paths
+    assert "/api/dex/submissions/clear" in paths
     assert "/api/execution/state" in paths
     assert "/robinhood-dex" in paths
     assert "/api/robinhood-dex/observation" in paths
@@ -93,6 +99,21 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"cow-dex-arbitrage",chain_id:"0"}' in body
         assert "当前 BOT 市场" not in body
         assert "当前 DEX 链路" not in body
+
+    quotes_body = client.get("/dex/quotes").get_data(as_text=True)
+    assert "/api/dex/opportunity-scanner/start" in quotes_body
+    assert "/api/dex/opportunity-scanner/snapshot" in quotes_body
+    assert "/api/dex/opportunity-scanner/scan-now" in quotes_body
+    assert "scanIntervalMs = 3000" in quotes_body
+
+    submissions_body = client.get("/dex/submissions").get_data(as_text=True)
+    assert "/api/dex/submissions/clear" in submissions_body
+    assert "观察/复核盈亏比例" in submissions_body
+    assert "清空当前链路记录" in submissions_body
+    assert "未通过链上复核" in submissions_body
+    assert "第三方参考价" in submissions_body
+    assert "复制记录" in submissions_body
+    assert "data-copy-record" in submissions_body
 
     for path in ("/dex-pools", "/candidate-pools"):
         body = client.get(path).get_data(as_text=True)
@@ -1433,8 +1454,11 @@ def test_dex_page_variant_is_driven_by_market_selection():
     robinhood = client.get("/dex/quotes?market_id=robinhood-dex-shadow&chain_id=4663")
 
     assert bnb.status_code == 200
-    assert 'data-dex-surface-template="quotes"' in bnb.get_data(as_text=True)
-    assert "cowNetworkChecks" not in bnb.get_data(as_text=True)
+    bnb_body = bnb.get_data(as_text=True)
+    assert 'data-dex-surface-template="quotes"' in bnb_body
+    assert "cowNetworkChecks" not in bnb_body
+    assert "复制本组" in bnb_body
+    assert "data-copy-route" in bnb_body
     assert robinhood.status_code == 200
     assert 'data-dex-surface-template="quotes"' in robinhood.get_data(as_text=True)
 
@@ -1479,6 +1503,7 @@ def test_market_observation_page_exposes_observation_surface_controls():
     assert 'data-dex-surface-template="observation"' in body
     assert 'id="directList"' in body
     assert 'id="indirectList"' in body
+    assert 'url.searchParams.delete("protocols")' in body
 
 
 def test_dex_surface_payload_apis_are_distinct():
@@ -1486,8 +1511,15 @@ def test_dex_surface_payload_apis_are_distinct():
 
     overview = client.get("/api/dex/overview?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
     observation = client.get("/api/dex/market-observation?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
+    robinhood_observation = client.get(
+        "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663"
+    ).get_json()
+    robinhood_observation_with_single_protocol = client.get(
+        "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v2"
+    ).get_json()
     quotes = client.get("/api/dex/quote-routes?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
-    quote_request = client.get("/api/dex/quote-request?market_id=bnb-dex-arbitrage&chain_id=56&pair=USDC:USDT&venue=uniswapx&amount=1000").get_json()
+    quote_pair = quote(str(quotes["routes"][0]["symbolPair"]), safe="")
+    quote_request = client.get(f"/api/dex/quote-request?market_id=bnb-dex-arbitrage&chain_id=56&pair={quote_pair}&venue=uniswapx&amount=1000").get_json()
     submissions = client.get("/api/dex/submissions?limit=5").get_json()
     robinhood_candidates = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
@@ -1495,16 +1527,23 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_candidates_with_lending_protocol = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=morpho_blue"
     ).get_json()
+    robinhood_candidates_with_single_dex_protocol = client.get(
+        "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v2"
+    ).get_json()
     robinhood_candidates_page = client.get(
         "/dex/candidates?market_id=robinhood-dex-shadow&chain_id=4663"
     ).get_data(as_text=True)
 
     assert overview["mode"] == "dex_overview"
     assert observation["mode"] == "dex_market_observation"
+    assert robinhood_observation_with_single_protocol["summary"] == robinhood_observation["summary"]
+    assert robinhood_observation_with_single_protocol["selected_protocols"] == []
     assert quotes["mode"] == "dex_quote_routes"
     assert quote_request["mode"] == "dex_quote_request"
     assert submissions["mode"] == "dex_submission_review"
     assert "arbitragePaths" in overview
+    assert overview["decisionBasis"] == "borrow_anchor_to_non_anchor_candidate_path"
+    assert overview["arbitragePaths"][0]["overviewRoute"]["anchorBorrowSymbol"]
     assert "directPools" in observation
     assert "routes" in quotes
     assert "quoteRequests" in quote_request
@@ -1513,8 +1552,105 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_candidates["poolStaticTable"]["network"] == "robinhood"
     assert robinhood_candidates["summary"]["pairTableCount"] != "0"
     assert robinhood_candidates_with_lending_protocol["summary"]["pairTableCount"] != "0"
-    assert robinhood_candidates_with_lending_protocol["pairs"][0]["symbolPair"] == "USDG:WETH"
+    assert len({pair["symbolPair"] for pair in robinhood_candidates_with_lending_protocol["pairs"]}) > 1
+    assert robinhood_candidates_with_single_dex_protocol["summary"]["pairTableCount"] == robinhood_candidates["summary"]["pairTableCount"]
+    assert len({pair["symbolPair"] for pair in robinhood_candidates_with_single_dex_protocol["pairs"]}) > 1
     assert "本页展示 Avalanche L1 静态池表" not in robinhood_candidates_page
+    assert 'query.delete("protocols")' in robinhood_candidates_page
+
+
+def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkeypatch):
+    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from web import control_panel
+    from web.data_routes import dex_surfaces as dex_surface_routes
+
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    append_cow_execution_attempts_jsonl(
+        path,
+        [
+            {
+                "observed_at": "2026-08-24T00:00:00+00:00",
+                "network": "robinhood",
+                "pair": "USDG -> WETH -> USDG",
+                "state": "quote_required",
+                "execution_phase": "market_candidate",
+                "checks_passed": False,
+                "can_submit_order": False,
+            }
+        ],
+    )
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
+    monkeypatch.setattr(dex_surface_routes.shared, "COW_EXECUTION_ATTEMPT_LOG_PATH", path)
+    client = app.test_client()
+
+    before = client.get("/api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20").get_json()
+    cleared = client.post("/api/dex/submissions/clear?market_id=robinhood-dex-shadow&chain_id=4663").get_json()
+    after = client.get("/api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20").get_json()
+
+    assert before["summary"]["attemptCount"] == 1
+    assert cleared["ok"] is True
+    assert cleared["cleared"] == 1
+    assert cleared["networks"] == ["robinhood"]
+    assert after["summary"]["attemptCount"] == 0
+
+
+def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_path, monkeypatch):
+    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from web import control_panel
+    from web.data_routes import dex_surfaces as dex_surface_routes
+
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    pair = "USDG -> WETH -> HOBBS -> WETH -> USDG"
+    append_cow_execution_attempts_jsonl(
+        path,
+        [
+            {
+                "observed_at": "2026-08-24T12:54:19+00:00",
+                "network": "robinhood",
+                "pair": pair,
+                "state": "quote_required",
+                "execution_phase": "market_candidate",
+                "checks_passed": False,
+                "can_submit_order": False,
+                "quote": {
+                    "live_onchain_evidence": {
+                        "status": "not_live_verified",
+                        "executionTrust": "static_reference_only",
+                        "trustedForExecution": False,
+                        "blockers": ["第 4 跳为 sushiswap V3 池，不能用 Uniswap Quoter 证明该池输出。"],
+                    }
+                },
+            },
+            {
+                "observed_at": "2026-08-24T12:54:30+00:00",
+                "network": "robinhood",
+                "pair": pair,
+                "state": "quote_required",
+                "execution_phase": "market_candidate",
+                "checks_passed": False,
+                "can_submit_order": False,
+                "quote": {
+                    "live_onchain_evidence": {
+                        "status": "live_evidence_deferred",
+                        "executionTrust": "static_reference_only",
+                        "trustedForExecution": False,
+                        "blockers": ["本轮扫描达到链上复核上限，已延后到下一轮空闲扫描。"],
+                    }
+                },
+            },
+        ],
+    )
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
+    monkeypatch.setattr(dex_surface_routes.shared, "COW_EXECUTION_ATTEMPT_LOG_PATH", path)
+    client = app.test_client()
+
+    payload = client.get("/api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20").get_json()
+    attempts = [row for row in payload["attempts"] if row.get("pair") == pair]
+
+    assert len(attempts) == 1
+    evidence = attempts[0]["review_summary"]["onchain_evidence"]
+    assert evidence["status"] == "not_live_verified"
+    assert "不能用 Uniswap Quoter 证明该池输出" in evidence["blockers"][0]
 
 
 def test_dex_page_mounts_shared_market_selector():

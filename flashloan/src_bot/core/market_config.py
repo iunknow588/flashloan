@@ -437,6 +437,13 @@ PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
         "supported": False,
         "notes": "DEX arbitrage starts in shadow mode until DEX addresses, pools, executor, and flash-loan path are verified.",
     },
+    "uniswap_v4": {
+        "evm": True,
+        "adapter": "UniswapV4DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "Uniswap V4 route discovery and quote execution use a live SDK adapter plus on-chain preflight before execution is allowed.",
+    },
     "uniswap_v2": {
         "evm": True,
         "adapter": "UniswapV2DexAdapter",

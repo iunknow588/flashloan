@@ -1,0 +1,90 @@
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Exception in thread liquidation-engine:
+Traceback (most recent call last):
+  File "C:\ProgramData\Miniconda3\Lib\threading.py", line 1075, in _bootstrap_inner
+    self.run()
+  File "C:\ProgramData\Miniconda3\Lib\threading.py", line 1012, in run
+    self._target(*self._args, **self._kwargs)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src_bot\runtime\liquidation_engine.py", line 99, in <lambda>
+    thread = threading.Thread(target=lambda: asyncio.run(self.run_forever()), name=name, daemon=True)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Miniconda3\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Miniconda3\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Miniconda3\Lib\asyncio\base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src_bot\runtime\liquidation_engine.py", line 92, in run_forever
+    self.run_once(allow_poll=full_poll_due)
+  File "E:\2026OPC大赛\flashLoan\flashloan\src_bot\runtime\liquidation_engine.py", line 142, in run_once
+    candidate_accounts = accounts or event_accounts or (self.dependencies.load_accounts() if allow_poll else [])
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src_bot\web\control_panel.py", line 1068, in liquidation_engine_core_accounts
+    rows = db_load_liquidation_core_opportunity_pool(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src_bot\db\storage_liquidation_pool.py", line 754, in load_liquidation_core_opportunity_pool
+    with db_connection(database_url, connect_timeout=8) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Miniconda3\Lib\contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "E:\2026OPC大赛\flashLoan\flashloan\src_bot\db\storage_common.py", line 240, in db_connection
+    with psycopg.connect(database_url, connect_timeout=connect_timeout) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ProgramData\Miniconda3\Lib\site-packages\psycopg\connection.py", line 130, in connect
+    raise new_ex.with_traceback(None)
+psycopg.OperationalError: connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5061
+ * Running on http://192.168.1.3:5061
+Press CTRL+C to quit
+127.0.0.1 - - [24/Aug/2026 19:48:58] "GET /healthz HTTP/1.1" 200 -
+127.0.0.1 - - [24/Aug/2026 19:49:18] "GET /api/dex/opportunity-scanner/scan-now?market_id=robinhood-dex-shadow&chain_id=4663 HTTP/1.1" 200 -
+127.0.0.1 - - [24/Aug/2026 19:49:20] "GET /api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20 HTTP/1.1" 200 -

@@ -103,6 +103,10 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const compactText = (value, max = 28) => {
+      const text = String(value || "-").trim();
+      return text.length > max ? `${text.slice(0, max)}...` : text;
+    };
     const shortAddress = value => {
       const text = String(value || "").trim();
       return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
@@ -167,6 +171,7 @@
 
     function candidatesApiPath() {
       const query = new URLSearchParams(window.location.search);
+      query.delete("protocols");
       if (!query.get("feature")) query.set("feature", "dex_arbitrage");
       return `/api/dex-pools/candidates?${query.toString()}`;
     }
@@ -243,7 +248,7 @@
           <div class="pair-head">
             <div>
               <div class="pair-title">
-                <h2>${esc(pair.symbolPair)}</h2>
+                <h2 title="${esc(pair.symbolPair)}">${esc(compactText(pair.symbolPair, 36))}</h2>
               <span class="badge ${Number(pair.preferredPoolCount || 0) >= 4 ? "good" : "warn"}">静态候选 ${esc(pair.preferredPoolCount)} / 4</span>
               <span class="badge ${Number(pair.strictQualityPoolCount || 0) >= 4 ? "good" : "warn"}">严格高质量 ${esc(pair.strictQualityPoolCount)}</span>
               <span class="badge neutral">五槽窗口 ${esc(pair.executionPoolCount)}</span>
@@ -251,7 +256,7 @@
               <span class="badge ${Number(pair.preferredPoolCount || 0) > 0 ? "good" : "warn"}">可报价池 ${esc(pair.preferredPoolCount || 0)}</span>
               <span class="badge neutral">拒绝 ${esc(pair.rejectedPoolCount)}</span>
             </div>
-              <div class="pair-meta">tokenX ${esc(pair.tokenXSymbol)} ${esc(pair.tokenX)} | tokenY ${esc(pair.tokenYSymbol)} ${esc(pair.tokenY)}</div>
+              <div class="pair-meta">tokenX <span title="${esc(pair.tokenXSymbol)}">${esc(compactText(pair.tokenXSymbol, 18))}</span> ${esc(pair.tokenX)} | tokenY <span title="${esc(pair.tokenYSymbol)}">${esc(compactText(pair.tokenYSymbol, 18))}</span> ${esc(pair.tokenY)}</div>
             </div>
              <div class="pair-meta">拒绝池：${esc(pair.rejectedPoolCount || 0)}</div>
           </div>

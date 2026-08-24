@@ -29,13 +29,14 @@ PROTOCOL_ORDER = {
     "aave_v3": 2,
     "uniswap_v2": 3,
     "uniswap_v3": 4,
-    "pancakeswap_v3": 5,
-    "pancakeswap_v2": 6,
-    "biswap_v2": 7,
-    "quickswap_v2": 8,
-    "traderjoe_v2": 9,
-    "balancer_v2": 10,
-    "curve": 11,
+    "uniswap_v4": 5,
+    "pancakeswap_v3": 6,
+    "pancakeswap_v2": 7,
+    "biswap_v2": 8,
+    "quickswap_v2": 9,
+    "traderjoe_v2": 10,
+    "balancer_v2": 11,
+    "curve": 12,
 }
 PROTOCOL_LABELS = {
     "aave_v3": "Aave V3",
@@ -43,6 +44,7 @@ PROTOCOL_LABELS = {
     "morpho_blue": "Morpho Blue",
     "uniswap_v2": "Uniswap V2",
     "uniswap_v3": "Uniswap V3",
+    "uniswap_v4": "Uniswap V4",
     "pancakeswap_v2": "PancakeSwap V2",
     "pancakeswap_v3": "PancakeSwap V3",
     "biswap_v2": "Biswap V2",
@@ -58,11 +60,11 @@ AVALANCHE_V2_DEX_PROTOCOLS = {
     "traderjoe_v2": "traderjoe_v2",
 }
 DEFAULT_CHAIN_PROTOCOL_CANDIDATES = {
-    56: {"network": "bnb", "protocols": ["aave_v3", "venus_core", "pancakeswap_v3", "pancakeswap_v2", "biswap_v2"]},
-    43114: {"network": "avalanche", "protocols": ["aave_v3", "uniswap_v3", "traderjoe_v2", "curve"]},
-    137: {"network": "polygon", "protocols": ["aave_v3", "uniswap_v3", "quickswap_v2", "balancer_v2"]},
-    4663: {"network": "robinhood", "protocols": ["morpho_blue", "uniswap_v2", "uniswap_v3", "aave_v3"]},
-    1: {"network": "ethereum", "protocols": ["aave_v3", "uniswap_v3", "uniswap_v2", "balancer_v2"]},
+    56: {"network": "bnb", "protocols": ["aave_v3", "venus_core", "pancakeswap_v3", "pancakeswap_v2", "biswap_v2", "uniswap_v4"]},
+    43114: {"network": "avalanche", "protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "traderjoe_v2", "curve"]},
+    137: {"network": "polygon", "protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "quickswap_v2", "balancer_v2"]},
+    4663: {"network": "robinhood", "protocols": ["morpho_blue", "uniswap_v2", "uniswap_v3", "uniswap_v4", "aave_v3"]},
+    1: {"network": "ethereum", "protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "uniswap_v2", "balancer_v2"]},
 }
 
 _WORKER_LOCK = threading.Lock()
@@ -603,12 +605,30 @@ def query_flash_loan_pool_discovery(
             ]
             filtered_scanned_chains.append(filtered)
         scanned_chains = filtered_scanned_chains
+    raw_snapshots = {}
+    for key, raw in (snapshot.get("raw_snapshots") or {}).items():
+        if not isinstance(raw, dict):
+            continue
+        raw_chain_id = _as_int(raw.get("chainId") or raw.get("chain_id"))
+        if chain_id is not None and raw_chain_id != int(chain_id):
+            continue
+        if normalized_protocol:
+            sources = [
+                source
+                for source in raw.get("sources") or []
+                if isinstance(source, dict) and str(source.get("protocol") or "").strip().lower() == normalized_protocol
+            ]
+            if not sources:
+                continue
+            raw = {**raw, "sources": sources}
+        raw_snapshots[key] = raw
     return {
         **snapshot,
         "chains": chains,
         "scanned_chains": scanned_chains,
         "protocols": protocols,
         "removed_protocols": removed_protocols,
+        "raw_snapshots": raw_snapshots,
         "chain_count": len(chains),
         "protocol_count": len(protocols),
         "query": {"chain_id": chain_id, "protocol": normalized_protocol or None},

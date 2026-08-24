@@ -170,10 +170,19 @@ def test_flash_loan_pool_discovery_query_and_robinhood_cache(tmp_path):
     _write_json(snapshot_path, snapshot)
 
     scoped = discovery.query_flash_loan_pool_discovery(chain_id=4663, snapshot_path=snapshot_path)
+    bnb_scoped = discovery.query_flash_loan_pool_discovery(chain_id=56, snapshot_path=snapshot_path)
+    morpho_scoped = discovery.query_flash_loan_pool_discovery(
+        chain_id=4663,
+        protocol="morpho_blue",
+        snapshot_path=snapshot_path,
+    )
 
     assert scoped["protocols"] == [{"chain_id": 4663, "protocol": "morpho_blue", "display_name": "Morpho Blue"}]
     assert [item["protocol"] for item in scoped["removed_protocols"]] == ["uniswap_v3"]
     assert [item["chain_id"] for item in scoped["scanned_chains"]] == [4663]
+    assert "robinhood_flash_liquidity" in scoped["raw_snapshots"]
+    assert bnb_scoped["raw_snapshots"] == {}
+    assert morpho_scoped["raw_snapshots"]["robinhood_flash_liquidity"]["sources"] == [{"protocol": "morpho_blue"}]
     assert discovery.protocol_options_for_chain(chain_id=4663, snapshot_path=snapshot_path) == [
         {"protocol": "morpho_blue", "display_name": "Morpho Blue"}
     ]

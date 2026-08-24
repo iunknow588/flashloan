@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 import sys
+import re
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
@@ -26,6 +27,8 @@ DEFAULT_TOKEN_ADDRESSES = (
     robinhood.WETH_ADDRESS,
     "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
 )
+SYMBOL_RE = re.compile(r"^[A-Z0-9.$_\-\u4e00-\u9fff()]+$")
+MAX_SYMBOL_LENGTH = 24
 
 
 def _fetch_json(url: str, *, timeout: float = 30) -> object:
@@ -52,6 +55,20 @@ def _number(value: object) -> float | None:
     return parsed if parsed == parsed and parsed not in (float("inf"), float("-inf")) else None
 
 
+def _symbol(value: object) -> str:
+    return str(value or "").strip().upper()
+
+
+def _symbol_reject_reason(symbol: str) -> str | None:
+    if not symbol:
+        return "token_symbol_missing"
+    if len(symbol) > MAX_SYMBOL_LENGTH:
+        return "token_symbol_too_long"
+    if not SYMBOL_RE.fullmatch(symbol):
+        return "token_symbol_contains_unsupported_chars"
+    return None
+
+
 def _protocol_from_pair(pair: dict) -> str:
     labels = {str(item or "").strip().lower() for item in pair.get("labels") or []}
     dex_id = str(pair.get("dexId") or "").strip().lower()
@@ -76,10 +93,19 @@ def _pool_row(pair: dict) -> dict:
     volume = pair.get("volume") if isinstance(pair.get("volume"), dict) else {}
     tvl_usd = _number(liquidity.get("usd"))
     volume_h24 = _number(volume.get("h24"))
-    quality = "pass" if (tvl_usd or 0) >= 5_000 and (volume_h24 or 0) > 0 else "observed"
     protocol = _protocol_from_pair(pair)
-    base_symbol = str(base.get("symbol") or "").strip().upper()
-    quote_symbol = str(quote_token.get("symbol") or "").strip().upper()
+    base_symbol = _symbol(base.get("symbol"))
+    quote_symbol = _symbol(quote_token.get("symbol"))
+    reject_reasons = [
+        reason
+        for reason in (_symbol_reject_reason(base_symbol), _symbol_reject_reason(quote_symbol))
+        if reason
+    ]
+    if (tvl_usd or 0) < 5_000:
+        reject_reasons.append("insufficient_liquidity_usd")
+    if (volume_h24 or 0) <= 0:
+        reject_reasons.append("missing_24h_volume")
+    quality = "pass" if not reject_reasons else "rejected"
     return {
         "network": "robinhood",
         "chainId": robinhood.CHAIN_ID,
@@ -94,8 +120,8 @@ def _pool_row(pair: dict) -> dict:
         "symbolPair": f"{base_symbol}:{quote_symbol}" if base_symbol and quote_symbol else "",
         "fee": _fee_from_pair(pair),
         "quality": quality,
-        "status": "observable",
-        "rejectReasons": [],
+        "status": "observable" if quality == "pass" else "rejected",
+        "rejectReasons": reject_reasons,
         "tvlUsd": tvl_usd,
         "token0Amount": liquidity.get("base"),
         "token1Amount": liquidity.get("quote"),

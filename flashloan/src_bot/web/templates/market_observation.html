@@ -71,7 +71,12 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const apiPath = path => window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+    const apiPath = path => {
+      const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      const url = new URL(scoped, window.location.origin);
+      url.searchParams.delete("protocols");
+      return url.pathname + (url.search ? url.search : "");
+    };
     async function fetchJson(path) {
       const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
       const data = await response.json();

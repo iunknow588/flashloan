@@ -85,7 +85,9 @@ def test_control_panel_navigation_chain_links_expected_pages():
 
     for token in [
         'data-dex-surface-template="quotes"',
-        "/api/dex/quote-routes",
+        "/api/dex/opportunity-scanner/start",
+        "/api/dex/opportunity-scanner/snapshot",
+        "/api/dex/opportunity-scanner/scan-now",
         'id="routeList"',
         'id="routeCount"',
         "报价与路由",

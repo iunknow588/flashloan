@@ -72,6 +72,10 @@ _NOT_EXECUTABLE_STATES = {
     "unsupported",
     "unsupported_route",
     "unsupported_token",
+    "live_quote_failed",
+    "live_quote_verified",
+    "ready_for_transaction_development",
+    "transaction_development_required",
     "missing_token",
     "quote_unavailable",
     "flashloan_payload_required",
@@ -431,6 +435,10 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
     cow_filter = market_state.get("cow_filter") if isinstance(market_state.get("cow_filter"), dict) else {}
     threshold = cow_filter.get("threshold_detail") if isinstance(cow_filter.get("threshold_detail"), dict) else {}
     costs = quote.get("costs") if isinstance(quote.get("costs"), dict) else {}
+    live_evidence = quote.get("live_onchain_evidence") if isinstance(quote.get("live_onchain_evidence"), dict) else {}
+    live_costs = live_evidence.get("costModel") if isinstance(live_evidence.get("costModel"), dict) else {}
+    live_validation = live_evidence.get("validation") if isinstance(live_evidence.get("validation"), dict) else {}
+    trigger_context = live_evidence.get("triggerContext") if isinstance(live_evidence.get("triggerContext"), dict) else {}
     plan = quote.get("binance_execution_plan") if isinstance(quote.get("binance_execution_plan"), dict) else {}
     error_info = _review_error_summary(quote.get("error") or row.get("error"))
     return {
@@ -467,6 +475,43 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "error": error_info.get("display") or quote.get("error") or row.get("error"),
             "error_type": error_info.get("type"),
             "error_raw": error_info.get("raw"),
+        },
+        "onchain_evidence": {
+            "available": bool(live_evidence),
+            "status": live_evidence.get("status"),
+            "execution_trust": live_evidence.get("executionTrust"),
+            "executionTrust": live_evidence.get("executionTrust"),
+            "trusted_for_execution": bool(live_evidence.get("trustedForExecution")),
+            "trustedForExecution": bool(live_evidence.get("trustedForExecution")),
+            "ready_for_transaction_preflight": bool(live_evidence.get("readyForTransactionPreflight")),
+            "readyForTransactionPreflight": bool(live_evidence.get("readyForTransactionPreflight")),
+            "network": live_evidence.get("network"),
+            "chain_id": live_evidence.get("chainId"),
+            "chainId": live_evidence.get("chainId"),
+            "block_number": live_evidence.get("blockNumber"),
+            "blockNumber": live_evidence.get("blockNumber"),
+            "trigger_block_number": live_evidence.get("triggerBlockNumber") or trigger_context.get("triggerBlockNumber") or trigger_context.get("blockNumber"),
+            "triggerBlockNumber": live_evidence.get("triggerBlockNumber") or trigger_context.get("triggerBlockNumber") or trigger_context.get("blockNumber"),
+            "quote_block_source": live_evidence.get("quoteBlockSource"),
+            "quoteBlockSource": live_evidence.get("quoteBlockSource"),
+            "block_timestamp": live_evidence.get("blockTimestamp"),
+            "blockTimestamp": live_evidence.get("blockTimestamp"),
+            "observed_at": live_evidence.get("observedAt"),
+            "observedAt": live_evidence.get("observedAt"),
+            "trigger_context": trigger_context,
+            "triggerContext": trigger_context,
+            "route_symbols": live_evidence.get("routeSymbols") or [],
+            "routeSymbols": live_evidence.get("routeSymbols") or [],
+            "hop_count": len(live_evidence.get("hops") or []),
+            "all_hops_quoted": bool(live_validation.get("allHopsQuoted")),
+            "profitable_after_costs": bool(live_validation.get("profitableAfterCosts")),
+            "final_output_usd": live_costs.get("finalOutputUsd"),
+            "net_profit_usd": live_costs.get("netProfitUsd"),
+            "net_profit_bps": live_costs.get("netProfitBps"),
+            "netProfitBps": live_costs.get("netProfitBps"),
+            "blockers": live_evidence.get("blockers") or [],
+            "transaction_development": live_evidence.get("transactionDevelopment") or {},
+            "transactionDevelopment": live_evidence.get("transactionDevelopment") or {},
         },
         "cow_sdk": {
             "result": row.get("cow_sdk_result") or quote.get("cow_sdk_result") or {},
@@ -1113,6 +1158,77 @@ def append_cow_execution_attempts_jsonl(
         for item in rows:
             handle.write(_json_text(item) + "\n")
     return len(additions)
+
+
+def clear_cow_execution_attempts_jsonl(
+    path: Path,
+    *,
+    networks: list[str] | None = None,
+    category: str | None = None,
+) -> dict[str, Any]:
+    if not path.exists():
+        return {"cleared": 0, "remaining": 0, "source": "jsonl", "error": None}
+    wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
+    wanted_category = str(category or "").strip().lower()
+    kept_rows = []
+    cleared = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            kept_rows.append(line)
+            continue
+        if not isinstance(row, dict):
+            kept_rows.append(line)
+            continue
+        network_matches = not wanted or str(row.get("network") or "").strip().lower() in wanted
+        category_matches = not wanted_category or cow_execution_attempt_category(row) == wanted_category
+        if network_matches and category_matches:
+            cleared += 1
+            continue
+        kept_rows.append(_json_text(row))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for item in kept_rows:
+            handle.write(str(item) + "\n")
+    return {"cleared": cleared, "remaining": len(kept_rows), "source": "jsonl", "error": None}
+
+
+def clear_cow_execution_attempts(
+    database_url: str,
+    *,
+    networks: list[str] | None = None,
+    category: str | None = None,
+) -> dict[str, Any]:
+    ensure_cow_execution_attempts_table(database_url)
+    wanted = [str(item).strip().lower() for item in networks or [] if str(item).strip()]
+    wanted_category = str(category or "").strip().lower()
+    where = []
+    params: list[Any] = []
+    if wanted:
+        where.append("LOWER(network) = ANY(%s)")
+        params.append(wanted)
+    if wanted_category:
+        rows = load_recent_cow_execution_attempts(
+            database_url,
+            limit=100_000,
+            networks=wanted,
+            category=wanted_category,
+            retention_days=DEFAULT_COW_EXECUTION_RETENTION_DAYS,
+        )
+        ids = [int(row["id"]) for row in rows if row.get("id") is not None]
+        if not ids:
+            return {"cleared": 0, "source": "database", "error": None}
+        where.append("id = ANY(%s)")
+        params.append(ids)
+    query = "DELETE FROM cow_execution_attempts"
+    if where:
+        query += " WHERE " + " AND ".join(where)
+    with db_connection(database_url, connect_timeout=8) as connection:
+        with db_transaction(connection, operation="cow.execution_attempts_clear"):
+            with connection.cursor() as cursor:
+                cursor.execute(query, tuple(params))
+                return {"cleared": int(cursor.rowcount or 0), "source": "database", "error": None}
 
 
 # === READ OPERATIONS ===
