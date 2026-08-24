@@ -18,6 +18,7 @@ class V4QuoteRequest:
     block_number: int | None = None
     fee: object = None
     route_symbols: tuple[str, ...] = ()
+    reference_amount_out_raw: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -30,6 +31,7 @@ class V4QuoteRequest:
             "blockNumber": self.block_number,
             "fee": self.fee,
             "routeSymbols": list(self.route_symbols),
+            "referenceAmountOutRaw": str(self.reference_amount_out_raw) if self.reference_amount_out_raw is not None else None,
             "quoteMode": "uniswap_v4_sdk_exact_input_single",
             "adapterHints": [
                 "pool_manager_state_required",
@@ -50,6 +52,7 @@ def build_v4_quote_request(
     block_number: int | None = None,
     fee: object = None,
     route_symbols: tuple[str, ...] = (),
+    reference_amount_out_raw: int | None = None,
 ) -> dict[str, Any]:
     return V4QuoteRequest(
         network=network,
@@ -61,12 +64,15 @@ def build_v4_quote_request(
         block_number=block_number,
         fee=fee,
         route_symbols=route_symbols,
+        reference_amount_out_raw=reference_amount_out_raw,
     ).as_dict()
 
 
 def quote_v4_exact_input_single(*, adapter: V4QuoteAdapter | None, request: dict[str, Any]) -> dict[str, Any]:
     if adapter is None:
-        raise RuntimeError("uniswap v4 quote adapter is not configured")
+        from execution.uniswap_v4_sdk_adapter import reference_quote_adapter
+
+        adapter = reference_quote_adapter
     response = adapter(dict(request))
     if not isinstance(response, dict):
         raise TypeError("uniswap v4 quote adapter must return a dict")

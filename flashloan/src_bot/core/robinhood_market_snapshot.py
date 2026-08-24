@@ -27,7 +27,7 @@ DEFAULT_RESEARCH_MARKET: dict[str, Any] = {
     "chainId": robinhood.CHAIN_ID,
     "rpcUrl": robinhood.DEFAULT_RPC_URLS[0],
     "factory": "0x1f7d7550b1b028f7571e69a784071F0205FD2EfA",
-    "quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+    "quoter": robinhood.default_v3_quoter_address("0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7"),
     "router": "0xCaf681a66D020601342297493863E78C959E5cb2",
     "tokens": {
         "WETH": {

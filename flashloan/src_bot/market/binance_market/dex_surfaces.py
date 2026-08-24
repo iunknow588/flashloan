@@ -39,6 +39,7 @@ PRICE_ALIAS_GROUPS = (
     {"ETH", "WETH", "WETH.E"},
     {"BTC", "WBTC", "BTCB", "BTC.B"},
 )
+INVALID_ROUTE_SYMBOL_PREFIXES = ("ROBINHOOD",)
 
 
 def _norm_symbol(value: object) -> str:
@@ -81,6 +82,13 @@ def _split_symbol_components(symbol: object) -> list[str]:
     if not text:
         return []
     return [part for part in text.replace("/", ":").split(":") if part]
+
+
+def _route_symbol_allowed(symbol: object) -> bool:
+    text = _norm_symbol(symbol)
+    if not text:
+        return False
+    return not any(text.startswith(prefix) for prefix in INVALID_ROUTE_SYMBOL_PREFIXES)
 
 
 def _pair_symbols(pair: dict[str, Any]) -> list[str]:
@@ -255,9 +263,12 @@ def _reference_price_quote(
         "toSymbol": to_symbol,
         "inputAmount": input_amount,
         "inputUsd": input_usd,
-        "outputAmount": output_amount,
-        "outputUsd": output_usd,
-        "effectiveRate": rate * fee_factor if rate is not None else None,
+        "outputAmount": None,
+        "outputUsd": None,
+        "effectiveRate": None,
+        "referenceOutputAmount": output_amount,
+        "referenceOutputUsd": output_usd,
+        "referenceEffectiveRate": rate * fee_factor if rate is not None else None,
         "reserveInUsd": _pool_reserve_usd(pool, _pool_side_index(pool, from_symbol) or 0, price_map),
         "reserveOutUsd": _pool_reserve_usd(pool, _pool_side_index(pool, to_symbol) or 0, price_map),
         "priceImpactBps": None,
@@ -481,6 +492,41 @@ def _route_quote_analysis(
     route_symbols = list((route.get("overviewRoute") or {}).get("pathSymbols") or route.get("routeSymbols") or [])
     pools = _route_pools(route)
     warnings: list[str] = []
+    invalid_symbols = [symbol for symbol in route_symbols if not _route_symbol_allowed(symbol)]
+    if invalid_symbols:
+        warnings.append(f"invalid_route_symbol:{','.join(invalid_symbols)}")
+        return {
+            "method": "static_amm_depth_probe",
+            "notionalUsd": notional_usd,
+            "inputSymbol": route_symbols[0] if route_symbols else None,
+            "outputSymbol": route_symbols[-1] if route_symbols else None,
+            "complete": False,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "stepCount": 0,
+            "steps": [],
+            "finalOutputUsd": None,
+            "referenceFinalOutputUsd": None,
+            "grossProfitUsd": None,
+            "referenceGrossProfitUsd": None,
+            "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
+            "flashLoanFeeUsd": notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0,
+            "gasReserveUsd": DEFAULT_GAS_RESERVE_USD,
+            "minProfitUsd": max(1.0, notional_usd * DEFAULT_MIN_PROFIT_BPS / 10_000.0),
+            "netProfitUsd": None,
+            "referenceNetProfitUsd": None,
+            "netProfitBps": None,
+            "referenceNetProfitBps": None,
+            "profitable": False,
+            "executableCandidate": False,
+            "sdkAdapterRequiredStepCount": 0,
+            "recommendation": {
+                "level": "blocked",
+                "action": "拒绝污染路径",
+                "reasons": ["路径包含明显的污染符号，不能进入报价或预检。"],
+            },
+            "warnings": warnings,
+        }
     if len(route_symbols) < 2:
         warnings.append("route_symbols_missing")
     input_symbol = route_symbols[0] if route_symbols else None
@@ -515,8 +561,14 @@ def _route_quote_analysis(
         quote["hop"] = index
         quote["status"] = "quoted"
         steps.append(quote)
-        current_usd = _number(quote.get("outputUsd"))
-        current_amount = quote.get("outputAmount") if quote.get("outputAmount") is not None else (
+        step_output_usd = quote.get("outputUsd")
+        if step_output_usd is None:
+            step_output_usd = quote.get("referenceOutputUsd")
+        current_usd = _number(step_output_usd)
+        step_output_amount = quote.get("outputAmount")
+        if step_output_amount is None:
+            step_output_amount = quote.get("referenceOutputAmount")
+        current_amount = step_output_amount if step_output_amount is not None else (
             current_usd / price_map[to_symbol] if price_map.get(to_symbol) else None
         )
     complete = len(steps) == max(0, len(route_symbols) - 1) and all(step.get("status") == "quoted" for step in steps)
@@ -525,9 +577,22 @@ def _route_quote_analysis(
     requires_live_quoter = requires_live_quoter or adapter_required
     if requires_live_quoter:
         warnings.append("reference_price_step_requires_live_quoter")
-    final_output_usd = current_usd if complete else None
-    gross_profit_usd = (final_output_usd - notional_usd) if final_output_usd is not None else None
+    reference_final_output_usd = current_usd if complete else None
+    reference_gross_profit_usd = (reference_final_output_usd - notional_usd) if reference_final_output_usd is not None else None
     flash_loan_fee_usd = notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    reference_net_profit_usd = (
+        reference_gross_profit_usd - flash_loan_fee_usd - DEFAULT_GAS_RESERVE_USD
+        if reference_gross_profit_usd is not None
+        else None
+    )
+    reference_net_profit_bps = (
+        reference_net_profit_usd / notional_usd * 10_000.0
+        if reference_net_profit_usd is not None and notional_usd > 0
+        else None
+    )
+    executable_ready = bool(complete and not requires_live_quoter)
+    final_output_usd = reference_final_output_usd if executable_ready else None
+    gross_profit_usd = reference_gross_profit_usd if executable_ready else None
     net_profit_usd = (
         gross_profit_usd - flash_loan_fee_usd - DEFAULT_GAS_RESERVE_USD if gross_profit_usd is not None else None
     )
@@ -564,15 +629,19 @@ def _route_quote_analysis(
         "stepCount": len(steps),
         "steps": steps,
         "finalOutputUsd": final_output_usd,
+        "referenceFinalOutputUsd": reference_final_output_usd,
         "grossProfitUsd": gross_profit_usd,
+        "referenceGrossProfitUsd": reference_gross_profit_usd,
         "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
         "flashLoanFeeUsd": flash_loan_fee_usd,
         "gasReserveUsd": DEFAULT_GAS_RESERVE_USD,
         "minProfitUsd": min_profit_usd,
         "netProfitUsd": net_profit_usd,
+        "referenceNetProfitUsd": reference_net_profit_usd,
         "netProfitBps": net_profit_bps,
+        "referenceNetProfitBps": reference_net_profit_bps,
         "profitable": bool(net_profit_usd is not None and net_profit_usd > 0),
-        "executableCandidate": bool(complete and not requires_live_quoter and net_profit_usd is not None and net_profit_usd >= min_profit_usd),
+        "executableCandidate": bool(executable_ready and net_profit_usd is not None and net_profit_usd >= min_profit_usd),
         "sdkAdapterRequiredStepCount": sum(1 for step in steps if step.get("executionTrust") == "sdk_adapter_required"),
         "recommendation": {"level": level, "action": action, "reasons": reasons},
         "warnings": warnings,
@@ -711,6 +780,8 @@ def _overview_path_candidates(pool_payload: dict[str, Any], chain_id: int | None
             for target in symbols:
                 if target == anchor or target in anchors:
                     continue
+                if not _route_symbol_allowed(target):
+                    continue
                 route = _route_candidate(
                     kind="direct_anchor_pair",
                     anchor=anchor,
@@ -737,12 +808,16 @@ def _overview_path_candidates(pool_payload: dict[str, Any], chain_id: int | None
             for bridge in bridge_symbols:
                 if not bridge:
                     continue
+                if not _route_symbol_allowed(bridge):
+                    continue
                 for key, grouped in pair_by_symbols.items():
                     if bridge not in key or anchor in key:
                         continue
                     target_symbols = [symbol for symbol in key if symbol != bridge]
                     for target in target_symbols:
                         if not target or target in anchors or (anchor, target) in route_keys:
+                            continue
+                        if not _route_symbol_allowed(target):
                             continue
                         route = _route_candidate(
                             kind="bridge_pair",
@@ -959,11 +1034,14 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
         for route in routes
         if (route.get("quoteAnalysis") or {}).get("executableCandidate")
     ]
-    observed_net_profits = [
-        _number((route.get("quoteAnalysis") or {}).get("netProfitUsd"))
-        for route in routes
-        if (route.get("quoteAnalysis") or {}).get("netProfitUsd") is not None
-    ]
+    observed_net_profits = []
+    for route in routes:
+        analysis = route.get("quoteAnalysis") or {}
+        observed_profit = analysis.get("netProfitUsd")
+        if observed_profit is None:
+            observed_profit = analysis.get("referenceNetProfitUsd")
+        if observed_profit is not None:
+            observed_net_profits.append(_number(observed_profit))
     return {
         "mode": "dex_quote_routes",
         "chain_id": chain_id,

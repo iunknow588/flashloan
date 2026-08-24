@@ -2,7 +2,7 @@ from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
 
 
-def test_v4_route_reaches_live_quote_gate_without_adapter(monkeypatch):
+def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch):
     class FakeEth:
         block_number = 123
 
@@ -14,6 +14,7 @@ def test_v4_route_reaches_live_quote_gate_without_adapter(monkeypatch):
         eth = FakeEth()
 
     monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_load_v4_quote_adapter", lambda: None)
     route = {
         "symbolPair": "USDG -> STONKBROKER -> USDG",
         "routeSymbols": ["USDG", "STONKBROKER", "USDG"],
@@ -42,6 +43,7 @@ def test_v4_route_reaches_live_quote_gate_without_adapter(monkeypatch):
                     "toSymbol": "STONKBROKER",
                     "protocol": "uniswap_v4",
                     "pool": "0x" + "1" * 40,
+                    "referenceOutputAmount": 1003.0,
                 }
             ],
         },
@@ -55,11 +57,11 @@ def test_v4_route_reaches_live_quote_gate_without_adapter(monkeypatch):
         trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
     )
 
-    assert evidence["status"] == "live_quote_failed"
+    assert evidence["status"] == "live_verified"
     assert evidence["trustedForExecution"] is False
-    assert evidence["executionTrust"] == "static_reference_only"
-    assert "uniswap v4 quote adapter is not configured" in evidence["blockers"][0].lower()
-    assert evidence["transactionDevelopment"]["status"] == "blocked_before_transaction_development"
+    assert evidence["executionTrust"] == "live_quoter_verified_readonly"
+    assert evidence["hops"][0]["quoteMethod"] == "uniswap_v4_reference_quote"
+    assert evidence["hops"][0]["sdkAdapter"] == "reference_quote_adapter"
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
@@ -134,8 +136,42 @@ def test_non_robinhood_route_records_adapter_gap():
     assert "adapter" in evidence["blockers"][0].lower()
 
 
-def test_non_uniswap_v3_pool_is_not_verified_by_uniswap_quoter():
+def test_sushiswap_v3_pool_can_be_verified_with_v3_quoter(monkeypatch):
+    from types import SimpleNamespace
+
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
     pool = "0x" + "2" * 40
+    token_in = "0x" + "3" * 40
+    token_out = "0x" + "4" * 40
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(
+        dex_onchain_quote_evidence,
+        "snapshot_v3_pool",
+        lambda *args, **kwargs: SimpleNamespace(
+            pool_address=pool,
+            token0=token_in,
+            token1=token_out,
+            fee=3000,
+            liquidity=123456789,
+            sqrt_price_x96=987654321,
+            tick=12345,
+        ),
+    )
+    monkeypatch.setattr(
+        dex_onchain_quote_evidence,
+        "quote_v3_exact_input_single",
+        lambda *args, **kwargs: (1003000000, 111, 7, 123456),
+    )
+
     route = {
         "symbolPair": "USDG -> WETH -> USDG",
         "routeSymbols": ["USDG", "WETH", "USDG"],
@@ -146,9 +182,12 @@ def test_non_uniswap_v3_pool_is_not_verified_by_uniswap_quoter():
                     "dex": "sushiswap",
                     "protocol": "uniswap_v3",
                     "token0Symbol": "USDG",
-                    "token0": "0x" + "3" * 40,
+                    "token0": token_in,
                     "token1Symbol": "WETH",
-                    "token1": "0x" + "4" * 40,
+                    "token1": token_out,
+                    "token0Decimals": 6,
+                    "token1Decimals": 18,
+                    "network": "robinhood",
                 }
             ]
         },
@@ -172,13 +211,14 @@ def test_non_uniswap_v3_pool_is_not_verified_by_uniswap_quoter():
         payload={"poolStaticTable": {"network": "robinhood", "chainId": 4663}},
         chain_id=4663,
         observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
     )
 
-    assert evidence["status"] == "not_live_verified"
+    assert evidence["status"] == "live_verified"
     assert evidence["trustedForExecution"] is False
-    assert evidence["executionTrust"] == "static_reference_only"
-    assert "Uniswap V3 Quoter" in evidence["blockers"][0]
-    assert evidence["transactionDevelopment"]["status"] == "blocked_before_transaction_development"
+    assert evidence["executionTrust"] == "live_quoter_verified_readonly"
+    assert evidence["hops"][0]["quoteMethod"] == "v3_quoter_quoteExactInputSingle_eth_call"
+    assert evidence["hops"][0]["pool"] == pool
 
 
 def test_live_quote_requires_trigger_block_context():

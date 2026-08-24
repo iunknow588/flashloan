@@ -89,7 +89,7 @@ def _chain_network(payload: dict[str, Any] | None, chain_id: int | None) -> str:
 def _recordable_route(route: dict[str, Any]) -> bool:
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     quote_requests = (route.get("quoteInputs") or {}).get("quoteRequests") or []
-    net_profit = _number_or_none(analysis.get("netProfitUsd"))
+    reference_profit = _number_or_none(analysis.get("referenceNetProfitUsd"))
     requires_live_quoter = bool(analysis.get("requiresLiveQuoter")) or bool(analysis.get("adapterRequired"))
     adapter_required = any(
         str((request or {}).get("venue") or "").strip().lower() == "uniswap_v4"
@@ -99,8 +99,7 @@ def _recordable_route(route: dict[str, Any]) -> bool:
     )
     return bool(
         analysis.get("executableCandidate")
-        or analysis.get("profitable")
-        or (net_profit is not None and net_profit > 0)
+        or (reference_profit is not None and reference_profit > 0)
         or requires_live_quoter
         or adapter_required
     )
@@ -135,7 +134,10 @@ def _route_attempt(
     recommendation = analysis.get("recommendation") if isinstance(analysis.get("recommendation"), dict) else {}
     route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
     quote_status = str(route.get("quoteStatus") or recommendation.get("level") or "quote_required")
-    net_profit = analysis.get("netProfitUsd")
+    final_amount = analysis.get("finalOutputUsd")
+    final_delta = analysis.get("netProfitUsd")
+    reference_final_amount = analysis.get("referenceFinalOutputUsd")
+    reference_final_delta = analysis.get("referenceNetProfitUsd")
     reasons = _route_blocked_reasons(route)
     quote_inputs = route.get("quoteInputs") if isinstance(route.get("quoteInputs"), dict) else {}
     quote = {
@@ -145,9 +147,11 @@ def _route_attempt(
         "path": route_symbols,
         "input_amount": analysis.get("notionalUsd"),
         "input_symbol": analysis.get("inputSymbol") or (route_symbols[0] if route_symbols else None),
-        "final_amount": analysis.get("finalOutputUsd"),
+        "final_amount": final_amount,
         "final_symbol": analysis.get("outputSymbol") or (route_symbols[-1] if route_symbols else None),
-        "final_delta_amount": net_profit,
+        "final_delta_amount": final_delta,
+        "reference_final_amount": reference_final_amount,
+        "reference_final_delta_amount": reference_final_delta,
         "quote_verified": False,
         "quote_required": True,
         "viable": bool(analysis.get("executableCandidate")),
@@ -169,9 +173,11 @@ def _route_attempt(
         "quote_required": True,
         "estimation_available": bool(analysis.get("complete")),
         "requires_live_quoter": bool(analysis.get("requiresLiveQuoter")),
-        "profit_amount": net_profit,
-        "pure_profit_amount": net_profit,
-        "final_delta_amount": net_profit,
+        "profit_amount": final_delta,
+        "pure_profit_amount": final_delta,
+        "final_delta_amount": final_delta,
+        "reference_profit_amount": reference_final_delta,
+        "reference_pure_profit_amount": reference_final_delta,
         "final_symbol": quote.get("final_symbol"),
         "reasons": reasons,
     }
@@ -190,7 +196,7 @@ def _route_attempt(
         "can_submit_order": False,
         "order_submission_enabled": False,
         "auto_execute_requested": False,
-        "final_delta_amount": net_profit,
+        "final_delta_amount": final_delta,
         "final_symbol": quote.get("final_symbol"),
         "blocked_reasons": reasons,
         "quote": quote,

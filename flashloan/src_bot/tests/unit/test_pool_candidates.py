@@ -458,9 +458,14 @@ def test_dex_opportunity_scanner_records_discovered_opportunities(tmp_path):
                         "notionalUsd": 1000.0,
                         "inputSymbol": "USDG",
                         "outputSymbol": "USDG",
-                        "finalOutputUsd": 1012.5,
-                        "netProfitUsd": 12.0,
-                        "profitable": True,
+                        "finalOutputUsd": None,
+                        "referenceFinalOutputUsd": 1012.5,
+                        "grossProfitUsd": None,
+                        "referenceGrossProfitUsd": 12.5,
+                        "netProfitUsd": None,
+                        "referenceNetProfitUsd": 12.0,
+                        "referenceNetProfitBps": 120.0,
+                        "profitable": False,
                         "complete": True,
                         "requiresLiveQuoter": True,
                         "executableCandidate": False,
@@ -552,6 +557,10 @@ def test_dex_opportunity_scanner_records_discovered_opportunities(tmp_path):
     assert rows[0]["quote"]["live_onchain_evidence"]["status"] == "live_verified"
     assert rows[0]["quote"]["readonly_viable"] is True
     assert rows[0]["quote"]["viable"] is False
+    assert rows[0]["quote"]["final_amount"] is None
+    assert rows[0]["quote"]["reference_final_amount"] == 1012.5
+    assert rows[0]["quote"]["final_delta_amount"] is None
+    assert rows[0]["quote"]["reference_final_delta_amount"] == 12.0
     assert rows[0]["quote"]["transaction_development"]["status"] == "ready_for_transaction_preflight_development"
     assert rows[0]["checks_passed"] is False
     assert rows[0]["priority_reason"] == "live_quote_verified_preflight_required"
@@ -741,9 +750,102 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
     assert route["quoteStatus"] == "requires_live_quoter"
     assert analysis["requiresLiveQuoter"] is True
     assert analysis["executableCandidate"] is False
-    assert analysis["finalOutputUsd"] < 1000
+    assert analysis["finalOutputUsd"] is None
+    assert analysis["referenceFinalOutputUsd"] < 1000
+    assert analysis["netProfitUsd"] is None
+    assert analysis["referenceNetProfitUsd"] is not None
+    assert analysis["steps"][0]["outputUsd"] is None
+    assert analysis["steps"][0]["referenceOutputUsd"] is not None
     assert all(step["quoteSource"] == "reference_price_requires_live_quoter" for step in analysis["steps"])
     assert analysis["recommendation"]["action"] == "等待链上 Quoter 复核"
+
+
+def test_dex_quote_routes_drop_polluted_bridge_symbols(monkeypatch):
+    usdg_weth_pool = {
+        "pool": "0x" + "a" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0Symbol": "USDG",
+        "token1Symbol": "WETH",
+        "balances": {"token0": 1_000_000, "token1": 400, "tvlUsd": 1_000_000},
+        "market": {"priceNative": "0.0004", "priceUsd": "2500"},
+        "depthBand": {"level": "deep", "label": "深度充足"},
+    }
+    weth_robinhood_pool = {
+        "pool": "0x" + "b" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0Symbol": "WETH",
+        "token1Symbol": "ROBINHOOD",
+        "balances": {"token0": 400, "token1": 10_000_000, "tvlUsd": 1_000_000},
+        "market": {"priceNative": "25000", "priceUsd": "2500"},
+        "depthBand": {"level": "deep", "label": "深度充足"},
+    }
+    robinhood_usdg_pool = {
+        "pool": "0x" + "c" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0Symbol": "ROBINHOOD",
+        "token1Symbol": "USDG",
+        "balances": {"token0": 10_000_000, "token1": 900_000, "tvlUsd": 1_000_000},
+        "market": {"priceNative": "0.00009", "priceUsd": "0.00009"},
+        "depthBand": {"level": "deep", "label": "深度充足"},
+    }
+    payload = {
+        "pairs": [
+            {
+                "symbolPair": "USDG:WETH",
+                "tokenXSymbol": "USDG",
+                "tokenYSymbol": "WETH",
+                "preferredPools": [usdg_weth_pool],
+                "executionPools": [usdg_weth_pool],
+                "strictQualityPools": [usdg_weth_pool],
+            },
+            {
+                "symbolPair": "WETH:ROBINHOOD",
+                "tokenXSymbol": "WETH",
+                "tokenYSymbol": "ROBINHOOD",
+                "preferredPools": [weth_robinhood_pool],
+                "executionPools": [weth_robinhood_pool],
+                "strictQualityPools": [weth_robinhood_pool],
+            },
+            {
+                "symbolPair": "ROBINHOOD:USDG",
+                "tokenXSymbol": "ROBINHOOD",
+                "tokenYSymbol": "USDG",
+                "preferredPools": [robinhood_usdg_pool],
+                "executionPools": [robinhood_usdg_pool],
+                "strictQualityPools": [robinhood_usdg_pool],
+            },
+        ],
+        "summary": {},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {"network": "robinhood", "chainId": 4663},
+    }
+    monkeypatch.setattr(dex_surfaces, "dex_pool_candidates_payload", lambda chain_id=None, protocols=None: payload)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "query_flash_loan_pool_discovery",
+        lambda chain_id=None: {
+            "protocols": [],
+            "removed_protocols": [],
+            "raw_snapshots": {
+                "robinhood_flash_liquidity": {
+                    "chainId": 4663,
+                    "sources": [{"protocol": "morpho_blue", "token_symbol": "USDG", "flash_borrowable": True}],
+                }
+            },
+        },
+    )
+
+    quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
+
+    assert all("ROBINHOOD" not in route["symbolPair"] for route in quotes["routes"])
+    assert all("ROBINHOOD" not in " -> ".join(route["routeSymbols"]) for route in quotes["routes"])
+    assert quotes["summary"]["routeCount"] == len(quotes["routes"])
 
 
 def test_dex_pool_candidates_returns_empty_for_unconfigured_chain(monkeypatch):

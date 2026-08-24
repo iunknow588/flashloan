@@ -39,7 +39,7 @@ V2_PAIR_ABI = [
     },
 ]
 
-ROBINHOOD_DEFAULT_QUOTER = "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7"
+ROBINHOOD_DEFAULT_V3_QUOTER = "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7"
 _STABLE_DECIMALS = {"AUSD", "BUSD", "DAI", "EURC", "FDUSD", "FRAX", "PYUSD", "RLUSD", "USDC", "USDD", "USDE", "USDG", "USDT"}
 _TOKEN_DECIMALS_FALLBACK = {"WETH": 18, "ETH": 18, "WBTC": 8, "BTC": 8, **{symbol: 6 for symbol in _STABLE_DECIMALS}}
 
@@ -104,9 +104,6 @@ def _protocol_key(*values: object) -> str:
 
 def _unsupported_step_reason(step: dict[str, Any], pool: dict[str, Any]) -> str | None:
     protocol = _protocol_key(step.get("protocol"), step.get("dex"), step.get("fee"), pool.get("protocol"), pool.get("dex"))
-    dex = _text(pool.get("dex") or step.get("dex") or pool.get("protocol") or step.get("protocol")).lower()
-    if protocol == "uniswap_v3" and dex and "uniswap" not in dex:
-        return f"第 {step.get('hop')} 跳为 {dex} V3 池，当前只接入 Robinhood Uniswap V3 Quoter，不能用 Uniswap Quoter 证明该池输出。"
     if protocol not in {"uniswap_v2", "uniswap_v3", "uniswap_v4"}:
         return f"第 {step.get('hop')} 跳协议 {step.get('protocol') or step.get('dex') or step.get('fee')} 尚未接入链上复核"
     return None
@@ -310,6 +307,15 @@ def _quote_v4_hop(
     token_out, _, out_decimals = _pool_side(pool, to_symbol)
     if not token_in or not token_out:
         raise ValueError(f"missing token address for {from_symbol}->{to_symbol}")
+    in_decimals = in_decimals if in_decimals is not None else _token_decimals(w3, token_in, from_symbol, token_cache)
+    out_decimals = out_decimals if out_decimals is not None else _token_decimals(w3, token_out, to_symbol, token_cache)
+    reference_amount_out_raw = None
+    reference_output_amount = step.get("referenceOutputAmount")
+    if reference_output_amount not in (None, ""):
+        try:
+            reference_amount_out_raw = _raw_from_human(reference_output_amount, out_decimals)
+        except Exception:
+            reference_amount_out_raw = None
     request = build_v4_quote_request(
         network=str(pool.get("network") or robinhood.NETWORK).strip().lower(),
         chain_id=robinhood.CHAIN_ID,
@@ -320,11 +326,10 @@ def _quote_v4_hop(
         block_number=block_number,
         fee=step.get("fee") or pool.get("fee"),
         route_symbols=(from_symbol, to_symbol),
+        reference_amount_out_raw=reference_amount_out_raw,
     )
     quote = quote_v4_exact_input_single(adapter=_load_v4_quote_adapter(), request=request)
     amount_out = int(quote["amountOutRaw"])
-    in_decimals = in_decimals if in_decimals is not None else _token_decimals(w3, token_in, from_symbol, token_cache)
-    out_decimals = out_decimals if out_decimals is not None else _token_decimals(w3, token_out, to_symbol, token_cache)
     return {
         "status": "live_verified",
         "quoteMethod": quote.get("quoteMethod") or "uniswap_v4_sdk_exact_input_single",
@@ -523,7 +528,7 @@ def build_route_onchain_evidence(
         )
 
     pools = _pool_map(route)
-    quoter = _text(table.get("quoter") or ROBINHOOD_DEFAULT_QUOTER)
+    quoter = _text(table.get("quoter") or robinhood.default_v3_quoter_address(ROBINHOOD_DEFAULT_V3_QUOTER))
     token_cache: dict[str, int] = {}
     try:
         w3, rpc_url = _connect_robinhood()

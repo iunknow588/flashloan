@@ -66,6 +66,28 @@ def rpc_urls_from_env(default: tuple[str, ...] = DEFAULT_RPC_URLS) -> tuple[str,
     )
 
 
+def v3_quoter_addresses_from_env(default: tuple[str, ...] = ()) -> tuple[str, ...]:
+    return (
+        _split_env_urls(
+            "ROBINHOOD_V3_QUOTER_ADDRESSES",
+            "ROBINHOOD_V3_QUOTER_ADDRESS",
+            "ROBINHOOD_UNISWAP_V3_QUOTER_ADDRESS",
+            "DEX_V3_QUOTER_ADDRESSES",
+            "DEX_V3_QUOTER_ADDRESS",
+        )
+        or default
+    )
+
+
+def v3_quoter_address_from_env(default: str = "") -> str:
+    addresses = v3_quoter_addresses_from_env((default,))
+    return addresses[0] if addresses else default
+
+
+def default_v3_quoter_address(default: str = "") -> str:
+    return v3_quoter_address_from_env(default)
+
+
 def testnet_rpc_urls_from_env(default: tuple[str, ...] = DEFAULT_TESTNET_RPC_URLS) -> tuple[str, ...]:
     return (
         _split_env_urls(

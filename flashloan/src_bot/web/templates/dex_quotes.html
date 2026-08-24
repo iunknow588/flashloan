@@ -83,24 +83,24 @@
       return Number.isFinite(parsed) ? `${parsed >= 0 ? "" : "-"}$${Math.abs(parsed).toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "-";
     };
     const labelMap = {
-      amm_pool: "AMM 姹犳姤浠?",
-      uniswapx: "UniswapX 鎰忓浘鎶ヤ环",
-      pool_exact_input_probe: "鍥哄畾杈撳叆姹犲瓙鎺㈤拡",
-      intent_exact_input: "鍥哄畾杈撳叆鎰忓浘鎶ヤ环",
-      static_probe_ready_for_precheck: "闈欐€佹帰閽堥€氳繃锛屽彲杩涘叆棰勬",
-      static_probe_not_profitable: "闈欐€佹帰閽堟湭瑕嗙洊鎴愰湰",
-      static_probe_incomplete: "闈欐€佹帰閽堟暟鎹笉瓒?",
-      requires_live_quoter: "闇€瑕侀摼涓?Quoter 澶嶆牳",
-      sdk_adapter_required: "闇€瑕?v4 SDK 閫傞厤鍣?",
-      uniswap_v4_sdk_adapter_required: "V4 SDK 閫傞厤鍣ㄨ姹?",
-      uniswap_v4_sdk_exact_input_single: "Uniswap V4 exactInputSingle",
-      quoteable_after_static_probe: "闈欐€佹帰閽堝悗鍙彂璧锋姤浠?",
-      quote_request_ready: "鎶ヤ环璇锋眰宸插噯澶?",
-      venue_not_available_for_pair: "璇ヤ氦鏄撳鏆備笉鏀寔姝ゆ姤浠烽€氶亾",
-      constant_product_v2_static_reserve: "V2 闈欐€佸偍澶囦及绠?",
-      reference_price_requires_live_quoter: "鍙傝€冧环浼扮畻锛岄渶閾句笂 Quoter",
-      reference_only: "浠呬緵瑙傚療",
-      static_v2_probe: "V2 闈欐€佹帰閽?",
+      amm_pool: "AMM 池报价",
+      uniswapx: "UniswapX 意图报价",
+      pool_exact_input_probe: "固定输入池子探针",
+      intent_exact_input: "固定输入意图报价",
+      static_probe_ready_for_precheck: "静态探针通过，可进入预检",
+      static_probe_not_profitable: "静态探针未覆盖成本",
+      static_probe_incomplete: "静态探针数据不足",
+      requires_live_quoter: "需要链上 Quoter 复核",
+      sdk_adapter_required: "需要 v4 SDK 适配器",
+      uniswap_v4_sdk_adapter_required: "V4 SDK 适配器请求",
+      uniswap_v4_sdk_exact_input_single: "V4 SDK 单跳精确输入",
+      quoteable_after_static_probe: "静态探针后可发起报价",
+      quote_request_ready: "报价请求已准备",
+      venue_not_available_for_pair: "该交易对暂无可用报价通道",
+      constant_product_v2_static_reserve: "V2 静态储备估算",
+      reference_price_requires_live_quoter: "参考价估算，需要链上 Quoter",
+      reference_only: "仅供参考",
+      static_v2_probe: "V2 静态探针",
     };
     const label = value => labelMap[value] || value || "-";
     let latestRoutes = [];
@@ -119,23 +119,48 @@
     function lines(items) {
       return (items || []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
     }
+    function analysisView(analysis) {
+      const referenceMode = Boolean(analysis?.requiresLiveQuoter || analysis?.adapterRequired);
+      return {
+        referenceMode,
+        finalLabel: referenceMode ? "1000U 参考输出" : "1000U 探针最终输出",
+        grossLabel: referenceMode ? "参考毛利润" : "毛利润",
+        netLabel: referenceMode ? "参考净利润" : "净利润",
+        bpsLabel: referenceMode ? "参考净收益 bps" : "净收益 bps",
+        finalOutputUsd: referenceMode ? (analysis?.referenceFinalOutputUsd ?? analysis?.finalOutputUsd) : analysis?.finalOutputUsd,
+        grossProfitUsd: referenceMode ? (analysis?.referenceGrossProfitUsd ?? analysis?.grossProfitUsd) : analysis?.grossProfitUsd,
+        netProfitUsd: referenceMode ? (analysis?.referenceNetProfitUsd ?? analysis?.netProfitUsd) : analysis?.netProfitUsd,
+        netProfitBps: referenceMode ? (analysis?.referenceNetProfitBps ?? analysis?.netProfitBps) : analysis?.netProfitBps,
+      };
+    }
+    function stepView(step) {
+      const referenceMode = Boolean(step?.referenceOutputUsd !== null && step?.referenceOutputUsd !== undefined);
+      return {
+        referenceMode,
+        label: referenceMode ? "参考输出" : "输出",
+        outputAmount: referenceMode ? (step?.referenceOutputAmount ?? step?.outputAmount) : step?.outputAmount,
+        outputUsd: referenceMode ? (step?.referenceOutputUsd ?? step?.outputUsd) : step?.outputUsd,
+        effectiveRate: referenceMode ? (step?.referenceEffectiveRate ?? step?.effectiveRate) : step?.effectiveRate,
+      };
+    }
     function routeCopyText(route) {
       const pools = route.quoteInputs?.candidatePools || [];
       const quoteRequests = route.quoteInputs?.quoteRequests || [];
       const analysis = route.quoteAnalysis || {};
       const rec = analysis.recommendation || {};
       const steps = analysis.steps || [];
+      const view = analysisView(analysis);
       return lines([
         `路径：${route.symbolPair || "-"}`,
         `路由：${(route.routeSymbols || []).join(" -> ") || "-"}`,
         `策略：${route.strategy || "-"}`,
         `状态：${label(route.quoteStatus)} / ${rec.action || "-"}`,
-        `1000U 探针最终输出：${money(analysis.finalOutputUsd)}`,
-        `毛利润：${money(analysis.grossProfitUsd)}`,
+        `${view.finalLabel}：${money(view.finalOutputUsd)}`,
+        `${view.grossLabel}：${money(view.grossProfitUsd)}`,
         `闪电贷费：${money(analysis.flashLoanFeeUsd)}`,
         `Gas 储备：${money(analysis.gasReserveUsd)}`,
-        `净利润：${money(analysis.netProfitUsd)}`,
-        `净收益 bps：${num(analysis.netProfitBps, 2)}`,
+        `${view.netLabel}：${money(view.netProfitUsd)}`,
+        `${view.bpsLabel}：${num(view.netProfitBps, 2)}`,
         "",
         "逐跳报价：",
         ...(steps.length ? steps.map(step => [
@@ -145,8 +170,11 @@
           `池子：${step.pool || "-"}`,
           `费率 bps：${num(step.feeBps, 2)}`,
           `输入：${num(step.inputAmount, 8)} ${step.fromSymbol || ""} (${money(step.inputUsd)})`,
-          `输出：${num(step.outputAmount, 8)} ${step.toSymbol || ""} (${money(step.outputUsd)})`,
-          `有效汇率：${num(step.effectiveRate, 8)}`,
+          (() => {
+            const stepDisplay = stepView(step);
+            return `${stepDisplay.label}：${num(stepDisplay.outputAmount, 8)} ${step.toSymbol || ""} (${money(stepDisplay.outputUsd)})`;
+          })(),
+          `有效汇率：${num(stepView(step).effectiveRate, 8)}`,
           `价格影响 bps：${num(step.priceImpactBps, 2)}`,
         ].join(" | ")) : ["缺少可计算的逐跳报价。"]),
         "",
@@ -193,8 +221,12 @@
       const quoteRequests = route.quoteInputs?.quoteRequests || [];
       const analysis = route.quoteAnalysis || {};
       const rec = analysis.recommendation || {};
+      const view = analysisView(analysis);
       const recClass = rec.level === "ready_for_precheck" ? "good" : (rec.level === "reject" || rec.level === "blocked" ? "bad" : "warn");
-      const stepRows = (analysis.steps || []).map(step => `<tr>
+      const stepRows = (analysis.steps || []).map(step => {
+        const stepDisplay = stepView(step);
+        const stepBadges = stepDisplay.referenceMode ? '<span class="badge warn">参考价</span>' : '';
+        return `<tr>
         <td>${esc(step.hop)}</td>
         <td>${esc(step.fromSymbol)} → ${esc(step.toSymbol)}</td>
         <td>${esc(step.protocol || step.dex || "-")}</td>
@@ -203,11 +235,12 @@
         <td>${num(step.feeBps, 2)}</td>
         <td>${num(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td>
         <td>${money(step.inputUsd)}</td>
-        <td>${num(step.outputAmount, 8)} ${esc(step.toSymbol)}</td>
-        <td>${money(step.outputUsd)}</td>
-        <td>${num(step.effectiveRate, 8)}</td>
+        <td>${stepBadges}${num(stepDisplay.outputAmount, 8)} ${esc(step.toSymbol)}</td>
+        <td>${money(stepDisplay.outputUsd)}</td>
+        <td>${num(stepDisplay.effectiveRate, 8)}</td>
         <td>${num(step.priceImpactBps, 2)}</td>
-      </tr>`).join("");
+      </tr>`;
+      }).join("");
       return `<article class="route">
         <div class="route-head">
           <h2>${esc(route.symbolPair)}</h2>
@@ -219,15 +252,16 @@
           <span class="badge">1000U 探针</span>
           <span class="badge">池子 ${esc(route.poolCount)}</span>
           <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
-          ${analysis.adapterRequired ? '<span class="badge warn">V4 SDK adapter required</span>' : ''}
+          ${view.referenceMode ? '<span class="badge warn">参考价待链上复核</span>' : ''}
+          ${analysis.adapterRequired ? '<span class="badge warn">V4 SDK 适配器待接入</span>' : ''}
         </div>
         <div class="analysis">
-          <div><small>最终输出</small><strong>${money(analysis.finalOutputUsd)}</strong></div>
-          <div><small>毛利润</small><strong>${money(analysis.grossProfitUsd)}</strong></div>
+          <div><small>${esc(view.finalLabel.replace(/^1000U\s*/, ""))}</small><strong>${money(view.finalOutputUsd)}</strong></div>
+          <div><small>${esc(view.grossLabel)}</small><strong>${money(view.grossProfitUsd)}</strong></div>
           <div><small>闪电贷费</small><strong>${money(analysis.flashLoanFeeUsd)}</strong></div>
           <div><small>Gas 储备</small><strong>${money(analysis.gasReserveUsd)}</strong></div>
-          <div><small>净利润</small><strong>${money(analysis.netProfitUsd)}</strong></div>
-          <div><small>净收益 bps</small><strong>${num(analysis.netProfitBps, 2)}</strong></div>
+          <div><small>${esc(view.netLabel)}</small><strong>${money(view.netProfitUsd)}</strong></div>
+          <div><small>${esc(view.bpsLabel)}</small><strong>${num(view.netProfitBps, 2)}</strong></div>
         </div>
         <div class="table-wrap"><table>
           <thead><tr><th>#</th><th>兑换</th><th>协议</th><th>报价来源</th><th>池子</th><th>费率 bps</th><th>输入数量</th><th>输入价值</th><th>输出数量</th><th>输出价值</th><th>有效汇率</th><th>价格影响 bps</th></tr></thead>
