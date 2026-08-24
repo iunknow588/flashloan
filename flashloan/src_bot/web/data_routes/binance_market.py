@@ -40,6 +40,7 @@ from web.control_panel_cow_pause import (
 from web.control_panel_market import latest_binance_extremes_file, safe_latest
 
 from web import control_panel_data_routes as shared
+from market.binance_market.pool_candidates import dex_pool_candidates_payload
 
 ROUTE_CONTEXT = shared.ROUTE_CONTEXT
 panel_call = shared.panel_call
@@ -62,19 +63,9 @@ _set_cow_submission_pause_guard = shared._set_cow_submission_pause_guard
 _clear_cow_submission_pause_guard = shared._clear_cow_submission_pause_guard
 _cow_submission_pause_guard = shared._cow_submission_pause_guard
 DEX_ARBITRAGE_SUPPORTED_NETWORK = shared.DEX_ARBITRAGE_SUPPORTED_NETWORK
-DEX_POOL_STATIC_TABLE_PATH = shared.DEX_POOL_STATIC_TABLE_PATH
 COW_EXECUTION_ATTEMPT_LOG_PATH = shared.COW_EXECUTION_ATTEMPT_LOG_PATH
 COW_EXECUTION_RETENTION_DAYS = shared.COW_EXECUTION_RETENTION_DAYS
 COW_EXECUTION_REVIEW_CATEGORIES = shared.COW_EXECUTION_REVIEW_CATEGORIES
-_read_json_object = shared._read_json_object
-_string_number = shared._string_number
-_pool_address = shared._pool_address
-_reject_reason_counts = shared._reject_reason_counts
-_pool_quote_summary = shared._pool_quote_summary
-_pool_candidate_row = shared._pool_candidate_row
-_bnb_pool_candidate_row = shared._bnb_pool_candidate_row
-_bnb_dex_pool_candidates_payload = shared._bnb_dex_pool_candidates_payload
-dex_pool_candidates_payload = shared.dex_pool_candidates_payload
 
 
 def submit_ready_cow_quote_orders(payload: dict, *, market_state: dict) -> dict:
@@ -310,6 +301,10 @@ def register_binance_market_routes(app, panel) -> None:
     from web.data_routes.binance_market_cow import register_binance_market_cow_routes
 
     register_binance_market_cow_routes(app, panel)
+
+    from web.data_routes.dex_surfaces import register_dex_surface_routes
+
+    register_dex_surface_routes(app, panel)
 
     @app.get("/api/binance-market/cow-quotes")
     def binance_market_cow_quotes():

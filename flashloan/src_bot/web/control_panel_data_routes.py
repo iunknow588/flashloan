@@ -72,18 +72,7 @@ def _cow_submission_pause_guard(*, database_url: str | None = None) -> dict:
         return cow_submission_pause_guard_status()
 
 
-from web.data_routes.dex_pools import (
-    DEX_POOL_STATIC_TABLE_PATH,
-    _bnb_dex_pool_candidates_payload,
-    _bnb_pool_candidate_row,
-    _pool_address,
-    _pool_candidate_row,
-    _pool_quote_summary,
-    _read_json_object,
-    _reject_reason_counts,
-    _string_number,
-    dex_pool_candidates_payload,
-)
+from market.binance_market.pool_candidates import dex_pool_candidates_payload
 
 
 def _set_cow_submission_pause_guard(*, paused: bool, reason: str | None = None, database_url: str | None = None) -> dict:
@@ -123,7 +112,21 @@ def _request_networks_arg() -> list[str]:
 
 def _request_cow_network_arg() -> str:
     selected = _request_networks_arg()
-    return selected[0] if selected else DEFAULT_COW_NETWORK
+    if selected:
+        return selected[0]
+    try:
+        chain_selection = resolve_request_chain_selection(
+            database_url=panel_call("database_url_or_none"),
+            feature="dex_arbitrage",
+        )
+        network = str(getattr(chain_selection, "network", "") or "").strip().lower()
+        if network:
+            return network
+    except ChainSelectionError:
+        pass
+    except Exception:
+        pass
+    return DEFAULT_COW_NETWORK
 
 
 def _optional_request_chain_selection(*, feature: str | None = None) -> dict | None:

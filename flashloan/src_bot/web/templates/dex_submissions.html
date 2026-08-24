@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>提交记录</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1420px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .panel { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; }
+    .muted, .metric span { color: #667085; font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; vertical-align: top; }
+    th:first-child, td:first-child { text-align: left; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } }
+  </style>
+</head>
+<body data-dex-surface-template="submissions">
+  <header>
+    <h1>提交记录</h1>
+    <nav>
+      <a data-surface-link href="/dex">报价与路由</a>
+      <a data-surface-link href="/dex/overview">DEX 总览</a>
+      <a data-surface-link href="/dex/market-observation">市场观察</a>
+      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/submissions">提交记录</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshBtn">刷新记录</button>
+      <span id="message" class="muted">等待数据</span>
+    </div>
+    <section class="grid">
+      <div class="metric"><small>提交总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
+      <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>已完成交易</span></div>
+      <div class="metric"><small>失败</small><strong id="failedCount">-</strong><span>执行或链上失败</span></div>
+      <div class="metric"><small>阻断</small><strong id="blockedCount">-</strong><span>报价后未满足提交条件</span></div>
+    </section>
+    <section class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>时间</th><th>网络</th><th>交易对</th><th>状态</th><th>原因</th><th>订单/交易</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    async function fetchJson(path) {
+      const response = await fetch(path, {cache: "no-cache", headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+    function rowHtml(row) {
+      const status = row.category || row.status || row.submission_status || "-";
+      const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
+      const reason = row.reason || row.blocked_reason || (row.reasons || []).join(", ") || row.error || "-";
+      const order = row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-";
+      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td>${esc(pair)}</td><td>${esc(status)}</td><td>${esc(reason)}</td><td>${esc(order)}</td></tr>`;
+    }
+    async function refresh() {
+      $("message").textContent = "正在加载提交记录...";
+      try {
+        const data = await fetchJson("/api/dex/submissions?limit=300");
+        $("attemptCount").textContent = data.summary?.attemptCount ?? 0;
+        $("successCount").textContent = data.summary?.successCount ?? 0;
+        $("failedCount").textContent = data.summary?.failedCount ?? 0;
+        $("blockedCount").textContent = data.summary?.blockedCount ?? 0;
+        $("source").textContent = data.source || "-";
+        $("rows").innerHTML = (data.attempts || []).map(rowHtml).join("") || '<tr><td colspan="6">暂无提交记录。</td></tr>';
+        $("message").textContent = "已更新";
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    $("refreshBtn").onclick = refresh;
+    refresh();
+  </script>
+</body>
+</html>

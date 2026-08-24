@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>闪电贷资金池</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: #f5f7fb; color: #101828; font-family: Arial, "Microsoft YaHei", sans-serif; overflow-x: hidden; }
+    main.flash-loan-pool-page { width: 100%; max-width: none; margin: 0; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    .subtle, .muted { color: #667085; font-size: 12px; }
+    .toolbar { display: flex; align-items: center; gap: 10px; margin: 18px 0; }
+    button { min-height: 32px; border: 1px solid #98a2b3; border-radius: 5px; background: #fff; color: #101828; font-weight: 700; cursor: pointer; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; min-width: 0; }
+    .metric, .card { border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; }
+    .metric { min-width: 0; padding: 12px; }
+    .metric small { display: block; color: #667085; font-size: 11px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 20px; }
+    .card { min-width: 0; padding: 14px; margin-bottom: 14px; }
+    .card.hidden { display: none; }
+    .pool-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .pool-section-title h2 { margin: 0; }
+    .section-count { color: #667085; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+    .chip, .badge { display: inline-flex; align-items: center; min-height: 20px; border-radius: 4px; padding: 0 6px; background: #eef4ff; color: #344054; font-size: 11px; font-weight: 700; }
+    .badge.good { background: #dcfae6; color: #067647; }
+    .badge.ok { background: #e0f2fe; color: #026aa2; }
+    .badge.warn { background: #fef0c7; color: #b54708; }
+    .badge.bad { background: #fee4e2; color: #b42318; }
+    .status-card { display: none; border-color: #fecdca; background: #fff7f7; color: #7a271a; }
+    .status-card.visible { display: block; }
+    .empty-note { display: none; margin-top: 10px; padding: 10px 12px; border: 1px dashed #d0d5dd; border-radius: 6px; background: #f8fafc; color: #667085; font-size: 12px; }
+    .empty-note.visible { display: block; }
+    .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; border: 1px solid #eaecf0; border-radius: 6px; }
+    .table-wrap.hidden { display: none; }
+    table { width: 100%; min-width: 980px; border-collapse: collapse; background: #fff; }
+    th, td { padding: 8px 9px; border-bottom: 1px solid #eaecf0; text-align: left; font-size: 12px; vertical-align: top; }
+    th { background: #f2f4f7; color: #475467; font-size: 11px; white-space: nowrap; }
+    code { font-family: Consolas, monospace; font-size: 11px; }
+    .addr { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 900px) {
+      body { padding: 14px; }
+      .metrics { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="flash-loan-pool-page">
+    <h1>闪电贷资金池</h1>
+    <div class="subtle">直接复用原有 Aave reserve cache、稳定币目标池和借贷资产映射，供 BOT 与 DEX 共用。</div>
+    <div class="toolbar">
+      <button class="primary" id="refreshBtn">刷新</button>
+      <span class="subtle" id="message">等待加载</span>
+    </div>
+    <div>
+      <section>
+        <section class="metrics">
+          <div class="metric"><small id="stableMetricLabel">稳定币借贷池</small><strong id="stableCount">-</strong></div>
+          <div class="metric"><small id="nonStableMetricLabel">非稳定币借贷池</small><strong id="nonStableCount">-</strong></div>
+          <div class="metric"><small id="borrowMetricLabel">可借资产</small><strong id="borrowCount">-</strong></div>
+          <div class="metric"><small id="targetMetricLabel">目标资产</small><strong id="targetCount">-</strong></div>
+          <div class="metric"><small>缓存区块</small><strong id="blockNumber">-</strong></div>
+        </section>
+        <section class="card">
+          <h2 id="protocolTitle">Aave V3</h2>
+          <div class="subtle" id="cacheMeta">等待缓存</div>
+          <div class="chips" id="depthSummary"></div>
+        </section>
+        <section class="card status-card" id="statusPanel">
+          <h2 id="statusTitle">协议暂不可用</h2>
+          <div id="statusMessage">当前链暂不支持该协议或资金池缓存尚未接入。</div>
+        </section>
+        <section class="card" id="stableSection">
+          <div class="pool-section-title">
+            <h2 id="stableSectionTitle">稳定币借贷池</h2>
+            <span class="section-count" id="stableSectionCount">0 个池子</span>
+          </div>
+          <div class="subtle" id="stableSectionHint">来自原 Aave reserve cache 的 `is_stable=true` 分类。</div>
+          <div class="empty-note" id="stableEmpty">当前协议没有可展示的稳定币借贷池。</div>
+          <div class="table-wrap" id="stableTableWrap">
+            <table>
+              <thead><tr><th>资产/交易对</th><th>Binance 符号</th><th>可用性</th><th>深度 USD</th><th>可用流动性</th><th>借出/储备</th><th>供应/流动性</th><th>地址</th></tr></thead>
+              <tbody id="stableRows"><tr><td colspan="8" class="muted">加载中</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card" id="nonStableSection">
+          <div class="pool-section-title">
+            <h2 id="nonStableSectionTitle">非稳定币借贷池</h2>
+            <span class="section-count" id="nonStableSectionCount">0 个池子</span>
+          </div>
+          <div class="subtle" id="nonStableSectionHint">来自原 Aave reserve cache 的 `is_stable=false` 分类。</div>
+          <div class="empty-note" id="nonStableEmpty">当前协议没有可展示的非稳定币借贷池。</div>
+          <div class="table-wrap" id="nonStableTableWrap">
+            <table>
+              <thead><tr><th>资产/交易对</th><th>Binance 符号</th><th>可用性</th><th>深度 USD</th><th>可用流动性</th><th>借出/储备</th><th>供应/流动性</th><th>地址</th></tr></thead>
+              <tbody id="nonStableRows"><tr><td colspan="8" class="muted">加载中</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card" id="targetSection">
+          <div class="pool-section-title">
+            <h2 id="targetSectionTitle">可借资产与目标资产</h2>
+            <span class="section-count" id="targetSectionCount">0 个目标资产</span>
+          </div>
+          <div class="subtle" id="targetSectionHint">直接复用原控制台 `borrow_target_universe` 映射。</div>
+          <div class="chips" id="borrowTargetSummary"></div>
+          <div class="empty-note" id="targetEmpty">等待稳定币目标池缓存生成；生成后这里会展示可借资产到目标资产的映射。</div>
+          <div class="table-wrap" id="targetTableWrap">
+            <table>
+              <thead><tr><th>可借资产</th><th>目标数量</th><th>目标示例</th></tr></thead>
+              <tbody id="borrowTargetRows"><tr><td colspan="3" class="muted">加载中</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const num = value => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return "-";
+      if (Math.abs(parsed) >= 1000) return parsed.toLocaleString(undefined, {maximumFractionDigits: 2});
+      return parsed.toLocaleString(undefined, {maximumFractionDigits: 8});
+    };
+    const shortAddress = value => {
+      const text = String(value || "");
+      return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
+    };
+    const depthBadge = row => `<span class="badge ${esc(row.depth_class || "bad")}">${esc(row.depth_label || "不可用")}</span>`;
+    const requestedProtocol = () => (new URLSearchParams(location.search).get("protocols") || "aave_v3").split(",")[0].trim().toLowerCase() || "aave_v3";
+    function syncProtocolNav(selectedProtocol) {
+      const selected = selectedProtocol || requestedProtocol();
+      document.querySelectorAll("[data-flash-loan-protocol-link]").forEach(link => {
+        link.classList.toggle("active", link.dataset.flashLoanProtocolLink === selected);
+      });
+    }
+    function choosePrimaryView(views) {
+      const list = views || [];
+      return list.find(view => {
+        const summary = view.summary || {};
+        return !view.status && Number(summary.borrow_asset_count || 0) > 0;
+      }) || list.find(view => !view.status) || list[0] || {};
+    }
+    function assetRows(rows) {
+      return (rows || []).map(row => `<tr>
+        <td>${esc(row.token_symbol || "-")}</td>
+        <td>${esc(row.binance_symbol || "-")}</td>
+        <td>${depthBadge(row)}</td>
+        <td>${num(row.depth_score_usd)}</td>
+        <td>${num(row.available_liquidity)}</td>
+        <td>${num(row.reserve_data_liquidity)}</td>
+        <td>${num(row.a_token_total_supply)}</td>
+        <td class="addr" title="${esc(row.token_address || "")}"><code>${esc(shortAddress(row.token_address))}</code></td>
+      </tr>`).join("") || '<tr><td colspan="8" class="muted">暂无缓存资产</td></tr>';
+    }
+    function renderBorrowTargets(universe) {
+      const u = universe || {};
+      const rows = u.borrow_rows || [];
+      $("targetSectionCount").textContent = `${esc(u.target_count ?? 0)} 个目标资产`;
+      $("targetEmpty").classList.toggle("visible", !rows.length);
+      $("targetTableWrap").classList.toggle("hidden", !rows.length);
+      $("borrowTargetSummary").innerHTML = [
+        `<span class="chip">可借 ${esc(u.borrow_count ?? 0)}</span>`,
+        `<span class="chip">目标 ${esc(u.target_count ?? 0)}</span>`,
+        `<span class="chip">来源 ${esc(u.target_source || "缓存/未生成")}</span>`,
+      ].join("");
+      $("borrowTargetRows").innerHTML = rows.map(row => `<tr>
+        <td>${esc(row.borrow_symbol || "-")}</td>
+        <td>${esc(row.target_count ?? 0)}</td>
+        <td>${esc((row.target_symbols || []).slice(0, 12).join(", ") || "-")}</td>
+      </tr>`).join("") || '<tr><td colspan="3" class="muted">暂无映射；等待稳定币目标池缓存生成</td></tr>';
+    }
+    function render(payload) {
+      const view = choosePrimaryView(payload.protocol_views);
+      const summary = view.summary || {};
+      const cache = view.cache || {};
+      const stableRows = view.stable_borrow_pools || [];
+      const nonStableRows = view.non_stable_borrow_pools || [];
+      const unavailable = Boolean(view.status);
+      const observableMode = view.display_mode === "observable_dex_pool";
+      const flashLoanMode = view.display_mode === "flash_loan_source";
+      const flashSwapMode = view.display_mode === "flash_swap_source";
+      const flashSourceMode = flashLoanMode || flashSwapMode;
+      $("protocolTitle").textContent = view.display_name || "Aave V3";
+      syncProtocolNav(view.protocol);
+      $("stableMetricLabel").textContent = observableMode ? "稳定币相关观察池" : (flashSwapMode ? "稳定币相关 Flash Swap" : "稳定币借贷池");
+      $("nonStableMetricLabel").textContent = observableMode ? "非稳定币观察池" : (flashSwapMode ? "非稳定币 Flash Swap" : "非稳定币借贷池");
+      $("borrowMetricLabel").textContent = observableMode ? "已验证可借池" : "可借资产";
+      $("targetMetricLabel").textContent = observableMode ? "Flash 能力池" : (flashSourceMode ? "已验证来源" : "目标资产");
+      $("stableCount").textContent = observableMode ? (summary.stable_observable_pool_count ?? stableRows.length) : (summary.stable_borrow_pool_count ?? 0);
+      $("nonStableCount").textContent = observableMode ? (summary.non_stable_observable_pool_count ?? nonStableRows.length) : (summary.non_stable_borrow_pool_count ?? 0);
+      $("borrowCount").textContent = summary.borrow_asset_count ?? 0;
+      $("targetCount").textContent = observableMode ? (summary.flash_capable_pool_count ?? summary.observable_pool_count ?? stableRows.length + nonStableRows.length) : (summary.borrow_target_count ?? 0);
+      $("blockNumber").textContent = cache.block_number || "-";
+      $("cacheMeta").textContent = [
+        `池 ${cache.pool_address || "-"}`,
+        `链 ${cache.chain_id ?? "-"}`,
+        `区块 ${cache.block_number || "-"}`,
+        `更新 ${fmtTime(cache.refreshed_at)}`,
+      ].join(" | ");
+      const depth = summary.depth_counts || {};
+      $("depthSummary").innerHTML = [
+        `<span class="chip">深 ${depth.deep || 0}</span>`,
+        `<span class="chip">中 ${depth.medium || 0}</span>`,
+        `<span class="chip">浅 ${depth.shallow || 0}</span>`,
+        `<span class="chip">极浅 ${depth.dust || 0}</span>`,
+        `<span class="chip">不可用 ${depth.unavailable || 0}</span>`,
+      ].join("");
+      $("statusPanel").classList.toggle("visible", Boolean(view.status));
+      $("statusTitle").textContent = view.status === "chain_protocol_not_supported" ? "当前链不支持该协议" : "协议资金池缓存未接入";
+      $("statusMessage").textContent = view.status_message || "当前链暂不支持该协议或资金池缓存尚未接入。";
+      ["stableSection", "nonStableSection", "targetSection"].forEach(id => $(id).classList.toggle("hidden", unavailable));
+      $("stableSectionTitle").textContent = observableMode ? "稳定币相关可观察 DEX 池" : (flashSwapMode ? "稳定币相关 Flash Swap 池" : "稳定币借贷池");
+      $("nonStableSectionTitle").textContent = observableMode ? "非稳定币可观察 DEX 池" : (flashSwapMode ? "非稳定币 Flash Swap 池" : "非稳定币借贷池");
+      $("targetSectionTitle").textContent = observableMode ? "闪电贷借贷验证状态" : (flashSourceMode ? "可借资产与闪电来源" : "可借资产与目标资产");
+      $("stableSectionHint").textContent = observableMode ? "来自 Robinhood DEX 池发现证据；仅表示池存在并可观察，不等同于已验证可借贷资金池。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电资金来源。") : "来自原 Aave reserve cache 的 `is_stable=true` 分类。");
+      $("nonStableSectionHint").textContent = observableMode ? "来自 Robinhood DEX 池发现证据；这些池尚未通过闪电贷提供方或 flash 调用验证。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电资金来源。") : "来自原 Aave reserve cache 的 `is_stable=false` 分类。");
+      $("targetSectionHint").textContent = observableMode ? "Uniswap V3 池合约具备 flash 能力；但当前没有已验证余额/可借额度，因此已验证可借池为 0。" : (flashSourceMode ? "这里展示可借资产与对应 flash loan / flash swap 来源；执行广播仍受观察模式开关限制。" : "直接复用原控制台 `borrow_target_universe` 映射。");
+      $("stableSectionCount").textContent = `${stableRows.length} 个池子`;
+      $("nonStableSectionCount").textContent = `${nonStableRows.length} 个池子`;
+      $("stableEmpty").classList.toggle("visible", !stableRows.length);
+      $("nonStableEmpty").classList.toggle("visible", !nonStableRows.length);
+      $("stableTableWrap").classList.toggle("hidden", !stableRows.length);
+      $("nonStableTableWrap").classList.toggle("hidden", !nonStableRows.length);
+      $("stableRows").innerHTML = assetRows(stableRows);
+      $("nonStableRows").innerHTML = assetRows(nonStableRows);
+      renderBorrowTargets(observableMode ? {
+        borrow_count: 0,
+        target_count: summary.flashloan_borrowable_pool_count ?? 0,
+        target_source: `flash_capable=${summary.flash_capable_pool_count ?? 0}; borrowable_unverified=${summary.flashloan_unverified_pool_count ?? 0}`,
+        borrow_rows: []
+      } : view.borrow_target_universe);
+      $("message").textContent = `已加载 ${view.display_name || "Aave V3"} 资金池分类`;
+    }
+    async function refresh() {
+      $("message").textContent = "加载中";
+      const query = new URLSearchParams(location.search);
+      const response = await fetch(`/api/flash-loan/pools?${query.toString()}`, {cache: "no-cache"});
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      render(data);
+    }
+    $("refreshBtn").onclick = () => refresh().catch(error => { $("message").textContent = error.message; });
+    window.addEventListener("chainselectionchanged", () => refresh().catch(error => { $("message").textContent = error.message; }));
+    window.addEventListener("chainselectionprotocolschanged", () => refresh().catch(error => { $("message").textContent = error.message; }));
+    refresh().catch(error => { $("message").textContent = error.message; });
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DEX 链路 · Robinhood Shadow</title>
+  <title>Robinhood Shadow 候选池</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
@@ -12,7 +12,7 @@
     h1 { margin: 0; font-size: 20px; }
     nav { display: flex; flex-wrap: wrap; gap: 10px; }
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
-    main { width: min(1280px, 100%); margin: 0 auto; }
+    main { width: min(1320px, 100%); margin: 0 auto; }
     button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
     .muted { color: #667085; }
@@ -23,8 +23,8 @@
     .metric strong { display: block; margin: 6px 0; font-size: 18px; font-variant-numeric: tabular-nums; }
     .status { padding: 13px; line-height: 1.5; margin-bottom: 14px; }
     .status strong { display: inline-block; margin-right: 8px; }
-    .bad { color: #b42318; }
-    .good { color: #15803d; }
+    .bad { color: #b42318 !important; }
+    .good { color: #15803d !important; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { padding: 10px; border-bottom: 1px solid #e4e7ec; text-align: left; vertical-align: top; }
@@ -32,33 +32,40 @@
     td { overflow-wrap: anywhere; }
     .badge { display: inline-block; padding: 3px 7px; border: 1px solid #d0d5dd; border-radius: 6px; background: #f3f4f6; color: #475467; font-size: 12px; font-weight: 700; }
     .empty { padding: 22px; color: #667085; }
+    code { font-size: 12px; word-break: break-all; }
     @media (max-width: 680px) { header, main { padding: 14px; } }
   </style>
 </head>
 <body>
   <header>
-    <h1 id="surfaceTitle">DEX 链路 · Robinhood Shadow</h1>
+    <h1>Robinhood Shadow 候选池</h1>
     <nav>
       <a href="/liquidation">清算</a>
-      <a data-surface-link href="/dex">DEX 总览</a>
+      <a data-surface-link href="/dex">报价与路由</a>
+      <a data-surface-link href="/dex/overview">DEX 概览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
-      <a data-surface-link href="/dex/candidates">候选池</a>
-      <a data-surface-link href="/dex/quotes">报价与路由</a>
+      <a data-surface-link href="/robinhood-dex/candidates">候选池</a>
       <a data-surface-link href="/dex/submissions">提交记录</a>
     </nav>
   </header>
   <main>
-    <div class="toolbar"><button id="refresh">刷新</button><span id="surfaceDescription" class="muted">Shadow 链路只读观察</span><span id="updated" class="muted">等待数据</span></div>
+    <div class="toolbar">
+      <button id="refresh">刷新</button>
+      <span class="muted">仅展示已发现并通过证据校验的池子</span>
+      <span id="updated" class="muted">等待数据</span>
+    </div>
     <section class="summary">
       <div class="metric"><small>市场</small><strong id="market">-</strong><span id="chain">-</span></div>
-      <div class="metric"><small>RPC 链状态</small><strong id="rpc">-</strong><span id="block">-</span></div>
-      <div class="metric"><small id="candidateMetricLabel">当前观察候选</small><strong id="count">-</strong><span id="source">-</span></div>
-      <div class="metric"><small>执行</small><strong class="bad">已禁用</strong><span>Shadow observation only</span></div>
+      <div class="metric"><small>RPC 状态</small><strong id="rpc">-</strong><span id="block">-</span></div>
+      <div class="metric"><small>已验证池子</small><strong id="count">-</strong><span id="source">-</span></div>
+      <div class="metric"><small>执行状态</small><strong class="bad">已禁用</strong><span>当前为只读观察</span></div>
     </section>
     <section id="status" class="status"></section>
     <section class="table-wrap">
       <table>
-        <thead><tr><th>路径</th><th>状态</th><th>池数</th><th>区块</th><th>证据</th><th>阻断原因</th></tr></thead>
+        <thead>
+          <tr><th>池地址</th><th>代币对</th><th>费率</th><th>Tick 间距</th><th>流动性</th><th>区块</th><th>证据</th><th>状态</th></tr>
+        </thead>
         <tbody id="rows"></tbody>
       </table>
     </section>
@@ -66,44 +73,20 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const fmt = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const fmt = value => value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "-";
     const probeCheck = (status, name) => (status.checks || []).find(item => item.name === name) || {};
-    const surfaceMeta = {
-      overview: {
-        title: "DEX 总览 · Robinhood Shadow",
-        description: "当前 DEX 链路为 Robinhood Shadow，页面提供只读状态、候选和部署证据。",
-        metric: "链路候选",
-      },
-      observation: {
-        title: "市场观察 · Robinhood Shadow",
-        description: "Shadow 链路只读观察 RPC、市场证据和候选池状态，不提交交易。",
-        metric: "观察候选",
-      },
-      candidates: {
-        title: "候选池 · Robinhood Shadow",
-        description: "展示 Robinhood Shadow 已发现并通过证据校验的候选池。",
-        metric: "候选池",
-      },
-      quotes: {
-        title: "报价与路由 · Robinhood Shadow",
-        description: "报价仅用于观察和证据校验，当前不允许执行或广播。",
-        metric: "可报价候选",
-      },
-      submissions: {
-        title: "提交记录 · Robinhood Shadow",
-        description: "当前链路为 observation-only，提交入口保持关闭，仅展示阻断状态。",
-        metric: "提交候选",
-      },
+    const reasonLabels = {
+      robinhood_dex_factory_source_unverified: "DEX Factory 来源未验证",
+      robinhood_pool_discovery_evidence_missing: "池发现证据缺失",
+      robinhood_live_quote_unverified: "实时报价未验证",
+      robinhood_executor_unverified: "执行器未验证",
+      robinhood_flashloan_provider_unverified: "闪电贷提供方未验证",
+      robinhood_fork_simulation_unverified: "分叉模拟未验证",
+      robinhood_lending_protocol_unverified: "借贷协议未验证",
+      robinhood_liquidation_adapter_not_started: "清算适配器未启动"
     };
-    function currentSurface() {
-      return document.body.dataset.pageSurface || "observation";
-    }
-    function applySurface() {
-      const meta = surfaceMeta[currentSurface()] || surfaceMeta.observation;
-      document.title = meta.title;
-      $("surfaceTitle").textContent = meta.title;
-      $("surfaceDescription").textContent = meta.description;
-      $("candidateMetricLabel").textContent = meta.metric;
+    const reasonText = value => (value || []).map(item => reasonLabels[item] || item).join("、");
+    function applyLinks() {
       const current = new URLSearchParams(location.search);
       document.querySelectorAll("[data-surface-link]").forEach(link => {
         const target = new URL(link.getAttribute("href"), location.origin);
@@ -116,31 +99,34 @@
       const market = data.market || {};
       const chainStatus = data.chainStatus || {};
       const block = probeCheck(chainStatus, "eth_blockNumber").value;
+      const pools = data.pools || [];
+      const summary = data.summary || {};
+      const evidence = data.evidence || {};
       $("market").textContent = market.display_name || market.market_id || "-";
-      $("chain").textContent = `${market.network || "-"} | chainId ${market.chain_id || "-"}`;
+      $("chain").textContent = `${market.network || "-"} | 链 ID ${market.chain_id || "-"}`;
       $("rpc").textContent = chainStatus.ok ? "正常" : "未通过";
       $("rpc").className = chainStatus.ok ? "good" : "bad";
-      $("block").textContent = block ? `区块 ${block}` : (chainStatus.error || "只读检查未通过");
-      $("count").textContent = String((data.summary || {}).candidateCount || 0);
-      const diagnostics = data.observationDiagnostics || {};
-      const sourceLabel = data.dataSource?.source || data.candidateSource || "-";
-      $("source").textContent = `来源 ${sourceLabel}`;
-      const deployment = data.deploymentStatus || {};
-      const blocked = (deployment.blockingReasons || []).slice(0, 6).join(", ");
-      const observationNote = data.observationStatus === "awaiting_discovery_evidence"
-        ? `<br><strong class="bad">候选池尚未生成</strong> RPC 链路正常，但本地没有候选缓存或 Robinhood DEX 发现证据。${diagnostics.nextAction ? `<br><span class="muted">下一步：${esc(diagnostics.nextAction)}</span>` : ""}`
-        : `<br><strong class="good">候选池已读取</strong> ${esc(data.observationMessage || "")}`;
-      $("status").innerHTML = `<strong class="bad">尚未完成可执行部署</strong>${esc(deployment.deploymentLevel || "framework_and_observation_shadow")}。当前仅允许观察和证据收集；执行与广播保持禁用。${blocked ? `<br><span class="muted">阻断：${esc(blocked)}</span>` : ""}${observationNote}`;
-      const rows = data.candidates || [];
-      $("rows").innerHTML = rows.length ? rows.map(row => `<tr>
-        <td>${esc((row.routeSymbols || []).join(" -> ") || row.routeKey)}</td>
-        <td><span class="badge">${esc(row.status)}</span></td>
-        <td>${esc((row.poolAddresses || []).length)}</td>
-        <td>${esc(row.observedBlock)}</td>
-        <td>factory ${esc((row.evidence || {}).factory)}<br>事件 ${esc((row.evidence || {}).eventVerified)} | 代码 ${esc((row.evidence || {}).poolCodeVerified)} | 报价 ${esc((row.evidence || {}).quoteStatus)}</td>
-        <td>${esc((row.blockedReasons || []).join(", "))}</td>
-      </tr>`).join("") : '<tr><td class="empty" colspan="6">暂无当前候选池。需先验证 DEX factory，再扫描 PoolCreated 事件并写入观察候选。</td></tr>';
-      $("updated").textContent = `页面刷新 ${fmt(new Date().toISOString())}`;
+      $("block").textContent = block ? `区块 ${block}` : (chainStatus.error || "只读检查不可用");
+      $("count").textContent = String(summary.poolCount || pools.length || 0);
+      $("source").textContent = `证据来源：${evidence.source === "evidence_package" ? "证据包" : "无"}`;
+      const statusNote = pools.length
+        ? `<strong class="good">已验证池子：${esc(pools.length)}</strong> 仅展示池子自身数据，不包含兑换路径、报价或盈亏。`
+        : `<strong class="bad">已验证池子：0</strong> 当前没有可展示的证据校验通过池子。`;
+      $("status").innerHTML = statusNote;
+      $("rows").innerHTML = pools.length ? pools.map(pool => {
+        const e = pool.evidence || {};
+        const pair = pool.symbolPair || [pool.token0Symbol, pool.token1Symbol].filter(Boolean).join(" / ") || `${pool.token0 || "-"} / ${pool.token1 || "-"}`;
+        const fee = pool.fee === null || pool.fee === undefined || pool.fee === "" ? "-" : `${pool.fee}（${Number(pool.fee) / 10000}%）`;
+        const evidenceText = [
+          e.factoryQueryVerified ? "Factory 查询" : "",
+          e.eventVerified ? "PoolCreated 事件" : "",
+          e.poolCodeVerified ? "池代码" : "",
+          e.poolStateVerified ? "池状态" : ""
+        ].filter(Boolean).join("、") || "未完成";
+        const method = e.discoveryMethod === "factory_getPool_readonly" ? "Factory getPool 只读查询" : (e.discoveryMethod || "-");
+        return `<tr><td><code>${esc(pool.address)}</code></td><td>${esc(pair)}</td><td>${esc(fee)}</td><td>${esc(pool.tickSpacing)}</td><td>${esc(pool.liquidity)}</td><td>${esc(pool.observedBlock)}</td><td>${esc(evidenceText)}<br><span class="muted">${esc(method)}</span></td><td><span class="badge">${esc(pool.status === "observable" ? "可观察" : pool.status)}</span></td></tr>`;
+      }).join("") : '<tr><td class="empty" colspan="8">暂无已发现并通过证据校验的池子。</td></tr>';
+      $("updated").textContent = `刷新时间：${fmt(new Date().toISOString())}`;
     }
     let refreshController = null;
     async function refresh() {
@@ -149,31 +135,30 @@
       const controller = refreshController;
       const timeout = window.setTimeout(() => controller.abort(), 30000);
       $("refresh").disabled = true;
-      $("updated").textContent = "读取 Robinhood 只读状态...";
+      $("updated").textContent = "正在读取 Robinhood 池数据...";
       try {
-        const query = new URLSearchParams();
         const current = new URLSearchParams(location.search);
-        query.set("market_id", current.get("market_id") || "robinhood-dex-shadow");
-        query.set("chain_id", current.get("chain_id") || "4663");
-        const response = await fetch(`/api/robinhood-dex/observation?${query}`, {
-          cache: "no-cache",
-          signal: controller.signal,
-        });
+        const query = new URLSearchParams({ market_id: current.get("market_id") || "robinhood-dex-shadow", chain_id: current.get("chain_id") || "4663" });
+        const response = await fetch(`/api/robinhood-dex/pools?${query}`, { cache: "no-cache", signal: controller.signal });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
         render(data);
+        applyLinks();
       } catch (error) {
-        $("updated").textContent = error.name === "AbortError"
-          ? "读取超时：Robinhood RPC 检查未在 30 秒内完成，请稍后重试"
-          : `读取失败：${error.message}`;
+        $("updated").textContent = error.name === "AbortError" ? "读取超时，请稍后重试。" : `读取失败：${error.message}`;
       } finally {
         window.clearTimeout(timeout);
         if (refreshController === controller) refreshController = null;
         $("refresh").disabled = false;
       }
     }
+    window.addEventListener("chainselectionchanged", event => {
+      const selected = event?.detail?.selected || {};
+      if (String(selected.feature || "").toLowerCase() !== "dex_arbitrage") return;
+      refresh();
+    });
     $("refresh").onclick = refresh;
-    applySurface();
+    applyLinks();
     refresh();
   </script>
 </body>

@@ -48,8 +48,20 @@ def _rows():
             "chain_id": 56,
             "feature": "dex_arbitrage",
             "network": "bnb",
-            "protocol": "uniswap_v3",
-            "display_name": "BNB DEX Arbitrage",
+            "protocol": "pancakeswap_v3",
+            "display_name": "BNB PancakeSwap V3 Arbitrage",
+            "native_symbol": "BNB",
+            "protocol_supported": False,
+            "observation_only": True,
+            "market_type": "native_chain",
+        },
+        {
+            "market_id": "bnb-pancakeswap-v2",
+            "chain_id": 56,
+            "feature": "dex_arbitrage",
+            "network": "bnb",
+            "protocol": "pancakeswap_v2",
+            "display_name": "BNB PancakeSwap V2 Arbitrage",
             "native_symbol": "BNB",
             "protocol_supported": False,
             "observation_only": True,
@@ -80,6 +92,18 @@ def _rows():
             "observation_only": True,
             "market_type": "shadow_chain",
         },
+        {
+            "market_id": "robinhood-liquidation-shadow",
+            "chain_id": 4663,
+            "feature": "liquidation",
+            "network": "robinhood",
+            "protocol": "aave_v3",
+            "display_name": "Robinhood Liquidation Shadow",
+            "native_symbol": "ETH",
+            "protocol_supported": False,
+            "observation_only": True,
+            "market_type": "shadow_chain",
+        },
     ]
 
 
@@ -96,6 +120,7 @@ def test_selection_filters_by_feature_and_default_market(monkeypatch):
     choices = available_chain_selections(feature="dex_arbitrage")
     assert [choice.market_id for choice in choices] == [
         "bnb-dex-arbitrage",
+        "bnb-pancakeswap-v2",
         "cow-dex-arbitrage",
         "robinhood-dex-shadow",
     ]
@@ -105,6 +130,19 @@ def test_selection_filters_by_feature_and_default_market(monkeypatch):
     assert selected.market_type == "execution_rail"
     assert selected.capabilities["robinhood_shadow"] is False
     assert selected.capabilities["execution"] is False
+
+
+def test_selection_exposes_robinhood_in_liquidation_scope(monkeypatch):
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    choices = available_chain_selections(feature="liquidation")
+    market_ids = [choice.market_id for choice in choices]
+    robinhood = resolve_chain_selection(chain_id=4663, feature="liquidation")
+
+    assert "robinhood-liquidation-shadow" in market_ids
+    assert robinhood.market_id == "robinhood-liquidation-shadow"
+    assert robinhood.capabilities["robinhood_shadow"] is True
+    assert robinhood.capabilities["execution"] is False
 
 
 def test_selection_rejects_chain_mismatch(monkeypatch):

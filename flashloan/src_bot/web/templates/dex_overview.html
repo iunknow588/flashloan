@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEX 总览</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1420px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0; font-size: 16px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .panel, .path { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; }
+    .metric span, .muted { color: #667085; font-size: 13px; }
+    .path { margin-bottom: 12px; }
+    .path-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
+    .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
+    .table-wrap { overflow-x: auto; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    .empty { padding: 18px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .path-head { display: block; } }
+  </style>
+</head>
+<body data-dex-surface-template="overview">
+  <header>
+    <h1>DEX 总览</h1>
+    <nav>
+      <a data-surface-link href="/dex">报价与路由</a>
+      <a data-surface-link href="/dex/overview">DEX 总览</a>
+      <a data-surface-link href="/dex/market-observation">市场观察</a>
+      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/submissions">提交记录</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshBtn">刷新总览</button>
+      <span id="message" class="muted">等待数据</span>
+    </div>
+    <section class="grid">
+      <div class="metric"><small>可套利路径</small><strong id="pathCount">-</strong><span>已满足闪电贷衔接</span></div>
+      <div class="metric"><small>观察交易对</small><strong id="watchCount">-</strong><span>有候选池但仍需报价</span></div>
+      <div class="metric"><small>闪电贷协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
+      <div class="metric"><small>池子来源</small><strong id="sourceNetwork">-</strong><span id="sourceMeta">-</span></div>
+    </section>
+    <section id="pathList"></section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const apiPath = path => window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+    async function fetchJson(path) {
+      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+    function pairHtml(pair) {
+      const linkage = pair.flashLoanLinkage || {};
+      const pools = pair.executionPools || pair.preferredPools || [];
+      return `<article class="path">
+        <div class="path-head">
+          <div>
+            <h2>${esc(pair.symbolPair)}</h2>
+            <div class="badges">
+              <span class="badge good">可原子衔接</span>
+              <span class="badge">${esc(linkage.strategy)}</span>
+              <span class="badge">借入 ${esc((linkage.borrow_symbols || []).join(", ") || "-")}</span>
+              <span class="badge">候选池 ${esc(pools.length)}</span>
+            </div>
+          </div>
+          <div class="muted">${esc((linkage.route_symbols || []).join(" -> "))}</div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>池子</th><th>协议</th><th>费率</th><th>TVL</th><th>深度等级</th></tr></thead>
+          <tbody>${pools.slice(0, 5).map(pool => `<tr>
+            <td>${esc(pool.pool)}</td><td>${esc(pool.dex || pool.protocol || "-")}</td><td>${esc(pool.fee)}</td>
+            <td>${esc((pool.balances || {}).tvlUsd ?? "-")}</td><td>${esc((pool.depthBand || {}).label || "-")}</td>
+          </tr>`).join("") || '<tr><td colspan="5">暂无候选池</td></tr>'}</tbody>
+        </table></div>
+      </article>`;
+    }
+    async function refresh() {
+      $("message").textContent = "正在加载 DEX 总览...";
+      try {
+        const data = await fetchJson("/api/dex/overview");
+        const flash = data.flashLoanLiquidity || {};
+        const source = data.poolStaticTable || {};
+        $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
+        $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
+        $("flashCount").textContent = (flash.available_protocols || []).length;
+        $("flashNames").textContent = (flash.available_protocols || []).join(", ") || "-";
+        $("sourceNetwork").textContent = source.network || "-";
+        $("sourceMeta").textContent = source.exists === false ? "当前链没有静态池表" : (source.generatedAt || "-");
+        $("pathList").innerHTML = (data.arbitragePaths || []).map(pairHtml).join("") || '<div class="empty">当前选择下没有满足闪电贷衔接条件的套利路径。</div>';
+        $("message").textContent = "已更新";
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    $("refreshBtn").onclick = refresh;
+    window.addEventListener("chainselectionchanged", event => {
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+    });
+    refresh();
+  </script>
+</body>
+</html>

@@ -1,9 +1,17 @@
 from pathlib import Path
+import re
 
 from flask import Response, jsonify, request, send_file
 
 from core.chain_selection import ChainSelectionError
 from core.build_info import build_info_payload
+from core.flash_loan_pool_discovery import (
+    cached_robinhood_flash_liquidity_snapshot,
+    protocol_options_for_chain,
+    query_flash_loan_pool_discovery,
+    refresh_flash_loan_pool_discovery_cache,
+    start_flash_loan_pool_discovery_idle_worker,
+)
 from core.market_config import (
     DEFAULT_BNB_CHAIN_ID,
     DEFAULT_BNB_DEX_MARKET_ID,
@@ -11,6 +19,7 @@ from core.market_config import (
     DEFAULT_COW_VIRTUAL_CHAIN_ID,
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+    supported_market_summaries,
 )
 from account_pool import account_pool_state_payload
 from page_state import (
@@ -21,11 +30,24 @@ from page_state import (
 )
 from web.chain_selection import inject_chain_selector_markup
 from web.app_shell import inject_app_shell_markup
+from web.flash_loan_pools import flash_loan_pools_payload
 from web.market_page_registry import resolve_market_page_variant
 from web.workflow_context import inject_workflow_context_markup
 
 
 CHAIN_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "chain_selector.js"
+
+
+def _add_body_attribute(html: str, name: str, value: str) -> str:
+    pattern = re.compile(r"<body([^>]*)>", re.IGNORECASE)
+
+    def replace(match: re.Match) -> str:
+        attrs = match.group(1) or ""
+        if re.search(rf"\s{name}=", attrs, re.IGNORECASE):
+            return match.group(0)
+        return f'<body{attrs} {name}="{value}">'
+
+    return pattern.sub(replace, html, count=1)
 
 
 def _request_scope_defaults(
@@ -66,11 +88,7 @@ def _html_response(
             include_chain_selector=include_chain_selector,
         )
     if page_surface:
-        html = html.replace(
-            "<body>",
-            f'<body data-page-surface="{page_surface}">',
-            1,
-        )
+        html = _add_body_attribute(html, "data-page-surface", page_surface)
     if include_chain_selector:
         html = inject_chain_selector_markup(
             html,
@@ -131,6 +149,16 @@ def _request_chain_id() -> int | None:
         raise ChainSelectionError("invalid_chain_id", f"invalid chain_id: {raw}") from None
 
 
+def _request_optional_int(name: str) -> int | None:
+    raw = request.args.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        raise ChainSelectionError(f"invalid_{name}", f"invalid {name}: {raw}") from None
+
+
 def _panel_database_url(panel) -> str | None:
     getter = getattr(panel, "database_url_or_none", None)
     if not callable(getter):
@@ -139,6 +167,10 @@ def _panel_database_url(panel) -> str | None:
         return getter()
     except Exception:
         return None
+
+
+def _flash_loan_discovery_refresh_kwargs(panel) -> dict:
+    return {"market_rows": supported_market_summaries(_panel_database_url(panel))}
 
 
 def _market_page_response(
@@ -162,8 +194,18 @@ def _market_page_response(
     if variant is None:
         return jsonify({"ok": False, "error": "page market variant is not registered", "code": "page_variant_missing"}), 500
     selected_template = template_path
-    if variant.template_kind == "robinhood_shadow":
+    if variant.page_key == "robinhood_dex":
         selected_template = panel.ROBINHOOD_DEX_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "overview":
+        selected_template = panel.DEX_OVERVIEW_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "observation":
+        selected_template = panel.MARKET_OBSERVATION_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "candidates":
+        selected_template = panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "quotes":
+        selected_template = panel.DEX_QUOTES_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions":
+        selected_template = panel.DEX_SUBMISSIONS_TEMPLATE_PATH
     elif variant.template_kind == "single_chain":
         selected_template = panel.DEX_SINGLE_CHAIN_TEMPLATE_PATH
     elif selected_template is None and variant.feature == "dex_arbitrage":
@@ -233,7 +275,12 @@ def register_page_routes(app, panel) -> None:
     @app.get("/market-observation")
     @app.get("/dex/market-observation")
     def dex_market_observation_panel():
-        return _market_page_response(panel, default_market_id=DEFAULT_COW_DEX_MARKET_ID, default_chain_id=DEFAULT_COW_VIRTUAL_CHAIN_ID)
+        return _market_page_response(
+            panel,
+            template_path=panel.MARKET_OBSERVATION_TEMPLATE_PATH,
+            default_market_id=DEFAULT_COW_DEX_MARKET_ID,
+            default_chain_id=DEFAULT_COW_VIRTUAL_CHAIN_ID,
+        )
 
     @app.get("/ops")
     def operations_panel():
@@ -242,6 +289,7 @@ def register_page_routes(app, panel) -> None:
     @app.get("/binance-market")
     @app.get("/dex-arbitrage")
     @app.get("/dex")
+    @app.get("/dex/overview")
     @app.get("/dex/quotes")
     @app.get("/dex/submissions")
     def binance_market_panel():
@@ -251,7 +299,31 @@ def register_page_routes(app, panel) -> None:
     @app.get("/candidate-pools")
     @app.get("/dex/candidates")
     def dex_pool_candidates_panel():
-        return _market_page_response(panel, template_path=panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH, default_market_id=DEFAULT_BNB_DEX_MARKET_ID, default_chain_id=DEFAULT_BNB_CHAIN_ID)
+        requested_market_id = request.args.get("market_id", "").strip()
+        requested_chain_id = request.args.get("chain_id", "").strip()
+        if requested_market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID or requested_chain_id == str(DEFAULT_ROBINHOOD_CHAIN_ID):
+            return _market_page_response(
+                panel,
+                template_path=panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
+                default_market_id=DEFAULT_BNB_DEX_MARKET_ID,
+                default_chain_id=DEFAULT_BNB_CHAIN_ID,
+            )
+        return _html_response(
+            panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
+            feature="dex_arbitrage",
+            default_market_id=DEFAULT_BNB_DEX_MARKET_ID,
+            default_chain_id=DEFAULT_BNB_CHAIN_ID,
+            page_surface="candidates",
+        )
+
+    @app.get("/flash-loan")
+    @app.get("/flash-loan/pools")
+    def flash_loan_pools_panel():
+        start_flash_loan_pool_discovery_idle_worker(
+            initial_delay_seconds=2.0,
+            refresh_kwargs=_flash_loan_discovery_refresh_kwargs(panel),
+        )
+        return _html_response(panel.FLASH_LOAN_POOLS_TEMPLATE_PATH)
 
     @app.get("/robinhood-dex")
     @app.get("/robinhood-dex/candidates")
@@ -359,3 +431,53 @@ def register_page_routes(app, panel) -> None:
     @app.get("/api/execution/state")
     def execution_state():
         return jsonify(execution_state_payload(panel))
+
+    @app.get("/api/flash-loan/pool-discovery")
+    def flash_loan_pool_discovery_api():
+        start_flash_loan_pool_discovery_idle_worker(
+            initial_delay_seconds=2.0,
+            refresh_kwargs=_flash_loan_discovery_refresh_kwargs(panel),
+        )
+        try:
+            chain_id = _request_optional_int("chain_id")
+        except ChainSelectionError as exc:
+            return jsonify({"ok": False, "error": exc.message, "code": exc.code}), 400
+        protocol = request.args.get("protocol", "").strip().lower() or None
+        return jsonify(query_flash_loan_pool_discovery(chain_id=chain_id, protocol=protocol))
+
+    @app.post("/api/flash-loan/pool-discovery/refresh")
+    def flash_loan_pool_discovery_refresh_api():
+        snapshot = refresh_flash_loan_pool_discovery_cache(**_flash_loan_discovery_refresh_kwargs(panel))
+        return jsonify(snapshot)
+
+    @app.get("/api/flash-loan/pools")
+    def flash_loan_pools_api():
+        start_flash_loan_pool_discovery_idle_worker(
+            initial_delay_seconds=2.0,
+            refresh_kwargs=_flash_loan_discovery_refresh_kwargs(panel),
+        )
+        try:
+            chain_id = _request_chain_id()
+        except ChainSelectionError as exc:
+            return jsonify({"ok": False, "error": exc.message, "code": exc.code}), 400
+        discovered_protocols = [
+            item["protocol"]
+            for item in protocol_options_for_chain(chain_id=chain_id)
+        ] if chain_id is not None else None
+        protocols = [
+            item.strip().lower()
+            for item in request.args.get("protocols", "").replace("|", ",").split(",")
+            if item.strip()
+        ]
+        return jsonify(
+            flash_loan_pools_payload(
+                database_url=_panel_database_url(panel),
+                market_id=request.args.get("market_id", "").strip() or None,
+                chain_id=chain_id,
+                protocols=protocols,
+                aave_cache_path=panel.AAVE_RESERVE_CACHE_PATH,
+                stable_target_cache_path=panel.DEX_BORROW_TARGET_CACHE_PATH,
+                robinhood_flash_liquidity_loader=cached_robinhood_flash_liquidity_snapshot,
+                discovered_protocols=discovered_protocols,
+            )
+        )

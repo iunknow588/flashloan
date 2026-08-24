@@ -12,6 +12,8 @@ DEFAULT_AVALANCHE_ROUTER_ADDRESS = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4"
 DEFAULT_BNB_MARKET_ID = "bnb-venus-core"
 DEFAULT_BNB_CHAIN_ID = 56
 DEFAULT_BNB_PANCAKE_ROUTER_ADDRESS = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+DEFAULT_ETHEREUM_UNISWAP_V2_ROUTER_ADDRESS = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS = "0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff"
 DEFAULT_BNB_DEX_MARKET_ID = "bnb-dex-arbitrage"
 DEFAULT_ETHEREUM_DEX_MARKET_ID = "ethereum-dex-arbitrage"
 DEFAULT_POLYGON_DEX_MARKET_ID = "polygon-dex-arbitrage"
@@ -20,12 +22,17 @@ DEFAULT_COW_DEX_MARKET_ID = "cow-dex-arbitrage"
 DEFAULT_ETHEREUM_CHAIN_ID = 1
 DEFAULT_POLYGON_CHAIN_ID = 137
 DEFAULT_COW_VIRTUAL_CHAIN_ID = 0
+DEFAULT_ROBINHOOD_BOT_MARKET_ID = "robinhood-liquidation-shadow"
 DEFAULT_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
 DEFAULT_ROBINHOOD_CHAIN_ID = 4663
 DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID = 46630
 DEFAULT_ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 DEFAULT_ROBINHOOD_MULTICALL_ADDRESS = "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
 DEFAULT_ROBINHOOD_EXPLORER_URL = "https://robinhoodchain.blockscout.com"
+DEFAULT_ROBINHOOD_MORPHO_MARKET_ID = "robinhood-morpho-blue-flash"
+DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID = "robinhood-dex-morpho-blue-flash"
+DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS = "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
+DEFAULT_ROBINHOOD_UNISWAP_V2_FACTORY_ADDRESS = "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
 
 MARKET_TYPE_NATIVE_CHAIN = "native_chain"
 MARKET_TYPE_SHADOW_CHAIN = "shadow_chain"
@@ -67,19 +74,87 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "rpc_env_prefixes": ("BNB", "BSC"),
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
         "migration_type": "config_and_new_executor_deployment",
+    },
+    "polygon-aave-v3-shadow": {
+        "feature": "liquidation",
+        "display_name": "Polygon Aave V3 Liquidation Shadow",
+        "network": "polygon",
+        "chain_id": DEFAULT_POLYGON_CHAIN_ID,
+        "native_symbol": "POL",
+        "protocol": "aave_v3",
+        "rpc_env_prefixes": ("POLYGON", "MATIC"),
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
+        "migration_type": "liquidation_protocol_placeholder",
+    },
+    "ethereum-aave-v3-shadow": {
+        "feature": "liquidation",
+        "display_name": "Ethereum Aave V3 Liquidation Shadow",
+        "network": "ethereum",
+        "chain_id": DEFAULT_ETHEREUM_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "aave_v3",
+        "rpc_env_prefixes": ("ETHEREUM", "MAINNET"),
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
+        "migration_type": "liquidation_protocol_placeholder",
+    },
+    "cow-liquidation-shadow": {
+        "feature": "liquidation",
+        "display_name": "CoW Liquidation Rail Shadow",
+        "network": "cow",
+        "chain_id": DEFAULT_COW_VIRTUAL_CHAIN_ID,
+        "native_symbol": "COW",
+        "protocol": "cow_protocol",
+        "rpc_env_prefixes": (),
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_EXECUTION_RAIL,
+        "chain_default": True,
+        "migration_type": "liquidation_execution_rail_placeholder",
     },
     DEFAULT_BNB_DEX_MARKET_ID: {
         "feature": "dex_arbitrage",
-        "display_name": "BNB DEX Arbitrage",
+        "display_name": "BNB PancakeSwap V3 Arbitrage",
         "network": "bnb",
         "chain_id": DEFAULT_BNB_CHAIN_ID,
         "native_symbol": "BNB",
-        "protocol": "uniswap_v3",
+        "protocol": "pancakeswap_v3",
         "rpc_env_prefixes": ("BNB", "BSC"),
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
         "migration_type": "dex_executor_and_pool_verification",
+    },
+    "bnb-pancakeswap-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "BNB PancakeSwap V2 Arbitrage",
+        "network": "bnb",
+        "chain_id": DEFAULT_BNB_CHAIN_ID,
+        "native_symbol": "BNB",
+        "protocol": "pancakeswap_v2",
+        "rpc_env_prefixes": ("BNB", "BSC"),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
+    },
+    "bnb-biswap-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "BNB Biswap V2 Arbitrage",
+        "network": "bnb",
+        "chain_id": DEFAULT_BNB_CHAIN_ID,
+        "native_symbol": "BNB",
+        "protocol": "biswap_v2",
+        "rpc_env_prefixes": ("BNB", "BSC"),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_ETHEREUM_DEX_MARKET_ID: {
         "feature": "dex_arbitrage",
@@ -91,7 +166,32 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "rpc_env_prefixes": ("ETHEREUM", "MAINNET"),
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
         "migration_type": "dex_single_chain_market_registry",
+    },
+    "ethereum-uniswap-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "Ethereum Uniswap V2 Arbitrage",
+        "network": "ethereum",
+        "chain_id": DEFAULT_ETHEREUM_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "uniswap_v2",
+        "rpc_env_prefixes": ("ETHEREUM", "MAINNET"),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
+    },
+    "ethereum-balancer-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "Ethereum Balancer V2 Arbitrage",
+        "network": "ethereum",
+        "chain_id": DEFAULT_ETHEREUM_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "balancer_v2",
+        "rpc_env_prefixes": ("ETHEREUM", "MAINNET"),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_POLYGON_DEX_MARKET_ID: {
         "feature": "dex_arbitrage",
@@ -103,7 +203,32 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "rpc_env_prefixes": ("POLYGON", "MATIC"),
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
         "migration_type": "dex_single_chain_market_registry",
+    },
+    "polygon-quickswap-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "Polygon QuickSwap V2 Arbitrage",
+        "network": "polygon",
+        "chain_id": DEFAULT_POLYGON_CHAIN_ID,
+        "native_symbol": "POL",
+        "protocol": "quickswap_v2",
+        "rpc_env_prefixes": ("POLYGON", "MATIC"),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
+    },
+    "polygon-balancer-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "Polygon Balancer V2 Arbitrage",
+        "network": "polygon",
+        "chain_id": DEFAULT_POLYGON_CHAIN_ID,
+        "native_symbol": "POL",
+        "protocol": "balancer_v2",
+        "rpc_env_prefixes": ("POLYGON", "MATIC"),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_AVALANCHE_DEX_MARKET_ID: {
         "feature": "dex_arbitrage",
@@ -115,7 +240,32 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "rpc_env_prefixes": ("AVALANCHE",),
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
         "migration_type": "dex_single_chain_market_registry",
+    },
+    "avalanche-traderjoe-v2": {
+        "feature": "dex_arbitrage",
+        "display_name": "Avalanche Trader Joe V2 Arbitrage",
+        "network": "avalanche",
+        "chain_id": DEFAULT_AVALANCHE_CHAIN_ID,
+        "native_symbol": "AVAX",
+        "protocol": "traderjoe_v2",
+        "rpc_env_prefixes": ("AVALANCHE",),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
+    },
+    "avalanche-curve": {
+        "feature": "dex_arbitrage",
+        "display_name": "Avalanche Curve Arbitrage",
+        "network": "avalanche",
+        "chain_id": DEFAULT_AVALANCHE_CHAIN_ID,
+        "native_symbol": "AVAX",
+        "protocol": "curve",
+        "rpc_env_prefixes": ("AVALANCHE",),
+        "observation_only": True,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_COW_DEX_MARKET_ID: {
         "feature": "dex_arbitrage",
@@ -142,7 +292,90 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
         "observation_only": True,
         "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "chain_default": True,
         "migration_type": "dex_shadow_market_registry",
+    },
+    "robinhood-dex-v2-shadow": {
+        "feature": "dex_arbitrage",
+        "display_name": "Robinhood Uniswap V2 Flash Swap",
+        "network": "robinhood",
+        "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "uniswap_v2",
+        "rpc_env_prefixes": ("ROBINHOOD_ALCHEMY", "ROBINHOOD", "ROBINHOOD_MAINNET"),
+        "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
+        "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+        "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
+        "pool_address": DEFAULT_ROBINHOOD_UNISWAP_V2_FACTORY_ADDRESS,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "migration_type": "rh_flash_toolkit_uniswap_v2_flash_swap",
+    },
+    DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID: {
+        "feature": "dex_arbitrage",
+        "display_name": "Robinhood Morpho Blue Flash Loan",
+        "network": "robinhood",
+        "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "morpho_blue",
+        "rpc_env_prefixes": ("ROBINHOOD_ALCHEMY", "ROBINHOOD", "ROBINHOOD_MAINNET"),
+        "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
+        "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+        "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
+        "pool_address": DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "migration_type": "rh_flash_toolkit_morpho_blue_flash_loan",
+    },
+    DEFAULT_ROBINHOOD_MORPHO_MARKET_ID: {
+        "feature": "liquidation",
+        "display_name": "Robinhood Morpho Blue Flash Loan",
+        "network": "robinhood",
+        "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "morpho_blue",
+        "rpc_env_prefixes": ("ROBINHOOD_ALCHEMY", "ROBINHOOD", "ROBINHOOD_MAINNET"),
+        "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
+        "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+        "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
+        "pool_address": DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "chain_default": True,
+        "migration_type": "rh_flash_toolkit_morpho_blue_flash_loan",
+    },
+    DEFAULT_ROBINHOOD_BOT_MARKET_ID: {
+        "feature": "liquidation",
+        "display_name": "Robinhood Liquidation Shadow",
+        "network": "robinhood",
+        "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "aave_v3",
+        "rpc_env_prefixes": ("ROBINHOOD_ALCHEMY", "ROBINHOOD", "ROBINHOOD_MAINNET"),
+        "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
+        "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+        "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "migration_type": "liquidation_shadow_protocol_placeholder",
+    },
+    "hyperliquid-dex-shadow": {
+        "feature": "dex_arbitrage",
+        "display_name": "Hyperliquid DEX Shadow",
+        "network": "hyperliquid",
+        "chain_id": None,
+        "native_symbol": "HYPE",
+        "protocol": "hyperliquid_native",
+        "rpc_env_prefixes": (),
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
+        "migration_type": "dex_native_protocol_placeholder",
     },
 }
 
@@ -152,14 +385,27 @@ for _market_id, _profile in KNOWN_EVM_MARKETS.items():
         continue
     _chain_id = int(_profile["chain_id"])
     _feature = str(_profile.get("feature") or "")
-    if _chain_id not in KNOWN_CHAIN_ID_MARKETS or _feature == "liquidation":
+    if (
+        _chain_id not in KNOWN_CHAIN_ID_MARKETS
+        or bool(_profile.get("is_default"))
+        or (
+            _feature == "liquidation"
+            and not bool(KNOWN_EVM_MARKETS[KNOWN_CHAIN_ID_MARKETS[_chain_id]].get("is_default"))
+        )
+    ):
         KNOWN_CHAIN_ID_MARKETS[_chain_id] = _market_id
 
-KNOWN_CHAIN_FEATURE_MARKETS: dict[tuple[int, str], str] = {
-    (int(profile["chain_id"]), str(profile.get("feature") or "liquidation")): market_id
-    for market_id, profile in KNOWN_EVM_MARKETS.items()
-    if isinstance(profile.get("chain_id"), int)
-}
+KNOWN_CHAIN_FEATURE_MARKETS: dict[tuple[int, str], str] = {}
+for _market_id, _profile in KNOWN_EVM_MARKETS.items():
+    if not isinstance(_profile.get("chain_id"), int):
+        continue
+    _key = (int(_profile["chain_id"]), str(_profile.get("feature") or "liquidation"))
+    if (
+        _key not in KNOWN_CHAIN_FEATURE_MARKETS
+        or bool(_profile.get("chain_default"))
+        or bool(_profile.get("is_default"))
+    ):
+        KNOWN_CHAIN_FEATURE_MARKETS[_key] = _market_id
 
 
 PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
@@ -177,12 +423,75 @@ PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
         "supported": False,
         "notes": "Venus Core Pool observation mode uses a dedicated protocol adapter; execution remains gated until the Venus executor is deployed.",
     },
+    "morpho_blue": {
+        "evm": True,
+        "adapter": "MorphoBlueFlashLoanAdapter",
+        "executor": "RobinhoodFlashLoanExecutor",
+        "supported": False,
+        "notes": "Robinhood Morpho Blue flashLoan is modeled as a reusable flash liquidity source; execution remains gated until local callback contracts and fork simulation are verified.",
+    },
     "uniswap_v3": {
         "evm": True,
         "adapter": "UniswapV3DexAdapter",
         "executor": "DexArbitrageExecutor",
         "supported": False,
         "notes": "DEX arbitrage starts in shadow mode until DEX addresses, pools, executor, and flash-loan path are verified.",
+    },
+    "uniswap_v2": {
+        "evm": True,
+        "adapter": "UniswapV2DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "V2-style DEX routes are modeled for discovery and UI filtering before executor enablement.",
+    },
+    "pancakeswap_v3": {
+        "evm": True,
+        "adapter": "PancakeSwapV3DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "BNB PancakeSwap V3 route discovery placeholder.",
+    },
+    "pancakeswap_v2": {
+        "evm": True,
+        "adapter": "PancakeSwapV2DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "BNB PancakeSwap V2 route discovery placeholder.",
+    },
+    "biswap_v2": {
+        "evm": True,
+        "adapter": "BiswapV2DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "BNB Biswap V2 route discovery placeholder.",
+    },
+    "quickswap_v2": {
+        "evm": True,
+        "adapter": "QuickSwapV2DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "Polygon QuickSwap V2 route discovery placeholder.",
+    },
+    "traderjoe_v2": {
+        "evm": True,
+        "adapter": "TraderJoeV2DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "Avalanche Trader Joe V2 route discovery placeholder.",
+    },
+    "curve": {
+        "evm": True,
+        "adapter": "CurveDexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "Curve pool routing placeholder.",
+    },
+    "balancer_v2": {
+        "evm": True,
+        "adapter": "BalancerV2DexAdapter",
+        "executor": "DexArbitrageExecutor",
+        "supported": False,
+        "notes": "Balancer V2 pool routing placeholder.",
     },
     "cow_protocol": {
         "evm": False,
@@ -366,6 +675,22 @@ def _rpc_urls_for(profile: dict[str, Any]) -> tuple[str, ...]:
                 "https://bsc.publicnode.com",
             ]
         )
+    if profile.get("network") == "ethereum":
+        candidates.extend(
+            [
+                "https://cloudflare-eth.com",
+                "https://rpc.ankr.com/eth",
+                "https://ethereum.publicnode.com",
+            ]
+        )
+    if profile.get("network") == "polygon":
+        candidates.extend(
+            [
+                "https://polygon-rpc.com",
+                "https://rpc.ankr.com/polygon",
+                "https://polygon-bor.publicnode.com",
+            ]
+        )
     if profile.get("network") == "robinhood":
         candidates.extend(["https://rpc.mainnet.chain.robinhood.com"])
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
@@ -378,6 +703,10 @@ def _dex_router_for(profile: dict[str, Any]) -> str:
     network = str(profile.get("network") or "").strip().lower()
     if network == "bnb":
         return _first_env("BNB_DEX_ROUTER_ADDRESS", "PANCAKE_ROUTER_ADDRESS", "PANCAKESWAP_V2_ROUTER_ADDRESS") or DEFAULT_BNB_PANCAKE_ROUTER_ADDRESS
+    if network == "ethereum":
+        return _first_env("ETHEREUM_DEX_ROUTER_ADDRESS", "UNISWAP_DEX_ROUTER_ADDRESS", "UNISWAP_V2_ROUTER_ADDRESS") or DEFAULT_ETHEREUM_UNISWAP_V2_ROUTER_ADDRESS
+    if network == "polygon":
+        return _first_env("POLYGON_DEX_ROUTER_ADDRESS", "QUICKSWAP_DEX_ROUTER_ADDRESS", "QUICKSWAP_V2_ROUTER_ADDRESS") or DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS
     if network == "robinhood":
         return _first_env("ROBINHOOD_DEX_ROUTER_ADDRESS")
     return _first_env("DEX_ROUTER_ADDRESS") or DEFAULT_AVALANCHE_ROUTER_ADDRESS
@@ -426,6 +755,7 @@ def liquidation_market_config_for(
             f"market_id {resolved_market_id} belongs to feature {profile_feature}, not {resolved_feature}"
         )
     protocol = (_env("LIQUIDATION_PROTOCOL") or str(profile.get("protocol") or "aave_v3")).strip().lower()
+    protocol_supported = bool(profile.get("protocol_supported", PROTOCOL_CAPABILITIES.get(protocol, {}).get("supported")))
     resolved_chain_id = profile_chain_id
     native_symbol = (_env("LIQUIDATION_NATIVE_SYMBOL") or str(profile.get("native_symbol") or "ETH")).upper()
     capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
@@ -439,7 +769,9 @@ def liquidation_market_config_for(
         chain_id=resolved_chain_id,
         native_symbol=native_symbol,
         rpc_urls=_rpc_urls_for(profile),
-        pool_address=_first_env("LIQUIDATION_POOL_ADDRESS", "AAVE_POOL_ADDRESS"),
+        pool_address=_first_env("LIQUIDATION_POOL_ADDRESS")
+        or str(profile.get("pool_address") or "")
+        or (_first_env("AAVE_POOL_ADDRESS") if protocol in {"aave_v3", "hyper_evm_aave_v3"} else ""),
         protocol_data_provider_address=_first_env("LIQUIDATION_PROTOCOL_DATA_PROVIDER_ADDRESS", "AAVE_PROTOCOL_DATA_PROVIDER_ADDRESS"),
         liquidation_data_provider_address=_first_env("LIQUIDATION_DATA_PROVIDER_ADDRESS", "AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS"),
         dex_router_address=_dex_router_for(profile),
@@ -449,15 +781,16 @@ def liquidation_market_config_for(
             "LIQUIDATION_MULTICALL3_ADDRESS",
         )
         or str(profile.get("multicall3_address") or "0xcA11bde05977b3631167028862bE2a173976CA11"),
-        protocol_supported=bool(capabilities.get("supported")),
+        protocol_supported=protocol_supported,
         evm_compatible=bool(capabilities.get("evm")),
         protocol_adapter=str(capabilities.get("adapter") or "ProtocolAdapter"),
         executor_adapter=str(capabilities.get("executor") or "LiquidationExecutor"),
         wrapped_native_address=str(profile.get("wrapped_native_address") or ""),
         explorer_url=str(profile.get("explorer_url") or ""),
-        observation_only=bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
+        observation_only=bool(profile.get("observation_only")) or not protocol_supported,
         enabled=bool(profile.get("enabled", True)),
-        is_default=resolved_market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
+        is_default=bool(profile.get("is_default"))
+        or resolved_market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
     )
 
 
@@ -476,10 +809,13 @@ def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
                 "chain_id": profile["chain_id"],
                 "native_symbol": profile["native_symbol"],
                 "protocol": protocol,
-                "protocol_supported": bool(capabilities.get("supported")),
-                "observation_only": bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
-                "is_default": market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
+                "protocol_supported": bool(profile.get("protocol_supported", capabilities.get("supported"))),
+                "observation_only": bool(profile.get("observation_only"))
+                or not bool(profile.get("protocol_supported", capabilities.get("supported"))),
+                "is_default": bool(profile.get("is_default"))
+                or market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
                 "migration_type": profile.get("migration_type") or "config_and_new_executor_deployment",
+                "pool_address": profile.get("pool_address") or "",
             }
         )
     summaries.append(

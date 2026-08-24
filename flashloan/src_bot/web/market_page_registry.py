@@ -71,7 +71,8 @@ def _page_definition(path: str) -> tuple[str, str, str, str, str] | None:
     }:
         return "liquidation", "liquidation", "liquidation", "liquidation", "liquidation"
     dex_surfaces = {
-        "/dex": "overview",
+        "/dex": "quotes",
+        "/dex/overview": "overview",
         "/dex/market-observation": "observation",
         "/market-observation": "observation",
         "/dex/candidates": "candidates",
@@ -136,7 +137,7 @@ def resolve_market_page_variant(
         selection=selection,
         template_kind=(
             "robinhood_shadow"
-            if selection.market_type == MARKET_TYPE_SHADOW_CHAIN
+            if selection.market_type == MARKET_TYPE_SHADOW_CHAIN and feature == "dex_arbitrage"
             else "cow_execution"
             if selection.market_type == MARKET_TYPE_EXECUTION_RAIL
             else "single_chain"

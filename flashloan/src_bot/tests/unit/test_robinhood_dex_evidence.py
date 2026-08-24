@@ -22,6 +22,8 @@ def _report():
                 "fee": 500,
                 "tickSpacing": 10,
                 "poolCodeVerified": True,
+                "factoryQueryVerified": True,
+                "poolStateVerified": True,
                 "blockNumber": 10,
             },
             {
@@ -31,6 +33,8 @@ def _report():
                 "fee": 500,
                 "tickSpacing": 10,
                 "poolCodeVerified": True,
+                "factoryQueryVerified": True,
+                "poolStateVerified": True,
                 "blockNumber": 11,
             },
             {
@@ -40,6 +44,8 @@ def _report():
                 "fee": 500,
                 "tickSpacing": 10,
                 "poolCodeVerified": True,
+                "factoryQueryVerified": True,
+                "poolStateVerified": True,
                 "blockNumber": 12,
             },
         ],
@@ -98,3 +104,43 @@ def test_evidence_package_contains_required_files(tmp_path: Path):
     assert (output / "manifest.json").exists()
     assert '"schemaVersion": "robinhood-dex-evidence-v1"' in (output / "manifest.json").read_text(encoding="utf-8")
     assert "Execution: disabled" in (output / "summary.md").read_text(encoding="utf-8")
+
+
+def test_candidate_builder_keeps_multiple_fee_tier_pools_for_pair_arbitrage():
+    report = _report()
+    report["pools"] = [
+        {
+            "pool": "0x" + "1" * 40,
+            "token0": "0x" + "a" * 40,
+            "token1": "0x" + "b" * 40,
+            "fee": 100,
+            "tickSpacing": 1,
+            "poolCodeVerified": True,
+            "factoryQueryVerified": True,
+            "poolStateVerified": True,
+            "blockNumber": 10,
+        },
+        {
+            "pool": "0x" + "2" * 40,
+            "token0": "0x" + "a" * 40,
+            "token1": "0x" + "b" * 40,
+            "fee": 500,
+            "tickSpacing": 10,
+            "poolCodeVerified": True,
+            "factoryQueryVerified": True,
+            "poolStateVerified": True,
+            "blockNumber": 11,
+        },
+    ]
+    registry = {
+        "0x" + "a" * 40: {"symbol": "WETH"},
+        "0x" + "b" * 40: {"symbol": "USDG"},
+    }
+
+    rows = build_robinhood_pool_records(report, token_registry=registry, token_allowlist=set(registry))
+    candidates = build_current_robinhood_candidates(rows)
+
+    assert len(candidates) == 1
+    assert candidates[0]["route_kind"] == "two_pool_same_pair"
+    assert candidates[0]["pool_addresses"] == ["0x" + "1" * 40, "0x" + "2" * 40]
+    assert candidates[0]["evidence"]["executionEnabled"] is False

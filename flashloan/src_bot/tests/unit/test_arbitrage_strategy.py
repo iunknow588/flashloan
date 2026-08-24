@@ -1,5 +1,6 @@
 from strategy.arbitrage import (
     ArbitrageConfig,
+    build_pair_strategy_analysis,
     choose_signed_strategy,
     select_cross_pair_rows,
     simulate_basket,
@@ -203,3 +204,57 @@ def test_simulate_basket_blocks_candidates_below_one_usd_expected_profit():
     assert result["signal"] is False
     assert "candidate_score_below_threshold" in result["blocked_reasons"]
     assert result["execution_plan"] is None
+
+
+def test_build_pair_strategy_analysis_exposes_ratio_and_hop_breakdown():
+    config = ArbitrageConfig(
+        notional_usd=100,
+        trade_fee_percent=0,
+        flashloan_fee_percent=0,
+        min_window_spread_percent=0,
+    )
+
+    analysis = build_pair_strategy_analysis(row("X", 10, 12), row("Y", 10, 8), config)
+
+    assert analysis["x_u"] == 12
+    assert analysis["y_u"] == 8
+    assert round(analysis["x_y_ratio"], 6) == 1.5
+    assert analysis["can_arbitrage"] is True
+    assert analysis["best_route_summary"]
+    assert analysis["best_strategy"] in {
+        "strategy_1_forward_x_to_usdc_to_y_to_x",
+        "strategy_1_reverse_y_to_x_to_usdc_to_y",
+        "strategy_2_forward_x_to_y_to_usdc_to_x",
+        "strategy_2_reverse_y_to_usdc_to_x_to_y",
+        "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+    }
+    first_route = analysis["route_rows"][0]
+    assert first_route["hop_count"] == 3
+    assert first_route["hops"][0]["hop"] == 1
+    assert first_route["hops"][-1]["hop"] == 3
+    assert first_route["final_hop"]["hop"] == 3
+    assert first_route["route_text"]
+
+
+def test_build_pair_strategy_analysis_reuses_precomputed_routes(monkeypatch):
+    import strategy.arbitrage as arbitrage
+
+    config = ArbitrageConfig(
+        notional_usd=100,
+        trade_fee_percent=0,
+        flashloan_fee_percent=0,
+        min_window_spread_percent=0,
+    )
+    routes = simulate_four_route_cycles(row("X", 10, 12), row("Y", 10, 8), config, initial_amount=100)
+    called = {"count": 0}
+
+    def fail(*args, **kwargs):
+        called["count"] += 1
+        raise AssertionError("simulate_four_route_cycles should not be called when routes are provided")
+
+    monkeypatch.setattr(arbitrage, "simulate_four_route_cycles", fail)
+
+    analysis = build_pair_strategy_analysis(row("X", 10, 12), row("Y", 10, 8), config, routes=routes)
+
+    assert analysis["route_count"] == len(routes)
+    assert called["count"] == 0

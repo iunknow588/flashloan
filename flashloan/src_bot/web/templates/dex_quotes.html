@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>报价与路由</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1420px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 8px; font-size: 16px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .route { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; }
+    .muted, .metric span { color: #667085; font-size: 13px; }
+    .route { margin-bottom: 12px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
+    .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
+    ol { margin: 8px 0 0 18px; padding: 0; color: #344054; line-height: 1.55; }
+    .empty { padding: 18px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } }
+  </style>
+</head>
+<body data-dex-surface-template="quotes">
+  <header>
+    <h1>报价与路由</h1>
+    <nav>
+      <a data-surface-link href="/dex">报价与路由</a>
+      <a data-surface-link href="/dex/overview">DEX 总览</a>
+      <a data-surface-link href="/dex/market-observation">市场观察</a>
+      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/submissions">提交记录</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshBtn">刷新路由</button>
+      <span id="message" class="muted">等待数据</span>
+    </div>
+    <section class="grid">
+      <div class="metric"><small>待报价路径</small><strong id="routeCount">-</strong><span>来自 DEX 总览</span></div>
+      <div class="metric"><small>结算能力</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
+    </section>
+    <section id="routeList"></section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const apiPath = path => window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+    async function fetchJson(path) {
+      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+    function routeHtml(route) {
+      const pools = route.quoteInputs?.candidatePools || [];
+      const quoteRequests = route.quoteInputs?.quoteRequests || [];
+      return `<article class="route">
+        <h2>${esc(route.symbolPair)}</h2>
+        <div class="badges">
+          <span class="badge warn">${esc(route.quoteStatus)}</span>
+          <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
+          <span class="badge">池子 ${esc(route.poolCount)}</span>
+          <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
+        </div>
+        <div class="muted">候选池：${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div>
+        <div class="badges">${quoteRequests.map(item => `<span class="badge">${esc(item.venue)} · ${esc(item.quoteMode)} · ${esc(item.status)}</span>`).join("")}</div>
+        <ol>${(route.quoteInputs?.conditions || []).map(item => `<li>${esc(item)}</li>`).join("")}</ol>
+      </article>`;
+    }
+    async function refresh() {
+      $("message").textContent = "正在加载报价路径...";
+      try {
+        const data = await fetchJson("/api/dex/quote-routes");
+        const uniswapx = data.dexSettlement?.uniswapx || {};
+        $("routeCount").textContent = data.summary?.routeCount ?? 0;
+        $("settlement").textContent = uniswapx.supported ? "UniswapX 可衔接" : "AMM 路由优先";
+        $("settlementMeta").textContent = uniswapx.supported ? `可查询 ${data.summary?.uniswapxQuoteableRouteCount || 0} 条 UniswapX 报价请求` : "当前链未启用 UniswapX 结算";
+        $("routeList").innerHTML = (data.routes || []).map(routeHtml).join("") || '<div class="empty">DEX 总览当前没有可进入报价阶段的路径。</div>';
+        $("message").textContent = "已更新";
+      } catch (error) {
+        $("message").textContent = error.message;
+      }
+    }
+    $("refreshBtn").onclick = refresh;
+    window.addEventListener("chainselectionchanged", event => {
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+    });
+    refresh();
+  </script>
+</body>
+</html>

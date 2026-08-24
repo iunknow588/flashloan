@@ -5,13 +5,17 @@ from core.market_config import (
     DEFAULT_BNB_DEX_MARKET_ID,
     DEFAULT_COW_DEX_MARKET_ID,
     DEFAULT_COW_VIRTUAL_CHAIN_ID,
+    DEFAULT_ETHEREUM_UNISWAP_V2_ROUTER_ADDRESS,
     DEFAULT_ETHEREUM_DEX_MARKET_ID,
+    DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS,
     DEFAULT_POLYGON_DEX_MARKET_ID,
     DEFAULT_AVALANCHE_DEX_MARKET_ID,
     MARKET_TYPE_EXECUTION_RAIL,
     MARKET_TYPE_NATIVE_CHAIN,
     MARKET_TYPE_SHADOW_CHAIN,
+    DEFAULT_ROBINHOOD_BOT_MARKET_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+    DEFAULT_ROBINHOOD_MORPHO_MARKET_ID,
     liquidation_market_config,
     liquidation_market_config_for,
     supported_market_summaries,
@@ -124,10 +128,17 @@ def test_supported_market_summaries_classifies_migration_type():
     summaries = {row["market_id"]: row for row in supported_market_summaries()}
 
     assert summaries["bnb-aave-v3"]["migration_type"] == "config_and_new_executor_deployment"
+    assert summaries[DEFAULT_ROBINHOOD_BOT_MARKET_ID]["feature"] == "liquidation"
+    assert summaries[DEFAULT_ROBINHOOD_BOT_MARKET_ID]["protocol_supported"] is False
+    assert summaries[DEFAULT_ROBINHOOD_BOT_MARKET_ID]["observation_only"] is True
+    assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["feature"] == "liquidation"
+    assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["protocol"] == "morpho_blue"
+    assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["pool_address"] == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["observation_only"] is True
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["network"] == "bnb"
+    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["protocol"] == "pancakeswap_v3"
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["is_default"] is False
     assert summaries[DEFAULT_COW_DEX_MARKET_ID]["is_default"] is True
     assert summaries[DEFAULT_COW_DEX_MARKET_ID]["chain_id"] == DEFAULT_COW_VIRTUAL_CHAIN_ID
@@ -156,6 +167,39 @@ def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
     assert market.rpc_urls[0] == "https://robinhood-alchemy.example"
     assert market.protocol_supported is False
     assert market.observation_only is True
+
+
+def test_robinhood_liquidation_market_prefers_morpho_flash_source(monkeypatch):
+    _clear_market_env(monkeypatch)
+    monkeypatch.setenv("ROBINHOOD_ALCHEMY_RPC_URL", "https://robinhood-alchemy.example")
+
+    market = liquidation_market_config_for(chain_id=4663, feature="liquidation")
+
+    assert market.market_id == DEFAULT_ROBINHOOD_MORPHO_MARKET_ID
+    assert market.feature == "liquidation"
+    assert market.network == "robinhood"
+    assert market.chain_id == 4663
+    assert market.protocol == "morpho_blue"
+    assert market.pool_address == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
+    assert market.protocol_adapter == "MorphoBlueFlashLoanAdapter"
+    assert market.rpc_urls[0] == "https://robinhood-alchemy.example"
+    assert market.protocol_supported is False
+    assert market.observation_only is True
+    assert market.market_type == MARKET_TYPE_SHADOW_CHAIN
+
+
+def test_ethereum_and_polygon_dex_markets_use_network_defaults(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    ethereum = liquidation_market_config_for(chain_id=1, feature="dex_arbitrage")
+    polygon = liquidation_market_config_for(chain_id=137, feature="dex_arbitrage")
+
+    assert ethereum.market_id == DEFAULT_ETHEREUM_DEX_MARKET_ID
+    assert ethereum.dex_router_address == DEFAULT_ETHEREUM_UNISWAP_V2_ROUTER_ADDRESS
+    assert ethereum.rpc_urls
+    assert polygon.market_id == DEFAULT_POLYGON_DEX_MARKET_ID
+    assert polygon.dex_router_address == DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS
+    assert polygon.rpc_urls
 
 
 def test_cow_dex_market_keeps_virtual_chain_zero(monkeypatch):
@@ -204,6 +248,7 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
     summaries = {row["market_id"]: row for row in supported_market_summaries("postgresql://disabled")}
 
     assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in summaries
+    assert DEFAULT_ROBINHOOD_BOT_MARKET_ID in summaries
 
 
 def test_supported_market_summaries_short_circuits_repeated_database_failures(monkeypatch):
@@ -226,6 +271,7 @@ def test_supported_market_summaries_short_circuits_repeated_database_failures(mo
     assert first == second
     assert len(calls) == 1
     assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in {row["market_id"] for row in first}
+    assert DEFAULT_ROBINHOOD_BOT_MARKET_ID in {row["market_id"] for row in first}
 
 
 def test_market_scope_rejects_chain_and_feature_mismatch(monkeypatch):
@@ -233,8 +279,10 @@ def test_market_scope_rejects_chain_and_feature_mismatch(monkeypatch):
 
     with pytest.raises(ValueError, match="belongs to chain_id"):
         liquidation_market_config_for("bnb-venus-core", chain_id=43114)
-    with pytest.raises(ValueError, match="no liquidation market"):
-        liquidation_market_config_for(chain_id=4663)
+    ethereum = liquidation_market_config_for(chain_id=1)
+    assert ethereum.market_id == "ethereum-aave-v3-shadow"
+    assert ethereum.protocol_supported is False
+    assert ethereum.observation_only is True
 
 
 def test_robinhood_market_never_inherits_avalanche_router(monkeypatch):
@@ -285,3 +333,30 @@ def test_market_scan_policy_prefers_database_rows(monkeypatch):
         "high_frequency_refresh_seconds": 33.0,
         "core_opportunity_refresh_seconds": 4.0,
     }
+
+
+def test_market_analysis_uses_chain_specific_dex_router(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    from core.dex_routing import dex_router_context_for
+
+    context = dex_router_context_for(
+        {
+            "market_id": DEFAULT_BNB_DEX_MARKET_ID,
+            "chain_id": 56,
+        }
+    )
+
+    assert context["source"] == "market_config"
+    assert context["market_id"] == DEFAULT_BNB_DEX_MARKET_ID
+    assert context["chain_id"] == 56
+    assert context["router_address"] == "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+
+
+def test_dex_quote_rpc_urls_prefers_router_context_urls():
+    from core.dex_routing import dex_quote_rpc_urls_for
+
+    assert dex_quote_rpc_urls_for({"rpc_urls": ["https://rpc.example", ""]}, ["https://fallback.example"]) == [
+        "https://rpc.example",
+    ]
+    assert dex_quote_rpc_urls_for({}, ["https://fallback.example"]) == ["https://fallback.example"]

@@ -58,14 +58,16 @@
   </style>
 </head>
 <body>
+  <span data-surface-link hidden></span>
   <header>
     <h1>Avalanche 候选池子</h1>
     <nav>
       <a href="/liquidation">清算</a>
       <a href="/account-scan">账户扫描</a>
-      <a href="/market-observation">市场观察</a>
-      <a href="/dex-arbitrage">DEX 套利</a>
-      <a href="/dex-pools">候选池子</a>
+      <a data-surface-link href="/dex">报价与路由</a>
+      <a data-surface-link href="/dex/overview">DEX 总览</a>
+      <a data-surface-link href="/dex/market-observation">市场观察</a>
+      <a data-surface-link href="/dex/candidates">候选池子</a>
       <a href="/execution">执行</a>
       <a href="/config">配置</a>
     </nav>
@@ -94,6 +96,7 @@
       本页展示 Avalanche L1 静态池表里的候选池子。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。静态候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。输出价值保留率以约 1,000 USD 探针调用 Quoter 计算：100% 表示价值基本完整保留，0% 表示几乎没有有效输出，超过 100% 也不等于最终套利利润。
     </div>
     <div id="filtersLine" class="filters-line"></div>
+    <div id="executionContext" class="filters-line"></div>
     <section id="pairList"></section>
   </main>
 
@@ -147,6 +150,7 @@
         ? '<span class="badge improvable">可改善</span>'
         : '<span class="badge reject">拒绝</span>';
     const statusTextClass = status => status === "recommended" ? "positive" : status === "improvable" ? "improvable" : "muted";
+    const yesNo = value => value ? "是" : "否";
     const sortPools = rows => (Array.isArray(rows) ? rows.slice() : []).sort((a, b) => {
       const rankDiff = statusRank(displayStatus(a)) - statusRank(displayStatus(b));
       if (rankDiff) return rankDiff;
@@ -159,6 +163,12 @@
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
       return data;
+    }
+
+    function candidatesApiPath() {
+      const query = new URLSearchParams(window.location.search);
+      if (!query.get("feature")) query.set("feature", "dex_arbitrage");
+      return `/api/dex-pools/candidates?${query.toString()}`;
     }
 
     function poolRowsHtml(rows) {
@@ -197,7 +207,7 @@
      function rejectedPreviewHtml(rows) {
        if (!rows.length) return "";
        return `<div class="table-wrap"><table>
-         <thead><tr><th>池子</th><th>fee</th><th>TVL USD</th><th>质量</th></tr></thead>
+         <thead><tr><th>池子</th><th>费率</th><th>TVL（美元）</th><th>质量</th></tr></thead>
          <tbody>${sortPools(rows).map(row => {
            const status = displayStatus(row);
            return `<tr>
@@ -237,6 +247,8 @@
               <span class="badge ${Number(pair.preferredPoolCount || 0) >= 4 ? "good" : "warn"}">静态候选 ${esc(pair.preferredPoolCount)} / 4</span>
               <span class="badge ${Number(pair.strictQualityPoolCount || 0) >= 4 ? "good" : "warn"}">严格高质量 ${esc(pair.strictQualityPoolCount)}</span>
               <span class="badge neutral">五槽窗口 ${esc(pair.executionPoolCount)}</span>
+              <span class="badge neutral">${esc(pair.classification?.pairClassLabel || pair.classification?.pairClass || "-")}</span>
+              <span class="badge ${Number(pair.preferredPoolCount || 0) > 0 ? "good" : "warn"}">可报价池 ${esc(pair.preferredPoolCount || 0)}</span>
               <span class="badge neutral">拒绝 ${esc(pair.rejectedPoolCount)}</span>
             </div>
               <div class="pair-meta">tokenX ${esc(pair.tokenXSymbol)} ${esc(pair.tokenX)} | tokenY ${esc(pair.tokenYSymbol)} ${esc(pair.tokenY)}</div>
@@ -247,7 +259,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>#</th><th>池子</th><th>fee</th><th>质量</th><th>TVL USD</th><th>token0 USD</th><th>token1 USD</th><th>liquidity</th><th>tick</th><th>0→1 输出价值保留率</th><th>1→0 输出价值保留率</th>
+                  <th>#</th><th>池子</th><th>费率</th><th>质量</th><th>TVL（美元）</th><th>代币 0（美元）</th><th>代币 1（美元）</th><th>流动性</th><th>Tick</th><th>0→1 输出价值保留率</th><th>1→0 输出价值保留率</th>
                 </tr>
               </thead>
               <tbody>${poolRowsHtml((pair.preferredPools || []).slice(0, 4))}</tbody>
@@ -273,7 +285,10 @@
       $("strictPairs").textContent = `交易对 ${summary.strictQualityPairCount || summary.pairsWithStrictQualityPools || "-"}`;
       $("blockNumber").textContent = source.generatedBlockNumber || "-";
       $("generatedAt").textContent = fmtTime(source.generatedAt);
-      $("filtersLine").textContent = `来源 ${source.path || "-"} | Factory ${source.factory || "-"} | Quoter ${source.quoter || "-"} | 网络 ${source.network || "-"} chainId ${source.chainId || "-"}`;
+      $("filtersLine").textContent = `来源 ${source.path || "-"} | Factory 工厂合约 ${source.factory || "-"} | Quoter 报价器 ${source.quoter || "-"} | 网络 ${source.network || "-"} | 链 ID ${source.chainId || "-"}`;
+      const classCounts = summary.pairClassCounts || {};
+      const settlement = payload.dexSettlement || {};
+      $("executionContext").textContent = `池子分类：稳定币 ${classCounts.stable_pair || 0} | 稳定币-非稳定币 ${classCounts.stable_to_non_stable_pair || 0} | 非稳定币 ${classCounts.non_stable_pair || 0}；候选池来源：高质量且有深度的 DEX 池；UniswapX ${settlement.uniswapx?.supported ? "可作为报价/填单查询通道" : "当前链未接入"}`;
       $("refreshMeta").textContent = `页面读取 ${fmtTime(new Date().toISOString())}`;
       renderPairs(payload);
     }
@@ -281,7 +296,7 @@
     async function refresh() {
       $("message").textContent = "加载中";
       try {
-        latestPayload = await api("/api/dex-pools/candidates");
+        latestPayload = await api(candidatesApiPath());
         render(latestPayload);
         $("message").textContent = "已更新";
       } catch (err) {

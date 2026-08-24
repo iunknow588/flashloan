@@ -30,7 +30,7 @@ from cow_flashloan.network_scope import supported_cow_networks
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
 from market.observer_state import PriceState
 from market.velocity_candidates import base_token_symbol, top_bottom_from_extremes
-from strategy.arbitrage import ArbitrageConfig
+from strategy.arbitrage import ArbitrageConfig, build_pair_strategy_analysis
 from strategy.limits import (
     DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT,
     DEFAULT_COW_NETWORK_DISPLAY_LIMIT,
@@ -993,6 +993,8 @@ def _route_candidate(
         "strategy": strategy,
         "route": symbols,
         "route_text": _route_text({"route": symbols}, []),
+        "hop_count": max(0, len(symbols) - 1),
+        "route_depth_label": f"{max(0, len(symbols) - 1)} hop",
         "steps": [],
         "initial_symbol": symbols[0] if symbols else None,
         "initial_amount": str(initial_amount),
@@ -1077,6 +1079,12 @@ def _pair_quote_candidates(
             "route_results_full": route_results,
             "route_count": len(route_results),
             "full_route_count": len(route_results),
+            "strategy_analysis": build_pair_strategy_analysis(
+                x,
+                y,
+                config,
+                initial_amount=config.notional_usd,
+            ),
             "borrow_symbol": None,
             "swap_symbol": None,
         }

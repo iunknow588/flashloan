@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from itertools import combinations
 from typing import Any
 
 from intent_trade.chains.common.routes import best_edges_by_pair, triangle_routes
@@ -64,6 +65,8 @@ def build_robinhood_pool_records(
         reasons: list[str] = []
         if not item.get("poolCodeVerified"):
             reasons.append("pool_code_missing")
+        if not item.get("eventVerified") and not item.get("factoryQueryVerified"):
+            reasons.append("pool_discovery_proof_missing")
         if not token0_meta or not token1_meta:
             reasons.append("token_metadata_missing")
         if allowlist and (_address_key(token0) not in allowlist or _address_key(token1) not in allowlist):
@@ -91,13 +94,22 @@ def build_robinhood_pool_records(
                 "tickSpacing": item.get("tickSpacing"),
                 "status": status,
                 "rejectReasons": reasons,
-                "tvlUsd": None,
-                "liquidity": None,
-                "slot0": None,
+                "tvlUsd": item.get("tvlUsd"),
+                "liquidity": item.get("liquidity"),
+                "slot0": {
+                    "sqrtPriceX96": item.get("sqrtPriceX96"),
+                    "tick": item.get("tick"),
+                }
+                if item.get("sqrtPriceX96") is not None or item.get("tick") is not None
+                else None,
                 "evidence": {
-                    "eventVerified": True,
+                    "eventVerified": bool(item.get("eventVerified")),
+                    "factoryQueryVerified": bool(item.get("factoryQueryVerified")),
                     "poolCodeVerified": bool(item.get("poolCodeVerified")),
                     "factoryCodeVerified": bool(report.get("factoryCodeVerified")),
+                    "poolStateVerified": bool(item.get("poolStateVerified")),
+                    "liquidity": item.get("liquidity"),
+                    "discoveryMethod": report.get("discoveryMethod") or report.get("evidenceType"),
                     "sourceUrl": report.get("sourceUrl"),
                     "transactionHash": item.get("transactionHash"),
                     "blockNumber": item.get("blockNumber"),
@@ -113,11 +125,57 @@ def build_current_robinhood_candidates(
     *,
     market_id: str = "robinhood-dex-shadow",
 ) -> list[dict[str, Any]]:
-    edges = best_edges_by_pair(
-        [row for row in pool_rows if row.get("status") == "observable"],
-        {"observable"},
-    )
+    observable_rows = [row for row in pool_rows if row.get("status") == "observable"]
     candidates: list[dict[str, Any]] = []
+
+    # Keep every pool in a pair.  Selecting one "best" edge is insufficient
+    # for a two-pool fee-tier arbitrage route.
+    pair_groups: dict[str, list[dict[str, Any]]] = {}
+    for row in observable_rows:
+        symbols = [part.strip() for part in str(row.get("symbolPair") or "").split(":") if part.strip()]
+        if len(symbols) != 2 or not row.get("pool"):
+            continue
+        pair_key = ":".join(sorted(symbols))
+        pair_groups.setdefault(pair_key, []).append(row)
+    for pair_key, rows in sorted(pair_groups.items()):
+        symbols = pair_key.split(":")
+        for first, second in combinations(rows, 2):
+            if str(first.get("pool") or "").lower() == str(second.get("pool") or "").lower():
+                continue
+            ordered = sorted(
+                (first, second),
+                key=lambda row: (int(row.get("fee") or 0), str(row.get("pool") or "")),
+            )
+            observed_block = max(
+                int((row.get("evidence") or {}).get("blockNumber") or 0)
+                for row in ordered
+            )
+            candidates.append(
+                {
+                    "market_id": market_id,
+                    "chain_id": robinhood.CHAIN_ID,
+                    "network": robinhood.NETWORK,
+                    "route_key": f"{pair_key}:{ordered[0].get('fee')}->{ordered[1].get('fee')}",
+                    "route_symbols": [symbols[0], symbols[1], symbols[0]],
+                    "pool_addresses": [ordered[0].get("pool"), ordered[1].get("pool")],
+                    "route_kind": "two_pool_same_pair",
+                    "status": "observed",
+                    "gross_profit_usd": None,
+                    "estimated_cost_usd": None,
+                    "net_profit_usd": None,
+                    "observed_block": observed_block,
+                    "evidence": {
+                        "candidateStatus": "observed",
+                        "routeKind": "two_pool_same_pair",
+                        "executionEnabled": False,
+                        "broadcastEnabled": False,
+                        "quoteStatus": "not_started",
+                        "pools": [row.get("evidence") or {} for row in ordered],
+                    },
+                }
+            )
+
+    edges = best_edges_by_pair(observable_rows, {"observable"})
     for route in triangle_routes(edges):
         route_symbols = [part.strip() for part in route["path"].split("->")]
         pools = [edge.get("pool") for edge in route.get("edges") or []]
@@ -137,6 +195,7 @@ def build_current_robinhood_candidates(
                 "route_symbols": route_symbols,
                 "pool_addresses": pools,
                 "status": "observed",
+                "route_kind": "triangle",
                 "gross_profit_usd": None,
                 "estimated_cost_usd": None,
                 "net_profit_usd": None,

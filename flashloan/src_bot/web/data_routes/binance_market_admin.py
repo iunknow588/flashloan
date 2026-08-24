@@ -20,6 +20,7 @@ from web.chain_selection import resolve_request_chain_selection
 from web import control_panel_data_routes as shared
 from web.control_panel_robinhood_dex import (
     robinhood_dex_observation_payload,
+    robinhood_dex_pool_observation_payload,
     robinhood_dex_readiness_payload,
 )
 from web.data_routes import binance_market as market_routes
@@ -42,7 +43,6 @@ cow_candidate_queue_snapshot = market_routes.cow_candidate_queue_snapshot
 cow_quote_daemon_enabled = market_routes.cow_quote_daemon_enabled
 ensure_cow_quote_daemon_running = market_routes.ensure_cow_quote_daemon_running
 clear_cow_candidate_queue = market_routes.clear_cow_candidate_queue
-dex_pool_candidates_payload = market_routes.dex_pool_candidates_payload
 
 
 def register_binance_market_admin_routes(app, panel) -> None:
@@ -158,16 +158,6 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def binance_market_cow_submission_pause():
         return jsonify(_cow_submission_pause_guard(database_url=panel_call("database_url_or_none")))
 
-    @app.get("/api/dex-pools/candidates")
-    def dex_pool_candidates():
-        try:
-            chain_selection = _optional_request_chain_selection()
-        except ChainSelectionError as exc:
-            return _chain_selection_error_response(exc)
-        payload = dex_pool_candidates_payload()
-        payload["chain_selection"] = chain_selection
-        return jsonify(payload)
-
     @app.get("/api/robinhood-dex/observation")
     def robinhood_dex_observation():
         try:
@@ -177,6 +167,24 @@ def register_binance_market_admin_routes(app, panel) -> None:
                 default_market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
             )
             payload = robinhood_dex_observation_payload(
+                database_url=panel_call("database_url_or_none"),
+                market_id=selection.market_id,
+                chain_id=selection.chain_id,
+            )
+        except (ChainSelectionError, ValueError) as exc:
+            code = getattr(exc, "code", "invalid_market_scope")
+            return jsonify({"ok": False, "error": str(exc), "code": code}), 400
+        return jsonify(payload)
+
+    @app.get("/api/robinhood-dex/pools")
+    def robinhood_dex_pools():
+        try:
+            selection = resolve_request_chain_selection(
+                database_url=panel_call("database_url_or_none"),
+                feature="dex_arbitrage",
+                default_market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+            )
+            payload = robinhood_dex_pool_observation_payload(
                 database_url=panel_call("database_url_or_none"),
                 market_id=selection.market_id,
                 chain_id=selection.chain_id,

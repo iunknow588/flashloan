@@ -1,6 +1,17 @@
 from web.control_panel import app
 
 
+EXPECTED_UNIFIED_CHAIN_ORDER = [
+    "BNB Chain",
+    "AVALANCHE Chain",
+    "POLYGON Chain",
+    "Robinhood Chain",
+    "ETHEREUM Chain",
+    "HYPERLIQUID Chain",
+    "CoW Rail",
+]
+
+
 def test_control_panel_routes_are_assembled_by_app_factory():
     paths = {rule.rule for rule in app.url_map.iter_rules()}
 
@@ -10,6 +21,9 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/chain-selection" in paths
     assert "/api/markets" in paths
     assert "/api/workflow-context" in paths
+    assert "/api/flash-loan/pools" in paths
+    assert "/api/flash-loan/pool-discovery" in paths
+    assert "/api/flash-loan/pool-discovery/refresh" in paths
     assert "/static/chain-selector.js" in paths
     assert "/static/workflow-context.js" in paths
     assert "/account-scan" in paths
@@ -18,10 +32,13 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/bot/account-scan" in paths
     assert "/bot/execution" in paths
     assert "/bot/audit" in paths
+    assert "/flash-loan" in paths
+    assert "/flash-loan/pools" in paths
     assert "/market-observation" in paths
     assert "/binance-market" in paths
     assert "/dex-arbitrage" in paths
     assert "/dex" in paths
+    assert "/dex/overview" in paths
     assert "/dex/market-observation" in paths
     assert "/dex/candidates" in paths
     assert "/dex/quotes" in paths
@@ -47,6 +64,11 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/binance-market/cow-quotes" in paths
     assert "/api/binance-market/cow-execution-attempts" in paths
     assert "/api/binance-market/cow-candidate-queue" in paths
+    assert "/api/dex/overview" in paths
+    assert "/api/dex/market-observation" in paths
+    assert "/api/dex/quote-routes" in paths
+    assert "/api/dex/quote-request" in paths
+    assert "/api/dex/submissions" in paths
     assert "/api/execution/state" in paths
     assert "/robinhood-dex" in paths
     assert "/api/robinhood-dex/observation" in paths
@@ -62,14 +84,221 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     for path in ("/binance-market", "/dex/market-observation"):
         body = client.get(path).get_data(as_text=True)
         assert "data-chain-selector" in body
+        assert 'data-chain-selector-component="true"' in body
+        assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-chain-control"' in body
+        assert "padding: 10px 36px 12px;" in body
+        assert "padding-left: 18px; padding-right: 18px;" in body
         assert "/static/chain-selector.js" in body
         assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"cow-dex-arbitrage",chain_id:"0"}' in body
+        assert "当前 BOT 市场" not in body
+        assert "当前 DEX 链路" not in body
 
     for path in ("/dex-pools", "/candidate-pools"):
         body = client.get(path).get_data(as_text=True)
         assert "data-chain-selector" in body
+        assert 'data-chain-selector-component="true"' in body
+        assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
         assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"bnb-dex-arbitrage",chain_id:"56"}' in body
+
+
+def test_chain_selection_api_infers_feature_from_page_path():
+    client = app.test_client()
+
+    bot_response = client.get("/api/chain-selection?page_path=/bot")
+    dex_response = client.get("/api/chain-selection?page_path=/dex")
+    unscoped_response = client.get("/api/chain-selection")
+
+    assert bot_response.status_code == 200
+    bot_payload = bot_response.get_json()
+    assert bot_payload["selected"]["feature"] == "liquidation"
+    assert {row["feature"] for row in bot_payload["available"]} == {"liquidation"}
+    assert [row["display_name"] for row in bot_payload["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+
+    assert dex_response.status_code == 200
+    dex_payload = dex_response.get_json()
+    assert dex_payload["selected"]["feature"] == "dex_arbitrage"
+    assert {row["feature"] for row in dex_payload["available"]} == {"dex_arbitrage"}
+    assert [row["display_name"] for row in dex_payload["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+
+    assert unscoped_response.status_code == 200
+    unscoped_payload = unscoped_response.get_json()
+    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 26
+    assert [row["display_name"] for row in unscoped_payload["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+
+
+def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch):
+    from web import app_shell
+
+    monkeypatch.setattr(
+        app_shell,
+        "protocol_options_for_chain",
+        lambda chain_id=None: [
+            {"protocol": "venus_core", "display_name": "Venus Core"},
+            {"protocol": "morpho_blue", "display_name": "Morpho Blue"},
+            {"protocol": "pancakeswap_v3", "display_name": "PancakeSwap V3"},
+        ],
+    )
+    client = app.test_client()
+
+    body = client.get("/flash-loan/pools").get_data(as_text=True)
+    payload = client.get("/api/flash-loan/pools").get_json()
+    bnb_payload = client.get("/api/flash-loan/pools?chain_id=56").get_json()
+    venus_payload = client.get("/api/flash-loan/pools?protocols=venus_core").get_json()
+
+    assert "闪电贷资金池" in body
+    assert "协议目录" not in body
+    assert "稳定币借贷池" in body
+    assert "非稳定币借贷池" in body
+    assert "可借资产与目标资产" in body
+    assert "/api/flash-loan/pools" in body
+    assert 'data-chain-selector-component="true"' in body
+    assert 'class="app-shell-sidebar"' in body
+    assert 'class="protocol-rail"' not in body
+    assert 'data-flash-loan-protocol-nav="true"' in body
+    assert 'data-flash-loan-protocol-link="venus_core"' in body
+    assert 'data-flash-loan-protocol-link="morpho_blue"' in body
+    assert 'data-flash-loan-protocol-link="pancakeswap_v3"' in body
+    assert 'data-flash-loan-protocol-link="balancer_v2"' not in body
+    assert "BOT 清算" in body
+    assert "DEX 套利" in body
+    assert "闪电贷" in body
+    assert "系统与分析" in body
+    assert 'data-shell-link="/flash-loan/pools"' in body
+    assert payload["ok"] is True
+    assert payload["summary"]["provider_count"] >= 20
+    assert payload["summary"]["bot_consumable_count"] > 0
+    assert payload["summary"]["dex_consumable_count"] > 0
+    assert any(row["provider_kind"] == "lending_pool" for row in payload["providers"])
+    assert any(row["provider_kind"] == "dex_pool" for row in payload["providers"])
+    assert payload["protocol_views"][0]["protocol"] == "aave_v3"
+    assert "stable_borrow_pools" in payload["protocol_views"][0]
+    assert "non_stable_borrow_pools" in payload["protocol_views"][0]
+    assert "borrow_target_universe" in payload["protocol_views"][0]
+    assert "depth_counts" in payload["protocol_views"][0]["summary"]
+    assert bnb_payload["scope"]["chain_id"] == 56
+    assert {row["chain_id"] for row in bnb_payload["providers"]} == {56}
+    assert venus_payload["protocol_views"][0]["protocol"] == "venus_core"
+    assert venus_payload["protocol_views"][0]["summary"]["stable_borrow_pool_count"] > 0
+    assert "status" not in venus_payload["protocol_views"][0]
+
+
+def test_chain_selection_api_exposes_chain_level_options():
+    client = app.test_client()
+
+    bot = client.get("/api/chain-selection?feature=liquidation&page_path=/bot").get_json()
+    dex = client.get("/api/chain-selection?feature=dex_arbitrage&page_path=/dex").get_json()
+
+    bot_options = {row["chain_id"]: row for row in bot["chain_options"]}
+    dex_options = {row["chain_id"]: row for row in dex["chain_options"]}
+
+    assert [row["display_name"] for row in bot["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert [row["display_name"] for row in dex["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert bot_options[56]["display_name"] == "BNB Chain"
+    assert bot_options[56]["chain_key"] == "chain:56"
+    assert bot_options[56]["default_market_id"] in {"bnb-aave-v3", "bnb-venus-core"}
+    assert bot_options[56]["representative_market_id"] == bot_options[56]["default_market_id"]
+    assert bot_options[56]["protocol_summary"] == "aave_v3, venus_core"
+    assert bot_options[56]["market_count"] == 2
+    assert bot_options[4663]["display_name"] == "Robinhood Chain"
+    assert bot_options[4663]["chain_key"] == "chain:4663"
+    assert bot_options[4663]["protocol_summary"] == "aave_v3, morpho_blue"
+    assert bot_options[4663]["market_count"] == 2
+    assert bot_options[137]["protocol_summary"] == "aave_v3"
+    assert bot_options[1]["protocol_summary"] == "aave_v3"
+    assert bot_options[0]["protocol_summary"] == "cow_protocol"
+    assert dex_options[56]["display_name"] == "BNB Chain"
+    assert dex_options[56]["chain_key"] == "chain:56"
+    assert dex_options[56]["default_market_id"] == "bnb-dex-arbitrage"
+    assert dex_options[56]["representative_market_id"] == "bnb-dex-arbitrage"
+    assert dex_options[56]["protocol_summary"] == "biswap_v2, pancakeswap_v2, pancakeswap_v3"
+    assert dex_options[56]["market_count"] == 3
+    assert dex_options[4663]["chain_key"] == "chain:4663"
+    assert dex_options[4663]["protocol_summary"] == "morpho_blue, uniswap_v2, uniswap_v3"
+    assert dex_options[4663]["market_count"] == 3
+    hyperliquid = next(row for row in dex["chain_options"] if row["chain_key"] == "network:hyperliquid")
+    assert hyperliquid["protocol_summary"] == "链路"
+    assert hyperliquid["protocol_options"] == []
+
+
+def test_chain_selection_api_defaults_protocol_filter_to_all_chain_protocols():
+    client = app.test_client()
+
+    payload = client.get(
+        "/api/chain-selection?feature=liquidation&page_path=/bot&chain_id=56"
+    ).get_json()
+
+    assert payload["selected"]["chain_id"] == 56
+    assert payload["selected"]["chain_key"] == "chain:56"
+    assert payload["protocol_options"] == [
+        {
+            "protocol": "aave_v3",
+            "display_name": "Aave V3",
+            "market_ids": ["bnb-aave-v3"],
+            "market_count": 1,
+            "is_default": False,
+            "market_id": "bnb-aave-v3",
+        },
+        {
+            "protocol": "venus_core",
+            "display_name": "Venus Core",
+            "market_ids": ["bnb-venus-core"],
+            "market_count": 1,
+            "is_default": False,
+            "market_id": "bnb-venus-core",
+        },
+    ]
+    assert payload["selected_protocols"] == ["aave_v3", "venus_core"]
+    assert payload["selected"]["selected_protocols"] == ["aave_v3", "venus_core"]
+    assert payload["query"]["protocols"] == "aave_v3,venus_core"
+    assert payload["selector_query"] == {
+        "chain_id": 56,
+        "feature": "liquidation",
+        "protocols": "aave_v3,venus_core",
+    }
+    assert "market_id" not in payload["selector_query"]
+
+
+def test_chain_selection_api_exposes_multi_protocol_dex_chain_filters():
+    client = app.test_client()
+
+    payload = client.get(
+        "/api/chain-selection?feature=dex_arbitrage&page_path=/dex&chain_id=56"
+    ).get_json()
+    robinhood = client.get(
+        "/api/chain-selection?feature=dex_arbitrage&page_path=/dex&chain_id=4663"
+    ).get_json()
+
+    assert payload["selected"]["market_id"] == "bnb-dex-arbitrage"
+    assert payload["selected"]["chain_key"] == "chain:56"
+    assert payload["selected"]["default_market_id"] == "bnb-dex-arbitrage"
+    assert payload["selected"]["protocol"] == "pancakeswap_v3"
+    assert [row["protocol"] for row in payload["protocol_options"]] == [
+        "biswap_v2",
+        "pancakeswap_v2",
+        "pancakeswap_v3",
+    ]
+    assert payload["selected_protocols"] == [
+        "biswap_v2",
+        "pancakeswap_v2",
+        "pancakeswap_v3",
+    ]
+    assert len(payload["protocol_options"]) > 1
+    assert payload["selector_query"] == {
+        "chain_id": 56,
+        "feature": "dex_arbitrage",
+        "protocols": "biswap_v2,pancakeswap_v2,pancakeswap_v3",
+    }
+    assert "market_id" not in payload["selector_query"]
+    assert [row["protocol"] for row in robinhood["protocol_options"]] == [
+        "morpho_blue",
+        "uniswap_v2",
+        "uniswap_v3",
+    ]
+    assert len(robinhood["protocol_options"]) > 1
+    assert robinhood["selected_protocols"] == ["morpho_blue", "uniswap_v2", "uniswap_v3"]
 
 
 def test_dex_market_observation_uses_dex_surface_not_operations_surface():
@@ -115,10 +344,10 @@ def test_dex_page_rejects_liquidation_market_as_feature_mismatch():
 def test_dex_page_variants_follow_market_type():
     client = app.test_client()
 
-    cow = client.get("/dex?market_id=cow-dex-arbitrage&chain_id=0").get_data(as_text=True)
-    ethereum = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1").get_data(as_text=True)
-    polygon = client.get("/dex?market_id=polygon-dex-arbitrage&chain_id=137").get_data(as_text=True)
-    robinhood = client.get("/dex?market_id=robinhood-dex-shadow&chain_id=4663").get_data(as_text=True)
+    cow = client.get("/dex/overview?market_id=cow-dex-arbitrage&chain_id=0").get_data(as_text=True)
+    ethereum = client.get("/dex/overview?market_id=ethereum-dex-arbitrage&chain_id=1").get_data(as_text=True)
+    polygon = client.get("/dex/overview?market_id=polygon-dex-arbitrage&chain_id=137").get_data(as_text=True)
+    robinhood = client.get("/dex/overview?market_id=robinhood-dex-shadow&chain_id=4663").get_data(as_text=True)
 
     assert "cowNetworkChecks" in cow
     assert "cowNetworkChecks" not in ethereum
@@ -132,7 +361,8 @@ def test_dex_page_variants_follow_market_type():
 def test_robinhood_shadow_uses_the_shared_dex_surfaces():
     client = app.test_client()
     surfaces = {
-        "/dex": "overview",
+        "/dex": "quotes",
+        "/dex/overview": "overview",
         "/dex/market-observation": "observation",
         "/dex/candidates": "candidates",
         "/dex/quotes": "quotes",
@@ -155,10 +385,14 @@ def test_chain_selector_invalidates_scope_bound_browser_state_before_navigation(
     assert "function invalidateScopeCaches(previous, next)" in source
     assert 'key.startsWith("flashloan:")' in source
     assert 'new CustomEvent("chainselectionchanging"' in source
-    assert "invalidateScopeCaches(window.__FLASHLOAN_MARKET_SCOPE__, item);" in source
+    assert "invalidateScopeCaches(previous, item);" in source
     assert 'requestQuery.set("page_path", window.location.pathname);' in source
+    assert 'requestQuery.set("execution_mode", query.get("execution_mode"));' not in source
     assert "function pathFeature(pathname)" in source
     assert "clearMarketScope(url);" in source
+    assert 'link.hasAttribute("data-flash-loan-protocol-link")' in source
+    assert "function isFlashLoanPoolPath(pathname)" in source
+    assert 'data-chain-protocols-flashloan-disabled' in source
 
 
 def test_chain_selection_api_keeps_same_chain_markets_distinct(monkeypatch):
@@ -187,7 +421,7 @@ def test_chain_selection_api_keeps_same_chain_markets_distinct(monkeypatch):
     assert wrong_chain.get_json()["code"] == "chain_mismatch"
 
 
-def test_chain_selection_api_scopes_robinhood_to_dex_pages():
+def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
     client = app.test_client()
 
     dex = client.get(
@@ -199,14 +433,24 @@ def test_chain_selection_api_scopes_robinhood_to_dex_pages():
 
     assert dex.status_code == 200
     dex_markets = dex.get_json()["available"]
-    assert len(dex_markets) == 6
-    assert [row["market_id"] for row in dex_markets][-1] == "robinhood-dex-shadow"
-    assert dex_markets[-1]["market_type"] == "shadow_chain"
+    dex_market_ids = {row["market_id"] for row in dex_markets}
+    assert len(dex_markets) == 17
+    assert "robinhood-dex-shadow" in dex_market_ids
+    assert "robinhood-dex-v2-shadow" in dex_market_ids
+    assert "robinhood-dex-morpho-blue-flash" in dex_market_ids
+    assert "hyperliquid-dex-shadow" in dex_market_ids
+    assert next(row for row in dex_markets if row["market_id"] == "robinhood-dex-shadow")["market_type"] == "shadow_chain"
 
     assert bot.status_code == 200
     bot_markets = bot.get_json()["available"]
-    assert len(bot_markets) == 4
-    assert "robinhood-dex-shadow" not in {row["market_id"] for row in bot_markets}
+    bot_market_ids = {row["market_id"] for row in bot_markets}
+    assert len(bot_markets) == 9
+    assert "robinhood-liquidation-shadow" in bot_market_ids
+    assert "robinhood-morpho-blue-flash" in bot_market_ids
+    assert "polygon-aave-v3-shadow" in bot_market_ids
+    assert "ethereum-aave-v3-shadow" in bot_market_ids
+    assert "cow-liquidation-shadow" in bot_market_ids
+    assert "robinhood-dex-shadow" not in bot_market_ids
 
 
 def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(monkeypatch):
@@ -246,10 +490,10 @@ def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(
 
 
 def test_dex_pool_payload_marks_runtime_cache_source(monkeypatch):
-    from web.data_routes import dex_pools
+    from market.binance_market import pool_candidates
 
     monkeypatch.setattr(
-        dex_pools,
+        pool_candidates,
         "_read_json_object",
         lambda _path: {
             "network": "bnb",
@@ -258,12 +502,15 @@ def test_dex_pool_payload_marks_runtime_cache_source(monkeypatch):
             "summary": {},
         },
     )
+    pool_candidates._dex_pool_candidates_payload_cached.cache_clear()
 
+    from web.data_routes import dex_pools
     payload = dex_pools.dex_pool_candidates_payload()
 
     assert payload["source"] == "runtime_cache"
     assert payload["freshness"] == "2026-08-19T00:00:00Z"
     assert payload["fallback_reason"] is None
+    pool_candidates._dex_pool_candidates_payload_cached.cache_clear()
 
 
 def test_system_info_endpoint_owns_scan_version(monkeypatch):
@@ -555,6 +802,7 @@ def test_dex_page_mounts_shared_market_selector():
     body = app.test_client().get("/dex-arbitrage").get_data(as_text=True)
 
     assert "cowNetworkChecks" in body
+    assert "#cowNetworkChecks { display: none !important; }" in body
     assert "data-chain-selector" in body
     assert 'data-app-shell="true"' in body
     assert 'data-global-chain-selector="true"' in body
@@ -570,7 +818,7 @@ def test_left_navigation_preserves_selected_dex_market_scope():
     body = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1").get_data(as_text=True)
 
     assert 'href="/dex?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
-    assert 'href="/dex/quotes?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
+    assert 'href="/dex/overview?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
     assert 'data-shell-link="/dex/robinhood-shadow"' not in body
     assert 'href="/bot"' in body
 
@@ -582,20 +830,71 @@ def test_left_navigation_preserves_selected_liquidation_market_scope():
     assert 'href="/bot?market_id=bnb-aave-v3&chain_id=56"' in body
     assert 'href="/bot/account-scan?market_id=bnb-aave-v3&chain_id=56"' in body
     assert 'href="/dex"' in body
+    assert "liquidationMarketSelect" not in body
 
 
 def test_app_shell_owns_one_visible_global_chain_selector():
     client = app.test_client()
 
-    for path in ("/bot", "/bot/account-scan", "/dex", "/dex/candidates"):
+    for path in ("/bot", "/bot/account-scan", "/dex", "/dex/candidates", "/flash-loan/pools"):
         body = client.get(path).get_data(as_text=True)
         assert body.count('data-global-chain-selector="true"') == 1
+        assert body.count('data-chain-selector-component="true"') == 1
         assert body.count('/static/chain-selector.js') == 1
+        assert '<a class="app-shell-brand" href="/bot">FLASH LOAN</a>' in body
+        assert "BOT 清算" in body
+        assert "DEX 套利" in body
+        assert "闪电贷" in body
+        assert "系统与分析" in body
+        assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-chain-control"' in body
+        assert 'class="app-shell-selector-meta"' in body
+        assert "grid-template-columns: minmax(160px, 3fr) minmax(260px, 4fr) minmax(0, 5fr);" in body
+        assert ".app-shell-chain-control { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: flex-start;" in body
+        assert ".app-shell-protocols { grid-column: 3; grid-row: 1; display: flex; flex-wrap: wrap; justify-content: flex-start;" in body
+        assert ".app-shell-selector-meta { grid-column: 2 / 4; grid-row: 2; display: flex; justify-content: flex-start;" in body
+        assert "justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow: hidden;" in body
+        assert ".app-shell-protocols .protocol-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; min-height: 22px;" in body
+        assert ".app-shell-protocols .protocol-chip input { flex: 0 0 auto; width: 13px; height: 13px; margin: 0;" in body
+        assert ".app-shell-protocols .cow-network-chip { gap: 3px; min-height: 17px; padding: 1px 5px; font-size: 9px;" in body
+        assert ".app-shell-protocols .cow-network-chip input { width: 10px; height: 10px;" in body
+        assert "background: #263244; color: #eef4ff; font-size: 10px;" in body
+        assert 'data-shell-gate' in body
 
     settings = client.get("/settings").get_data(as_text=True)
     analytics = client.get("/analytics/opportunity-health").get_data(as_text=True)
     assert 'data-global-chain-selector="true"' not in settings
     assert 'data-global-chain-selector="true"' not in analytics
+
+
+def test_flash_loan_pool_page_uses_full_width_content_area_and_sidebar_protocol_nav(monkeypatch):
+    from web import app_shell
+
+    monkeypatch.setattr(
+        app_shell,
+        "protocol_options_for_chain",
+        lambda chain_id=None: [{"protocol": "morpho_blue", "display_name": "Morpho Blue"}],
+    )
+    body = app.test_client().get("/flash-loan/pools?chain_id=4663&protocols=morpho_blue").get_data(as_text=True)
+
+    assert '<main class="flash-loan-pool-page">' in body
+    assert "main.flash-loan-pool-page { width: 100%; max-width: none; margin: 0; }" in body
+    assert "body { margin: 0; padding: 24px; background: #f5f7fb;" in body
+    assert "overflow-x: hidden;" in body
+    assert ".table-wrap { width: 100%; max-width: 100%; overflow-x: auto;" in body
+    assert ".table-wrap.hidden { display: none; }" in body
+    assert "table { width: 100%; min-width: 980px;" in body
+    assert 'id="stableSection"' in body
+    assert 'id="nonStableSection"' in body
+    assert 'id="targetSection"' in body
+    assert 'id="statusPanel"' in body
+    assert 'id="stableTableWrap"' in body
+    assert 'id="targetTableWrap"' in body
+    assert 'classList.toggle("hidden", unavailable)' in body
+    assert 'classList.toggle("hidden", !rows.length)' in body
+    assert 'data-flash-loan-protocol-link="morpho_blue"' in body
+    assert 'href="/flash-loan/pools?chain_id=4663&protocols=morpho_blue"' in body
+    assert 'data-flash-loan-protocol-link="balancer_v2"' not in body
 
 
 def test_workflow_context_script_is_served_as_javascript():
@@ -1110,4 +1409,109 @@ def test_debt_pool_decision_api_returns_layered_decision(monkeypatch):
     assert response.status_code == 200
     assert data["result"] == "CORE_POOL_LIQUIDATABLE"
     assert data["route_intent"] == "execution"
+
+
+def test_market_observation_page_exposes_observation_surface_controls():
+    body = app.test_client().get("/dex/market-observation?market_id=polygon-dex-arbitrage&chain_id=137").get_data(as_text=True)
+
+    assert 'data-page-surface="observation"' in body
+    assert 'id="observationStatus"' in body
+    assert 'id="marketRows"' in body
+
+
+def test_dex_market_observation_uses_dex_surface_not_operations_surface():
+    body = app.test_client().get("/dex/market-observation").get_data(as_text=True)
+
+    assert 'data-dex-surface-template="observation"' in body
+    assert 'data-global-chain-selector="true"' in body
+
+
+def test_dex_page_variant_is_driven_by_market_selection():
+    client = app.test_client()
+
+    bnb = client.get("/dex/quotes?market_id=bnb-dex-arbitrage&chain_id=56")
+    robinhood = client.get("/dex/quotes?market_id=robinhood-dex-shadow&chain_id=4663")
+
+    assert bnb.status_code == 200
+    assert 'data-dex-surface-template="quotes"' in bnb.get_data(as_text=True)
+    assert "cowNetworkChecks" not in bnb.get_data(as_text=True)
+    assert robinhood.status_code == 200
+    assert 'data-dex-surface-template="quotes"' in robinhood.get_data(as_text=True)
+
+
+def test_dex_page_variants_follow_market_type():
+    client = app.test_client()
+
+    for market_id, chain_id in (
+        ("cow-dex-arbitrage", 0),
+        ("ethereum-dex-arbitrage", 1),
+        ("polygon-dex-arbitrage", 137),
+        ("robinhood-dex-shadow", 4663),
+    ):
+        body = client.get(f"/dex?market_id={market_id}&chain_id={chain_id}").get_data(as_text=True)
+        assert 'data-dex-surface-template="quotes"' in body
+        assert "cowNetworkChecks" not in body
+
+
+def test_robinhood_shadow_uses_the_shared_dex_surfaces():
+    client = app.test_client()
+    surfaces = {
+        "/dex": "quotes",
+        "/dex/overview": "overview",
+        "/dex/market-observation": "observation",
+        "/dex/candidates": "candidates",
+        "/dex/quotes": "quotes",
+        "/dex/submissions": "submissions",
+    }
+
+    for path, surface in surfaces.items():
+        body = client.get(f"{path}?market_id=robinhood-dex-shadow&chain_id=4663").get_data(as_text=True)
+        assert f'data-page-surface="{surface}"' in body
+        assert 'data-chain-selector-component="true"' in body
+        assert "data-surface-link" in body
+        assert 'data-shell-link="/dex/robinhood-shadow"' not in body
+
+
+def test_market_observation_page_exposes_observation_surface_controls():
+    body = app.test_client().get("/dex/market-observation?market_id=polygon-dex-arbitrage&chain_id=137").get_data(as_text=True)
+
+    assert 'data-page-surface="observation"' in body
+    assert 'data-dex-surface-template="observation"' in body
+    assert 'id="directList"' in body
+    assert 'id="indirectList"' in body
+
+
+def test_dex_surface_payload_apis_are_distinct():
+    client = app.test_client()
+
+    overview = client.get("/api/dex/overview?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
+    observation = client.get("/api/dex/market-observation?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
+    quotes = client.get("/api/dex/quote-routes?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
+    quote_request = client.get("/api/dex/quote-request?market_id=bnb-dex-arbitrage&chain_id=56&pair=USDC:USDT&venue=uniswapx&amount=1000").get_json()
+    submissions = client.get("/api/dex/submissions?limit=5").get_json()
+    robinhood_candidates = client.get(
+        "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
+    ).get_json()
+
+    assert overview["mode"] == "dex_overview"
+    assert observation["mode"] == "dex_market_observation"
+    assert quotes["mode"] == "dex_quote_routes"
+    assert quote_request["mode"] == "dex_quote_request"
+    assert submissions["mode"] == "dex_submission_review"
+    assert "arbitragePaths" in overview
+    assert "directPools" in observation
+    assert "routes" in quotes
+    assert "quoteRequests" in quote_request
+    assert "attempts" in submissions
+    assert robinhood_candidates["poolStaticTable"]["chainId"] == 4663
+    assert robinhood_candidates["poolStaticTable"]["network"] == "robinhood"
+    assert robinhood_candidates["summary"]["pairTableCount"] != "0"
+
+
+def test_dex_page_mounts_shared_market_selector():
+    body = app.test_client().get("/dex-arbitrage").get_data(as_text=True)
+
+    assert 'data-dex-surface-template="quotes"' in body
+    assert 'data-chain-selector-component="true"' in body
+    assert "data-surface-link" in body
 

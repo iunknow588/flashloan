@@ -11,6 +11,7 @@ from strategy.arbitrage import ArbitrageConfig
 
 from market.binance_market.candidate_service import build_pair_candidates
 from market.binance_market.cow_tokens import DEFAULT_COW_TEST_NETWORK
+from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.velocity_candidates import top_bottom_from_extremes
 
 
@@ -178,6 +179,10 @@ def build_binance_market_state(
     if cow_filter and isinstance(cow_filter.get("pool_filter"), dict):
         cow_filter["pool_filter"]["rejected_pair_count"] = len(pool_pair_rejections)
         cow_filter["pool_filter"]["rejected_pairs"] = pool_pair_rejections[:20]
+    try:
+        pool_candidates = dex_pool_candidates_payload()
+    except Exception as exc:
+        pool_candidates = {"error": str(exc), "pairs": [], "summary": {}, "poolStaticTable": {}}
     return {
         "observed_at": extremes.get("observed_at") if isinstance(extremes, dict) else None,
         "window_seconds": extremes.get("window_seconds") if isinstance(extremes, dict) else None,
@@ -195,6 +200,7 @@ def build_binance_market_state(
         "bottom": bottom,
         "aave_rows": aave_rows,
         "pairs": ranked_pairs,
+        "pool_candidates": pool_candidates,
         "best": None,
         "notional_usd": arbitrage_config.notional_usd,
         "slippage_bps": max(0, min(int(slippage_bps), 5000)),

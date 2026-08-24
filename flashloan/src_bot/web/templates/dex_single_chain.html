@@ -37,9 +37,9 @@
   <header>
     <h1>单链 DEX 链路</h1>
     <nav>
-      <a href="/dex">DEX 总览</a>
+      <a href="/dex">报价与路由</a>
+      <a href="/dex/overview">DEX 总览</a>
       <a href="/dex/candidates">候选池子</a>
-      <a href="/dex/quotes">报价与路由</a>
       <a href="/settings">配置</a>
     </nav>
   </header>
@@ -62,7 +62,7 @@
         <h2>链路边界</h2>
         <table>
           <tbody>
-            <tr><th>页面类型</th><td><span class="badge">native_chain</span></td></tr>
+            <tr><th>页面类型</th><td><span class="badge">单链原生</span></td></tr>
             <tr><th>执行范围</th><td>单链，仅使用当前系统链路的市场配置。</td></tr>
             <tr><th>CoW 执行网络</th><td>不适用。跨链复选只在 COW 链路页面显示。</td></tr>
             <tr><th>URL 规则</th><td id="urlRule">-</td></tr>
@@ -108,22 +108,22 @@
       $("marketName").textContent = selected.display_name || selected.market_id || "-";
       $("marketId").textContent = selected.market_id || "-";
       $("chainName").textContent = selected.network || "-";
-      $("chainId").textContent = selected.chain_id === null || selected.chain_id === undefined ? "-" : `chainId ${selected.chain_id}`;
+      $("chainId").textContent = selected.chain_id === null || selected.chain_id === undefined ? "-" : `链 ID ${selected.chain_id}`;
       $("protocol").textContent = selected.protocol || "-";
-      $("adapter").textContent = selected.capabilities?.dex_arbitrage ? "DEX arbitrage scope" : "unknown scope";
+      $("adapter").textContent = selected.capabilities?.dex_arbitrage ? "DEX 套利作用域" : "未知作用域";
       const executable = selected.capabilities?.execution;
       $("executionState").textContent = executable ? "可执行" : "观察 / 待部署";
       $("executionState").className = executable ? "good" : "bad";
-      $("executionNote").textContent = selected.observation_only ? "当前市场仍处于 observation-only" : "已具备执行能力";
+      $("executionNote").textContent = selected.observation_only ? "当前市场仍处于仅观察模式" : "已具备执行能力";
       $("configRows").innerHTML = [
-        ["market_type", selected.market_type],
-        ["market_id", selected.market_id],
-        ["chain_id", selected.chain_id],
-        ["network", selected.network],
-        ["native_symbol", selected.native_symbol],
-        ["protocol", selected.protocol],
-        ["observation_only", selected.observation_only],
-        ["protocol_supported", selected.protocol_supported],
+        ["市场类型", selected.market_type],
+        ["市场标识", selected.market_id],
+        ["链 ID", selected.chain_id],
+        ["网络", selected.network],
+        ["原生代币", selected.native_symbol],
+        ["协议", selected.protocol],
+        ["仅观察", selected.observation_only ? "是" : "否"],
+        ["协议已支持", selected.protocol_supported ? "是" : "否"],
       ].map(row => `<tr><th>${esc(row[0])}</th><td>${esc(row[1])}</td></tr>`).join("");
       applyCleanUrl(selected);
       $("message").textContent = selected.market_type === "native_chain"
@@ -143,6 +143,11 @@
       }
     }
 
+    window.addEventListener("chainselectionchanged", event => {
+      const selected = event?.detail?.selected || {};
+      if (String(selected.feature || "").toLowerCase() !== "dex_arbitrage") return;
+      refresh();
+    });
     $("refreshBtn").onclick = refresh;
     refresh();
   </script>

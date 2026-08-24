@@ -79,7 +79,7 @@ def _capabilities(row: dict[str, Any]) -> dict[str, bool]:
         "execution": enabled and protocol_supported and not observation_only,
         "observation": enabled,
         "shadow": observation_only,
-        "robinhood_shadow": market_id == "robinhood-dex-shadow" and observation_only,
+        "robinhood_shadow": row.get("network") == "robinhood" and observation_only,
     }
 
 

@@ -319,6 +319,102 @@ def simulate_four_route_cycles(
     return results
 
 
+def build_pair_strategy_analysis(
+    x: dict,
+    y: dict,
+    config: ArbitrageConfig,
+    initial_amount: float | None = None,
+    routes: list[dict] | None = None,
+) -> Optional[dict]:
+    if (
+        x.get("symbol") == y.get("symbol")
+        or not _valid_leg(x)
+        or not _valid_leg(y)
+    ):
+        return None
+
+    notional = float(initial_amount if initial_amount is not None else config.notional_usd or 100.0)
+    if notional <= 0:
+        notional = 100.0
+    routes = list(routes) if routes is not None else simulate_four_route_cycles(x, y, config, notional)
+    if not routes:
+        return None
+
+    x_u = float(x["end_price"])
+    y_u = float(y["end_price"])
+    ratio_x_over_y = x_u / y_u if y_u else None
+    ratio_y_over_x = y_u / x_u if x_u else None
+    window_spread_percent = float(x["change_percent"]) - float(y["change_percent"])
+    route_rows = []
+    for route in routes:
+        steps = list(route.get("route_steps") or [])
+        route_symbols = list(route.get("route_symbols") or [])
+        route_text = " -> ".join(route_symbols) if route_symbols else ""
+        route_rows.append(
+            {
+                "strategy": route.get("strategy"),
+                "route_symbols": route_symbols,
+                "route_text": route_text,
+                "hop_count": len(steps),
+                "route_depth_label": f"{len(steps)}跳" if steps else "0跳",
+                "route_summary": f"{len(steps)} hop | {route_text}" if route_text else f"{len(steps)} hop",
+                "initial_symbol": route.get("initial_symbol"),
+                "initial_amount": route.get("initial_amount"),
+                "remaining_amount": route.get("remaining_amount"),
+                "profit_amount": route.get("profit_amount"),
+                "profit_percent": route.get("profit_percent"),
+                "owed_amount_with_premium": route.get("owed_amount_with_premium"),
+                "net_after_flashloan_amount": route.get("net_after_flashloan_amount"),
+                "net_after_flashloan_percent": route.get("net_after_flashloan_percent"),
+                "profitable": bool(route.get("profit_amount") is not None and float(route.get("profit_amount") or 0) > 0),
+                "hops": [
+                    {
+                        "hop": index + 1,
+                        "from_symbol": step.get("from_symbol"),
+                        "to_symbol": step.get("to_symbol"),
+                        "input_amount": step.get("input_amount"),
+                        "output_amount": step.get("output_amount"),
+                        "input_price_usd": step.get("input_price_usd"),
+                        "output_price_usd": step.get("output_price_usd"),
+                        "price_phase": step.get("price_phase"),
+                    }
+                    for index, step in enumerate(steps)
+                ],
+                "first_hop": ({"hop": 1, **steps[0]} if len(steps) > 0 else None),
+                "second_hop": ({"hop": 2, **steps[1]} if len(steps) > 1 else None),
+                "third_hop": ({"hop": 3, **steps[2]} if len(steps) > 2 else None),
+                "final_hop": ({"hop": len(steps), **steps[-1]} if steps else None),
+            }
+        )
+
+    def _route_profit_percent(row: dict) -> float:
+        value = row.get("profit_percent")
+        try:
+            return float(value) if value is not None else float("-inf")
+        except (TypeError, ValueError):
+            return float("-inf")
+
+    best_route = max(route_rows, key=_route_profit_percent)
+    arbitrage_candidates = [row for row in route_rows if row.get("profitable")]
+    return {
+        "x_symbol": x["symbol"],
+        "y_symbol": y["symbol"],
+        "x_u": x_u,
+        "y_u": y_u,
+        "x_y_ratio": ratio_x_over_y,
+        "y_x_ratio": ratio_y_over_x,
+        "window_spread_percent": window_spread_percent,
+        "initial_amount": notional,
+        "route_count": len(route_rows),
+        "profitable_route_count": len(arbitrage_candidates),
+        "can_arbitrage": bool(arbitrage_candidates),
+        "best_strategy": best_route.get("strategy"),
+        "best_route_summary": best_route.get("route_summary"),
+        "best_route": best_route,
+        "route_rows": route_rows,
+    }
+
+
 def simulate_basket(extremes: dict, config: ArbitrageConfig) -> Optional[dict]:
     if config.notional_usd <= 0:
         return None

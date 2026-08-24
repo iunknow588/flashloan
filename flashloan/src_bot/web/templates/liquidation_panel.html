@@ -17,6 +17,11 @@
     button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
     button:disabled { opacity: .55; cursor: not-allowed; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; align-items: center; }
+    .protocol-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 14px; }
+    .protocol-toolbar .muted { color: #667085; font-size: 12px; font-weight: 700; }
+    .protocol-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+    .protocol-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 5px 10px; background: #fff; color: #344054; font-size: 12px; font-weight: 700; }
+    .protocol-chip input { margin: 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
     .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; margin-bottom: 18px; }
     .card small { display: block; color: #667085; margin-bottom: 7px; }
@@ -60,7 +65,6 @@
     .modal-head { height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-bottom: 1px solid #d9dee7; background: #fff; }
     .modal-head strong { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .modal-frame { width: 100%; height: calc(100% - 46px); border: 0; background: #f6f7f9; }
-    .legacy-market-scope { display: none !important; }
   </style>
 </head>
 <body>
@@ -73,14 +77,6 @@
     <section class="system-info-strip" aria-label="系统信息">
       <div><small>系统信息</small><strong id="systemVersion">-</strong></div>
       <span id="systemVersionMeta">等待中</span>
-    </section>
-    <section class="system-info-strip legacy-market-scope" aria-label="Legacy market scope">
-      <div><small>Chain market</small><strong id="activeChainMarket">Loading</strong></div>
-      <div class="toolbar" style="margin:0">
-        <label for="liquidationMarketSelect">Market</label>
-        <select id="liquidationMarketSelect" title="Select chain and lending protocol"></select>
-      </div>
-      <span id="activeChainMarketMeta">Loading market scope</span>
     </section>
     <section id="daemonStatusPanel" class="card state-panel">
       <div class="state-head">
@@ -276,6 +272,9 @@
       market_id: initialMarketParams.get("market_id") || "",
       chain_id: initialMarketParams.get("chain_id") || "",
     };
+    let latestChainSelectionPayload = null;
+    let latestAccountsPayload = null;
+    let latestBorrowPayload = null;
     const accountPageState = { page: 1, pageCount: 1 };
     const borrowPageState = { risk: 1, high: 1, core: 1 };
     const accountDetailBasePath = "/liquidation/account?account=";
@@ -290,12 +289,43 @@
       const params = {};
       if (selectedMarket.market_id) params.market_id = selectedMarket.market_id;
       if (selectedMarket.chain_id) params.chain_id = selectedMarket.chain_id;
+      const protocols = currentSelectedProtocols();
+      if (protocols.length) params.protocols = protocols.join(",");
       return params;
     };
     const appendMarketParams = query => {
       Object.entries(marketQueryParams()).forEach(([key, value]) => query.set(key, String(value)));
       return query;
     };
+    const normalizeProtocol = value => String(value || "").trim().toLowerCase();
+    const currentSelectedProtocols = () => {
+      const selectorProtocols = window.ChainSelector && typeof window.ChainSelector.selectedProtocols === "function"
+        ? window.ChainSelector.selectedProtocols()
+        : [];
+      if (Array.isArray(selectorProtocols) && selectorProtocols.length) {
+        return selectorProtocols.map(normalizeProtocol).filter(Boolean);
+      }
+      const query = new URLSearchParams(location.search);
+      return String(query.get("protocols") || "")
+        .split(",")
+        .map(normalizeProtocol)
+        .filter(Boolean);
+    };
+    const rowProtocol = row => normalizeProtocol(row && row.protocol);
+    const protocolVisible = row => {
+      const selected = currentSelectedProtocols();
+      if (!selected.length) return true;
+      const protocol = rowProtocol(row);
+      return !protocol || selected.includes(protocol);
+    };
+    const filterRowsByProtocol = rows => (Array.isArray(rows) ? rows.filter(protocolVisible) : []);
+    function renderProtocolFilter() {
+      const protocols = currentSelectedProtocols();
+      const label = protocols.length ? protocols.join(", ") : "全部";
+      if ($("message") && latestChainSelectionPayload) {
+        $("message").textContent = `当前协议过滤：${label}`;
+      }
+    }
     const isBnbVenusMarket = () => selectedMarket.market_id === "bnb-venus-core" || String(selectedMarket.chain_id) === "56" && selectedMarket.market_id === "bnb-venus-core";
     const marketLabel = row => {
       const network = row && (row.network || row.market_id) ? (row.network || row.market_id) : "-";
@@ -543,47 +573,20 @@
       }
     }
 
-    async function refreshMarketScope() {
+    async function refreshMarketScope(forceRender = false) {
       try {
         const query = appendMarketParams(new URLSearchParams());
         const d = await api(`/api/chain-selection?feature=liquidation${query.toString() ? `&${query}` : ""}`);
-        const active = d.active || {};
+        latestChainSelectionPayload = d;
         const selected = d.selected || {};
-        const supported = Array.isArray(d.available) ? d.available : [];
-        const selector = $("liquidationMarketSelect");
-        const currentKey = selectedMarket.market_id ? `${selectedMarket.market_id}:${selectedMarket.chain_id}` : "";
-        selector.innerHTML = supported.map(item => {
-          const key = `${item.market_id || ""}:${item.chain_id || ""}`;
-          const label = `${item.network || item.market_id} / ${item.protocol || "-"} / ${item.chain_id || "-"}`;
-          return `<option value="${key}" data-market-id="${item.market_id || ""}" data-chain-id="${item.chain_id || ""}">${label}</option>`;
-        }).join("");
-        if (!selectedMarket.market_id || !selectedMarket.chain_id) {
-          selectedMarket.market_id = selected.market_id || "";
-          selectedMarket.chain_id = selected.chain_id || "";
-        }
-        selector.value = currentKey || `${selectedMarket.market_id}:${selectedMarket.chain_id}`;
-        $("activeChainMarket").textContent = `${selectedMarket.market_id || active.market_id || "-"} / ${selectedMarket.chain_id || active.chain_id || "-"}`;
-        $("activeChainMarketMeta").textContent = String(selectedMarket.chain_id) === "56" || selectedMarket.market_id === "bnb-venus-core"
-          ? "BNB Venus Core observation-only, displayed separately as ordinary / high-frequency / core accounts"
-          : "Aave-compatible market, same ordinary / high-frequency / core flow";
+        selectedMarket.market_id = selected.market_id || selectedMarket.market_id || "";
+        selectedMarket.chain_id = selected.chain_id || selectedMarket.chain_id || "";
+        renderProtocolFilter();
+        return selected;
       } catch (e) {
-        $("activeChainMarketMeta").textContent = e.message;
+        $("message").textContent = e.message;
+        return null;
       }
-    }
-
-    function onMarketChanged() {
-      const selector = $("liquidationMarketSelect");
-      const option = selector.options[selector.selectedIndex];
-      selectedMarket.market_id = option ? option.dataset.marketId || "" : "";
-      selectedMarket.chain_id = option ? option.dataset.chainId || "" : "";
-      accountPageState.page = 1;
-      borrowPageState.risk = 1;
-      borrowPageState.high = 1;
-      borrowPageState.core = 1;
-      $("activeChainMarket").textContent = `${selectedMarket.market_id || "-"} / ${selectedMarket.chain_id || "-"}`;
-      refreshAccounts(true);
-      refreshBorrowPool({ showMessage: true });
-      refreshAudit();
     }
 
     async function refreshDaemonStatus() {
@@ -662,19 +665,21 @@
 
     function renderAccounts(d) {
       const rows = d.accounts || [];
+      const visibleRows = filterRowsByProtocol(rows);
+      latestAccountsPayload = d;
       const w = d.registry_window || {};
       const pagination = d.pagination || { page: 1, page_count: 1, total_count: d.count || rows.length };
       accountPageState.page = Number(pagination.page || 1);
       accountPageState.pageCount = Number(pagination.page_count || 1);
-      $("accountPoolCount").textContent = d.count ?? rows.length;
+      $("accountPoolCount").textContent = visibleRows.length;
       const fileBackedAccountPool = d.source === "bnb_venus_current_health_pool";
       const poolTierCounts = w.pool_tier_counts || {};
       const accountPoolScanMeta = fileBackedAccountPool
-        ? `当前池 ${w.active_count ?? d.count ?? rows.length}/${w.total_count ?? d.count ?? rows.length} | 已扫 ${w.health_report_count ?? "-"} | 待扫 ${w.pending_health_count ?? "-"} | 核心 ${poolTierCounts.core ?? 0} | 高频 ${poolTierCounts.high_frequency ?? 0} | 普通 ${poolTierCounts.borrow_health ?? 0}`
-        : `来源 ${d.source || "-"} | 市场 ${w.market_id || "-"} | 链 ${w.chain_id || "-"} | 每页 ${pagination.page_size || PAGE_SIZE}`;
+        ? `当前池 ${w.active_count ?? visibleRows.length}/${w.total_count ?? visibleRows.length} | 已扫 ${w.health_report_count ?? "-"} | 待扫 ${w.pending_health_count ?? "-"} | 核心 ${poolTierCounts.core ?? 0} | 高频 ${poolTierCounts.high_frequency ?? 0} | 普通 ${poolTierCounts.borrow_health ?? 0}`
+        : `来源 ${d.source || "-"} | 市场 ${w.market_id || "-"} | 链 ${w.chain_id || "-"} | 协议 ${currentSelectedProtocols().join(", ") || "全部"} | 每页 ${pagination.page_size || PAGE_SIZE}`;
       $("accountPoolMeta").textContent = accountPoolScanMeta;
       $("accountPoolWindow").textContent = `窗口 ${fmtTime(w.earliest_scan_start_at)} ~ ${fmtTime(w.latest_scan_end_at)} | 长期保留`;
-      $("accountPoolBody").innerHTML = rows.map(row => {
+      $("accountPoolBody").innerHTML = visibleRows.map(row => {
         const hf = Number(row.last_health_factor);
         return `<tr><td>${row.chain_id || "-"}</td><td>${row.market_id || row.network || "-"}</td><td>${row.account || "-"}</td><td>${row.source || d.source || "-"}</td><td class="${hfCls(row.last_health_factor_band)}">${row.last_health_display || (Number.isFinite(hf) ? hf.toFixed(3) : "-")}</td><td class="${poolTierCls(row.pool_tier)}">${poolTierText(row.pool_tier)}</td><td class="${statusCls(row.last_status)}">${row.last_status || "-"}</td><td>${detailButton(row)}</td></tr>`;
       }).join("") || '<tr><td colspan="8">暂无账户池记录</td></tr>';
@@ -685,8 +690,11 @@
       });
     }
 
+
     function renderBorrowPool(d) {
       const rows = Array.isArray(d && d.rows) ? d.rows : [];
+      const visibleRows = filterRowsByProtocol(rows);
+      latestBorrowPayload = d;
       const s = d && d.summary ? d.summary : {};
       const tiers = d && d.tiers ? d.tiers : {};
       const accountTiers = s.account_tiers || {};
@@ -695,11 +703,11 @@
       const blocked = Boolean(s.scan_blocked) || s.configured === false || s.db_ready === false;
       const fileBacked = s.scan_response_source === "file_observation";
       const responseSourceText = { chain_scan: "链上扫描", database_display: "数据库显示", cached_scan_suppressed: "缓存抑制", file_observation: "文件观察" }[s.scan_response_source] || "-";
-      $("borrowPoolCount").textContent = Number.isFinite(s.count) ? s.count : rows.length;
+      $("borrowPoolCount").textContent = visibleRows.length;
       $("borrowPoolMeta").textContent = blocked
         ? (s.error || borrowPoolBlockReasonText(s.scan_blocked_reason))
         : (fileBacked
-          ? `普通 ${s.ordinary_account_count ?? s.count ?? rows.length} | 已扫 ${s.scanned_account_count ?? "-"}/${s.current_pool_account_count ?? s.registry_account_count ?? "-"} | 待扫 ${s.pending_account_count ?? "-"}`
+          ? `普通 ${s.ordinary_account_count ?? visibleRows.length} | 已扫 ${s.scanned_account_count ?? "-"}/${s.current_pool_account_count ?? s.registry_account_count ?? "-"} | 待扫 ${s.pending_account_count ?? "-"}`
           : (Number.isFinite(s.watch_health_factor) ? `HF < ${Number(s.watch_health_factor).toFixed(2)} | 每页 ${d.pagination?.borrow_health?.page_size || PAGE_SIZE}` : "等待中"));
       $("borrowPoolWorstHF").textContent = Number.isFinite(s.worst_health_factor) ? Number(s.worst_health_factor).toFixed(3) : "-";
       $("borrowPoolWorstMeta").textContent = s.worst_account || "暂无风险账户";
@@ -724,9 +732,10 @@
         : (batch.id ? `#${batch.id} | ${batch.scanned_count || 0}/${batch.account_count || 0} | 错误 ${batch.error_count || 0}` : (s.error || "暂无批次"));
       $("borrowPoolScanBtn").disabled = running || blocked;
       $("borrowPoolScanBtn").textContent = blocked ? "等待数据库" : (running ? "扫描中" : "实时扫描借贷池");
-      $("borrowPoolBody").innerHTML = rows.map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td class="${statusCls(row.status)}">${row.status || "-"}</td><td>${moneyText(row.total_collateral_base)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="10">暂无普通借贷账户</td></tr>';
-      $("highFrequencyPoolBody").innerHTML = (tiers.high_frequency_rows || []).map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td>${moneyText(row.priority_score)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="9">暂无高频更新账户</td></tr>';
-      $("coreOpportunityBody").innerHTML = coreRows.map(row => {
+      $("borrowPoolMeta").textContent = `${$("borrowPoolMeta").textContent} | 协议 ${currentSelectedProtocols().join(", ") || "全部"}`;
+      $("borrowPoolBody").innerHTML = visibleRows.map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td class="${statusCls(row.status)}">${row.status || "-"}</td><td>${moneyText(row.total_collateral_base)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="10">暂无普通借贷账户</td></tr>';
+      $("highFrequencyPoolBody").innerHTML = filterRowsByProtocol(tiers.high_frequency_rows || []).map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td>${moneyText(row.priority_score)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="9">暂无高频更新账户</td></tr>';
+      $("coreOpportunityBody").innerHTML = filterRowsByProtocol(coreRows).map(row => {
         const execution = coreExecutionSummary(row);
         return `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td>${moneyText(row.priority_score)}</td><td>${row.best_debt_asset || "-"}</td><td>${row.best_collateral_asset || "-"}</td><td>${row.debt_to_cover_units || "-"}</td><td>${moneyText(row.estimated_operator_net_profit_usd)}</td><td>${execution.value}</td><td>${execution.status}</td><td title="${execution.reason}">${execution.result}</td><td title="${execution.reason}">${execution.reason}</td><td>${row.quote_viable ? "viable" : "pending"}</td><td>${row.static_call_status || "-"}</td><td>${detailButton(row)}</td></tr>`;
       }).join("") || '<tr><td colspan="16">暂无核心机会</td></tr>';
@@ -747,6 +756,7 @@
         refreshBorrowPool();
       });
     }
+
 
     async function refreshAccounts(force = false) {
       if (refreshingAccounts) return;
@@ -1033,7 +1043,40 @@
     $("liquidationSettingsSaveBtn").onclick = saveSettings;
     $("pauseGuardRefreshBtn").onclick = refreshPauseGuard;
     $("pauseGuardClearBtn").onclick = clearPauseGuard;
-    $("liquidationMarketSelect").onchange = onMarketChanged;
+    function rerenderProtocolFilteredViews() {
+      renderProtocolFilter();
+      if (latestAccountsPayload) renderAccounts(latestAccountsPayload);
+      if (latestBorrowPayload) renderBorrowPool(latestBorrowPayload);
+    }
+
+    window.addEventListener("chainselectionchanged", event => {
+      const detail = event?.detail || {};
+      const selected = detail.selected || {};
+      if (detail.protocol_only) {
+        rerenderProtocolFilteredViews();
+        return;
+      }
+      if (selected.feature && String(selected.feature).toLowerCase() !== "liquidation") return;
+      selectedMarket.market_id = selected.market_id || selectedMarket.market_id || "";
+      selectedMarket.chain_id = selected.chain_id || selectedMarket.chain_id || "";
+      accountPageState.page = 1;
+      borrowPageState.risk = 1;
+      borrowPageState.high = 1;
+      borrowPageState.core = 1;
+      refreshMarketScope()
+        .then(() => {
+          refreshAccounts(true);
+          refreshAccountScanState();
+          refreshGapFillStatus();
+          refreshBorrowPool({ showMessage: true });
+          refreshAudit();
+        })
+        .catch(error => { $("message").textContent = error.message; });
+    });
+
+    window.addEventListener("chainselectionprotocolschanged", () => {
+      rerenderProtocolFilteredViews();
+    });
     async function bootstrapLiquidationPanel() {
       enforceDebtPoolPrereq();
       await refreshMarketScope();
@@ -1059,3 +1102,4 @@
   </script>
 </body>
 </html>
+
