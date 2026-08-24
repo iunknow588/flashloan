@@ -1492,6 +1492,12 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_candidates = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
     ).get_json()
+    robinhood_candidates_with_lending_protocol = client.get(
+        "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=morpho_blue"
+    ).get_json()
+    robinhood_candidates_page = client.get(
+        "/dex/candidates?market_id=robinhood-dex-shadow&chain_id=4663"
+    ).get_data(as_text=True)
 
     assert overview["mode"] == "dex_overview"
     assert observation["mode"] == "dex_market_observation"
@@ -1506,6 +1512,9 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_candidates["poolStaticTable"]["chainId"] == 4663
     assert robinhood_candidates["poolStaticTable"]["network"] == "robinhood"
     assert robinhood_candidates["summary"]["pairTableCount"] != "0"
+    assert robinhood_candidates_with_lending_protocol["summary"]["pairTableCount"] != "0"
+    assert robinhood_candidates_with_lending_protocol["pairs"][0]["symbolPair"] == "USDG:WETH"
+    assert "本页展示 Avalanche L1 静态池表" not in robinhood_candidates_page
 
 
 def test_dex_page_mounts_shared_market_selector():

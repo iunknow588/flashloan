@@ -225,6 +225,12 @@ def test_dex_pool_candidates_reads_robinhood_candidate_cache(tmp_path, monkeypat
                     "route_key": "USDG:WETH:100->500",
                     "route_symbols": ["USDG", "WETH", "USDG"],
                     "pool_addresses": ["0x" + "a" * 40, "0x" + "b" * 40],
+                    "evidence": {
+                        "pools": [
+                            {"liquidity": "960106731002746306", "blockNumber": 43037858},
+                            {"liquidity": "290336060850729630", "blockNumber": 43037858},
+                        ],
+                    },
                     "status": "observed",
                 }
             ],
@@ -240,6 +246,7 @@ def test_dex_pool_candidates_reads_robinhood_candidate_cache(tmp_path, monkeypat
     )
 
     payload = pool_candidates.dex_pool_candidates_payload(cache_path, protocols=["uniswap_v3"])
+    lending_filtered_payload = pool_candidates.dex_pool_candidates_payload(cache_path, protocols=["morpho_blue"])
 
     assert payload["poolStaticTable"]["chainId"] == 4663
     assert payload["poolStaticTable"]["network"] == "robinhood"
@@ -247,3 +254,8 @@ def test_dex_pool_candidates_reads_robinhood_candidate_cache(tmp_path, monkeypat
     assert payload["pairs"][0]["symbolPair"] == "USDG:WETH"
     assert payload["pairs"][0]["preferredPoolCount"] == "2"
     assert payload["pairs"][0]["preferredPools"][0]["protocol"] == "uniswap_v3"
+    assert payload["pairs"][0]["preferredPools"][0]["fee"] == "100"
+    assert payload["pairs"][0]["preferredPools"][0]["liquidity"] == "960106731002746306"
+    assert payload["pairs"][0]["preferredPools"][0]["depthBand"]["level"] == "observed"
+    assert lending_filtered_payload["summary"]["pairTableCount"] == "1"
+    assert lending_filtered_payload["pairs"][0]["symbolPair"] == "USDG:WETH"

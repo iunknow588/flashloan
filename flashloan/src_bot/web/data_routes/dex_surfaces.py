@@ -20,12 +20,29 @@ from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from web import control_panel_data_routes as shared
 
 
+DEX_QUOTE_PROTOCOLS = {
+    "uniswap_v2",
+    "uniswap_v3",
+    "pancakeswap_v2",
+    "pancakeswap_v3",
+    "biswap_v2",
+    "quickswap_v2",
+    "traderjoe_v2",
+    "balancer_v2",
+    "curve",
+}
+
+
 def _request_protocols_arg() -> list[str]:
     return [
         item.strip().lower()
         for item in request.args.get("protocols", "").replace("|", ",").split(",")
         if item.strip()
     ]
+
+
+def _request_dex_protocols_arg() -> list[str]:
+    return [protocol for protocol in _request_protocols_arg() if protocol in DEX_QUOTE_PROTOCOLS]
 
 
 def _selected_chain_id_from_request() -> tuple[dict | None, int | None]:
@@ -43,7 +60,7 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_overview_payload(chain_id=selected_chain_id, protocols=_request_protocols_arg())
+        payload = dex_overview_payload(chain_id=selected_chain_id, protocols=_request_dex_protocols_arg())
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -53,7 +70,7 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_market_observation_payload(chain_id=selected_chain_id, protocols=_request_protocols_arg())
+        payload = dex_market_observation_payload(chain_id=selected_chain_id, protocols=_request_dex_protocols_arg())
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -63,7 +80,7 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_quote_routes_payload(chain_id=selected_chain_id, protocols=_request_protocols_arg())
+        payload = dex_quote_routes_payload(chain_id=selected_chain_id, protocols=_request_dex_protocols_arg())
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -75,7 +92,7 @@ def register_dex_surface_routes(app, panel) -> None:
             return shared._chain_selection_error_response(exc)
         payload = dex_quote_request_payload(
             chain_id=selected_chain_id,
-            protocols=_request_protocols_arg(),
+            protocols=_request_dex_protocols_arg(),
             pair=request.args.get("pair", "").strip(),
             venue=request.args.get("venue", "").strip(),
             amount=request.args.get("amount", "").strip() or None,
@@ -89,7 +106,7 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=_request_protocols_arg())
+        payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=_request_dex_protocols_arg())
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 

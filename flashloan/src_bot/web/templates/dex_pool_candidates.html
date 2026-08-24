@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Avalanche 候选池子</title>
+  <title>DEX 候选池子</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
@@ -60,7 +60,7 @@
 <body>
   <span data-surface-link hidden></span>
   <header>
-    <h1>Avalanche 候选池子</h1>
+    <h1>DEX 候选池子</h1>
     <nav>
       <a href="/liquidation">清算</a>
       <a href="/account-scan">账户扫描</a>
@@ -92,8 +92,8 @@
       <div class="metric"><small>链上快照</small><strong id="blockNumber">-</strong><span id="generatedAt">-</span></div>
     </section>
 
-    <div class="notice">
-      本页展示 Avalanche L1 静态池表里的候选池子。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。静态候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。输出价值保留率以约 1,000 USD 探针调用 Quoter 计算：100% 表示价值基本完整保留，0% 表示几乎没有有效输出，超过 100% 也不等于最终套利利润。
+    <div class="notice" id="scopeNotice">
+      本页展示当前链的高质量 DEX 候选池。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。
     </div>
     <div id="filtersLine" class="filters-line"></div>
     <div id="executionContext" class="filters-line"></div>
@@ -273,6 +273,23 @@
       `).join("") || '<div class="notice">没有匹配的交易对。</div>';
     }
 
+    function networkLabel(source) {
+      const network = String(source.network || "").toLowerCase();
+      const chainId = String(source.chainId || "");
+      if (network === "robinhood" || chainId === "4663") return "Robinhood Chain";
+      if (network === "avalanche" || chainId === "43114") return "Avalanche L1";
+      if (network === "bnb" || chainId === "56") return "BNB Chain";
+      if (network === "polygon" || chainId === "137") return "Polygon";
+      if (network === "ethereum" || chainId === "1") return "Ethereum";
+      return source.network || (chainId ? `链 ID ${chainId}` : "当前链");
+    }
+
+    function renderScopeNotice(payload) {
+      const source = payload.poolStaticTable || {};
+      const sourceName = source.path ? source.path.split(/[\\/]/).pop() : "候选池缓存";
+      $("scopeNotice").textContent = `本页展示 ${networkLabel(source)} 的高质量 DEX 候选池，来源为 ${sourceName}。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。输出价值保留率以约 1,000 USD 探针调用 Quoter 计算：100% 表示价值基本完整保留，0% 表示几乎没有有效输出，超过 100% 也不等于最终套利利润。`;
+    }
+
     function render(payload) {
       const summary = payload.summary || {};
       const source = payload.poolStaticTable || {};
@@ -290,6 +307,7 @@
       const settlement = payload.dexSettlement || {};
       $("executionContext").textContent = `池子分类：稳定币 ${classCounts.stable_pair || 0} | 稳定币-非稳定币 ${classCounts.stable_to_non_stable_pair || 0} | 非稳定币 ${classCounts.non_stable_pair || 0}；候选池来源：高质量且有深度的 DEX 池；UniswapX ${settlement.uniswapx?.supported ? "可作为报价/填单查询通道" : "当前链未接入"}`;
       $("refreshMeta").textContent = `页面读取 ${fmtTime(new Date().toISOString())}`;
+      renderScopeNotice(payload);
       renderPairs(payload);
     }
 
