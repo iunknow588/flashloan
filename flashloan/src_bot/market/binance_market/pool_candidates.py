@@ -149,6 +149,19 @@ def _pool_address(row: dict) -> str:
     return str(row.get("pool") or row.get("pool_address") or row.get("address") or "").strip()
 
 
+def _token_address(value: object) -> str:
+    text = str(value or "").strip()
+    return text.lower() if text.startswith("0x") and len(text) == 42 else ""
+
+
+def _unordered_address_pair(token0: object, token1: object) -> str:
+    left = _token_address(token0)
+    right = _token_address(token1)
+    if not left or not right:
+        return ""
+    return ":".join(sorted((left, right)))
+
+
 def _reject_reason_counts(rows: list[dict]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -690,7 +703,7 @@ def _robinhood_pool_table_payload(
     fallback_reason: str | None,
 ) -> dict:
     rows, effective_path, pool_source = _robinhood_pool_rows_and_source(table, pool_cache_path)
-    grouped: dict[str, list[dict[str, Any]]] = {}
+    grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
         if not isinstance(row, dict) or not _pool_address(row):
             continue
@@ -701,10 +714,22 @@ def _robinhood_pool_table_payload(
         symbol_pair = str(row.get("symbolPair") or ":".join(str(item or "").upper() for item in symbols if item)).strip(":")
         if not symbol_pair:
             continue
-        grouped.setdefault(symbol_pair, []).append(candidate)
+        address_pair = _unordered_address_pair(candidate.get("token0"), candidate.get("token1"))
+        group_key = address_pair or f"symbol:{symbol_pair}"
+        bucket = grouped.setdefault(
+            group_key,
+            {
+                "symbolPair": symbol_pair,
+                "addressPair": address_pair,
+                "identityMode": "address" if address_pair else "symbol_fallback",
+                "rows": [],
+            },
+        )
+        bucket["rows"].append(candidate)
 
     pair_reports = []
-    for pair, pool_rows in grouped.items():
+    for bucket in grouped.values():
+        pool_rows = bucket["rows"]
         pool_rows.sort(key=lambda row: (-row["_sortTvlUsd"], _int_sort_value(row.get("fee"))))
         strict_rows = [row for row in pool_rows if str(row.get("quality") or "").lower() == "pass"]
         preferred_rows = list(strict_rows)
@@ -714,8 +739,9 @@ def _robinhood_pool_table_payload(
         first = pool_rows[0]
         pair_reports.append(
             {
-                "symbolPair": pair,
-                "addressPair": "",
+                "symbolPair": bucket["symbolPair"],
+                "addressPair": bucket["addressPair"],
+                "identityMode": bucket["identityMode"],
                 "tokenX": first.get("token0"),
                 "tokenY": first.get("token1"),
                 "tokenXSymbol": first.get("token0Symbol"),

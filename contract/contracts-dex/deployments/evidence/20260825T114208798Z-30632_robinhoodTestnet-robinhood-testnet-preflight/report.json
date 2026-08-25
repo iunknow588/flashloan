@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "robinhood-testnet-preflight-v1",
+  "runAt": "2026-08-25T11:42:08.301Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "rpc": {
+    "configured": false,
+    "chainId": null,
+    "blockNumber": null,
+    "ok": false,
+    "error": "HH108: Cannot connect to the network robinhoodTestnet.\nPlease make sure your node is running, and check your internet connection and networks config"
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    }
+  ],
+  "deployer": {
+    "configured": false,
+    "address": null,
+    "balanceWei": null,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": false,
+  "readyForBroadcast": false,
+  "blockingReasons": [
+    "robinhood_testnet_rpc_env_missing",
+    "robinhood_testnet_rpc_chain_id_not_verified",
+    "flashSource_address_missing",
+    "v4UniversalRouter_address_missing",
+    "v4PoolManager_address_missing",
+    "permit2_address_missing",
+    "deployer_key_missing_or_unavailable"
+  ]
+}

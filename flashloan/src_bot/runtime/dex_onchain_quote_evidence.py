@@ -163,6 +163,18 @@ def _pool_side(pool: dict[str, Any], symbol: str) -> tuple[str | None, str | Non
     return None, symbol, None
 
 
+def _pool_side_by_address(pool: dict[str, Any], address: object, symbol: str) -> tuple[str | None, str | None, int | None]:
+    wanted = _text(address).lower()
+    if not wanted:
+        return _pool_side(pool, symbol)
+    for index in (0, 1):
+        candidate = _text(pool.get(f"token{index}")).lower()
+        if candidate == wanted:
+            decimals = pool.get(f"token{index}Decimals") or pool.get(f"token{index}_decimals")
+            return _text(pool.get(f"token{index}")) or None, _norm_symbol(pool.get(f"token{index}Symbol")), int(decimals) if decimals not in (None, "") else None
+    return _text(address), _norm_symbol(symbol), None
+
+
 def _token_decimals(w3: Any, address: str | None, symbol: str, cache: dict[str, int]) -> int:
     symbol = _norm_symbol(symbol)
     key = (address or symbol).lower()
@@ -200,8 +212,8 @@ def _quote_v2_hop(*, w3: Any, step: dict[str, Any], pool: dict[str, Any], amount
     pool_address = _text(step.get("pool"))
     from_symbol = _norm_symbol(step.get("fromSymbol"))
     to_symbol = _norm_symbol(step.get("toSymbol"))
-    token_in, _, in_decimals = _pool_side(pool, from_symbol)
-    token_out, _, out_decimals = _pool_side(pool, to_symbol)
+    token_in, _, in_decimals = _pool_side_by_address(pool, step.get("tokenIn"), from_symbol)
+    token_out, _, out_decimals = _pool_side_by_address(pool, step.get("tokenOut"), to_symbol)
     state = _pool_state_v2(w3, pool_address, block_number)
     if not token_in or not token_out:
         raise ValueError(f"missing token address for {from_symbol}->{to_symbol}")
@@ -240,8 +252,8 @@ def _quote_v3_hop(*, w3: Any, quoter: str, step: dict[str, Any], pool: dict[str,
     pool_address = _text(step.get("pool"))
     from_symbol = _norm_symbol(step.get("fromSymbol"))
     to_symbol = _norm_symbol(step.get("toSymbol"))
-    token_in, _, in_decimals = _pool_side(pool, from_symbol)
-    token_out, _, out_decimals = _pool_side(pool, to_symbol)
+    token_in, _, in_decimals = _pool_side_by_address(pool, step.get("tokenIn"), from_symbol)
+    token_out, _, out_decimals = _pool_side_by_address(pool, step.get("tokenOut"), to_symbol)
     if not token_in or not token_out:
         raise ValueError(f"missing token address for {from_symbol}->{to_symbol}")
     snapshot = snapshot_v3_pool(w3, pool_address, block_identifier=block_number)
@@ -303,8 +315,8 @@ def _quote_v4_hop(
     pool_address = _text(step.get("pool"))
     from_symbol = _norm_symbol(step.get("fromSymbol"))
     to_symbol = _norm_symbol(step.get("toSymbol"))
-    token_in, _, in_decimals = _pool_side(pool, from_symbol)
-    token_out, _, out_decimals = _pool_side(pool, to_symbol)
+    token_in, _, in_decimals = _pool_side_by_address(pool, step.get("tokenIn"), from_symbol)
+    token_out, _, out_decimals = _pool_side_by_address(pool, step.get("tokenOut"), to_symbol)
     if not token_in or not token_out:
         raise ValueError(f"missing token address for {from_symbol}->{to_symbol}")
     in_decimals = in_decimals if in_decimals is not None else _token_decimals(w3, token_in, from_symbol, token_cache)
@@ -393,6 +405,27 @@ def _trigger_block_number(trigger_context: dict[str, Any]) -> int | None:
     return None
 
 
+def _token_continuity_issues(hops: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for index in range(1, len(hops)):
+        previous = hops[index - 1]
+        current = hops[index]
+        previous_token_out = _text(previous.get("tokenOut"))
+        current_token_in = _text(current.get("tokenIn"))
+        if previous_token_out.lower() != current_token_in.lower():
+            issues.append(
+                {
+                    "fromHop": previous.get("hop") or index,
+                    "toHop": current.get("hop") or index + 1,
+                    "fromSymbol": previous.get("toSymbol"),
+                    "toSymbol": current.get("fromSymbol"),
+                    "previousTokenOut": previous_token_out,
+                    "currentTokenIn": current_token_in,
+                }
+            )
+    return issues
+
+
 def capture_onchain_trigger_context(
     *,
     chain_id: int | None,
@@ -456,6 +489,7 @@ def _unsupported_evidence(
         "triggerBlockNumber": _trigger_block_number(trigger),
         "quoteBlockSource": "unavailable",
         "routeSymbols": route.get("routeSymbols") or [],
+        "routeAddresses": route.get("routeAddresses") or [],
         "hops": [],
         "costModel": {},
         "blockers": reasons,
@@ -578,6 +612,10 @@ def build_route_onchain_evidence(
     except Exception as exc:
         blockers.append(f"链上逐跳复核失败：{exc}")
 
+    token_continuity_issues = _token_continuity_issues(hop_rows)
+    token_continuity_ok = not token_continuity_issues
+    if token_continuity_issues:
+        blockers.append("链上复核跳间 token 地址不连续：存在同名不同合约地址，不能进入交易预检。")
     all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and not blockers
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
     final_decimals = int(hop_rows[-1]["outputDecimals"]) if hop_rows else None
@@ -590,11 +628,18 @@ def build_route_onchain_evidence(
     net_profit_usd = gross_profit_usd - flash_fee - gas_reserve if gross_profit_usd is not None else None
     net_profit_bps = net_profit_usd / notional * Decimal(10_000) if net_profit_usd is not None and notional > 0 else None
     min_profit_usd = max(Decimal("1"), notional * Decimal(str(DEFAULT_MIN_PROFIT_BPS)) / Decimal(10_000))
-    profitable_after_costs = bool(all_hops_verified and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
+    net_positive_after_costs = bool(all_hops_verified and net_profit_usd is not None and net_profit_usd > 0)
+    meets_min_profit_threshold = bool(
+        all_hops_verified
+        and net_profit_usd is not None
+        and net_profit_usd >= min_profit_usd
+    )
     if not all_hops_verified and not blockers:
         blockers.append("链上复核未覆盖全部路径跳数。")
-    if all_hops_verified and not profitable_after_costs:
-        blockers.append("链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。")
+    if all_hops_verified and not net_positive_after_costs:
+        blockers.append("链上复核后未覆盖闪电贷费用和 gas 储备。")
+    elif all_hops_verified and not meets_min_profit_threshold:
+        blockers.append("链上复核扣费后为正收益，但未达到最小利润阈值。")
     if final_output_usd is None:
         blockers.append("最终输出不是稳定币或缺少可信 USD 计价，不能进入自动交易预检。")
 
@@ -611,10 +656,11 @@ def build_route_onchain_evidence(
         "quoteBlockSource": "trigger_block",
         "quoter": quoter,
         "routeSymbols": route_symbols,
+        "routeAddresses": route.get("routeAddresses") or [],
         "status": "live_verified" if all_hops_verified else "live_quote_failed",
         "executionTrust": "live_quoter_verified_readonly" if all_hops_verified else "static_reference_only",
         "trustedForExecution": False,
-        "readyForTransactionPreflight": profitable_after_costs,
+        "readyForTransactionPreflight": meets_min_profit_threshold,
         "hops": hop_rows,
         "costModel": {
             "notionalUsd": float(notional),
@@ -630,12 +676,16 @@ def build_route_onchain_evidence(
         "validation": {
             "allHopsQuoted": all_hops_verified,
             "routeClosed": bool(route_symbols and route_symbols[0] == route_symbols[-1]),
+            "tokenContinuity": token_continuity_ok,
+            "tokenContinuityIssues": token_continuity_issues,
             "finalOutputSymbol": final_symbol,
             "finalOutputDecimals": final_decimals,
-            "profitableAfterCosts": profitable_after_costs,
+            "profitableAfterCosts": net_positive_after_costs,
+            "netPositiveAfterCosts": net_positive_after_costs,
+            "meetsMinProfitThreshold": meets_min_profit_threshold,
         },
         "blockers": blockers,
-        "transactionDevelopment": _transaction_development(profitable_after_costs, blockers),
+        "transactionDevelopment": _transaction_development(meets_min_profit_threshold, blockers),
     }
 
 

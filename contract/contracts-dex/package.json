@@ -6,6 +6,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "test:unified": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
+    "test:robinhood": "hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js test/RobinhoodTestnetReadiness.test.js",
     "test:ab": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
     "preflight:unified:avalanche": "hardhat run scripts/preflight-unified-flashloan.js --network avalanche",
     "discover:unified:avalanche": "hardhat run scripts/discover-avalanche-v3-pools.js --network avalanche",
@@ -13,7 +14,11 @@
     "scan:unified:fork-candidates": "hardhat run scripts/scan-unified-fork-candidates.js --network hardhat",
     "readback:unified:avalanche": "hardhat run scripts/readback-unified-flashloan.js --network avalanche",
     "fork:unified:avalanche": "hardhat run scripts/fork-unified-flashloan.js --network hardhat",
-    "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche"
+    "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche",
+    "preflight:robinhood:testnet": "hardhat run scripts/preflight-robinhood-testnet.js --network robinhoodTestnet",
+    "ready:robinhood:testnet": "hardhat run scripts/check-robinhood-testnet-readiness.js --network robinhoodTestnet",
+    "readback:robinhood:testnet": "hardhat run scripts/readback-robinhood-paused-executor.js --network robinhoodTestnet",
+    "deploy:robinhood:testnet:paused": "hardhat run scripts/deploy-robinhood-paused-executor.js --network robinhoodTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",

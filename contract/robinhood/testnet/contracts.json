@@ -1,0 +1,23 @@
+{
+  "broadcastEnabled": false,
+  "chainId": 46630,
+  "deploymentAddress": null,
+  "deploymentGate": "paused_until_robinhood_flashloan_v4_repayment_and_fork_staticcall_pass",
+  "executorContract": "RobinhoodPausedFlashLoanExecutor",
+  "mode": "testnet_deploy_readback_only",
+  "network": "robinhood-testnet",
+  "developmentPlan": "contract/robinhood/testnet/ARBITRAGE_CONTRACT_DEV_PLAN.md",
+  "developmentChecklist": "contract/robinhood/testnet/DEVELOPMENT_CHECKLIST.md",
+  "readbackScript": "contract/contracts-dex/scripts/readback-robinhood-paused-executor.js",
+  "deployScript": "contract/contracts-dex/scripts/deploy-robinhood-paused-executor.js",
+  "preflightScript": "contract/contracts-dex/scripts/preflight-robinhood-testnet.js",
+  "readinessScript": "contract/contracts-dex/scripts/check-robinhood-testnet-readiness.js",
+  "envExample": "contract/robinhood/testnet/.env.testnet.example",
+  "status": "paused_deploy_script_ready",
+  "supportedAdapters": [
+    "morpho_blue_flashLoan",
+    "uniswap_v3_exact_input_single",
+    "uniswap_v4_universal_router"
+  ],
+  "testedWith": "npm run compile && npm run test:robinhood"
+}

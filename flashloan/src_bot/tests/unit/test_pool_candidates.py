@@ -848,6 +848,163 @@ def test_dex_quote_routes_drop_polluted_bridge_symbols(monkeypatch):
     assert quotes["summary"]["routeCount"] == len(quotes["routes"])
 
 
+def test_robinhood_pool_candidates_split_same_symbol_by_token_address(monkeypatch):
+    rows = [
+        {
+            "pool": "0x" + "1" * 40,
+            "dex": "uniswap",
+            "protocol": "uniswap_v3",
+            "token0": "0x" + "a" * 40,
+            "token1": "0x" + "b" * 40,
+            "token0Symbol": "WETH",
+            "token1Symbol": "VLAD",
+            "symbolPair": "WETH:VLAD",
+            "quality": "pass",
+            "tvlUsd": 100_000,
+        },
+        {
+            "pool": "0x" + "2" * 40,
+            "dex": "uniswap",
+            "protocol": "uniswap_v3",
+            "token0": "0x" + "a" * 40,
+            "token1": "0x" + "c" * 40,
+            "token0Symbol": "WETH",
+            "token1Symbol": "VLAD",
+            "symbolPair": "WETH:VLAD",
+            "quality": "pass",
+            "tvlUsd": 200_000,
+        },
+    ]
+    monkeypatch.setattr(pool_candidates, "_robinhood_pool_rows_and_source", lambda table, path: (rows, path, "test"))
+
+    payload = pool_candidates._robinhood_pool_table_payload(
+        {"schemaVersion": "robinhood-test", "network": "robinhood", "chainId": 4663},
+        pool_candidates.ROBINHOOD_DEX_CANDIDATE_PATH,
+        source="test",
+        fallback_reason=None,
+    )
+
+    vlad_pairs = [pair for pair in payload["pairs"] if pair["symbolPair"] == "WETH:VLAD"]
+    assert len(vlad_pairs) == 2
+    assert {pair["addressPair"] for pair in vlad_pairs} == {
+        "0x" + "a" * 40 + ":" + "0x" + "b" * 40,
+        "0x" + "a" * 40 + ":" + "0x" + "c" * 40,
+    }
+    assert all(pair["identityMode"] == "address" for pair in vlad_pairs)
+
+
+def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch):
+    usdg = "0x" + "d" * 40
+    weth = "0x" + "a" * 40
+    vlad_a = "0x" + "b" * 40
+    vlad_b = "0x" + "c" * 40
+    usdg_weth_pool = {
+        "pool": "0x" + "1" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v2",
+        "fee": "v2",
+        "token0": usdg,
+        "token1": weth,
+        "token0Symbol": "USDG",
+        "token1Symbol": "WETH",
+        "balances": {"token0": 1_000_000, "token1": 400, "tvlUsd": 1_000_000},
+        "market": {"priceNative": "0.0004", "priceUsd": "2500"},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    weth_vlad_a_pool = {
+        "pool": "0x" + "2" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0": weth,
+        "token1": vlad_a,
+        "token0Symbol": "WETH",
+        "token1Symbol": "VLAD",
+        "balances": {"token0": 400, "token1": 10_000_000, "tvlUsd": 1_000_000},
+        "market": {"priceNative": "25000", "priceUsd": "2500"},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    weth_vlad_b_pool = {
+        "pool": "0x" + "3" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0": weth,
+        "token1": vlad_b,
+        "token0Symbol": "WETH",
+        "token1Symbol": "VLAD",
+        "balances": {"token0": 400, "token1": 20_000_000, "tvlUsd": 1_200_000},
+        "market": {"priceNative": "50000", "priceUsd": "2500"},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    payload = {
+        "pairs": [
+            {
+                "symbolPair": "USDG:WETH",
+                "addressPair": f"{usdg}:{weth}",
+                "tokenX": usdg,
+                "tokenY": weth,
+                "tokenXSymbol": "USDG",
+                "tokenYSymbol": "WETH",
+                "preferredPools": [usdg_weth_pool],
+                "executionPools": [usdg_weth_pool],
+                "strictQualityPools": [usdg_weth_pool],
+            },
+            {
+                "symbolPair": "WETH:VLAD",
+                "addressPair": f"{weth}:{vlad_a}",
+                "tokenX": weth,
+                "tokenY": vlad_a,
+                "tokenXSymbol": "WETH",
+                "tokenYSymbol": "VLAD",
+                "preferredPools": [weth_vlad_a_pool],
+                "executionPools": [weth_vlad_a_pool],
+                "strictQualityPools": [weth_vlad_a_pool],
+            },
+            {
+                "symbolPair": "WETH:VLAD",
+                "addressPair": f"{weth}:{vlad_b}",
+                "tokenX": weth,
+                "tokenY": vlad_b,
+                "tokenXSymbol": "WETH",
+                "tokenYSymbol": "VLAD",
+                "preferredPools": [weth_vlad_b_pool],
+                "executionPools": [weth_vlad_b_pool],
+                "strictQualityPools": [weth_vlad_b_pool],
+            },
+        ],
+        "summary": {},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {"network": "robinhood", "chainId": 4663},
+    }
+    monkeypatch.setattr(dex_surfaces, "dex_pool_candidates_payload", lambda chain_id=None, protocols=None: payload)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "query_flash_loan_pool_discovery",
+        lambda chain_id=None: {
+            "protocols": [],
+            "removed_protocols": [],
+            "raw_snapshots": {
+                "robinhood_flash_liquidity": {
+                    "chainId": 4663,
+                    "sources": [{"protocol": "morpho_blue", "token_symbol": "USDG", "flash_borrowable": True}],
+                }
+            },
+        },
+    )
+
+    quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
+    vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "USDG -> WETH -> VLAD -> WETH -> USDG"]
+
+    assert len(vlad_routes) == 2
+    assert {route["routeAddresses"][2] for route in vlad_routes} == {vlad_a, vlad_b}
+    for route in vlad_routes:
+        steps = route["quoteAnalysis"]["steps"]
+        assert steps[1]["tokenOut"] == steps[2]["tokenIn"]
+        assert route["routeTokenPath"][2]["address"] == steps[1]["tokenOut"]
+        assert route["routeTokenPath"][2]["address"] == steps[2]["tokenIn"]
+
+
 def test_dex_pool_candidates_returns_empty_for_unconfigured_chain(monkeypatch):
     monkeypatch.setattr(
         pool_candidates,

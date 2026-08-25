@@ -27,6 +27,8 @@
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; vertical-align: top; }
     th:first-child, td:first-child, th:nth-child(3), td:nth-child(3), th:nth-child(8), td:nth-child(8) { text-align: left; }
+    td.route-cell { min-width: 300px; max-width: 460px; white-space: normal; line-height: 1.45; }
+    .route-addresses { margin-top: 4px; font-family: Consolas, "Courier New", monospace; word-break: break-all; }
     td.reason { max-width: 360px; white-space: normal; line-height: 1.45; }
     .badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #eef2f6; color: #344054; }
     .badge.live { background: #dcfae6; color: #067647; }
@@ -110,6 +112,29 @@
     function evidence(row) {
       return row.review_summary?.onchain_evidence || row.quote?.live_onchain_evidence || {};
     }
+    function routeIdentity(row) {
+      const ev = evidence(row);
+      return ev.routeIdentity || ev.route_identity || row.review_summary?.route_identity || {};
+    }
+    function shortAddress(value) {
+      const text = String(value || "").trim();
+      return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : text;
+    }
+    function routeAddresses(row) {
+      const quote = row.quote || {};
+      const route = quote.route || {};
+      const identity = routeIdentity(row);
+      return identity.routeAddresses || identity.route_addresses || evRouteAddresses(row) || row.route_addresses || row.routeAddresses || quote.routeAddresses || quote.route_addresses || route.pathAddresses || [];
+    }
+    function evRouteAddresses(row) {
+      const ev = evidence(row);
+      return ev.routeAddresses || ev.route_addresses || [];
+    }
+    function routeAddressText(row, {short = false} = {}) {
+      const addresses = routeAddresses(row);
+      if (!Array.isArray(addresses) || !addresses.length) return "";
+      return addresses.map(address => short ? shortAddress(address) : address).join(" -> ");
+    }
     function profitPercent(row) {
       const ev = evidence(row);
       const liveBps = numberValue(ev.net_profit_bps || ev.costModel?.netProfitBps);
@@ -163,6 +188,9 @@
     function evidenceBadge(row) {
       const ev = evidence(row);
       const status = String(ev.status || "").toLowerCase();
+      const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || routeIdentity(row).status || "").toLowerCase();
+      if (identityStatus === "token_discontinuity") return '<span class="badge fail">token 地址不连续</span>';
+      if (identityStatus === "symbol_only" || identityStatus === "address_partial") return '<span class="badge fail">地址身份不完整</span>';
       if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可执行复核通过</span>';
       if (status === "live_verified") return '<span class="badge live">链上报价已复核</span>';
       if (status === "not_live_verified") return '<span class="badge fail">未通过链上复核</span>';
@@ -176,7 +204,11 @@
       const hop = ev.hop_count || ev.hops?.length;
       const prefix = hop ? `每跳复核 ${hop} 跳。` : "";
       const reasons = Array.isArray(evReasons) && evReasons.length ? evReasons.join("，") : base;
-      return `${prefix}${reasons}`;
+      const issues = ev.tokenContinuityIssues || ev.token_continuity_issues || routeIdentity(row).tokenContinuityIssues || [];
+      const issueText = Array.isArray(issues) && issues.length
+        ? ` token 连续性异常：${issues.map(item => `${item.fromHop || "?"}->${item.toHop || "?"} ${shortAddress(item.previousTokenOut)} != ${shortAddress(item.currentTokenIn)}`).join("；")}`
+        : "";
+      return `${prefix}${reasons}${issueText}`;
     }
     function recordCopyText(row) {
       const ev = evidence(row);
@@ -186,10 +218,14 @@
       const quote = row.quote || {};
       const analysis = quote.quote_analysis || {};
       const hops = ev.hops?.length ? ev.hops : (quote.hops || analysis.steps || []);
+      const identity = routeIdentity(row);
+      const addressPath = routeAddressText(row);
       return lines([
         `时间：${fmtTime(row.created_at || row.observed_at || row.updated_at)}`,
         `网络：${row.network || row.cow_network || "-"}`,
         `路径：${pair}`,
+        `底层地址路径：${addressPath || "-"}`,
+        `地址身份：${ev.routeIdentityStatus || ev.route_identity_status || identity.status || "-"}`,
         `状态：${status}`,
         `证据状态：${ev.status || "-"}`,
         `执行可信：${ev.trustedForExecution || ev.trusted_for_execution ? "是" : "否"}`,
@@ -206,6 +242,8 @@
           `${step.hop || "-"}。${step.fromSymbol || step.from_symbol || "-"} -> ${step.toSymbol || step.to_symbol || "-"}`,
           `协议：${step.protocol || step.dex || "-"}`,
           `池子：${step.pool || "-"}`,
+          `tokenIn：${step.tokenIn || step.token_in || "-"}`,
+          `tokenOut：${step.tokenOut || step.token_out || "-"}`,
           `输入：${step.amountIn || step.inputAmount || "-"} ${step.fromSymbol || step.from_symbol || ""}`,
           `输出：${step.amountOut || step.outputAmount || "-"} ${step.toSymbol || step.to_symbol || ""}`,
           `方法：${step.quoteMethod || step.quoteSource || "-"}`,
@@ -217,7 +255,9 @@
       const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
       const ev = evidence(row);
       const order = row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-";
-      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td>${esc(pair)}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td>${esc(fmtPct(profitPercent(row)))}</td><td>${esc(status)}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button></td></tr>`;
+      const addresses = routeAddressText(row, {short: true});
+      const pathCell = `${esc(pair)}${addresses ? `<div class="muted route-addresses">${esc(addresses)}</div>` : ""}`;
+      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td class="route-cell">${pathCell}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td>${esc(fmtPct(profitPercent(row)))}</td><td>${esc(status)}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button></td></tr>`;
     }
     async function refresh() {
       $("message").textContent = "正在加载提交记录...";

@@ -85,6 +85,7 @@
             <div class="badges">
               <span class="badge good">套利候选</span>
               <span class="badge">${esc(route.kind === "bridge_pair" ? "桥接路径" : "直接路径")}</span>
+              ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">桥接 ${esc((route.bridgeSymbols || []).join(", "))}</span>` : ''}
               <span class="badge">借入 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
               <span class="badge">目标 ${esc(route.targetSymbol || "-")}</span>
               <span class="badge">候选池 ${esc(pools.length)}</span>

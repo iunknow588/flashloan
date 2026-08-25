@@ -150,9 +150,12 @@
       const rec = analysis.recommendation || {};
       const steps = analysis.steps || [];
       const view = analysisView(analysis);
+      const overview = route.overviewRoute || {};
+      const bridgeSymbols = overview.bridgeSymbols || [];
       return lines([
-        `路径：${route.symbolPair || "-"}`,
-        `路由：${(route.routeSymbols || []).join(" -> ") || "-"}`,
+        `路径类型：${overview.kind === "bridge_pair" ? "桥接路径" : "直接路径"}`,
+        `桥接币：${bridgeSymbols.join(", ") || "-"}`,
+        `实际路由：${(route.routeSymbols || []).join(" -> ") || "-"}`,
         `策略：${route.strategy || "-"}`,
         `状态：${label(route.quoteStatus)} / ${rec.action || "-"}`,
         `${view.finalLabel}：${money(view.finalOutputUsd)}`,
@@ -222,6 +225,7 @@
       const analysis = route.quoteAnalysis || {};
       const rec = analysis.recommendation || {};
       const view = analysisView(analysis);
+      const overview = route.overviewRoute || {};
       const recClass = rec.level === "ready_for_precheck" ? "good" : (rec.level === "reject" || rec.level === "blocked" ? "bad" : "warn");
       const stepRows = (analysis.steps || []).map(step => {
         const stepDisplay = stepView(step);
@@ -252,6 +256,7 @@
           <span class="badge">1000U 探针</span>
           <span class="badge">池子 ${esc(route.poolCount)}</span>
           <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
+          ${overview.kind === "bridge_pair" && (overview.bridgeSymbols || []).length ? `<span class="badge warn">桥接 ${esc((overview.bridgeSymbols || []).join(", "))}</span>` : ''}
           ${view.referenceMode ? '<span class="badge warn">参考价待链上复核</span>' : ''}
           ${analysis.adapterRequired ? '<span class="badge warn">V4 SDK 适配器待接入</span>' : ''}
         </div>

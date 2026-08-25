@@ -1,0 +1,258 @@
+from pathlib import Path
+
+from core.robinhood_chain_test_audit import audit_robinhood_chain_test_plan
+from core.robinhood_chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
+from core.robinhood_chain_test_policy import robinhood_chain_test_scope
+
+
+def _sample_attempt():
+    return {
+        "observed_at": "2026-08-25T06:29:42.838755+00:00",
+        "created_at": "2026-08-25T06:29:58.427228+00:00",
+        "network": "robinhood",
+        "chain_id": 4663,
+        "pair": "USDG -> WETH -> VLAD -> WETH -> USDG",
+        "route_path": ["USDG", "WETH", "VLAD", "WETH", "USDG"],
+        "state": "ready_for_transaction_development",
+        "execution_phase": "market_candidate",
+        "trigger_block_number": 45513946,
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "executionTrust": "live_quoter_verified_readonly",
+                "trustedForExecution": False,
+                "readyForTransactionPreflight": True,
+                "blockNumber": 45513946,
+                "triggerBlockNumber": 45513946,
+                "routeSymbols": ["USDG", "WETH", "VLAD", "WETH", "USDG"],
+                "validation": {
+                    "allHopsQuoted": True,
+                    "routeClosed": True,
+                    "finalOutputSymbol": "USDG",
+                    "profitableAfterCosts": True,
+                },
+                "costModel": {
+                    "notionalUsd": 1000.0,
+                    "finalOutputUsd": 7611.915561,
+                    "grossProfitUsd": 6611.915561,
+                    "flashLoanFeeBps": 5.0,
+                    "netProfitUsd": 6610.415561,
+                    "netProfitBps": 66104.15561,
+                },
+                "blockers": [
+                    "链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。",
+                ],
+                "hops": [
+                    {
+                        "hop": 1,
+                        "protocol": "uniswap_v2",
+                        "quoteMethod": "v2_pair_reserves_constant_product_at_block",
+                        "pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
+                        "fromSymbol": "USDG",
+                        "toSymbol": "WETH",
+                        "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                        "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                        "amountInRaw": "1000000000",
+                        "amountOutRaw": "393304782954818430",
+                        "amountIn": "1000",
+                        "amountOut": "0.39330478295481843",
+                        "inputDecimals": 6,
+                        "outputDecimals": 18,
+                        "feeBps": 30,
+                    },
+                    {
+                        "hop": 2,
+                        "protocol": "uniswap_v3",
+                        "quoteMethod": "v3_quoter_quoteExactInputSingle_eth_call",
+                        "pool": "0xE7E1337B0505eEe349e3345bDf829073Fde0E2c3",
+                        "fromSymbol": "WETH",
+                        "toSymbol": "VLAD",
+                        "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                        "tokenOut": "0x91e2ce85c223CD55b0Cf76Ca668a0e61ed696C6b",
+                        "amountInRaw": "393304782954818430",
+                        "amountOutRaw": "101185239581426471901833926",
+                        "amountIn": "0.39330478295481843",
+                        "amountOut": "101185239.581426471901833926",
+                        "inputDecimals": 18,
+                        "outputDecimals": 18,
+                        "fee": 10000,
+                    },
+                    {
+                        "hop": 3,
+                        "protocol": "uniswap_v3",
+                        "quoteMethod": "v3_quoter_quoteExactInputSingle_eth_call",
+                        "pool": "0x8a3aE9184141C085BAD6aBfEFcC626dE288be3d3",
+                        "fromSymbol": "VLAD",
+                        "toSymbol": "WETH",
+                        "tokenIn": "0x91e2ce85c223CD55b0Cf76Ca668a0e61ed696C6b",
+                        "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                        "amountInRaw": "101185239581426471901833926",
+                        "amountOutRaw": "3314675503758191895",
+                        "amountIn": "101185239.581426471901833926",
+                        "amountOut": "3.314675503758191895",
+                        "inputDecimals": 18,
+                        "outputDecimals": 18,
+                        "fee": 10000,
+                    },
+                    {
+                        "hop": 4,
+                        "protocol": "uniswap_v2",
+                        "quoteMethod": "v2_pair_reserves_constant_product_at_block",
+                        "pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
+                        "fromSymbol": "WETH",
+                        "toSymbol": "USDG",
+                        "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                        "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                        "amountInRaw": "3314675503758191895",
+                        "amountOutRaw": "7611915561",
+                        "amountIn": "3.314675503758191895",
+                        "amountOut": "7611.915561",
+                        "inputDecimals": 18,
+                        "outputDecimals": 6,
+                        "feeBps": 30,
+                    },
+                ],
+            }
+        },
+        "precheck": {
+            "status": "transaction_development_required",
+            "ready_for_transaction_preflight": True,
+            "trustedForExecution": False,
+            "live_profit_percent": 661.0415561,
+            "reference_profit_amount": 15807.767101509085,
+            "requires_live_quoter": False,
+            "reasons": [
+                "链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。",
+            ],
+        },
+        "blocked_reasons": [
+            "链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。",
+        ],
+        "can_submit_order": False,
+        "market_id": "robinhood-dex-shadow",
+    }
+
+
+def test_build_robinhood_chain_test_plan_marks_preflight_boundary():
+    plan = build_robinhood_chain_test_plan(_sample_attempt())
+
+    assert plan["chainTestScope"]["mode"] == "mainnet_fork_staticcall_only"
+    assert plan["chainTestScope"]["canDeployTestnet"] is False
+    assert plan["route"]["pathText"] == "USDG -> WETH -> VLAD -> WETH -> USDG"
+    assert plan["route"]["hopCount"] == 4
+    assert plan["evidence"]["status"] == "live_verified"
+    assert plan["evidence"]["triggerBlockNumber"] == 45513946
+    assert plan["evidence"]["readyForTransactionPreflight"] is True
+    assert plan["decision"]["trustedForExecution"] is False
+    assert plan["decision"]["canBroadcast"] is False
+    assert plan["decision"]["canRunForkPreflight"] is True
+    assert plan["preflightSpec"]["status"] == "ready_for_fork_staticcall"
+    assert plan["preflightSpec"]["repaymentConstraint"]["repayAmountRaw"] == "1000500000"
+    assert plan["preflightSpec"]["routeHops"][0]["minAmountOutRaw"] == "391338259040044337"
+    assert any(item["id"] == "fork_staticcall" for item in plan["checklist"])
+    assert plan["checklist"][0]["done"] is True
+    assert "45513946" in plan["checklist"][0]["detail"]
+    assert plan["checklist"][-1]["title"] == "归档实施文档与测试包"
+
+
+def test_robinhood_chain_test_scope_only_enables_robinhood_family():
+    mainnet = robinhood_chain_test_scope("robinhood", 4663)
+    testnet = robinhood_chain_test_scope("robinhood-testnet", 46630)
+    bnb = robinhood_chain_test_scope("bnb", 56)
+
+    assert mainnet["enabled"] is True
+    assert mainnet["canRunForkStaticcall"] is True
+    assert mainnet["canDeployTestnet"] is False
+    assert mainnet["canBroadcast"] is False
+    assert testnet["enabled"] is True
+    assert testnet["canDeployTestnet"] is True
+    assert testnet["canBroadcast"] is False
+    assert bnb["enabled"] is False
+    assert bnb["disabledReason"] == "disabled_non_robinhood_chain_test_scope"
+
+
+def test_plan_keeps_non_robinhood_attempt_out_of_chain_test_scope():
+    attempt = _sample_attempt()
+    attempt["network"] = "bnb"
+    attempt["chain_id"] = 56
+
+    plan = build_robinhood_chain_test_plan(attempt)
+    audit = audit_robinhood_chain_test_plan(plan)
+
+    assert plan["chainTestScope"]["enabled"] is False
+    assert plan["chainTestScope"]["disabledReason"] == "disabled_non_robinhood_chain_test_scope"
+    assert plan["decision"]["canRunForkPreflight"] is False
+    assert plan["decision"]["canDeployTestnet"] is False
+    assert audit["ok"] is True
+
+
+def test_plan_infers_legacy_net_positive_below_min_profit():
+    attempt = _sample_attempt()
+    evidence = attempt["quote"]["live_onchain_evidence"]
+    evidence["readyForTransactionPreflight"] = False
+    evidence["validation"]["profitableAfterCosts"] = False
+    evidence["costModel"]["netProfitUsd"] = 0.612327
+    evidence["costModel"]["minProfitUsd"] = 2.0
+
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    assert plan["evidence"]["netPositiveAfterCosts"] is True
+    assert plan["evidence"]["meetsMinProfitThreshold"] is False
+    assert plan["decision"]["readyForTransactionPreflight"] is False
+    assert plan["decision"]["canRunForkPreflight"] is False
+
+
+def test_write_robinhood_chain_test_package_creates_contract_notes(tmp_path):
+    output_dir = tmp_path / "package"
+    contract_dir = tmp_path / "contract" / "robinhood"
+
+    plan = write_robinhood_chain_test_package(output_dir, _sample_attempt(), contract_dir=contract_dir)
+
+    assert (output_dir / "manifest.json").exists()
+    assert (output_dir / "summary.md").exists()
+    assert (output_dir / "plan.json").exists()
+    assert (output_dir / "checklist.json").exists()
+    assert (contract_dir / "README.md").exists()
+    assert (contract_dir / "contracts.json").exists()
+    assert plan["contractHandoff"]["contractDir"] == str(contract_dir)
+
+
+def test_audit_accepts_complete_preflight_plan():
+    plan = build_robinhood_chain_test_plan(_sample_attempt())
+
+    audit = audit_robinhood_chain_test_plan(plan)
+
+    assert audit["ok"] is True
+    assert audit["errorCount"] == 0
+    assert audit["expectedHopCount"] == 4
+    assert audit["actualHopCount"] == 4
+
+
+def test_audit_rejects_broadcast_and_incomplete_hop_data():
+    plan = build_robinhood_chain_test_plan(_sample_attempt())
+    plan["decision"]["canBroadcast"] = True
+    plan["preflightSpec"]["broadcastEnabled"] = True
+    plan["preflightSpec"]["routeHops"][1]["amountOutRaw"] = ""
+
+    audit = audit_robinhood_chain_test_plan(plan)
+
+    codes = {issue["code"] for issue in audit["issues"]}
+    assert audit["ok"] is False
+    assert "broadcast_without_execution_trust" in codes
+    assert "preflight_broadcast_enabled_without_trust" in codes
+    assert "hop_required_field_missing" in codes
+
+
+def test_plan_blocks_same_symbol_different_token_route():
+    attempt = _sample_attempt()
+    attempt["quote"]["live_onchain_evidence"]["hops"][2]["tokenIn"] = "0xfDBb27E971E72E38C41b1C772FB409C94dd92789"
+
+    plan = build_robinhood_chain_test_plan(attempt)
+    audit = audit_robinhood_chain_test_plan(plan)
+
+    assert plan["route"]["tokenContinuous"] is False
+    assert plan["decision"]["readyForTransactionPreflight"] is False
+    assert plan["decision"]["canRunForkPreflight"] is False
+    assert plan["preflightSpec"]["status"] == "blocked_token_discontinuity"
+    assert audit["ok"] is False
+    assert {issue["code"] for issue in audit["issues"]} == {"hop_token_chain_broken"}

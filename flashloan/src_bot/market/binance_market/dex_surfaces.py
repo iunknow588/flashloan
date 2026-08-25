@@ -46,6 +46,11 @@ def _norm_symbol(value: object) -> str:
     return str(value or "").strip().upper()
 
 
+def _token_address(value: object) -> str:
+    text = str(value or "").strip()
+    return text.lower() if text.startswith("0x") and len(text) == 42 else ""
+
+
 def _int(value: object) -> int:
     try:
         return int(value or 0)
@@ -105,6 +110,54 @@ def _pool_symbols(pool: dict[str, Any]) -> list[str]:
         _norm_symbol(pool.get("token1Symbol")),
     ]
     return [symbol for symbol in symbols if symbol]
+
+
+def _pool_tokens(pool: dict[str, Any]) -> list[dict[str, Any]]:
+    tokens: list[dict[str, Any]] = []
+    for index in (0, 1):
+        symbol = _norm_symbol(pool.get(f"token{index}Symbol"))
+        address = _token_address(pool.get(f"token{index}"))
+        if symbol:
+            tokens.append(
+                {
+                    "symbol": symbol,
+                    "address": address,
+                    "decimals": pool.get(f"token{index}Decimals") or pool.get(f"token{index}_decimals"),
+                    "side": index,
+                }
+            )
+    return tokens
+
+
+def _pair_tokens(pair: dict[str, Any]) -> list[dict[str, Any]]:
+    tokens = []
+    for address_key, symbol_key in (("tokenX", "tokenXSymbol"), ("tokenY", "tokenYSymbol")):
+        symbol = _norm_symbol(pair.get(symbol_key))
+        address = _token_address(pair.get(address_key))
+        if symbol:
+            tokens.append({"symbol": symbol, "address": address})
+    if len(tokens) >= 2 and all(token.get("address") for token in tokens):
+        return tokens[:2]
+    for pool in _pools_for_pair(pair):
+        pool_tokens = _pool_tokens(pool)
+        if len(pool_tokens) >= 2:
+            return [{"symbol": token["symbol"], "address": token["address"]} for token in pool_tokens[:2]]
+    return tokens[:2]
+
+
+def _token_key(token: dict[str, Any]) -> str:
+    address = _token_address(token.get("address"))
+    if address:
+        return f"address:{address}"
+    return f"symbol:{_norm_symbol(token.get('symbol'))}"
+
+
+def _route_symbols_from_tokens(tokens: list[dict[str, Any]]) -> list[str]:
+    return [_norm_symbol(token.get("symbol")) for token in tokens if _norm_symbol(token.get("symbol"))]
+
+
+def _route_addresses_from_tokens(tokens: list[dict[str, Any]]) -> list[str]:
+    return [_token_address(token.get("address")) for token in tokens]
 
 
 def _pool_tvl_usd(pool: dict[str, Any]) -> float:
@@ -232,6 +285,8 @@ def _reference_price_quote(
     pool: dict[str, Any],
     from_symbol: str,
     to_symbol: str,
+    from_address: str | None = None,
+    to_address: str | None = None,
     input_amount: float | None,
     input_usd: float,
     price_map: dict[str, float],
@@ -261,6 +316,8 @@ def _reference_price_quote(
         "feeBps": fee_bps,
         "fromSymbol": from_symbol,
         "toSymbol": to_symbol,
+        "tokenIn": _token_address(from_address),
+        "tokenOut": _token_address(to_address),
         "inputAmount": input_amount,
         "inputUsd": input_usd,
         "outputAmount": None,
@@ -269,8 +326,8 @@ def _reference_price_quote(
         "referenceOutputAmount": output_amount,
         "referenceOutputUsd": output_usd,
         "referenceEffectiveRate": rate * fee_factor if rate is not None else None,
-        "reserveInUsd": _pool_reserve_usd(pool, _pool_side_index(pool, from_symbol) or 0, price_map),
-        "reserveOutUsd": _pool_reserve_usd(pool, _pool_side_index(pool, to_symbol) or 0, price_map),
+        "reserveInUsd": _pool_reserve_usd(pool, _pool_side_index(pool, from_symbol, from_address) or 0, price_map),
+        "reserveOutUsd": _pool_reserve_usd(pool, _pool_side_index(pool, to_symbol, to_address) or 0, price_map),
         "priceImpactBps": None,
         "depthBand": pool.get("depthBand") or {},
         "quoteSource": "reference_price_requires_live_quoter",
@@ -321,12 +378,28 @@ def _route_score(route: dict[str, Any]) -> tuple[float, int, str]:
     return (tvl, len(pools), str(route.get("symbolPair") or ""))
 
 
-def _pool_matches_edge(pool: dict[str, Any], from_symbol: str, to_symbol: str) -> bool:
+def _pool_matches_edge(
+    pool: dict[str, Any],
+    from_symbol: str,
+    to_symbol: str,
+    from_address: str | None = None,
+    to_address: str | None = None,
+) -> bool:
+    tokens = _pool_tokens(pool)
+    from_key = _token_address(from_address)
+    to_key = _token_address(to_address)
+    if from_key and to_key:
+        addresses = {_token_address(token.get("address")) for token in tokens[:2]}
+        return from_key in addresses and to_key in addresses and from_key != to_key
     symbols = set(_pool_symbols(pool)[:2])
     return from_symbol in symbols and to_symbol in symbols and len(symbols) == 2
 
 
-def _pool_side_index(pool: dict[str, Any], symbol: str) -> int | None:
+def _pool_side_index(pool: dict[str, Any], symbol: str, address: str | None = None) -> int | None:
+    address_key = _token_address(address)
+    for token in _pool_tokens(pool):
+        if address_key and _token_address(token.get("address")) == address_key:
+            return int(token["side"])
     symbols = _pool_symbols(pool)
     for index, candidate in enumerate(symbols[:2]):
         if candidate == symbol:
@@ -339,12 +412,14 @@ def _edge_quote(
     pool: dict[str, Any],
     from_symbol: str,
     to_symbol: str,
+    from_address: str | None = None,
+    to_address: str | None = None,
     input_amount: float | None,
     input_usd: float,
     price_map: dict[str, float],
 ) -> dict[str, Any] | None:
-    in_index = _pool_side_index(pool, from_symbol)
-    out_index = _pool_side_index(pool, to_symbol)
+    in_index = _pool_side_index(pool, from_symbol, from_address)
+    out_index = _pool_side_index(pool, to_symbol, to_address)
     if in_index is None or out_index is None or in_index == out_index:
         return None
     protocol = _pool_protocol(pool)
@@ -353,6 +428,8 @@ def _edge_quote(
             pool=pool,
             from_symbol=from_symbol,
             to_symbol=to_symbol,
+            from_address=from_address,
+            to_address=to_address,
             input_amount=input_amount,
             input_usd=input_usd,
             price_map=price_map,
@@ -367,6 +444,8 @@ def _edge_quote(
                 "feeBps": _fee_bps(pool),
                 "fromSymbol": from_symbol,
                 "toSymbol": to_symbol,
+                "tokenIn": _token_address(from_address),
+                "tokenOut": _token_address(to_address),
                 "inputAmount": input_amount,
                 "inputUsd": input_usd,
                 "outputAmount": None,
@@ -392,6 +471,8 @@ def _edge_quote(
             pool=pool,
             from_symbol=from_symbol,
             to_symbol=to_symbol,
+            from_address=from_address,
+            to_address=to_address,
             input_amount=input_amount,
             input_usd=input_usd,
             price_map=price_map,
@@ -419,6 +500,8 @@ def _edge_quote(
                 pool=pool,
                 from_symbol=from_symbol,
                 to_symbol=to_symbol,
+                from_address=from_address,
+                to_address=to_address,
                 input_amount=input_amount,
                 input_usd=input_usd,
                 price_map=price_map,
@@ -448,6 +531,8 @@ def _edge_quote(
         "feeBps": fee_bps,
         "fromSymbol": from_symbol,
         "toSymbol": to_symbol,
+        "tokenIn": _token_address(from_address),
+        "tokenOut": _token_address(to_address),
         "inputAmount": input_amount,
         "inputUsd": input_usd,
         "outputAmount": output_amount,
@@ -467,6 +552,8 @@ def _best_edge_quote(
     pools: list[dict[str, Any]],
     from_symbol: str,
     to_symbol: str,
+    from_address: str | None = None,
+    to_address: str | None = None,
     input_amount: float | None,
     input_usd: float,
     price_map: dict[str, float],
@@ -474,8 +561,19 @@ def _best_edge_quote(
     quotes = [
         quote
         for pool in pools
-        if _pool_matches_edge(pool, from_symbol, to_symbol)
-        for quote in [_edge_quote(pool=pool, from_symbol=from_symbol, to_symbol=to_symbol, input_amount=input_amount, input_usd=input_usd, price_map=price_map)]
+        if _pool_matches_edge(pool, from_symbol, to_symbol, from_address, to_address)
+        for quote in [
+            _edge_quote(
+                pool=pool,
+                from_symbol=from_symbol,
+                to_symbol=to_symbol,
+                from_address=from_address,
+                to_address=to_address,
+                input_amount=input_amount,
+                input_usd=input_usd,
+                price_map=price_map,
+            )
+        ]
         if quote is not None
     ]
     if not quotes:
@@ -489,9 +587,14 @@ def _route_quote_analysis(
     price_map: dict[str, float],
     notional_usd: float = QUOTE_PROBE_NOTIONAL_USD,
 ) -> dict[str, Any]:
-    route_symbols = list((route.get("overviewRoute") or {}).get("pathSymbols") or route.get("routeSymbols") or [])
+    overview_route = route.get("overviewRoute") or {}
+    route_tokens = [token for token in route.get("routeTokenPath") or overview_route.get("pathTokens") or [] if isinstance(token, dict)]
+    route_symbols = _route_symbols_from_tokens(route_tokens) if route_tokens else list(overview_route.get("pathSymbols") or route.get("routeSymbols") or [])
+    route_addresses = _route_addresses_from_tokens(route_tokens) if route_tokens else []
     pools = _route_pools(route)
     warnings: list[str] = []
+    if route_symbols and not route_tokens:
+        warnings.append("route_identity_symbol_fallback")
     invalid_symbols = [symbol for symbol in route_symbols if not _route_symbol_allowed(symbol)]
     if invalid_symbols:
         warnings.append(f"invalid_route_symbol:{','.join(invalid_symbols)}")
@@ -535,10 +638,14 @@ def _route_quote_analysis(
     current_amount = (current_usd / price_map[input_symbol]) if input_symbol and price_map.get(input_symbol) else None
     steps: list[dict[str, Any]] = []
     for index, (from_symbol, to_symbol) in enumerate(zip(route_symbols, route_symbols[1:]), start=1):
+        from_address = route_addresses[index - 1] if index - 1 < len(route_addresses) else ""
+        to_address = route_addresses[index] if index < len(route_addresses) else ""
         quote = _best_edge_quote(
             pools=pools,
             from_symbol=from_symbol,
             to_symbol=to_symbol,
+            from_address=from_address,
+            to_address=to_address,
             input_amount=current_amount,
             input_usd=current_usd,
             price_map=price_map,
@@ -549,6 +656,8 @@ def _route_quote_analysis(
                     "hop": index,
                     "fromSymbol": from_symbol,
                     "toSymbol": to_symbol,
+                    "tokenIn": from_address,
+                    "tokenOut": to_address,
                     "status": "missing_pool_or_depth",
                     "inputAmount": current_amount,
                     "inputUsd": current_usd,
@@ -715,13 +824,18 @@ def _route_candidate(
     path_symbols: list[str],
     pairs: list[dict[str, Any]],
     bridge_symbols: list[str] | None = None,
+    path_tokens: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     pools = [pool for pair in pairs for pool in _pools_for_pair(pair)]
     primary = pairs[-1] if pairs else {}
-    route_symbols = [symbol for symbol in path_symbols if symbol]
+    route_tokens = path_tokens or [{"symbol": symbol, "address": ""} for symbol in path_symbols if symbol]
+    route_symbols = _route_symbols_from_tokens(route_tokens)
+    route_addresses = _route_addresses_from_tokens(route_tokens)
     return {
         "symbolPair": " -> ".join(route_symbols),
-        "addressPair": "",
+        "addressPair": " -> ".join(address for address in route_addresses if address),
+        "routeTokenPath": route_tokens,
+        "routeAddresses": route_addresses,
         "tokenX": primary.get("tokenX"),
         "tokenY": primary.get("tokenY"),
         "tokenXSymbol": anchor,
@@ -742,7 +856,9 @@ def _route_candidate(
         "flashLoanLinkage": {
             "strategy": "stable_anchor_candidate_path" if kind == "direct_anchor_pair" else "stable_anchor_bridge_candidate_path",
             "borrow_symbols": [anchor],
+            "borrow_tokens": [route_addresses[0]] if route_addresses and route_addresses[0] else [],
             "route_symbols": route_symbols,
+            "route_addresses": route_addresses,
             "ready_for_atomic_arbitrage": bool(pools),
             "conditions": [
                 "quote page must verify executable output after slippage",
@@ -756,8 +872,12 @@ def _route_candidate(
             "targetSymbol": target,
             "bridgeSymbols": bridge_symbols or [],
             "pathSymbols": route_symbols,
+            "pathTokens": route_tokens,
+            "pathAddresses": route_addresses,
             "pathText": " -> ".join(route_symbols),
+            "pathAddressText": " -> ".join(address for address in route_addresses if address),
             "candidatePairSymbols": [pair.get("symbolPair") for pair in pairs],
+            "candidatePairAddresses": [pair.get("addressPair") for pair in pairs],
             "analysisStage": "overview_candidate_only",
             "nextStep": "quotes_and_route_analysis",
         },
@@ -768,54 +888,74 @@ def _overview_path_candidates(pool_payload: dict[str, Any], chain_id: int | None
     pairs = _candidate_pairs(pool_payload.get("pairs") or [])
     anchors = _borrow_anchor_symbols(pool_payload, chain_id)
     direct_by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    pair_by_symbols: dict[frozenset[str], list[dict[str, Any]]] = {}
+    pair_by_token_keys: dict[frozenset[str], list[dict[str, Any]]] = {}
+    pair_tokens_by_id: dict[int, list[dict[str, Any]]] = {}
     for pair in pairs:
-        symbols = _pair_symbols(pair)
-        if len(symbols) < 2:
+        tokens = _pair_tokens(pair)
+        if len(tokens) < 2:
             continue
-        pair_by_symbols.setdefault(frozenset(symbols[:2]), []).append(pair)
+        token_keys = [_token_key(token) for token in tokens[:2]]
+        if len(set(token_keys)) < 2:
+            continue
+        pair_tokens_by_id[id(pair)] = tokens[:2]
+        pair_by_token_keys.setdefault(frozenset(token_keys), []).append(pair)
         for anchor in anchors:
-            if anchor not in symbols:
-                continue
-            for target in symbols:
-                if target == anchor or target in anchors:
-                    continue
-                if not _route_symbol_allowed(target):
-                    continue
-                route = _route_candidate(
-                    kind="direct_anchor_pair",
-                    anchor=anchor,
-                    target=target,
-                    path_symbols=[anchor, target, anchor],
-                    pairs=[pair],
-                )
-                key = (anchor, target)
-                current = direct_by_key.get(key)
-                if current is None or _route_score(route) > _route_score(current):
-                    direct_by_key[key] = route
+            anchor_tokens = [token for token in tokens[:2] if token["symbol"] == anchor]
+            for anchor_token in anchor_tokens:
+                for target_token in tokens[:2]:
+                    target = _norm_symbol(target_token.get("symbol"))
+                    if _token_key(target_token) == _token_key(anchor_token) or target in anchors:
+                        continue
+                    if not _route_symbol_allowed(target):
+                        continue
+                    route = _route_candidate(
+                        kind="direct_anchor_pair",
+                        anchor=anchor,
+                        target=target,
+                        path_symbols=[anchor, target, anchor],
+                        path_tokens=[anchor_token, target_token, anchor_token],
+                        pairs=[pair],
+                    )
+                    key = (_token_key(anchor_token), _token_key(target_token))
+                    current = direct_by_key.get(key)
+                    if current is None or _route_score(route) > _route_score(current):
+                        direct_by_key[key] = route
 
     routes = list(direct_by_key.values())
     route_keys = set(direct_by_key)
     for anchor in anchors:
-        bridge_pairs = [
-            pair
-            for key, grouped in pair_by_symbols.items()
-            if anchor in key
-            for pair in grouped
-        ]
-        for bridge_pair in bridge_pairs:
-            bridge_symbols = [symbol for symbol in _pair_symbols(bridge_pair) if symbol != anchor]
-            for bridge in bridge_symbols:
-                if not bridge:
+        bridge_pairs: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+        for grouped in pair_by_token_keys.values():
+            for pair in grouped:
+                tokens = pair_tokens_by_id.get(id(pair)) or _pair_tokens(pair)
+                anchor_tokens = [token for token in tokens[:2] if token["symbol"] == anchor]
+                for anchor_token in anchor_tokens:
+                    for bridge_token in tokens[:2]:
+                        if _token_key(bridge_token) == _token_key(anchor_token):
+                            continue
+                        bridge_pairs.append((pair, anchor_token, bridge_token))
+        for bridge_pair, anchor_token, bridge_token in bridge_pairs:
+            bridge = _norm_symbol(bridge_token.get("symbol"))
+            if not bridge:
+                continue
+            if not _route_symbol_allowed(bridge):
+                continue
+            bridge_key = _token_key(bridge_token)
+            anchor_key = _token_key(anchor_token)
+            for key, grouped in pair_by_token_keys.items():
+                if bridge_key not in key or anchor_key in key:
                     continue
-                if not _route_symbol_allowed(bridge):
-                    continue
-                for key, grouped in pair_by_symbols.items():
-                    if bridge not in key or anchor in key:
+                for second_pair in grouped:
+                    second_tokens = pair_tokens_by_id.get(id(second_pair)) or _pair_tokens(second_pair)
+                    second_bridge_tokens = [token for token in second_tokens[:2] if _token_key(token) == bridge_key]
+                    if not second_bridge_tokens:
                         continue
-                    target_symbols = [symbol for symbol in key if symbol != bridge]
-                    for target in target_symbols:
-                        if not target or target in anchors or (anchor, target) in route_keys:
+                    for target_token in second_tokens[:2]:
+                        target = _norm_symbol(target_token.get("symbol"))
+                        if _token_key(target_token) == bridge_key or target in anchors:
+                            continue
+                        route_key = (anchor_key, _token_key(target_token))
+                        if not target or route_key in route_keys:
                             continue
                         if not _route_symbol_allowed(target):
                             continue
@@ -825,10 +965,11 @@ def _overview_path_candidates(pool_payload: dict[str, Any], chain_id: int | None
                             target=target,
                             bridge_symbols=[bridge],
                             path_symbols=[anchor, bridge, target, bridge, anchor],
-                            pairs=[bridge_pair, grouped[0]],
+                            path_tokens=[anchor_token, bridge_token, target_token, bridge_token, anchor_token],
+                            pairs=[bridge_pair, second_pair],
                         )
                         routes.append(route)
-                        route_keys.add((anchor, target))
+                        route_keys.add(route_key)
 
     routes.sort(key=_route_score, reverse=True)
     used_pairs = {
@@ -952,6 +1093,8 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
         pools = _route_pools(pair)
         overview_route = pair.get("overviewRoute") or {}
         route_symbols = list(overview_route.get("pathSymbols") or linkage.get("route_symbols") or _pair_symbols(pair))
+        route_tokens = list(overview_route.get("pathTokens") or pair.get("routeTokenPath") or [])
+        route_addresses = list(overview_route.get("pathAddresses") or linkage.get("route_addresses") or pair.get("routeAddresses") or [])
         quote_analysis = _route_quote_analysis(pair, price_map=price_map)
         if quote_analysis.get("executableCandidate"):
             quote_status = "static_probe_ready_for_precheck"
@@ -971,6 +1114,8 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
                 "protocol": pool.get("dex") or pool.get("protocol"),
                 "fee": pool.get("fee"),
                 "routeSymbols": route_symbols,
+                "routeAddresses": route_addresses,
+                "routeTokenPath": route_tokens,
             }
             for pool in pools[:5]
         ]
@@ -983,6 +1128,8 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
                     "status": "sdk_adapter_required" if quote_analysis.get("requiresLiveQuoter") else "quoteable_after_static_probe",
                     "quoteRequestUrl": f"/api/dex/quote-request?pair={quote(str(pair.get('symbolPair') or ''), safe='')}&venue=uniswap_v4",
                     "routeSymbols": route_symbols,
+                    "routeAddresses": route_addresses,
+                    "routeTokenPath": route_tokens,
                     "chainId": chain_id,
                     "adapterHints": [
                         "pool_manager_state_required",
@@ -1000,6 +1147,8 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
                     "status": "quoteable_after_static_probe",
                     "quoteRequestUrl": f"/api/dex/quote-request?pair={quote(str(pair.get('symbolPair') or ''), safe='')}&venue=uniswapx",
                     "routeSymbols": route_symbols,
+                    "routeAddresses": route_addresses,
+                    "routeTokenPath": route_tokens,
                     "chainId": chain_id,
                     "reactorFamily": uniswapx.get("reactor_family"),
                     "requires": ["sellToken", "buyToken", "amount", "userAddress"],
@@ -1010,6 +1159,8 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
                 "symbolPair": pair.get("symbolPair"),
                 "overviewRoute": overview_route,
                 "routeSymbols": route_symbols,
+                "routeAddresses": route_addresses,
+                "routeTokenPath": route_tokens,
                 "borrowSymbols": linkage.get("borrow_symbols") or [],
                 "strategy": linkage.get("strategy") or "quote_candidate_from_borrow_anchor_path",
                 "poolCount": len(pools),

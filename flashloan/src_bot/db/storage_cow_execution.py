@@ -428,6 +428,180 @@ def _review_plan_steps(quote: dict[str, Any]) -> list[dict[str, Any]]:
     return summaries
 
 
+def _review_address(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) == 42 and text.lower().startswith("0x"):
+        return text
+    return ""
+
+
+def _review_hop_token_in(step: dict[str, Any]) -> str:
+    return _review_address(
+        _first_present(
+            step.get("tokenIn"),
+            step.get("token_in"),
+            step.get("tokenInAddress"),
+            step.get("token_in_address"),
+            step.get("fromAddress"),
+            step.get("from_address"),
+        )
+    )
+
+
+def _review_hop_token_out(step: dict[str, Any]) -> str:
+    return _review_address(
+        _first_present(
+            step.get("tokenOut"),
+            step.get("token_out"),
+            step.get("tokenOutAddress"),
+            step.get("token_out_address"),
+            step.get("toAddress"),
+            step.get("to_address"),
+        )
+    )
+
+
+def _review_route_addresses_from_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    addresses = [_review_address(item.get("address") if isinstance(item, dict) else item) for item in value]
+    return [address for address in addresses if address]
+
+
+def _review_route_addresses_from_hops(hops: list[dict[str, Any]]) -> list[str]:
+    if not hops:
+        return []
+    first = _review_hop_token_in(hops[0])
+    if not first:
+        return []
+    addresses = [first]
+    for step in hops:
+        token_out = _review_hop_token_out(step)
+        if not token_out:
+            return []
+        addresses.append(token_out)
+    return addresses
+
+
+def _review_hops_from_attempt(row: dict[str, Any], quote: dict[str, Any], live_evidence: dict[str, Any]) -> list[dict[str, Any]]:
+    analysis = quote.get("quote_analysis") if isinstance(quote.get("quote_analysis"), dict) else {}
+    for value in (
+        live_evidence.get("hops"),
+        quote.get("hops"),
+        analysis.get("steps"),
+        row.get("hops"),
+    ):
+        if isinstance(value, list) and any(isinstance(step, dict) for step in value):
+            return [step for step in value if isinstance(step, dict)]
+    return []
+
+
+def _review_route_addresses_from_attempt(
+    row: dict[str, Any],
+    quote: dict[str, Any],
+    live_evidence: dict[str, Any],
+    hops: list[dict[str, Any]],
+) -> tuple[list[str], str]:
+    analysis = quote.get("quote_analysis") if isinstance(quote.get("quote_analysis"), dict) else {}
+    route = quote.get("route") if isinstance(quote.get("route"), dict) else {}
+    for source, value in (
+        ("row.route_addresses", row.get("route_addresses")),
+        ("row.routeAddresses", row.get("routeAddresses")),
+        ("quote.route_addresses", quote.get("route_addresses")),
+        ("quote.routeAddresses", quote.get("routeAddresses")),
+        ("quote.route_token_path", quote.get("route_token_path")),
+        ("quote.routeTokenPath", quote.get("routeTokenPath")),
+        ("quote.route.pathAddresses", route.get("pathAddresses")),
+        ("quote.route.path_addresses", route.get("path_addresses")),
+        ("quote_analysis.routeAddresses", analysis.get("routeAddresses")),
+        ("live_onchain_evidence.routeAddresses", live_evidence.get("routeAddresses")),
+        ("live_onchain_evidence.route_addresses", live_evidence.get("route_addresses")),
+    ):
+        addresses = _review_route_addresses_from_list(value)
+        if addresses:
+            return addresses, source
+    addresses = _review_route_addresses_from_hops(hops)
+    if addresses:
+        return addresses, "hops.tokenInOut"
+    return [], ""
+
+
+def _review_route_identity(row: dict[str, Any], quote: dict[str, Any], live_evidence: dict[str, Any]) -> dict[str, Any]:
+    route_symbols = list(
+        live_evidence.get("routeSymbols")
+        or quote.get("routeSymbols")
+        or quote.get("path")
+        or row.get("route_path")
+        or []
+    )
+    hops = _review_hops_from_attempt(row, quote, live_evidence)
+    route_addresses, address_source = _review_route_addresses_from_attempt(row, quote, live_evidence, hops)
+    issues = []
+    for index in range(1, len(hops)):
+        previous = hops[index - 1]
+        current = hops[index]
+        previous_token_out = _review_hop_token_out(previous)
+        current_token_in = _review_hop_token_in(current)
+        if previous_token_out and current_token_in and previous_token_out.lower() != current_token_in.lower():
+            issues.append(
+                {
+                    "fromHop": previous.get("hop") or index,
+                    "toHop": current.get("hop") or index + 1,
+                    "fromSymbol": previous.get("toSymbol") or previous.get("to_symbol"),
+                    "toSymbol": current.get("fromSymbol") or current.get("from_symbol"),
+                    "previousTokenOut": previous_token_out,
+                    "currentTokenIn": current_token_in,
+                }
+            )
+    expected_nodes = len(route_symbols) if route_symbols else (len(hops) + 1 if hops else 0)
+    if issues:
+        status = "token_discontinuity"
+    elif expected_nodes and len(route_addresses) >= expected_nodes:
+        status = "ok"
+    elif route_addresses:
+        status = "address_partial"
+    else:
+        status = "symbol_only"
+    return {
+        "status": status,
+        "identity_mode": "address" if route_addresses else "symbol_fallback",
+        "address_source": address_source or None,
+        "route_symbols": route_symbols,
+        "route_addresses": route_addresses,
+        "routeAddresses": route_addresses,
+        "hop_count": len(hops),
+        "token_continuity": not issues,
+        "tokenContinuity": not issues,
+        "token_continuity_issues": issues,
+        "tokenContinuityIssues": issues,
+    }
+
+
+def _review_net_positive_after_costs(live_validation: dict[str, Any], live_costs: dict[str, Any]) -> bool:
+    if live_validation.get("netPositiveAfterCosts") is not None:
+        return bool(live_validation.get("netPositiveAfterCosts"))
+    net_profit = _review_decimal(live_costs.get("netProfitUsd"))
+    if net_profit is not None:
+        return net_profit > 0
+    return bool(live_validation.get("profitableAfterCosts"))
+
+
+def _review_meets_min_profit_threshold(live_validation: dict[str, Any], live_costs: dict[str, Any], live_evidence: dict[str, Any]) -> bool:
+    if live_validation.get("meetsMinProfitThreshold") is not None:
+        return bool(live_validation.get("meetsMinProfitThreshold"))
+    net_profit = _review_decimal(live_costs.get("netProfitUsd"))
+    min_profit = _review_decimal(live_costs.get("minProfitUsd"))
+    if net_profit is not None and min_profit is not None:
+        return net_profit >= min_profit
+    return bool(live_evidence.get("readyForTransactionPreflight"))
+
+
+def _attempt_route_address_identity(item: dict[str, Any]) -> list[str]:
+    quote = item.get("quote") if isinstance(item.get("quote"), dict) else {}
+    live_evidence = quote.get("live_onchain_evidence") if isinstance(quote.get("live_onchain_evidence"), dict) else {}
+    return [address.lower() for address in _review_route_identity(item, quote, live_evidence).get("route_addresses") or []]
+
+
 def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
     quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
     precheck = row.get("precheck") if isinstance(row.get("precheck"), dict) else {}
@@ -441,6 +615,21 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
     trigger_context = live_evidence.get("triggerContext") if isinstance(live_evidence.get("triggerContext"), dict) else {}
     plan = quote.get("binance_execution_plan") if isinstance(quote.get("binance_execution_plan"), dict) else {}
     error_info = _review_error_summary(quote.get("error") or row.get("error"))
+    route_identity = _review_route_identity(row, quote, live_evidence)
+    identity_blockers = []
+    if route_identity["status"] == "token_discontinuity":
+        identity_blockers.append("链上复核跳间 token 地址不连续：存在同名不同合约地址，必须按地址拆分路线后重新复核。")
+    elif route_identity["status"] in {"symbol_only", "address_partial"}:
+        identity_blockers.append("路线缺少完整 token 地址身份：symbol 只能用于展示，不能作为链上测试或交易依据。")
+    live_blockers = [
+        str(item)
+        for item in (live_evidence.get("blockers") or [])
+        if str(item or "").strip()
+    ]
+    blockers = [*live_blockers, *[item for item in identity_blockers if item not in live_blockers]]
+    identity_ok = route_identity["status"] == "ok"
+    net_positive_after_costs = _review_net_positive_after_costs(live_validation, live_costs)
+    meets_min_profit_threshold = _review_meets_min_profit_threshold(live_validation, live_costs, live_evidence)
     return {
         "phase": row.get("execution_phase"),
         "control_mode": row.get("control_mode") or precheck.get("control_mode") or (quote.get("cow_flashloan_intent") or {}).get("control_mode"),
@@ -481,10 +670,10 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "status": live_evidence.get("status"),
             "execution_trust": live_evidence.get("executionTrust"),
             "executionTrust": live_evidence.get("executionTrust"),
-            "trusted_for_execution": bool(live_evidence.get("trustedForExecution")),
-            "trustedForExecution": bool(live_evidence.get("trustedForExecution")),
-            "ready_for_transaction_preflight": bool(live_evidence.get("readyForTransactionPreflight")),
-            "readyForTransactionPreflight": bool(live_evidence.get("readyForTransactionPreflight")),
+            "trusted_for_execution": bool(live_evidence.get("trustedForExecution")) and identity_ok,
+            "trustedForExecution": bool(live_evidence.get("trustedForExecution")) and identity_ok,
+            "ready_for_transaction_preflight": bool(live_evidence.get("readyForTransactionPreflight")) and identity_ok,
+            "readyForTransactionPreflight": bool(live_evidence.get("readyForTransactionPreflight")) and identity_ok,
             "network": live_evidence.get("network"),
             "chain_id": live_evidence.get("chainId"),
             "chainId": live_evidence.get("chainId"),
@@ -500,16 +689,33 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "observedAt": live_evidence.get("observedAt"),
             "trigger_context": trigger_context,
             "triggerContext": trigger_context,
-            "route_symbols": live_evidence.get("routeSymbols") or [],
-            "routeSymbols": live_evidence.get("routeSymbols") or [],
-            "hop_count": len(live_evidence.get("hops") or []),
+            "route_symbols": route_identity["route_symbols"],
+            "routeSymbols": route_identity["route_symbols"],
+            "route_addresses": route_identity["route_addresses"],
+            "routeAddresses": route_identity["route_addresses"],
+            "route_identity_status": route_identity["status"],
+            "routeIdentityStatus": route_identity["status"],
+            "route_identity_mode": route_identity["identity_mode"],
+            "routeIdentityMode": route_identity["identity_mode"],
+            "route_identity": route_identity,
+            "routeIdentity": route_identity,
+            "hop_count": route_identity["hop_count"],
+            "hops": live_evidence.get("hops") or [],
             "all_hops_quoted": bool(live_validation.get("allHopsQuoted")),
             "profitable_after_costs": bool(live_validation.get("profitableAfterCosts")),
+            "net_positive_after_costs": net_positive_after_costs,
+            "netPositiveAfterCosts": net_positive_after_costs,
+            "meets_min_profit_threshold": meets_min_profit_threshold,
+            "meetsMinProfitThreshold": meets_min_profit_threshold,
+            "token_continuity": route_identity["token_continuity"],
+            "tokenContinuity": route_identity["tokenContinuity"],
+            "token_continuity_issues": route_identity["token_continuity_issues"],
+            "tokenContinuityIssues": route_identity["tokenContinuityIssues"],
             "final_output_usd": live_costs.get("finalOutputUsd"),
             "net_profit_usd": live_costs.get("netProfitUsd"),
             "net_profit_bps": live_costs.get("netProfitBps"),
             "netProfitBps": live_costs.get("netProfitBps"),
-            "blockers": live_evidence.get("blockers") or [],
+            "blockers": blockers,
             "transaction_development": live_evidence.get("transactionDevelopment") or {},
             "transactionDevelopment": live_evidence.get("transactionDevelopment") or {},
         },
@@ -950,6 +1156,7 @@ def _attempt_signature(item: dict[str, Any]) -> tuple[Any, ...]:
         item.get("pair_rank"),
         item.get("priority_reason"),
         _json_text(item.get("route_path") or []),
+        _json_text(_attempt_route_address_identity(item)),
         item.get("execution_phase") or "quote_precheck",
     )
 
@@ -1035,7 +1242,7 @@ def record_cow_execution_attempts(
                     if dedupe_market_candidates and _is_market_candidate(item):
                         cursor.execute(
                             """
-                            SELECT id
+                            SELECT id, quote_json
                             FROM cow_execution_attempts
                             WHERE observed_at IS NOT DISTINCT FROM %s
                               AND network IS NOT DISTINCT FROM %s
@@ -1044,7 +1251,7 @@ def record_cow_execution_attempts(
                               AND priority_reason IS NOT DISTINCT FROM %s
                               AND route_path_json IS NOT DISTINCT FROM %s
                               AND execution_phase IS NOT DISTINCT FROM %s
-                            LIMIT 1
+                            LIMIT 50
                             """,
                             (
                                 item.get("observed_at"),
@@ -1056,7 +1263,18 @@ def record_cow_execution_attempts(
                                 item.get("execution_phase") or "market_candidate",
                             ),
                         )
-                        if cursor.fetchone():
+                        duplicate = False
+                        item_signature = _attempt_signature(item)
+                        for existing_id, quote_json in cursor.fetchall():
+                            existing_item = {
+                                **item,
+                                "id": existing_id,
+                                "quote": _json_loads(quote_json, {}),
+                            }
+                            if _attempt_signature(existing_item) == item_signature:
+                                duplicate = True
+                                break
+                        if duplicate:
                             continue
                     cursor.execute(
                         """

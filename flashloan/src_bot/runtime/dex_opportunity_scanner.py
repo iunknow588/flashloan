@@ -133,6 +133,8 @@ def _route_attempt(
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     recommendation = analysis.get("recommendation") if isinstance(analysis.get("recommendation"), dict) else {}
     route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
+    route_addresses = [str(item) for item in route.get("routeAddresses") or [] if str(item).strip()]
+    route_token_path = route.get("routeTokenPath") if isinstance(route.get("routeTokenPath"), list) else []
     quote_status = str(route.get("quoteStatus") or recommendation.get("level") or "quote_required")
     final_amount = analysis.get("finalOutputUsd")
     final_delta = analysis.get("netProfitUsd")
@@ -145,6 +147,10 @@ def _route_attempt(
         "pair_rank": pair_rank,
         "priority_reason": recommendation.get("level") or quote_status,
         "path": route_symbols,
+        "routeAddresses": route_addresses,
+        "route_addresses": route_addresses,
+        "routeTokenPath": route_token_path,
+        "route_token_path": route_token_path,
         "input_amount": analysis.get("notionalUsd"),
         "input_symbol": analysis.get("inputSymbol") or (route_symbols[0] if route_symbols else None),
         "final_amount": final_amount,
@@ -190,6 +196,8 @@ def _route_attempt(
         "pair_rank": pair_rank,
         "priority_reason": recommendation.get("level") or quote_status,
         "route_path": route_symbols,
+        "route_addresses": route_addresses,
+        "route_token_path": route_token_path,
         "state": "quote_required",
         "execution_phase": "market_candidate",
         "checks_passed": False,
@@ -356,6 +364,7 @@ def build_dex_opportunity_attempts(
                         "triggerBlockNumber": (trigger_context or {}).get("triggerBlockNumber") or (trigger_context or {}).get("blockNumber"),
                         "quoteBlockSource": "deferred",
                         "routeSymbols": route.get("routeSymbols") or [],
+                        "routeAddresses": route.get("routeAddresses") or [],
                         "hops": [],
                         "costModel": {},
                         "blockers": [deferred_reason],

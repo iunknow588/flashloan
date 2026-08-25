@@ -337,3 +337,100 @@ def test_profitable_live_quote_is_readonly_until_transaction_simulation():
     assert evidence["status"] == "live_verified"
     assert evidence["readyForTransactionPreflight"] is True
     assert evidence["trustedForExecution"] is False
+
+
+def test_live_quote_blocks_same_symbol_different_token_route(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
+
+    pools = [
+        {
+            "pool": "0x" + "1" * 40,
+            "protocol": "uniswap_v3",
+            "token0Symbol": "USDG",
+            "token0": "0x" + "a" * 40,
+            "token0Decimals": 6,
+            "token1Symbol": "VLAD",
+            "token1": "0x" + "b" * 40,
+            "token1Decimals": 18,
+            "network": "robinhood",
+        },
+        {
+            "pool": "0x" + "2" * 40,
+            "protocol": "uniswap_v3",
+            "token0Symbol": "VLAD",
+            "token0": "0x" + "c" * 40,
+            "token0Decimals": 18,
+            "token1Symbol": "USDG",
+            "token1": "0x" + "a" * 40,
+            "token1Decimals": 6,
+            "network": "robinhood",
+        },
+    ]
+    route = {
+        "symbolPair": "USDG -> VLAD -> USDG",
+        "routeSymbols": ["USDG", "VLAD", "USDG"],
+        "quoteInputs": {"routePools": pools},
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {"hop": 1, "fromSymbol": "USDG", "toSymbol": "VLAD", "protocol": "uniswap_v3", "pool": pools[0]["pool"]},
+                {"hop": 2, "fromSymbol": "VLAD", "toSymbol": "USDG", "protocol": "uniswap_v3", "pool": pools[1]["pool"]},
+            ],
+        },
+    }
+
+    def quote_hop_provider(**kwargs):
+        step = kwargs["step"]
+        if step["hop"] == 1:
+            return {
+                "status": "live_verified",
+                "quoteMethod": "test_quote",
+                "protocol": "uniswap_v3",
+                "pool": step["pool"],
+                "tokenIn": "0x" + "a" * 40,
+                "tokenOut": "0x" + "b" * 40,
+                "amountInRaw": str(kwargs["amount_in_raw"]),
+                "amountOutRaw": "1000000000000000000",
+                "amountIn": "1000",
+                "amountOut": "1",
+                "inputDecimals": 6,
+                "outputDecimals": 18,
+            }
+        return {
+            "status": "live_verified",
+            "quoteMethod": "test_quote",
+            "protocol": "uniswap_v3",
+            "pool": step["pool"],
+            "tokenIn": "0x" + "c" * 40,
+            "tokenOut": "0x" + "a" * 40,
+            "amountInRaw": str(kwargs["amount_in_raw"]),
+            "amountOutRaw": "2000000000",
+            "amountIn": "1",
+            "amountOut": "2000",
+            "inputDecimals": 18,
+            "outputDecimals": 6,
+        }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood", "chainId": 4663}},
+        chain_id=4663,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=quote_hop_provider,
+    )
+
+    assert evidence["status"] == "live_quote_failed"
+    assert evidence["readyForTransactionPreflight"] is False
+    assert evidence["validation"]["tokenContinuity"] is False
+    assert evidence["validation"]["tokenContinuityIssues"][0]["previousTokenOut"] == "0x" + "b" * 40

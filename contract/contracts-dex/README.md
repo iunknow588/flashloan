@@ -21,6 +21,35 @@ npx hardhat compile
 npx hardhat test test\UnifiedFlashLoanMevExecutor.test.js
 ```
 
+## Robinhood 链测状态
+
+Hardhat 已配置 Robinhood 主网与 Robinhood testnet 网络别名：
+
+```text
+robinhood        chainId 4663
+robinhoodTestnet chainId 46630
+```
+
+当前只用于 Robinhood-only 链测准备：
+
+- Robinhood 主网：机会捕获、只读 Quoter、fork/static-call 预检。
+- Robinhood testnet：部署骨架、读回、暂停门禁和回款约束演练。
+- 其他链：暂不进入链上测试。
+
+注意：现有 `UnifiedFlashLoanMevExecutor.sol` 仍是 Aave + V3 风格执行器。Robinhood 当前有效正收益样本包含 V4 路由，且闪电贷来源需要按 Robinhood 实际协议确认；因此不能直接把 Avalanche 执行器脚本视为 Robinhood 可执行部署脚本。Robinhood testnet 部署前必须先补齐链专用 preflight profile、flashloan provider adapter、V4 swap adapter、回款约束和 fork/static-call 证据。
+
+Robinhood testnet 暂停态部署准备使用专用合约与脚本：
+
+```bash
+npm run test:robinhood
+npm run preflight:robinhood:testnet
+npm run ready:robinhood:testnet
+npm run deploy:robinhood:testnet:paused
+npm run readback:robinhood:testnet
+```
+
+`RobinhoodPausedFlashLoanExecutor.sol` 只绑定 Robinhood/Morpho Blue 风格 `flashLoan(token, assets, data)` 来源与 Uniswap V3/V4 calldata adapter，构造后默认暂停。预检脚本会检查 RPC chain ID 与 adapter code status；`ready:robinhood:testnet` 是严格部署门禁，存在 blocking reasons 时返回非零退出码；部署脚本也会在交易前强制运行 preflight。部署成功后脚本会写入 `deployments/robinhood-paused-flashloan-robinhoodTestnet.json` 和 `../robinhood/testnet/contracts.json`，readback 证据包含 owner、pause、adapter、adapter code status、repayment guard、chain ID 和 code hash；它不会启用生产 broadcast。
+
 部署前设置 `UNIFIED_AAVE_POOL_ADDRESS`、`UNIFIED_USDC_ADDRESS`，以及可选的
 `UNIFIED_V3_FACTORY`、`UNIFIED_V3_ROUTER`、`UNIFIED_V3_QUOTER`，然后执行：
 

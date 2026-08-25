@@ -17,6 +17,16 @@ for (const [key, value] of Object.entries(testEnv)) {
 
 const FUJI_RPC_URL = process.env.FUJI_RPC_URL || process.env.AVALANCHE_FUJI_RPC_URL;
 const AVALANCHE_RPC_URL = process.env.AVALANCHE_RPC_URL || process.env.AVALANCHE_RPC;
+const ROBINHOOD_RPC_URL =
+  process.env.ROBINHOOD_RPC_URL ||
+  process.env.ROBINHOOD_RPC ||
+  process.env.ROBINHOOD_MAINNET_RPC_URL ||
+  process.env.ROBINHOOD_MAINNET_RPC;
+const ROBINHOOD_TESTNET_RPC_URL =
+  process.env.ROBINHOOD_TESTNET_RPC_URL ||
+  process.env.ROBINHOOD_TESTNET_RPC ||
+  process.env.ROBINHOOD_TESTNET_ALCHEMY_RPC_URL ||
+  process.env.ROBINHOOD_TESTNET_ALCHEMY_RPC;
 const AVALANCHE_FORK_BLOCK_NUMBER = process.env.AVALANCHE_FORK_BLOCK_NUMBER;
 const AVALANCHE_FORK_RPC_URL =
   process.env.AVALANCHE_FORK_RPC_URL ||
@@ -67,6 +77,16 @@ module.exports = {
       url: AVALANCHE_RPC_URL || FUJI_RPC_URL || "http://127.0.0.1:8545",
       accounts: DEPLOYER_KEYS,
       chainId: 43114,
+    },
+    robinhood: {
+      url: ROBINHOOD_RPC_URL || "http://127.0.0.1:8545",
+      accounts: DEPLOYER_KEYS,
+      chainId: 4663,
+    },
+    robinhoodTestnet: {
+      url: ROBINHOOD_TESTNET_RPC_URL || "http://127.0.0.1:8545",
+      accounts: DEPLOYER_KEYS,
+      chainId: 46630,
     },
   },
 };
