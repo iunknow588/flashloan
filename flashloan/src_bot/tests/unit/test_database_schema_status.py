@@ -129,6 +129,20 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any("CREATE TABLE IF NOT EXISTS market_scan_policies" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_candidates" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_attempts" in query for query in queries)
+    assert any(
+        "WHERE feature = 'dex_arbitrage'" in query
+        and "market_id <> %s" in query
+        and params == ("avalanche-dex-arbitrage",)
+        for query, params in cursor.calls
+    )
+    assert any(
+        len(params) > 22 and params[0] == "avalanche-dex-arbitrage" and params[22] is True
+        for _query, params in cursor.calls
+    )
+    assert any(
+        len(params) > 22 and params[0] == "robinhood-testnet-dex-paused" and params[22] is False
+        for _query, params in cursor.calls
+    )
     assert any("robinhood-dex-shadow" in str(params) for _query, params in cursor.calls)
     assert any("control_mode TEXT" in query for query in queries)
     assert any("route_hop_constraints_enforced BOOLEAN" in query for query in queries)

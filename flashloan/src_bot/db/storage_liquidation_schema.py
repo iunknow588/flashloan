@@ -1,8 +1,8 @@
 LIQUIDATION_MARKET_NAMESPACE_COLUMNS = {
-    "market_id": "TEXT NOT NULL DEFAULT 'avalanche-aave-v3'",
-    "chain_id": "INTEGER NOT NULL DEFAULT 43114",
-    "network": "TEXT NOT NULL DEFAULT 'avalanche'",
-    "protocol": "TEXT NOT NULL DEFAULT 'aave_v3'",
+    "market_id": "TEXT NOT NULL",
+    "chain_id": "INTEGER NOT NULL",
+    "network": "TEXT NOT NULL",
+    "protocol": "TEXT NOT NULL",
 }
 
 LIQUIDATION_SOURCE_NAMESPACE_COLUMNS = {
@@ -122,10 +122,10 @@ def create_liquidation_borrow_health_pool_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_borrow_health_pool (
-            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-            chain_id INTEGER NOT NULL DEFAULT 43114,
-            network TEXT NOT NULL DEFAULT 'avalanche',
-            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            market_id TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            network TEXT NOT NULL,
+            protocol TEXT NOT NULL,
             source_rpc TEXT,
             source_block BIGINT,
             account TEXT NOT NULL,
@@ -153,10 +153,10 @@ def create_liquidation_high_frequency_pool_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_high_frequency_pool (
-            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-            chain_id INTEGER NOT NULL DEFAULT 43114,
-            network TEXT NOT NULL DEFAULT 'avalanche',
-            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            market_id TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            network TEXT NOT NULL,
+            protocol TEXT NOT NULL,
             source_rpc TEXT,
             source_block BIGINT,
             account TEXT NOT NULL,
@@ -184,10 +184,10 @@ def create_liquidation_core_opportunity_pool_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_core_opportunity_pool (
-            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-            chain_id INTEGER NOT NULL DEFAULT 43114,
-            network TEXT NOT NULL DEFAULT 'avalanche',
-            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            market_id TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            network TEXT NOT NULL,
+            protocol TEXT NOT NULL,
             source_rpc TEXT,
             source_block BIGINT,
             executor_address TEXT,
@@ -281,10 +281,10 @@ def create_liquidation_scan_config_library_schema(cursor) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS liquidation_scan_config_library (
-            market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-            chain_id INTEGER NOT NULL DEFAULT 43114,
-            network TEXT NOT NULL DEFAULT 'avalanche',
-            protocol TEXT NOT NULL DEFAULT 'aave_v3',
+            market_id TEXT NOT NULL,
+            chain_id INTEGER NOT NULL,
+            network TEXT NOT NULL,
+            protocol TEXT NOT NULL,
             config_key TEXT NOT NULL,
             category TEXT NOT NULL DEFAULT 'scan',
             source_table TEXT NOT NULL,

@@ -52,7 +52,7 @@
       <a data-surface-link href="/dex">报价与路由</a>
       <a data-surface-link href="/dex/overview">DEX 总览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
-      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/candidates">候选池</a>
       <a data-surface-link href="/dex/submissions">提交记录</a>
     </nav>
   </header>
@@ -107,7 +107,6 @@
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
-      url.searchParams.delete("protocols");
       return url.pathname + (url.search ? url.search : "");
     };
     async function fetchJson(path) {
@@ -127,6 +126,10 @@
         grossLabel: referenceMode ? "参考毛利润" : "毛利润",
         netLabel: referenceMode ? "参考净利润" : "净利润",
         bpsLabel: referenceMode ? "参考净收益 bps" : "净收益 bps",
+        offchainThresholdUsd: analysis?.offchainMinProfitUsd ?? analysis?.minProfitUsd,
+        submissionThresholdUsd: analysis?.submissionMinProfitUsd ?? analysis?.flashLoanFeeUsd,
+        offchainNetProfitUsd: analysis?.offchainNetProfitUsd ?? analysis?.netProfitUsd,
+        submissionNetProfitUsd: analysis?.submissionNetProfitUsd ?? (analysis?.grossProfitUsd != null && analysis?.flashLoanFeeUsd != null ? Number(analysis.grossProfitUsd) - Number(analysis.flashLoanFeeUsd) : null),
         finalOutputUsd: referenceMode ? (analysis?.referenceFinalOutputUsd ?? analysis?.finalOutputUsd) : analysis?.finalOutputUsd,
         grossProfitUsd: referenceMode ? (analysis?.referenceGrossProfitUsd ?? analysis?.grossProfitUsd) : analysis?.grossProfitUsd,
         netProfitUsd: referenceMode ? (analysis?.referenceNetProfitUsd ?? analysis?.netProfitUsd) : analysis?.netProfitUsd,
@@ -153,16 +156,19 @@
       const overview = route.overviewRoute || {};
       const bridgeSymbols = overview.bridgeSymbols || [];
       return lines([
-        `路径类型：${overview.kind === "bridge_pair" ? "桥接路径" : "直接路径"}`,
-        `桥接币：${bridgeSymbols.join(", ") || "-"}`,
+        `路径类型：${overview.kind === "bridge_pair" ? "三跳闭环" : "两跳闭环"}`,
+        `中间路径：${bridgeSymbols.join(" -> ") || "-"}`,
         `实际路由：${(route.routeSymbols || []).join(" -> ") || "-"}`,
         `策略：${route.strategy || "-"}`,
         `状态：${label(route.quoteStatus)} / ${rec.action || "-"}`,
         `${view.finalLabel}：${money(view.finalOutputUsd)}`,
         `${view.grossLabel}：${money(view.grossProfitUsd)}`,
         `闪电贷费：${money(analysis.flashLoanFeeUsd)}`,
+        `离线门槛：${money(view.offchainThresholdUsd)}`,
+        `链上提交门槛：${money(view.submissionThresholdUsd)}`,
         `Gas 储备：${money(analysis.gasReserveUsd)}`,
         `${view.netLabel}：${money(view.netProfitUsd)}`,
+        `链上净利润：${money(view.submissionNetProfitUsd)}`,
         `${view.bpsLabel}：${num(view.netProfitBps, 2)}`,
         "",
         "逐跳报价：",
@@ -252,11 +258,11 @@
         </div>
         <div class="badges">
           <span class="badge ${recClass}">${esc(rec.action || route.quoteStatus)}</span>
-          <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
+          <span class="badge">锚点 ${esc((route.routeSymbols || []).join(" -> "))}</span>
           <span class="badge">1000U 探针</span>
           <span class="badge">池子 ${esc(route.poolCount)}</span>
           <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
-          ${overview.kind === "bridge_pair" && (overview.bridgeSymbols || []).length ? `<span class="badge warn">桥接 ${esc((overview.bridgeSymbols || []).join(", "))}</span>` : ''}
+          ${overview.kind === "bridge_pair" && (overview.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((overview.bridgeSymbols || []).join(" -> "))}</span>` : ''}
           ${view.referenceMode ? '<span class="badge warn">参考价待链上复核</span>' : ''}
           ${analysis.adapterRequired ? '<span class="badge warn">V4 SDK 适配器待接入</span>' : ''}
         </div>
@@ -264,8 +270,11 @@
           <div><small>${esc(view.finalLabel.replace(/^1000U\s*/, ""))}</small><strong>${money(view.finalOutputUsd)}</strong></div>
           <div><small>${esc(view.grossLabel)}</small><strong>${money(view.grossProfitUsd)}</strong></div>
           <div><small>闪电贷费</small><strong>${money(analysis.flashLoanFeeUsd)}</strong></div>
+          <div><small>离线门槛</small><strong>${money(view.offchainThresholdUsd)}</strong></div>
+          <div><small>链上提交门槛</small><strong>${money(view.submissionThresholdUsd)}</strong></div>
           <div><small>Gas 储备</small><strong>${money(analysis.gasReserveUsd)}</strong></div>
           <div><small>${esc(view.netLabel)}</small><strong>${money(view.netProfitUsd)}</strong></div>
+          <div><small>链上净利润</small><strong>${money(view.submissionNetProfitUsd)}</strong></div>
           <div><small>${esc(view.bpsLabel)}</small><strong>${num(view.netProfitBps, 2)}</strong></div>
         </div>
         <div class="table-wrap"><table>
@@ -351,6 +360,7 @@
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") startScanner();
     });
+    window.addEventListener("chainselectionprotocolschanged", () => startScanner().then(refreshSnapshot));
     startScanner().then(refreshSnapshot);
     setInterval(refreshSnapshot, scanIntervalMs);
   </script>

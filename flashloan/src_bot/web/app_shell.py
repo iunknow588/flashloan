@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from flask import request
 
+from core.chain_data_registry import chain_default_protocol_preferences
 from core.flash_loan_pool_discovery import protocol_options_for_chain
 from web.chain_selector_component import (
     render_chain_selector_bootstrap,
@@ -36,6 +37,7 @@ _FLASH_LOAN_NAV_PROTOCOLS = {
     "morpho_blue",
     "uniswap_v2",
     "uniswap_v3",
+    "uniswap_v4",
     "pancakeswap_v2",
     "pancakeswap_v3",
     "biswap_v2",
@@ -108,9 +110,14 @@ def _links(
     return "".join(rendered)
 
 
-def _flash_loan_protocol_links(current_path: str) -> str:
+def _flash_loan_protocol_links(current_path: str, *, default_chain_id: int | None = None) -> str:
     normalized_path = str(current_path or "/").split("?", 1)[0].rstrip("/") or "/"
-    selected = str(request.args.get("protocols", "")).replace("|", ",").split(",", 1)[0].strip().lower() or "aave_v3"
+    default_protocols = chain_default_protocol_preferences().get(int(default_chain_id), []) if default_chain_id else []
+    fallback_protocol = default_protocols[0] if default_protocols else "aave_v3"
+    selected = (
+        str(request.args.get("protocols", "")).replace("|", ",").split(",", 1)[0].strip().lower()
+        or fallback_protocol
+    )
     base_query = {}
     chain_id = str(request.args.get("chain_id", "")).strip()
     resolved_chain_id = None
@@ -120,6 +127,9 @@ def _flash_loan_protocol_links(current_path: str) -> str:
             resolved_chain_id = int(chain_id)
         except ValueError:
             resolved_chain_id = None
+    elif default_chain_id is not None:
+        resolved_chain_id = int(default_chain_id)
+        base_query["chain_id"] = str(resolved_chain_id)
     protocol_options = [
         option
         for option in protocol_options_for_chain(chain_id=resolved_chain_id)
@@ -165,12 +175,12 @@ def _page_title(current_path: str, feature_value: str) -> str:
         "/opportunity-health",
     } or normalized_path.startswith("/analytics/")
     is_flash_loan_path = normalized_path.startswith("/flash-loan")
+    if is_flash_loan_path:
+        return "闪电贷"
     if feature_value == "liquidation" or is_bot_path:
         return "BOT"
     if feature_value == "dex_arbitrage" or is_dex_path:
         return "DEX"
-    if is_flash_loan_path:
-        return "闪电贷"
     if is_system_path:
         return "系统"
     return "工作台"
@@ -255,7 +265,7 @@ def inject_app_shell_markup(
   <aside class="app-shell-sidebar" aria-label="业务流程导航">
     <section class="app-shell-group"><h2 class="app-shell-group-title">BOT 清算</h2>{_links(_BOT_LINKS, current_path, preserve_scope=feature_value == "liquidation", market_id=selected_market_value, chain_id=selected_chain_value)}</section>
     <section class="app-shell-group"><h2 class="app-shell-group-title">DEX 套利</h2>{_links(_DEX_LINKS, current_path, preserve_scope=feature_value == "dex_arbitrage", market_id=selected_market_value, chain_id=selected_chain_value)}</section>
-    <section class="app-shell-group"><h2 class="app-shell-group-title">闪电贷</h2>{_links(_FLASH_LOAN_LINKS, current_path)}{_flash_loan_protocol_links(current_path)}</section>
+    <section class="app-shell-group"><h2 class="app-shell-group-title">闪电贷</h2>{_links(_FLASH_LOAN_LINKS, current_path)}{_flash_loan_protocol_links(current_path, default_chain_id=default_chain_id)}</section>
     <section class="app-shell-group"><h2 class="app-shell-group-title">系统与分析</h2>{_links(_SYSTEM_LINKS, current_path)}</section>
   </aside>
 </div>

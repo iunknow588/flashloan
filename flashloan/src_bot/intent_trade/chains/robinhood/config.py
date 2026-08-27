@@ -16,17 +16,21 @@ from intent_trade.chains.common.routes import (
     pair_key,
     triangle_routes,
 )
+from intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_CHAIN_ID as CHAIN_ID,
+    ROBINHOOD_NETWORK as NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID as TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK as TESTNET_NETWORK,
+)
 
 
-CHAIN_ID = 4663
-TESTNET_CHAIN_ID = 46630
-NETWORK = "robinhood"
-TESTNET_NETWORK = "robinhood-testnet"
 NATIVE_SYMBOL = "ETH"
 EXPLORER_URL = "https://robinhoodchain.blockscout.com"
 TESTNET_EXPLORER_URL = "https://explorer.testnet.chain.robinhood.com"
 WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 MULTICALL_ADDRESS = "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
+TESTNET_WETH_ADDRESS = "0x7943e237c7F95DA44E0301572D358911207852Fa"
+TESTNET_MULTICALL_ADDRESS = "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8"
 PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
 
 DEFAULT_RPC_URLS = (
@@ -127,6 +131,9 @@ class DexConfig:
 
 TOKENS: dict[str, TokenConfig] = {
     "WETH": TokenConfig("WETH", WETH_ADDRESS, 18, source="official_protocol_contracts"),
+}
+TESTNET_TOKENS: dict[str, TokenConfig] = {
+    "WETH": TokenConfig("WETH", TESTNET_WETH_ADDRESS, 18, source="official_testnet_protocol_contracts"),
 }
 
 DEXES: tuple[DexConfig, ...] = ()

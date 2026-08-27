@@ -3,71 +3,73 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DEX 候选池子</title>
+  <title>DEX 候选池</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
     header, main { padding: 18px 24px; }
-    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; background: #fff; border-bottom: 1px solid #d9dee7; }
     main { width: min(1480px, 100%); margin: 0 auto; }
     h1 { margin: 0; font-size: 20px; }
     h2 { margin: 0; font-size: 16px; }
+    h3 { margin: 0; font-size: 14px; }
     nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
     button, input, select { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
     input { min-width: 240px; }
     button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
     .metric small { display: block; color: #667085; margin-bottom: 7px; }
     .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
     .metric span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-    .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.45; margin-bottom: 18px; }
-    .pair-section { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; margin-bottom: 14px; overflow: hidden; }
-    .pair-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 12px 14px; border-bottom: 1px solid #e4e7ec; background: #fbfcfe; }
-    .pair-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    .pair-meta { color: #667085; font-size: 12px; line-height: 1.45; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.5; margin-bottom: 16px; }
+    .group { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; margin-bottom: 14px; overflow: hidden; }
+    .group-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 12px 14px; border-bottom: 1px solid #e4e7ec; background: #fbfcfe; }
+    .group-meta { color: #667085; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+    .section { padding: 12px 14px; border-top: 1px solid #eef2f6; }
+    .section:first-of-type { border-top: 0; }
+    .section-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cfe8e3; background: #eef6f4; color: #0f766e; border-radius: 999px; padding: 4px 8px; font-size: 12px; font-weight: 700; }
+    .chip small { color: #475467; font-weight: 600; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; }
     .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
     .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
-    .badge.improvable { background: #fffbeb; color: #b7791f; border: 1px solid #fde68a; }
-    .badge.reject { background: #f3f4f6; color: #667085; border: 1px solid #d0d5dd; }
     .badge.neutral { background: #eef6f4; color: #0f766e; border: 1px solid #cfe8e3; }
+    .badge.reject { background: #f3f4f6; color: #667085; border: 1px solid #d0d5dd; }
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border-bottom: 1px solid #e4e7ec; padding: 8px 9px; text-align: right; white-space: nowrap; vertical-align: top; }
     th:first-child, td:first-child { text-align: left; }
     td.addr { font-family: Consolas, "Courier New", monospace; }
     .muted { color: #667085; }
-    .negative { color: #b42318; }
     .positive { color: #15803d; }
-    .improvable { color: #b7791f; }
-    .reason-box { padding: 10px 14px; color: #475467; font-size: 12px; line-height: 1.5; border-top: 1px solid #e4e7ec; }
+    .negative { color: #b42318; }
     .empty { padding: 18px 14px; color: #667085; }
-    .filters-line { color: #475467; font-size: 12px; margin-bottom: 12px; line-height: 1.45; }
-    main, table, td, th, .metric, .notice, .pair-section { user-select: text; }
+    .filters-line { color: #475467; font-size: 12px; margin-bottom: 10px; line-height: 1.45; }
+    main, table, td, th, .metric, .notice, .group { user-select: text; }
     button, input, select { user-select: none; }
     @media (max-width: 860px) {
       header { display: block; }
       nav { margin-top: 10px; }
       input { min-width: 160px; width: 100%; }
-      .pair-head { display: block; }
-      .pair-meta { margin-top: 8px; }
+      .group-head { display: block; }
+      .section-head { display: block; }
     }
   </style>
 </head>
 <body>
-  <span data-surface-link hidden></span>
   <header>
-    <h1>DEX 候选池子</h1>
+    <h1>DEX 候选池</h1>
     <nav>
       <a href="/liquidation">清算</a>
       <a href="/account-scan">账户扫描</a>
       <a data-surface-link href="/dex">报价与路由</a>
       <a data-surface-link href="/dex/overview">DEX 总览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
-      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/candidates">候选池</a>
       <a href="/execution">执行</a>
       <a href="/config">配置</a>
     </nav>
@@ -76,94 +78,58 @@
   <main>
     <div class="toolbar">
       <button class="primary" id="refreshBtn">刷新页面数据</button>
-      <input id="searchInput" type="search" placeholder="搜索交易对、池子地址">
+      <input id="searchInput" type="search" placeholder="搜索 X、YC、ZC、池子地址">
       <select id="qualityFilter">
-        <option value="quality" selected>只看有高质量池</option>
-        <option value="all">显示全部交易对</option>
-        <option value="missing">只看无高质量池</option>
+        <option value="all" selected>显示全部分组</option>
+        <option value="with_data">仅看有候选</option>
+        <option value="empty">仅看空分组</option>
       </select>
       <span id="refreshMeta" class="muted">等待数据</span>
     </div>
 
     <section class="summary-grid">
-      <div class="metric"><small>静态表池子</small><strong id="staticPools">-</strong><span id="staticPairs">-</span></div>
-      <div class="metric"><small>四槽静态候选覆盖</small><strong id="preferredPools">-</strong><span id="preferredPairs">-</span></div>
-      <div class="metric"><small>严格高质量</small><strong id="strictPools">-</strong><span id="strictPairs">-</span></div>
+      <div class="metric"><small>静态池</small><strong id="staticPools">-</strong><span id="staticPairs">-</span></div>
+      <div class="metric"><small>X 分组</small><strong id="anchorGroups">-</strong><span id="anchorTokens">-</span></div>
+      <div class="metric"><small>YC 候选</small><strong id="ycPools">-</strong><span id="ycTokens">-</span></div>
+      <div class="metric"><small>ZC 候选</small><strong id="zcPools">-</strong><span id="zcTokens">-</span></div>
       <div class="metric"><small>链上快照</small><strong id="blockNumber">-</strong><span id="generatedAt">-</span></div>
     </section>
 
     <div class="notice" id="scopeNotice">
-      本页展示当前链的高质量 DEX 候选池。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。
+      本页按资金池 X 分组展示候选池。每个 X 下面拆成 YC 和 ZC 两个方向：YC 表示 X 可兑换出去的方向，ZC 表示可兑换回 X 的方向。页面只负责候选结构，不负责最终报价与盈亏判断。
     </div>
     <div id="filtersLine" class="filters-line"></div>
-    <div id="executionContext" class="filters-line"></div>
-    <section id="pairList"></section>
+    <section id="groupList"></section>
   </main>
 
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-    const compactText = (value, max = 28) => {
-      const text = String(value || "-").trim();
-      return text.length > max ? `${text.slice(0, max)}...` : text;
-    };
     const shortAddress = value => {
       const text = String(value || "").trim();
       return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
     };
-    const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
+    const compact = (value, max = 28) => {
+      const text = String(value || "-").trim();
+      return text.length > max ? `${text.slice(0, max)}...` : text;
+    };
+    const fmtTime = value => value ? new Date(value).toLocaleString([], { hour12: false }) : "-";
     const num = value => {
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) return "-";
-      if (Math.abs(parsed) >= 1000) return parsed.toLocaleString(undefined, {maximumFractionDigits: 2});
-      return parsed.toLocaleString(undefined, {maximumFractionDigits: 8});
+      if (Math.abs(parsed) >= 1000) return parsed.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return parsed.toLocaleString(undefined, { maximumFractionDigits: 8 });
     };
-    const retentionPct = value => {
-      const lossPct = Number(value);
-      if (!Number.isFinite(lossPct)) return "-";
-      return `${(100 - lossPct).toFixed(4)}%`;
-    };
-    const retentionClass = value => {
-      const lossPct = Number(value);
-      if (!Number.isFinite(lossPct)) return "";
-      return 100 - lossPct >= 100 ? "positive" : "negative";
-    };
-    const IMPROVABLE_MIN_TVL_USD = 1000;
-    const IMPROVABLE_MIN_RETENTION_PCT = 50;
-    const displayStatus = row => {
-      if (String(row?.quality || "").toLowerCase() === "pass") return "recommended";
-      const tvl = Number((row?.balances || {}).tvlUsd);
-      const q01 = Number((row?.quoteSummary || {}).token0ToToken1?.outputLossPct);
-      const q10 = Number((row?.quoteSummary || {}).token1ToToken0?.outputLossPct);
-      const r01 = Number.isFinite(q01) ? 100 - q01 : null;
-      const r10 = Number.isFinite(q10) ? 100 - q10 : null;
-      if (
-        Number.isFinite(tvl) &&
-        tvl >= IMPROVABLE_MIN_TVL_USD &&
-        r01 !== null &&
-        r10 !== null &&
-        Math.max(r01, r10) >= IMPROVABLE_MIN_RETENTION_PCT
-      ) return "improvable";
-      return "rejected";
-    };
-    const statusRank = status => ({recommended: 0, improvable: 1, rejected: 2})[status] ?? 3;
-    const statusLabel = status => ({recommended: "推荐", improvable: "可改善", rejected: "拒绝"})[status] || "拒绝";
-    const statusBadge = status => status === "recommended"
-      ? '<span class="badge good">推荐</span>'
-      : status === "improvable"
-        ? '<span class="badge improvable">可改善</span>'
-        : '<span class="badge reject">拒绝</span>';
-    const statusTextClass = status => status === "recommended" ? "positive" : status === "improvable" ? "improvable" : "muted";
-    const yesNo = value => value ? "是" : "否";
-    const sortPools = rows => (Array.isArray(rows) ? rows.slice() : []).sort((a, b) => {
-      const rankDiff = statusRank(displayStatus(a)) - statusRank(displayStatus(b));
-      if (rankDiff) return rankDiff;
-      return Number((b?.balances || {}).tvlUsd || 0) - Number((a?.balances || {}).tvlUsd || 0);
+    const sortRows = rows => (Array.isArray(rows) ? rows.slice() : []).sort((a, b) => {
+      const aTvl = Number((a?.balances || {}).tvlUsd || 0);
+      const bTvl = Number((b?.balances || {}).tvlUsd || 0);
+      if (bTvl !== aTvl) return bTvl - aTvl;
+      return String(a?.routeText || a?.pool || "").localeCompare(String(b?.routeText || b?.pool || ""));
     });
     let latestPayload = null;
 
     async function api(path) {
-      const resp = await fetch(path, {headers: {"Accept": "application/json"}, cache: "no-cache"});
+      const resp = await fetch(path, { headers: { "Accept": "application/json" }, cache: "no-cache" });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
       return data;
@@ -171,153 +137,139 @@
 
     function candidatesApiPath() {
       const query = new URLSearchParams(window.location.search);
-      query.delete("protocols");
       if (!query.get("feature")) query.set("feature", "dex_arbitrage");
       return `/api/dex-pools/candidates?${query.toString()}`;
     }
 
-    function poolRowsHtml(rows) {
-      const normalized = sortPools(rows).slice(0, 4);
-      while (normalized.length < 4) normalized.push(null);
-      return normalized.map((row, index) => {
-        if (!row) {
-          return `<tr>
-            <td>${index + 1}</td>
-            <td class="addr">-</td>
-            <td>-</td>
-            <td><span class="badge reject">空槽</span></td>
-            <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
-          </tr>`;
-        }
-        const balances = row.balances || {};
-        const q01 = (row.quoteSummary || {}).token0ToToken1 || {};
-        const q10 = (row.quoteSummary || {}).token1ToToken0 || {};
-        const status = displayStatus(row);
-        return `<tr>
-          <td>${index + 1}</td>
-          <td class="addr ${statusTextClass(status)}" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
-          <td>${esc(row.fee)}</td>
-          <td>${statusBadge(status)}</td>
-          <td>${num(balances.tvlUsd)}</td>
-          <td>${num(balances.token0Usd)}</td>
-          <td>${num(balances.token1Usd)}</td>
-          <td>${esc(row.liquidity)}</td>
-          <td>${esc(row.tick)}</td>
-          <td class="${retentionClass(q01.outputLossPct)}">${retentionPct(q01.outputLossPct)}<br><span class="muted">${esc(row.token0Symbol)} -> ${esc(row.token1Symbol)}</span></td>
-          <td class="${retentionClass(q10.outputLossPct)}">${retentionPct(q10.outputLossPct)}<br><span class="muted">${esc(row.token1Symbol)} -> ${esc(row.token0Symbol)}</span></td>
-        </tr>`;
+    function statusBadge(quality) {
+      const value = String(quality || "").toLowerCase();
+      if (value === "pass" || value === "recommended") return '<span class="badge good">可候选</span>';
+      if (value === "observable") return '<span class="badge neutral">可观察</span>';
+      return '<span class="badge reject">待确认</span>';
+    }
+
+    function renderTokenChips(tokens) {
+      return (tokens || []).map(token => {
+        const label = token.address ? `${token.symbol} ${shortAddress(token.address)}` : token.symbol;
+        return `<span class="chip" title="${esc(token.symbol)}">${esc(compact(label, 34))}<small>${esc(token.poolCount || 0)}池</small></span>`;
       }).join("");
     }
 
-     function rejectedPreviewHtml(rows) {
-       if (!rows.length) return "";
-       return `<div class="table-wrap"><table>
-         <thead><tr><th>池子</th><th>费率</th><th>TVL（美元）</th><th>质量</th></tr></thead>
-         <tbody>${sortPools(rows).map(row => {
-           const status = displayStatus(row);
-           return `<tr>
-           <td class="addr ${statusTextClass(status)}" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
-           <td>${esc(row.fee)}</td>
-           <td>${num((row.balances || {}).tvlUsd)}</td>
-           <td>${statusBadge(status)}</td>
-         </tr>`;
-         }).join("")}</tbody>
-       </table></div>`;
+    function renderPoolTable(rows) {
+      const items = sortRows(rows);
+      if (!items.length) return '<div class="empty">暂无候选</div>';
+      return `<div class="table-wrap"><table>
+        <thead>
+          <tr>
+            <th>路径</th><th>池</th><th>对手代币</th><th>协议</th><th>费率</th><th>TVL</th><th>流动性</th><th>质量</th>
+          </tr>
+        </thead>
+        <tbody>${items.map(row => {
+          const balances = row.balances || {};
+          const counter = row.counterSymbol ? `${row.counterSymbol} ${shortAddress(row.counterAddress)}` : "-";
+          return `<tr>
+            <td title="${esc(row.routeText || "-")}">${esc(compact(row.routeText || "-", 36))}</td>
+            <td class="addr" title="${esc(row.pool)}">${esc(shortAddress(row.pool))}</td>
+            <td title="${esc(counter)}">${esc(compact(counter, 30))}</td>
+            <td>${esc(row.protocol || row.dex || "-")}</td>
+            <td>${esc(row.fee ?? "-")}</td>
+            <td>${num(balances.tvlUsd)}</td>
+            <td>${esc(row.liquidity || "-")}</td>
+            <td>${statusBadge(row.quality || row.status)}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table></div>`;
     }
 
-    function renderPairs(payload) {
+    function renderSection(label, tokens, pools) {
+      return `
+        <div class="section">
+          <div class="section-head">
+            <div>
+              <h3>${label}</h3>
+              <div class="group-meta">${esc(label)} 方向代币 ${esc(tokens.length || 0)} 个，候选池 ${esc(pools.length || 0)} 个</div>
+            </div>
+            <div class="chip-row">${renderTokenChips(tokens)}</div>
+          </div>
+          ${renderPoolTable(pools)}
+        </div>
+      `;
+    }
+
+    function groupMatches(group, query) {
+      if (!query) return true;
+      const parts = [
+        group.anchorSymbol,
+        ...(group.anchorAddresses || []),
+        ...(group.ycTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
+        ...(group.zcTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
+        ...(group.ycPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
+        ...(group.zcPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
+      ].join(" ").toLowerCase();
+      return parts.includes(query);
+    }
+
+    function renderLegacyPairs(payload) {
+      const pairs = payload.pairs || [];
+      if (!pairs.length) return '<div class="notice">暂无候选数据。</div>';
+      return `<div class="notice">当前数据仍是旧 pair 结构，页面已兼容展示，但建议升级到 anchorGroups。</div>`;
+    }
+
+    function renderGroups(payload) {
       const query = $("searchInput").value.trim().toLowerCase();
       const filter = $("qualityFilter").value;
-      const pairs = (payload.pairs || []).filter(pair => {
-        const hasPreferred = Number(pair.preferredPoolCount || 0) > 0;
-        if (filter === "quality" && !hasPreferred) return false;
-        if (filter === "missing" && hasPreferred) return false;
-        if (!query) return true;
-        const text = [
-          pair.symbolPair,
-          pair.addressPair,
-          pair.tokenX,
-          pair.tokenY,
-           ...(pair.qualityPools || []).map(row => row.pool),
-           ...(pair.rejectedPools || []).map(row => row.pool),
-        ].join(" ").toLowerCase();
-        return text.includes(query);
+      const groups = (payload.anchorGroups || []).filter(group => {
+        const hasData = Number(group.ycPoolCount || 0) > 0 || Number(group.zcPoolCount || 0) > 0;
+        if (filter === "with_data" && !hasData) return false;
+        if (filter === "empty" && hasData) return false;
+        return groupMatches(group, query);
       });
-      $("pairList").innerHTML = pairs.map(pair => `
-        <article class="pair-section">
-          <div class="pair-head">
+      if (!groups.length) {
+        $("groupList").innerHTML = '<div class="notice">没有匹配的候选分组。</div>';
+        return;
+      }
+      $("groupList").innerHTML = groups.map(group => `
+        <article class="group">
+          <div class="group-head">
             <div>
-              <div class="pair-title">
-                <h2 title="${esc(pair.symbolPair)}">${esc(compactText(pair.symbolPair, 36))}</h2>
-              <span class="badge ${Number(pair.preferredPoolCount || 0) >= 4 ? "good" : "warn"}">静态候选 ${esc(pair.preferredPoolCount)} / 4</span>
-              <span class="badge ${Number(pair.strictQualityPoolCount || 0) >= 4 ? "good" : "warn"}">严格高质量 ${esc(pair.strictQualityPoolCount)}</span>
-              <span class="badge neutral">五槽窗口 ${esc(pair.executionPoolCount)}</span>
-              <span class="badge neutral">${esc(pair.classification?.pairClassLabel || pair.classification?.pairClass || "-")}</span>
-              <span class="badge ${Number(pair.preferredPoolCount || 0) > 0 ? "good" : "warn"}">可报价池 ${esc(pair.preferredPoolCount || 0)}</span>
-              <span class="badge neutral">拒绝 ${esc(pair.rejectedPoolCount)}</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                <h2 title="${esc(group.anchorSymbol)}">${esc(group.anchorSymbol)}</h2>
+                <span class="badge good">X</span>
+                <span class="badge neutral">YC ${esc(group.ycTokenCount || 0)} / ${esc(group.ycPoolCount || 0)}</span>
+                <span class="badge neutral">ZC ${esc(group.zcTokenCount || 0)} / ${esc(group.zcPoolCount || 0)}</span>
+                <span class="badge warn">池 ${esc(group.candidatePoolCount || 0)}</span>
+              </div>
+              <div class="group-meta">锚点地址：${(group.anchorAddresses || []).map(addr => `<code>${esc(addr)}</code>`).join(" · ") || "-"}</div>
             </div>
-              <div class="pair-meta">tokenX <span title="${esc(pair.tokenXSymbol)}">${esc(compactText(pair.tokenXSymbol, 18))}</span> ${esc(pair.tokenX)} | tokenY <span title="${esc(pair.tokenYSymbol)}">${esc(compactText(pair.tokenYSymbol, 18))}</span> ${esc(pair.tokenY)}</div>
-            </div>
-             <div class="pair-meta">拒绝池：${esc(pair.rejectedPoolCount || 0)}</div>
+            <div class="group-meta">页面只展示候选方向，不做最终盈亏裁决。</div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th><th>池子</th><th>费率</th><th>质量</th><th>TVL（美元）</th><th>代币 0（美元）</th><th>代币 1（美元）</th><th>流动性</th><th>Tick</th><th>0→1 输出价值保留率</th><th>1→0 输出价值保留率</th>
-                </tr>
-              </thead>
-              <tbody>${poolRowsHtml((pair.preferredPools || []).slice(0, 4))}</tbody>
-            </table>
-          </div>
-          <div class="reason-box">
-            <strong>未入选池预览</strong>
-            ${rejectedPreviewHtml(pair.rejectedPools || []) || '<div class="muted">没有未入选池。</div>'}
-          </div>
+          ${renderSection("YC", group.ycTokens || [], group.ycPools || [])}
+          ${renderSection("ZC", group.zcTokens || [], group.zcPools || [])}
         </article>
-      `).join("") || '<div class="notice">没有匹配的交易对。</div>';
-    }
-
-    function networkLabel(source) {
-      const network = String(source.network || "").toLowerCase();
-      const chainId = String(source.chainId || "");
-      if (network === "robinhood" || chainId === "4663") return "Robinhood Chain";
-      if (network === "avalanche" || chainId === "43114") return "Avalanche L1";
-      if (network === "bnb" || chainId === "56") return "BNB Chain";
-      if (network === "polygon" || chainId === "137") return "Polygon";
-      if (network === "ethereum" || chainId === "1") return "Ethereum";
-      return source.network || (chainId ? `链 ID ${chainId}` : "当前链");
-    }
-
-    function renderScopeNotice(payload) {
-      const source = payload.poolStaticTable || {};
-      const sourceName = source.path ? source.path.split(/[\\/]/).pop() : "候选池缓存";
-      $("scopeNotice").textContent = `本页展示 ${networkLabel(source)} 的高质量 DEX 候选池，来源为 ${sourceName}。绿色池子排在前面，表示推荐；黄色池子表示有报价和基础深度但仍可改善；灰色池子表示拒绝。候选位仅表示进入该交易对的候选槽，不等于链上执行推荐。输出价值保留率以约 1,000 USD 探针调用 Quoter 计算：100% 表示价值基本完整保留，0% 表示几乎没有有效输出，超过 100% 也不等于最终套利利润。`;
+      `).join("");
     }
 
     function render(payload) {
       const summary = payload.summary || {};
       const source = payload.poolStaticTable || {};
-      const filters = payload.filters || {};
-      $("staticPools").textContent = summary.staticPoolCount || summary.discoveredPoolCount || "-";
-      $("staticPairs").textContent = `交易对 ${summary.staticPairCount || summary.discoveredPairCount || "-"}`;
-      $("preferredPools").textContent = summary.preferredPoolCount || summary.executionPoolCount || summary.qualityPoolCount || "-";
-      $("preferredPairs").textContent = `交易对 ${summary.preferredPairCount || summary.pairsWithPreferredPools || "-"}`;
-      $("strictPools").textContent = summary.strictQualityPoolCount || summary.qualityPoolCount || "-";
-      $("strictPairs").textContent = `交易对 ${summary.strictQualityPairCount || summary.pairsWithStrictQualityPools || "-"}`;
+      $("staticPools").textContent = summary.staticPoolCount || summary.pairTableCount || "-";
+      $("staticPairs").textContent = `交易对 ${summary.staticPairCount || summary.pairTableCount || "-"}`;
+      $("anchorGroups").textContent = summary.anchorGroupCount || payload.anchorGroups?.length || "-";
+      $("anchorTokens").textContent = `锚点 ${summary.anchorGroupCount || payload.anchorGroups?.length || "-"}`;
+      $("ycPools").textContent = summary.ycPoolCount || "-";
+      $("ycTokens").textContent = `代币 ${summary.ycTokenCount || "-"}`;
+      $("zcPools").textContent = summary.zcPoolCount || "-";
+      $("zcTokens").textContent = `代币 ${summary.zcTokenCount || "-"}`;
       $("blockNumber").textContent = source.generatedBlockNumber || "-";
       $("generatedAt").textContent = fmtTime(source.generatedAt);
-      $("filtersLine").textContent = `来源 ${source.path || "-"} | Factory 工厂合约 ${source.factory || "-"} | Quoter 报价器 ${source.quoter || "-"} | 网络 ${source.network || "-"} | 链 ID ${source.chainId || "-"}`;
-      const classCounts = summary.pairClassCounts || {};
-      const settlement = payload.dexSettlement || {};
-      $("executionContext").textContent = `池子分类：稳定币 ${classCounts.stable_pair || 0} | 稳定币-非稳定币 ${classCounts.stable_to_non_stable_pair || 0} | 非稳定币 ${classCounts.non_stable_pair || 0}；候选池来源：高质量且有深度的 DEX 池；UniswapX ${settlement.uniswapx?.supported ? "可作为报价/填单查询通道" : "当前链未接入"}`;
-      $("refreshMeta").textContent = `页面读取 ${fmtTime(new Date().toISOString())}`;
-      renderScopeNotice(payload);
-      renderPairs(payload);
+      $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;
+      $("refreshMeta").textContent = `刷新时间 ${fmtTime(new Date().toISOString())}`;
+      $("scopeNotice").textContent = `本页按资金池 X 分组展示候选池。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；同一池在不同方向下会分别进入两个分区，便于后续观察室和纵览页继续筛选。`;
+      renderGroups(payload);
     }
 
     async function refresh() {
-      $("message").textContent = "加载中";
+      $("message").textContent = "加载中...";
       try {
         latestPayload = await api(candidatesApiPath());
         render(latestPayload);
@@ -328,8 +280,12 @@
     }
 
     $("refreshBtn").onclick = refresh;
-    $("searchInput").oninput = () => latestPayload && renderPairs(latestPayload);
-    $("qualityFilter").onchange = () => latestPayload && renderPairs(latestPayload);
+    $("searchInput").oninput = () => latestPayload && renderGroups(latestPayload);
+    $("qualityFilter").onchange = () => latestPayload && renderGroups(latestPayload);
+    window.addEventListener("chainselectionchanged", event => {
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+    });
+    window.addEventListener("chainselectionprotocolschanged", () => refresh());
     refresh();
     setInterval(refresh, 30000);
   </script>

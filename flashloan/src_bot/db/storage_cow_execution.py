@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.evidence_scope import evidence_scope_matches, infer_evidence_scope
 from db.storage_common import db_connection, db_transaction
 
 DEFAULT_COW_EXECUTION_RETENTION_DAYS = 7
@@ -1457,12 +1458,16 @@ def load_recent_cow_execution_attempts_jsonl(
     limit: int = 50,
     *,
     networks: list[str] | None = None,
+    chain_ids: list[int] | None = None,
+    market_ids: list[str] | None = None,
     retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS,
     category: str | None = None,
 ) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
+    wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
+    wanted_market_ids = {str(item).strip().lower() for item in market_ids or [] if str(item).strip()}
     wanted_category = str(category or "").strip().lower()
     now = datetime.now(timezone.utc)
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -1476,14 +1481,19 @@ def load_recent_cow_execution_attempts_jsonl(
             continue
         if not isinstance(payload, dict):
             continue
-        if wanted and str(payload.get("network") or "").lower() not in wanted:
+        if not evidence_scope_matches(
+            payload,
+            networks=wanted,
+            chain_ids=wanted_chain_ids,
+            market_ids=wanted_market_ids,
+        ):
             continue
         payload_category = cow_execution_attempt_category(payload)
         if wanted_category and payload_category != wanted_category:
             continue
         if not _category_within_retention(payload, now=now):
             continue
-        network = str(payload.get("network") or "").lower()
+        network = infer_evidence_scope(payload).network
         if wanted:
             if network_counts.get(network, 0) >= global_limit:
                 continue
@@ -1501,11 +1511,15 @@ def load_recent_cow_execution_attempts(
     limit: int = 50,
     *,
     networks: list[str] | None = None,
+    chain_ids: list[int] | None = None,
+    market_ids: list[str] | None = None,
     retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS,
     category: str | None = None,
 ) -> list[dict[str, Any]]:
     ensure_cow_execution_attempts_table(database_url)
     wanted = [str(item).strip().lower() for item in networks or [] if str(item).strip()]
+    wanted_chain_ids = [int(item) for item in chain_ids or [] if item is not None]
+    wanted_market_ids = [str(item).strip().lower() for item in market_ids or [] if str(item).strip()]
     wanted_category = str(category or "").strip().lower()
     where = ["created_at >= NOW() - (%s * INTERVAL '1 day')"]
     params: list[Any] = [max(1, int(retention_days or DEFAULT_COW_EXECUTION_RETENTION_DAYS))]
@@ -1520,6 +1534,9 @@ def load_recent_cow_execution_attempts(
     if wanted:
         where.append("LOWER(network) = ANY(%s)")
         params.append(wanted)
+    if wanted_chain_ids:
+        where.append("chain_id = ANY(%s)")
+        params.append(wanted_chain_ids)
     query_limit = max(1, int(limit))
     params.append(query_limit * 5 if wanted_category else query_limit)
     with db_connection(database_url, connect_timeout=8) as connection:
@@ -1610,6 +1627,13 @@ def load_recent_cow_execution_attempts(
                 "market_state": _json_loads(row[26], {}),
             }
         if wanted_category and cow_execution_attempt_category(item) != wanted_category:
+            continue
+        if not evidence_scope_matches(
+            item,
+            networks=wanted,
+            chain_ids=wanted_chain_ids,
+            market_ids=wanted_market_ids,
+        ):
             continue
         if not _category_within_retention(item):
             continue

@@ -4,11 +4,22 @@ from web.control_panel import app
 
 
 EXPECTED_UNIFIED_CHAIN_ORDER = [
-    "BNB Chain",
     "AVALANCHE Chain",
+    "BNB Chain",
     "POLYGON Chain",
-    "Robinhood Chain",
     "ETHEREUM Chain",
+    "Robinhood Chain",
+    "Robinhood Testnet",
+    "HYPERLIQUID Chain",
+    "CoW Rail",
+]
+EXPECTED_DEX_CHAIN_ORDER = [
+    "AVALANCHE Chain",
+    "BNB Chain",
+    "POLYGON Chain",
+    "ETHEREUM Chain",
+    "Robinhood Chain",
+    "Robinhood Testnet",
     "HYPERLIQUID Chain",
     "CoW Rail",
 ]
@@ -96,7 +107,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "padding: 10px 36px 12px;" in body
         assert "padding-left: 18px; padding-right: 18px;" in body
         assert "/static/chain-selector.js" in body
-        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"cow-dex-arbitrage",chain_id:"0"}' in body
+        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"avalanche-dex-arbitrage",chain_id:"43114"}' in body
         assert "当前 BOT 市场" not in body
         assert "当前 DEX 链路" not in body
 
@@ -122,7 +133,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
-        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"bnb-dex-arbitrage",chain_id:"56"}' in body
+        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"avalanche-dex-arbitrage",chain_id:"43114"}' in body
 
 
 def test_chain_selection_api_infers_feature_from_page_path():
@@ -142,12 +153,12 @@ def test_chain_selection_api_infers_feature_from_page_path():
     dex_payload = dex_response.get_json()
     assert dex_payload["selected"]["feature"] == "dex_arbitrage"
     assert {row["feature"] for row in dex_payload["available"]} == {"dex_arbitrage"}
-    assert [row["display_name"] for row in dex_payload["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert [row["display_name"] for row in dex_payload["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
 
     assert unscoped_response.status_code == 200
     unscoped_payload = unscoped_response.get_json()
-    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 26
-    assert [row["display_name"] for row in unscoped_payload["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 28
+    assert [row["display_name"] for row in unscoped_payload["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
 
 
 def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch):
@@ -157,9 +168,7 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
         app_shell,
         "protocol_options_for_chain",
         lambda chain_id=None: [
-            {"protocol": "venus_core", "display_name": "Venus Core"},
-            {"protocol": "morpho_blue", "display_name": "Morpho Blue"},
-            {"protocol": "pancakeswap_v3", "display_name": "PancakeSwap V3"},
+            {"protocol": "uniswap_v4", "display_name": "Uniswap V4"},
         ],
     )
     client = app.test_client()
@@ -167,21 +176,26 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     body = client.get("/flash-loan/pools").get_data(as_text=True)
     payload = client.get("/api/flash-loan/pools").get_json()
     bnb_payload = client.get("/api/flash-loan/pools?chain_id=56").get_json()
-    venus_payload = client.get("/api/flash-loan/pools?protocols=venus_core").get_json()
+    venus_payload = client.get("/api/flash-loan/pools?chain_id=56&protocols=venus_core").get_json()
 
-    assert "闪电贷资金池" in body
+    assert "闪电贷可用资金池" in body
     assert "协议目录" not in body
-    assert "稳定币借贷池" in body
-    assert "非稳定币借贷池" in body
-    assert "可借资产与目标资产" in body
+    assert "稳定币闪电贷可用来源" in body
+    assert "非稳定币闪电贷可用来源" in body
+    assert "闪电贷可借资产与目标资产" in body
+    assert "V4 余额来源" in body
+    assert "PoolManager 余额" in body
+    assert "V4 闪电贷资金来自 PoolManager 余额" in body
     assert "/api/flash-loan/pools" in body
     assert 'data-chain-selector-component="true"' in body
     assert 'class="app-shell-sidebar"' in body
     assert 'class="protocol-rail"' not in body
     assert 'data-flash-loan-protocol-nav="true"' in body
-    assert 'data-flash-loan-protocol-link="venus_core"' in body
-    assert 'data-flash-loan-protocol-link="morpho_blue"' in body
-    assert 'data-flash-loan-protocol-link="pancakeswap_v3"' in body
+    assert 'data-flash-loan-protocol-link="uniswap_v4"' in body
+    assert 'href="/flash-loan/pools?chain_id=46630&protocols=uniswap_v4"' in body
+    assert 'data-flash-loan-protocol-link="venus_core"' not in body
+    assert 'data-flash-loan-protocol-link="morpho_blue"' not in body
+    assert 'data-flash-loan-protocol-link="pancakeswap_v3"' not in body
     assert 'data-flash-loan-protocol-link="balancer_v2"' not in body
     assert "BOT 清算" in body
     assert "DEX 套利" in body
@@ -189,14 +203,26 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     assert "系统与分析" in body
     assert 'data-shell-link="/flash-loan/pools"' in body
     assert payload["ok"] is True
-    assert payload["summary"]["provider_count"] >= 20
-    assert payload["summary"]["bot_consumable_count"] > 0
+    assert payload["scope"]["chain_id"] == 46630
+    assert payload["summary"]["provider_count"] == 1
+    assert payload["summary"]["chain_count"] == 1
+    assert payload["summary"]["bot_consumable_count"] == 0
     assert payload["summary"]["dex_consumable_count"] > 0
-    assert any(row["provider_kind"] == "lending_pool" for row in payload["providers"])
     assert any(row["provider_kind"] == "dex_pool" for row in payload["providers"])
-    assert payload["protocol_views"][0]["protocol"] == "aave_v3"
+    assert payload["protocol_views"][0]["protocol"] == "uniswap_v4"
+    assert payload["protocol_views"][0]["chainIsolation"]["network"] == "robinhood-testnet"
+    assert payload["protocol_views"][0]["summary"]["lending_pool_count"] == 0
+    assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["verified_lending_borrow_asset_count"] == 0
+    assert payload["protocol_views"][0]["summary"]["eth_call_verified_flash_asset_count"] == 0
     assert "stable_borrow_pools" in payload["protocol_views"][0]
     assert "non_stable_borrow_pools" in payload["protocol_views"][0]
+    assert payload["protocol_views"][0]["stable_borrow_pools"] == []
+    assert payload["protocol_views"][0]["non_stable_borrow_pools"] == []
+    assert "stable_pool_key_rows" in payload["protocol_views"][0]
+    assert "non_stable_pool_key_rows" in payload["protocol_views"][0]
+    assert "stable_v4_flash_source_rows" in payload["protocol_views"][0]
+    assert "non_stable_v4_flash_source_rows" in payload["protocol_views"][0]
     assert "borrow_target_universe" in payload["protocol_views"][0]
     assert "depth_counts" in payload["protocol_views"][0]["summary"]
     assert bnb_payload["scope"]["chain_id"] == 56
@@ -204,6 +230,43 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     assert venus_payload["protocol_views"][0]["protocol"] == "venus_core"
     assert venus_payload["protocol_views"][0]["summary"]["stable_borrow_pool_count"] > 0
     assert "status" not in venus_payload["protocol_views"][0]
+
+
+def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
+    client = app.test_client()
+
+    response = client.get("/flash-loan/pools?chain_id=46630&protocols=uniswap_v4")
+    payload = client.get("/api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4").get_json()
+
+    assert response.status_code == 200
+    assert response.location is None
+    body = response.get_data(as_text=True)
+    assert 'data-flash-loan-protocol-link="uniswap_v4"' in body
+    assert payload["ok"] is True
+    assert payload["scope"]["chain_id"] == 46630
+    assert [provider["chain_id"] for provider in payload["providers"]] == [46630]
+    assert payload["protocol_views"][0]["cache"]["source"] == "chains/robinhood-testnet/chain.json"
+    assert payload["protocol_views"][0]["cache"]["pool_address"] == ""
+    assert payload["protocol_views"][0]["cache"]["pool_manager_address"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert payload["protocol_views"][0]["cache"]["identities"][0]["kind"] == "pool_manager"
+    assert payload["protocol_views"][0]["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["verified_lending_borrow_asset_count"] == 0
+    assert payload["protocol_views"][0]["summary"]["flash_borrowable_asset_count"] > 0
+    assert payload["protocol_views"][0]["summary"]["eth_call_verified_flash_asset_count"] == 0
+    assert payload["protocol_views"][0]["chainIsolation"]["usesAaveOrMorphoPool"] is False
+    assert "status" not in payload["protocol_views"][0]
+    assert payload["protocol_views"][0]["cache"]["asset_count"] == 0
+    assert payload["protocol_views"][0]["cache"]["flash_accounting_asset_count"] > 0
+    assert payload["protocol_views"][0]["cache"]["observable_pool_key_count"] == 25
+    assert payload["protocol_views"][0]["cache"]["pool_key_count"] == 25
+    assert payload["protocol_views"][0]["summary"]["v4_pool_liquidity_pool_count"] == 25
+    assert payload["protocol_views"][0]["summary"]["v4_pool_key_count"] == 25
+    assert payload["protocol_views"][0]["summary"]["v4_decoded_pool_key_count"] == 25
+    assert payload["protocol_views"][0]["summary"]["v4_token_address_count"] >= 25
+    assert payload["protocol_views"][0]["summary"]["depth_counts"] == {"observable": 25}
+    assert payload["protocol_views"][0]["chainIsolation"]["network"] == "robinhood-testnet"
+    assert payload["protocol_views"][0]["chainIsolation"]["usesMainnetRobinhoodCache"] is False
 
 
 def test_chain_selection_api_exposes_chain_level_options():
@@ -216,9 +279,11 @@ def test_chain_selection_api_exposes_chain_level_options():
     dex_options = {row["chain_id"]: row for row in dex["chain_options"]}
 
     assert [row["display_name"] for row in bot["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
-    assert [row["display_name"] for row in dex["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert [row["display_name"] for row in dex["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
     assert bot_options[56]["display_name"] == "BNB Chain"
     assert bot_options[56]["chain_key"] == "chain:56"
+    assert bot_options[56]["global_chain_id"] == "chain:56"
+    assert bot_options[56]["chain_config"]["features"]["liquidation"]["default_market_id"] == "bnb-venus-core"
     assert bot_options[56]["default_market_id"] in {"bnb-aave-v3", "bnb-venus-core"}
     assert bot_options[56]["representative_market_id"] == bot_options[56]["default_market_id"]
     assert bot_options[56]["protocol_summary"] == "aave_v3, venus_core"
@@ -227,6 +292,13 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert bot_options[4663]["chain_key"] == "chain:4663"
     assert bot_options[4663]["protocol_summary"] == "aave_v3, morpho_blue"
     assert bot_options[4663]["market_count"] == 2
+    assert bot_options[46630]["display_name"] == "Robinhood Testnet"
+    assert bot_options[46630]["chain_key"] == "chain:46630"
+    assert bot_options[46630]["global_chain_id"] == "chain:46630"
+    assert bot_options[46630]["default_market_id"] == "robinhood-testnet-liquidation-shadow"
+    assert bot_options[46630]["chain_config"]["features"]["liquidation"]["default_market_id"] == "robinhood-testnet-liquidation-shadow"
+    assert bot_options[46630]["protocol_summary"] == "morpho_blue"
+    assert bot_options[46630]["market_count"] == 1
     assert bot_options[137]["protocol_summary"] == "aave_v3"
     assert bot_options[1]["protocol_summary"] == "aave_v3"
     assert bot_options[0]["protocol_summary"] == "cow_protocol"
@@ -239,6 +311,15 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert dex_options[4663]["chain_key"] == "chain:4663"
     assert dex_options[4663]["protocol_summary"] == "morpho_blue, uniswap_v2, uniswap_v3"
     assert dex_options[4663]["market_count"] == 3
+    assert dex_options[46630]["display_name"] == "Robinhood Testnet"
+    assert dex_options[46630]["chain_key"] == "chain:46630"
+    assert dex_options[46630]["global_chain_id"] == "chain:46630"
+    assert dex_options[46630]["chain_config"]["contracts"]["v4_pool_manager"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert dex_options[46630]["chain_config"]["data_independence"]["isolation"]["forbidden_networks_complete"] is True
+    assert dex_options[46630]["chain_config"]["processing_independence"]["all_flows_require_scope_match"] is True
+    assert dex_options[46630]["default_market_id"] == "robinhood-testnet-dex-paused"
+    assert dex_options[46630]["protocol_summary"] == "uniswap_v4"
+    assert dex_options[46630]["market_count"] == 1
     hyperliquid = next(row for row in dex["chain_options"] if row["chain_key"] == "network:hyperliquid")
     assert hyperliquid["protocol_summary"] == "链路"
     assert hyperliquid["protocol_options"] == []
@@ -253,6 +334,11 @@ def test_chain_selection_api_defaults_protocol_filter_to_all_chain_protocols():
 
     assert payload["selected"]["chain_id"] == 56
     assert payload["selected"]["chain_key"] == "chain:56"
+    assert payload["selected"]["global_chain_id"] == "chain:56"
+    assert payload["selected"]["chain_config"]["network"] == "bnb"
+    assert payload["selected"]["chain_config"]["data_independence"]["all_flow_data_files_declared"] is True
+    assert payload["selected"]["chain_config"]["processing_independence"]["all_flows_have_handlers"] is True
+    assert payload["market_scope"]["global_chain_id"] == "chain:56"
     assert payload["protocol_options"] == [
         {
             "protocol": "aave_v3",
@@ -455,17 +541,19 @@ def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
     assert dex.status_code == 200
     dex_markets = dex.get_json()["available"]
     dex_market_ids = {row["market_id"] for row in dex_markets}
-    assert len(dex_markets) == 17
+    assert len(dex_markets) == 18
     assert "robinhood-dex-shadow" in dex_market_ids
     assert "robinhood-dex-v2-shadow" in dex_market_ids
     assert "robinhood-dex-morpho-blue-flash" in dex_market_ids
+    assert "robinhood-testnet-dex-paused" in dex_market_ids
     assert "hyperliquid-dex-shadow" in dex_market_ids
     assert next(row for row in dex_markets if row["market_id"] == "robinhood-dex-shadow")["market_type"] == "shadow_chain"
+    assert next(row for row in dex_markets if row["market_id"] == "robinhood-testnet-dex-paused")["chain_id"] == 46630
 
     assert bot.status_code == 200
     bot_markets = bot.get_json()["available"]
     bot_market_ids = {row["market_id"] for row in bot_markets}
-    assert len(bot_markets) == 9
+    assert len(bot_markets) == 10
     assert "robinhood-liquidation-shadow" in bot_market_ids
     assert "robinhood-morpho-blue-flash" in bot_market_ids
     assert "polygon-aave-v3-shadow" in bot_market_ids
@@ -756,7 +844,7 @@ def test_workflow_context_distinguishes_liquidation_and_cow_dex():
     liquidation = client.get("/api/workflow-context?page_path=/liquidation").get_json()
     bot = client.get("/api/workflow-context?page_path=/bot/account-scan").get_json()
     dex = client.get(
-        "/api/workflow-context?page_path=/dex/quotes&execution_mode=cow&cow_networks=bnb,avalanche"
+        "/api/workflow-context?page_path=/dex/quotes&market_id=cow-dex-arbitrage&chain_id=0&execution_mode=cow&cow_networks=bnb,avalanche"
     ).get_json()
     analytics = client.get("/api/workflow-context?page_path=/analytics/exchange-matrix").get_json()
 
@@ -1471,6 +1559,7 @@ def test_dex_page_variants_follow_market_type():
         ("ethereum-dex-arbitrage", 1),
         ("polygon-dex-arbitrage", 137),
         ("robinhood-dex-shadow", 4663),
+        ("robinhood-testnet-dex-paused", 46630),
     ):
         body = client.get(f"/dex?market_id={market_id}&chain_id={chain_id}").get_data(as_text=True)
         assert 'data-dex-surface-template="quotes"' in body
@@ -1503,7 +1592,8 @@ def test_market_observation_page_exposes_observation_surface_controls():
     assert 'data-dex-surface-template="observation"' in body
     assert 'id="directList"' in body
     assert 'id="indirectList"' in body
-    assert 'url.searchParams.delete("protocols")' in body
+    assert 'url.searchParams.delete("protocols")' not in body
+    assert "chainselectionprotocolschanged" in body
 
 
 def test_dex_surface_payload_apis_are_distinct():
@@ -1533,11 +1623,20 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_candidates_page = client.get(
         "/dex/candidates?market_id=robinhood-dex-shadow&chain_id=4663"
     ).get_data(as_text=True)
+    robinhood_testnet_observation = client.get(
+        "/api/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
+    ).get_json()
+    robinhood_testnet_candidates = client.get(
+        "/api/dex-pools/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
+    ).get_json()
+    robinhood_testnet_quotes = client.get(
+        "/api/dex/quote-routes?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
+    ).get_json()
 
     assert overview["mode"] == "dex_overview"
     assert observation["mode"] == "dex_market_observation"
-    assert robinhood_observation_with_single_protocol["summary"] == robinhood_observation["summary"]
-    assert robinhood_observation_with_single_protocol["selected_protocols"] == []
+    assert robinhood_observation_with_single_protocol["summary"] != robinhood_observation["summary"]
+    assert robinhood_observation_with_single_protocol["selected_protocols"] == ["uniswap_v2"]
     assert quotes["mode"] == "dex_quote_routes"
     assert quote_request["mode"] == "dex_quote_request"
     assert submissions["mode"] == "dex_submission_review"
@@ -1551,12 +1650,26 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_candidates["poolStaticTable"]["chainId"] == 4663
     assert robinhood_candidates["poolStaticTable"]["network"] == "robinhood"
     assert robinhood_candidates["summary"]["pairTableCount"] != "0"
+    assert robinhood_candidates_with_lending_protocol["selected_protocols"] == []
     assert robinhood_candidates_with_lending_protocol["summary"]["pairTableCount"] != "0"
     assert len({pair["symbolPair"] for pair in robinhood_candidates_with_lending_protocol["pairs"]}) > 1
-    assert robinhood_candidates_with_single_dex_protocol["summary"]["pairTableCount"] == robinhood_candidates["summary"]["pairTableCount"]
+    assert robinhood_candidates_with_single_dex_protocol["selected_protocols"] == ["uniswap_v2"]
+    assert robinhood_candidates_with_single_dex_protocol["summary"]["pairTableCount"] != robinhood_candidates["summary"]["pairTableCount"]
     assert len({pair["symbolPair"] for pair in robinhood_candidates_with_single_dex_protocol["pairs"]}) > 1
-    assert "本页展示 Avalanche L1 静态池表" not in robinhood_candidates_page
-    assert 'query.delete("protocols")' in robinhood_candidates_page
+    assert 'query.delete("protocols")' not in robinhood_candidates_page
+    assert robinhood_testnet_candidates["selected_protocols"] == ["uniswap_v4"]
+    assert robinhood_testnet_candidates["summary"]["pairTableCount"] != "0"
+    assert robinhood_testnet_observation["selected_protocols"] == ["uniswap_v4"]
+    assert robinhood_testnet_observation["summary"]["observationAnchorCount"] > 1
+    assert robinhood_testnet_observation["summary"]["directPairCount"] > 0
+    assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] > 0
+    assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
+    assert robinhood_testnet_quotes["selected_protocols"] == ["uniswap_v4"]
+    assert robinhood_testnet_quotes["summary"]["routeCount"] > 1
+    assert robinhood_testnet_quotes["summary"]["completeStaticQuoteCount"] > 0
+    assert len({route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]}) > 1
+    assert max(len(route["quoteAnalysis"]["steps"]) for route in robinhood_testnet_quotes["routes"]) > 1
+    assert all(route["quoteAnalysis"]["referenceFinalOutputUsd"] is not None for route in robinhood_testnet_quotes["routes"])
 
 
 def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkeypatch):

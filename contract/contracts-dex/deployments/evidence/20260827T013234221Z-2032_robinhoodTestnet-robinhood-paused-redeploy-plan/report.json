@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "robinhood-paused-redeploy-plan-v1",
+  "runAt": "2026-08-27T01:32:34.220Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "chainId": 46630,
+  "broadcastAttempted": false,
+  "deployRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true",
+  "explicitDeployAllowed": false,
+  "deployMilestone": "",
+  "requiredDeployMilestone": "paused_executor_v4_accounting_freeze",
+  "stageFreezeApproved": false,
+  "stageFreezeContext": {
+    "purpose": "Freeze the current paused executor ABI/runtime and evidence baseline before any intentional redeploy.",
+    "releaseCriteria": [
+      "no_additional_executor_abi_changes_planned_for_this_stage",
+      "paused_redeploy_plan_remains_technically_ready",
+      "readback_and_predeploy_evidence_remain_testnet_scoped"
+    ],
+    "manualApprovalRequired": true
+  },
+  "deploymentDeferred": true,
+  "preflight": {
+    "readyForPausedDeploy": true,
+    "blockingReasons": []
+  },
+  "deployedExecutor": {
+    "configured": true,
+    "address": "0x1D3Af86E2C5a1aA85429885ADc1BB8e09f3dC17E",
+    "hasCode": true,
+    "paused": true,
+    "codeHash": "0x74bc930faf30a9fff66aa42abe6236aa55a1d8eb42659aeb640657d97b5b54f2",
+    "localArtifactCodeHash": "0x80c28fe67debe97397a2f24ecfeaa1a4e6018e1bcc273e43e443ed6201de10a0",
+    "matchesLocalArtifact": false,
+    "redeployNeeded": true
+  },
+  "budget": {
+    "deployerConfigured": true,
+    "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "balanceWei": "19965130740000000",
+    "estimatedDeploymentGas": "4045901",
+    "configGasUnits": "700000",
+    "estimatedTotalGasUnits": "4745901",
+    "gasPriceWei": "20000000",
+    "safetyBps": "15000",
+    "estimatedBudgetWei": "142377030000000",
+    "balanceCoversEstimatedBudget": true,
+    "error": null
+  },
+  "redeployNeeded": true,
+  "technicalReadyForPausedRedeploy": true,
+  "readyForIntentionalPausedRedeploy": false,
+  "blockingReasons": []
+}

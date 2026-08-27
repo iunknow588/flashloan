@@ -5,8 +5,8 @@ from typing import Any
 
 from core.market_scan_policy import builtin_market_scan_policies
 from core.market_config import (
+    DEFAULT_AVALANCHE_DEX_MARKET_ID,
     DEFAULT_AVALANCHE_MARKET_ID,
-    DEFAULT_COW_DEX_MARKET_ID,
     KNOWN_EVM_MARKETS,
     PROTOCOL_CAPABILITIES,
 )
@@ -52,7 +52,7 @@ def _builtin_chain_market_rows() -> list[dict[str, Any]]:
                 "aa_policy_json": {},
                 "observation_only": bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
                 "enabled": bool(profile.get("enabled", True)),
-                "is_default": market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
+                "is_default": bool(profile.get("is_default")) or market_id == DEFAULT_AVALANCHE_MARKET_ID,
                 "metadata_json": {
                     "source": "builtin_fallback",
                     "migration_type": profile.get("migration_type"),
@@ -182,6 +182,16 @@ def ensure_chain_market_registry_schema(cursor) -> None:
 
 
 def seed_builtin_chain_markets(cursor) -> None:
+    cursor.execute(
+        """
+        UPDATE chain_markets
+        SET is_default = FALSE, updated_at = NOW()
+        WHERE feature = 'dex_arbitrage'
+          AND market_id <> %s
+          AND is_default = TRUE
+        """,
+        (DEFAULT_AVALANCHE_DEX_MARKET_ID,),
+    )
     for row in _builtin_chain_market_rows():
         cursor.execute(
             """

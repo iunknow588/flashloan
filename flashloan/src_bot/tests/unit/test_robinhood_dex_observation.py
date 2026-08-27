@@ -53,6 +53,19 @@ def test_robinhood_observation_rejects_wrong_market_scope():
         raise AssertionError("wrong market scope must be rejected")
 
 
+def test_robinhood_observation_rejects_robinhood_testnet_scope():
+    try:
+        robinhood_dex_observation_payload(
+            market_id="robinhood-testnet-dex-paused",
+            chain_id=46630,
+            run_rpc_probe=False,
+        )
+    except ValueError as exc:
+        assert "Robinhood DEX observation requires the robinhood-dex-shadow market scope" in str(exc)
+    else:
+        raise AssertionError("Robinhood testnet must not use the Robinhood mainnet DEX observation handler")
+
+
 def test_latest_evidence_loader_rejects_wrong_chain_and_reads_valid_package(tmp_path):
     wrong = tmp_path / "wrong"
     wrong.mkdir()
@@ -120,7 +133,7 @@ def test_observation_payload_explains_missing_candidates_and_evidence(tmp_path, 
     assert payload["observationDiagnostics"]["rpcHealthy"] is True
     assert payload["observationDiagnostics"]["evidenceAvailable"] is False
     assert payload["observationDiagnostics"]["candidateCache"]["status"] == "missing"
-    assert "Factory" in payload["observationDiagnostics"]["nextAction"]
+    assert "factory" in payload["observationDiagnostics"]["nextAction"].lower()
 
 
 def test_observation_payload_suppresses_pnl_without_verified_candidate_pool(tmp_path, monkeypatch):

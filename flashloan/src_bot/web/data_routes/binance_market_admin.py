@@ -4,16 +4,10 @@ from flask import jsonify, request
 
 from core.chain_selection import ChainSelectionError
 from core.market_config import DEFAULT_ROBINHOOD_DEX_MARKET_ID
-from db.storage_common import (
-    database_unavailable_reason,
-    is_database_unavailable_error,
-    mark_database_unavailable,
-)
 from db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
-    load_recent_cow_execution_attempts,
     load_recent_cow_execution_attempts_jsonl,
 )
 from web.chain_selection import resolve_request_chain_selection
@@ -50,79 +44,6 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def binance_market_cow_execution_attempts():
         limit = request_int_arg("limit", 300, minimum=1, maximum=1000)
         networks = _request_networks_arg()
-        database_url = panel_call("database_url_or_none")
-        if database_url:
-            unavailable = database_unavailable_reason(database_url)
-            if unavailable:
-                groups = _cow_execution_attempt_groups(
-                    lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
-                        COW_EXECUTION_ATTEMPT_LOG_PATH,
-                        retention_days=COW_EXECUTION_RETENTION_DAYS,
-                        **kwargs,
-                    ),
-                    limit=limit,
-                    networks=networks,
-                )
-                return jsonify(
-                    {
-                        "source": "jsonl_fallback",
-                        "error": unavailable,
-                        "retention_days": COW_EXECUTION_RETENTION_DAYS,
-                        "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
-                        "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
-                        "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
-                        "networks": networks,
-                        "groups": groups,
-                        "attempts": _flatten_cow_execution_groups(groups, limit),
-                    }
-                )
-            try:
-                groups = _cow_execution_attempt_groups(
-                    lambda **kwargs: load_recent_cow_execution_attempts(
-                        database_url,
-                        retention_days=COW_EXECUTION_RETENTION_DAYS,
-                        **kwargs,
-                    ),
-                    limit=limit,
-                    networks=networks,
-                )
-                return jsonify(
-                    {
-                        "source": "database",
-                        "retention_days": COW_EXECUTION_RETENTION_DAYS,
-                        "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
-                        "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
-                        "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
-                        "networks": networks,
-                        "groups": groups,
-                        "attempts": _flatten_cow_execution_groups(groups, limit),
-                    }
-                )
-            except Exception as exc:
-                if is_database_unavailable_error(exc):
-                    mark_database_unavailable(database_url, exc)
-                groups = _cow_execution_attempt_groups(
-                    lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
-                        COW_EXECUTION_ATTEMPT_LOG_PATH,
-                        retention_days=COW_EXECUTION_RETENTION_DAYS,
-                        **kwargs,
-                    ),
-                    limit=limit,
-                    networks=networks,
-                )
-                return jsonify(
-                    {
-                        "source": "jsonl_fallback",
-                        "error": data_error_message(exc),
-                        "retention_days": COW_EXECUTION_RETENTION_DAYS,
-                        "category_retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
-                        "category_analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
-                        "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
-                        "networks": networks,
-                        "groups": groups,
-                        "attempts": _flatten_cow_execution_groups(groups, limit),
-                    }
-                )
         groups = _cow_execution_attempt_groups(
             lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
                 COW_EXECUTION_ATTEMPT_LOG_PATH,
@@ -149,14 +70,14 @@ def register_binance_market_admin_routes(app, panel) -> None:
     def binance_market_cow_candidate_queue():
         limit = request_int_arg("limit", 100, minimum=1, maximum=500)
         networks = _request_networks_arg()
-        pause_guard = _cow_submission_pause_guard(database_url=panel_call("database_url_or_none"))
+        pause_guard = _cow_submission_pause_guard(database_url=None)
         if not pause_guard.get("paused") and cow_quote_daemon_enabled():
-            ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+            ensure_cow_quote_daemon_running(database_url_provider=lambda: None)
         return jsonify(cow_candidate_queue_snapshot(limit=limit, networks=networks))
 
     @app.get("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause():
-        return jsonify(_cow_submission_pause_guard(database_url=panel_call("database_url_or_none")))
+        return jsonify(_cow_submission_pause_guard(database_url=None))
 
     @app.get("/api/robinhood-dex/observation")
     def robinhood_dex_observation():
@@ -216,19 +137,19 @@ def register_binance_market_admin_routes(app, panel) -> None:
         payload = request.get_json(silent=True) or {}
         paused = bool(payload.get("paused"))
         reason = payload.get("reason")
-        result = _set_cow_submission_pause_guard(paused=paused, reason=reason, database_url=panel_call("database_url_or_none"))
+        result = _set_cow_submission_pause_guard(paused=paused, reason=reason, database_url=None)
         if not paused:
             result["queue_cleanup"] = clear_cow_candidate_queue(reason="submission_switch_enabled_clear_stale")
             if cow_quote_daemon_enabled():
-                ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+                ensure_cow_quote_daemon_running(database_url_provider=lambda: None)
         return jsonify(result)
 
     @app.post("/api/binance-market/cow-submission-pause/clear")
     def binance_market_cow_submission_pause_clear():
-        result = _clear_cow_submission_pause_guard(database_url=panel_call("database_url_or_none"))
+        result = _clear_cow_submission_pause_guard(database_url=None)
         result["queue_cleanup"] = clear_cow_candidate_queue(reason="submission_switch_enabled_clear_stale")
         if cow_quote_daemon_enabled():
-            ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+            ensure_cow_quote_daemon_running(database_url_provider=lambda: None)
         return jsonify(result)
     
     

@@ -1,6 +1,7 @@
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
+from intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from strategy.arbitrage import ArbitrageConfig
 
 
@@ -31,6 +32,120 @@ def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
     )
 
     assert payload["pool_candidates"]["mode"] == "stub_pool_candidates"
+
+
+def test_anchor_candidate_groups_split_yc_and_zc_by_anchor():
+    pair_reports = [
+        {
+            "symbolPair": "USDT:ETH",
+            "tokenXSymbol": "USDT",
+            "tokenYSymbol": "ETH",
+            "classification": {"stableSymbols": ["USDT"], "nonStableSymbols": ["ETH"]},
+            "preferredPools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "protocol": "uniswap_v4",
+                    "dex": "uniswap_v4",
+                    "fee": "0",
+                    "quality": "pass",
+                    "token0": "0x" + "a" * 40,
+                    "token1": "0x" + "b" * 40,
+                    "token0Symbol": "USDT",
+                    "token1Symbol": "ETH",
+                    "balances": {"tvlUsd": 1000},
+                    "depthBand": {"level": "deep", "label": "deep"},
+                }
+            ],
+            "strictQualityPools": [],
+            "executionPools": [],
+        }
+    ]
+
+    groups = build_anchor_candidate_groups(pair_reports)
+
+    assert groups[0]["anchorSymbol"] == "USDT"
+    assert groups[0]["ycPoolCount"] == "1"
+    assert groups[0]["zcPoolCount"] == "1"
+    assert groups[0]["ycTokens"][0]["symbol"] == "ETH"
+    assert groups[0]["zcTokens"][0]["symbol"] == "ETH"
+    assert groups[0]["ycPools"][0]["routeText"] == "USDT -> ETH"
+    assert groups[0]["zcPools"][0]["routeText"] == "ETH -> USDT"
+
+
+def test_anchor_candidate_groups_include_all_symbols_when_mixed_pairs_are_present():
+    pair_reports = [
+        {
+            "symbolPair": "USDC:FRAX",
+            "tokenXSymbol": "USDC",
+            "tokenYSymbol": "FRAX",
+            "classification": {"stableSymbols": ["USDC", "FRAX"], "nonStableSymbols": []},
+            "preferredPools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "protocol": "uniswap_v4",
+                    "dex": "uniswap_v4",
+                    "fee": "0",
+                    "quality": "pass",
+                    "token0": "0x" + "a" * 40,
+                    "token1": "0x" + "b" * 40,
+                    "token0Symbol": "USDC",
+                    "token1Symbol": "FRAX",
+                    "balances": {"tvlUsd": 1000},
+                    "depthBand": {"level": "deep", "label": "deep"},
+                }
+            ],
+            "strictQualityPools": [],
+            "executionPools": [],
+        },
+        {
+            "symbolPair": "WETH:WAVAX",
+            "tokenXSymbol": "WETH",
+            "tokenYSymbol": "WAVAX",
+            "classification": {"stableSymbols": [], "nonStableSymbols": ["WETH", "WAVAX"]},
+            "preferredPools": [
+                {
+                    "pool": "0x" + "2" * 40,
+                    "protocol": "uniswap_v4",
+                    "dex": "uniswap_v4",
+                    "fee": "0",
+                    "quality": "pass",
+                    "token0": "0x" + "c" * 40,
+                    "token1": "0x" + "d" * 40,
+                    "token0Symbol": "WETH",
+                    "token1Symbol": "WAVAX",
+                    "balances": {"tvlUsd": 2000},
+                    "depthBand": {"level": "deep", "label": "deep"},
+                }
+            ],
+            "strictQualityPools": [],
+            "executionPools": [],
+        },
+    ]
+
+    groups = build_anchor_candidate_groups(pair_reports)
+    anchor_symbols = [group["anchorSymbol"] for group in groups]
+
+    assert anchor_symbols == ["FRAX", "USDC", "WAVAX", "WETH"]
+    assert {group["anchorSymbol"] for group in groups} == {"FRAX", "USDC", "WAVAX", "WETH"}
+
+
+def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
+    payload = pool_candidates.dex_pool_candidates_payload(chain_id=46630, protocols=["uniswap_v4"])
+
+    assert payload["poolStaticTable"]["network"] == "robinhood-testnet"
+    assert payload["poolStaticTable"]["chainId"] == 46630
+    assert payload["poolStaticTable"]["mode"] == "robinhood_testnet_v4_pool_liquidity"
+    assert payload["poolStaticTable"]["exists"] is True
+    assert payload["processing"]["handler"] == (
+        "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload"
+    )
+    assert int(payload["summary"]["pairTableCount"]) > 0
+    assert int(payload["summary"]["anchorGroupCount"]) > 0
+    assert payload["pairs"][0]["identityMode"] == "pool_key"
+    assert payload["pairs"][0]["preferredPools"][0]["poolIdentityMode"] == "pool_id"
+    assert payload["pairs"][0]["preferredPools"][0]["protocol"] == "uniswap_v4"
+    assert payload["anchorGroups"]
+    assert "ycPoolCount" in payload["anchorGroups"][0]
 
 
 def test_dex_pool_candidates_classifies_stable_and_non_stable_pools(tmp_path, monkeypatch):
@@ -424,6 +539,37 @@ def test_dex_opportunity_scanner_keeps_latest_quote_snapshot(tmp_path):
     assert (tmp_path / "dex_opportunity_snapshot.json").exists()
 
 
+def test_dex_opportunity_scanner_uses_registry_network_for_testnet(tmp_path):
+    from runtime.dex_opportunity_scanner import DexOpportunityScanner
+
+    trigger_contexts = []
+
+    def quote_payload_provider(*, chain_id=None, protocols=None):
+        return {
+            "poolStaticTable": {"network": "robinhood-testnet", "chainId": chain_id},
+            "summary": {"routeCount": 0},
+            "routes": [],
+        }
+
+    def trigger_context_provider(**kwargs):
+        trigger_contexts.append(kwargs)
+        return {"source": "test_trigger", "network": kwargs.get("network"), "chainId": kwargs.get("chain_id")}
+
+    scanner = DexOpportunityScanner(
+        interval_seconds=3,
+        quote_payload_provider=quote_payload_provider,
+        trigger_context_provider=trigger_context_provider,
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        record_opportunities=False,
+    )
+
+    payload = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
+
+    assert payload["ok"] is True
+    assert trigger_contexts[0]["network"] == "robinhood-testnet"
+    assert payload["snapshot"]["trigger_context"]["network"] == "robinhood-testnet"
+
+
 def test_dex_opportunity_scanner_records_discovered_opportunities(tmp_path):
     from db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
     from runtime.dex_opportunity_scanner import DexOpportunityScanner
@@ -681,6 +827,100 @@ def test_dex_overview_does_not_reuse_robinhood_borrow_anchor_on_other_chains(tmp
     assert overview["arbitragePaths"][0]["overviewRoute"]["pathText"] == "USDC -> WBNB -> USDC"
 
 
+def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
+    pool_template = lambda suffix, left, right: {
+        "pool": f"0x{suffix * 40}",
+        "protocol": "uniswap_v4",
+        "dex": "uniswap_v4",
+        "fee": "0",
+        "quality": "pass",
+        "token0": f"0x{left.lower() * 40}",
+        "token1": f"0x{right.lower() * 40}",
+        "token0Symbol": left,
+        "token1Symbol": right,
+        "balances": {"tvlUsd": 1000},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    payload = {
+        "pairs": [
+            {
+                "symbolPair": "FRAX:USDC",
+                "tokenXSymbol": "FRAX",
+                "tokenYSymbol": "USDC",
+                "tokenX": "0x" + "a" * 40,
+                "tokenY": "0x" + "b" * 40,
+                "preferredPools": [pool_template("1", "FRAX", "USDC")],
+                "executionPools": [pool_template("1", "FRAX", "USDC")],
+                "strictQualityPools": [pool_template("1", "FRAX", "USDC")],
+            },
+            {
+                "symbolPair": "ETH:CCOX",
+                "tokenXSymbol": "ETH",
+                "tokenYSymbol": "CCOX",
+                "tokenX": "0x" + "c" * 40,
+                "tokenY": "0x" + "d" * 40,
+                "preferredPools": [pool_template("2", "ETH", "CCOX")],
+                "executionPools": [pool_template("2", "ETH", "CCOX")],
+                "strictQualityPools": [pool_template("2", "ETH", "CCOX")],
+            },
+        ],
+        "summary": {},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+    }
+
+    monkeypatch.setattr(dex_surfaces, "dex_pool_candidates_payload", lambda chain_id=None, protocols=None: payload)
+    monkeypatch.setattr(
+        dex_surfaces,
+        "_route_quote_analysis",
+        lambda route, price_map=None, notional_usd=None: {
+            "method": "mock",
+            "notionalUsd": notional_usd or 1000.0,
+            "inputSymbol": (route.get("routeSymbols") or [None])[0],
+            "outputSymbol": (route.get("routeSymbols") or [None])[-1],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "stepCount": 0,
+            "steps": [],
+            "finalOutputUsd": 1010.0,
+            "referenceFinalOutputUsd": 1010.0,
+            "grossProfitUsd": 10.0,
+            "referenceGrossProfitUsd": 10.0,
+            "flashLoanFeeUsd": 0.5,
+            "gasReserveUsd": 1.0,
+            "minProfitUsd": 1.0,
+            "offchainMinProfitUsd": 1.0,
+            "submissionMinProfitUsd": 0.5,
+            "submissionNetProfitUsd": 9.5,
+            "offchainNetProfitUsd": 8.5,
+            "netProfitUsd": 8.5,
+            "referenceNetProfitUsd": 8.5,
+            "netProfitBps": 85.0,
+            "referenceNetProfitBps": 85.0,
+            "profitable": True,
+            "executableCandidate": True,
+            "sdkAdapterRequiredStepCount": 0,
+            "recommendation": {"level": "ready_for_precheck", "action": "进入自动交易预检", "reasons": []},
+            "warnings": [],
+        },
+    )
+
+    overview = dex_surfaces.dex_overview_payload(chain_id=46630, protocols=["uniswap_v4"])
+    observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v4"])
+    quotes = dex_surfaces.dex_quote_routes_payload(chain_id=46630, protocols=["uniswap_v4"])
+
+    expected_symbols = ["CCOX", "ETH", "FRAX", "USDC"]
+    assert overview["decisionBasis"] == "symbol_anchor_to_non_anchor_candidate_path"
+    assert overview["summary"]["anchorBorrowSymbols"] == expected_symbols
+    assert observation["summary"]["observationAnchorCount"] == 4
+    assert observation["observationAnchorSymbols"] == expected_symbols
+    assert quotes["summary"]["anchorBorrowSymbols"] == expected_symbols
+    assert quotes["summary"]["closedLoopAnchorSymbols"] == expected_symbols
+    assert quotes["summary"]["routeCount"] > 1
+    assert len({route["overviewRoute"]["anchorBorrowSymbol"] for route in quotes["routes"]}) > 1
+
+
 def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
     weth_usdg_pool = {
         "pool": "0x" + "7" * 40,
@@ -737,14 +977,14 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
             "raw_snapshots": {
                 "robinhood_flash_liquidity": {
                     "chainId": 4663,
-                    "sources": [{"protocol": "morpho_blue", "token_symbol": "USDG", "flash_borrowable": True}],
+                    "sources": [{"protocol": "morpho_blue", "token_symbol": "WETH", "flash_borrowable": True}],
                 }
             },
         },
     )
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
-    route = next(item for item in quotes["routes"] if item["symbolPair"] == "USDG -> WETH -> PONS -> WETH -> USDG")
+    route = next(item for item in quotes["routes"] if item["symbolPair"] == "WETH -> PONS -> WETH")
     analysis = route["quoteAnalysis"]
 
     assert route["quoteStatus"] == "requires_live_quoter"
@@ -757,7 +997,47 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
     assert analysis["steps"][0]["outputUsd"] is None
     assert analysis["steps"][0]["referenceOutputUsd"] is not None
     assert all(step["quoteSource"] == "reference_price_requires_live_quoter" for step in analysis["steps"])
-    assert analysis["recommendation"]["action"] == "等待链上 Quoter 复核"
+    assert analysis["recommendation"]["action"] == "参考测算完成，待链上复核"
+
+
+def test_v4_sqrt_price_reference_quote_completes_static_measurement():
+    usdt = "0x" + "1" * 40
+    eth = "0x" + "0" * 40
+    pool = {
+        "pool": "0x" + "2" * 64,
+        "dex": "uniswap_v4",
+        "protocol": "uniswap_v4",
+        "fee": "0",
+        "token0": usdt,
+        "token1": eth,
+        "token0Symbol": "USDT",
+        "token1Symbol": "ETH",
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+        "sqrtPriceX96": str(2**96),
+        "balances": {"token0": 1_000_000, "token1": 1_000_000, "tvlUsd": None},
+    }
+    route = {
+        "routeTokenPath": [
+            {"symbol": "USDT", "address": usdt},
+            {"symbol": "ETH", "address": eth},
+            {"symbol": "USDT", "address": usdt},
+        ],
+        "executionPools": [pool],
+    }
+
+    analysis = dex_surfaces._route_quote_analysis(route, price_map={"USDT": 1.0, "ETH": 1.0})
+
+    assert analysis["complete"] is True
+    assert analysis["requiresLiveQuoter"] is True
+    assert analysis["adapterRequired"] is True
+    assert analysis["finalOutputUsd"] is None
+    assert analysis["referenceFinalOutputUsd"] == 1000.0
+    assert analysis["referenceGrossProfitUsd"] == 0.0
+    assert analysis["referenceNetProfitUsd"] == -1.5
+    assert len(analysis["steps"]) == 2
+    assert all(step["referenceOutputUsd"] == 1000.0 for step in analysis["steps"])
+    assert all(step["quoteSource"] == "uniswap_v4_sdk_adapter_required" for step in analysis["steps"])
 
 
 def test_dex_quote_routes_drop_polluted_bridge_symbols(monkeypatch):
@@ -835,7 +1115,7 @@ def test_dex_quote_routes_drop_polluted_bridge_symbols(monkeypatch):
             "raw_snapshots": {
                 "robinhood_flash_liquidity": {
                     "chainId": 4663,
-                    "sources": [{"protocol": "morpho_blue", "token_symbol": "USDG", "flash_borrowable": True}],
+                    "sources": [{"protocol": "morpho_blue", "token_symbol": "WETH", "flash_borrowable": True}],
                 }
             },
         },
@@ -987,25 +1267,25 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
             "raw_snapshots": {
                 "robinhood_flash_liquidity": {
                     "chainId": 4663,
-                    "sources": [{"protocol": "morpho_blue", "token_symbol": "USDG", "flash_borrowable": True}],
+                    "sources": [{"protocol": "morpho_blue", "token_symbol": "WETH", "flash_borrowable": True}],
                 }
             },
         },
     )
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
-    vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "USDG -> WETH -> VLAD -> WETH -> USDG"]
+    vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "WETH -> VLAD -> WETH"]
 
     assert len(vlad_routes) == 2
-    assert {route["routeAddresses"][2] for route in vlad_routes} == {vlad_a, vlad_b}
+    assert {route["routeAddresses"][1] for route in vlad_routes} == {vlad_a, vlad_b}
     for route in vlad_routes:
         steps = route["quoteAnalysis"]["steps"]
-        assert steps[1]["tokenOut"] == steps[2]["tokenIn"]
-        assert route["routeTokenPath"][2]["address"] == steps[1]["tokenOut"]
-        assert route["routeTokenPath"][2]["address"] == steps[2]["tokenIn"]
+        assert steps[0]["tokenOut"] == steps[1]["tokenIn"]
+        assert route["routeTokenPath"][1]["address"] == steps[0]["tokenOut"]
+        assert route["routeTokenPath"][1]["address"] == steps[1]["tokenIn"]
 
 
-def test_dex_pool_candidates_returns_empty_for_unconfigured_chain(monkeypatch):
+def test_dex_pool_candidates_returns_chain_owned_empty_when_local_json_missing(monkeypatch):
     monkeypatch.setattr(
         pool_candidates,
         "query_flash_loan_pool_discovery",
@@ -1015,6 +1295,22 @@ def test_dex_pool_candidates_returns_empty_for_unconfigured_chain(monkeypatch):
     payload = pool_candidates.dex_pool_candidates_payload(chain_id=137)
 
     assert payload["poolStaticTable"]["chainId"] == 137
+    assert payload["poolStaticTable"]["exists"] is False
+    assert payload["poolStaticTable"]["network"] == "polygon"
+    assert payload["fallback_reason"] == "dex_pool_candidates_local_json_missing"
+    assert payload["pairs"] == []
+
+
+def test_dex_pool_candidates_returns_empty_for_unregistered_chain(monkeypatch):
+    monkeypatch.setattr(
+        pool_candidates,
+        "query_flash_loan_pool_discovery",
+        lambda chain_id=None: {"protocols": [], "removed_protocols": []},
+    )
+
+    payload = pool_candidates.dex_pool_candidates_payload(chain_id=999999)
+
+    assert payload["poolStaticTable"]["chainId"] == 999999
     assert payload["poolStaticTable"]["exists"] is False
     assert payload["fallback_reason"] == "dex_pool_static_table_not_configured_for_chain"
     assert payload["pairs"] == []

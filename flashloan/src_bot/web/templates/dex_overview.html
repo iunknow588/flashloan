@@ -42,7 +42,7 @@
       <a data-surface-link href="/dex">报价与路由</a>
       <a data-surface-link href="/dex/overview">DEX 总览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
-      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/candidates">候选池</a>
       <a data-surface-link href="/dex/submissions">提交记录</a>
     </nav>
   </header>
@@ -52,7 +52,7 @@
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
-      <div class="metric"><small>可套利路径候选</small><strong id="pathCount">-</strong><span id="pathMeta">围绕可借锚点筛选</span></div>
+      <div class="metric"><small>可套利路径候选</small><strong id="pathCount">-</strong><span id="pathMeta">围绕锚点筛选</span></div>
       <div class="metric"><small>观察交易对</small><strong id="watchCount">-</strong><span>未进入路径候选</span></div>
       <div class="metric"><small>闪电贷协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
       <div class="metric"><small>池子来源</small><strong id="sourceNetwork">-</strong><span id="sourceMeta">-</span></div>
@@ -65,7 +65,6 @@
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
-      url.searchParams.delete("protocols");
       return url.pathname + (url.search ? url.search : "");
     };
     async function fetchJson(path) {
@@ -84,9 +83,9 @@
             <h2>${esc(route.pathText || pair.symbolPair)}</h2>
             <div class="badges">
               <span class="badge good">套利候选</span>
-              <span class="badge">${esc(route.kind === "bridge_pair" ? "桥接路径" : "直接路径")}</span>
-              ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">桥接 ${esc((route.bridgeSymbols || []).join(", "))}</span>` : ''}
-              <span class="badge">借入 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
+              <span class="badge">${esc(route.kind === "bridge_pair" ? "三跳闭环" : "两跳闭环")}</span>
+              ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((route.bridgeSymbols || []).join(" -> "))}</span>` : ''}
+              <span class="badge">锚点 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
               <span class="badge">目标 ${esc(route.targetSymbol || "-")}</span>
               <span class="badge">候选池 ${esc(pools.length)}</span>
             </div>
@@ -109,7 +108,8 @@
         const flash = data.flashLoanLiquidity || {};
         const source = data.poolStaticTable || {};
         $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
-        $("pathMeta").textContent = `直接 ${data.summary?.directAnchorPathCount ?? 0} | 桥接 ${data.summary?.bridgePathCount ?? 0} | 锚点 ${(data.summary?.anchorBorrowSymbols || []).join(", ") || "-"}`;
+        const anchors = data.summary?.closedLoopAnchorSymbols || data.summary?.anchorBorrowSymbols || [];
+        $("pathMeta").textContent = `两跳闭环 ${data.summary?.directAnchorPathCount ?? 0} | 三跳闭环 ${data.summary?.bridgePathCount ?? 0} | 闭环锚点 ${anchors.join(", ") || "-"}`;
         $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
         $("flashCount").textContent = (flash.available_protocols || []).length;
         $("flashNames").textContent = (flash.available_protocols || []).join(", ") || "-";
@@ -125,6 +125,7 @@
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
     });
+    window.addEventListener("chainselectionprotocolschanged", () => refresh());
     refresh();
   </script>
 </body>

@@ -8,6 +8,8 @@ from core.env_loader import load_env_files
 from core.sensitive_data import redact_sensitive_text
 
 
+os.environ.setdefault("FLASHLOAN_LOCAL_JSON_ONLY", "true")
+os.environ.pop("DATABASE_URL", None)
 load_env_files(__file__, override=False)
 
 # CoW analysis starts from the same observer cycle as the Binance signal.

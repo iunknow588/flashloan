@@ -3,15 +3,8 @@ from __future__ import annotations
 from flask import jsonify, request
 
 from core.chain_selection import ChainSelectionError
-from db.storage_common import (
-    database_unavailable_reason,
-    is_database_unavailable_error,
-    mark_database_unavailable,
-)
 from db.storage_cow_execution import (
-    clear_cow_execution_attempts,
     clear_cow_execution_attempts_jsonl,
-    load_recent_cow_execution_attempts,
     load_recent_cow_execution_attempts_jsonl,
 )
 from market.binance_market.dex_surfaces import (
@@ -80,7 +73,8 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_overview_payload(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        payload = dex_overview_payload(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -90,7 +84,8 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_market_observation_payload(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        payload = dex_market_observation_payload(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -100,7 +95,8 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_quote_routes_payload(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        payload = dex_quote_routes_payload(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -110,8 +106,9 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        ensure_dex_opportunity_scanner_running(chain_id=selected_chain_id, protocols=[])
-        payload = dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        ensure_dex_opportunity_scanner_running(chain_id=selected_chain_id, protocols=protocols)
+        payload = dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -121,7 +118,8 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        payload = dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -131,7 +129,8 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        payload = run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -141,9 +140,10 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
+        protocols = _request_dex_protocols_arg()
         payload = dex_quote_request_payload(
             chain_id=selected_chain_id,
-            protocols=[],
+            protocols=protocols,
             pair=request.args.get("pair", "").strip(),
             venue=request.args.get("venue", "").strip(),
             amount=request.args.get("amount", "").strip() or None,
@@ -157,7 +157,8 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = _selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=[])
+        protocols = _request_dex_protocols_arg()
+        payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
         return jsonify(payload)
 
@@ -169,49 +170,21 @@ def register_dex_surface_routes(app, panel) -> None:
             return shared._chain_selection_error_response(exc)
         limit = shared.request_int_arg("limit", 300, minimum=1, maximum=1000)
         networks = _submission_networks_from_request(chain_selection)
-        database_url = shared.panel_call("database_url_or_none")
-        source = "jsonl"
-        if database_url and not database_unavailable_reason(database_url):
-            try:
-                groups = shared._cow_execution_attempt_groups(
-                    lambda **kwargs: load_recent_cow_execution_attempts(
-                        database_url,
-                        retention_days=shared.COW_EXECUTION_RETENTION_DAYS,
-                        **kwargs,
-                    ),
-                    limit=limit,
-                    networks=networks,
-                )
-                source = "database"
-            except Exception as exc:
-                if is_database_unavailable_error(exc):
-                    mark_database_unavailable(database_url, exc)
-                groups = shared._cow_execution_attempt_groups(
-                    lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
-                        shared.COW_EXECUTION_ATTEMPT_LOG_PATH,
-                        retention_days=shared.COW_EXECUTION_RETENTION_DAYS,
-                        **kwargs,
-                    ),
-                    limit=limit,
-                    networks=networks,
-                )
-                source = f"jsonl_fallback:{shared.data_error_message(exc)}"
-        else:
-            groups = shared._cow_execution_attempt_groups(
-                lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
-                    shared.COW_EXECUTION_ATTEMPT_LOG_PATH,
-                    retention_days=shared.COW_EXECUTION_RETENTION_DAYS,
-                    **kwargs,
-                ),
-                limit=limit,
-                networks=networks,
-            )
+        groups = shared._cow_execution_attempt_groups(
+            lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
+                shared.COW_EXECUTION_ATTEMPT_LOG_PATH,
+                retention_days=shared.COW_EXECUTION_RETENTION_DAYS,
+                **kwargs,
+            ),
+            limit=limit,
+            networks=networks,
+        )
         return jsonify(
             {
                 **dex_submission_review_payload(
                     attempts=shared._flatten_cow_execution_groups(groups, limit),
                     groups=groups,
-                    source=source,
+                    source="jsonl",
                 ),
                 "chain_selection": chain_selection,
             }
@@ -224,16 +197,7 @@ def register_dex_surface_routes(app, panel) -> None:
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
         networks = _submission_networks_from_request(chain_selection)
-        database_url = shared.panel_call("database_url_or_none")
-        results = []
-        if database_url and not database_unavailable_reason(database_url):
-            try:
-                results.append(clear_cow_execution_attempts(database_url, networks=networks))
-            except Exception as exc:
-                if is_database_unavailable_error(exc):
-                    mark_database_unavailable(database_url, exc)
-                results.append({"cleared": 0, "source": "database", "error": shared.data_error_message(exc)})
-        results.append(clear_cow_execution_attempts_jsonl(shared.COW_EXECUTION_ATTEMPT_LOG_PATH, networks=networks))
+        results = [clear_cow_execution_attempts_jsonl(shared.COW_EXECUTION_ATTEMPT_LOG_PATH, networks=networks)]
         return jsonify(
             {
                 "ok": True,

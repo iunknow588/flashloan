@@ -80,6 +80,7 @@
   function selectionKey(selection) {
     if (!selection) return "";
     if (selection.chain_key) return String(selection.chain_key);
+    if (selection.global_chain_id) return String(selection.global_chain_id);
     if (selection.chain_id !== null && selection.chain_id !== undefined) {
       return "chain:" + String(selection.chain_id);
     }
@@ -336,8 +337,10 @@
     if (!meta) return;
     const selectedList = unique(selected && selected.selected_protocols);
     const cowNetworkList = orderedCowNetworks(selected && selected.selected_cow_networks);
+    const globalChainId = selected.global_chain_id || selected.chain_key || "";
     meta.textContent = [
       selected.display_name || selected.market_id || "Current route",
+      globalChainId ? "Link " + globalChainId : "",
       cowNetworkList.length ? "Networks " + cowNetworkList.join(", ") : (selected.protocol_summary || selected.protocol),
       !cowNetworkList.length && selectedList.length ? "Protocols " + selectedList.join(", ") : "",
       selected.observation_only ? "Observation only" : "Execution capable",

@@ -6,17 +6,15 @@ from flask import Response, jsonify, request, send_file
 from core.chain_selection import ChainSelectionError
 from core.build_info import build_info_payload
 from core.flash_loan_pool_discovery import (
-    cached_robinhood_flash_liquidity_snapshot,
     protocol_options_for_chain,
     query_flash_loan_pool_discovery,
     refresh_flash_loan_pool_discovery_cache,
     start_flash_loan_pool_discovery_idle_worker,
 )
+from core.chain_data_registry import default_flash_loan_pool_scope
 from core.market_config import (
-    DEFAULT_BNB_CHAIN_ID,
-    DEFAULT_BNB_DEX_MARKET_ID,
-    DEFAULT_COW_DEX_MARKET_ID,
-    DEFAULT_COW_VIRTUAL_CHAIN_ID,
+    DEFAULT_AVALANCHE_CHAIN_ID,
+    DEFAULT_AVALANCHE_DEX_MARKET_ID,
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     supported_market_summaries,
@@ -278,8 +276,8 @@ def register_page_routes(app, panel) -> None:
         return _market_page_response(
             panel,
             template_path=panel.MARKET_OBSERVATION_TEMPLATE_PATH,
-            default_market_id=DEFAULT_COW_DEX_MARKET_ID,
-            default_chain_id=DEFAULT_COW_VIRTUAL_CHAIN_ID,
+            default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
+            default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
         )
 
     @app.get("/ops")
@@ -293,7 +291,11 @@ def register_page_routes(app, panel) -> None:
     @app.get("/dex/quotes")
     @app.get("/dex/submissions")
     def binance_market_panel():
-        return _market_page_response(panel, default_market_id=DEFAULT_COW_DEX_MARKET_ID, default_chain_id=DEFAULT_COW_VIRTUAL_CHAIN_ID)
+        return _market_page_response(
+            panel,
+            default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
+            default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
+        )
 
     @app.get("/dex-pools")
     @app.get("/candidate-pools")
@@ -305,25 +307,31 @@ def register_page_routes(app, panel) -> None:
             return _market_page_response(
                 panel,
                 template_path=panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
-                default_market_id=DEFAULT_BNB_DEX_MARKET_ID,
-                default_chain_id=DEFAULT_BNB_CHAIN_ID,
+                default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
+                default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
             )
         return _html_response(
             panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
             feature="dex_arbitrage",
-            default_market_id=DEFAULT_BNB_DEX_MARKET_ID,
-            default_chain_id=DEFAULT_BNB_CHAIN_ID,
+            default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
+            default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
             page_surface="candidates",
         )
 
     @app.get("/flash-loan")
     @app.get("/flash-loan/pools")
     def flash_loan_pools_panel():
+        flash_scope = default_flash_loan_pool_scope()
         start_flash_loan_pool_discovery_idle_worker(
             initial_delay_seconds=2.0,
             refresh_kwargs=_flash_loan_discovery_refresh_kwargs(panel),
         )
-        return _html_response(panel.FLASH_LOAN_POOLS_TEMPLATE_PATH)
+        return _html_response(
+            panel.FLASH_LOAN_POOLS_TEMPLATE_PATH,
+            feature="dex_arbitrage",
+            default_market_id=str(flash_scope["market_id"]),
+            default_chain_id=int(flash_scope["chain_id"]),
+        )
 
     @app.get("/robinhood-dex")
     @app.get("/robinhood-dex/candidates")
@@ -460,6 +468,8 @@ def register_page_routes(app, panel) -> None:
             chain_id = _request_chain_id()
         except ChainSelectionError as exc:
             return jsonify({"ok": False, "error": exc.message, "code": exc.code}), 400
+        if chain_id is None and not request.args.get("market_id", "").strip():
+            chain_id = int(default_flash_loan_pool_scope()["chain_id"])
         discovered_protocols = [
             item["protocol"]
             for item in protocol_options_for_chain(chain_id=chain_id)
@@ -475,9 +485,6 @@ def register_page_routes(app, panel) -> None:
                 market_id=request.args.get("market_id", "").strip() or None,
                 chain_id=chain_id,
                 protocols=protocols,
-                aave_cache_path=panel.AAVE_RESERVE_CACHE_PATH,
-                stable_target_cache_path=panel.DEX_BORROW_TARGET_CACHE_PATH,
-                robinhood_flash_liquidity_loader=cached_robinhood_flash_liquidity_snapshot,
                 discovered_protocols=discovered_protocols,
             )
         )

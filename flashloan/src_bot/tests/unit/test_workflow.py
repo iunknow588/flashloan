@@ -26,7 +26,12 @@ def test_liquidation_defaults_to_direct_single_chain():
 def test_cow_dex_with_two_networks_is_multi_chain():
     context = resolve_workflow_context(
         "/dex/quotes",
-        {"cow_networks": "bnb,avalanche", "execution_mode": EXECUTION_MODE_COW},
+        {
+            "market_id": "cow-dex-arbitrage",
+            "chain_id": "0",
+            "cow_networks": "bnb,avalanche",
+            "execution_mode": EXECUTION_MODE_COW,
+        },
     )
 
     assert context.workflow == WORKFLOW_DEX_ARBITRAGE

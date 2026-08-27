@@ -19,7 +19,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.config_schema import parse_env_float, parse_env_int
 from execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
-from core.env_loader import load_env_files, resolve_env_path
+from core.env_loader import load_env_files, local_json_only_enabled, resolve_env_path
 from core.sensitive_data import redact_sensitive_text
 from execution.execution_payload import PayloadConfig, build_execution_payload
 from execution.liquidation_scan import (
@@ -975,10 +975,14 @@ def start_observer_background() -> None:
 
 
 def liquidation_engine_enabled() -> bool:
+    if local_json_only_enabled():
+        return False
     return os.getenv("LIQUIDATION_ENGINE_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def liquidation_engine_autostart_enabled() -> bool:
+    if local_json_only_enabled():
+        return False
     return any(
         os.getenv(name, "false").strip().lower() in {"1", "true", "yes", "on"}
         for name in (
@@ -990,6 +994,8 @@ def liquidation_engine_autostart_enabled() -> bool:
 
 
 def liquidation_observer_autostart_enabled() -> bool:
+    if local_json_only_enabled():
+        return False
     raw = os.getenv("LIQUIDATION_OBSERVER_AUTOSTART")
     if raw is not None:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
@@ -998,6 +1004,8 @@ def liquidation_observer_autostart_enabled() -> bool:
 
 def start_observer_runtime_async() -> dict:
     global observer_start_error, observer_starting, selected_symbols
+    if local_json_only_enabled():
+        return {"enabled": False, "started": False, "reason": "local_json_only"}
     if quick_observer_running():
         return {"enabled": True, "started": False, "reason": "already_running", "pid": quick_observer_pid()}
     with observer_start_lock:
@@ -1086,6 +1094,8 @@ def liquidation_engine_core_accounts() -> list[str]:
 
 def start_liquidation_engine_runtime(*, force: bool = False) -> dict:
     global liquidation_engine_instance, liquidation_engine_thread
+    if local_json_only_enabled():
+        return {"enabled": False, "started": False, "reason": "local_json_only"}
     if not force and not liquidation_engine_enabled():
         return {"enabled": False, "started": False, "reason": "LIQUIDATION_ENGINE_ENABLED is false"}
     with liquidation_engine_lock:
@@ -1119,6 +1129,8 @@ def bnb_venus_watcher_enabled() -> bool:
 
 def start_bnb_venus_watcher_runtime() -> dict:
     global bnb_venus_watcher_thread
+    if local_json_only_enabled():
+        return {"enabled": False, "started": False, "reason": "local_json_only"}
     if not bnb_venus_watcher_enabled():
         return {"enabled": False, "started": False, "reason": "BNB_VENUS_WATCHER_ENABLED is false"}
     with bnb_venus_watcher_lock:
@@ -1158,6 +1170,8 @@ def start_bnb_venus_watcher_runtime() -> dict:
 
 
 def initialize_liquidation_runtime() -> None:
+    if local_json_only_enabled():
+        return
     if liquidation_engine_autostart_enabled():
         try:
             start_liquidation_engine_runtime(force=True)
@@ -1183,6 +1197,8 @@ def initialize_liquidation_runtime() -> None:
 
 
 def initialize_cow_arbitrage_runtime() -> None:
+    if local_json_only_enabled():
+        return
     if not cow_quote_daemon_enabled():
         return
     try:

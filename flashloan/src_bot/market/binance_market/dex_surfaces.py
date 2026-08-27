@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
 
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
+from intent_trade.chains.common.dex_candidate_tables import pair_symbol_universe
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
+from strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
-DEFAULT_MIN_PROFIT_BPS = 20.0
 DEFAULT_AMM_FEE_BPS = 30.0
+ROBINHOOD_TESTNET_CHAIN_ID = 46630
 
 STABLE_ANCHOR_SYMBOLS = {
     "AUSD",
@@ -203,7 +206,31 @@ def _propagate_price_aliases(price_map: dict[str, float]) -> None:
 def _price_map_from_pairs(pairs: list[dict[str, Any]]) -> dict[str, float]:
     price_map: dict[str, float] = {symbol: 1.0 for symbol in STABLE_ANCHOR_SYMBOLS}
     pools = [pool for pair in pairs for pool in _pools_for_pair(pair)]
+    _propagate_price_aliases(price_map)
+    for _ in range(4):
+        changed = False
+        for pool in pools:
+            if _pool_protocol(pool) != "uniswap_v4":
+                continue
+            symbols = _pool_symbols(pool)
+            if len(symbols) < 2:
+                continue
+            token0, token1 = symbols[:2]
+            token0_to_token1 = _v4_spot_rate(pool, token0, token1)
+            if not token0_to_token1:
+                continue
+            if price_map.get(token0) and not price_map.get(token1):
+                price_map[token1] = price_map[token0] / token0_to_token1
+                changed = True
+            if price_map.get(token1) and not price_map.get(token0):
+                price_map[token0] = price_map[token1] * token0_to_token1
+                changed = True
+        _propagate_price_aliases(price_map)
+        if not changed:
+            break
     for pool in pools:
+        if _pool_protocol(pool) == "uniswap_v4":
+            continue
         symbols = _pool_symbols(pool)
         for index, symbol in enumerate(symbols[:2]):
             amount = _pool_reserve_amount(pool, index)
@@ -214,6 +241,8 @@ def _price_map_from_pairs(pairs: list[dict[str, Any]]) -> dict[str, float]:
     for _ in range(4):
         changed = False
         for pool in pools:
+            if _pool_protocol(pool) == "uniswap_v4":
+                continue
             symbols = _pool_symbols(pool)
             if len(symbols) < 2:
                 continue
@@ -280,6 +309,57 @@ def _market_reference_rate(pool: dict[str, Any], from_symbol: str, to_symbol: st
     return None
 
 
+def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
+    candidates = [
+        pool.get("sqrtPriceX96"),
+        pool.get("sqrt_price_x96"),
+        pool.get("latestSwapSqrtPriceX96"),
+        pool.get("latest_swap_sqrt_price_x96"),
+    ]
+    pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
+    if isinstance(pool_key, dict):
+        candidates.extend([
+            pool_key.get("sqrtPriceX96"),
+            pool_key.get("sqrt_price_x96"),
+        ])
+    for value in candidates:
+        try:
+            parsed = int(str(value or "").strip())
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return None
+
+
+def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str) -> float | None:
+    if _pool_protocol(pool) != "uniswap_v4":
+        return None
+    sqrt_price_x96 = _pool_sqrt_price_x96(pool)
+    if not sqrt_price_x96:
+        return None
+    tokens = _pool_tokens(pool)
+    if len(tokens) < 2:
+        return None
+    token0, token1 = tokens[:2]
+    if {from_symbol, to_symbol} != {token0.get("symbol"), token1.get("symbol")}:
+        return None
+    try:
+        decimals0 = int(token0.get("decimals") or pool.get("token0Decimals") or 18)
+        decimals1 = int(token1.get("decimals") or pool.get("token1Decimals") or 18)
+    except (TypeError, ValueError):
+        return None
+    raw_price = Decimal(sqrt_price_x96) * Decimal(sqrt_price_x96) / Decimal(2**192)
+    human_price = raw_price * (Decimal(10) ** (decimals0 - decimals1))
+    if human_price <= 0:
+        return None
+    if from_symbol == token0.get("symbol") and to_symbol == token1.get("symbol"):
+        return float(human_price)
+    if from_symbol == token1.get("symbol") and to_symbol == token0.get("symbol"):
+        return float(Decimal(1) / human_price)
+    return None
+
+
 def _reference_price_quote(
     *,
     pool: dict[str, Any],
@@ -295,6 +375,8 @@ def _reference_price_quote(
     fee_bps = _fee_bps(pool)
     fee_factor = max(0.0, 1.0 - fee_bps / 10_000.0)
     rate = _market_reference_rate(pool, from_symbol, to_symbol)
+    if rate is None and _pool_protocol(pool) == "uniswap_v4":
+        rate = _v4_spot_rate(pool, from_symbol, to_symbol)
     if input_amount is None:
         input_price = price_map.get(from_symbol)
         if input_price and input_price > 0:
@@ -376,6 +458,48 @@ def _route_score(route: dict[str, Any]) -> tuple[float, int, str]:
     pools = _route_pools(route)
     tvl = sum(_number((pool.get("balances") or {}).get("tvlUsd")) for pool in pools)
     return (tvl, len(pools), str(route.get("symbolPair") or ""))
+
+
+def _pair_score(pair: dict[str, Any]) -> tuple[float, int, str]:
+    pools = _pools_for_pair(pair)
+    tvl = sum(_number((pool.get("balances") or {}).get("tvlUsd")) for pool in pools)
+    return (tvl, len(pools), str(pair.get("symbolPair") or ""))
+
+
+def _pair_token_entry(pair: dict[str, Any], token_key: str) -> dict[str, Any] | None:
+    for token in _pair_tokens(pair):
+        if _token_key(token) == token_key:
+            return token
+    return None
+
+
+def _token_graph(
+    pairs: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], dict[str, set[str]], dict[str, set[str]], dict[frozenset[str], dict[str, Any]]]:
+    token_by_key: dict[str, dict[str, Any]] = {}
+    symbol_to_keys: dict[str, set[str]] = {}
+    neighbor_keys: dict[str, set[str]] = {}
+    pair_by_edge: dict[frozenset[str], dict[str, Any]] = {}
+    for pair in pairs:
+        tokens = _pair_tokens(pair)
+        if len(tokens) < 2:
+            continue
+        left, right = tokens[:2]
+        left_key = _token_key(left)
+        right_key = _token_key(right)
+        if not left_key or not right_key or left_key == right_key:
+            continue
+        token_by_key.setdefault(left_key, left)
+        token_by_key.setdefault(right_key, right)
+        symbol_to_keys.setdefault(_norm_symbol(left.get("symbol")), set()).add(left_key)
+        symbol_to_keys.setdefault(_norm_symbol(right.get("symbol")), set()).add(right_key)
+        neighbor_keys.setdefault(left_key, set()).add(right_key)
+        neighbor_keys.setdefault(right_key, set()).add(left_key)
+        edge_key = frozenset((left_key, right_key))
+        current = pair_by_edge.get(edge_key)
+        if current is None or _pair_score(pair) > _pair_score(current):
+            pair_by_edge[edge_key] = pair
+    return token_by_key, symbol_to_keys, neighbor_keys, pair_by_edge
 
 
 def _pool_matches_edge(
@@ -615,7 +739,11 @@ def _route_quote_analysis(
             "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
             "flashLoanFeeUsd": notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0,
             "gasReserveUsd": DEFAULT_GAS_RESERVE_USD,
-            "minProfitUsd": max(1.0, notional_usd * DEFAULT_MIN_PROFIT_BPS / 10_000.0),
+            "minProfitUsd": DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD,
+            "offchainMinProfitUsd": DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD,
+            "submissionMinProfitUsd": notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0,
+            "submissionNetProfitUsd": None,
+            "offchainNetProfitUsd": None,
             "netProfitUsd": None,
             "referenceNetProfitUsd": None,
             "netProfitBps": None,
@@ -670,6 +798,14 @@ def _route_quote_analysis(
         quote["hop"] = index
         quote["status"] = "quoted"
         steps.append(quote)
+        trust = str(quote.get("executionTrust") or "").strip().lower()
+        has_reference_output = quote.get("referenceOutputUsd") is not None or quote.get("referenceOutputAmount") is not None
+        if trust in {"reference_only", "sdk_adapter_required"} and not has_reference_output:
+            warnings.append(f"hop_{index}_requires_live_quoter")
+            warnings.append(f"route_truncated_at_hop_{index}_requires_live_quoter")
+            break
+        if trust in {"reference_only", "sdk_adapter_required"}:
+            warnings.append(f"hop_{index}_reference_quote_requires_live_quoter")
         step_output_usd = quote.get("outputUsd")
         if step_output_usd is None:
             step_output_usd = quote.get("referenceOutputUsd")
@@ -689,10 +825,12 @@ def _route_quote_analysis(
     reference_final_output_usd = current_usd if complete else None
     reference_gross_profit_usd = (reference_final_output_usd - notional_usd) if reference_final_output_usd is not None else None
     flash_loan_fee_usd = notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
+    submission_min_profit_usd = flash_loan_fee_usd
+    submission_net_profit_usd = (
+        reference_gross_profit_usd - flash_loan_fee_usd if reference_gross_profit_usd is not None else None
+    )
     reference_net_profit_usd = (
-        reference_gross_profit_usd - flash_loan_fee_usd - DEFAULT_GAS_RESERVE_USD
-        if reference_gross_profit_usd is not None
-        else None
+        submission_net_profit_usd - DEFAULT_GAS_RESERVE_USD if submission_net_profit_usd is not None else None
     )
     reference_net_profit_bps = (
         reference_net_profit_usd / notional_usd * 10_000.0
@@ -706,15 +844,23 @@ def _route_quote_analysis(
         gross_profit_usd - flash_loan_fee_usd - DEFAULT_GAS_RESERVE_USD if gross_profit_usd is not None else None
     )
     net_profit_bps = net_profit_usd / notional_usd * 10_000.0 if net_profit_usd is not None and notional_usd > 0 else None
-    min_profit_usd = max(1.0, notional_usd * DEFAULT_MIN_PROFIT_BPS / 10_000.0)
+    min_profit_usd = float(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD)
     if not complete:
         action = "等待真实报价"
         level = "blocked"
         reasons = ["部分跳数缺少可计算池子或深度，不能进入自动交易"]
     elif requires_live_quoter:
-        action = "等待链上 Quoter 复核"
+        action = "参考测算完成，待链上复核" if reference_final_output_usd is not None else "等待链上 Quoter 复核"
         level = "requires_live_quote"
-        reasons = ["路径包含 V3/V4 或参考价报价跳，静态余额不能作为自动交易依据", "必须用链上 Quoter 或协议 SDK 复核每一跳输出后才能进入预检"]
+        reasons = (
+            [
+                "已基于本地 JSON 的 PoolKey、sqrtPriceX96、fee 和池内方向完成参考测算",
+                "路径包含 V3/V4 或参考价报价跳，参考测算不能作为自动交易依据",
+                "必须用链上 Quoter、协议 SDK 或 eth_call 复核每一跳输出后才能进入预检",
+            ]
+            if reference_final_output_usd is not None
+            else ["路径包含 V3/V4 或参考价报价跳，静态余额不能作为自动交易依据", "必须用链上 Quoter 或协议 SDK 复核每一跳输出后才能进入预检"]
+        )
     elif net_profit_usd is not None and net_profit_usd >= min_profit_usd:
         action = "进入自动交易预检"
         level = "ready_for_precheck"
@@ -745,6 +891,10 @@ def _route_quote_analysis(
         "flashLoanFeeUsd": flash_loan_fee_usd,
         "gasReserveUsd": DEFAULT_GAS_RESERVE_USD,
         "minProfitUsd": min_profit_usd,
+        "offchainMinProfitUsd": min_profit_usd,
+        "submissionMinProfitUsd": submission_min_profit_usd,
+        "submissionNetProfitUsd": submission_net_profit_usd,
+        "offchainNetProfitUsd": net_profit_usd,
         "netProfitUsd": net_profit_usd,
         "referenceNetProfitUsd": reference_net_profit_usd,
         "netProfitBps": net_profit_bps,
@@ -784,6 +934,24 @@ def _borrowable_symbols_from_discovery(chain_id: int | None) -> list[str]:
     return sorted(fallback)
 
 
+def _v4_poolmanager_balance_symbols(pairs: list[dict[str, Any]]) -> list[str]:
+    symbols: set[str] = set()
+    for pair in pairs:
+        for pool in _pools_for_pair(pair):
+            if _pool_protocol(pool) != "uniswap_v4":
+                continue
+            if not (pool.get("poolManager") or pool.get("pool_manager") or pool.get("poolIdentityMode") == "pool_id"):
+                continue
+            balances = pool.get("balances") if isinstance(pool.get("balances"), dict) else {}
+            for index in (0, 1):
+                symbol = _norm_symbol(pool.get(f"token{index}Symbol"))
+                if not symbol or not _route_symbol_allowed(symbol):
+                    continue
+                if _number(balances.get(f"token{index}")) > 0:
+                    symbols.add(symbol)
+    return sorted(symbols)
+
+
 def _borrowable_symbols(pool_payload: dict[str, Any], chain_id: int | None) -> list[str]:
     discovered = set(_borrowable_symbols_from_discovery(chain_id))
     for pair in pool_payload.get("pairs") or []:
@@ -792,8 +960,38 @@ def _borrowable_symbols(pool_payload: dict[str, Any], chain_id: int | None) -> l
             normalized = _norm_symbol(symbol)
             if normalized:
                 discovered.add(normalized)
+    discovered.update(_v4_poolmanager_balance_symbols(pool_payload.get("pairs") or []))
+    if chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
+        discovered.update(pair_symbol_universe(pool_payload.get("pairs") or []))
     expanded = {part for symbol in discovered for part in _split_symbol_components(symbol)}
     return sorted(discovered | expanded)
+
+
+def _graph_stable_anchor_symbols(pairs: list[dict[str, Any]]) -> list[str]:
+    anchors: set[str] = set()
+    for pair in pairs:
+        for symbol in _pair_symbols(pair):
+            if _is_stable_anchor(symbol) and _route_symbol_allowed(symbol):
+                anchors.add(symbol)
+    return sorted(anchors)
+
+
+def _observation_anchor_symbols(
+    pool_payload: dict[str, Any],
+    *,
+    chain_id: int | None,
+    borrow_symbols: list[str] | None = None,
+) -> list[str]:
+    pairs = pool_payload.get("pairs") or []
+    if chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
+        anchors = [symbol for symbol in pair_symbol_universe(pairs) if _route_symbol_allowed(symbol)]
+        if anchors:
+            return anchors
+    anchors = {_norm_symbol(symbol) for symbol in (borrow_symbols or _borrowable_symbols(pool_payload, chain_id))}
+    anchors = {symbol for symbol in anchors if symbol and ":" not in symbol and _route_symbol_allowed(symbol)}
+    if anchors:
+        return sorted(anchors)
+    return _graph_stable_anchor_symbols(pairs)
 
 
 def _candidate_payload(chain_id: int | None, protocols: list[str] | None = None) -> dict[str, Any]:
@@ -809,6 +1007,10 @@ def _candidate_pairs(pairs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _borrow_anchor_symbols(pool_payload: dict[str, Any], chain_id: int | None) -> list[str]:
+    if chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
+        anchors = [symbol for symbol in pair_symbol_universe(pool_payload.get("pairs") or []) if _route_symbol_allowed(symbol)]
+        if anchors:
+            return anchors
     borrow_symbols = _borrowable_symbols(pool_payload, chain_id)
     anchors = [symbol for symbol in borrow_symbols if _is_stable_anchor(symbol) and ":" not in symbol]
     if anchors:
@@ -887,89 +1089,94 @@ def _route_candidate(
 def _overview_path_candidates(pool_payload: dict[str, Any], chain_id: int | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     pairs = _candidate_pairs(pool_payload.get("pairs") or [])
     anchors = _borrow_anchor_symbols(pool_payload, chain_id)
+    token_by_key, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
     direct_by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    pair_by_token_keys: dict[frozenset[str], list[dict[str, Any]]] = {}
-    pair_tokens_by_id: dict[int, list[dict[str, Any]]] = {}
-    for pair in pairs:
-        tokens = _pair_tokens(pair)
-        if len(tokens) < 2:
-            continue
-        token_keys = [_token_key(token) for token in tokens[:2]]
-        if len(set(token_keys)) < 2:
-            continue
-        pair_tokens_by_id[id(pair)] = tokens[:2]
-        pair_by_token_keys.setdefault(frozenset(token_keys), []).append(pair)
-        for anchor in anchors:
-            anchor_tokens = [token for token in tokens[:2] if token["symbol"] == anchor]
-            for anchor_token in anchor_tokens:
-                for target_token in tokens[:2]:
-                    target = _norm_symbol(target_token.get("symbol"))
-                    if _token_key(target_token) == _token_key(anchor_token) or target in anchors:
+    routes: list[dict[str, Any]] = []
+    route_keys: set[tuple[str, ...]] = set()
+
+    def _route_key_from_route(route: dict[str, Any], *pair_keys: str) -> tuple[str, ...]:
+        path_tokens = route.get("routeTokenPath") or []
+        token_keys = tuple(_token_key(token) for token in path_tokens if isinstance(token, dict))
+        return (*token_keys, *pair_keys)
+
+    for anchor in anchors:
+        anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
+        for anchor_key in anchor_keys:
+            neighbor_keys_for_anchor = sorted(neighbor_keys.get(anchor_key) or [])
+            for target_key in neighbor_keys_for_anchor:
+                if target_key == anchor_key:
+                    continue
+                pair = pair_by_edge.get(frozenset((anchor_key, target_key)))
+                if pair is None:
+                    continue
+                anchor_token = _pair_token_entry(pair, anchor_key)
+                target_token = _pair_token_entry(pair, target_key)
+                if anchor_token is None or target_token is None:
+                    continue
+                target = _norm_symbol(target_token.get("symbol"))
+                if not target or not _route_symbol_allowed(target):
+                    continue
+                route = _route_candidate(
+                    kind="direct_anchor_pair",
+                    anchor=anchor,
+                    target=target,
+                    path_symbols=[anchor, target, anchor],
+                    path_tokens=[anchor_token, target_token, anchor_token],
+                    pairs=[pair],
+                )
+                key = (anchor_key, target_key)
+                current = direct_by_key.get(key)
+                if current is None or _route_score(route) > _route_score(current):
+                    direct_by_key[key] = route
+
+    routes.extend(direct_by_key.values())
+    route_keys.update(direct_by_key)
+    for anchor in anchors:
+        anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
+        for anchor_key in anchor_keys:
+            for mid_key in sorted(neighbor_keys.get(anchor_key) or []):
+                if mid_key == anchor_key:
+                    continue
+                pair_xy = pair_by_edge.get(frozenset((anchor_key, mid_key)))
+                if pair_xy is None:
+                    continue
+                mid_token_xy = _pair_token_entry(pair_xy, mid_key)
+                anchor_token_xy = _pair_token_entry(pair_xy, anchor_key)
+                if mid_token_xy is None or anchor_token_xy is None:
+                    continue
+                mid_symbol = _norm_symbol(mid_token_xy.get("symbol"))
+                if not mid_symbol or not _route_symbol_allowed(mid_symbol):
+                    continue
+                for target_key in sorted(neighbor_keys.get(mid_key) or []):
+                    if target_key in {anchor_key, mid_key}:
                         continue
-                    if not _route_symbol_allowed(target):
+                    pair_yz = pair_by_edge.get(frozenset((mid_key, target_key)))
+                    pair_zx = pair_by_edge.get(frozenset((target_key, anchor_key)))
+                    if pair_yz is None or pair_zx is None:
+                        continue
+                    target_token_yz = _pair_token_entry(pair_yz, target_key)
+                    anchor_token_zx = _pair_token_entry(pair_zx, anchor_key)
+                    target_token_zx = _pair_token_entry(pair_zx, target_key)
+                    mid_token_yz = _pair_token_entry(pair_yz, mid_key)
+                    if any(token is None for token in (target_token_yz, anchor_token_zx, target_token_zx, mid_token_yz)):
+                        continue
+                    target = _norm_symbol(target_token_yz.get("symbol"))
+                    if not target or not _route_symbol_allowed(target):
                         continue
                     route = _route_candidate(
-                        kind="direct_anchor_pair",
+                        kind="bridge_pair",
                         anchor=anchor,
                         target=target,
-                        path_symbols=[anchor, target, anchor],
-                        path_tokens=[anchor_token, target_token, anchor_token],
-                        pairs=[pair],
+                        bridge_symbols=[mid_symbol, target],
+                        path_symbols=[anchor, mid_symbol, target, anchor],
+                        path_tokens=[anchor_token_xy, mid_token_xy, target_token_yz, anchor_token_zx],
+                        pairs=[pair_xy, pair_yz, pair_zx],
                     )
-                    key = (_token_key(anchor_token), _token_key(target_token))
-                    current = direct_by_key.get(key)
-                    if current is None or _route_score(route) > _route_score(current):
-                        direct_by_key[key] = route
-
-    routes = list(direct_by_key.values())
-    route_keys = set(direct_by_key)
-    for anchor in anchors:
-        bridge_pairs: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
-        for grouped in pair_by_token_keys.values():
-            for pair in grouped:
-                tokens = pair_tokens_by_id.get(id(pair)) or _pair_tokens(pair)
-                anchor_tokens = [token for token in tokens[:2] if token["symbol"] == anchor]
-                for anchor_token in anchor_tokens:
-                    for bridge_token in tokens[:2]:
-                        if _token_key(bridge_token) == _token_key(anchor_token):
-                            continue
-                        bridge_pairs.append((pair, anchor_token, bridge_token))
-        for bridge_pair, anchor_token, bridge_token in bridge_pairs:
-            bridge = _norm_symbol(bridge_token.get("symbol"))
-            if not bridge:
-                continue
-            if not _route_symbol_allowed(bridge):
-                continue
-            bridge_key = _token_key(bridge_token)
-            anchor_key = _token_key(anchor_token)
-            for key, grouped in pair_by_token_keys.items():
-                if bridge_key not in key or anchor_key in key:
-                    continue
-                for second_pair in grouped:
-                    second_tokens = pair_tokens_by_id.get(id(second_pair)) or _pair_tokens(second_pair)
-                    second_bridge_tokens = [token for token in second_tokens[:2] if _token_key(token) == bridge_key]
-                    if not second_bridge_tokens:
+                    key = _route_key_from_route(route, str(pair_xy.get("symbolPair") or ""), str(pair_yz.get("symbolPair") or ""), str(pair_zx.get("symbolPair") or ""))
+                    if key in route_keys:
                         continue
-                    for target_token in second_tokens[:2]:
-                        target = _norm_symbol(target_token.get("symbol"))
-                        if _token_key(target_token) == bridge_key or target in anchors:
-                            continue
-                        route_key = (anchor_key, _token_key(target_token))
-                        if not target or route_key in route_keys:
-                            continue
-                        if not _route_symbol_allowed(target):
-                            continue
-                        route = _route_candidate(
-                            kind="bridge_pair",
-                            anchor=anchor,
-                            target=target,
-                            bridge_symbols=[bridge],
-                            path_symbols=[anchor, bridge, target, bridge, anchor],
-                            path_tokens=[anchor_token, bridge_token, target_token, bridge_token, anchor_token],
-                            pairs=[bridge_pair, second_pair],
-                        )
-                        routes.append(route)
-                        route_keys.add(route_key)
+                    routes.append(route)
+                    route_keys.add(key)
 
     routes.sort(key=_route_score, reverse=True)
     used_pairs = {
@@ -984,6 +1191,12 @@ def _overview_path_candidates(pool_payload: dict[str, Any], chain_id: int | None
 def dex_overview_payload(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
     pool_payload = _candidate_payload(chain_id, protocols)
     ready_paths, watch_pairs, anchor_symbols = _overview_path_candidates(pool_payload, chain_id)
+    closed_loop_anchor_symbols = _observation_anchor_symbols(pool_payload, chain_id=chain_id)
+    decision_basis = (
+        "symbol_anchor_to_non_anchor_candidate_path"
+        if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        else "borrow_anchor_to_non_anchor_candidate_path"
+    )
     return {
         "mode": "dex_overview",
         "chain_id": chain_id,
@@ -991,13 +1204,15 @@ def dex_overview_payload(*, chain_id: int | None = None, protocols: list[str] | 
         "summary": {
             **(pool_payload.get("summary") or {}),
             "anchorBorrowSymbols": anchor_symbols,
+            "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
+            "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
             "arbitragePathCount": len(ready_paths),
             "candidatePathCount": len(ready_paths),
             "directAnchorPathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
             "bridgePathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
             "watchPairCount": len(watch_pairs),
         },
-        "decisionBasis": "borrow_anchor_to_non_anchor_candidate_path",
+        "decisionBasis": decision_basis,
         "poolStaticTable": pool_payload.get("poolStaticTable") or {},
         "flashLoanLiquidity": pool_payload.get("flashLoanLiquidity") or {},
         "dexSettlement": pool_payload.get("dexSettlement") or {},
@@ -1008,71 +1223,176 @@ def dex_overview_payload(*, chain_id: int | None = None, protocols: list[str] | 
 
 def dex_market_observation_payload(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
     pool_payload = _candidate_payload(chain_id, protocols)
-    pairs = pool_payload.get("pairs") or []
+    pairs = _candidate_pairs(pool_payload.get("pairs") or [])
     borrow_symbols = _borrowable_symbols(pool_payload, chain_id)
+    observation_anchors = _observation_anchor_symbols(pool_payload, chain_id=chain_id, borrow_symbols=borrow_symbols)
+    token_by_key, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
     direct: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
-    by_symbol: dict[str, list[dict[str, Any]]] = {symbol: [] for symbol in borrow_symbols}
+    by_symbol: dict[str, list[dict[str, Any]]] = {symbol: [] for symbol in observation_anchors}
+
+    def pair_row(pair: dict[str, Any], *, limit: int = 5) -> dict[str, Any]:
+        pools = _pools_for_pair(pair)
+        return {
+            "symbolPair": pair.get("symbolPair"),
+            "tradeSymbols": _pair_symbols(pair),
+            "poolCount": len(pools),
+            "classification": pair.get("classification") or {},
+            "pools": pools[:limit],
+        }
 
     for pair in pairs:
         symbols = _pair_symbols(pair)
-        pools = pair.get("preferredPools") or pair.get("executionPools") or []
-        matched = [symbol for symbol in borrow_symbols if symbol in symbols]
+        pools = _pools_for_pair(pair)
+        matched = [symbol for symbol in observation_anchors if symbol in symbols]
         if matched:
-            row = {
-                "symbolPair": pair.get("symbolPair"),
-                "matchedBorrowSymbols": matched,
-                "tradeSymbols": symbols,
-                "poolCount": len(pools),
-                "classification": pair.get("classification") or {},
-                "pools": pools[:5],
-            }
+            row = pair_row(pair)
+            row["matchedObservationSymbols"] = matched
+            row["matchedBorrowSymbols"] = [symbol for symbol in matched if symbol in borrow_symbols] or matched
             direct.append(row)
             for symbol in matched:
                 by_symbol.setdefault(symbol, []).append(row)
         elif pools:
-            unmatched.append(
-                {
-                    "symbolPair": pair.get("symbolPair"),
-                    "tradeSymbols": symbols,
-                    "poolCount": len(pools),
-                    "classification": pair.get("classification") or {},
-                    "pools": pools[:3],
-                }
-            )
+            unmatched.append(pair_row(pair, limit=3))
 
-    bridges: list[dict[str, Any]] = []
-    for borrow_symbol, rows in by_symbol.items():
-        connected = sorted({symbol for row in rows for symbol in row["tradeSymbols"] if symbol != borrow_symbol})
-        for bridge_symbol in connected:
-            second_leg = [
-                row
-                for row in direct + unmatched
-                if bridge_symbol in row.get("tradeSymbols", []) and borrow_symbol not in row.get("tradeSymbols", [])
-            ][:5]
-            if second_leg:
-                bridges.append(
-                    {
-                        "borrowSymbol": borrow_symbol,
-                        "bridgeSymbol": bridge_symbol,
-                        "firstLegCount": len(rows),
-                        "secondLegCount": len(second_leg),
-                        "secondLegPairs": second_leg,
+    route_seen: set[tuple[str, ...]] = set()
+    closed_routes: list[dict[str, Any]] = []
+    direct_closed_routes: list[dict[str, Any]] = []
+    bridge_routes: list[dict[str, Any]] = []
+    used_pair_symbols: set[str] = {str(row.get("symbolPair") or "") for row in direct}
+
+    for anchor in observation_anchors:
+        anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
+        for anchor_key in anchor_keys:
+            for target_key in sorted(neighbor_keys.get(anchor_key) or []):
+                if target_key == anchor_key:
+                    continue
+                first_pair = pair_by_edge.get(frozenset((anchor_key, target_key)))
+                if first_pair is None:
+                    continue
+                first_row = pair_row(first_pair, limit=3)
+                target_token = _pair_token_entry(first_pair, target_key)
+                if target_token is None:
+                    continue
+                target_symbol = _norm_symbol(target_token.get("symbol"))
+                if not target_symbol or not _route_symbol_allowed(target_symbol):
+                    continue
+                route_key = ("direct", anchor_key, target_key, str(first_pair.get("symbolPair") or ""))
+                if route_key in route_seen:
+                    continue
+                route_seen.add(route_key)
+                used_pair_symbols.add(str(first_pair.get("symbolPair") or ""))
+                route = {
+                    "kind": "direct_closed_pair",
+                    "borrowSymbol": anchor,
+                    "anchorSymbol": anchor,
+                    "targetSymbol": target_symbol,
+                    "bridgeSymbol": target_symbol,
+                    "pathSymbols": [anchor, target_symbol, anchor],
+                    "pathText": f"{anchor} -> {target_symbol} -> {anchor}",
+                    "closedLoop": True,
+                    "firstLegCount": 1,
+                    "secondLegCount": 1,
+                    "firstLegPair": first_row,
+                    "secondLegPairs": [first_row],
+                    "routePairs": [first_row],
+                }
+                direct_closed_routes.append(route)
+                closed_routes.append(route)
+
+        for anchor_key in anchor_keys:
+            for mid_key in sorted(neighbor_keys.get(anchor_key) or []):
+                if mid_key == anchor_key:
+                    continue
+                first_pair = pair_by_edge.get(frozenset((anchor_key, mid_key)))
+                if first_pair is None:
+                    continue
+                first_row = pair_row(first_pair, limit=3)
+                mid_token = _pair_token_entry(first_pair, mid_key)
+                anchor_token = _pair_token_entry(first_pair, anchor_key)
+                if mid_token is None or anchor_token is None:
+                    continue
+                mid_symbol = _norm_symbol(mid_token.get("symbol"))
+                if not mid_symbol or not _route_symbol_allowed(mid_symbol):
+                    continue
+                for target_key in sorted(neighbor_keys.get(mid_key) or []):
+                    if target_key in {anchor_key, mid_key}:
+                        continue
+                    second_pair = pair_by_edge.get(frozenset((mid_key, target_key)))
+                    third_pair = pair_by_edge.get(frozenset((target_key, anchor_key)))
+                    if second_pair is None or third_pair is None:
+                        continue
+                    second_row = pair_row(second_pair, limit=3)
+                    third_row = pair_row(third_pair, limit=3)
+                    target_token = _pair_token_entry(second_pair, target_key)
+                    anchor_token_zx = _pair_token_entry(third_pair, anchor_key)
+                    if target_token is None or anchor_token_zx is None:
+                        continue
+                    target_symbol = _norm_symbol(target_token.get("symbol"))
+                    if not target_symbol or not _route_symbol_allowed(target_symbol):
+                        continue
+                    route_key = (
+                        "triangle",
+                        anchor_key,
+                        mid_key,
+                        target_key,
+                        str(first_pair.get("symbolPair") or ""),
+                        str(second_pair.get("symbolPair") or ""),
+                        str(third_pair.get("symbolPair") or ""),
+                    )
+                    if route_key in route_seen:
+                        continue
+                    route_seen.add(route_key)
+                    used_pair_symbols.add(str(first_pair.get("symbolPair") or ""))
+                    used_pair_symbols.add(str(second_pair.get("symbolPair") or ""))
+                    used_pair_symbols.add(str(third_pair.get("symbolPair") or ""))
+                    route = {
+                        "kind": "bridge_closed_loop",
+                        "borrowSymbol": anchor,
+                        "anchorSymbol": anchor,
+                        "bridgeSymbol": mid_symbol,
+                        "targetSymbol": target_symbol,
+                        "pathSymbols": [anchor, mid_symbol, target_symbol, anchor],
+                        "pathText": f"{anchor} -> {mid_symbol} -> {target_symbol} -> {anchor}",
+                        "closedLoop": True,
+                        "firstLegCount": 1,
+                        "secondLegCount": 2,
+                        "firstLegPair": first_row,
+                        "secondLegPairs": [second_row, third_row],
+                        "routePairs": [first_row, second_row, third_row],
                     }
-                )
+                    bridge_routes.append(route)
+                    closed_routes.append(route)
+
+    def route_sort_key(route: dict[str, Any]) -> tuple[float, int, str]:
+        pools = [pool for pair in route.get("routePairs") or [] for pool in pair.get("pools") or []]
+        tvl = sum(_number((pool.get("balances") or {}).get("tvlUsd")) for pool in pools)
+        return (tvl, len(pools), str(route.get("pathText") or ""))
+
+    direct_closed_routes.sort(key=route_sort_key, reverse=True)
+    bridge_routes.sort(key=route_sort_key, reverse=True)
+    closed_routes = sorted(closed_routes, key=route_sort_key, reverse=True)[:200]
+    bridges = bridge_routes[:120]
+    unmatched = [row for row in unmatched if str(row.get("symbolPair") or "") not in used_pair_symbols]
 
     return {
         "mode": "dex_market_observation",
         "chain_id": chain_id,
         "selected_protocols": protocols or [],
         "borrowableSymbols": borrow_symbols,
+        "observationAnchorSymbols": observation_anchors,
         "directPools": direct,
+        "directClosedLoopRoutes": direct_closed_routes[:120],
+        "closedLoopRoutes": closed_routes,
         "indirectRoutes": bridges,
         "unmatchedPools": unmatched[:20],
         "summary": {
             "borrowableTokenCount": len(borrow_symbols),
+            "observationAnchorCount": len(observation_anchors),
             "directPairCount": len(direct),
+            "directClosedLoopCount": len(direct_closed_routes),
             "indirectRouteCount": len(bridges),
+            "closedLoopRouteCount": len(closed_routes),
             "unmatchedPairCount": len(unmatched),
             "observableTokenCount": len(_unique_symbols([pool for pair in pairs for pool in pair.get("preferredPools") or []])),
         },
@@ -1086,6 +1406,7 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
     settlement = pool_payload.get("dexSettlement") or {}
     uniswapx = settlement.get("uniswapx") if isinstance(settlement.get("uniswapx"), dict) else {}
     overview_paths, _watch_pairs, anchor_symbols = _overview_path_candidates(pool_payload, chain_id)
+    closed_loop_anchor_symbols = _observation_anchor_symbols(pool_payload, chain_id=chain_id)
     price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
     routes = []
     for pair in overview_paths:
@@ -1162,7 +1483,12 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
                 "routeAddresses": route_addresses,
                 "routeTokenPath": route_tokens,
                 "borrowSymbols": linkage.get("borrow_symbols") or [],
-                "strategy": linkage.get("strategy") or "quote_candidate_from_borrow_anchor_path",
+                "strategy": linkage.get("strategy")
+                or (
+                    "quote_candidate_from_symbol_anchor_path"
+                    if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+                    else "quote_candidate_from_borrow_anchor_path"
+                ),
                 "poolCount": len(pools),
                 "quoteStatus": quote_status,
                 "quoteAnalysis": quote_analysis,
@@ -1202,6 +1528,8 @@ def dex_quote_routes_payload(*, chain_id: int | None = None, protocols: list[str
             "routeCount": len(routes),
             "candidateRouteCount": len(routes),
             "anchorBorrowSymbols": anchor_symbols,
+            "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
+            "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
             "executableCandidateCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("executableCandidate")),
             "profitableRouteCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("profitable")),
             "completeStaticQuoteCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("complete")),

@@ -28,7 +28,7 @@ from core.config_schema import (
     parse_env_float,
     parse_env_int,
 )
-from core.env_loader import load_env_files, resolve_env_path
+from core.env_loader import load_env_files, local_json_only_enabled, resolve_env_path
 from core.market_config import liquidation_market_config, liquidation_market_config_for, supported_market_summaries
 from core.market_scan_policy import market_scan_refresh_profile as resolve_market_scan_refresh_profile
 from core.sensitive_data import redact_sensitive_text
@@ -220,6 +220,8 @@ def liquidation_scan_refresh_profile() -> dict[str, float]:
     }
 
 def configured_database_url() -> str:
+    if local_json_only_enabled():
+        raise RuntimeError("DATABASE_URL is disabled because FLASHLOAN_LOCAL_JSON_ONLY is enabled.")
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
         raise RuntimeError("缺少 DATABASE_URL。请先在 .env 或系统环境变量中配置数据库连接。")
@@ -557,6 +559,8 @@ def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:
 
 
 def database_url_or_none() -> Optional[str]:
+    if local_json_only_enabled():
+        return None
     database_url = os.getenv("DATABASE_URL", "").strip()
     return database_url or None
 

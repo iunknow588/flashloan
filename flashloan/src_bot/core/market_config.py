@@ -23,12 +23,16 @@ DEFAULT_ETHEREUM_CHAIN_ID = 1
 DEFAULT_POLYGON_CHAIN_ID = 137
 DEFAULT_COW_VIRTUAL_CHAIN_ID = 0
 DEFAULT_ROBINHOOD_BOT_MARKET_ID = "robinhood-liquidation-shadow"
+DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID = "robinhood-testnet-liquidation-shadow"
 DEFAULT_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
+DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID = "robinhood-testnet-dex-paused"
 DEFAULT_ROBINHOOD_CHAIN_ID = 4663
 DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID = 46630
 DEFAULT_ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
 DEFAULT_ROBINHOOD_MULTICALL_ADDRESS = "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
 DEFAULT_ROBINHOOD_EXPLORER_URL = "https://robinhoodchain.blockscout.com"
+DEFAULT_ROBINHOOD_TESTNET_EXPLORER_URL = "https://explorer.testnet.chain.robinhood.com"
+DEFAULT_ROBINHOOD_TESTNET_RPC_URL = "https://rpc.testnet.chain.robinhood.com"
 DEFAULT_ROBINHOOD_MORPHO_MARKET_ID = "robinhood-morpho-blue-flash"
 DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID = "robinhood-dex-morpho-blue-flash"
 DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS = "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
@@ -241,6 +245,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "observation_only": True,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "chain_default": True,
+        "is_default": True,
         "migration_type": "dex_single_chain_market_registry",
     },
     "avalanche-traderjoe-v2": {
@@ -294,6 +299,36 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_SHADOW_CHAIN,
         "chain_default": True,
         "migration_type": "dex_shadow_market_registry",
+    },
+    DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID: {
+        "feature": "dex_arbitrage",
+        "display_name": "Robinhood Testnet Paused Executor",
+        "network": "robinhood-testnet",
+        "chain_id": DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "uniswap_v4",
+        "rpc_env_prefixes": ("ROBINHOOD_TESTNET", "ROBINHOOD_TESTNET_ALCHEMY"),
+        "explorer_url": DEFAULT_ROBINHOOD_TESTNET_EXPLORER_URL,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": False,
+        "migration_type": "robinhood_testnet_paused_deploy_readback",
+    },
+    DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID: {
+        "feature": "liquidation",
+        "display_name": "Robinhood Testnet Liquidation Shadow",
+        "network": "robinhood-testnet",
+        "chain_id": DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "morpho_blue",
+        "rpc_env_prefixes": ("ROBINHOOD_TESTNET", "ROBINHOOD_TESTNET_ALCHEMY"),
+        "explorer_url": DEFAULT_ROBINHOOD_TESTNET_EXPLORER_URL,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_NATIVE_CHAIN,
+        "chain_default": True,
+        "migration_type": "robinhood_testnet_liquidation_shadow",
     },
     "robinhood-dex-v2-shadow": {
         "feature": "dex_arbitrage",
@@ -385,12 +420,24 @@ for _market_id, _profile in KNOWN_EVM_MARKETS.items():
         continue
     _chain_id = int(_profile["chain_id"])
     _feature = str(_profile.get("feature") or "")
+    _existing_market_id = KNOWN_CHAIN_ID_MARKETS.get(_chain_id)
+    _existing_feature = (
+        str(KNOWN_EVM_MARKETS[_existing_market_id].get("feature") or "")
+        if _existing_market_id
+        else ""
+    )
     if (
-        _chain_id not in KNOWN_CHAIN_ID_MARKETS
-        or bool(_profile.get("is_default"))
+        _existing_market_id is None
         or (
             _feature == "liquidation"
-            and not bool(KNOWN_EVM_MARKETS[KNOWN_CHAIN_ID_MARKETS[_chain_id]].get("is_default"))
+            and (
+                _existing_feature != "liquidation"
+                or not bool(KNOWN_EVM_MARKETS[_existing_market_id].get("is_default"))
+            )
+        )
+        or (
+            _existing_feature != "liquidation"
+            and bool(_profile.get("is_default"))
         )
     ):
         KNOWN_CHAIN_ID_MARKETS[_chain_id] = _market_id
@@ -700,6 +747,8 @@ def _rpc_urls_for(profile: dict[str, Any]) -> tuple[str, ...]:
         )
     if profile.get("network") == "robinhood":
         candidates.extend(["https://rpc.mainnet.chain.robinhood.com"])
+    if profile.get("network") == "robinhood-testnet":
+        candidates.extend([DEFAULT_ROBINHOOD_TESTNET_RPC_URL])
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
@@ -716,6 +765,8 @@ def _dex_router_for(profile: dict[str, Any]) -> str:
         return _first_env("POLYGON_DEX_ROUTER_ADDRESS", "QUICKSWAP_DEX_ROUTER_ADDRESS", "QUICKSWAP_V2_ROUTER_ADDRESS") or DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS
     if network == "robinhood":
         return _first_env("ROBINHOOD_DEX_ROUTER_ADDRESS")
+    if network == "robinhood-testnet":
+        return _first_env("ROBINHOOD_TESTNET_DEX_ROUTER_ADDRESS", "ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER")
     return _first_env("DEX_ROUTER_ADDRESS") or DEFAULT_AVALANCHE_ROUTER_ADDRESS
 
 
@@ -797,7 +848,7 @@ def liquidation_market_config_for(
         observation_only=bool(profile.get("observation_only")) or not protocol_supported,
         enabled=bool(profile.get("enabled", True)),
         is_default=bool(profile.get("is_default"))
-        or resolved_market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
+        or resolved_market_id == DEFAULT_AVALANCHE_MARKET_ID,
     )
 
 
@@ -820,7 +871,7 @@ def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
                 "observation_only": bool(profile.get("observation_only"))
                 or not bool(profile.get("protocol_supported", capabilities.get("supported"))),
                 "is_default": bool(profile.get("is_default"))
-                or market_id in {DEFAULT_AVALANCHE_MARKET_ID, DEFAULT_COW_DEX_MARKET_ID},
+                or market_id == DEFAULT_AVALANCHE_MARKET_ID,
                 "migration_type": profile.get("migration_type") or "config_and_new_executor_deployment",
                 "pool_address": profile.get("pool_address") or "",
             }

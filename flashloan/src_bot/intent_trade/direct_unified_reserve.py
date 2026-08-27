@@ -13,15 +13,20 @@ def _impl():
 
 def usdc_address_for_network(network: str | None = None, cache: dict[str, Any] | None = None) -> str:
     impl = _impl()
-    explicit = impl._normalize_pair_address(
-        impl._env(
-            "TRIANGULAR_USDC_ADDRESS",
-            "ROBINHOOD_USDC_ADDRESS",
-            "FUJI_USDC_ADDRESS",
-            "FUJI_USDC",
-            "USDC_ADDRESS",
-        )
-    )
+    normalized_network = impl._normalize_direct_onchain_network(network)
+    if normalized_network == "fuji":
+        env_names = ("FUJI_USDC_ADDRESS", "FUJI_USDC", "TRIANGULAR_USDC_ADDRESS", "USDC_ADDRESS")
+    elif normalized_network == "avalanche":
+        env_names = ("AVALANCHE_USDC_ADDRESS", "AVALANCHE_USDC", "TRIANGULAR_USDC_ADDRESS", "USDC_ADDRESS")
+    elif normalized_network == "bnb":
+        env_names = ("BNB_USDC_ADDRESS", "BSC_USDC_ADDRESS", "TRIANGULAR_USDC_ADDRESS", "USDC_ADDRESS")
+    elif normalized_network == "robinhood":
+        env_names = ("ROBINHOOD_USDC_ADDRESS", "TRIANGULAR_USDC_ADDRESS", "USDC_ADDRESS")
+    elif normalized_network == "robinhood-testnet":
+        env_names = ("ROBINHOOD_TESTNET_USDC_ADDRESS", "TRIANGULAR_USDC_ADDRESS", "USDC_ADDRESS")
+    else:
+        env_names = ("TRIANGULAR_USDC_ADDRESS", "USDC_ADDRESS")
+    explicit = impl._normalize_pair_address(impl._env(*env_names))
     if explicit:
         return explicit
     for entry in (cache or {}).get("pools") or []:
@@ -33,7 +38,6 @@ def usdc_address_for_network(network: str | None = None, cache: dict[str, Any] |
             return entry_x
         if "USDC" in right_symbols and entry_y:
             return entry_y
-    normalized_network = impl._normalize_direct_onchain_network(network)
     if normalized_network == "fuji":
         return impl.FUJI_USDC_ADDRESS
     if normalized_network == "bnb":

@@ -33,7 +33,7 @@ def register_binance_market_cow_routes(app, panel) -> None:
     @app.get("/api/binance-market/cow-tokens")
     def binance_market_cow_tokens():
         cow_network = _request_cow_network_arg()
-        database_url = panel_call("database_url_or_none")
+        database_url = None
         token_cache = load_cow_supported_token_registry(
             cow_network=cow_network,
             database_url=database_url,
@@ -52,7 +52,7 @@ def register_binance_market_cow_routes(app, panel) -> None:
     @app.post("/api/binance-market/cow-tokens/refresh")
     def binance_market_cow_tokens_refresh():
         cow_network = _request_cow_network_arg()
-        database_url = panel_call("database_url_or_none")
+        database_url = None
         try:
             payload = refresh_cow_supported_token_cache(
                 cow_network=cow_network,
@@ -75,7 +75,7 @@ def register_binance_market_cow_routes(app, panel) -> None:
         min_side_change_percent = float(thresholds["min_side_change_percent"])
         min_token_price_usd = float(thresholds["min_token_price_usd"])
         cow_network = _request_cow_network_arg()
-        database_url = panel_call("database_url_or_none")
+        database_url = None
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
         market_state = build_binance_market_state(

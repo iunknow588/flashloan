@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from core.chain_data_registry import global_chain_id
 from core.market_config import (
     MARKET_TYPE_EXECUTION_RAIL,
     MARKET_TYPE_NATIVE_CHAIN,
@@ -27,6 +28,18 @@ def _normalise_market_id(value: object) -> str:
 
 def _normalise_feature(value: object) -> str:
     return str(value or "").strip().lower()
+
+
+def _selection_global_chain_id(row: dict[str, Any]) -> str:
+    if row.get("global_chain_id"):
+        return str(row["global_chain_id"])
+    if row.get("chain_key"):
+        return str(row["chain_key"])
+    return global_chain_id(
+        chain_id=row.get("chain_id") if isinstance(row.get("chain_id"), int) else None,
+        network=str(row.get("network") or ""),
+        market_id=str(row.get("market_id") or ""),
+    )
 
 
 def _normalise_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -63,6 +76,8 @@ def _normalise_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
                 row["chain_id"] = int(row["chain_id"])
             except (TypeError, ValueError):
                 row["chain_id"] = None
+        row["global_chain_id"] = _selection_global_chain_id(row)
+        row["chain_key"] = row["global_chain_id"]
         normalised.append(row)
     return normalised
 
@@ -87,6 +102,7 @@ def _capabilities(row: dict[str, Any]) -> dict[str, bool]:
 class ChainSelection:
     market_id: str
     chain_id: int | None
+    global_chain_id: str
     feature: str
     display_name: str
     network: str
@@ -104,6 +120,7 @@ class ChainSelection:
         return cls(
             market_id=str(row.get("market_id") or ""),
             chain_id=row.get("chain_id"),
+            global_chain_id=_selection_global_chain_id(row),
             feature=str(row.get("feature") or "liquidation"),
             display_name=str(row.get("display_name") or row.get("market_id") or ""),
             network=str(row.get("network") or ""),
@@ -121,6 +138,8 @@ class ChainSelection:
         return {
             "market_id": self.market_id,
             "chain_id": self.chain_id,
+            "global_chain_id": self.global_chain_id,
+            "chain_key": self.global_chain_id,
             "feature": self.feature,
             "display_name": self.display_name,
             "network": self.network,
@@ -183,6 +202,12 @@ def _raise_feature_mismatch_if_market_exists(
             f"market_id {existing.market_id} belongs to feature {existing.feature}, not {requested_feature}",
         )
 
+def _default_priority(selection: ChainSelection) -> tuple[int, str]:
+    market_id = _normalise_market_id(selection.market_id)
+    if selection.is_default:
+        return (1, market_id)
+    return (2, market_id)
+
 def resolve_chain_selection(
     *,
     market_id: str | None = None,
@@ -240,7 +265,7 @@ def resolve_chain_selection(
         )
 
     if selected is None:
-        selected = next((item for item in available if item.is_default), available[0])
+        selected = sorted(available, key=_default_priority)[0]
 
     if requested_chain_id is not None and selected.chain_id != requested_chain_id:
         raise ChainSelectionError(

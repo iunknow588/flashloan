@@ -3,11 +3,6 @@ from pathlib import Path
 from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
-from db.storage_common import (
-    database_unavailable_reason,
-    is_database_unavailable_error,
-    mark_database_unavailable,
-)
 from db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
     COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
@@ -19,7 +14,6 @@ from db.storage_cow_execution import (
     build_cow_execution_attempts,
     build_cow_market_claim_candidate_attempts,
     build_cow_market_candidate_attempts,
-    record_cow_execution_attempts,
 )
 from runtime.cow_arbitrage_daemon import (
     cow_quote_daemon_enabled,
@@ -225,31 +219,6 @@ def record_cow_attempt_list_safely(
             "error": None,
             "pause_guard": pause_guard,
         }
-    if database_url:
-        unavailable = database_unavailable_reason(database_url)
-        if unavailable:
-            file_count = append_cow_execution_attempts_jsonl(
-                COW_EXECUTION_ATTEMPT_LOG_PATH,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-            )
-            return {"recorded": file_count, "source": "jsonl_fallback", "error": unavailable}
-        try:
-            ids = record_cow_execution_attempts(
-                database_url,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-            )
-            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
-        except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
-            file_count = append_cow_execution_attempts_jsonl(
-                COW_EXECUTION_ATTEMPT_LOG_PATH,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-            )
-            return {"recorded": file_count, "source": "jsonl_fallback", "error": data_error_message(exc)}
     file_count = append_cow_execution_attempts_jsonl(
         COW_EXECUTION_ATTEMPT_LOG_PATH,
         attempts,
@@ -360,7 +329,7 @@ def record_cow_market_candidates_safely(
     queue_result = enqueue_cow_candidate_attempts(attempts, source="binance_market_candidates")
     daemon_result = cow_quote_daemon_status()
     if cow_quote_daemon_enabled() and attempts:
-        daemon = ensure_cow_quote_daemon_running(database_url_provider=lambda: panel_call("database_url_or_none"))
+        daemon = ensure_cow_quote_daemon_running(database_url_provider=lambda: None)
         daemon_result = daemon.status()
     return {**recording, "queue": queue_result, "daemon": daemon_result}
 

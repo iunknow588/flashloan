@@ -59,6 +59,8 @@ def test_robinhood_config_uses_official_chain_level_addresses_only():
     assert robinhood.TESTNET_CHAIN_ID == 46630
     assert robinhood.NATIVE_SYMBOL == "ETH"
     assert robinhood.TOKENS["WETH"].address == "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+    assert robinhood.TESTNET_TOKENS["WETH"].address == "0x7943e237c7F95DA44E0301572D358911207852Fa"
+    assert robinhood.TESTNET_MULTICALL_ADDRESS == "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8"
     assert robinhood.DEXES == ()
 
 

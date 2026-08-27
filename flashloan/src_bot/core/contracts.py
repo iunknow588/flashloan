@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from core.chain_data_registry import global_chain_id
+
 
 DATA_SOURCES = (
     "database",
@@ -23,11 +25,20 @@ class MarketScope:
     workflow: str
     execution_mode: str | None
     scope_type: str
+    global_chain_id: str = ""
+    chain_key: str = ""
 
     def as_dict(self) -> dict[str, Any]:
+        gid = self.global_chain_id or global_chain_id(
+            chain_id=self.chain_id,
+            network=self.network,
+            market_id=self.market_id,
+        )
         return {
             "market_id": self.market_id,
             "chain_id": self.chain_id,
+            "global_chain_id": gid,
+            "chain_key": self.chain_key or gid,
             "network": self.network,
             "feature": self.feature,
             "workflow": self.workflow,
@@ -47,6 +58,8 @@ class MarketScope:
         return cls(
             market_id=str(selection.market_id),
             chain_id=selection.chain_id,
+            global_chain_id=str(getattr(selection, "global_chain_id", "") or ""),
+            chain_key=str(getattr(selection, "global_chain_id", "") or ""),
             network=str(selection.network),
             feature=str(selection.feature),
             workflow=str(workflow),

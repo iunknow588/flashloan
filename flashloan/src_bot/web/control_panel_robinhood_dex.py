@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -10,8 +10,8 @@ from core.market_config import (
     liquidation_market_config_for,
 )
 from core.contracts import source_metadata
-from core.robinhood_chain_health import probe_robinhood_rpc
-from core.robinhood_readiness import robinhood_deployment_status
+from intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
+from intent_trade.chains.robinhood.readiness import robinhood_deployment_status
 from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
 from db.storage_chain_markets import load_current_dex_arbitrage_candidates
 
@@ -436,9 +436,9 @@ def robinhood_dex_observation_payload(
                 else None
             ),
             "nextAction": (
-                "验证 Factory，读取池地址并完成池代码、代币、费率和流动性证据校验。"
+                "Validate the factory, read pool addresses, and verify pool code, tokens, fees, and liquidity evidence."
                 if not pool_views
-                else "复核池地址、代币、费率、流动性和证据区块。"
+                else "Review pool addresses, tokens, fees, liquidity, and evidence blocks."
             ),
         },
         "candidates": views,
@@ -493,9 +493,9 @@ def robinhood_dex_pool_observation_payload(
         },
         "observationStatus": "pools_available" if pools else "awaiting_discovery_evidence",
         "observationMessage": (
-            "已发现并通过证据校验的 Robinhood DEX 池子可用。"
+            "Verified Robinhood DEX pools are available."
             if pools
-            else "当前没有已发现并通过证据校验的 Robinhood DEX 池子。"
+            else "No verified Robinhood DEX pools are available yet."
         ),
         "pools": pools,
         "summary": {

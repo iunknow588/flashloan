@@ -12,9 +12,7 @@ from typing import Any
 from db.storage_cow_execution import (
     append_cow_execution_attempts_jsonl,
     build_cow_market_candidate_attempts,
-    record_cow_execution_attempts,
 )
-from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
 from runtime.cow_arbitrage_daemon import default_quote_candidate
 from runtime.cow_candidate_queue import candidate_signature
 from web.control_panel_cow_pause import cow_submission_pause_guard_status
@@ -292,31 +290,6 @@ def _record_attempts(attempts: list[dict[str, Any]], database_url: str | None) -
     pause_guard = cow_submission_pause_guard_status()
     if pause_guard.get("paused"):
         return {"recorded": 0, "source": "paused", "error": None, "pause_guard": pause_guard}
-    if database_url:
-        unavailable = database_unavailable_reason(database_url)
-        if unavailable:
-            count = append_cow_execution_attempts_jsonl(
-                DEFAULT_ATTEMPT_LOG_PATH,
-                attempts,
-                dedupe_market_candidates=False,
-            )
-            return {"recorded": count, "source": "jsonl_fallback", "error": unavailable}
-        try:
-            ids = record_cow_execution_attempts(
-                database_url,
-                attempts,
-                dedupe_market_candidates=False,
-            )
-            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
-        except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
-            count = append_cow_execution_attempts_jsonl(
-                DEFAULT_ATTEMPT_LOG_PATH,
-                attempts,
-                dedupe_market_candidates=False,
-            )
-            return {"recorded": count, "source": "jsonl_fallback", "error": str(exc)[:240]}
     count = append_cow_execution_attempts_jsonl(
         DEFAULT_ATTEMPT_LOG_PATH,
         attempts,

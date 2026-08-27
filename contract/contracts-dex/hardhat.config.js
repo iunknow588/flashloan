@@ -20,17 +20,23 @@ const AVALANCHE_RPC_URL = process.env.AVALANCHE_RPC_URL || process.env.AVALANCHE
 const ROBINHOOD_RPC_URL =
   process.env.ROBINHOOD_RPC_URL ||
   process.env.ROBINHOOD_RPC ||
+  process.env.ROBINHOOD_RPCS ||
+  process.env.ROBINHOOD_RPC_URLS ||
   process.env.ROBINHOOD_MAINNET_RPC_URL ||
   process.env.ROBINHOOD_MAINNET_RPC;
 const ROBINHOOD_TESTNET_RPC_URL =
   process.env.ROBINHOOD_TESTNET_RPC_URL ||
   process.env.ROBINHOOD_TESTNET_RPC ||
+  process.env.ROBINHOOD_TESTNET_RPCS ||
+  process.env.ROBINHOOD_TESTNET_RPC_URLS ||
   process.env.ROBINHOOD_TESTNET_ALCHEMY_RPC_URL ||
   process.env.ROBINHOOD_TESTNET_ALCHEMY_RPC;
 const AVALANCHE_FORK_BLOCK_NUMBER = process.env.AVALANCHE_FORK_BLOCK_NUMBER;
 const AVALANCHE_FORK_RPC_URL =
   process.env.AVALANCHE_FORK_RPC_URL ||
   (AVALANCHE_FORK_BLOCK_NUMBER ? AVALANCHE_RPC_URL : "");
+const DEFAULT_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";
+const DEFAULT_ROBINHOOD_TESTNET_RPC_URL = "https://rpc.testnet.chain.robinhood.com";
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const FALLBACK_PRIVATE_KEY = process.env.LIQUIDATION_EXECUTION_PRIVATE_KEY || process.env.COW_ORDER_SIGNER_PRIVATE_KEY;
 const DEPLOYER_KEYS = PRIVATE_KEY ? [PRIVATE_KEY] : (FALLBACK_PRIVATE_KEY ? [FALLBACK_PRIVATE_KEY] : []);
@@ -74,17 +80,17 @@ module.exports = {
       chainId: 43113,
     },
     avalanche: {
-      url: AVALANCHE_RPC_URL || FUJI_RPC_URL || "http://127.0.0.1:8545",
+      url: AVALANCHE_RPC_URL || "http://127.0.0.1:8545",
       accounts: DEPLOYER_KEYS,
       chainId: 43114,
     },
     robinhood: {
-      url: ROBINHOOD_RPC_URL || "http://127.0.0.1:8545",
+      url: ROBINHOOD_RPC_URL || DEFAULT_ROBINHOOD_RPC_URL,
       accounts: DEPLOYER_KEYS,
       chainId: 4663,
     },
     robinhoodTestnet: {
-      url: ROBINHOOD_TESTNET_RPC_URL || "http://127.0.0.1:8545",
+      url: ROBINHOOD_TESTNET_RPC_URL || DEFAULT_ROBINHOOD_TESTNET_RPC_URL,
       accounts: DEPLOYER_KEYS,
       chainId: 46630,
     },

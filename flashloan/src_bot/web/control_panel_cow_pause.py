@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from core.env_loader import local_json_only_enabled
 from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
 from web.parameter_config import (
     COW_SUBMISSION_PAUSE_GUARD_PATH,
@@ -33,6 +34,8 @@ def cow_pause_now() -> str:
 
 
 def _database_url_or_none(database_url: str | None = None) -> str | None:
+    if local_json_only_enabled():
+        return None
     return str(database_url or os.getenv("DATABASE_URL", "")).strip() or None
 
 

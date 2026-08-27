@@ -90,6 +90,7 @@ def install_chain_selection_context(app: Flask, panel) -> None:
         selection = getattr(g, "chain_selection", None)
         if selection is not None:
             response.headers["X-Chain-Selection-Market"] = selection.market_id
+            response.headers["X-Chain-Selection-Global-Id"] = selection.global_chain_id
             if selection.chain_id is not None:
                 response.headers["X-Chain-Selection-Chain-Id"] = str(selection.chain_id)
         workflow_context = getattr(g, "workflow_context", None)

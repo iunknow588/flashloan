@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "robinhood-v4-flash-normal-probe-deploy-v1",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "probeAddress": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+  "broadcastEnabled": false,
+  "normalOnly": true
+}

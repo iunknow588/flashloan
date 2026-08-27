@@ -1,0 +1,31 @@
+{
+  "schema_version": "chain-data-v1",
+  "network": "bnb",
+  "chain_id": 56,
+  "display_name": "BNB Chain",
+  "native_symbol": "BNB",
+  "features": {
+    "liquidation": {
+      "default_market_id": "bnb-venus-core",
+      "protocol": "venus_core"
+    },
+    "dex_arbitrage": {
+      "default_market_id": "bnb-dex-arbitrage",
+      "protocol": "pancakeswap_v3"
+    }
+  },
+  "flash_loan": {
+    "default_protocols": ["venus_core", "pancakeswap_v3", "pancakeswap_v2", "aave_v3"],
+    "candidate_protocols": ["aave_v3", "venus_core", "pancakeswap_v3", "pancakeswap_v2", "biswap_v2", "uniswap_v4"],
+    "supported_protocol_count": 6
+  },
+  "data_files": {
+    "venus_markets": "../../data_info/BNB/liquidation/venus_market_static_table.json",
+    "dex_pools": "runtime/cache/bnb_arbitrage_pool_static_table.json"
+  },
+  "processing_handlers": {
+    "flash_loan_pools": "intent_trade.chains.bnb.flash_loan_pools:flash_loan_pool_protocol_view",
+    "dex_pool_candidates": "intent_trade.chains.bnb.dex_pool_candidates:dex_pool_candidates_payload",
+    "pool_discovery": "intent_trade.chains.bnb.pool_discovery:pool_discovery_flow"
+  }
+}

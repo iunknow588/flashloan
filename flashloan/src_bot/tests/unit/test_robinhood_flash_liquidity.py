@@ -1,4 +1,4 @@
-from core import robinhood_flash_liquidity as liquidity
+﻿from intent_trade.chains.robinhood import flash_liquidity as liquidity
 
 
 def test_robinhood_flash_liquidity_snapshot_models_morpho_and_uniswap_v2(monkeypatch):

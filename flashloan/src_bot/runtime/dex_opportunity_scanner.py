@@ -9,6 +9,8 @@ import threading
 import time
 from typing import Any, Callable
 
+from core.chain_data_registry import chain_data_by_chain_id
+from core.env_loader import local_json_only_enabled
 from market.binance_market.dex_surfaces import dex_quote_routes_payload
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, capture_onchain_trigger_context
 
@@ -23,13 +25,6 @@ COW_EXECUTION_ATTEMPT_LOG_PATH = Path(__file__).resolve().parents[1] / "runtime"
 COW_EXECUTION_RETENTION_DAYS = 7
 _SCANNER: DexOpportunityScanner | None = None
 _SCANNER_LOCK = threading.Lock()
-_CHAIN_NETWORKS = {
-    1: "ethereum",
-    56: "bnb",
-    137: "polygon",
-    43114: "avalanche",
-    4663: "robinhood",
-}
 
 
 def _now_iso() -> str:
@@ -38,6 +33,13 @@ def _now_iso() -> str:
 
 def _chain_key(chain_id: int | None) -> str:
     return str(int(chain_id)) if chain_id is not None else "default"
+
+
+def _network_for_chain_id(chain_id: int | None) -> str:
+    if chain_id is None:
+        return "dex"
+    row = chain_data_by_chain_id(int(chain_id))
+    return str(row.get("network") or f"chain_{chain_id}") if row else f"chain_{chain_id}"
 
 
 def _env_float(name: str, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
@@ -83,7 +85,20 @@ def _chain_network(payload: dict[str, Any] | None, chain_id: int | None) -> str:
     network = str(table.get("network") or "").strip().lower()
     if network:
         return network
-    return _CHAIN_NETWORKS.get(int(chain_id), f"chain_{chain_id}") if chain_id is not None else "dex"
+    return _network_for_chain_id(chain_id)
+
+
+def _trigger_block_number(trigger_context: dict[str, Any] | None) -> int | None:
+    if not isinstance(trigger_context, dict):
+        return None
+    for key in ("triggerBlockNumber", "blockNumber", "trigger_block_number", "block_number"):
+        try:
+            parsed = int(trigger_context.get(key) or 0)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return None
 
 
 def _recordable_route(route: dict[str, Any]) -> bool:
@@ -382,23 +397,8 @@ def build_dex_opportunity_attempts(
 def default_record_attempts(attempts: list[dict[str, Any]]) -> dict[str, Any]:
     if not attempts:
         return {"recorded": 0, "source": "empty", "error": None}
-    from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl, record_cow_execution_attempts
+    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
 
-    database_url = os.getenv("DATABASE_URL", "").strip() or None
-    if database_url and not database_unavailable_reason(database_url):
-        try:
-            ids = record_cow_execution_attempts(database_url, attempts, retention_days=COW_EXECUTION_RETENTION_DAYS)
-            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
-        except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
-            file_count = append_cow_execution_attempts_jsonl(
-                COW_EXECUTION_ATTEMPT_LOG_PATH,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-            )
-            return {"recorded": file_count, "source": "jsonl_fallback", "error": str(exc)}
     file_count = append_cow_execution_attempts_jsonl(
         COW_EXECUTION_ATTEMPT_LOG_PATH,
         attempts,
@@ -529,9 +529,22 @@ class DexOpportunityScanner:
         key = _chain_key(chain_id)
         trigger_context = self.trigger_context_provider(
             chain_id=chain_id,
-            network=_CHAIN_NETWORKS.get(int(chain_id), f"chain_{chain_id}") if chain_id is not None else "dex",
+            network=_network_for_chain_id(chain_id),
             observed_at=started_at,
         )
+        if _trigger_block_number(trigger_context) is None and _network_for_chain_id(chain_id) == "robinhood-testnet":
+            try:
+                from intent_trade.chains.robinhood_testnet.trigger_context import capture_robinhood_testnet_trigger_context
+
+                fallback_trigger_context = capture_robinhood_testnet_trigger_context(
+                    chain_id=chain_id,
+                    network="robinhood-testnet",
+                    observed_at=started_at,
+                )
+                if _trigger_block_number(fallback_trigger_context) is not None:
+                    trigger_context = fallback_trigger_context
+            except Exception:
+                pass
         with self._lock:
             self._last_scan_started_at = started_at
         with self._scan_lock:
@@ -669,6 +682,7 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
     global _SCANNER
     with _SCANNER_LOCK:
         if _SCANNER is None:
+            local_only = local_json_only_enabled()
             _SCANNER = DexOpportunityScanner(
                 interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 3.0, minimum=0.5, maximum=60.0),
                 record_cooldown_seconds=_env_float(
@@ -677,7 +691,10 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                     minimum=0.0,
                     maximum=3600.0,
                 ),
-                max_onchain_evidence_routes=int(_env_float("DEX_OPPORTUNITY_ONCHAIN_EVIDENCE_ROUTES", 1.0, minimum=0.0, maximum=10.0)),
+                record_opportunities=not local_only,
+                max_onchain_evidence_routes=0 if local_only else int(
+                    _env_float("DEX_OPPORTUNITY_ONCHAIN_EVIDENCE_ROUTES", 1.0, minimum=0.0, maximum=10.0)
+                ),
             )
         return _SCANNER
 

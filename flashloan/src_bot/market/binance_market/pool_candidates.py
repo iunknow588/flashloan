@@ -6,20 +6,16 @@ from pathlib import Path
 import re
 from typing import Any
 
+from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
 from core.contracts import source_metadata
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
+from intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
 DEX_POOL_STATIC_TABLE_PATH = SRC_ROOT / "runtime" / "cache" / "bnb_arbitrage_pool_static_table.json"
-AVALANCHE_DEX_POOL_STATIC_TABLE_PATH = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 ROBINHOOD_DEX_CANDIDATE_PATH = SRC_ROOT / "runtime" / "cache" / "robinhood_dex_candidates.json"
 ROBINHOOD_DEX_MARKET_POOL_PATH = SRC_ROOT / "runtime" / "cache" / "robinhood_dex_market_pools.json"
 ROBINHOOD_DEX_EVIDENCE_ROOT = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
-CHAIN_DEX_POOL_STATIC_TABLE_PATHS = {
-    56: DEX_POOL_STATIC_TABLE_PATH,
-    43114: AVALANCHE_DEX_POOL_STATIC_TABLE_PATH,
-    4663: ROBINHOOD_DEX_CANDIDATE_PATH,
-}
 
 STABLE_SYMBOLS = {
     "AUSD",
@@ -370,7 +366,58 @@ def _filter_pair_protocols(pair: dict, protocols: set[str]) -> dict | None:
     return copied
 
 
+def _anchor_token_groups_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    token_groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        token_symbol = str(row.get("counterSymbol") or "").strip().upper()
+        if not token_symbol:
+            continue
+        token_address = _token_address(row.get("counterAddress"))
+        bucket = token_groups.setdefault(
+            token_symbol,
+            {"symbol": token_symbol, "address": token_address, "pools": [], "poolIds": set()},
+        )
+        if token_address and not bucket.get("address"):
+            bucket["address"] = token_address
+        pool_id = str(row.get("pool") or "").strip()
+        if pool_id and pool_id not in bucket["poolIds"]:
+            bucket["poolIds"].add(pool_id)
+            bucket["pools"].append(row)
+    tokens: list[dict[str, Any]] = []
+    for token in sorted(token_groups.values(), key=lambda item: (-len(item["pools"]), str(item["symbol"]))):
+        tokens.append(
+            {
+                "symbol": token["symbol"],
+                "address": token.get("address") or "",
+                "poolCount": str(len(token["pools"])),
+                "pools": token["pools"][:10],
+            }
+        )
+    return tokens
+
+
+def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | None:
+    if not protocols:
+        return group
+    copied = dict(group)
+    yc_pools = [row for row in group.get("ycPools") or [] if _pool_protocol(row) in protocols]
+    zc_pools = [row for row in group.get("zcPools") or [] if _pool_protocol(row) in protocols]
+    copied["ycPools"] = yc_pools
+    copied["zcPools"] = zc_pools
+    copied["ycTokens"] = _anchor_token_groups_from_rows(yc_pools)
+    copied["zcTokens"] = _anchor_token_groups_from_rows(zc_pools)
+    copied["ycPoolCount"] = str(len(yc_pools))
+    copied["zcPoolCount"] = str(len(zc_pools))
+    copied["ycTokenCount"] = str(len(copied["ycTokens"]))
+    copied["zcTokenCount"] = str(len(copied["zcTokens"]))
+    copied["candidatePoolCount"] = str(len({str(row.get("pool") or "").strip() for row in yc_pools + zc_pools if str(row.get("pool") or "").strip()}))
+    if not yc_pools and not zc_pools:
+        return None
+    return copied
+
+
 def _filter_payload_protocols(payload: dict[str, Any], protocols: set[str]) -> dict[str, Any]:
+    payload["selected_protocols"] = sorted(protocols)
     if not protocols:
         return payload
     pairs = [
@@ -380,11 +427,28 @@ def _filter_payload_protocols(payload: dict[str, Any], protocols: set[str]) -> d
         if filtered is not None
     ]
     payload["pairs"] = pairs
+    anchor_groups = [
+        filtered
+        for group in payload.get("anchorGroups") or []
+        for filtered in [_filter_anchor_group_protocols(group, protocols)]
+        if filtered is not None
+    ]
+    payload["anchorGroups"] = anchor_groups
     summary = payload.setdefault("summary", {})
     summary["pairTableCount"] = str(len(pairs))
+    summary["anchorGroupCount"] = str(len(anchor_groups))
+    summary["ycPoolCount"] = str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups))
+    summary["zcPoolCount"] = str(sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups))
+    summary["ycTokenCount"] = str(sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups))
+    summary["zcTokenCount"] = str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups))
     summary["preferredPoolCount"] = str(sum(int(pair.get("preferredPoolCount") or 0) for pair in pairs))
     summary["executionPoolCount"] = str(sum(int(pair.get("executionPoolCount") or 0) for pair in pairs))
     summary["strictQualityPoolCount"] = str(sum(int(pair.get("strictQualityPoolCount") or 0) for pair in pairs))
+    summary["pairsWithPreferredPools"] = str(sum(1 for pair in pairs if pair.get("hasPreferredPools")))
+    summary["pairsWithStrictQualityPools"] = str(sum(1 for pair in pairs if pair.get("hasStrictQualityPools")))
+    summary["preferredPairCount"] = summary["pairsWithPreferredPools"]
+    summary["strictQualityPairCount"] = summary["pairsWithStrictQualityPools"]
+    summary["candidateRouteCount"] = summary["preferredPoolCount"]
     summary["protocolFilter"] = sorted(protocols)
     return payload
 
@@ -565,6 +629,7 @@ def _bnb_dex_pool_candidates_payload(table: dict, pool_cache_path: Path) -> dict
         )
     pair_reports.sort(key=lambda item: (-int(item["preferredPoolCount"]), str(item["symbolPair"])))
     summary = table.get("summary") if isinstance(table.get("summary"), dict) else {}
+    anchor_groups = build_anchor_candidate_groups(pair_reports)
     return {
         "mode": "dex_pool_candidates",
         "poolStaticTable": {
@@ -585,10 +650,16 @@ def _bnb_dex_pool_candidates_payload(table: dict, pool_cache_path: Path) -> dict
         "summary": {
             **summary,
             "pairTableCount": str(len(pair_reports)),
+            "anchorGroupCount": str(len(anchor_groups)),
+            "ycPoolCount": str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups)),
+            "zcPoolCount": str(sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups)),
+            "ycTokenCount": str(sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups)),
+            "zcTokenCount": str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups)),
             "pairsWithStrictQualityPools": str(sum(1 for item in pair_reports if item["hasStrictQualityPools"])),
             "pairsWithPreferredPools": str(sum(1 for item in pair_reports if item["hasPreferredPools"])),
         },
         "pairs": pair_reports,
+        "anchorGroups": anchor_groups,
     }
 
 
@@ -763,6 +834,7 @@ def _robinhood_pool_table_payload(
         )
     pair_reports.sort(key=lambda item: (-int(item.get("preferredPoolCount") or 0), str(item.get("symbolPair") or "")))
     summary = table.get("summary") if isinstance(table.get("summary"), dict) else {}
+    anchor_groups = build_anchor_candidate_groups(pair_reports)
     return {
         "mode": "dex_pool_candidates",
         **source_metadata(source, freshness=table.get("generatedAt"), fallback_reason=fallback_reason),
@@ -786,6 +858,11 @@ def _robinhood_pool_table_payload(
             "staticPoolCount": str(sum(len(item["preferredPools"]) + len(item["rejectedPools"]) for item in pair_reports)),
             "staticPairCount": str(len(pair_reports)),
             "pairTableCount": str(len(pair_reports)),
+            "anchorGroupCount": str(len(anchor_groups)),
+            "ycPoolCount": str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups)),
+            "zcPoolCount": str(sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups)),
+            "ycTokenCount": str(sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups)),
+            "zcTokenCount": str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups)),
             "pairsWithStrictQualityPools": str(sum(1 for item in pair_reports if item["hasStrictQualityPools"])),
             "pairsWithPreferredPools": str(sum(1 for item in pair_reports if item["hasPreferredPools"])),
             "preferredPoolCount": str(sum(len(item["preferredPools"]) for item in pair_reports)),
@@ -793,6 +870,7 @@ def _robinhood_pool_table_payload(
             "strictQualityPoolCount": str(sum(len(item["strictQualityPools"]) for item in pair_reports)),
         },
         "pairs": pair_reports,
+        "anchorGroups": anchor_groups,
     }
 
 
@@ -869,6 +947,7 @@ def _dex_pool_candidates_payload_cached(cache_key: tuple[str, int, int]) -> dict
             str(item.get("symbolPair") or ""),
         )
     )
+    anchor_groups = build_anchor_candidate_groups(pair_reports)
     return {
         "mode": "dex_pool_candidates",
         **source_metadata(source, freshness=generated_at, fallback_reason=fallback_reason),
@@ -890,10 +969,16 @@ def _dex_pool_candidates_payload_cached(cache_key: tuple[str, int, int]) -> dict
         "summary": {
             **(table.get("summary") if isinstance(table.get("summary"), dict) else {}),
             "pairTableCount": str(len(pair_reports)),
+            "anchorGroupCount": str(len(anchor_groups)),
+            "ycPoolCount": str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups)),
+            "zcPoolCount": str(sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups)),
+            "ycTokenCount": str(sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups)),
+            "zcTokenCount": str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups)),
             "pairsWithStrictQualityPools": str(sum(1 for item in pair_reports if item["hasStrictQualityPools"])),
             "pairsWithPreferredPools": str(sum(1 for item in pair_reports if item["hasPreferredPools"])),
         },
         "pairs": pair_reports,
+        "anchorGroups": anchor_groups,
     }
 
 
@@ -1021,10 +1106,21 @@ def dex_pool_candidates_payload(
     protocols: list[str] | tuple[str, ...] | set[str] | None = None,
 ) -> dict:
     if pool_cache_path is None:
+        if chain_id is not None:
+            protocol_filter = _dex_pool_protocol_filter(protocols)
+            try:
+                payload = dispatch_chain_flow(
+                    chain_id=int(chain_id),
+                    flow_name="dex_pool_candidates",
+                    protocol="",
+                )
+                filtered = _filter_payload_protocols(payload, protocol_filter)
+                return _attach_execution_context(filtered, int(chain_id))
+            except ChainFlowDispatchError as exc:
+                if exc.code != "chain_flow_missing":
+                    raise
         if chain_id is None:
             pool_cache_path = DEX_POOL_STATIC_TABLE_PATH
-        elif int(chain_id) in CHAIN_DEX_POOL_STATIC_TABLE_PATHS:
-            pool_cache_path = CHAIN_DEX_POOL_STATIC_TABLE_PATHS[int(chain_id)]
         else:
             payload = {
                 "mode": "dex_pool_candidates",

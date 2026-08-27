@@ -5,11 +5,15 @@ from urllib.parse import urlsplit
 
 from core.chain_selection import ChainSelection, resolve_chain_selection
 from core.market_config import (
+    DEFAULT_AVALANCHE_CHAIN_ID,
+    DEFAULT_AVALANCHE_DEX_MARKET_ID,
     DEFAULT_AVALANCHE_MARKET_ID,
-    DEFAULT_COW_DEX_MARKET_ID,
     DEFAULT_COW_VIRTUAL_CHAIN_ID,
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+    DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID,
+    DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID,
+    DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID,
     MARKET_TYPE_EXECUTION_RAIL,
     MARKET_TYPE_SHADOW_CHAIN,
     MARKET_TYPE_NATIVE_CHAIN,
@@ -103,15 +107,18 @@ def resolve_market_page_variant(
     default_market_id: str | None = None,
     default_chain_id: int | None = None,
 ) -> MarketPageVariant | None:
+    pathname = _path_key(path)
     definition = _page_definition(path)
     if definition is None:
         return None
     page_key, workflow, feature, template_kind, surface = definition
     if default_market_id is None:
         default_market_id = (
-            DEFAULT_ROBINHOOD_DEX_MARKET_ID
+            DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
+            if pathname in {"/", "/bot"}
+            else DEFAULT_ROBINHOOD_DEX_MARKET_ID
             if template_kind == "robinhood_shadow"
-            else DEFAULT_COW_DEX_MARKET_ID
+            else DEFAULT_AVALANCHE_DEX_MARKET_ID
             if feature == "dex_arbitrage"
             else DEFAULT_AVALANCHE_MARKET_ID
         )
@@ -119,6 +126,10 @@ def resolve_market_page_variant(
         default_chain_id = (
             DEFAULT_ROBINHOOD_CHAIN_ID
             if default_market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID
+            else DEFAULT_AVALANCHE_CHAIN_ID
+            if default_market_id == DEFAULT_AVALANCHE_DEX_MARKET_ID
+            else DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID
+            if default_market_id == DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID
             else DEFAULT_COW_VIRTUAL_CHAIN_ID
             if feature == "dex_arbitrage"
             else None

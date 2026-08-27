@@ -1,0 +1,31 @@
+{
+  "schema_version": "chain-flow-v1",
+  "network": "avalanche",
+  "chain_id": 43114,
+  "isolation": {
+    "scope_fields": ["network", "chain_id", "market_id"],
+    "forbid_cross_chain_fallback": true,
+    "forbidden_source_networks": ["ethereum", "bnb", "polygon", "avalanche-testnet", "robinhood", "robinhood-testnet"],
+    "forbidden_source_chain_ids": [1, 56, 137, 43113, 4663, 46630]
+  },
+  "flows": {
+    "flash_loan_pools": {
+      "handler": "intent_trade.chains.avalanche.flash_loan_pools:flash_loan_pool_protocol_view",
+      "allowed_protocols": ["aave_v3", "uniswap_v3", "traderjoe_v2"],
+      "data_file_keys": ["aave_reserves", "uniswap_v3_pools", "v2_pool_discovery"],
+      "requires_scope_match": true
+    },
+    "dex_pool_candidates": {
+      "handler": "intent_trade.chains.avalanche.dex_pool_candidates:dex_pool_candidates_payload",
+      "allowed_protocols": ["uniswap_v3", "uniswap_v4", "traderjoe_v2", "curve"],
+      "data_file_keys": ["uniswap_v3_pools"],
+      "requires_scope_match": true
+    },
+    "pool_discovery": {
+      "handler": "intent_trade.chains.avalanche.pool_discovery:pool_discovery_flow",
+      "allowed_protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "traderjoe_v2", "curve"],
+      "data_file_keys": ["aave_reserves", "uniswap_v3_pools", "v2_pool_discovery"],
+      "requires_scope_match": true
+    }
+  }
+}

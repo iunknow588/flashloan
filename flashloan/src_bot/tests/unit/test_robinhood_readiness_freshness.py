@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 
-from core.robinhood_readiness import robinhood_deployment_status
+from intent_trade.chains.robinhood.readiness import robinhood_deployment_status
 
 
 def _market():

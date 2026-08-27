@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -9,8 +9,58 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.robinhood_chain_test_pack import write_robinhood_chain_test_package
+from intent_trade.chains.robinhood.chain_test_pack import write_robinhood_chain_test_package
+from intent_trade.chains.robinhood.chain_test_policy import (
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+    normalize_robinhood_chain_test_network,
+)
+from core.evidence_scope import evidence_scope_mismatch_reasons
 from db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+
+
+def _default_output_dir(network: str) -> Path:
+    return SRC_ROOT / "runtime" / "evidence" / network / "chain_test" / "latest"
+
+
+def _default_contract_dir(network: str) -> Path:
+    if network == ROBINHOOD_TESTNET_NETWORK:
+        return SRC_ROOT.parent.parent / "contract" / "robinhood" / "testnet" / "chain-test-package"
+    return SRC_ROOT.parent.parent / "contract" / "robinhood"
+
+
+def _expected_chain_id(network: str) -> int:
+    if network == ROBINHOOD_TESTNET_NETWORK:
+        return ROBINHOOD_TESTNET_CHAIN_ID
+    if network == ROBINHOOD_NETWORK:
+        return ROBINHOOD_CHAIN_ID
+    raise ValueError(f"unsupported Robinhood chain-test network: {network}")
+
+
+def _assert_scoped_path(path: Path, *, network: str, kind: str) -> None:
+    normalized = str(path).replace("\\", "/").lower()
+    if network == ROBINHOOD_TESTNET_NETWORK:
+        if kind == "output" and "/robinhood-testnet/" not in f"/{normalized}/":
+            raise ValueError("Robinhood testnet chain-test output must stay under a robinhood-testnet evidence path")
+        if kind == "contract" and "/contract/robinhood/testnet/" not in f"/{normalized}/":
+            raise ValueError("Robinhood testnet contract handoff must stay under contract/robinhood/testnet")
+    if network == ROBINHOOD_NETWORK and "/robinhood-testnet/" in f"/{normalized}/":
+        raise ValueError("Robinhood mainnet chain-test package must not write into robinhood-testnet paths")
+
+
+def _assert_attempt_scope(attempt: dict, *, network: str, chain_id: int) -> None:
+    reasons = evidence_scope_mismatch_reasons(
+        attempt,
+        expected_network=network,
+        expected_chain_id=chain_id,
+    )
+    if reasons:
+        raise ValueError(
+            "selected attempt does not match requested chain-test scope: "
+            + ", ".join(reasons)
+        )
 
 
 def _attempt_score(row: dict) -> tuple[int, str]:
@@ -79,23 +129,38 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--pair", default="USDG -> WETH -> VLAD -> WETH -> USDG")
     parser.add_argument("--trigger-block", type=int, default=None)
-    parser.add_argument("--network", default="robinhood")
-    parser.add_argument("--output-dir", type=Path, default=SRC_ROOT / "runtime" / "evidence" / "robinhood" / "chain_test" / "latest")
-    parser.add_argument("--contract-dir", type=Path, default=SRC_ROOT.parent.parent / "contract" / "robinhood")
+    parser.add_argument("--network", default=ROBINHOOD_NETWORK)
+    parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument("--contract-dir", type=Path, default=None)
     args = parser.parse_args()
+    network = normalize_robinhood_chain_test_network(args.network)
+    if network not in {ROBINHOOD_NETWORK, ROBINHOOD_TESTNET_NETWORK}:
+        raise ValueError(f"unsupported Robinhood chain-test network: {args.network}")
+    chain_id = _expected_chain_id(network)
+    output_dir = args.output_dir or _default_output_dir(network)
+    contract_dir = args.contract_dir or _default_contract_dir(network)
+    _assert_scoped_path(output_dir, network=network, kind="output")
+    _assert_scoped_path(contract_dir, network=network, kind="contract")
 
     if args.attempt_json:
         attempt = _read_json(args.attempt_json)
     else:
-        rows = load_recent_cow_execution_attempts_jsonl(args.log_path, limit=args.limit, networks=[args.network])
+        rows = load_recent_cow_execution_attempts_jsonl(
+            args.log_path,
+            limit=args.limit,
+            networks=[network],
+            chain_ids=[chain_id],
+        )
         attempt = _select_attempt(rows, args.pair, trigger_block=args.trigger_block)
-    plan = write_robinhood_chain_test_package(args.output_dir, attempt, contract_dir=args.contract_dir)
+    _assert_attempt_scope(attempt, network=network, chain_id=chain_id)
+    plan = write_robinhood_chain_test_package(output_dir, attempt, contract_dir=contract_dir)
     print(
         json.dumps(
             {
                 "ok": True,
-                "outputDir": str(args.output_dir),
-                "contractDir": str(args.contract_dir),
+                "network": network,
+                "outputDir": str(output_dir),
+                "contractDir": str(contract_dir),
                 "route": plan["route"]["pathText"],
                 "readyForTransactionPreflight": plan["decision"]["readyForTransactionPreflight"],
                 "trustedForExecution": plan["decision"]["trustedForExecution"],

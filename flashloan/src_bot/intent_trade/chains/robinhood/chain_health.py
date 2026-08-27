@@ -64,6 +64,8 @@ def probe_robinhood_rpc(
     expected_chain_id = robinhood.TESTNET_CHAIN_ID if testnet else robinhood.CHAIN_ID
     network = robinhood.TESTNET_NETWORK if testnet else robinhood.NETWORK
     checks: list[dict[str, Any]] = []
+    weth_address = robinhood.TESTNET_WETH_ADDRESS if testnet else robinhood.WETH_ADDRESS
+    multicall_address = robinhood.TESTNET_MULTICALL_ADDRESS if testnet else robinhood.MULTICALL_ADDRESS
     report: dict[str, Any] = {
         "ok": False,
         "network": network,
@@ -71,8 +73,8 @@ def probe_robinhood_rpc(
         "rpcUrl": selected_rpc,
         "checks": checks,
         "contracts": {
-            "weth": robinhood.WETH_ADDRESS,
-            "multicall": robinhood.MULTICALL_ADDRESS,
+            "weth": weth_address,
+            "multicall": multicall_address,
         },
         "executionMode": "readonly_probe",
     }
@@ -114,8 +116,8 @@ def probe_robinhood_rpc(
             }
         )
         for label, address in (
-            ("weth_code", robinhood.WETH_ADDRESS),
-            ("multicall_code", robinhood.MULTICALL_ADDRESS),
+            ("weth_code", weth_address),
+            ("multicall_code", multicall_address),
         ):
             code = _rpc_call(
                 selected_rpc,

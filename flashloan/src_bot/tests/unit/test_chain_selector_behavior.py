@@ -57,6 +57,7 @@ def test_chain_selector_uses_chain_key_for_chain_options():
     script = _read("web/static/chain_selector.js")
 
     assert "if (selection.chain_key) return String(selection.chain_key);" in script
+    assert "if (selection.global_chain_id) return String(selection.global_chain_id);" in script
     assert 'return "chain:" + String(selection.chain_id);' in script
     assert "const value = selectionKey(item);" in script
     assert "return selectionKey(candidate) === option.value;" in script

@@ -66,6 +66,9 @@ def _clear_direct_pair_env(monkeypatch):
         "ROBINHOOD_TESTNET_RPC",
         "ROBINHOOD_TESTNET_RPCS",
         "ROBINHOOD_USDC_ADDRESS",
+        "ROBINHOOD_TESTNET_USDC_ADDRESS",
+        "AVALANCHE_USDC_ADDRESS",
+        "AVALANCHE_USDC",
         "AAVE_RESERVE_CACHE_FILE",
         "AVAX_USDC_PRICE",
         "GAS_TOKEN_USDC_PRICE",
@@ -458,6 +461,21 @@ def test_direct_onchain_network_can_target_robinhood_testnet_by_chain_id(monkeyp
     assert testnet is True
 
 
+def test_robinhood_testnet_usdc_ignores_robinhood_mainnet_env(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("ROBINHOOD_USDC_ADDRESS", _addr(770))
+
+    assert direct._usdc_address_for_network("robinhood-testnet") == ""
+
+
+def test_robinhood_testnet_usdc_uses_testnet_specific_env(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("ROBINHOOD_USDC_ADDRESS", _addr(770))
+    monkeypatch.setenv("ROBINHOOD_TESTNET_USDC_ADDRESS", _addr(771))
+
+    assert direct._usdc_address_for_network("robinhood-testnet") == _addr(771)
+
+
 def test_direct_onchain_rpc_prefers_robinhood_rpc_for_robinhood(monkeypatch):
     _clear_direct_pair_env(monkeypatch)
     monkeypatch.setenv("AVALANCHE_RPC_URL", "https://mainnet.example")
@@ -522,6 +540,13 @@ def test_direct_onchain_rpc_prefers_fuji_rpc_for_fuji(monkeypatch):
 
     assert rpc_url == "https://fuji.example"
     assert rpc_env_names == ("FUJI_RPC_URL", "AVALANCHE_FUJI_RPC_URL")
+
+
+def test_avalanche_mainnet_usdc_ignores_fuji_specific_env(monkeypatch):
+    _clear_direct_pair_env(monkeypatch)
+    monkeypatch.setenv("FUJI_USDC_ADDRESS", _addr(777))
+
+    assert direct._usdc_address_for_network("avalanche") == direct.AVALANCHE_USDC_ADDRESS
 
 
 def test_build_triangular_onchain_intent_trade_uses_signal_and_pool_cache(monkeypatch, tmp_path):

@@ -36,7 +36,7 @@ robinhoodTestnet chainId 46630
 - Robinhood testnet：部署骨架、读回、暂停门禁和回款约束演练。
 - 其他链：暂不进入链上测试。
 
-注意：现有 `UnifiedFlashLoanMevExecutor.sol` 仍是 Aave + V3 风格执行器。Robinhood 当前有效正收益样本包含 V4 路由，且闪电贷来源需要按 Robinhood 实际协议确认；因此不能直接把 Avalanche 执行器脚本视为 Robinhood 可执行部署脚本。Robinhood testnet 部署前必须先补齐链专用 preflight profile、flashloan provider adapter、V4 swap adapter、回款约束和 fork/static-call 证据。
+注意：现有 `UnifiedFlashLoanMevExecutor.sol` 仍是 Aave + V3 风格执行器。Robinhood 当前测试网链路使用专用 `RobinhoodPausedFlashLoanExecutor`，不能直接把 Avalanche 执行器脚本视为 Robinhood 可执行部署脚本。
 
 Robinhood testnet 暂停态部署准备使用专用合约与脚本：
 
@@ -48,7 +48,9 @@ npm run deploy:robinhood:testnet:paused
 npm run readback:robinhood:testnet
 ```
 
-`RobinhoodPausedFlashLoanExecutor.sol` 只绑定 Robinhood/Morpho Blue 风格 `flashLoan(token, assets, data)` 来源与 Uniswap V3/V4 calldata adapter，构造后默认暂停。预检脚本会检查 RPC chain ID 与 adapter code status；`ready:robinhood:testnet` 是严格部署门禁，存在 blocking reasons 时返回非零退出码；部署脚本也会在交易前强制运行 preflight。部署成功后脚本会写入 `deployments/robinhood-paused-flashloan-robinhoodTestnet.json` 和 `../robinhood/testnet/contracts.json`，readback 证据包含 owner、pause、adapter、adapter code status、repayment guard、chain ID 和 code hash；它不会启用生产 broadcast。
+`RobinhoodPausedFlashLoanExecutor.sol` 在 Robinhood testnet 上使用 Uniswap V4 PoolManager kind `4` 作为 flash accounting 来源，并配置 Uniswap V4 Universal Router calldata adapter；Morpho 风格 adapter 只作为兼容/fork scaffold 保留，当前没有公开证据表明 Morpho Blue 已部署在 chain ID `46630`。预检脚本会检查 RPC chain ID 与 adapter code status；`ready:robinhood:testnet` 是严格部署门禁；部署脚本也会在交易前强制运行 preflight。暂停态部署已写入 `deployments/robinhood-paused-flashloan-robinhoodTestnet.json` 和 `../robinhood/testnet/contracts.json`，readback 证据包含 owner、pause、adapter、adapter code status、repayment guard、chain ID 和 code hash；它不会启用生产 broadcast。
+
+剩余核心开发任务是实现真实 V4 PoolManager `unlock` / `take` / `settle` flash accounting 执行路径，并在新闭环机会上通过 fork/static-call。
 
 部署前设置 `UNIFIED_AAVE_POOL_ADDRESS`、`UNIFIED_USDC_ADDRESS`，以及可选的
 `UNIFIED_V3_FACTORY`、`UNIFIED_V3_ROUTER`、`UNIFIED_V3_QUOTER`，然后执行：

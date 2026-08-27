@@ -38,9 +38,13 @@ All control-panel pages use the shared chain/market selection contract:
 - `web/static/chain_selector.js`: keeps the selection in the URL and carries it
   across page navigation. Pages should consume `market_id` plus `chain_id`;
   `chain_id` alone is not unique because BNB has both Aave and Venus markets.
+- The shared payload exposes `global_chain_id` and compatible `chain_key`
+  values such as `chain:56` or `network:hyperliquid`, plus a `chain_config`
+  summary sourced from `chains/<network>/chain.json` and `flows.json`.
 - `web/control_panel_app.py`: validates selection parameters before API route
   execution, stores the resolved value in `g.chain_selection`, and exposes
-  `X-Chain-Selection-Market` plus `X-Chain-Selection-Chain-Id` response headers.
+  `X-Chain-Selection-Market`, `X-Chain-Selection-Global-Id`, and
+  `X-Chain-Selection-Chain-Id` response headers.
 
 The functional boundary is intentional: selection belongs to `core`/`web`;
 market observation belongs to `market`; liquidation discovery and scanning
@@ -52,6 +56,47 @@ Binance/DEX pages remain multi-network analysis views, but their API requests
 inherit the global selection query and return `chain_selection` metadata. Their
 page-level default is the registered BNB market because the current CoW market
 registry is BNB-only.
+
+## Chain-Owned Data
+
+Each chain owns one directory under `chains/<network>/`:
+
+- `chain.json`: chain ID, display metadata, contracts, chain-owned data-file
+  paths, flash-loan protocol candidates, default protocols, and supported
+  protocol count.
+- `flows.json`: chain-owned processing-flow rules, handler names, allowed
+  protocols, data-file keys, and cross-chain fallback policy.
+
+Runtime code should read these files through `core/chain_data_registry.py`
+instead of copying addresses, cache paths, or flow rules into page handlers and
+tools.
+
+Each `flows.json` owns a chain-isolation policy. It must require `network`,
+`chain_id`, and `market_id` scope fields, forbid cross-chain fallback, and list
+all other registered networks and chain IDs as forbidden sources. The registry
+audit exposes `dataIndependence` and `processingIndependence` for every chain
+and fails when a flow references undeclared data files, omits scope matching, or
+adds handler entries that are not declared as chain-owned flows.
+
+The supported protocol list and count are chain-level data. A `flows.json` file
+may narrow a flow to fewer `allowed_protocols`, or list `probe_protocols` for
+negative checks, but it must not expand the chain's supported protocol set.
+
+Robinhood Chain and Robinhood Testnet are separate chain data owners:
+
+- `chains/robinhood/chain.json`: chain ID `4663`, mainnet/shadow evidence only.
+- `chains/robinhood-testnet/chain.json`: chain ID `46630`, isolated Uniswap V4
+  PoolManager flash-accounting tests only. It does not declare Aave or Morpho
+  lending liquidity.
+
+Evidence and sample loading must pass scope checks for `network`, `chain_id`,
+and, when available, `market_id`. Missing Robinhood Testnet evidence should
+close the gate rather than falling back to Robinhood mainnet or Avalanche data.
+Run the registry audit after chain-data or flow-spec edits:
+
+```powershell
+python flashloan/src_bot/tools/audit_chain_data_registry.py
+```
 
 ## Common Commands
 

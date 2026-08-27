@@ -1,20 +1,47 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from core.robinhood_chain_test_policy import robinhood_chain_test_scope
+from market.binance_market.dex_surfaces import (
+    DEFAULT_FLASH_LOAN_FEE_BPS,
+    DEFAULT_GAS_RESERVE_USD,
+)
+from intent_trade.chains.robinhood.chain_test_policy import (
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+    robinhood_chain_test_scope,
+)
+from strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 
-DEFAULT_ROBINHOOD_CHAIN_ID = 4663
-DEFAULT_ROBINHOOD_NETWORK = "robinhood"
+DEFAULT_ROBINHOOD_CHAIN_ID = ROBINHOOD_CHAIN_ID
+DEFAULT_ROBINHOOD_NETWORK = ROBINHOOD_NETWORK
 DEFAULT_ROBINHOOD_MARKET_ID = "robinhood-dex-shadow"
+DEFAULT_ROBINHOOD_TESTNET_MARKET_ID = "robinhood-testnet-dex-paused"
+_TOKEN_DECIMALS_FALLBACK = {
+    "ETH": 18,
+    "WETH": 18,
+    "BTC": 8,
+    "WBTC": 8,
+}
+_STABLE_SYMBOLS = {"AUSD", "BUSD", "DAI", "FDUSD", "FRAX", "PYUSD", "RLUSD", "USDC", "USDD", "USDE", "USDG", "USDT"}
 
 
 def _text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _decimal(value: object) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
 
 
 def _number(value: object) -> float | None:
@@ -46,6 +73,140 @@ def _int_or_none(value: object) -> int | None:
 def _positive_number(value: object) -> bool | None:
     parsed = _number(value)
     return None if parsed is None else parsed > 0
+
+
+def _raw_from_human(value: object, decimals: int | None) -> int | None:
+    parsed = _decimal(value)
+    if parsed is None or parsed <= 0:
+        return None
+    scale = Decimal(10) ** int(decimals if decimals is not None else 18)
+    return int((parsed * scale).to_integral_value())
+
+
+def _human_from_raw(value: int | None, decimals: int | None) -> str:
+    if value is None:
+        return ""
+    scale = Decimal(10) ** int(decimals if decimals is not None else 18)
+    return format((Decimal(int(value)) / scale).normalize(), "f")
+
+
+def _quote_pool_index(quote: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    mapping: dict[str, dict[str, Any]] = {}
+    for key in ("candidate_pools", "candidatePools", "routePools", "executionPools", "preferredPools", "strictQualityPools"):
+        for pool in _as_list(quote.get(key)):
+            if not isinstance(pool, dict):
+                continue
+            for address_key in ("pool", "poolId", "pool_id"):
+                address = _text(pool.get(address_key))
+                if address:
+                    mapping[address.lower()] = pool
+    return mapping
+
+
+def _symbol_decimals(symbol: object, *, network: str) -> int:
+    normalized = _text(symbol).upper()
+    if normalized in _TOKEN_DECIMALS_FALLBACK:
+        return _TOKEN_DECIMALS_FALLBACK[normalized]
+    if normalized in _STABLE_SYMBOLS:
+        return 18 if network == ROBINHOOD_TESTNET_NETWORK else 6
+    return 18
+
+
+def _hop_decimals(hop: dict[str, Any], pool: dict[str, Any], *, side: str, network: str) -> int:
+    decimals_key = "inputDecimals" if side == "in" else "outputDecimals"
+    direct = hop.get(decimals_key)
+    try:
+        parsed = int(direct)
+        if parsed > 0:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+
+    token_key = "tokenIn" if side == "in" else "tokenOut"
+    symbol_key = "fromSymbol" if side == "in" else "toSymbol"
+    token = _text(hop.get(token_key)).lower()
+    symbol = _text(hop.get(symbol_key)).upper()
+    for index in (0, 1):
+        token_address = _text(pool.get(f"token{index}")).lower()
+        token_symbol = _text(pool.get(f"token{index}Symbol")).upper()
+        if token and token == token_address:
+            candidate = pool.get(f"token{index}Decimals") or _as_dict(pool.get(f"token{index}Metadata")).get("decimals")
+            try:
+                parsed = int(candidate)
+                if parsed > 0:
+                    return parsed
+            except (TypeError, ValueError):
+                pass
+        if symbol and symbol == token_symbol:
+            candidate = pool.get(f"token{index}Decimals") or _as_dict(pool.get(f"token{index}Metadata")).get("decimals")
+            try:
+                parsed = int(candidate)
+                if parsed > 0:
+                    return parsed
+            except (TypeError, ValueError):
+                pass
+    return _symbol_decimals(symbol, network=network)
+
+
+def _normalized_hop_rows(*, quote: dict[str, Any], evidence: dict[str, Any], network: str) -> list[dict[str, Any]]:
+    source_hops = _as_list(evidence.get("hops")) or _as_list(quote.get("hops"))
+    if not source_hops:
+        return []
+    pools = _quote_pool_index(quote)
+    rows: list[dict[str, Any]] = []
+    for index, hop in enumerate(source_hops, start=1):
+        if not isinstance(hop, dict):
+            continue
+        pool = pools.get(_text(hop.get("pool")).lower(), {})
+        in_decimals = _hop_decimals(hop, pool, side="in", network=network)
+        out_decimals = _hop_decimals(hop, pool, side="out", network=network)
+        amount_in_raw = _int_or_none(hop.get("amountInRaw"))
+        if amount_in_raw is None:
+            amount_in_raw = _raw_from_human(hop.get("inputAmount") or hop.get("amountIn") or hop.get("referenceInputAmount"), in_decimals)
+        amount_out_raw = _int_or_none(hop.get("amountOutRaw"))
+        if amount_out_raw is None:
+            amount_out_raw = _raw_from_human(
+                hop.get("outputAmount")
+                or hop.get("referenceOutputAmount")
+                or hop.get("amountOut")
+                or hop.get("referenceAmountOut"),
+                out_decimals,
+            )
+        if amount_in_raw is None or amount_out_raw is None:
+            continue
+        rows.append(
+            {
+                "hop": hop.get("hop") or index,
+                "protocol": _text(hop.get("protocol") or hop.get("dex")),
+                "quoteMethod": _text(hop.get("quoteMethod") or hop.get("quoteMode")),
+                "pool": _text(hop.get("pool")),
+                "fromSymbol": _text(hop.get("fromSymbol")),
+                "toSymbol": _text(hop.get("toSymbol")),
+                "tokenIn": _text(hop.get("tokenIn")),
+                "tokenOut": _text(hop.get("tokenOut")),
+                "amountInRaw": str(amount_in_raw),
+                "amountOutRaw": str(amount_out_raw),
+                "minAmountOutRaw": str(amount_out_raw * max(0, 10_000 - 50) // 10_000),
+                "amountIn": _text(hop.get("amountIn") or hop.get("inputAmount") or _human_from_raw(amount_in_raw, in_decimals)),
+                "amountOut": _text(
+                    hop.get("amountOut")
+                    or hop.get("referenceOutputAmount")
+                    or hop.get("outputAmount")
+                    or _human_from_raw(amount_out_raw, out_decimals)
+                ),
+                "inputDecimals": in_decimals,
+                "outputDecimals": out_decimals,
+                "fee": hop.get("fee") or hop.get("feeBps"),
+                "quoterGasEstimate": hop.get("quoterGasEstimate"),
+                "quoteSource": hop.get("quoteSource"),
+                "executionTrust": hop.get("executionTrust"),
+                "referenceOutputUsd": _number(hop.get("referenceOutputUsd") or hop.get("outputUsd")),
+                "inputUsd": _number(hop.get("inputUsd")),
+                "adapterRequired": hop.get("adapterRequired"),
+                "status": _text(hop.get("status") or "quoted"),
+            }
+        )
+    return rows
 
 
 def _utc_now_iso() -> str:
@@ -87,12 +248,11 @@ def _route_path(attempt: dict[str, Any]) -> list[str]:
     return []
 
 
-def _hop_summaries(evidence: dict[str, Any], *, slippage_bps: int) -> list[dict[str, Any]]:
+def _hop_summaries(hops: list[dict[str, Any]], *, slippage_bps: int) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for hop in _as_list(evidence.get("hops")):
-        if not isinstance(hop, dict):
-            continue
+    for hop in hops:
         amount_out_raw = _int_or_none(hop.get("amountOutRaw"))
+        amount_in_raw = _int_or_none(hop.get("amountInRaw"))
         min_amount_out_raw = (
             amount_out_raw * max(0, 10_000 - int(slippage_bps)) // 10_000
             if amount_out_raw is not None
@@ -108,8 +268,8 @@ def _hop_summaries(evidence: dict[str, Any], *, slippage_bps: int) -> list[dict[
                 "toSymbol": _text(hop.get("toSymbol")),
                 "tokenIn": _text(hop.get("tokenIn")),
                 "tokenOut": _text(hop.get("tokenOut")),
-                "amountInRaw": _text(hop.get("amountInRaw")),
-                "amountOutRaw": _text(hop.get("amountOutRaw")),
+                "amountInRaw": str(amount_in_raw) if amount_in_raw is not None else _text(hop.get("amountInRaw")),
+                "amountOutRaw": str(amount_out_raw) if amount_out_raw is not None else _text(hop.get("amountOutRaw")),
                 "minAmountOutRaw": str(min_amount_out_raw) if min_amount_out_raw is not None else None,
                 "amountIn": _text(hop.get("amountIn")),
                 "amountOut": _text(hop.get("amountOut")),
@@ -122,12 +282,10 @@ def _hop_summaries(evidence: dict[str, Any], *, slippage_bps: int) -> list[dict[
     return rows
 
 
-def _repayment_constraint(evidence: dict[str, Any]) -> dict[str, Any]:
-    hops = _as_list(evidence.get("hops"))
+def _repayment_constraint(hops: list[dict[str, Any]], *, flash_fee_bps: float) -> dict[str, Any]:
     first_hop = hops[0] if hops and isinstance(hops[0], dict) else {}
     last_hop = hops[-1] if hops and isinstance(hops[-1], dict) else {}
     principal_raw = _int_or_none(first_hop.get("amountInRaw"))
-    flash_fee_bps = _number(_as_dict(evidence.get("costModel")).get("flashLoanFeeBps")) or 0.0
     repay_raw = None
     if principal_raw is not None:
         repay_raw = principal_raw + int(principal_raw * flash_fee_bps // 10_000)
@@ -195,52 +353,52 @@ def _checklist_items(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {
             "id": "freeze_snapshot",
-            "title": "冻结链上复核快照",
+            "title": "鍐荤粨閾句笂澶嶆牳蹇収",
             "status": "done",
             "done": True,
-            "detail": f"锁定 {route['pathText']} / 触发区块 {evidence.get('triggerBlockNumber')}",
+            "detail": f"閿佸畾 {route['pathText']} / 瑙﹀彂鍖哄潡 {evidence.get('triggerBlockNumber')}",
         },
         {
             "id": "build_contract_dir",
-            "title": "准备链别合约信息目录",
+            "title": "鍑嗗閾惧埆鍚堢害淇℃伅鐩綍",
             "status": "done" if contract_dir else "pending",
             "done": bool(contract_dir),
-            "detail": "在 contract/robinhood 下保留链别信息与后续部署占位",
+            "detail": "鍦?contract/robinhood 涓嬩繚鐣欓摼鍒俊鎭笌鍚庣画閮ㄧ讲鍗犱綅",
         },
         {
             "id": "calldata_builder",
-            "title": "生成交易 calldata",
+            "title": "鐢熸垚浜ゆ槗 calldata",
             "status": "pending",
             "done": False,
-            "detail": "按链上复核路径生成 flashloan / AMM 交换参数",
+            "detail": "鎸夐摼涓婂鏍歌矾寰勭敓鎴?flashloan / AMM 浜ゆ崲鍙傛暟",
         },
         {
             "id": "risk_guard",
-            "title": "补齐滑点与回款约束",
+            "title": "Add slippage and repayment constraints",
             "status": "pending" if route_closed else "blocked",
             "done": False,
-            "detail": "加入 minOut、滑点保护、回款余额与最小利润阈值",
+            "detail": "Add minOut, slippage guard, repayment balance, and minimum-profit threshold",
         },
         {
             "id": "fork_staticcall",
-            "title": "执行 fork/static-call 仿真",
+            "title": "鎵ц fork/static-call 浠跨湡",
             "status": "pending" if ready_for_preflight else "blocked",
             "done": False,
-            "detail": "只读 Quoter 已复核后仍需本地仿真",
+            "detail": "鍙 Quoter 宸插鏍稿悗浠嶉渶鏈湴浠跨湡",
         },
         {
             "id": "broadcast_gate",
-            "title": "保持广播闸门关闭",
+            "title": "淇濇寔骞挎挱闂搁棬鍏抽棴",
             "status": "blocked" if trust_gap else "pending",
             "done": False,
-            "detail": "trustedForExecution 仍为否，不能进入签名发送",
+            "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
         },
         {
             "id": "archive_outputs",
-            "title": "归档实施文档与测试包",
+            "title": "褰掓。瀹炴柦鏂囨。涓庢祴璇曞寘",
             "status": "pending",
             "done": False,
-            "detail": "完成后把方案、清单、测试包归档到 back",
+            "detail": "瀹屾垚鍚庢妸鏂规銆佹竻鍗曘€佹祴璇曞寘褰掓。鍒?back",
         },
     ]
 
@@ -249,6 +407,13 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
     evidence = _attempt_evidence(attempt)
     quote = _as_dict(attempt.get("quote"))
     precheck = _as_dict(attempt.get("precheck"))
+    network = _text(evidence.get("network") or attempt.get("network") or DEFAULT_ROBINHOOD_NETWORK).lower()
+    chain_id = int(evidence.get("chainId") or attempt.get("chain_id") or DEFAULT_ROBINHOOD_CHAIN_ID)
+    default_market_id = (
+        DEFAULT_ROBINHOOD_TESTNET_MARKET_ID
+        if network == ROBINHOOD_TESTNET_NETWORK or chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        else DEFAULT_ROBINHOOD_MARKET_ID
+    )
     route_path = _route_path(attempt)
     blockers = _unique(
         [
@@ -269,19 +434,66 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         or precheck.get("trustedForExecution")
     )
     slippage_bps = 50
-    hop_summaries = _hop_summaries(evidence, slippage_bps=slippage_bps)
+    normalized_hops = _normalized_hop_rows(quote=quote, evidence=evidence, network=network)
+    hop_summaries = _hop_summaries(normalized_hops, slippage_bps=slippage_bps)
     token_continuity_issues = _token_continuity_issues(hop_summaries)
     token_continuity_ok = not token_continuity_issues
     validation = _as_dict(evidence.get("validation"))
-    cost_model = _as_dict(evidence.get("costModel"))
+    cost_model = dict(_as_dict(evidence.get("costModel")))
+    if hop_summaries:
+        if not cost_model:
+            notional = _number(
+                quote.get("input_amount")
+                or quote.get("inputAmount")
+                or _as_dict(quote.get("analysis")).get("notionalUsd")
+                or hop_summaries[0].get("inputUsd")
+            )
+            if notional is None:
+                notional = 1000.0
+            final_hop = hop_summaries[-1]
+            final_output_usd = _number(
+                final_hop.get("referenceOutputUsd")
+                or final_hop.get("outputUsd")
+                or final_hop.get("amountOut")
+            )
+            flash_fee_bps = float(DEFAULT_FLASH_LOAN_FEE_BPS)
+            flash_fee_usd = notional * flash_fee_bps / 10_000
+            gas_reserve_usd = float(DEFAULT_GAS_RESERVE_USD)
+            gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
+            net_profit_usd = gross_profit_usd - flash_fee_usd - gas_reserve_usd if gross_profit_usd is not None else None
+            min_profit_usd = max(float(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD), 0.0)
+            cost_model = {
+                "notionalUsd": notional,
+                "finalOutputUsd": final_output_usd,
+                "grossProfitUsd": gross_profit_usd,
+                "flashLoanFeeBps": flash_fee_bps,
+                "flashLoanFeeUsd": flash_fee_usd,
+                "gasReserveUsd": gas_reserve_usd,
+                "offchainMinProfitUsd": min_profit_usd,
+                "minProfitUsd": min_profit_usd,
+                "submissionMinProfitUsd": flash_fee_usd,
+                "submissionNetProfitUsd": gross_profit_usd - flash_fee_usd if gross_profit_usd is not None else None,
+                "offchainNetProfitUsd": net_profit_usd,
+                "netProfitUsd": net_profit_usd,
+                "netProfitBps": (net_profit_usd / notional * 10_000) if net_profit_usd is not None and notional else None,
+            }
+        else:
+            cost_model.setdefault("notionalUsd", _number(quote.get("input_amount") or quote.get("inputAmount")))
+            if cost_model.get("finalOutputUsd") is None:
+                cost_model["finalOutputUsd"] = _number(
+                    hop_summaries[-1].get("referenceOutputUsd")
+                    or hop_summaries[-1].get("outputUsd")
+                    or hop_summaries[-1].get("amountOut")
+                )
     if token_continuity_issues:
         blockers = _unique(
             [
                 *blockers,
-                "链上复核跳间 token 地址不连续：存在同名不同合约地址，不能进入交易 calldata 或 fork/static-call 预检。",
+                "On-chain reviewed route has token discontinuity; calldata and fork/static-call preflight are blocked.",
             ]
         )
-    all_hops_quoted = bool(validation.get("allHopsQuoted")) and token_continuity_ok
+    evidence_has_hops = bool(_as_list(evidence.get("hops")))
+    all_hops_quoted = bool(validation.get("allHopsQuoted") if evidence_has_hops else hop_summaries) and token_continuity_ok
     inferred_net_positive = _positive_number(cost_model.get("netProfitUsd"))
     net_positive_after_costs = bool(
         validation.get("netPositiveAfterCosts")
@@ -289,12 +501,19 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         else (inferred_net_positive if inferred_net_positive is not None else validation.get("profitableAfterCosts"))
     )
     net_profit = _number(cost_model.get("netProfitUsd"))
-    min_profit = _number(cost_model.get("minProfitUsd"))
-    inferred_meets_threshold = net_profit is not None and min_profit is not None and net_profit >= min_profit
+    submission_net_profit = _number(cost_model.get("submissionNetProfitUsd"))
+    submission_min_profit = _number(cost_model.get("submissionMinProfitUsd"))
+    offchain_min_profit = _number(cost_model.get("offchainMinProfitUsd"))
+    inferred_meets_threshold = submission_net_profit is not None and submission_net_profit > 0
     meets_min_profit_threshold = bool(
-        validation.get("meetsMinProfitThreshold")
-        if validation.get("meetsMinProfitThreshold") is not None
-        else (inferred_meets_threshold if min_profit is not None else requested_ready_for_preflight)
+        validation.get("meetsSubmissionProfitThreshold")
+        if validation.get("meetsSubmissionProfitThreshold") is not None
+        else (inferred_meets_threshold if submission_min_profit is not None else requested_ready_for_preflight)
+    )
+    meets_offchain_profit_threshold = bool(
+        validation.get("meetsOffchainProfitThreshold")
+        if validation.get("meetsOffchainProfitThreshold") is not None
+        else (net_profit is not None and offchain_min_profit is not None and net_profit >= offchain_min_profit)
     )
     ready_for_preflight = (
         requested_ready_for_preflight
@@ -304,8 +523,8 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         and all_hops_quoted
     )
     chain_scope = robinhood_chain_test_scope(
-        evidence.get("network") or attempt.get("network") or DEFAULT_ROBINHOOD_NETWORK,
-        evidence.get("chainId") or attempt.get("chain_id") or DEFAULT_ROBINHOOD_CHAIN_ID,
+        network,
+        chain_id,
     )
     if token_continuity_issues:
         preflight_status = "blocked_token_discontinuity"
@@ -315,9 +534,9 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         preflight_status = "not_ready"
     plan = {
         "generatedAt": _utc_now_iso(),
-        "network": _text(evidence.get("network") or attempt.get("network") or DEFAULT_ROBINHOOD_NETWORK).lower(),
-        "chainId": int(evidence.get("chainId") or attempt.get("chain_id") or DEFAULT_ROBINHOOD_CHAIN_ID),
-        "marketId": _text(attempt.get("market_id") or DEFAULT_ROBINHOOD_MARKET_ID),
+        "network": network,
+        "chainId": chain_id,
+        "marketId": _text(attempt.get("market_id") or default_market_id),
         "chainTestScope": chain_scope,
         "attempt": {
             "state": _attempt_status(attempt),
@@ -349,7 +568,9 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "profitableAfterCosts": net_positive_after_costs,
             "netPositiveAfterCosts": net_positive_after_costs,
             "meetsMinProfitThreshold": meets_min_profit_threshold,
-            "finalOutputSymbol": _text(validation.get("finalOutputSymbol")),
+            "meetsSubmissionProfitThreshold": meets_min_profit_threshold,
+            "meetsOffchainProfitThreshold": meets_offchain_profit_threshold,
+            "finalOutputSymbol": _text(validation.get("finalOutputSymbol") or (hop_summaries[-1].get("toSymbol") if hop_summaries else "")),
             "finalOutputUsd": cost_model.get("finalOutputUsd"),
             "grossProfitUsd": cost_model.get("grossProfitUsd"),
             "netProfitUsd": cost_model.get("netProfitUsd"),
@@ -362,7 +583,7 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         "route": {
             "path": route_path,
             "pathText": " -> ".join(route_path),
-            "hopCount": len(_as_list(evidence.get("hops"))) or max(0, len(route_path) - 1),
+            "hopCount": len(hop_summaries) or max(0, len(route_path) - 1),
             "closed": route_closed,
             "tokenContinuous": token_continuity_ok,
             "analysisStage": _text(
@@ -385,7 +606,10 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "status": preflight_status,
             "slippageBps": slippage_bps,
             "routeHops": hop_summaries,
-            "repaymentConstraint": _repayment_constraint(evidence),
+            "repaymentConstraint": _repayment_constraint(
+                hop_summaries,
+                flash_fee_bps=float(cost_model.get("flashLoanFeeBps") or DEFAULT_FLASH_LOAN_FEE_BPS),
+            ),
             "requiredChecks": [
                 "calldata_matches_verified_hops",
                 "each_hop_min_amount_out_enforced",
@@ -418,48 +642,48 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
     route = _as_dict(plan.get("route"))
     decision = _as_dict(plan.get("decision"))
     if decision.get("readyForTransactionPreflight"):
-        conclusion = "当前记录适合进入 fork/static-call 预检，但不适合直接广播提交。"
+        conclusion = "Current evidence can enter fork/static-call preflight, but it is not broadcast-ready."
         next_steps = [
-            "1. 固定 route / block snapshot。",
-            "2. 生成 calldata 与 minOut。",
-            "3. 在 fork 上跑 static-call / 交易仿真。",
-            "4. 通过后再考虑签名发送。",
+            "1. Pin the route and block snapshot.",
+            "2. Generate calldata and minOut constraints.",
+            "3. Run static-call or transaction simulation on a fork.",
+            "4. Consider signing and broadcast only after preflight passes.",
         ]
     else:
-        conclusion = "当前记录已被预检前置校验阻断，不能进入 calldata 或 fork/static-call。"
+        conclusion = "Current evidence is blocked by preflight prerequisites and cannot enter calldata or fork/static-call."
         next_steps = [
-            "1. 回到候选池构建层，按 token 地址重建真实闭环。",
-            "2. 重新执行链上 Quoter 复核。",
-            "3. 审计通过后再生成 calldata 与 fork/static-call 任务。",
-            "4. 广播闸门继续保持关闭。",
+            "1. Rebuild the real closed route from candidate pools and token addresses.",
+            "2. Re-run read-only on-chain quoter validation.",
+            "3. Generate calldata and fork/static-call tasks after audit passes.",
+            "4. Keep the broadcast gate closed.",
         ]
     lines = [
-        "# Robinhood 链上次测试包",
+        "# Robinhood 閾句笂娆℃祴璇曞寘",
         "",
-        f"- 网络：`{plan.get('network')}`",
-        f"- 链 ID：`{plan.get('chainId')}`",
-        f"- 路径：`{route.get('pathText')}`",
-        f"- 触发区块：`{attempt.get('triggerBlockNumber')}`",
-        f"- 复核区块：`{attempt.get('reviewBlockNumber')}`",
-        f"- 证据状态：`{evidence.get('status')}`",
-        f"- 执行可信：`{'是' if decision.get('trustedForExecution') else '否'}`",
-        f"- 预检就绪：`{'是' if decision.get('readyForTransactionPreflight') else '否'}`",
+        f"- 缃戠粶锛歚{plan.get('network')}`",
+        f"- 閾?ID锛歚{plan.get('chainId')}`",
+        f"- 璺緞锛歚{route.get('pathText')}`",
+        f"- 瑙﹀彂鍖哄潡锛歚{attempt.get('triggerBlockNumber')}`",
+        f"- 澶嶆牳鍖哄潡锛歚{attempt.get('reviewBlockNumber')}`",
+        f"- 璇佹嵁鐘舵€侊細`{evidence.get('status')}`",
+        f"- Trusted for execution: `{'yes' if decision.get('trustedForExecution') else 'no'}`",
+        f"- Ready for preflight: `{'yes' if decision.get('readyForTransactionPreflight') else 'no'}`",
         "",
-        "## 结论",
+        "## 缁撹",
         "",
         conclusion,
         "",
-        "## 关键阻断",
+        "## 鍏抽敭闃绘柇",
     ]
     blockers = evidence.get("blockers") or decision.get("blockedReasons") or []
     if blockers:
         lines.extend([f"- {item}" for item in blockers])
     else:
-        lines.append("- 无")
+        lines.append("- none")
     lines.extend(
         [
             "",
-            "## 下一步",
+            "## Next Steps",
             "",
             *next_steps,
         ]
@@ -468,13 +692,46 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
 
 
 def render_robinhood_chain_test_checklist(plan: dict[str, Any]) -> str:
-    lines = ["# Robinhood 链上次测试 checklist", ""]
+    lines = ["# Robinhood 閾句笂娆℃祴璇?checklist", ""]
     for item in plan.get("checklist") or []:
         if not isinstance(item, dict):
             continue
         mark = "x" if item.get("done") else " "
-        lines.append(f"- [{mark}] {item.get('title')}：{item.get('detail')}")
+        lines.append(f"- [{mark}] {item.get('title')}: {item.get('detail')}")
     return "\n".join(lines) + "\n"
+
+
+def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
+    network = _text(plan.get("network")).lower()
+    common = {
+        "network": plan["network"],
+        "chainId": plan["chainId"],
+        "marketId": plan["marketId"],
+        "routePreflightStatus": plan["preflightSpec"]["status"],
+        "deploymentGate": "blocked_until_token_continuity_calldata_repayment_and_fork_staticcall_pass",
+        "broadcastEnabled": False,
+        "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
+    }
+    if network == ROBINHOOD_TESTNET_NETWORK or plan.get("chainId") == ROBINHOOD_TESTNET_CHAIN_ID:
+        return {
+            **common,
+            "scope": "robinhood_testnet_46630_only",
+            "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
+            "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+            "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "candidatePoolSupplyEvidence": None,
+            "morphoBlueStatus": "not_publicly_verified_on_testnet_46630",
+            "aaveStatus": "not_publicly_verified_on_testnet_46630",
+        }
+    return {
+        **common,
+        "scope": "robinhood_mainnet_4663_only",
+        "wrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "multicall3": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
+        "uniswapV2Pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
+        "v3Quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+    }
 
 
 def _json_dump(path: Path, payload: Any) -> None:
@@ -507,27 +764,13 @@ def write_robinhood_chain_test_package(
     (output_dir / "summary.md").write_text(render_robinhood_chain_test_summary(plan), encoding="utf-8")
     if contract_dir is not None:
         contract_dir.mkdir(parents=True, exist_ok=True)
-        _json_dump(
-            contract_dir / "contracts.json",
-            {
-                "network": plan["network"],
-                "chainId": plan["chainId"],
-                "marketId": plan["marketId"],
-                "wrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-                "multicall3": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
-                "uniswapV2Pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
-                "v3Quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
-                "routePreflightStatus": plan["preflightSpec"]["status"],
-                "deploymentGate": "blocked_until_token_continuity_calldata_repayment_and_fork_staticcall_pass",
-                "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
-            },
-        )
+        _json_dump(contract_dir / "contracts.json", _chain_contract_handoff_metadata(plan))
         (contract_dir / "README.md").write_text(
             "\n".join(
                 [
                     "# Robinhood Contract Notes",
                     "",
-                    "- Chain: `robinhood`",
+                    f"- Chain: `{plan['network']}`",
                     f"- Chain ID: `{plan['chainId']}`",
                     f"- Market: `{plan['marketId']}`",
                     "- Current state: read-only evidence and preflight preparation only",

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.chain_data_registry import chain_contracts, chain_data_by_network
 
-ROBINHOOD_NETWORK = "robinhood"
+
 ROBINHOOD_CHAIN_ID = 4663
-ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
+ROBINHOOD_NETWORK = "robinhood"
 ROBINHOOD_TESTNET_CHAIN_ID = 46630
+ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
 
 _ROBINHOOD_ALIASES = {
     "robinhood": ROBINHOOD_NETWORK,
@@ -19,11 +21,15 @@ _ROBINHOOD_ALIASES = {
 }
 
 
-def _text(value: Any) -> str:
+def _as_dict(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _text(value: object) -> str:
     return str(value or "").strip()
 
 
-def _int_or_none(value: Any) -> int | None:
+def _int_or_none(value: object) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -80,11 +86,38 @@ def robinhood_chain_test_scope(network: Any = None, chain_id: Any = None) -> dic
     }
 
 
+def robinhood_chain_config(
+    network: str,
+    *,
+    default_chain_id: int,
+    default_market_id: str,
+    default_pool_manager: str = "",
+) -> dict[str, Any]:
+    normalized_network = _text(network).lower()
+    try:
+        row = chain_data_by_network(normalized_network) or {}
+    except Exception:
+        row = {}
+    features = _as_dict(row.get("features"))
+    dex = _as_dict(features.get("dex_arbitrage"))
+    try:
+        contracts = chain_contracts(normalized_network) if row else {}
+    except Exception:
+        contracts = {}
+    return {
+        "network": _text(row.get("network") or normalized_network),
+        "chain_id": _int_or_none(row.get("chain_id")) or int(default_chain_id),
+        "market_id": _text(dex.get("default_market_id") or default_market_id),
+        "pool_manager": _text(contracts.get("v4_pool_manager") or default_pool_manager),
+    }
+
+
 __all__ = [
     "ROBINHOOD_CHAIN_ID",
     "ROBINHOOD_NETWORK",
     "ROBINHOOD_TESTNET_CHAIN_ID",
     "ROBINHOOD_TESTNET_NETWORK",
     "normalize_robinhood_chain_test_network",
+    "robinhood_chain_config",
     "robinhood_chain_test_scope",
 ]

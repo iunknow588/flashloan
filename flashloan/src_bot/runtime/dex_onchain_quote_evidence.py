@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -11,11 +11,12 @@ from web3 import Web3
 from execution.uniswap_v4 import build_v4_quote_request, quote_v4_exact_input_single
 from execution.uniswap_v3 import quote_v3_exact_input_single, snapshot_v3_pool
 from intent_trade.chains.robinhood import config as robinhood
+from intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
 from market.binance_market.dex_surfaces import (
     DEFAULT_FLASH_LOAN_FEE_BPS,
     DEFAULT_GAS_RESERVE_USD,
-    DEFAULT_MIN_PROFIT_BPS,
 )
+from strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 
 ERC20_ABI = [
@@ -311,6 +312,8 @@ def _quote_v4_hop(
     amount_in_raw: int,
     block_number: int,
     token_cache: dict[str, int],
+    chain_id: int | None = None,
+    network: str | None = None,
 ) -> dict[str, Any]:
     pool_address = _text(step.get("pool"))
     from_symbol = _norm_symbol(step.get("fromSymbol"))
@@ -329,8 +332,8 @@ def _quote_v4_hop(
         except Exception:
             reference_amount_out_raw = None
     request = build_v4_quote_request(
-        network=str(pool.get("network") or robinhood.NETWORK).strip().lower(),
-        chain_id=robinhood.CHAIN_ID,
+        network=str(network or pool.get("network") or robinhood.NETWORK).strip().lower(),
+        chain_id=chain_id or robinhood.CHAIN_ID,
         pool=pool_address,
         token_in=_checksum(token_in),
         token_out=_checksum(token_out),
@@ -373,6 +376,30 @@ def _connect_robinhood() -> tuple[Any, str]:
         except Exception as exc:
             failures.append(f"{url}: {exc}")
     raise RuntimeError("Robinhood RPC 不可用: " + "; ".join(failures[:3]))
+
+
+def _connect_robinhood_family(chain_id: int | None, network: str) -> tuple[Any, str]:
+    normalized_network = _text(network).lower()
+    if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID or normalized_network == ROBINHOOD_TESTNET_NETWORK:
+        failures: list[str] = []
+        timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "6") or 6)
+        for url in robinhood.testnet_rpc_urls_from_env():
+            w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": timeout}))
+            try:
+                if w3.is_connected() and int(w3.eth.chain_id) == ROBINHOOD_TESTNET_CHAIN_ID:
+                    return w3, url
+            except Exception as exc:
+                failures.append(f"{url}: {exc}")
+        raise RuntimeError("Robinhood Testnet RPC unavailable: " + "; ".join(failures[:3]))
+    return _connect_robinhood()
+
+
+def _is_robinhood_family(chain_id: int | None, network: str) -> bool:
+    normalized_network = _text(network).lower()
+    return bool(
+        int(chain_id or 0) in {robinhood.CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
+        or normalized_network in {robinhood.NETWORK, ROBINHOOD_TESTNET_NETWORK}
+    )
 
 
 def _block_timestamp(w3: Any, block_number: int) -> int | None:
@@ -446,6 +473,14 @@ def capture_onchain_trigger_context(
         "rpcUrl": None,
         "error": None,
     }
+    if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID or normalized_network == ROBINHOOD_TESTNET_NETWORK:
+        from intent_trade.chains.robinhood_testnet.trigger_context import capture_robinhood_testnet_trigger_context
+
+        return capture_robinhood_testnet_trigger_context(
+            chain_id=chain_id,
+            network=ROBINHOOD_TESTNET_NETWORK,
+            observed_at=observed,
+        )
     if chain_id != robinhood.CHAIN_ID and normalized_network != robinhood.NETWORK:
         context["error"] = "当前链路尚未接入触发区块捕获适配器"
         return context
@@ -532,7 +567,7 @@ def build_route_onchain_evidence(
     route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     steps = [step for step in analysis.get("steps") or [] if isinstance(step, dict)]
-    if chain_id != robinhood.CHAIN_ID and network != robinhood.NETWORK:
+    if not _is_robinhood_family(chain_id, network):
         return _unsupported_evidence(
             chain_id=chain_id,
             network=network,
@@ -565,7 +600,7 @@ def build_route_onchain_evidence(
     quoter = _text(table.get("quoter") or robinhood.default_v3_quoter_address(ROBINHOOD_DEFAULT_V3_QUOTER))
     token_cache: dict[str, int] = {}
     try:
-        w3, rpc_url = _connect_robinhood()
+        w3, rpc_url = _connect_robinhood_family(chain_id, network)
         block_number = trigger_block_number
     except Exception as exc:
         return _unsupported_evidence(
@@ -595,7 +630,16 @@ def build_route_onchain_evidence(
             elif protocol == "uniswap_v2":
                 hop = _quote_v2_hop(w3=w3, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
             elif protocol == "uniswap_v4":
-                hop = _quote_v4_hop(w3=w3, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
+                hop = _quote_v4_hop(
+                    w3=w3,
+                    step=step,
+                    pool=pool,
+                    amount_in_raw=amount_in_raw,
+                    block_number=block_number,
+                    token_cache=token_cache,
+                    chain_id=chain_id,
+                    network=network,
+                )
             else:
                 hop = _quote_v3_hop(w3=w3, quoter=quoter, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
             hop["hop"] = int(step.get("hop") or len(hop_rows) + 1)
@@ -625,21 +669,22 @@ def build_route_onchain_evidence(
     gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
     flash_fee = notional * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
     gas_reserve = Decimal(str(DEFAULT_GAS_RESERVE_USD))
-    net_profit_usd = gross_profit_usd - flash_fee - gas_reserve if gross_profit_usd is not None else None
+    submission_net_profit_usd = gross_profit_usd - flash_fee if gross_profit_usd is not None else None
+    net_profit_usd = submission_net_profit_usd - gas_reserve if submission_net_profit_usd is not None else None
     net_profit_bps = net_profit_usd / notional * Decimal(10_000) if net_profit_usd is not None and notional > 0 else None
-    min_profit_usd = max(Decimal("1"), notional * Decimal(str(DEFAULT_MIN_PROFIT_BPS)) / Decimal(10_000))
-    net_positive_after_costs = bool(all_hops_verified and net_profit_usd is not None and net_profit_usd > 0)
+    min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
+    net_positive_after_costs = bool(all_hops_verified and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
     meets_min_profit_threshold = bool(
         all_hops_verified
-        and net_profit_usd is not None
-        and net_profit_usd >= min_profit_usd
+        and submission_net_profit_usd is not None
+        and submission_net_profit_usd > 0
     )
     if not all_hops_verified and not blockers:
-        blockers.append("链上复核未覆盖全部路径跳数。")
+        blockers.append("链上复核尚未覆盖全部跳数，无法进入预检。")
     if all_hops_verified and not net_positive_after_costs:
-        blockers.append("链上复核后未覆盖闪电贷费用和 gas 储备。")
+        blockers.append("链上核算扣除闪电贷费用后仍未转正，不能进入预检。")
     elif all_hops_verified and not meets_min_profit_threshold:
-        blockers.append("链上复核扣费后为正收益，但未达到最小利润阈值。")
+        blockers.append("离线预算未达到 6U 门槛。")
     if final_output_usd is None:
         blockers.append("最终输出不是稳定币或缺少可信 USD 计价，不能进入自动交易预检。")
 
@@ -669,7 +714,11 @@ def build_route_onchain_evidence(
             "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
             "flashLoanFeeUsd": float(flash_fee),
             "gasReserveUsd": float(gas_reserve),
+            "offchainMinProfitUsd": float(min_profit_usd),
             "minProfitUsd": float(min_profit_usd),
+            "submissionMinProfitUsd": float(flash_fee),
+            "submissionNetProfitUsd": float(submission_net_profit_usd) if submission_net_profit_usd is not None else None,
+            "offchainNetProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
             "netProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
             "netProfitBps": float(net_profit_bps) if net_profit_bps is not None else None,
         },
@@ -683,6 +732,10 @@ def build_route_onchain_evidence(
             "profitableAfterCosts": net_positive_after_costs,
             "netPositiveAfterCosts": net_positive_after_costs,
             "meetsMinProfitThreshold": meets_min_profit_threshold,
+            "meetsSubmissionProfitThreshold": meets_min_profit_threshold,
+            "meetsOffchainProfitThreshold": bool(
+                all_hops_verified and net_profit_usd is not None and net_profit_usd >= min_profit_usd
+            ),
         },
         "blockers": blockers,
         "transactionDevelopment": _transaction_development(meets_min_profit_threshold, blockers),

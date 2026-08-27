@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "robinhood-paused-executor-readback-v1",
+  "runAt": "2026-08-25T12:35:44.166Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "blockNumber": 107127198,
+  "executor": {
+    "address": "0x1D3Af86E2C5a1aA85429885ADc1BB8e09f3dC17E",
+    "contract": "RobinhoodPausedFlashLoanExecutor",
+    "hasCode": true,
+    "codeBytes": 13021,
+    "codeHash": "0x74bc930faf30a9fff66aa42abe6236aa55a1d8eb42659aeb640657d97b5b54f2"
+  },
+  "config": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "paused": true,
+    "flashSourceAdapter": [
+      true,
+      "4",
+      "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "0",
+      "0xd10567e52572996a20e466a22ac581441f18c878f03544a6b5d8b0aa30e1fc94"
+    ],
+    "uniswapV3Adapter": [
+      false,
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "uniswapV4Adapter": [
+      true,
+      "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "0x506818a6d26e3ddf02404efd15db515749a1958df228a0b688090c0cc8a2a871"
+    ],
+    "repaymentGuard": [
+      "0",
+      "0",
+      "0",
+      true
+    ]
+  },
+  "adapterCode": [
+    {
+      "label": "flashSource",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v3SwapRouter",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v3Factory",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v3Quoter",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v4PoolManager",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "permit2",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    }
+  ],
+  "broadcastEnabled": false,
+  "readyForBroadcast": false,
+  "executionGate": "paused_testnet_rehearsal_only"
+}

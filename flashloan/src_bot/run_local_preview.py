@@ -1,6 +1,44 @@
 """Start the Flask control panel without observer or execution daemons."""
 
 import os
+import socket
+import threading
+import time
+import webbrowser
+
+
+def _wait_for_port(host: str, port: int, timeout_seconds: float = 15.0) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.5)
+            if sock.connect_ex((host, port)) == 0:
+                return True
+        time.sleep(0.2)
+    return False
+
+
+def _open_preview_url(url: str) -> bool:
+    os.environ.pop("BROWSER", None)
+    try:
+        if webbrowser.open(url, new=2, autoraise=True):
+            return True
+    except webbrowser.Error:
+        pass
+    if hasattr(os, "startfile"):
+        try:
+            os.startfile(url)
+            return True
+        except OSError:
+            return False
+    return False
+
+
+def _launch_browser_when_ready(host: str, port: int) -> None:
+    if os.getenv("FLASHLOAN_DISABLE_BROWSER_AUTO_OPEN", "").strip().lower() in {"1", "true", "yes"}:
+        return
+    if _wait_for_port(host, port):
+        _open_preview_url(f"http://127.0.0.1:{port}/")
 
 
 def main() -> None:
@@ -12,6 +50,13 @@ def main() -> None:
     os.environ["LIQUIDATION_EXECUTION_ENABLED"] = "false"
 
     from web.control_panel import app
+
+    threading.Thread(
+        target=_launch_browser_when_ready,
+        args=("127.0.0.1", int(os.environ["PORT"])),
+        name="local-preview-browser-launcher",
+        daemon=True,
+    ).start()
 
     app.run(
         host="0.0.0.0",

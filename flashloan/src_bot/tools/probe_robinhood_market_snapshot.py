@@ -1,4 +1,4 @@
-"""Read Robinhood V3 pool state and quote round trips without broadcasting."""
+﻿"""Read Robinhood V3 pool state and quote round trips without broadcasting."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.robinhood_market_snapshot import build_robinhood_market_snapshot
+from intent_trade.chains.robinhood.market_snapshot import build_robinhood_market_snapshot
 
 
 DEFAULT_OUTPUT = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "market_snapshot" / "latest.json"

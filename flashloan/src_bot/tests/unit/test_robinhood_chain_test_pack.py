@@ -1,8 +1,10 @@
-from pathlib import Path
+﻿from pathlib import Path
 
-from core.robinhood_chain_test_audit import audit_robinhood_chain_test_plan
-from core.robinhood_chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
-from core.robinhood_chain_test_policy import robinhood_chain_test_scope
+from copy import deepcopy
+from intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
+from intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
+from intent_trade.chains.robinhood.chain_test_policy import robinhood_chain_test_scope
+from tools.build_robinhood_chain_test_package import _assert_attempt_scope
 
 
 def _sample_attempt():
@@ -40,7 +42,7 @@ def _sample_attempt():
                     "netProfitBps": 66104.15561,
                 },
                 "blockers": [
-                    "链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。",
+                    "Read-only on-chain quoter validation is positive; calldata, slippage guard, flash-loan repayment constraint, and fork/static-call are still required before submission.",
                 ],
                 "hops": [
                     {
@@ -122,11 +124,11 @@ def _sample_attempt():
             "reference_profit_amount": 15807.767101509085,
             "requires_live_quoter": False,
             "reasons": [
-                "链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。",
+                "Read-only on-chain quoter validation is positive; calldata, slippage guard, flash-loan repayment constraint, and fork/static-call are still required before submission.",
             ],
         },
         "blocked_reasons": [
-            "链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。",
+            "Read-only on-chain quoter validation is positive; calldata, slippage guard, flash-loan repayment constraint, and fork/static-call are still required before submission.",
         ],
         "can_submit_order": False,
         "market_id": "robinhood-dex-shadow",
@@ -152,7 +154,28 @@ def test_build_robinhood_chain_test_plan_marks_preflight_boundary():
     assert any(item["id"] == "fork_staticcall" for item in plan["checklist"])
     assert plan["checklist"][0]["done"] is True
     assert "45513946" in plan["checklist"][0]["detail"]
-    assert plan["checklist"][-1]["title"] == "归档实施文档与测试包"
+    assert plan["checklist"][-1]["title"] == "褰掓。瀹炴柦鏂囨。涓庢祴璇曞寘"
+
+
+def test_build_robinhood_chain_test_plan_falls_back_to_quote_hops_when_live_evidence_is_empty():
+    attempt = deepcopy(_sample_attempt())
+    attempt["quote"]["hops"] = deepcopy(attempt["quote"]["live_onchain_evidence"]["hops"])
+    attempt["quote"]["live_onchain_evidence"]["hops"] = []
+    attempt["quote"]["live_onchain_evidence"]["validation"]["allHopsQuoted"] = False
+    attempt["quote"]["live_onchain_evidence"]["costModel"] = {}
+
+    plan = build_robinhood_chain_test_plan(attempt)
+    audit = audit_robinhood_chain_test_plan(plan)
+
+    assert plan["route"]["hopCount"] == 4
+    assert len(plan["preflightSpec"]["routeHops"]) == 4
+    assert plan["preflightSpec"]["routeHops"][0]["amountInRaw"] == "1000000000"
+    assert plan["preflightSpec"]["routeHops"][-1]["amountOutRaw"] == "7611915561"
+    assert plan["preflightSpec"]["repaymentConstraint"]["borrowAmountRaw"] == "1000000000"
+    assert plan["preflightSpec"]["repaymentConstraint"]["repayAmountRaw"] == "1000500000"
+    assert plan["evidence"]["allHopsQuoted"] is True
+    assert plan["evidence"]["finalOutputSymbol"] == "USDG"
+    assert audit["ok"] is True
 
 
 def test_robinhood_chain_test_scope_only_enables_robinhood_family():
@@ -191,13 +214,16 @@ def test_plan_infers_legacy_net_positive_below_min_profit():
     evidence = attempt["quote"]["live_onchain_evidence"]
     evidence["readyForTransactionPreflight"] = False
     evidence["validation"]["profitableAfterCosts"] = False
+    evidence["validation"]["meetsSubmissionProfitThreshold"] = False
+    evidence["validation"]["meetsOffchainProfitThreshold"] = False
     evidence["costModel"]["netProfitUsd"] = 0.612327
     evidence["costModel"]["minProfitUsd"] = 2.0
 
     plan = build_robinhood_chain_test_plan(attempt)
 
     assert plan["evidence"]["netPositiveAfterCosts"] is True
-    assert plan["evidence"]["meetsMinProfitThreshold"] is False
+    assert plan["evidence"]["meetsSubmissionProfitThreshold"] is False
+    assert plan["evidence"]["meetsOffchainProfitThreshold"] is False
     assert plan["decision"]["readyForTransactionPreflight"] is False
     assert plan["decision"]["canRunForkPreflight"] is False
 
@@ -215,6 +241,30 @@ def test_write_robinhood_chain_test_package_creates_contract_notes(tmp_path):
     assert (contract_dir / "README.md").exists()
     assert (contract_dir / "contracts.json").exists()
     assert plan["contractHandoff"]["contractDir"] == str(contract_dir)
+
+
+def test_write_robinhood_testnet_chain_test_package_uses_testnet_scope(tmp_path):
+    attempt = _sample_attempt()
+    attempt["network"] = "robinhood-testnet"
+    attempt["chain_id"] = 46630
+    attempt.pop("market_id", None)
+    attempt["quote"]["live_onchain_evidence"]["network"] = "robinhood-testnet"
+    attempt["quote"]["live_onchain_evidence"]["chainId"] = 46630
+    output_dir = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "chain_test" / "latest"
+    contract_dir = tmp_path / "contract" / "robinhood" / "testnet" / "chain-test-package"
+
+    plan = write_robinhood_chain_test_package(output_dir, attempt, contract_dir=contract_dir)
+    contracts = (contract_dir / "contracts.json").read_text(encoding="utf-8")
+    notes = (contract_dir / "README.md").read_text(encoding="utf-8")
+
+    assert plan["network"] == "robinhood-testnet"
+    assert plan["chainId"] == 46630
+    assert plan["marketId"] == "robinhood-testnet-dex-paused"
+    assert plan["chainTestScope"]["mode"] == "testnet_deploy_readback_only"
+    assert '"scope": "robinhood_testnet_46630_only"' in contracts
+    assert '"candidatePoolSupplyEvidence": null' in contracts
+    assert "not_publicly_verified_on_testnet_46630" in contracts
+    assert "- Chain: `robinhood-testnet`" in notes
 
 
 def test_audit_accepts_complete_preflight_plan():
@@ -256,3 +306,35 @@ def test_plan_blocks_same_symbol_different_token_route():
     assert plan["preflightSpec"]["status"] == "blocked_token_discontinuity"
     assert audit["ok"] is False
     assert {issue["code"] for issue in audit["issues"]} == {"hop_token_chain_broken"}
+
+
+def test_chain_test_package_rejects_mainnet_attempt_for_testnet_scope():
+    attempt = _sample_attempt()
+
+    try:
+        _assert_attempt_scope(attempt, network="robinhood-testnet", chain_id=46630)
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("expected Robinhood mainnet attempt to be rejected for testnet scope")
+
+    assert "network_scope_mismatch" in message
+    assert "chain_id_scope_mismatch" in message
+
+
+def test_chain_test_package_rejects_testnet_attempt_for_mainnet_scope():
+    attempt = _sample_attempt()
+    attempt["network"] = "robinhood-testnet"
+    attempt["chain_id"] = 46630
+    attempt["quote"]["live_onchain_evidence"]["network"] = "robinhood-testnet"
+    attempt["quote"]["live_onchain_evidence"]["chainId"] = 46630
+
+    try:
+        _assert_attempt_scope(attempt, network="robinhood", chain_id=4663)
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("expected Robinhood testnet attempt to be rejected for mainnet scope")
+
+    assert "network_scope_mismatch" in message
+    assert "chain_id_scope_mismatch" in message

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "robinhood-testnet-preflight-v1",
+  "runAt": "2026-08-25T12:40:02.622Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "routeRequirements": {
+    "requireV3Adapter": false,
+    "requireV4Adapter": true
+  },
+  "rpc": {
+    "configured": true,
+    "source": "default_public_rpc",
+    "envName": "",
+    "host": "rpc.testnet.chain.robinhood.com",
+    "chainId": null,
+    "blockNumber": null,
+    "ok": false,
+    "error": "read ECONNRESET"
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_v4_pool_manager_as_flash_source",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_v4_universal_router",
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_v4_pool_manager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_permit2",
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    }
+  ],
+  "deployer": {
+    "configured": false,
+    "address": null,
+    "balanceWei": null,
+    "minBalanceWei": "1",
+    "balanceOk": false,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": false,
+  "readyForBroadcast": false,
+  "blockingReasons": [
+    "robinhood_testnet_rpc_chain_id_not_verified",
+    "flashSource_code_not_verified",
+    "v4UniversalRouter_code_not_verified",
+    "v4PoolManager_code_not_verified",
+    "permit2_code_not_verified",
+    "deployer_key_missing_or_unavailable"
+  ]
+}

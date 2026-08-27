@@ -7,6 +7,10 @@
     "test": "hardhat test",
     "test:unified": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
     "test:robinhood": "hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js test/RobinhoodTestnetReadiness.test.js",
+    "test:robinhood:offchain-normal": "hardhat test test/RobinhoodV4FlashNormalProbe.test.js",
+    "ready:robinhood:offchain-normal": "hardhat run scripts/check-robinhood-v4-flash-offchain-normal.js --network hardhat",
+    "ready:robinhood:executor-offchain-normal": "hardhat run scripts/check-robinhood-executor-v4-flash-offchain-normal.js --network hardhat",
+    "stage:robinhood:testnet:predeploy": "hardhat run scripts/check-robinhood-stage-freeze.js --network robinhoodTestnet",
     "test:ab": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
     "preflight:unified:avalanche": "hardhat run scripts/preflight-unified-flashloan.js --network avalanche",
     "discover:unified:avalanche": "hardhat run scripts/discover-avalanche-v3-pools.js --network avalanche",
@@ -17,7 +21,10 @@
     "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche",
     "preflight:robinhood:testnet": "hardhat run scripts/preflight-robinhood-testnet.js --network robinhoodTestnet",
     "ready:robinhood:testnet": "hardhat run scripts/check-robinhood-testnet-readiness.js --network robinhoodTestnet",
+    "plan:robinhood:testnet:paused-redeploy": "hardhat run scripts/plan-robinhood-paused-redeploy.js --network robinhoodTestnet",
     "readback:robinhood:testnet": "hardhat run scripts/readback-robinhood-paused-executor.js --network robinhoodTestnet",
+    "deploy:robinhood:testnet:v4flash:normal-probe": "hardhat run scripts/deploy-robinhood-v4-flash-normal-probe.js --network robinhoodTestnet",
+    "probe:robinhood:testnet:v4flash:normal": "hardhat run scripts/probe-robinhood-v4-flash-normal.js --network robinhoodTestnet",
     "deploy:robinhood:testnet:paused": "hardhat run scripts/deploy-robinhood-paused-executor.js --network robinhoodTestnet"
   },
   "devDependencies": {

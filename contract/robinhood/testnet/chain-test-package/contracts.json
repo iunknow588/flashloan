@@ -1,0 +1,17 @@
+{
+  "aaveStatus": "not_publicly_verified_on_testnet_46630",
+  "broadcastEnabled": false,
+  "candidatePoolSupplyEvidence": null,
+  "chainId": 46630,
+  "deploymentGate": "blocked_until_token_continuity_calldata_repayment_and_fork_staticcall_pass",
+  "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
+  "marketId": "robinhood-testnet-dex-paused",
+  "morphoBlueStatus": "not_publicly_verified_on_testnet_46630",
+  "network": "robinhood-testnet",
+  "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
+  "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "routePreflightStatus": "not_ready",
+  "scope": "robinhood_testnet_46630_only",
+  "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904"
+}

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -9,7 +9,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.robinhood_dex_evidence import (
+from intent_trade.chains.robinhood.dex_evidence import (
     build_current_robinhood_candidates,
     build_robinhood_pool_records,
     write_robinhood_evidence_package,

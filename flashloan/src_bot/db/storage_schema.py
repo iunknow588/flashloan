@@ -198,10 +198,10 @@ def ensure_database_schema(database_url: str) -> None:
                 cursor.execute(
                     """
                     CREATE TABLE IF NOT EXISTS liquidation_accounts (
-                        market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-                        chain_id INTEGER NOT NULL DEFAULT 43114,
-                        network TEXT NOT NULL DEFAULT 'avalanche',
-                        protocol TEXT NOT NULL DEFAULT 'aave_v3',
+                        market_id TEXT NOT NULL,
+                        chain_id INTEGER NOT NULL,
+                        network TEXT NOT NULL,
+                        protocol TEXT NOT NULL,
                         source_rpc TEXT,
                         source_block BIGINT,
                         account TEXT NOT NULL,
@@ -228,10 +228,10 @@ def ensure_database_schema(database_url: str) -> None:
                     """
                     CREATE TABLE IF NOT EXISTS liquidation_discovery_scans (
                         id BIGSERIAL PRIMARY KEY,
-                        market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-                        chain_id INTEGER NOT NULL DEFAULT 43114,
-                        network TEXT NOT NULL DEFAULT 'avalanche',
-                        protocol TEXT NOT NULL DEFAULT 'aave_v3',
+                        market_id TEXT NOT NULL,
+                        chain_id INTEGER NOT NULL,
+                        network TEXT NOT NULL,
+                        protocol TEXT NOT NULL,
                         source_rpc TEXT,
                         source_block BIGINT,
                         mode TEXT NOT NULL,
@@ -272,10 +272,10 @@ def ensure_database_schema(database_url: str) -> None:
                     """
                     CREATE TABLE IF NOT EXISTS liquidation_execution_attempts (
                         id BIGSERIAL PRIMARY KEY,
-                        market_id TEXT NOT NULL DEFAULT 'avalanche-aave-v3',
-                        chain_id INTEGER NOT NULL DEFAULT 43114,
-                        network TEXT NOT NULL DEFAULT 'avalanche',
-                        protocol TEXT NOT NULL DEFAULT 'aave_v3',
+                        market_id TEXT NOT NULL,
+                        chain_id INTEGER NOT NULL,
+                        network TEXT NOT NULL,
+                        protocol TEXT NOT NULL,
                         source_rpc TEXT,
                         source_block BIGINT,
                         executor_address TEXT,

@@ -94,7 +94,7 @@ def register_binance_market_routes(app, panel) -> None:
         min_side_change_percent = float(thresholds["min_side_change_percent"])
         min_token_price_usd = float(thresholds["min_token_price_usd"])
         cow_network = _request_cow_network_arg()
-        database_url = panel_call("database_url_or_none")
+        database_url = None
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
         network_token_caches = {}
@@ -208,7 +208,7 @@ def register_binance_market_routes(app, panel) -> None:
         ][:8]
         if not requested:
             return jsonify({"error": "no supported CoW mainnet networks selected", "states": {}}), 400
-        database_url = panel_call("database_url_or_none")
+        database_url = None
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
         network_token_caches = {
             network: load_cow_supported_token_registry(
@@ -320,7 +320,7 @@ def register_binance_market_routes(app, panel) -> None:
         min_token_price_usd = float(thresholds["min_token_price_usd"])
         owner = request.args.get("owner", "").strip() or None
         cow_network = _request_cow_network_arg()
-        database_url = panel_call("database_url_or_none")
+        database_url = None
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
         extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
         market_state = build_binance_market_state(

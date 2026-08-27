@@ -14,8 +14,10 @@ from core.market_config import (
     MARKET_TYPE_NATIVE_CHAIN,
     MARKET_TYPE_SHADOW_CHAIN,
     DEFAULT_ROBINHOOD_BOT_MARKET_ID,
+    DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     DEFAULT_ROBINHOOD_MORPHO_MARKET_ID,
+    DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID,
     liquidation_market_config,
     liquidation_market_config_for,
     supported_market_summaries,
@@ -134,20 +136,29 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["feature"] == "liquidation"
     assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["protocol"] == "morpho_blue"
     assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["pool_address"] == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["feature"] == "liquidation"
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["network"] == "robinhood-testnet"
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["chain_id"] == 46630
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["observation_only"] is True
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["observation_only"] is True
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["network"] == "robinhood-testnet"
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["chain_id"] == 46630
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["network"] == "bnb"
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["protocol"] == "pancakeswap_v3"
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["is_default"] is False
-    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["is_default"] is True
+    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["is_default"] is False
     assert summaries[DEFAULT_COW_DEX_MARKET_ID]["chain_id"] == DEFAULT_COW_VIRTUAL_CHAIN_ID
     assert summaries[DEFAULT_COW_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_EXECUTION_RAIL
     assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[DEFAULT_ETHEREUM_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[DEFAULT_POLYGON_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["is_default"] is True
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["is_default"] is False
     assert summaries["hyperliquid-native"]["migration_type"] == "new_protocol_adapter_required"
 
 
@@ -215,7 +226,7 @@ def test_cow_dex_market_keeps_virtual_chain_zero(monkeypatch):
     assert market.network == "cow"
     assert market.market_type == MARKET_TYPE_EXECUTION_RAIL
     assert market.protocol == "cow_protocol"
-    assert market.is_default is True
+    assert market.is_default is False
 
 
 def test_supported_market_summaries_prefers_database_rows_when_available(monkeypatch):
@@ -295,6 +306,37 @@ def test_robinhood_market_never_inherits_avalanche_router(monkeypatch):
     )
 
     assert market.dex_router_address == ""
+
+
+def test_robinhood_testnet_is_independent_paused_deploy_chain(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    market = liquidation_market_config_for(chain_id=46630, feature="dex_arbitrage")
+
+    assert market.market_id == DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID
+    assert market.network == "robinhood-testnet"
+    assert market.chain_id == 46630
+    assert market.protocol == "uniswap_v4"
+    assert market.rpc_urls[0] == "https://rpc.testnet.chain.robinhood.com"
+    assert market.explorer_url == "https://explorer.testnet.chain.robinhood.com"
+    assert market.protocol_supported is False
+    assert market.observation_only is True
+    assert market.dex_router_address == ""
+
+
+def test_robinhood_testnet_liquidation_shadow_is_available_to_bot(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    market = liquidation_market_config_for(chain_id=46630, feature="liquidation")
+
+    assert market.market_id == DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
+    assert market.feature == "liquidation"
+    assert market.network == "robinhood-testnet"
+    assert market.chain_id == 46630
+    assert market.protocol == "morpho_blue"
+    assert market.protocol_supported is False
+    assert market.observation_only is True
+    assert market.rpc_urls[0] == "https://rpc.testnet.chain.robinhood.com"
 
 
 def test_market_scan_policy_prefers_database_rows(monkeypatch):

@@ -1,0 +1,51 @@
+{
+  "schema_version": "chain-data-v1",
+  "network": "robinhood-testnet",
+  "chain_id": 46630,
+  "display_name": "Robinhood Testnet",
+  "native_symbol": "ETH",
+  "rpc_url": "https://rpc.testnet.chain.robinhood.com",
+  "explorer_url": "https://explorer.testnet.chain.robinhood.com",
+  "defaults": {
+    "flash_loan_pool_page": true
+  },
+  "features": {
+    "liquidation": {
+      "default_market_id": "robinhood-testnet-liquidation-shadow",
+      "protocol": "morpho_blue",
+      "observation_only": true,
+      "protocol_supported": false
+    },
+    "dex_arbitrage": {
+      "default_market_id": "robinhood-testnet-dex-paused",
+      "protocol": "uniswap_v4"
+    }
+  },
+  "flash_loan": {
+    "default_protocols": ["uniswap_v4"],
+    "candidate_protocols": ["uniswap_v4"],
+    "supported_protocol_count": 1,
+    "supports_aave_or_morpho_flash_loans": false
+  },
+  "data_files": {
+    "lending_liquidity": "runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "v4_pool_liquidity": "runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json",
+    "normal_testnet_probe": "runtime/evidence/robinhood-testnet/normal_testnet_probe/latest.json",
+    "predeploy_readiness": "runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
+    "chain_test": "runtime/evidence/robinhood-testnet/chain_test/latest/plan.json"
+  },
+  "contracts": {
+    "v4_pool_manager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "position_manager": "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "universal_router": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+    "wrapped_native": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    "multicall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8"
+  },
+  "processing_handlers": {
+    "flash_loan_pools": "intent_trade.chains.robinhood_testnet.flash_loan_pools:flash_loan_pool_protocol_view",
+    "dex_pool_candidates": "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload",
+    "lending_liquidity": "intent_trade.chains.robinhood_testnet.lending_liquidity:lending_liquidity_flow",
+    "predeploy_readiness": "intent_trade.chains.robinhood_testnet.predeploy_readiness:predeploy_readiness_flow"
+  }
+}

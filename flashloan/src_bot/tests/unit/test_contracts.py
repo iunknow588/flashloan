@@ -20,6 +20,8 @@ def test_market_scope_and_execution_gate_have_stable_wire_shapes():
     )
 
     assert scope.as_dict()["market_id"] == "robinhood-dex-shadow"
+    assert scope.as_dict()["global_chain_id"] == "chain:4663"
+    assert scope.as_dict()["chain_key"] == "chain:4663"
     assert scope.as_dict()["scope_type"] == "single_chain"
     assert gate.as_dict()["blocked_reasons"] == ["robinhood_shadow_observation_only"]
     assert gate.as_dict()["evidence_refs"] == ["evidence/readiness.json"]

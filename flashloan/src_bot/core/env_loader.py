@@ -9,6 +9,17 @@ SENSITIVE_ENV_MARKERS = (
     "DATABASE_URL",
     "JWT",
 )
+LOCAL_JSON_ONLY_ENV_KEYS = (
+    "FLASHLOAN_LOCAL_JSON_ONLY",
+    "FLASHLOAN_DISABLE_DATABASE",
+)
+
+
+def local_json_only_enabled() -> bool:
+    return any(
+        os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+        for name in LOCAL_JSON_ONLY_ENV_KEYS
+    )
 
 
 def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
@@ -65,6 +76,8 @@ def load_env_files(
         values = parse_env_lines(env_path.read_text(encoding="utf-8").splitlines())
         is_test_env = env_path.name == ".env.test"
         for key, value in values.items():
+            if key == "DATABASE_URL" and local_json_only_enabled():
+                continue
             if is_test_env and _is_sensitive_key(key):
                 continue
             if is_test_env and str(value or "").strip() == "":

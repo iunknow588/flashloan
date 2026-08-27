@@ -6,7 +6,11 @@ from urllib.parse import parse_qs, urlsplit
 
 from core.contracts import ExecutionGate
 from cow_flashloan.network_scope import normalize_cow_networks
-from core.market_config import DEFAULT_COW_DEX_MARKET_ID, DEFAULT_ROBINHOOD_DEX_MARKET_ID
+from core.market_config import (
+    DEFAULT_AVALANCHE_DEX_MARKET_ID,
+    DEFAULT_COW_DEX_MARKET_ID,
+    DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+)
 from core.workflow_market_scope import validate_robinhood_market_network
 from core.workflow_pages import PageScopeContract, page_scope_contract
 
@@ -122,9 +126,14 @@ def resolve_workflow_context(
         )
 
     raw_selected_networks = tuple(_query_values(query, "cow_networks") or _query_values(query, "cow_network"))
+    pathname = urlsplit(str(path or "")).path or "/"
     selected_market_id = (_query_values(query, "market_id") or [""])[0]
     if page.page_key == "robinhood_dex" and not selected_market_id:
         selected_market_id = DEFAULT_ROBINHOOD_DEX_MARKET_ID
+    if pathname.startswith("/api/binance-market/cow") and not selected_market_id:
+        selected_market_id = DEFAULT_COW_DEX_MARKET_ID
+    if page.workflow == WORKFLOW_DEX_ARBITRAGE and not selected_market_id:
+        selected_market_id = DEFAULT_AVALANCHE_DEX_MARKET_ID
     is_cow_execution_rail = (
         page.workflow == WORKFLOW_DEX_ARBITRAGE
         and (not selected_market_id or selected_market_id == DEFAULT_COW_DEX_MARKET_ID)

@@ -1,23 +1,186 @@
 {
   "broadcastEnabled": false,
   "chainId": 46630,
-  "deploymentAddress": null,
+  "deploymentAddress": "0x1D3Af86E2C5a1aA85429885ADc1BB8e09f3dC17E",
   "deploymentGate": "paused_until_robinhood_flashloan_v4_repayment_and_fork_staticcall_pass",
   "executorContract": "RobinhoodPausedFlashLoanExecutor",
   "mode": "testnet_deploy_readback_only",
   "network": "robinhood-testnet",
+  "defaultDexChainSelector": false,
   "developmentPlan": "contract/robinhood/testnet/ARBITRAGE_CONTRACT_DEV_PLAN.md",
   "developmentChecklist": "contract/robinhood/testnet/DEVELOPMENT_CHECKLIST.md",
+  "chainMetadata": "contract/robinhood/testnet/chain.json",
+  "marketId": "robinhood-testnet-dex-paused",
+  "chainKey": "chain:46630",
   "readbackScript": "contract/contracts-dex/scripts/readback-robinhood-paused-executor.js",
   "deployScript": "contract/contracts-dex/scripts/deploy-robinhood-paused-executor.js",
   "preflightScript": "contract/contracts-dex/scripts/preflight-robinhood-testnet.js",
   "readinessScript": "contract/contracts-dex/scripts/check-robinhood-testnet-readiness.js",
   "envExample": "contract/robinhood/testnet/.env.testnet.example",
-  "status": "paused_deploy_script_ready",
+  "defaultPermit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "defaultFlashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "defaultFlashSourceKind": 4,
+  "defaultV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "defaultV4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+  "defaultPositionManager": "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7",
+  "defaultWrappedNative": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+  "defaultMulticall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8",
+  "lastReadinessEvidence": "contract/contracts-dex/deployments/evidence/20260827T014418059Z-13396_robinhoodTestnet-robinhood-testnet-preflight/report.json",
+  "lastOffchainNormalEvidence": "contract/contracts-dex/deployments/evidence/20260825T135140349Z-30844_hardhat-robinhood-v4-flash-offchain-normal/report.json",
+  "lastExecutorOffchainNormalEvidence": "contract/contracts-dex/deployments/evidence/20260825T140129376Z-28472_hardhat-robinhood-executor-v4-flash-offchain-normal/report.json",
+  "lastPausedRedeployPlanEvidence": "contract/contracts-dex/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
+  "lastStageFreezePredeployEvidence": "contract/contracts-dex/deployments/evidence/20260827T014904709Z-2392_robinhoodTestnet-robinhood-stage-freeze-predeploy/report.json",
+  "lastChainTestPlanEvidence": "flashloan/src_bot/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+  "lastPredeployReadinessEvidence": "flashloan/src_bot/runtime/evidence/robinhood-testnet/predeploy_readiness/20260827T014839Z/report.json",
+  "lastLendingLiquidityEvidence": "flashloan/src_bot/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+  "lastCandidatePoolSupplyEvidence": null,
+  "mainnetCandidatePoolSupplyEvidenceNotUsedForTestnet": "flashloan/src_bot/runtime/evidence/robinhood/candidate_pool_supply/20260825T151126Z/report.json",
+  "lastNormalTestnetProbeEvidence": "contract/contracts-dex/deployments/evidence/20260827T013740071Z-27736_robinhoodTestnet-robinhood-v4-flash-normal-probe-deploy/report.json",
+  "lastReadinessStatus": {
+    "rpcOk": true,
+    "deployerConfigured": true,
+    "deployerBalanceOk": true,
+    "permit2HasCode": true,
+    "readyForPausedDeploy": true,
+    "blockingReasons": [
+      "no_aave_or_morpho_flashloan_pool_verified_on_testnet"
+    ]
+  },
+  "onchainTestPolicy": {
+    "mode": "normal_only",
+    "tokenConservation": true,
+    "normalFunctionFirst": true,
+    "abnormalOnchainTestsEnabled": false,
+    "abnormalOnchainTestsDeferredUntil": "after_testnet_profit_token_reserve"
+  },
+  "offchainNormalReadiness": {
+    "readyForTestnetNormalProbe": true,
+    "mode": "normal_only",
+    "amount": "1000",
+    "gasUsed": "161101"
+  },
+  "executorOffchainNormalReadiness": {
+    "readyForPausedRedeploy": true,
+    "readyForTestnetExecutorNormalProbe": true,
+    "mode": "normal_only",
+    "amount": "1000",
+    "gasUsed": "204324",
+    "routeHopCount": 1
+  },
+  "pausedRedeployPlan": {
+    "technicalReadyForPausedRedeploy": true,
+    "readyForIntentionalPausedRedeploy": false,
+    "deploymentDeferred": true,
+    "stageFreezeApproved": false,
+    "broadcastAttempted": false,
+    "explicitDeployAllowed": false,
+    "requiredDeployMilestone": "paused_executor_v4_accounting_freeze",
+    "estimatedBudgetWei": "139094130000000",
+    "balanceCoversEstimatedBudget": true
+  },
+  "stageFreezePredeploy": {
+    "readyForStageFreeze": true,
+    "deploymentDeferred": true,
+    "stageFreezeApproved": false,
+    "readyForIntentionalPausedRedeploy": false,
+    "broadcastAttempted": false
+  },
+  "predeployReadiness": {
+    "auditOk": false,
+    "readyForForkStaticcall": false,
+    "readyForDeploymentDiscussion": false,
+    "readyForPausedRedeploy": false,
+    "broadcastAttempted": false,
+    "blockingReasons": [
+      "chain_test_plan_missing",
+      "min_profit_threshold_not_met",
+      "chain_test_plan_not_ready_for_transaction_preflight",
+      "fork_staticcall_gate_not_ready",
+      "preflight_status_not_ready_for_fork_staticcall",
+      "fork_staticcall_not_passed",
+      "stage_freeze_not_approved"
+    ]
+  },
+  "candidatePoolSupply": {
+    "sufficientForMonitoring": false,
+    "sufficientForRouteSearch": false,
+    "sufficientForExecution": false,
+    "scope": "robinhood_testnet_46630_only",
+    "marketPoolCount": 0,
+    "observablePoolCount": 0,
+    "liquidPoolCount": 0,
+    "observablePairCount": 0,
+    "staticCandidateCount": 0,
+    "bridgeTriangleCount": 0,
+    "multiPoolPairCount": 0,
+    "wethDegree": 0,
+    "usdgDegree": 0,
+    "broadcastEnabled": false
+  },
+  "lendingLiquidity": {
+    "scope": "robinhood_testnet_46630_only",
+    "hasVerifiedLendingPool": false,
+    "hasVerifiedBorrowableLiquidity": false,
+    "supportsAaveOrMorphoFlashLoans": false,
+    "aaveV3Status": "no_candidate_address_configured",
+    "morphoBlueStatus": "no_candidate_address_configured",
+    "mainnetMorphoBlueAddressHasCodeOnTestnet": false,
+    "lastEvidence": "flashloan/src_bot/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "blockingReasons": [
+      "no_aave_or_morpho_lending_liquidity_verified_on_testnet",
+      "no_robinhood_testnet_borrow_token_addresses_configured_for_lending_liquidity_check"
+    ],
+    "broadcastEnabled": false
+  },
+  "testnetV4PoolEvidence": {
+    "source": "direct_rpc_poolmanager_swap_logs",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "chainId": 46630,
+    "checkedAt": "2026-08-26T00:21:39Z",
+    "initializedPoolCount": 16203,
+    "recentLookbackBlocks": 200000,
+    "recentSwapPoolCount": 525,
+    "recentNonzeroLiquiditySwapPoolCount": 525,
+    "nativePoolManagerBalanceWei": "396259530752931517426",
+    "supportsV4FlashAccountingTests": true,
+    "supportsAaveOrMorphoFlashLoans": false,
+    "executionReady": true,
+    "blockingReasons": [
+      "no_public_morpho_blue_testnet_pool_verified",
+      "no_aave_testnet_pool_verified"
+    ]
+  },
+  "normalTestnetProbe": {
+    "address": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+    "deploymentFile": "contract/contracts-dex/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+    "deploymentAddress": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+    "readyForNormalBroadcast": true,
+    "broadcastAttempted": false,
+    "measurementReady": true,
+    "blockingReasons": []
+  },
+  "status": "deployed_paused_readback_verified",
   "supportedAdapters": [
-    "morpho_blue_flashLoan",
-    "uniswap_v3_exact_input_single",
+    "uniswap_v4_poolmanager_flash_accounting_source",
     "uniswap_v4_universal_router"
   ],
-  "testedWith": "npm run compile && npm run test:robinhood"
+  "compatibilityAdaptersNotEnabledOnTestnet": [
+    "morpho_blue_flashLoan",
+    "uniswap_v3_exact_input_single"
+  ],
+  "morphoBlueTestnetStatus": "not_publicly_verified_on_chain_46630",
+  "testedWith": "npm run test:robinhood && npm run ready:robinhood:testnet && npm run readback:robinhood:testnet",
+  "officialRpc": "https://rpc.testnet.chain.robinhood.com",
+  "deploymentFile": "contract/contracts-dex/deployments/robinhood-paused-flashloan-robinhoodTestnet.json",
+  "lastReadbackEvidence": "contract/contracts-dex/deployments/evidence/20260825T135422573Z-34656_robinhoodTestnet-robinhood-paused-readback/report.json",
+  "readbackCodeHash": "0x74bc930faf30a9fff66aa42abe6236aa55a1d8eb42659aeb640657d97b5b54f2",
+  "localArtifactCodeHash": "0x80c28fe67debe97397a2f24ecfeaa1a4e6018e1bcc273e43e443ed6201de10a0",
+  "matchesLocalArtifact": false,
+  "readyForLatestPausedExecutor": false,
+  "stageFreezeMilestone": "paused_executor_v4_accounting_freeze",
+  "stageFreezeApproved": false,
+    "readyForStageFreeze": true,
+  "deploymentDeferredUntilStageFreeze": true,
+  "normal_testnet_probe_address": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+  "normal_testnet_probe_deployment_file": "contract/contracts-dex/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json"
 }

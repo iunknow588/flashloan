@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -9,7 +9,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from core.robinhood_chain_health import probe_robinhood_rpc
+from intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
 
 
 def main() -> int:

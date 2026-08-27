@@ -97,3 +97,42 @@ def test_review_summary_infers_net_positive_for_legacy_evidence(tmp_path):
     assert reviewed["netPositiveAfterCosts"] is True
     assert reviewed["meetsMinProfitThreshold"] is False
     assert reviewed["readyForTransactionPreflight"] is False
+
+
+def test_jsonl_attempt_loading_requires_network_and_chain_scope(tmp_path):
+    route_addresses = [
+        "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "0x91e2ce85c223CD55b0Cf76Ca668a0e61ed696C6b",
+        "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    ]
+    mainnet = _attempt_with_route_addresses(route_addresses)
+    testnet = _attempt_with_route_addresses(route_addresses)
+    testnet["network"] = "robinhood-testnet"
+    testnet["chain_id"] = 46630
+    testnet["market_id"] = "robinhood-testnet-dex-paused"
+    testnet["quote"]["market_id"] = "robinhood-testnet-dex-paused"
+    testnet["quote"]["live_onchain_evidence"]["network"] = "robinhood-testnet"
+    testnet["quote"]["live_onchain_evidence"]["chainId"] = 46630
+
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    assert append_cow_execution_attempts_jsonl(path, [mainnet, testnet]) == 2
+
+    rows = load_recent_cow_execution_attempts_jsonl(
+        path,
+        limit=10,
+        networks=["robinhood-testnet"],
+        chain_ids=[46630],
+    )
+    mismatched = load_recent_cow_execution_attempts_jsonl(
+        path,
+        limit=10,
+        networks=["robinhood"],
+        chain_ids=[46630],
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["network"] == "robinhood-testnet"
+    assert rows[0]["chain_id"] == 46630
+    assert mismatched == []

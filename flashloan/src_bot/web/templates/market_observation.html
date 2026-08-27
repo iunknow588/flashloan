@@ -38,7 +38,7 @@
       <a data-surface-link href="/dex">报价与路由</a>
       <a data-surface-link href="/dex/overview">DEX 总览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
-      <a data-surface-link href="/dex/candidates">候选池子</a>
+      <a data-surface-link href="/dex/candidates">候选池</a>
       <a data-surface-link href="/dex/submissions">提交记录</a>
     </nav>
   </header>
@@ -48,23 +48,23 @@
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
-      <div class="metric"><small>可借代币</small><strong id="borrowCount">-</strong><span id="borrowNames">-</span></div>
-      <div class="metric"><small>直接交易池</small><strong id="directCount">-</strong><span>可借 token 直接进入的池</span></div>
-      <div class="metric"><small>间接路由</small><strong id="indirectCount">-</strong><span>通过桥接 token 衔接</span></div>
+      <div class="metric"><small>观察锚点</small><strong id="borrowCount">-</strong><span id="borrowNames">-</span></div>
+      <div class="metric"><small>直接闭环池</small><strong id="directCount">-</strong><span>锚点 token 直接进入的池</span></div>
+      <div class="metric"><small>间接路由</small><strong id="indirectCount">-</strong><span>通过中间 token 形成闭环</span></div>
       <div class="metric"><small>未匹配池</small><strong id="unmatchedCount">-</strong><span>暂不能从可借 token 闭环</span></div>
     </section>
     <section class="split">
       <div class="panel">
-        <h2>可直接交易的池子</h2>
+      <h2>可直接闭环观察的池子</h2>
         <div id="directList"></div>
       </div>
       <div class="panel">
-        <h2>可间接衔接的池子</h2>
+      <h2>可间接闭环观察的路径</h2>
         <div id="indirectList"></div>
       </div>
     </section>
     <section class="panel" style="margin-top:14px">
-      <h2>暂未匹配闪电贷入口的池子</h2>
+      <h2>暂未进入闭环观察的池子</h2>
       <div id="unmatchedList"></div>
     </section>
   </main>
@@ -74,7 +74,6 @@
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
-      url.searchParams.delete("protocols");
       return url.pathname + (url.search ? url.search : "");
     };
     async function fetchJson(path) {
@@ -84,10 +83,11 @@
       return data;
     }
     function directHtml(row) {
+      const matched = row.matchedObservationSymbols || row.matchedBorrowSymbols || [];
       return `<div class="item">
         <strong>${esc(row.symbolPair)}</strong>
         <div class="pool-list">
-          <span class="badge">可借 ${esc((row.matchedBorrowSymbols || []).join(", "))}</span>
+          <span class="badge">观察锚点 ${esc(matched.join(", "))}</span>
           <span class="badge">交易 ${esc((row.tradeSymbols || []).join(" / "))}</span>
           <span class="badge">池子 ${esc(row.poolCount)}</span>
           <span class="badge">${esc(row.classification?.pairClassLabel || row.classification?.pairClass || "-")}</span>
@@ -96,7 +96,7 @@
     }
     function indirectHtml(row) {
       return `<div class="item">
-        <strong>${esc(row.borrowSymbol)} -> ${esc(row.bridgeSymbol)} -> 目标资产</strong>
+        <strong>${esc(row.pathText || `${row.borrowSymbol} -> ${row.bridgeSymbol} -> ${row.targetSymbol || "target"} -> ${row.borrowSymbol}`)}</strong>
         <div class="muted">第一跳池 ${esc(row.firstLegCount)} 个，第二跳候选 ${esc(row.secondLegCount)} 个</div>
         <div class="pool-list">${(row.secondLegPairs || []).map(pair => `<span class="badge warn">${esc(pair.symbolPair)}</span>`).join("")}</div>
       </div>`;
@@ -108,13 +108,13 @@
       $("message").textContent = "正在加载市场观察...";
       try {
         const data = await fetchJson("/api/dex/market-observation");
-        $("borrowCount").textContent = data.summary?.borrowableTokenCount ?? 0;
-        $("borrowNames").textContent = (data.borrowableSymbols || []).join(", ") || "-";
+        $("borrowCount").textContent = data.summary?.observationAnchorCount ?? data.summary?.borrowableTokenCount ?? 0;
+        $("borrowNames").textContent = (data.observationAnchorSymbols || data.borrowableSymbols || []).join(", ") || "-";
         $("directCount").textContent = data.summary?.directPairCount ?? 0;
         $("indirectCount").textContent = data.summary?.indirectRouteCount ?? 0;
         $("unmatchedCount").textContent = data.summary?.unmatchedPairCount ?? 0;
         $("directList").innerHTML = (data.directPools || []).map(directHtml).join("") || '<div class="muted">当前选择下没有可借 token 直接交易池。</div>';
-        $("indirectList").innerHTML = (data.indirectRoutes || []).map(indirectHtml).join("") || '<div class="muted">当前选择下没有可借 token 间接桥接路径。</div>';
+        $("indirectList").innerHTML = (data.indirectRoutes || data.closedLoopRoutes || []).map(indirectHtml).join("") || '<div class="muted">当前选择下没有可借 token 的闭环路径。</div>';
         $("unmatchedList").innerHTML = (data.unmatchedPools || []).map(unmatchedHtml).join("") || '<div class="muted">没有未匹配池子。</div>';
         $("message").textContent = "已更新";
       } catch (error) {
@@ -125,6 +125,7 @@
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
     });
+    window.addEventListener("chainselectionprotocolschanged", () => refresh());
     refresh();
   </script>
 </body>

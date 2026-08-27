@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "robinhood-v4-flash-normal-probe-v1",
+  "runAt": "2026-08-25T14:25:18.052Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "expectedChainId": 46630,
+  "policy": {
+    "mode": "normal_only",
+    "tokenConservation": true,
+    "abnormalOnchainTestsEnabled": false,
+    "broadcastRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_NORMAL_FLASH_BROADCAST=true",
+    "broadcastEnabled": false
+  },
+  "defaults": {
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+  },
+  "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "probe": {
+    "address": "",
+    "envName": ""
+  },
+  "token": {
+    "address": "",
+    "envName": ""
+  },
+  "amount": {
+    "amount": "0",
+    "envName": ""
+  },
+  "staticCall": {
+    "attempted": false,
+    "ok": false,
+    "result": null,
+    "error": null
+  },
+  "estimateGas": {
+    "attempted": false,
+    "ok": false,
+    "gas": null,
+    "error": null
+  },
+  "broadcast": {
+    "attempted": false,
+    "ok": false,
+    "hash": null,
+    "error": null
+  },
+  "readyForNormalBroadcast": false,
+  "blockingReasons": [
+    "probe_address_missing",
+    "token_address_missing",
+    "normal_flash_amount_missing_or_zero"
+  ]
+}

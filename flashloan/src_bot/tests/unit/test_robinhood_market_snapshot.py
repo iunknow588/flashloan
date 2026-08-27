@@ -1,4 +1,4 @@
-from core.robinhood_market_snapshot import model_costs
+﻿from intent_trade.chains.robinhood.market_snapshot import model_costs
 
 
 def test_model_costs_keeps_net_profit_unverified_when_inputs_are_incomplete():

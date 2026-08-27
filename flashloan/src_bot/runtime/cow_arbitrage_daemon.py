@@ -108,43 +108,14 @@ def _blocked_submission_state(precheck: dict[str, Any]) -> str:
 
 
 def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | None) -> dict[str, Any]:
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl, record_cow_execution_attempts
-    from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
-    from web.control_panel_data_routes import COW_EXECUTION_ATTEMPT_LOG_PATH, COW_EXECUTION_RETENTION_DAYS, data_error_message
+    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from web.control_panel_data_routes import COW_EXECUTION_ATTEMPT_LOG_PATH, COW_EXECUTION_RETENTION_DAYS
 
     if not attempts:
         return {"recorded": 0, "source": "empty", "error": None}
     pause_guard = cow_submission_pause_guard_status()
     if pause_guard.get("paused"):
         return {"recorded": 0, "source": "paused", "error": None, "pause_guard": pause_guard}
-    if database_url:
-        unavailable = database_unavailable_reason(database_url)
-        if unavailable:
-            count = append_cow_execution_attempts_jsonl(
-                COW_EXECUTION_ATTEMPT_LOG_PATH,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-                dedupe_market_candidates=False,
-            )
-            return {"recorded": count, "source": "jsonl_fallback", "error": unavailable}
-        try:
-            ids = record_cow_execution_attempts(
-                database_url,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-                dedupe_market_candidates=False,
-            )
-            return {"recorded": len(ids), "source": "database", "ids": ids, "error": None}
-        except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
-            count = append_cow_execution_attempts_jsonl(
-                COW_EXECUTION_ATTEMPT_LOG_PATH,
-                attempts,
-                retention_days=COW_EXECUTION_RETENTION_DAYS,
-                dedupe_market_candidates=False,
-            )
-            return {"recorded": count, "source": "jsonl_fallback", "error": data_error_message(exc)}
     count = append_cow_execution_attempts_jsonl(
         COW_EXECUTION_ATTEMPT_LOG_PATH,
         attempts,
@@ -174,7 +145,7 @@ def default_quote_candidate(candidate: dict[str, Any], database_url: str | None)
     account_config = cow_account_config(network_config.network)
     token_cache = load_cow_supported_token_registry(
         cow_network=network_config.network,
-        database_url=database_url,
+        database_url=None,
         allow_live_fallback=True,
     )
     amount = "1000"

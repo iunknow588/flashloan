@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 const FLASH_SOURCE_MORPHO_BLUE = 1n;
+const FLASH_SOURCE_UNISWAP_V4_POOL_MANAGER = 4n;
 const SWAP_ADAPTER_UNISWAP_V3 = 3n;
 const SWAP_ADAPTER_UNISWAP_V4 = 4n;
 
@@ -79,6 +80,32 @@ async function deployRouteFixture() {
   return { owner, other, executor, token, morpho, router };
 }
 
+async function deployV4FlashFixture() {
+  const { owner, other, executor } = await deployFixture();
+  const Token = await ethers.getContractFactory("TestERC20");
+  const token = await Token.deploy("USDG", "USDG", 6, owner.address);
+  const PoolManager = await ethers.getContractFactory("MockV4PoolManager");
+  const poolManager = await PoolManager.deploy();
+  const Router = await ethers.getContractFactory("MockRobinhoodUniversalRouter");
+  const router = await Router.deploy();
+  await executor.setFlashSourceAdapter(
+    FLASH_SOURCE_UNISWAP_V4_POOL_MANAGER,
+    true,
+    await poolManager.getAddress(),
+    0,
+    ethers.ZeroHash,
+  );
+  await executor.setUniswapV4Adapter(
+    true,
+    await router.getAddress(),
+    await poolManager.getAddress(),
+    addr(0x8802n),
+    ethers.ZeroHash,
+  );
+  await executor.setRepaymentGuard(0, 0, 0, true);
+  return { owner, other, executor, token, poolManager, router };
+}
+
 describe("RobinhoodPausedFlashLoanExecutor", function () {
   it("deploys paused with Robinhood-specific adapters unset", async function () {
     const { owner, executor } = await deployFixture();
@@ -93,7 +120,7 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     expect(v4Adapter.enabled).to.equal(false);
   });
 
-  it("configures a Morpho Blue flash source and Uniswap V4 calldata adapter", async function () {
+  it("configures Morpho Blue compatibility scaffolding and Uniswap V4 calldata adapter", async function () {
     const { executor } = await deployFixture();
     const morpho = addr(0x1001n);
     const router = addr(0x2001n);
@@ -117,6 +144,21 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     expect(v4Adapter.permit2).to.equal(permit2);
   });
 
+  it("configures Uniswap V4 PoolManager as a flash-accounting source", async function () {
+    const { executor } = await deployFixture();
+    const poolManager = addr(0x24001n);
+    const flashHash = ethers.keccak256(ethers.toUtf8Bytes("robinhood:v4-poolmanager-flash-accounting"));
+
+    await executor.setFlashSourceAdapter(FLASH_SOURCE_UNISWAP_V4_POOL_MANAGER, true, poolManager, 0, flashHash);
+
+    const flashSource = await executor.flashSourceAdapter();
+    expect(flashSource.enabled).to.equal(true);
+    expect(flashSource.kind).to.equal(FLASH_SOURCE_UNISWAP_V4_POOL_MANAGER);
+    expect(flashSource.source).to.equal(poolManager);
+    expect(flashSource.feeBps).to.equal(0n);
+    expect(flashSource.metadataHash).to.equal(flashHash);
+  });
+
   it("rejects unsupported flash source kinds", async function () {
     const { executor } = await deployFixture();
 
@@ -138,6 +180,22 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       gasReserve: 0n,
     };
     await expect(executor.requestMorphoFlashLoan(request)).to.be.revertedWithCustomError(executor, "Paused");
+  });
+
+  it("keeps V4 PoolManager flash accounting requests blocked while paused", async function () {
+    const { executor, token } = await deployV4FlashFixture();
+    const tokenAddress = await token.getAddress();
+    const request = {
+      token: tokenAddress,
+      amount: 1_000n,
+      swapTargets: [],
+      swapCalldatas: [],
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request)).to.be.revertedWithCustomError(executor, "Paused");
   });
 
   it("builds Uniswap V4 Universal Router exact-input-single calldata", async function () {
@@ -337,5 +395,94 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     expect(await token.balanceOf(await morpho.getAddress())).to.equal(amount);
     expect(await token.balanceOf(await executor.getAddress())).to.equal(0n);
     expect(await router.queryFilter(router.filters.Executed())).to.have.length(2);
+  });
+
+  it("runs a mocked V4 PoolManager unlock take settle cycle", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount);
+    await executor.setPaused(false);
+
+    const tokenAddress = await token.getAddress();
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: [],
+      swapCalldatas: [],
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request))
+      .to.emit(executor, "RobinhoodV4FlashAccountingBorrowed")
+      .withArgs(tokenAddress, amount, amount)
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(tokenAddress, amount, amount)
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingRequested")
+      .withArgs(tokenAddress, amount, await poolManager.getAddress(), 0n);
+
+    expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
+    expect(await token.balanceOf(await executor.getAddress())).to.equal(0n);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("runs a mocked V4 PoolManager flash route before settling", async function () {
+    const { executor, token, poolManager, router } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount);
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const routerInterface = new ethers.Interface(["function execute(bytes commands, bytes[] inputs, uint256 deadline)"]);
+
+    const tokenAddress = await token.getAddress();
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: [await router.getAddress()],
+      swapCalldatas: [routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline])],
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request))
+      .to.emit(executor, "RobinhoodRouteHopExecuted")
+      .withArgs(1n, await router.getAddress())
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(tokenAddress, amount, amount);
+    expect(await router.queryFilter(router.filters.Executed())).to.have.length(1);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("rejects V4 PoolManager flash accounting when repayment guard needs profit", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount);
+    await executor.setPaused(false);
+
+    const tokenAddress = await token.getAddress();
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: [],
+      swapCalldatas: [],
+      finalToken: tokenAddress,
+      minProfit: 1n,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request)).to.be.revertedWithCustomError(
+      executor,
+      "BadFlashRepayment",
+    );
+  });
+
+  it("rejects direct V4 unlock callbacks from non-PoolManager callers", async function () {
+    const { executor } = await deployV4FlashFixture();
+    await executor.setPaused(false);
+
+    await expect(executor.unlockCallback("0x")).to.be.revertedWithCustomError(executor, "BadFlashCallback");
   });
 });

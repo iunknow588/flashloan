@@ -1,10 +1,12 @@
 import pytest
+from flask import Flask
 
 from core.chain_selection import (
     ChainSelectionError,
     available_chain_selections,
     resolve_chain_selection,
 )
+from web.chain_selection import chain_selection_payload
 
 
 def _rows():
@@ -44,6 +46,19 @@ def _rows():
             "observation_only": True,
         },
         {
+            "market_id": "avalanche-dex-arbitrage",
+            "chain_id": 43114,
+            "feature": "dex_arbitrage",
+            "network": "avalanche",
+            "protocol": "uniswap_v3",
+            "display_name": "Avalanche DEX Arbitrage",
+            "native_symbol": "AVAX",
+            "protocol_supported": False,
+            "observation_only": True,
+            "market_type": "native_chain",
+            "is_default": True,
+        },
+        {
             "market_id": "bnb-dex-arbitrage",
             "chain_id": 56,
             "feature": "dex_arbitrage",
@@ -78,7 +93,6 @@ def _rows():
             "protocol_supported": False,
             "observation_only": True,
             "market_type": "execution_rail",
-            "is_default": True,
         },
         {
             "market_id": "robinhood-dex-shadow",
@@ -93,6 +107,18 @@ def _rows():
             "market_type": "shadow_chain",
         },
         {
+            "market_id": "robinhood-testnet-dex-paused",
+            "chain_id": 46630,
+            "feature": "dex_arbitrage",
+            "network": "robinhood-testnet",
+            "protocol": "uniswap_v4",
+            "display_name": "Robinhood Testnet Paused Executor",
+            "native_symbol": "ETH",
+            "protocol_supported": False,
+            "observation_only": True,
+            "market_type": "native_chain",
+        },
+        {
             "market_id": "robinhood-liquidation-shadow",
             "chain_id": 4663,
             "feature": "liquidation",
@@ -103,6 +129,18 @@ def _rows():
             "protocol_supported": False,
             "observation_only": True,
             "market_type": "shadow_chain",
+        },
+        {
+            "market_id": "robinhood-testnet-liquidation-shadow",
+            "chain_id": 46630,
+            "feature": "liquidation",
+            "network": "robinhood-testnet",
+            "protocol": "morpho_blue",
+            "display_name": "Robinhood Testnet Liquidation Shadow",
+            "native_symbol": "ETH",
+            "protocol_supported": False,
+            "observation_only": True,
+            "market_type": "native_chain",
         },
     ]
 
@@ -119,17 +157,63 @@ def test_selection_filters_by_feature_and_default_market(monkeypatch):
 
     choices = available_chain_selections(feature="dex_arbitrage")
     assert [choice.market_id for choice in choices] == [
+        "avalanche-dex-arbitrage",
         "bnb-dex-arbitrage",
         "bnb-pancakeswap-v2",
         "cow-dex-arbitrage",
         "robinhood-dex-shadow",
+        "robinhood-testnet-dex-paused",
     ]
     selected = resolve_chain_selection(feature="dex_arbitrage")
-    assert selected.market_id == "cow-dex-arbitrage"
-    assert selected.chain_id == 0
-    assert selected.market_type == "execution_rail"
+    assert selected.market_id == "avalanche-dex-arbitrage"
+    assert selected.chain_id == 43114
+    assert selected.network == "avalanche"
+    assert selected.market_type == "native_chain"
     assert selected.capabilities["robinhood_shadow"] is False
     assert selected.capabilities["execution"] is False
+
+
+def test_selection_without_feature_defaults_to_avalanche_aave(monkeypatch):
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    selected = resolve_chain_selection()
+
+    assert selected.market_id == "avalanche-aave-v3"
+    assert selected.chain_id == 43114
+    assert selected.global_chain_id == "chain:43114"
+    assert selected.as_dict()["chain_key"] == "chain:43114"
+    assert selected.network == "avalanche"
+    assert selected.protocol == "aave_v3"
+
+
+def test_flash_loan_selector_payload_defaults_to_robinhood_testnet(monkeypatch):
+    app = Flask(__name__)
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    with app.test_request_context("/api/chain-selection?page_path=/flash-loan/pools"):
+        payload = chain_selection_payload()
+
+    assert payload["selected"]["market_id"] == "robinhood-testnet-dex-paused"
+    assert payload["selected"]["chain_id"] == 46630
+    assert payload["selected"]["global_chain_id"] == "chain:46630"
+    assert payload["selected"]["chain_config"]["network"] == "robinhood-testnet"
+    assert payload["selected_chain_config"]["flash_loan"]["candidate_protocols"] == ["uniswap_v4"]
+    assert payload["market_scope"]["global_chain_id"] == "chain:46630"
+    assert payload["selected"]["protocol"] == "uniswap_v4"
+
+
+def test_bot_selector_payload_defaults_to_robinhood_testnet(monkeypatch):
+    app = Flask(__name__)
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    with app.test_request_context("/api/chain-selection?page_path=/bot"):
+        payload = chain_selection_payload()
+
+    assert payload["selected"]["market_id"] == "robinhood-testnet-liquidation-shadow"
+    assert payload["selected"]["chain_id"] == 46630
+    assert payload["selected"]["global_chain_id"] == "chain:46630"
+    assert payload["selected"]["chain_config"]["network"] == "robinhood-testnet"
+    assert payload["selected"]["protocol"] == "morpho_blue"
 
 
 def test_selection_exposes_robinhood_in_liquidation_scope(monkeypatch):
@@ -138,11 +222,29 @@ def test_selection_exposes_robinhood_in_liquidation_scope(monkeypatch):
     choices = available_chain_selections(feature="liquidation")
     market_ids = [choice.market_id for choice in choices]
     robinhood = resolve_chain_selection(chain_id=4663, feature="liquidation")
+    testnet = resolve_chain_selection(chain_id=46630, feature="liquidation")
 
     assert "robinhood-liquidation-shadow" in market_ids
+    assert "robinhood-testnet-liquidation-shadow" in market_ids
     assert robinhood.market_id == "robinhood-liquidation-shadow"
     assert robinhood.capabilities["robinhood_shadow"] is True
     assert robinhood.capabilities["execution"] is False
+    assert testnet.market_id == "robinhood-testnet-liquidation-shadow"
+    assert testnet.global_chain_id == "chain:46630"
+    assert testnet.capabilities["execution"] is False
+
+
+def test_selection_exposes_robinhood_testnet_as_distinct_chain(monkeypatch):
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    testnet = resolve_chain_selection(chain_id=46630, feature="dex_arbitrage")
+
+    assert testnet.market_id == "robinhood-testnet-dex-paused"
+    assert testnet.chain_id == 46630
+    assert testnet.global_chain_id == "chain:46630"
+    assert testnet.network == "robinhood-testnet"
+    assert testnet.protocol == "uniswap_v4"
+    assert testnet.capabilities["robinhood_shadow"] is False
 
 
 def test_selection_rejects_chain_mismatch(monkeypatch):

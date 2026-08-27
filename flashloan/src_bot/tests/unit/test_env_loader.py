@@ -52,3 +52,20 @@ def test_load_env_files_applies_non_sensitive_test_env_overrides(monkeypatch, tm
     assert os.environ["TRIANGULAR_ROUTE_CONTROLLER_ADDRESS"] == "0x2222222222222222222222222222222222222222"
     assert os.environ["DEPLOYER_PRIVATE_KEY"] == "from-env"
     assert "EMPTY_TEST_VALUE" not in os.environ
+
+
+def test_load_env_files_skips_database_url_in_local_json_only_mode(monkeypatch, tmp_path):
+    child = tmp_path / "src_bot"
+    child.mkdir()
+    (child / ".env").write_text(
+        "DATABASE_URL=postgresql://remote.example/db\nSETTING=local\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FLASHLOAN_LOCAL_JSON_ONLY", "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SETTING", raising=False)
+
+    load_env_files(child / "run.py")
+
+    assert "DATABASE_URL" not in os.environ
+    assert os.environ["SETTING"] == "local"
