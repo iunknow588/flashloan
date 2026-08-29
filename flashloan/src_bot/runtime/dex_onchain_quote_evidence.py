@@ -88,6 +88,13 @@ def _human_from_raw(value: int, decimals: int) -> str:
     return format((Decimal(int(value)) / (Decimal(10) ** int(decimals))).normalize(), "f")
 
 
+def _positive_decimal_or_none(value: object) -> Decimal | None:
+    if value in (None, ""):
+        return None
+    parsed = _decimal(value)
+    return parsed if parsed > 0 else None
+
+
 def _checksum(value: object) -> str:
     return Web3.to_checksum_address(str(value))
 
@@ -621,7 +628,15 @@ def build_route_onchain_evidence(
         first_pool = _pool_for_step(steps[0], pools) if steps else {}
         input_address, _, input_decimals = _pool_side(first_pool, input_symbol)
         input_decimals = input_decimals if input_decimals is not None else _token_decimals(w3, input_address, input_symbol, token_cache)
-        amount_in_raw = _raw_from_human(analysis.get("notionalUsd") or 1000, input_decimals)
+        route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
+        reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
+        borrow_input_amount = (
+            reference_input_amount
+            if route_closed and reference_input_amount is not None
+            else _positive_decimal_or_none(analysis.get("notionalUsd"))
+            or Decimal("1000")
+        )
+        amount_in_raw = _raw_from_human(borrow_input_amount, input_decimals)
         for step in steps:
             pool = _pool_for_step(step, pools)
             protocol = _protocol_key(step.get("protocol"), step.get("dex"), step.get("fee"), pool.get("protocol"), pool.get("dex"))
@@ -664,8 +679,37 @@ def build_route_onchain_evidence(
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
     final_decimals = int(hop_rows[-1]["outputDecimals"]) if hop_rows else None
     final_amount = Decimal(hop_rows[-1]["amountOut"]) if hop_rows else None
-    notional = _decimal(analysis.get("notionalUsd") or 1000)
-    final_output_usd = final_amount if final_symbol in _STABLE_DECIMALS and final_amount is not None else None
+    input_symbol = _norm_symbol(route_symbols[0] if route_symbols else analysis.get("inputSymbol"))
+    route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
+    borrow_asset_is_stable = bool(
+        analysis.get("borrowAssetIsStable")
+        if analysis.get("borrowAssetIsStable") is not None
+        else input_symbol in _STABLE_DECIMALS
+    )
+    reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
+    borrow_input_amount = (
+        reference_input_amount
+        if route_closed and reference_input_amount is not None
+        else _positive_decimal_or_none(analysis.get("notionalUsd"))
+        or Decimal("1000")
+    )
+    notional = _positive_decimal_or_none(analysis.get("notionalUsd")) or (
+        borrow_input_amount if borrow_asset_is_stable else Decimal("1000")
+    )
+    token_gross_profit = (
+        final_amount - borrow_input_amount
+        if all_hops_verified and route_closed and final_symbol == input_symbol and final_amount is not None
+        else None
+    )
+    token_flash_fee = borrow_input_amount * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    token_submission_net_profit = token_gross_profit - token_flash_fee if token_gross_profit is not None else None
+    token_net_profit = token_submission_net_profit
+    token_net_profit_bps = (
+        token_net_profit / borrow_input_amount * Decimal(10_000)
+        if token_net_profit is not None and borrow_input_amount > 0
+        else None
+    )
+    final_output_usd = final_amount if borrow_asset_is_stable and final_symbol in _STABLE_DECIMALS and final_amount is not None else None
     gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
     flash_fee = notional * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
     gas_reserve = Decimal(str(DEFAULT_GAS_RESERVE_USD))
@@ -673,21 +717,28 @@ def build_route_onchain_evidence(
     net_profit_usd = submission_net_profit_usd - gas_reserve if submission_net_profit_usd is not None else None
     net_profit_bps = net_profit_usd / notional * Decimal(10_000) if net_profit_usd is not None and notional > 0 else None
     min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
-    net_positive_after_costs = bool(all_hops_verified and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
-    meets_min_profit_threshold = bool(
+    net_positive_after_costs = bool(
         all_hops_verified
-        and submission_net_profit_usd is not None
-        and submission_net_profit_usd > 0
+        and (
+            (borrow_asset_is_stable and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
+            or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
+        )
+    )
+    meets_submission_profit_threshold = bool(
+        all_hops_verified
+        and (
+            (borrow_asset_is_stable and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
+            or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
+        )
     )
     if not all_hops_verified and not blockers:
         blockers.append("链上复核尚未覆盖全部跳数，无法进入预检。")
     if all_hops_verified and not net_positive_after_costs:
         blockers.append("链上核算扣除闪电贷费用后仍未转正，不能进入预检。")
-    elif all_hops_verified and not meets_min_profit_threshold:
-        blockers.append("离线预算未达到 6U 门槛。")
-    if final_output_usd is None:
+    elif all_hops_verified and borrow_asset_is_stable and not meets_submission_profit_threshold:
+        blockers.append("稳定币资金池路线的链上净利润未达到 6U 门槛。")
+    if borrow_asset_is_stable and final_output_usd is None:
         blockers.append("最终输出不是稳定币或缺少可信 USD 计价，不能进入自动交易预检。")
-
     return {
         "evidenceVersion": 1,
         "observedAt": observed,
@@ -705,10 +756,22 @@ def build_route_onchain_evidence(
         "status": "live_verified" if all_hops_verified else "live_quote_failed",
         "executionTrust": "live_quoter_verified_readonly" if all_hops_verified else "static_reference_only",
         "trustedForExecution": False,
-        "readyForTransactionPreflight": meets_min_profit_threshold,
+        "readyForTransactionPreflight": meets_submission_profit_threshold,
         "hops": hop_rows,
         "costModel": {
             "notionalUsd": float(notional),
+            "borrowInputAmount": float(borrow_input_amount),
+            "borrowInputSymbol": input_symbol,
+            "finalOutputAmount": float(final_amount) if final_amount is not None else None,
+            "finalOutputSymbol": final_symbol,
+            "grossProfitAmount": float(token_gross_profit) if token_gross_profit is not None else None,
+            "flashLoanFeeAmount": float(token_flash_fee),
+            "submissionNetProfitAmount": float(token_submission_net_profit) if token_submission_net_profit is not None else None,
+            "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
+            "netProfitAmountSymbol": input_symbol,
+            "netProfitAmountBps": float(token_net_profit_bps) if token_net_profit_bps is not None else None,
+            "profitBasis": "usd" if borrow_asset_is_stable else "borrow_token",
+            "tokenGasExcluded": not borrow_asset_is_stable,
             "finalOutputUsd": float(final_output_usd) if final_output_usd is not None else None,
             "grossProfitUsd": float(gross_profit_usd) if gross_profit_usd is not None else None,
             "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
@@ -720,25 +783,35 @@ def build_route_onchain_evidence(
             "submissionNetProfitUsd": float(submission_net_profit_usd) if submission_net_profit_usd is not None else None,
             "offchainNetProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
             "netProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
-            "netProfitBps": float(net_profit_bps) if net_profit_bps is not None else None,
+            "netProfitBps": float(net_profit_bps if borrow_asset_is_stable else token_net_profit_bps)
+            if (net_profit_bps if borrow_asset_is_stable else token_net_profit_bps) is not None
+            else None,
         },
         "validation": {
             "allHopsQuoted": all_hops_verified,
-            "routeClosed": bool(route_symbols and route_symbols[0] == route_symbols[-1]),
+            "routeClosed": route_closed,
             "tokenContinuity": token_continuity_ok,
             "tokenContinuityIssues": token_continuity_issues,
             "finalOutputSymbol": final_symbol,
             "finalOutputDecimals": final_decimals,
             "profitableAfterCosts": net_positive_after_costs,
             "netPositiveAfterCosts": net_positive_after_costs,
-            "meetsMinProfitThreshold": meets_min_profit_threshold,
-            "meetsSubmissionProfitThreshold": meets_min_profit_threshold,
+            "meetsMinProfitThreshold": meets_submission_profit_threshold,
+            "meetsSubmissionProfitThreshold": meets_submission_profit_threshold,
             "meetsOffchainProfitThreshold": bool(
                 all_hops_verified and net_profit_usd is not None and net_profit_usd >= min_profit_usd
             ),
+            "borrowAssetClass": "stable" if borrow_asset_is_stable else "non_stable",
+            "borrowAssetIsStable": borrow_asset_is_stable,
+            "borrowInputAmount": float(borrow_input_amount),
+            "borrowInputSymbol": input_symbol,
+            "finalOutputAmount": float(final_amount) if final_amount is not None else None,
+            "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
+            "netProfitAmountSymbol": input_symbol,
+            "nonStablePositiveXProfitPolicy": bool(not borrow_asset_is_stable),
         },
         "blockers": blockers,
-        "transactionDevelopment": _transaction_development(meets_min_profit_threshold, blockers),
+        "transactionDevelopment": _transaction_development(meets_submission_profit_threshold, blockers),
     }
 
 

@@ -169,6 +169,81 @@ def _reject_reason_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
+def _pool_identity_key(row: dict[str, Any]) -> str:
+    pool_id = _pool_address(row).lower()
+    if pool_id:
+        return f"pool:{pool_id}"
+    token0 = _token_address(row.get("token0"))
+    token1 = _token_address(row.get("token1"))
+    if token0 and token1:
+        return f"addrpair:{_unordered_address_pair(token0, token1)}"
+    token0_symbol = str(row.get("token0Symbol") or row.get("token0_symbol") or "").strip().upper()
+    token1_symbol = str(row.get("token1Symbol") or row.get("token1_symbol") or "").strip().upper()
+    if token0_symbol and token1_symbol:
+        return f"symbolpair:{':'.join(sorted((token0_symbol, token1_symbol)))}"
+    return f"row:{id(row)}"
+
+
+def _unique_pool_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        key = _pool_identity_key(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(row)
+    return unique
+
+
+def _pair_all_pool_rows(pair: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for key in ("allPools", "preferredPools", "strictQualityPools", "executionPools", "rejectedPools"):
+        for row in pair.get(key) or []:
+            if isinstance(row, dict) and _pool_address(row):
+                rows.append(row)
+    if rows:
+        return _unique_pool_rows(rows)
+    return []
+
+
+def _anchor_queue_signature(
+    *,
+    anchor_symbol: str,
+    direction: str,
+    row: dict[str, Any],
+    counter_symbol: str,
+    counter_address: str,
+) -> str:
+    pool_id = _pool_address(row).lower()
+    token0 = _token_address(row.get("token0"))
+    token1 = _token_address(row.get("token1"))
+    token_pair = _unordered_address_pair(token0, token1) or ":".join(
+        sorted(
+            [
+                str(anchor_symbol or "").strip().upper(),
+                str(counter_symbol or "").strip().upper(),
+            ]
+        )
+    )
+    protocol = str(row.get("protocol") or row.get("dex") or "").strip().lower()
+    fee = str(row.get("fee") or "").strip().lower()
+    return ":".join(
+        [
+            str(direction or "").strip().lower() or "yc",
+            str(anchor_symbol or "").strip().upper(),
+            str(counter_symbol or "").strip().upper(),
+            counter_address.lower() if counter_address else "",
+            token_pair,
+            protocol,
+            fee,
+            pool_id,
+        ]
+    )
+
+
 def _pool_quote_summary(row: dict[str, Any]) -> dict[str, Any]:
     quotes = row.get("quotes") if isinstance(row.get("quotes"), dict) else {}
     quote01 = quotes.get("token0ToToken1") if isinstance(quotes.get("token0ToToken1"), dict) else {}
@@ -381,11 +456,19 @@ def build_anchor_candidate_groups(
         pool_id = str(record.get("pool") or "").strip()
         if not token_symbol or not pool_id:
             return
-        seen_key = f"{section}:{pool_id}:{token_address or token_symbol}"
+        seen_key = _anchor_queue_signature(
+            anchor_symbol=str(group["anchorSymbol"]),
+            direction=section,
+            row=record,
+            counter_symbol=token_symbol,
+            counter_address=token_address,
+        )
         seen_records = group.setdefault(f"_{section}Seen", set())
         if seen_key in seen_records:
             return
         seen_records.add(seen_key)
+        record["queueKey"] = seen_key
+        record["routeKey"] = seen_key
         group[pools_key].append(record)
         group["uniquePoolIds"].add(pool_id)
         token_bucket = group[tokens_key].setdefault(
@@ -404,7 +487,9 @@ def build_anchor_candidate_groups(
             token_bucket["pools"].append(record)
 
     for pair in pair_reports:
-        pools = pair.get("preferredPools") or pair.get("strictQualityPools") or pair.get("executionPools") or []
+        pools = _pair_all_pool_rows(pair)
+        if not pools:
+            pools = pair.get("preferredPools") or pair.get("strictQualityPools") or pair.get("executionPools") or []
         for pool in pools:
             if not isinstance(pool, dict) or not _pool_address(pool):
                 continue
@@ -491,6 +576,7 @@ def build_anchor_candidate_groups(
                 "ycTokenCount": str(len(yc_tokens)),
                 "zcTokenCount": str(len(zc_tokens)),
                 "candidatePoolCount": str(len(group["uniquePoolIds"])),
+                "candidateQueueCount": str(len(group["ycPools"]) + len(group["zcPools"])),
             }
         )
     return anchor_groups
@@ -509,7 +595,7 @@ def build_bnb_pool_candidates(
             groups.setdefault(str(row.get("symbolPair") or "unknown"), []).append(row)
     pair_reports = []
     for pair, rows in groups.items():
-        all_rows = [_candidate_row(row, default_protocol="pancakeswap_v3", bnb_status=True) for row in rows]
+        all_rows = _unique_pool_rows([_candidate_row(row, default_protocol="pancakeswap_v3", bnb_status=True) for row in rows])
         strict_rows = [row for row in all_rows if _candidate_pool_available(row)]
         rejected_rows = [row for row in all_rows if row not in strict_rows]
         for row in all_rows:
@@ -525,6 +611,7 @@ def build_bnb_pool_candidates(
                 "tokenYSymbol": first.get("token1Symbol"),
                 "classification": pair_classification(first.get("token0Symbol"), first.get("token1Symbol")),
                 "allPoolCount": str(len(all_rows)),
+                "allPools": all_rows,
                 "strictQualityPoolCount": str(len(strict_rows)),
                 "preferredPoolCount": str(len(strict_rows)),
                 "executionPoolCount": str(min(5, len(strict_rows))),
@@ -570,7 +657,7 @@ def build_pair_table_candidates(
     for pair in table.get("pairs") or []:
         if not isinstance(pair, dict):
             continue
-        all_rows = [row for row in pair.get("allPools") or [] if isinstance(row, dict) and _pool_address(row)]
+        all_rows = _unique_pool_rows([row for row in _pair_all_pool_rows(pair) if isinstance(row, dict) and _pool_address(row)])
         strict_rows = [_candidate_row(row) for row in all_rows if str(row.get("quality") or "").lower() == "pass" and _candidate_pool_has_depth(row)]
         preferred_rows = [_candidate_row(row) for row in pair.get("preferredPools") or [] if isinstance(row, dict) and _pool_address(row) and _candidate_pool_available(row)]
         if not preferred_rows:
@@ -593,6 +680,7 @@ def build_pair_table_candidates(
                 "tokenYSymbol": pair.get("tokenYSymbol"),
                 "classification": pair_classification(pair.get("tokenXSymbol"), pair.get("tokenYSymbol")),
                 "allPoolCount": str(len(all_rows)),
+                "allPools": all_rows,
                 "strictQualityPoolCount": str(len(strict_rows)),
                 "preferredPoolCount": str(len(preferred_rows)),
                 "executionPoolCount": str(len(execution_rows)),
@@ -672,6 +760,7 @@ def build_robinhood_pool_candidates(
                 "tokenYSymbol": first.get("token1Symbol"),
                 "classification": pair_classification(first.get("token0Symbol"), first.get("token1Symbol")),
                 "allPoolCount": str(len(pool_rows)),
+                "allPools": pool_rows,
                 "strictQualityPoolCount": str(len(strict_rows)),
                 "preferredPoolCount": str(len(strict_rows)),
                 "executionPoolCount": str(min(5, len(strict_rows))),
@@ -783,6 +872,7 @@ def _candidate_payload(
     anchor_groups = anchor_groups or build_anchor_candidate_groups(pair_reports)
     pair_reports.sort(key=lambda item: (-int(item.get("preferredPoolCount") or 0), str(item.get("symbolPair") or "")))
     summary = table.get("summary") if isinstance(table.get("summary"), dict) else {}
+    all_pool_count = sum(int(item.get("allPoolCount") or len(item.get("allPools") or [])) for item in pair_reports)
     yc_pool_count = sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups)
     zc_pool_count = sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups)
     yc_token_count = sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups)
@@ -807,7 +897,7 @@ def _candidate_payload(
         "filters": filters,
         "summary": {
             **summary,
-            "staticPoolCount": str(sum(len(item["preferredPools"]) + len(item["rejectedPools"]) for item in pair_reports)),
+            "staticPoolCount": str(all_pool_count),
             "staticPairCount": str(len(pair_reports)),
             "pairTableCount": str(len(pair_reports)),
             "anchorGroupCount": str(len(anchor_groups)),
@@ -820,6 +910,7 @@ def _candidate_payload(
             "preferredPoolCount": str(sum(len(item["preferredPools"]) for item in pair_reports)),
             "executionPoolCount": str(sum(len(item["executionPools"]) for item in pair_reports)),
             "strictQualityPoolCount": str(sum(len(item["strictQualityPools"]) for item in pair_reports)),
+            "candidateRouteCount": str(all_pool_count),
         },
         "pairs": pair_reports,
         "anchorGroups": anchor_groups,

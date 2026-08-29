@@ -39,8 +39,10 @@ contract RobinhoodV4FlashNormalProbe {
         poolManager = IRobinhoodV4PoolManagerMinimal(poolManager_);
     }
 
+    receive() external payable {}
+
     function runNormalFlash(address token, uint256 amount) external nonReentrant returns (bytes memory result) {
-        if (token == address(0) || amount == 0) revert InvalidNormalFlashRequest();
+        if (amount == 0) revert InvalidNormalFlashRequest();
         emit NormalV4FlashRequested(token, amount);
         result = poolManager.unlock(abi.encode(token, amount));
         emit NormalV4FlashCompleted(token, amount);
@@ -49,21 +51,30 @@ contract RobinhoodV4FlashNormalProbe {
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (msg.sender != address(poolManager)) revert BadPoolManagerCallback();
         (address token, uint256 amount) = abi.decode(data, (address, uint256));
-        if (token == address(0) || amount == 0) revert InvalidNormalFlashRequest();
+        if (amount == 0) revert InvalidNormalFlashRequest();
 
-        IERC20RobinhoodV4Probe erc20 = IERC20RobinhoodV4Probe(token);
-        uint256 balanceBefore = erc20.balanceOf(address(this));
+        uint256 balanceBefore = _currencyBalance(token);
         poolManager.take(token, address(this), amount);
-        uint256 balanceAfterTake = erc20.balanceOf(address(this));
+        uint256 balanceAfterTake = _currencyBalance(token);
         if (balanceAfterTake < balanceBefore + amount) revert InvalidNormalFlashRequest();
         emit NormalV4FlashBorrowed(token, amount, balanceAfterTake);
 
         poolManager.sync(token);
-        if (!erc20.transfer(address(poolManager), amount)) revert TokenTransferFailed();
-        uint256 paid = poolManager.settle();
+        uint256 paid;
+        if (token == address(0)) {
+            paid = poolManager.settle{value: amount}();
+        } else {
+            if (!IERC20RobinhoodV4Probe(token).transfer(address(poolManager), amount)) revert TokenTransferFailed();
+            paid = poolManager.settle();
+        }
         if (paid < amount) revert InvalidNormalFlashRequest();
         emit NormalV4FlashSettled(token, amount, paid);
 
         return abi.encode(token, amount, paid);
+    }
+
+    function _currencyBalance(address token) private view returns (uint256) {
+        if (token == address(0)) return address(this).balance;
+        return IERC20RobinhoodV4Probe(token).balanceOf(address(this));
     }
 }

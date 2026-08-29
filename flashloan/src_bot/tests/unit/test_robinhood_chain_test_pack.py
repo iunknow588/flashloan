@@ -228,6 +228,102 @@ def test_plan_infers_legacy_net_positive_below_min_profit():
     assert plan["decision"]["canRunForkPreflight"] is False
 
 
+def test_non_stable_chain_test_plan_uses_positive_x_profit_floor():
+    attempt = _sample_attempt()
+    attempt["network"] = "robinhood-testnet"
+    attempt["chain_id"] = 46630
+    attempt["pair"] = "ETH -> Y -> ETH"
+    attempt["route_path"] = ["ETH", "Y", "ETH"]
+    evidence = attempt["quote"]["live_onchain_evidence"]
+    evidence["network"] = "robinhood-testnet"
+    evidence["chainId"] = 46630
+    evidence["routeSymbols"] = ["ETH", "Y", "ETH"]
+    evidence["validation"] = {
+        "allHopsQuoted": True,
+        "routeClosed": True,
+        "finalOutputSymbol": "ETH",
+        "borrowAssetIsStable": False,
+        "profitableAfterCosts": True,
+        "netPositiveAfterCosts": True,
+        "meetsSubmissionProfitThreshold": True,
+        "meetsOffchainProfitThreshold": False,
+    }
+    evidence["costModel"] = {
+        "profitBasis": "borrow_token",
+        "borrowInputAmount": 1.0,
+        "borrowInputSymbol": "ETH",
+        "finalOutputAmount": 1.01,
+        "finalOutputSymbol": "ETH",
+        "flashLoanFeeBps": 5.0,
+        "flashLoanFeeAmount": 0.0005,
+        "submissionNetProfitAmount": 0.0095,
+        "netProfitAmount": 0.0095,
+        "netProfitAmountSymbol": "ETH",
+        "netProfitAmountBps": 95.0,
+        "finalOutputUsd": None,
+        "netProfitUsd": None,
+    }
+    evidence["hops"] = [
+        {
+            "hop": 1,
+            "protocol": "uniswap_v4",
+            "quoteMethod": "uniswap_v4_sdk_exact_input_single",
+            "pool": "0x" + "1" * 40,
+            "fromSymbol": "ETH",
+            "toSymbol": "Y",
+            "tokenIn": "0x0000000000000000000000000000000000000000",
+            "tokenOut": "0x" + "b" * 40,
+            "amountInRaw": str(10**18),
+            "amountOutRaw": str(10 * 10**18),
+            "amountIn": "1",
+            "amountOut": "10",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "fee": 3000,
+        },
+        {
+            "hop": 2,
+            "protocol": "uniswap_v4",
+            "quoteMethod": "uniswap_v4_sdk_exact_input_single",
+            "pool": "0x" + "2" * 40,
+            "fromSymbol": "Y",
+            "toSymbol": "ETH",
+            "tokenIn": "0x" + "b" * 40,
+            "tokenOut": "0x0000000000000000000000000000000000000000",
+            "amountInRaw": str(10 * 10**18),
+            "amountOutRaw": str(101 * 10**16),
+            "amountIn": "10",
+            "amountOut": "1.01",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "fee": 3000,
+        },
+    ]
+    attempt["precheck"]["ready_for_transaction_preflight"] = True
+    attempt["precheck"]["live_profit_percent"] = 0.95
+    attempt["precheck"]["reference_profit_amount"] = None
+
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    assert plan["decision"]["readyForTransactionPreflight"] is True
+    assert plan["chainTestScope"]["mode"] == "testnet_deploy_readback_only"
+    assert plan["decision"]["canRunForkPreflight"] is False
+    assert plan["decision"]["canDeployTestnet"] is True
+    assert plan["evidence"]["profitBasis"] == "borrow_token"
+    assert plan["evidence"]["netProfitAmount"] == 0.0095
+    assert plan["preflightSpec"]["repaymentConstraint"]["profitBasis"] == "borrow_token"
+    assert plan["preflightSpec"]["repaymentConstraint"]["borrowAmountRaw"] == str(10**18)
+    assert plan["preflightSpec"]["repaymentConstraint"]["repayAmountRaw"] == str(10**18 + 5 * 10**14)
+    assert plan["preflightSpec"]["repaymentConstraint"]["minProfitRaw"] == "1"
+    assert plan["preflightSpec"]["repaymentConstraint"]["gasReserveRaw"] == "0"
+    assert plan["preflightSpec"]["repaymentConstraint"]["minProfitRule"] == "positive_x_profit_min_raw_unit"
+    assert plan["preflightSpec"]["executionRequest"]["function"] == "requestV4FlashLoanWithValues"
+    assert plan["preflightSpec"]["executionRequest"]["struct"] == "V4FlashAccountingValueRequest"
+    assert plan["preflightSpec"]["executionRequest"]["borrowTokenIsNative"] is True
+    assert plan["preflightSpec"]["executionRequest"]["transactionValueRaw"] == "0"
+    assert plan["preflightSpec"]["executionRequest"]["swapValues"] == [str(10**18), "0"]
+
+
 def test_write_robinhood_chain_test_package_creates_contract_notes(tmp_path):
     output_dir = tmp_path / "package"
     contract_dir = tmp_path / "contract" / "robinhood"
@@ -262,6 +358,8 @@ def test_write_robinhood_testnet_chain_test_package_uses_testnet_scope(tmp_path)
     assert plan["marketId"] == "robinhood-testnet-dex-paused"
     assert plan["chainTestScope"]["mode"] == "testnet_deploy_readback_only"
     assert '"scope": "robinhood_testnet_46630_only"' in contracts
+    assert '"repaymentConstraint": {' in contracts
+    assert '"executionRequest": {' in contracts
     assert '"candidatePoolSupplyEvidence": null' in contracts
     assert "not_publicly_verified_on_testnet_46630" in contracts
     assert "- Chain: `robinhood-testnet`" in notes

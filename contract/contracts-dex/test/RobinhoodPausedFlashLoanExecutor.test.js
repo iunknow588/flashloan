@@ -456,6 +456,88 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
   });
 
+  it("previews required balance in borrowed token raw units", async function () {
+    const { executor } = await deployFixture();
+
+    await executor.setRepaymentGuard(5n, 7n, 100n, true);
+    const [requiredRepay, requiredBalance] = await executor.previewRequiredBalance(1_000_000n, 5, 1n, 0n);
+
+    expect(requiredRepay).to.equal(1_000_500n);
+    expect(requiredBalance).to.equal(1_000_512n);
+  });
+
+  it("accepts a non-stable V4 flash-accounting route with positive X-denominated profit", async function () {
+    const { executor, poolManager, router } = await deployV4FlashFixture();
+    const [owner] = await ethers.getSigners();
+    const Token = await ethers.getContractFactory("TestERC20");
+    const token = await Token.deploy("Wrapped Ether", "WETH", 18, owner.address);
+    const tokenAddress = await token.getAddress();
+    const amount = 10n ** 18n;
+    const minProfit = 1n;
+    await token.mint(await poolManager.getAddress(), amount);
+    await token.mint(await router.getAddress(), minProfit);
+    await router.setTransferOnNextExecute(tokenAddress, minProfit);
+    await executor.setPaused(false);
+
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const routerInterface = new ethers.Interface(["function execute(bytes commands, bytes[] inputs, uint256 deadline)"]);
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: [await router.getAddress()],
+      swapCalldatas: [routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline])],
+      finalToken: tokenAddress,
+      minProfit,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request))
+      .to.emit(executor, "RobinhoodProfitGuardChecked")
+      .withArgs(tokenAddress, amount + minProfit, amount, minProfit, 0n, amount + minProfit, minProfit)
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(tokenAddress, amount, amount);
+
+    expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
+    expect(await token.balanceOf(await executor.getAddress())).to.equal(minProfit);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("supports native ETH as the V4 flash-accounting borrowed X token", async function () {
+    const { owner, executor, poolManager, router } = await deployV4FlashFixture();
+    const amount = 10n ** 18n;
+    const minProfit = 1n;
+    await owner.sendTransaction({ to: await poolManager.getAddress(), value: amount });
+    await owner.sendTransaction({ to: await router.getAddress(), value: minProfit });
+    await router.setNativeTransferOnNextExecute(amount + minProfit);
+    await executor.setPaused(false);
+
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const routerInterface = new ethers.Interface(["function execute(bytes commands, bytes[] inputs, uint256 deadline)"]);
+    const request = {
+      token: ethers.ZeroAddress,
+      amount,
+      swapTargets: [await router.getAddress()],
+      swapCalldatas: [routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline])],
+      swapValues: [amount],
+      finalToken: ethers.ZeroAddress,
+      minProfit,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoanWithValues(request))
+      .to.emit(router, "NativeValueReceived")
+      .withArgs(await executor.getAddress(), amount)
+      .and.to.emit(executor, "RobinhoodProfitGuardChecked")
+      .withArgs(ethers.ZeroAddress, amount + minProfit, amount, minProfit, 0n, amount + minProfit, minProfit)
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(ethers.ZeroAddress, amount, amount);
+
+    expect(await ethers.provider.getBalance(await executor.getAddress())).to.equal(minProfit);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), ethers.ZeroAddress)).to.equal(0n);
+  });
+
   it("rejects V4 PoolManager flash accounting when repayment guard needs profit", async function () {
     const { executor, token, poolManager } = await deployV4FlashFixture();
     const amount = 1_000n;

@@ -524,19 +524,58 @@ def chain_default_protocol_preferences(*, root: Path | None = None) -> dict[int,
     }
 
 
+def _registry_default_chain_id(defaults: dict[str, Any], key: str) -> int | None:
+    default_chain_ids = _as_dict(defaults.get("default_chain_ids"))
+    return _int_or_none(default_chain_ids.get(key)) or _int_or_none(defaults.get(f"{key}_chain_id"))
+
+
+def default_chain_scope(feature: str, *, root: Path | None = None) -> dict[str, Any]:
+    chain_root = root or CHAIN_DATA_ROOT
+    normalized_feature = _text(feature).lower()
+    registry = load_chain_registry(root=chain_root)
+    chain_id = _registry_default_chain_id(_as_dict(registry.get("defaults")), normalized_feature)
+    if chain_id is None:
+        raise ValueError(f"no default chain is configured for feature {normalized_feature}")
+    row = chain_data_by_chain_id(chain_id, root=chain_root)
+    if not row:
+        raise ValueError(f"default chain {chain_id} is not registered")
+    feature = _as_dict(_as_dict(row.get("features")).get(normalized_feature))
+    protocols = row["flash_loan"]["default_protocols"]
+    return {
+        "network": row["network"],
+        "chain_id": int(row["chain_id"]),
+        "market_id": _text(feature.get("default_market_id")),
+        "protocol": _text(feature.get("protocol")) or (protocols[0] if protocols else ""),
+    }
+
+
+def default_market_id_for_feature(feature: str, *, root: Path | None = None) -> str:
+    return _text(default_chain_scope(feature, root=root).get("market_id"))
+
+
 def default_flash_loan_pool_scope(*, root: Path | None = None) -> dict[str, Any]:
-    for row in load_chain_data(root=root):
-        defaults = _as_dict(row.get("defaults"))
-        if defaults.get("flash_loan_pool_page") is True:
-            feature = _as_dict(_as_dict(row.get("features")).get("dex_arbitrage"))
-            protocols = row["flash_loan"]["default_protocols"]
-            return {
-                "network": row["network"],
-                "chain_id": int(row["chain_id"]),
-                "market_id": _text(feature.get("default_market_id")),
-                "protocol": protocols[0] if protocols else _text(feature.get("protocol")),
-            }
-    raise ValueError("no chain data file declares defaults.flash_loan_pool_page=true")
+    chain_root = root or CHAIN_DATA_ROOT
+    registry = load_chain_registry(root=chain_root)
+    defaults = _as_dict(registry.get("defaults"))
+    chain_id = _registry_default_chain_id(defaults, "flash_loan_pool_page")
+    if chain_id is None:
+        for row in load_chain_data(root=chain_root):
+            if _as_dict(row.get("defaults")).get("flash_loan_pool_page") is True:
+                chain_id = int(row["chain_id"])
+                break
+    if chain_id is None:
+        raise ValueError("no default chain is configured for flash_loan_pool_page")
+    row = chain_data_by_chain_id(chain_id, root=chain_root)
+    if not row:
+        raise ValueError(f"default flash loan pool chain {chain_id} is not registered")
+    feature = _as_dict(_as_dict(row.get("features")).get("dex_arbitrage"))
+    protocols = row["flash_loan"]["default_protocols"]
+    return {
+        "network": row["network"],
+        "chain_id": int(row["chain_id"]),
+        "market_id": _text(feature.get("default_market_id")),
+        "protocol": protocols[0] if protocols else _text(feature.get("protocol")),
+    }
 
 
 def processing_handler_for_chain(chain_id: int, flow: str, *, root: Path | None = None) -> str:
@@ -766,6 +805,8 @@ __all__ = [
     "chain_data_file_path",
     "chain_data_files",
     "chain_default_protocol_preferences",
+    "default_chain_scope",
+    "default_market_id_for_feature",
     "chain_flow_spec_by_chain_id",
     "chain_flow_spec_by_network",
     "chain_protocol_inventory",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-from core.chain_data_registry import global_chain_id
+from core.chain_data_registry import default_market_id_for_feature, global_chain_id
 from core.market_config import (
     MARKET_TYPE_EXECUTION_RAIL,
     MARKET_TYPE_NATIVE_CHAIN,
@@ -257,8 +257,15 @@ def resolve_chain_selection(
             )
         selected = next((item for item in chain_matches if item.is_default), chain_matches[0])
 
-    if selected is None and default_market_id:
-        requested_default = _normalise_market_id(default_market_id)
+    effective_default_market_id = default_market_id
+    if selected is None and not effective_default_market_id and requested_feature:
+        try:
+            effective_default_market_id = default_market_id_for_feature(requested_feature)
+        except Exception:
+            effective_default_market_id = None
+
+    if selected is None and effective_default_market_id:
+        requested_default = _normalise_market_id(effective_default_market_id)
         selected = next(
             (item for item in available if _normalise_market_id(item.market_id) == requested_default),
             None,

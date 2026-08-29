@@ -7,10 +7,12 @@ from core.chain_data_registry import (
     chain_data_by_network,
     chain_data_file_path,
     chain_default_protocol_preferences,
+    default_chain_scope,
     chain_protocol_inventory,
     chain_supported_protocol_count,
     chain_supported_protocols,
     default_flash_loan_pool_scope,
+    default_market_id_for_feature,
     global_chain_id,
     load_chain_flow_specs,
     load_chain_data,
@@ -60,11 +62,14 @@ def test_core_directory_does_not_own_chain_named_modules():
 def test_robinhood_mainnet_and_testnet_have_separate_data_and_handlers():
     mainnet = chain_data_by_network("robinhood")
     testnet = chain_data_by_network("robinhood-testnet")
+    mainnet_flash_flow = processing_flow_for_chain(4663, "flash_loan_pools")
 
     assert mainnet["chain_id"] == 4663
     assert testnet["chain_id"] == 46630
     assert mainnet["data_file"].endswith("chains\\robinhood\\chain.json") or mainnet["data_file"].endswith("chains/robinhood/chain.json")
     assert testnet["data_file"].endswith("chains\\robinhood-testnet\\chain.json") or testnet["data_file"].endswith("chains/robinhood-testnet/chain.json")
+    assert "uniswap_v4" in mainnet["flash_loan"]["candidate_protocols"]
+    assert "uniswap_v4" in mainnet_flash_flow["allowed_protocols"]
     assert processing_handler_for_chain(4663, "flash_loan_pools") != processing_handler_for_chain(
         46630,
         "flash_loan_pools",
@@ -87,6 +92,16 @@ def test_flash_loan_pool_default_scope_is_robinhood_testnet_v4():
     assert chain_contracts("robinhood-testnet")["v4_pool_manager"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
 
 
+def test_feature_default_scope_comes_from_chain_registry():
+    scope = default_chain_scope("dex_arbitrage")
+
+    assert scope["network"] == "robinhood-testnet"
+    assert scope["chain_id"] == 46630
+    assert scope["market_id"] == "robinhood-testnet-dex-paused"
+    assert default_market_id_for_feature("dex_arbitrage") == "robinhood-testnet-dex-paused"
+    assert default_market_id_for_feature("liquidation") == "robinhood-testnet-liquidation-shadow"
+
+
 def test_global_chain_id_and_config_summary_are_chain_owned():
     summary = chain_config_summary(chain_id=46630)
     data_independence = summary["data_independence"]
@@ -107,14 +122,18 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
     assert data_independence["data_file_keys"] == [
         "chain_test",
         "lending_liquidity",
+        "market_observation",
         "normal_testnet_probe",
         "predeploy_readiness",
+        "v4_pool_index",
         "v4_pool_liquidity",
     ]
     assert data_independence["flow_data_file_keys"] == [
         "chain_test",
         "lending_liquidity",
+        "market_observation",
         "predeploy_readiness",
+        "v4_pool_index",
         "v4_pool_liquidity",
     ]
     assert data_independence["isolation"]["forbidden_source_networks"] == [
@@ -129,9 +148,13 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
     assert processing_independence["all_flows_have_handlers"] is True
     assert processing_independence["all_flows_require_scope_match"] is True
     assert processing_independence["flow_names"] == [
+        "dex_overview",
         "dex_pool_candidates",
+        "dex_quote_request",
+        "dex_quote_routes",
         "flash_loan_pools",
         "lending_liquidity",
+        "market_observation",
         "predeploy_readiness",
     ]
 

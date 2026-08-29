@@ -11,10 +11,8 @@ from core.flash_loan_pool_discovery import (
     refresh_flash_loan_pool_discovery_cache,
     start_flash_loan_pool_discovery_idle_worker,
 )
-from core.chain_data_registry import default_flash_loan_pool_scope
+from core.chain_data_registry import default_chain_scope, default_flash_loan_pool_scope
 from core.market_config import (
-    DEFAULT_AVALANCHE_CHAIN_ID,
-    DEFAULT_AVALANCHE_DEX_MARKET_ID,
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     supported_market_summaries,
@@ -171,6 +169,98 @@ def _flash_loan_discovery_refresh_kwargs(panel) -> dict:
     return {"market_rows": supported_market_summaries(_panel_database_url(panel))}
 
 
+def _request_protocols() -> list[str]:
+    return [
+        item.strip().lower()
+        for item in request.args.get("protocols", "").replace("|", ",").split(",")
+        if item.strip()
+    ]
+
+
+def _request_bool_arg(name: str) -> bool:
+    body = request.get_json(silent=True) or {}
+    return request.args.get(name, "").strip().lower() in {"1", "true", "yes", "on"} or bool(body.get(name))
+
+
+def _default_scope_kwargs(feature: str) -> dict[str, object]:
+    scope = default_chain_scope(feature)
+    return {
+        "default_market_id": str(scope["market_id"]),
+        "default_chain_id": int(scope["chain_id"]),
+    }
+
+
+def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[str], full: bool, panel) -> dict:
+    steps: list[dict] = []
+    errors: list[str] = []
+    try:
+        discovery = refresh_flash_loan_pool_discovery_cache(**_flash_loan_discovery_refresh_kwargs(panel))
+        steps.append(
+            {
+                "source": "flash_loan_pool_discovery",
+                "ok": True,
+                "chainCount": discovery.get("chain_count"),
+                "protocolCount": discovery.get("protocol_count"),
+            }
+        )
+    except Exception as exc:
+        errors.append(f"flash_loan_pool_discovery: {exc}")
+        steps.append({"source": "flash_loan_pool_discovery", "ok": False, "error": str(exc)})
+
+    protocol_set = set(protocols)
+    refresh_v4 = chain_id == 46630 and (not protocol_set or "uniswap_v4" in protocol_set)
+    if refresh_v4:
+        if full:
+            try:
+                from intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
+
+                result = write_v4_pool_index_from_initialize_logs()
+                steps.append(
+                    {
+                        "source": "robinhood_testnet_v4_pool_index",
+                        "ok": True,
+                        "outputPath": result.get("outputPath"),
+                        "poolCount": len(result.get("pools") or []),
+                        "poolKeyCount": len(result.get("poolKeys") or result.get("pool_keys") or []),
+                    }
+                )
+            except Exception as exc:
+                errors.append(f"robinhood_testnet_v4_pool_index: {exc}")
+                steps.append({"source": "robinhood_testnet_v4_pool_index", "ok": False, "error": str(exc)})
+        try:
+            from intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
+
+            result = write_v4_pool_liquidity_from_contract_evidence(
+                token_balance_scan_scope="active_plus_known",
+                multicall_chunk_size=200,
+                max_token_balance_scan_seconds=None,
+            )
+            steps.append(
+                {
+                    "source": "robinhood_testnet_v4_pool_liquidity",
+                    "ok": True,
+                    "outputPath": result.get("outputPath"),
+                    "poolCount": len(result.get("pools") or []),
+                    "poolKeyCount": len(result.get("poolKeys") or result.get("pool_keys") or []),
+                    "tokenBalanceScanScope": result.get("tokenBalanceScanScope"),
+                    "tokenBalanceScanCount": result.get("tokenBalanceScanCount"),
+                    "tokenBalanceSourceCount": result.get("tokenBalanceSourceCount"),
+                }
+            )
+        except Exception as exc:
+            errors.append(f"robinhood_testnet_v4_pool_liquidity: {exc}")
+            steps.append({"source": "robinhood_testnet_v4_pool_liquidity", "ok": False, "error": str(exc)})
+
+    return {
+        "ok": not errors,
+        "requested": "full" if full else "incremental",
+        "source": "flash_loan_pool_static_store_refresh",
+        "steps": steps,
+        "errors": errors,
+        "message": "资金池全量刷新完成" if full and not errors else ("资金池增量补全完成" if not errors else "资金池刷新完成但存在错误"),
+    }
+
+
 def _market_page_response(
     panel,
     *,
@@ -276,8 +366,7 @@ def register_page_routes(app, panel) -> None:
         return _market_page_response(
             panel,
             template_path=panel.MARKET_OBSERVATION_TEMPLATE_PATH,
-            default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
-            default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
+            **_default_scope_kwargs("dex_arbitrage"),
         )
 
     @app.get("/ops")
@@ -293,8 +382,7 @@ def register_page_routes(app, panel) -> None:
     def binance_market_panel():
         return _market_page_response(
             panel,
-            default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
-            default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
+            **_default_scope_kwargs("dex_arbitrage"),
         )
 
     @app.get("/dex-pools")
@@ -307,14 +395,13 @@ def register_page_routes(app, panel) -> None:
             return _market_page_response(
                 panel,
                 template_path=panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
-                default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
-                default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
+                default_market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
+                default_chain_id=DEFAULT_ROBINHOOD_CHAIN_ID,
             )
         return _html_response(
             panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
             feature="dex_arbitrage",
-            default_market_id=DEFAULT_AVALANCHE_DEX_MARKET_ID,
-            default_chain_id=DEFAULT_AVALANCHE_CHAIN_ID,
+            **_default_scope_kwargs("dex_arbitrage"),
             page_surface="candidates",
         )
 
@@ -474,11 +561,7 @@ def register_page_routes(app, panel) -> None:
             item["protocol"]
             for item in protocol_options_for_chain(chain_id=chain_id)
         ] if chain_id is not None else None
-        protocols = [
-            item.strip().lower()
-            for item in request.args.get("protocols", "").replace("|", ",").split(",")
-            if item.strip()
-        ]
+        protocols = _request_protocols()
         return jsonify(
             flash_loan_pools_payload(
                 database_url=_panel_database_url(panel),
@@ -488,3 +571,38 @@ def register_page_routes(app, panel) -> None:
                 discovered_protocols=discovered_protocols,
             )
         )
+
+    @app.post("/api/flash-loan/pools/refresh")
+    def flash_loan_pools_refresh_api():
+        try:
+            chain_id = _request_chain_id()
+        except ChainSelectionError as exc:
+            return jsonify({"ok": False, "error": exc.message, "code": exc.code}), 400
+        if chain_id is None and not request.args.get("market_id", "").strip():
+            chain_id = int(default_flash_loan_pool_scope()["chain_id"])
+        protocols = _request_protocols()
+        full_refresh = _request_bool_arg("full")
+        refresh_state = _refresh_flash_loan_pool_sources(
+            chain_id=chain_id,
+            protocols=protocols,
+            full=full_refresh,
+            panel=panel,
+        )
+        discovered_protocols = [
+            item["protocol"]
+            for item in protocol_options_for_chain(chain_id=chain_id)
+        ] if chain_id is not None else None
+        payload = flash_loan_pools_payload(
+            database_url=_panel_database_url(panel),
+            market_id=request.args.get("market_id", "").strip() or None,
+            chain_id=chain_id,
+            protocols=protocols,
+            discovered_protocols=discovered_protocols,
+            persist_static=True,
+            refresh_mode="full" if full_refresh else "incremental",
+        )
+        payload["refresh_state"] = {
+            **refresh_state,
+            "staticPoolStore": payload.get("static_pool_store") or [],
+        }
+        return jsonify(payload), 200 if refresh_state.get("ok") else 500

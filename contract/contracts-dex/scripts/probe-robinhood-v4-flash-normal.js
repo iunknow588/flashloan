@@ -50,12 +50,27 @@ function envAddress(...names) {
   return { address: "", envName: "" };
 }
 
+function envCurrencyAddress(...names) {
+  for (const name of names) {
+    const address = normalizeCurrencyAddress(process.env[name]);
+    if (address) return { address, envName: name };
+  }
+  return { address: "", envName: "" };
+}
+
 function envAmount(...names) {
   for (const name of names) {
     const value = String(process.env[name] || "").trim();
     if (value && /^\d+$/.test(value)) return { amount: BigInt(value), envName: name };
   }
   return { amount: 0n, envName: "" };
+}
+
+function normalizeCurrencyAddress(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "0x...") return "";
+  if (!hre.ethers.isAddress(raw) && !/^0x[0-9a-fA-F]{40}$/.test(raw)) return "";
+  return hre.ethers.getAddress(raw);
 }
 
 function readJsonIfExists(filePath) {
@@ -111,25 +126,27 @@ function resolveNormalFlashProbeInputs() {
   const evidenceProbe = evidence.probe && typeof evidence.probe === "object" ? evidence.probe : {};
   const evidenceToken = evidence.token && typeof evidence.token === "object" ? evidence.token : {};
   const evidenceAmount = evidence.amount && typeof evidence.amount === "object" ? evidence.amount : {};
-  const tokenAddress = normalizeAddress(
+  const tokenAddress = normalizeCurrencyAddress(
     firstDefined(
-      evidenceToken.address,
       repayment.borrowToken,
       firstHop.tokenIn,
+      evidenceToken.address,
     ),
   );
-  const tokenSymbol = String(firstDefined(evidenceToken.symbol, repayment.borrowSymbol, firstHop.fromSymbol)).trim();
+  const evidenceTokenAddress = normalizeCurrencyAddress(evidenceToken.address);
+  const evidenceTokenMatches = Boolean(evidenceTokenAddress && tokenAddress && evidenceTokenAddress === tokenAddress);
+  const tokenSymbol = String(firstDefined(repayment.borrowSymbol, firstHop.fromSymbol, evidenceToken.symbol)).trim();
   const amountValue = firstDefined(
-    evidenceAmount.amount,
     repayment.borrowAmountRaw,
     firstHop.amountInRaw,
+    evidenceAmount.amount,
   );
   const amount = toBigInt(amountValue);
   const decimals = Number(
     firstDefined(
-      evidenceAmount.decimals,
       firstHop.inputDecimals,
       firstHop.outputDecimals,
+      evidenceAmount.decimals,
       18,
     ),
   );
@@ -165,15 +182,23 @@ function resolveNormalFlashProbeInputs() {
       address: tokenAddress,
       symbol: tokenSymbol,
       decimals,
-      source: firstDefined(evidenceToken.source, "chain_test_plan.preflightSpec.repaymentConstraint"),
-      poolManagerBalanceRaw: firstDefined(evidenceToken.poolManagerBalanceRaw, evidenceToken.poolmanager_balance_raw),
-      poolManagerBalance: firstDefined(evidenceToken.poolManagerBalance, evidenceToken.poolmanager_balance),
+      source: repayment.borrowToken
+        ? "chain_test_plan.preflightSpec.repaymentConstraint"
+        : firstDefined(evidenceToken.source, "chain_test_plan.preflightSpec.repaymentConstraint"),
+      poolManagerBalanceRaw: evidenceTokenMatches
+        ? firstDefined(evidenceToken.poolManagerBalanceRaw, evidenceToken.poolmanager_balance_raw)
+        : "",
+      poolManagerBalance: evidenceTokenMatches
+        ? firstDefined(evidenceToken.poolManagerBalance, evidenceToken.poolmanager_balance)
+        : "",
     },
     amount: {
       amount: amount.toString(),
       human: humanAmount,
       decimals,
-      source: firstDefined(evidenceAmount.source, "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"),
+      source: repayment.borrowAmountRaw
+        ? "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"
+        : firstDefined(evidenceAmount.source, "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"),
     },
     route: {
       pathText: firstDefined(plan?.route?.pathText, preflight?.pathText),
@@ -222,12 +247,38 @@ function stringify(value) {
   return value;
 }
 
+async function localArtifactCodeStatus(contractName) {
+  const artifact = await hre.artifacts.readArtifact(contractName);
+  const deployedBytecode = String(artifact.deployedBytecode || "");
+  return {
+    contract: contractName,
+    available: deployedBytecode !== "" && deployedBytecode !== "0x",
+    codeBytes: deployedBytecode === "0x" ? 0 : (deployedBytecode.length - 2) / 2,
+    codeHash: deployedBytecode === "0x" ? null : hre.ethers.keccak256(deployedBytecode),
+  };
+}
+
+async function deployedCodeStatus(address, contractName) {
+  const artifact = await localArtifactCodeStatus(contractName);
+  const code = address ? await hre.ethers.provider.getCode(address) : "0x";
+  const codeBytes = code === "0x" ? 0 : (code.length - 2) / 2;
+  return {
+    contract: contractName,
+    address,
+    hasCode: code !== "0x",
+    codeBytes,
+    codeHash: code === "0x" ? null : hre.ethers.keccak256(code),
+    localArtifact: artifact,
+    matchesLocalCodeSize: artifact.available && codeBytes === artifact.codeBytes,
+  };
+}
+
 async function main() {
   const [signer] = await hre.ethers.getSigners();
   const network = await hre.ethers.provider.getNetwork();
   const resolved = resolveNormalFlashProbeInputs();
   const probeOverride = envAddress("ROBINHOOD_TESTNET_V4_FLASH_PROBE");
-  const tokenOverride = envAddress("ROBINHOOD_TESTNET_NORMAL_FLASH_TOKEN");
+  const tokenOverride = envCurrencyAddress("ROBINHOOD_TESTNET_NORMAL_FLASH_TOKEN");
   const amountOverride = envAmount("ROBINHOOD_TESTNET_NORMAL_FLASH_AMOUNT", "ROBINHOOD_TESTNET_MAX_NORMAL_FLASH_AMOUNT");
   const probe = probeOverride.address
     ? { address: probeOverride.address, source: "env", envName: probeOverride.envName }
@@ -278,6 +329,7 @@ async function main() {
       hash: null,
       error: null,
     },
+    probeCode: null,
     readyForNormalBroadcast: false,
     blockingReasons: [],
   };
@@ -287,6 +339,14 @@ async function main() {
   if (!token.address) report.blockingReasons.push("token_address_missing");
   if (amount.amount <= 0n) report.blockingReasons.push("normal_flash_amount_missing_or_zero");
   if (!signer) report.blockingReasons.push("signer_missing");
+  if (probe.address) {
+    report.probeCode = await deployedCodeStatus(probe.address, "RobinhoodV4FlashNormalProbe");
+    if (!report.probeCode.hasCode) {
+      report.blockingReasons.push("probe_code_missing");
+    } else if (!report.probeCode.matchesLocalCodeSize) {
+      report.blockingReasons.push("probe_runtime_size_mismatch");
+    }
+  }
 
   if (report.blockingReasons.length === 0) {
     const contract = await hre.ethers.getContractAt("RobinhoodV4FlashNormalProbe", probe.address, signer);

@@ -51,16 +51,17 @@ def _clear_market_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_default_market_is_avalanche_aave(monkeypatch):
+def test_default_market_comes_from_chain_manager(monkeypatch):
     _clear_market_env(monkeypatch)
 
     market = liquidation_market_config()
 
-    assert market.market_id == "avalanche-aave-v3"
-    assert market.chain_id == 43114
-    assert market.protocol == "aave_v3"
+    assert market.market_id == DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
+    assert market.chain_id == 46630
+    assert market.protocol == "morpho_blue"
     assert market.evm_compatible is True
-    assert market.protocol_supported is True
+    assert market.protocol_supported is False
+    assert market.observation_only is True
     assert market.rpc_urls
 
 
@@ -156,9 +157,9 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[DEFAULT_ETHEREUM_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[DEFAULT_POLYGON_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
-    assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["is_default"] is True
+    assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["is_default"] is False
     assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["is_default"] is False
+    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["is_default"] is True
     assert summaries["hyperliquid-native"]["migration_type"] == "new_protocol_adapter_required"
 
 

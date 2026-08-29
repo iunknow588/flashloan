@@ -104,7 +104,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'data-dex-surface-template="quotes"' in dex_arbitrage_panel
     assert "cowNetworkChecks" not in dex_arbitrage_panel
     assert "cowNetworkChecks" not in binance_market_panel
-    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"avalanche-dex-arbitrage",chain_id:"43114"}' in binance_market_panel
+    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in binance_market_panel
     assert '/static/chain-selector.js' in binance_market_panel
     assert 'data-chain-selector-component="true"' in binance_market_panel
 

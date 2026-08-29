@@ -30,6 +30,8 @@
   "data_files": {
     "lending_liquidity": "runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
     "v4_pool_liquidity": "runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json",
+    "v4_pool_index": "runtime/evidence/robinhood-testnet/v4_pool_index/latest.json",
+    "market_observation": "runtime/market_observation/robinhood-testnet/46630/uniswap_v4/observation.json",
     "normal_testnet_probe": "runtime/evidence/robinhood-testnet/normal_testnet_probe/latest.json",
     "predeploy_readiness": "runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
     "chain_test": "runtime/evidence/robinhood-testnet/chain_test/latest/plan.json"
@@ -45,6 +47,10 @@
   "processing_handlers": {
     "flash_loan_pools": "intent_trade.chains.robinhood_testnet.flash_loan_pools:flash_loan_pool_protocol_view",
     "dex_pool_candidates": "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload",
+    "market_observation": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+    "dex_overview": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_overview_flow",
+    "dex_quote_routes": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_routes_flow",
+    "dex_quote_request": "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow",
     "lending_liquidity": "intent_trade.chains.robinhood_testnet.lending_liquidity:lending_liquidity_flow",
     "predeploy_readiness": "intent_trade.chains.robinhood_testnet.predeploy_readiness:predeploy_readiness_flow"
   }

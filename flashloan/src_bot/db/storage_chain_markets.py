@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from core.chain_data_registry import default_market_id_for_feature
 from core.market_scan_policy import builtin_market_scan_policies
 from core.market_config import (
-    DEFAULT_AVALANCHE_DEX_MARKET_ID,
-    DEFAULT_AVALANCHE_MARKET_ID,
     KNOWN_EVM_MARKETS,
     PROTOCOL_CAPABILITIES,
 )
@@ -25,7 +24,14 @@ def _chain_market_connect_timeout() -> int:
 
 def _builtin_chain_market_rows() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    default_market_ids: dict[str, str] = {}
     for market_id, profile in KNOWN_EVM_MARKETS.items():
+        feature = str(profile.get("feature") or "liquidation")
+        if feature not in default_market_ids:
+            try:
+                default_market_ids[feature] = default_market_id_for_feature(feature)
+            except Exception:
+                default_market_ids[feature] = ""
         protocol = str(profile.get("protocol") or "")
         capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
         rows.append(
@@ -33,7 +39,7 @@ def _builtin_chain_market_rows() -> list[dict[str, Any]]:
                 "market_id": market_id,
                 "chain_id": profile.get("chain_id"),
                 "network": profile.get("network"),
-                "feature": profile.get("feature") or "liquidation",
+                "feature": feature,
                 "protocol": protocol,
                 "display_name": profile.get("display_name") or market_id,
                 "native_symbol": profile.get("native_symbol"),
@@ -52,7 +58,7 @@ def _builtin_chain_market_rows() -> list[dict[str, Any]]:
                 "aa_policy_json": {},
                 "observation_only": bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
                 "enabled": bool(profile.get("enabled", True)),
-                "is_default": bool(profile.get("is_default")) or market_id == DEFAULT_AVALANCHE_MARKET_ID,
+                "is_default": market_id == default_market_ids.get(feature),
                 "metadata_json": {
                     "source": "builtin_fallback",
                     "migration_type": profile.get("migration_type"),
@@ -182,6 +188,7 @@ def ensure_chain_market_registry_schema(cursor) -> None:
 
 
 def seed_builtin_chain_markets(cursor) -> None:
+    default_dex_market_id = default_market_id_for_feature("dex_arbitrage")
     cursor.execute(
         """
         UPDATE chain_markets
@@ -190,7 +197,7 @@ def seed_builtin_chain_markets(cursor) -> None:
           AND market_id <> %s
           AND is_default = TRUE
         """,
-        (DEFAULT_AVALANCHE_DEX_MARKET_ID,),
+        (default_dex_market_id,),
     )
     for row in _builtin_chain_market_rows():
         cursor.execute(

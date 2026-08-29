@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from intent_trade.chains.common.dex_candidate_tables import _stable_symbol
 
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+DEFAULT_MIN_CANDIDATE_POOL_COUNT = 5
+DEFAULT_MIN_POOLMANAGER_BALANCE_UNITS = 1.0
 
 
 def as_int_units(value: object) -> int:
@@ -27,6 +30,36 @@ def _as_float(value: object, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return parsed if parsed == parsed and parsed not in (float("inf"), float("-inf")) else default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return max(0, int(str(os.getenv(name, default)).strip()))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        value = float(str(os.getenv(name, default)).strip())
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, value) if value == value and value not in (float("inf"), float("-inf")) else default
+
+
+def _actual_pool_ids(pool_ids: list[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for pool_id in pool_ids:
+        text = str(pool_id or "").strip()
+        if not (text.startswith("0x") and len(text) == 66):
+            continue
+        normalized = text.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(text)
+    return result
 
 
 def _metadata_balance_raw(metadata: dict[str, Any]) -> int:
@@ -169,6 +202,12 @@ def _collect_configured_sources(liquidity: dict[str, Any]) -> dict[str, dict[str
             metadata=metadata,
             source=str(item.get("source") or "configured_flash_accounting_sources"),
         )
+        current = by_address.get(address.lower())
+        if current is not None:
+            for pool_id in item.get("poolIds") or item.get("pool_ids") or []:
+                pool_id_text = str(pool_id or "").strip()
+                if pool_id_text and pool_id_text not in current["pool_ids"]:
+                    current["pool_ids"].append(pool_id_text)
     return by_address
 
 
@@ -218,8 +257,21 @@ def v4_flash_accounting_source_rows(
     liquidity: dict[str, Any],
     *,
     pool_manager: str,
+    min_candidate_pool_count: int | None = None,
+    min_poolmanager_balance_units: float | None = None,
+    include_ineffective: bool = False,
 ) -> list[dict[str, Any]]:
     by_address = _merge_sources(_collect_configured_sources(liquidity), _collect_pool_key_sources(liquidity))
+    min_pool_count = (
+        _env_int("ROBINHOOD_TESTNET_V4_MIN_CANDIDATE_POOL_COUNT", DEFAULT_MIN_CANDIDATE_POOL_COUNT)
+        if min_candidate_pool_count is None
+        else max(0, int(min_candidate_pool_count))
+    )
+    min_balance_units = (
+        _env_float("ROBINHOOD_TESTNET_V4_MIN_POOLMANAGER_BALANCE", DEFAULT_MIN_POOLMANAGER_BALANCE_UNITS)
+        if min_poolmanager_balance_units is None
+        else max(0.0, float(min_poolmanager_balance_units))
+    )
     rows: list[dict[str, Any]] = []
     for item in by_address.values():
         raw_balance = int(item.get("balance_raw") or 0)
@@ -228,6 +280,12 @@ def v4_flash_accounting_source_rows(
         address = str(item.get("address") or "").strip()
         is_native = address.lower() == ZERO_ADDRESS.lower()
         executor_supported = not is_native
+        actual_pool_ids = _actual_pool_ids(item.get("pool_ids") or [])
+        meets_pool_count = len(actual_pool_ids) >= min_pool_count
+        meets_balance_floor = balance_units >= min_balance_units
+        effective_flash_asset = meets_pool_count or meets_balance_floor
+        if not effective_flash_asset and not include_ineffective:
+            continue
         row = {
             "token_symbol": symbol or ("ETH" if is_native else address[:8]),
             "binance_symbol": _binance_symbol(symbol),
@@ -245,8 +303,9 @@ def v4_flash_accounting_source_rows(
             "pool_address": "",
             "provider_address": pool_manager,
             "pool_manager_address": pool_manager,
-            "pool_key_count": len(item.get("pool_ids") or []),
-            "pool_ids": item.get("pool_ids") or [],
+            "pool_key_count": len(actual_pool_ids),
+            "pool_ids": actual_pool_ids,
+            "raw_pool_ids": item.get("pool_ids") or [],
             "pool_identifier": pool_manager,
             "depth_level": "poolmanager_balance",
             "depth_label": "PoolManager balance",
@@ -256,6 +315,13 @@ def v4_flash_accounting_source_rows(
             "flash_capable": True,
             "flash_borrowable": True,
             "flash_accounting_balance_available": True,
+            "effective_flash_accounting_asset": effective_flash_asset,
+            "effective_flash_asset": effective_flash_asset,
+            "candidate_pool_count": len(actual_pool_ids),
+            "min_candidate_pool_count": min_pool_count,
+            "min_poolmanager_balance": min_balance_units,
+            "meets_candidate_pool_count": meets_pool_count,
+            "meets_poolmanager_balance_floor": meets_balance_floor,
             "execution_verified": False,
             "executor_supported": executor_supported,
             "flash_borrowable_reason": "eth_call_simulation_required",
@@ -263,6 +329,11 @@ def v4_flash_accounting_source_rows(
             "pool_role": "v4_poolmanager_flash_accounting_source",
             "source": ";".join(item.get("sources") or []),
         }
+        row["effective_flash_asset_reason"] = (
+            "candidate_pool_count_and_poolmanager_balance_floor"
+            if meets_pool_count and meets_balance_floor
+            else ("candidate_pool_count" if meets_pool_count else "poolmanager_balance_floor")
+        )
         if is_native:
             row["flash_borrowable_reason"] = "native_currency_requires_executor_support_and_eth_call"
         rows.append(row)

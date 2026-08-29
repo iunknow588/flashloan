@@ -27,6 +27,14 @@ _SCANNER: DexOpportunityScanner | None = None
 _SCANNER_LOCK = threading.Lock()
 
 
+def default_quote_payload_provider(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
+    return dex_quote_routes_payload(
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=True,
+    )
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -62,6 +70,8 @@ def _snapshot_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
         "complete_static_quote_count": int(summary.get("completeStaticQuoteCount") or 0),
         "executable_candidate_count": int(summary.get("executableCandidateCount") or 0),
         "profitable_route_count": int(summary.get("profitableRouteCount") or 0),
+        "chain_submission_candidate_count": int(summary.get("chainSubmissionCandidateCount") or 0),
+        "non_stable_chain_submission_candidate_count": int(summary.get("nonStableChainSubmissionCandidateCount") or 0),
         "live_quoter_required_count": int(summary.get("liveQuoterRequiredCount") or 0),
         "sdk_adapter_required_count": int(summary.get("sdkAdapterRequiredCount") or 0),
         "uniswapx_quoteable_route_count": int(summary.get("uniswapxQuoteableRouteCount") or 0),
@@ -105,6 +115,7 @@ def _recordable_route(route: dict[str, Any]) -> bool:
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     quote_requests = (route.get("quoteInputs") or {}).get("quoteRequests") or []
     reference_profit = _number_or_none(analysis.get("referenceNetProfitUsd"))
+    reference_token_profit = _number_or_none(analysis.get("referenceNetProfitAmount"))
     requires_live_quoter = bool(analysis.get("requiresLiveQuoter")) or bool(analysis.get("adapterRequired"))
     adapter_required = any(
         str((request or {}).get("venue") or "").strip().lower() == "uniswap_v4"
@@ -114,10 +125,53 @@ def _recordable_route(route: dict[str, Any]) -> bool:
     )
     return bool(
         analysis.get("executableCandidate")
+        or analysis.get("chainSubmissionCandidate")
         or (reference_profit is not None and reference_profit > 0)
+        or (reference_token_profit is not None and reference_token_profit > 0)
         or requires_live_quoter
         or adapter_required
     )
+
+
+def _route_priority_key(route: dict[str, Any], *, original_index: int) -> tuple[float, float, float, int, str]:
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    chain_submission_candidate = bool(analysis.get("chainSubmissionCandidate"))
+    executable_candidate = bool(analysis.get("executableCandidate"))
+    profitable = bool(analysis.get("profitable"))
+    if chain_submission_candidate:
+        tier = 0.0
+    elif executable_candidate:
+        tier = 1.0
+    elif profitable:
+        tier = 2.0
+    else:
+        tier = 3.0
+    reference_net_profit = _number_or_none(analysis.get("referenceNetProfitUsd"))
+    if reference_net_profit is None:
+        reference_net_profit = _number_or_none(analysis.get("referenceNetProfitAmount"))
+    reference_net_return_bps = _number_or_none(analysis.get("referenceNetReturnBps"))
+    if reference_net_return_bps is None:
+        reference_net_return_bps = _number_or_none(analysis.get("netProfitBps"))
+    return (
+        tier,
+        -(reference_net_profit or 0.0),
+        -(reference_net_return_bps or 0.0),
+        original_index,
+        str(route.get("symbolPair") or ""),
+    )
+
+
+def _select_recordable_routes(
+    routes: list[tuple[int, dict[str, Any], dict[str, Any]]],
+    *,
+    max_routes: int | None,
+) -> list[tuple[int, dict[str, Any], dict[str, Any]]]:
+    selected = list(routes)
+    if max_routes is not None and max_routes >= 0:
+        selected.sort(key=lambda item: _route_priority_key(item[1], original_index=item[0]))
+        selected = selected[:max_routes]
+        selected.sort(key=lambda item: item[0])
+    return selected
 
 
 def _route_blocked_reasons(route: dict[str, Any]) -> list[str]:
@@ -155,6 +209,8 @@ def _route_attempt(
     final_delta = analysis.get("netProfitUsd")
     reference_final_amount = analysis.get("referenceFinalOutputUsd")
     reference_final_delta = analysis.get("referenceNetProfitUsd")
+    reference_token_final_amount = analysis.get("referenceFinalOutputAmount")
+    reference_token_delta = analysis.get("referenceNetProfitAmount")
     reasons = _route_blocked_reasons(route)
     quote_inputs = route.get("quoteInputs") if isinstance(route.get("quoteInputs"), dict) else {}
     quote = {
@@ -173,6 +229,11 @@ def _route_attempt(
         "final_delta_amount": final_delta,
         "reference_final_amount": reference_final_amount,
         "reference_final_delta_amount": reference_final_delta,
+        "reference_token_final_amount": reference_token_final_amount,
+        "reference_token_delta_amount": reference_token_delta,
+        "reference_token_return_bps": analysis.get("referenceNetReturnBps"),
+        "chain_submission_candidate": bool(analysis.get("chainSubmissionCandidate")),
+        "chain_submission_policy": analysis.get("chainSubmissionPolicy"),
         "quote_verified": False,
         "quote_required": True,
         "viable": bool(analysis.get("executableCandidate")),
@@ -199,6 +260,10 @@ def _route_attempt(
         "final_delta_amount": final_delta,
         "reference_profit_amount": reference_final_delta,
         "reference_pure_profit_amount": reference_final_delta,
+        "reference_token_profit_amount": reference_token_delta,
+        "reference_token_return_bps": analysis.get("referenceNetReturnBps"),
+        "chain_submission_candidate": bool(analysis.get("chainSubmissionCandidate")),
+        "chain_submission_policy": analysis.get("chainSubmissionPolicy"),
         "final_symbol": quote.get("final_symbol"),
         "reasons": reasons,
     }
@@ -220,6 +285,9 @@ def _route_attempt(
         "order_submission_enabled": False,
         "auto_execute_requested": False,
         "final_delta_amount": final_delta,
+        "reference_token_delta_amount": reference_token_delta,
+        "chain_submission_candidate": bool(analysis.get("chainSubmissionCandidate")),
+        "chain_submission_policy": analysis.get("chainSubmissionPolicy"),
         "final_symbol": quote.get("final_symbol"),
         "blocked_reasons": reasons,
         "quote": quote,
@@ -264,6 +332,7 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
     trusted = bool(evidence.get("trustedForExecution"))
     ready_for_preflight = bool(evidence.get("readyForTransactionPreflight"))
     blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
     if ready_for_preflight and not blockers:
         blockers = ["链上只读 Quoter 已复核为正收益；仍需完成交易 calldata、滑点保护、闪电贷回款约束和 fork/static-call 仿真后才能提交。"]
     live_percent = _live_profit_percent(evidence)
@@ -276,6 +345,9 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
             "readonly_viable": ready_for_preflight,
             "live_profit_percent": live_percent,
             "live_profit_bps": (live_percent * 100.0 if live_percent is not None else None),
+            "live_profit_basis": costs.get("profitBasis"),
+            "live_token_profit_amount": costs.get("netProfitAmount"),
+            "live_token_profit_symbol": costs.get("netProfitAmountSymbol"),
             "transaction_development": evidence.get("transactionDevelopment") or {},
         }
     )
@@ -289,6 +361,9 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
             "live_onchain_evidence_status": evidence_status,
             "ready_for_transaction_preflight": ready_for_preflight,
             "live_profit_percent": live_percent,
+            "live_profit_basis": costs.get("profitBasis"),
+            "live_token_profit_amount": costs.get("netProfitAmount"),
+            "live_token_profit_symbol": costs.get("netProfitAmountSymbol"),
             "transaction_development": evidence.get("transactionDevelopment") or {},
             "reasons": blockers or precheck.get("reasons") or [],
         }
@@ -306,11 +381,14 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
     attempt["market_state"] = market_state
     attempt["blocked_reasons"] = blockers or attempt.get("blocked_reasons") or []
     if ready_for_preflight:
-        costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+        live_delta = costs.get("netProfitUsd")
+        if live_delta is None:
+            live_delta = costs.get("netProfitAmount")
         attempt["state"] = "ready_for_transaction_development"
         attempt["priority_reason"] = "live_quote_verified_preflight_required"
         attempt["checks_passed"] = False
-        attempt["final_delta_amount"] = costs.get("netProfitUsd")
+        attempt["final_delta_amount"] = live_delta
+        attempt["profit_basis"] = costs.get("profitBasis")
         attempt["final_symbol"] = (evidence.get("validation") or {}).get("finalOutputSymbol") if isinstance(evidence.get("validation"), dict) else attempt.get("final_symbol")
     else:
         attempt["state"] = "quote_required"
@@ -326,30 +404,37 @@ def build_dex_opportunity_attempts(
     observed_at: str,
     onchain_evidence_provider: OnchainEvidenceProvider | None = None,
     max_onchain_evidence_routes: int | None = None,
+    max_recordable_routes: int | None = 5,
     onchain_evidence_offset: int = 0,
     trigger_context: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     raw_attempts = []
     raw_routes = []
+    recordable_routes: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
     for index, route in enumerate(payload.get("routes") or [], start=1):
         if isinstance(route, dict) and _recordable_route(route):
-            raw_routes.append(route)
             route_with_trigger = deepcopy(route)
             quote_inputs = route_with_trigger.get("quoteInputs") if isinstance(route_with_trigger.get("quoteInputs"), dict) else {}
             route_with_trigger["quoteInputs"] = {**quote_inputs, "triggerContext": trigger_context or {}}
-            raw_routes[-1] = route_with_trigger
-            raw_attempts.append(
-                _route_attempt(
+            recordable_routes.append(
+                (
+                    index,
                     route_with_trigger,
-                    payload=payload,
-                    chain_id=chain_id,
-                    pair_rank=index,
-                    observed_at=observed_at,
-                    trigger_context=trigger_context,
+                    _route_attempt(
+                        route_with_trigger,
+                        payload=payload,
+                        chain_id=chain_id,
+                        pair_rank=index,
+                        observed_at=observed_at,
+                        trigger_context=trigger_context,
+                    ),
                 )
             )
-    if not raw_attempts:
+    if not recordable_routes:
         return []
+    selected_routes = _select_recordable_routes(recordable_routes, max_routes=max_recordable_routes)
+    raw_routes = [route for _, route, _ in selected_routes]
+    raw_attempts = [attempt for _, _, attempt in selected_routes]
     evidence_provider = onchain_evidence_provider or build_route_onchain_evidence
     budget = len(raw_attempts) if max_onchain_evidence_routes is None else max(0, min(len(raw_attempts), int(max_onchain_evidence_routes)))
     selected_indexes: set[int] = set()
@@ -420,16 +505,18 @@ class DexOpportunityScanner:
         cache_path: Path | None = CACHE_PATH,
         record_opportunities: bool = True,
         max_onchain_evidence_routes: int = 5,
+        max_recordable_routes: int = 5,
     ) -> None:
         self.interval_seconds = max(0.5, float(interval_seconds))
         self.record_cooldown_seconds = max(0.0, float(record_cooldown_seconds))
-        self.quote_payload_provider = quote_payload_provider or dex_quote_routes_payload
+        self.quote_payload_provider = quote_payload_provider or default_quote_payload_provider
         self.record_attempts = record_attempts or default_record_attempts
         self.onchain_evidence_provider = onchain_evidence_provider or build_route_onchain_evidence
         self.trigger_context_provider = trigger_context_provider or capture_onchain_trigger_context
         self.cache_path = cache_path
         self.record_opportunities = bool(record_opportunities)
         self.max_onchain_evidence_routes = max(0, int(max_onchain_evidence_routes))
+        self.max_recordable_routes = max(0, int(max_recordable_routes))
         self._evidence_cursor: dict[str, int] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -638,6 +725,7 @@ class DexOpportunityScanner:
             observed_at=observed_at,
             onchain_evidence_provider=self.onchain_evidence_provider,
             max_onchain_evidence_routes=self.max_onchain_evidence_routes,
+            max_recordable_routes=self.max_recordable_routes,
             onchain_evidence_offset=self._evidence_cursor.get(_chain_key(chain_id), 0),
             trigger_context=trigger_context,
         )
@@ -684,7 +772,7 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
         if _SCANNER is None:
             local_only = local_json_only_enabled()
             _SCANNER = DexOpportunityScanner(
-                interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 3.0, minimum=0.5, maximum=60.0),
+                interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 15.0, minimum=0.5, maximum=120.0),
                 record_cooldown_seconds=_env_float(
                     "DEX_OPPORTUNITY_RECORD_COOLDOWN_SECONDS",
                     60.0,
@@ -695,6 +783,7 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                 max_onchain_evidence_routes=0 if local_only else int(
                     _env_float("DEX_OPPORTUNITY_ONCHAIN_EVIDENCE_ROUTES", 1.0, minimum=0.0, maximum=10.0)
                 ),
+                max_recordable_routes=int(_env_float("DEX_OPPORTUNITY_SCAN_ROUTE_LIMIT", 5.0, minimum=1.0, maximum=20.0)),
             )
         return _SCANNER
 
@@ -708,12 +797,14 @@ def ensure_dex_opportunity_scanner_running(
 
 
 def run_dex_opportunity_scan_now(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
-    scanner = ensure_dex_opportunity_scanner_running(chain_id=chain_id, protocols=protocols)
+    scanner = get_dex_opportunity_scanner()
+    scanner.watch(chain_id=chain_id, protocols=protocols)
     return scanner.scan_now(chain_id=chain_id, protocols=protocols)
 
 
 def dex_opportunity_snapshot(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
-    scanner = ensure_dex_opportunity_scanner_running(chain_id=chain_id, protocols=protocols)
+    scanner = get_dex_opportunity_scanner()
+    scanner.watch(chain_id=chain_id, protocols=protocols)
     return scanner.snapshot(chain_id=chain_id)
 
 

@@ -65,6 +65,17 @@ def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch)
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
     monkeypatch.setattr(
         dex_onchain_quote_evidence,
         "_load_v4_quote_adapter",
@@ -337,6 +348,112 @@ def test_profitable_live_quote_is_readonly_until_transaction_simulation():
     assert evidence["status"] == "live_verified"
     assert evidence["readyForTransactionPreflight"] is True
     assert evidence["trustedForExecution"] is False
+
+
+def test_non_stable_closed_loop_uses_x_amount_and_positive_x_profit(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
+    seen_amounts = []
+    eth = "0x" + "1" * 40
+    token_y = "0x" + "2" * 40
+    pools = [
+        {
+            "pool": "0x" + "3" * 40,
+            "protocol": "uniswap_v4",
+            "token0Symbol": "ETH",
+            "token0": eth,
+            "token0Decimals": 18,
+            "token1Symbol": "Y",
+            "token1": token_y,
+            "token1Decimals": 18,
+        },
+        {
+            "pool": "0x" + "4" * 40,
+            "protocol": "uniswap_v4",
+            "token0Symbol": "ETH",
+            "token0": eth,
+            "token0Decimals": 18,
+            "token1Symbol": "Y",
+            "token1": token_y,
+            "token1Decimals": 18,
+        },
+    ]
+    route = {
+        "symbolPair": "ETH -> Y -> ETH",
+        "routeSymbols": ["ETH", "Y", "ETH"],
+        "quoteInputs": {"routePools": pools},
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "referenceInputAmount": 1.0,
+            "borrowAssetIsStable": False,
+            "steps": [
+                {"hop": 1, "fromSymbol": "ETH", "toSymbol": "Y", "protocol": "uniswap_v4", "pool": pools[0]["pool"]},
+                {"hop": 2, "fromSymbol": "Y", "toSymbol": "ETH", "protocol": "uniswap_v4", "pool": pools[1]["pool"]},
+            ],
+        },
+    }
+
+    def quote_hop_provider(**kwargs):
+        seen_amounts.append(kwargs["amount_in_raw"])
+        step = kwargs["step"]
+        if step["hop"] == 1:
+            return {
+                "status": "live_verified",
+                "quoteMethod": "test_quote",
+                "protocol": "uniswap_v4",
+                "pool": step["pool"],
+                "tokenIn": eth,
+                "tokenOut": token_y,
+                "amountInRaw": str(kwargs["amount_in_raw"]),
+                "amountOutRaw": str(10 * 10**18),
+                "amountIn": "1",
+                "amountOut": "10",
+                "inputDecimals": 18,
+                "outputDecimals": 18,
+            }
+        return {
+            "status": "live_verified",
+            "quoteMethod": "test_quote",
+            "protocol": "uniswap_v4",
+            "pool": step["pool"],
+            "tokenIn": token_y,
+            "tokenOut": eth,
+            "amountInRaw": str(kwargs["amount_in_raw"]),
+            "amountOutRaw": str(101 * 10**16),
+            "amountIn": "10",
+            "amountOut": "1.01",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+        }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood", "chainId": 4663}},
+        chain_id=4663,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=quote_hop_provider,
+    )
+
+    assert seen_amounts[0] == 10**18
+    assert evidence["status"] == "live_verified"
+    assert evidence["readyForTransactionPreflight"] is True
+    assert evidence["costModel"]["profitBasis"] == "borrow_token"
+    assert evidence["costModel"]["finalOutputUsd"] is None
+    assert evidence["costModel"]["borrowInputAmount"] == 1.0
+    assert evidence["costModel"]["finalOutputAmount"] == 1.01
+    assert evidence["costModel"]["netProfitAmount"] > 0
+    assert evidence["validation"]["borrowAssetIsStable"] is False
+    assert evidence["validation"]["meetsSubmissionProfitThreshold"] is True
 
 
 def test_live_quote_blocks_same_symbol_different_token_route(monkeypatch):

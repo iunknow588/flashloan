@@ -31,10 +31,15 @@ _TOKEN_DECIMALS_FALLBACK = {
     "WBTC": 8,
 }
 _STABLE_SYMBOLS = {"AUSD", "BUSD", "DAI", "FDUSD", "FRAX", "PYUSD", "RLUSD", "USDC", "USDD", "USDE", "USDG", "USDT"}
+_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 
 def _text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _is_zero_address(value: object) -> bool:
+    return _text(value).lower() == _ZERO_ADDRESS
 
 
 def _decimal(value: object) -> Decimal | None:
@@ -282,13 +287,40 @@ def _hop_summaries(hops: list[dict[str, Any]], *, slippage_bps: int) -> list[dic
     return rows
 
 
-def _repayment_constraint(hops: list[dict[str, Any]], *, flash_fee_bps: float) -> dict[str, Any]:
+def _profit_basis(cost_model: dict[str, Any], borrow_symbol: str) -> str:
+    basis = _text(cost_model.get("profitBasis")).lower()
+    if basis in {"borrow_token", "usd"}:
+        return basis
+    return "usd" if borrow_symbol.upper() in _STABLE_SYMBOLS else "borrow_token"
+
+
+def _repayment_constraint(
+    hops: list[dict[str, Any]],
+    *,
+    flash_fee_bps: float,
+    cost_model: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    cost_model = cost_model or {}
     first_hop = hops[0] if hops and isinstance(hops[0], dict) else {}
     last_hop = hops[-1] if hops and isinstance(hops[-1], dict) else {}
     principal_raw = _int_or_none(first_hop.get("amountInRaw"))
+    decimals = _int_or_none(first_hop.get("inputDecimals")) or 18
+    borrow_symbol = _text(first_hop.get("fromSymbol"))
+    basis = _profit_basis(cost_model, borrow_symbol)
     repay_raw = None
     if principal_raw is not None:
         repay_raw = principal_raw + int(principal_raw * flash_fee_bps // 10_000)
+    if basis == "borrow_token":
+        min_profit_raw = 1
+        gas_reserve_raw = 0
+        min_profit_rule = "positive_x_profit_min_raw_unit"
+    else:
+        min_profit_raw = _raw_from_human(
+            cost_model.get("minProfitUsd") or DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD,
+            decimals,
+        ) or 0
+        gas_reserve_raw = _raw_from_human(cost_model.get("gasReserveUsd") or DEFAULT_GAS_RESERVE_USD, decimals) or 0
+        min_profit_rule = "stable_x_usd_threshold_in_borrow_token_units"
     return {
         "borrowToken": _text(first_hop.get("tokenIn")),
         "borrowSymbol": _text(first_hop.get("fromSymbol")),
@@ -298,6 +330,36 @@ def _repayment_constraint(hops: list[dict[str, Any]], *, flash_fee_bps: float) -
         "finalToken": _text(last_hop.get("tokenOut")),
         "finalSymbol": _text(last_hop.get("toSymbol")),
         "finalAmountRaw": _text(last_hop.get("amountOutRaw")),
+        "profitBasis": basis,
+        "minProfitRaw": str(min_profit_raw),
+        "gasReserveRaw": str(gas_reserve_raw),
+        "minProfitRule": min_profit_rule,
+    }
+
+
+def _execution_request(hops: list[dict[str, Any]], repayment: dict[str, Any]) -> dict[str, Any]:
+    swap_values: list[str] = []
+    for hop in hops:
+        amount_in_raw = _text(hop.get("amountInRaw"))
+        swap_values.append(amount_in_raw if _is_zero_address(hop.get("tokenIn")) else "0")
+    requires_native_value_forwarding = any(int(value) > 0 for value in swap_values if value.isdigit())
+    uses_native_borrow = _is_zero_address(repayment.get("borrowToken"))
+    function_name = "requestV4FlashLoanWithValues" if uses_native_borrow or requires_native_value_forwarding else "requestV4FlashLoan"
+    return {
+        "executorContract": "RobinhoodPausedFlashLoanExecutor",
+        "function": function_name,
+        "struct": "V4FlashAccountingValueRequest" if function_name == "requestV4FlashLoanWithValues" else "V4FlashAccountingRequest",
+        "token": _text(repayment.get("borrowToken")),
+        "amount": _text(repayment.get("borrowAmountRaw")),
+        "finalToken": _text(repayment.get("finalToken")),
+        "minProfit": _text(repayment.get("minProfitRaw")),
+        "gasReserve": _text(repayment.get("gasReserveRaw")),
+        "transactionValueRaw": "0",
+        "borrowTokenIsNative": uses_native_borrow,
+        "requiresNativeValueForwarding": requires_native_value_forwarding,
+        "nativeValueForwardingPolicy": "forward_amountInRaw_on_hops_where_tokenIn_is_zero_address",
+        "swapValues": swap_values,
+        "calldataStatus": "pending",
     }
 
 
@@ -494,20 +556,32 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         )
     evidence_has_hops = bool(_as_list(evidence.get("hops")))
     all_hops_quoted = bool(validation.get("allHopsQuoted") if evidence_has_hops else hop_summaries) and token_continuity_ok
-    inferred_net_positive = _positive_number(cost_model.get("netProfitUsd"))
+    profit_basis = _profit_basis(cost_model, route_path[0] if route_path else "")
+    inferred_net_positive = _positive_number(
+        cost_model.get("netProfitAmount") if profit_basis == "borrow_token" else cost_model.get("netProfitUsd")
+    )
     net_positive_after_costs = bool(
         validation.get("netPositiveAfterCosts")
         if validation.get("netPositiveAfterCosts") is not None
         else (inferred_net_positive if inferred_net_positive is not None else validation.get("profitableAfterCosts"))
     )
     net_profit = _number(cost_model.get("netProfitUsd"))
+    token_net_profit = _number(cost_model.get("netProfitAmount"))
     submission_net_profit = _number(cost_model.get("submissionNetProfitUsd"))
+    token_submission_net_profit = _number(cost_model.get("submissionNetProfitAmount"))
     submission_min_profit = _number(cost_model.get("submissionMinProfitUsd"))
     offchain_min_profit = _number(cost_model.get("offchainMinProfitUsd"))
-    inferred_meets_threshold = submission_net_profit is not None and submission_net_profit > 0
+    inferred_meets_threshold = (
+        token_submission_net_profit is not None and token_submission_net_profit > 0
+        if profit_basis == "borrow_token"
+        else submission_net_profit is not None and submission_net_profit > 0
+    )
+    validation_meets_submission = validation.get("meetsSubmissionProfitThreshold")
+    if validation_meets_submission is None:
+        validation_meets_submission = validation.get("meetsMinProfitThreshold")
     meets_min_profit_threshold = bool(
-        validation.get("meetsSubmissionProfitThreshold")
-        if validation.get("meetsSubmissionProfitThreshold") is not None
+        validation_meets_submission
+        if validation_meets_submission is not None
         else (inferred_meets_threshold if submission_min_profit is not None else requested_ready_for_preflight)
     )
     meets_offchain_profit_threshold = bool(
@@ -532,6 +606,12 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         preflight_status = "ready_for_fork_staticcall"
     else:
         preflight_status = "not_ready"
+    repayment_constraint = _repayment_constraint(
+        hop_summaries,
+        flash_fee_bps=float(cost_model.get("flashLoanFeeBps") or DEFAULT_FLASH_LOAN_FEE_BPS),
+        cost_model=cost_model,
+    )
+    execution_request = _execution_request(hop_summaries, repayment_constraint)
     plan = {
         "generatedAt": _utc_now_iso(),
         "network": network,
@@ -576,6 +656,15 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "netProfitUsd": cost_model.get("netProfitUsd"),
             "netProfitBps": cost_model.get("netProfitBps"),
             "minProfitUsd": cost_model.get("minProfitUsd"),
+            "profitBasis": profit_basis,
+            "borrowInputAmount": cost_model.get("borrowInputAmount"),
+            "borrowInputSymbol": cost_model.get("borrowInputSymbol"),
+            "finalOutputAmount": cost_model.get("finalOutputAmount"),
+            "grossProfitAmount": cost_model.get("grossProfitAmount"),
+            "submissionNetProfitAmount": cost_model.get("submissionNetProfitAmount"),
+            "netProfitAmount": token_net_profit,
+            "netProfitAmountSymbol": cost_model.get("netProfitAmountSymbol") or (route_path[0] if route_path else ""),
+            "netProfitAmountBps": cost_model.get("netProfitAmountBps"),
             "liveProfitPercent": precheck.get("live_profit_percent"),
             "referenceNetProfitUsd": precheck.get("reference_profit_amount"),
             "blockers": blockers,
@@ -606,10 +695,8 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "status": preflight_status,
             "slippageBps": slippage_bps,
             "routeHops": hop_summaries,
-            "repaymentConstraint": _repayment_constraint(
-                hop_summaries,
-                flash_fee_bps=float(cost_model.get("flashLoanFeeBps") or DEFAULT_FLASH_LOAN_FEE_BPS),
-            ),
+            "repaymentConstraint": repayment_constraint,
+            "executionRequest": execution_request,
             "requiredChecks": [
                 "calldata_matches_verified_hops",
                 "each_hop_min_amount_out_enforced",
@@ -708,6 +795,8 @@ def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
         "chainId": plan["chainId"],
         "marketId": plan["marketId"],
         "routePreflightStatus": plan["preflightSpec"]["status"],
+        "repaymentConstraint": _as_dict(plan["preflightSpec"].get("repaymentConstraint")),
+        "executionRequest": _as_dict(plan["preflightSpec"].get("executionRequest")),
         "deploymentGate": "blocked_until_token_continuity_calldata_repayment_and_fork_staticcall_pass",
         "broadcastEnabled": False,
         "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",

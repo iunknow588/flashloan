@@ -7,8 +7,10 @@ import re
 from typing import Any
 
 from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
+from core.chain_data_registry import chain_data_by_chain_id, chain_data_files, chain_flow_spec_by_chain_id
 from core.contracts import source_metadata
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
+from market.binance_market.candidate_pool_cache import candidate_pool_cache_paths, load_candidate_pool_snapshot, refresh_candidate_pool_cache
 from intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
@@ -400,6 +402,30 @@ def _filter_anchor_group_protocols(group: dict, protocols: set[str]) -> dict | N
     if not protocols:
         return group
     copied = dict(group)
+    if group.get("ycZcSameSet"):
+        shared_pools = [row for row in group.get("sharedPools") or [] if _pool_protocol(row) in protocols]
+        shared_tokens = _anchor_token_groups_from_rows(shared_pools)
+        copied["sharedPools"] = shared_pools
+        copied["sharedTokens"] = shared_tokens
+        copied["ycPools"] = []
+        copied["zcPools"] = []
+        copied["ycTokens"] = []
+        copied["zcTokens"] = []
+        copied["ycPoolsRef"] = "sharedPools"
+        copied["zcPoolsRef"] = "sharedPools"
+        copied["ycTokensRef"] = "sharedTokens"
+        copied["zcTokensRef"] = "sharedTokens"
+        copied["sharedPoolCount"] = str(len(shared_pools))
+        copied["sharedTokenCount"] = str(len(shared_tokens))
+        copied["ycPoolCount"] = str(len(shared_pools))
+        copied["zcPoolCount"] = str(len(shared_pools))
+        copied["ycTokenCount"] = str(len(shared_tokens))
+        copied["zcTokenCount"] = str(len(shared_tokens))
+        copied["candidatePoolCount"] = str(len({str(row.get("pool") or "").strip() for row in shared_pools if str(row.get("pool") or "").strip()}))
+        copied["candidateQueueCount"] = str(len(shared_pools) * 2)
+        if not shared_pools:
+            return None
+        return copied
     yc_pools = [row for row in group.get("ycPools") or [] if _pool_protocol(row) in protocols]
     zc_pools = [row for row in group.get("zcPools") or [] if _pool_protocol(row) in protocols]
     copied["ycPools"] = yc_pools
@@ -451,6 +477,76 @@ def _filter_payload_protocols(payload: dict[str, Any], protocols: set[str]) -> d
     summary["candidateRouteCount"] = summary["preferredPoolCount"]
     summary["protocolFilter"] = sorted(protocols)
     return payload
+
+
+def _annotate_candidate_pool_cache(
+    payload: dict[str, Any],
+    *,
+    network: str,
+    chain_id: int,
+    force_full: bool = False,
+) -> dict[str, Any]:
+    cache_paths = candidate_pool_cache_paths(network=network, chain_id=chain_id)
+    pool_static = payload.get("poolStaticTable") if isinstance(payload.get("poolStaticTable"), dict) else {}
+    if pool_static:
+        payload["poolStaticTable"] = {
+            **pool_static,
+            "path": str(cache_paths["snapshot"]),
+            "cachePath": str(cache_paths["snapshot"]),
+            "sourcePath": pool_static.get("path"),
+            "exists": cache_paths["snapshot"].exists(),
+        }
+    anchor_groups = payload.get("anchorGroups") if isinstance(payload.get("anchorGroups"), list) else []
+    anchor_symbols = [
+        str(group.get("anchorSymbol") or "").strip().upper()
+        for group in anchor_groups
+        if isinstance(group, dict) and str(group.get("anchorSymbol") or "").strip()
+    ]
+    cache_meta = payload.get("candidatePoolCache") if isinstance(payload.get("candidatePoolCache"), dict) else {}
+    payload["candidatePoolCache"] = {
+        **cache_meta,
+        "schemaVersion": cache_meta.get("schemaVersion") or "candidate-pool-cache-snapshot-v1",
+        "network": str(cache_meta.get("network") or network).strip().lower(),
+        "chainId": int(cache_meta.get("chainId") or chain_id),
+        "globalChainId": cache_meta.get("globalChainId") or f"chain:{int(chain_id)}",
+        "snapshotPath": str(cache_paths["snapshot"]),
+        "manifestPath": str(cache_paths["manifest"]),
+        "shardDir": str(cache_paths["shards"]),
+        "tokenCount": cache_meta.get("tokenCount") if cache_meta.get("tokenCount") is not None else len(anchor_symbols),
+        "tokenSymbols": cache_meta.get("tokenSymbols") or anchor_symbols,
+        "refreshMode": cache_meta.get("refreshMode") or ("full" if cache_meta.get("forceFull") else "incremental"),
+        "forceFull": bool(cache_meta.get("forceFull")) or bool(force_full),
+        "refreshedAt": cache_meta.get("refreshedAt") or payload.get("generatedAt") or payload.get("freshness"),
+    }
+    return payload
+
+
+def _payload_has_candidate_data(payload: dict[str, Any]) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if isinstance(payload.get("pairs"), list) and payload.get("pairs"):
+        return True
+    if isinstance(payload.get("anchorGroups"), list) and payload.get("anchorGroups"):
+        return True
+    return False
+
+
+def _candidate_pool_source_available(chain_id: int) -> bool:
+    flow_spec = chain_flow_spec_by_chain_id(chain_id)
+    flow = (flow_spec.get("flows") or {}).get("dex_pool_candidates") if isinstance(flow_spec, dict) else {}
+    data_keys = [
+        str(key or "").strip()
+        for key in (flow.get("data_file_keys") or [])
+        if str(key or "").strip()
+    ]
+    if not data_keys:
+        return True
+    files = chain_data_files(chain_id=chain_id)
+    for key in data_keys:
+        path = files.get(key)
+        if path and Path(path).exists():
+            return True
+    return False
 
 
 def _chain_id_from_table(table: dict) -> int | None:
@@ -1104,21 +1200,88 @@ def dex_pool_candidates_payload(
     *,
     chain_id: int | None = None,
     protocols: list[str] | tuple[str, ...] | set[str] | None = None,
+    refresh: bool = False,
+    force_full: bool = False,
 ) -> dict:
     if pool_cache_path is None:
         if chain_id is not None:
             protocol_filter = _dex_pool_protocol_filter(protocols)
+            chain_data = chain_data_by_chain_id(int(chain_id))
+            if not chain_data:
+                payload = {
+                    "mode": "dex_pool_candidates",
+                    **source_metadata("not_configured", fallback_reason="dex_pool_static_table_not_configured_for_chain"),
+                    "poolStaticTable": {"path": None, "exists": False, "chainId": int(chain_id), "network": None},
+                    "filters": {},
+                    "summary": {"pairTableCount": "0", "pairsWithStrictQualityPools": "0", "pairsWithPreferredPools": "0"},
+                    "pairs": [],
+                }
+                return _attach_execution_context(payload, int(chain_id))
+            network = str(chain_data.get("network") or "").strip().lower()
+            use_generic_candidate_cache = network != "robinhood-testnet"
+            if not use_generic_candidate_cache:
+                try:
+                    payload = dispatch_chain_flow(
+                        chain_id=int(chain_id),
+                        flow_name="dex_pool_candidates",
+                        protocol="",
+                    )
+                    filtered = _filter_payload_protocols(payload, protocol_filter)
+                    return _attach_execution_context(filtered, int(chain_id))
+                except ChainFlowDispatchError as exc:
+                    if exc.code != "chain_flow_missing":
+                        raise
+                    payload = {
+                        "mode": "dex_pool_candidates",
+                        **source_metadata("builtin_fallback", fallback_reason="dex_pool_candidates_chain_flow_missing"),
+                        "poolStaticTable": {"path": None, "exists": False, "chainId": int(chain_id), "network": network},
+                        "filters": {},
+                        "summary": {"pairTableCount": "0", "pairsWithStrictQualityPools": "0", "pairsWithPreferredPools": "0"},
+                        "pairs": [],
+                    }
+                    return _attach_execution_context(payload, int(chain_id))
+            if not _candidate_pool_source_available(int(chain_id)):
+                payload = {
+                    "mode": "dex_pool_candidates",
+                    **source_metadata("builtin_fallback", fallback_reason="dex_pool_candidates_local_json_missing"),
+                    "poolStaticTable": {"path": None, "exists": False, "chainId": int(chain_id), "network": network},
+                    "filters": {},
+                    "summary": {"pairTableCount": "0", "pairsWithStrictQualityPools": "0", "pairsWithPreferredPools": "0"},
+                    "pairs": [],
+                }
+                return _attach_execution_context(payload, int(chain_id))
+            cached_payload = None
+            if not refresh and not force_full:
+                cached_payload = load_candidate_pool_snapshot(network=network, chain_id=int(chain_id))
+            if cached_payload is not None:
+                filtered = _filter_payload_protocols(json.loads(json.dumps(cached_payload)), protocol_filter)
+                filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
+                return _attach_execution_context(filtered, int(chain_id))
             try:
                 payload = dispatch_chain_flow(
                     chain_id=int(chain_id),
                     flow_name="dex_pool_candidates",
                     protocol="",
                 )
+                if _payload_has_candidate_data(payload):
+                    refresh_candidate_pool_cache(
+                        payload,
+                        network=network,
+                        chain_id=int(chain_id),
+                        force_full=force_full,
+                    )
                 filtered = _filter_payload_protocols(payload, protocol_filter)
+                filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
                 return _attach_execution_context(filtered, int(chain_id))
             except ChainFlowDispatchError as exc:
                 if exc.code != "chain_flow_missing":
                     raise
+                if cached_payload is None:
+                    cached_payload = load_candidate_pool_snapshot(network=network, chain_id=int(chain_id))
+                if cached_payload is not None:
+                    filtered = _filter_payload_protocols(json.loads(json.dumps(cached_payload)), protocol_filter)
+                    filtered = _annotate_candidate_pool_cache(filtered, network=network, chain_id=int(chain_id), force_full=force_full)
+                    return _attach_execution_context(filtered, int(chain_id))
         if chain_id is None:
             pool_cache_path = DEX_POOL_STATIC_TABLE_PATH
         else:

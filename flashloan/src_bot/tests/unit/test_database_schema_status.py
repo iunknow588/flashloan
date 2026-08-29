@@ -132,15 +132,15 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any(
         "WHERE feature = 'dex_arbitrage'" in query
         and "market_id <> %s" in query
-        and params == ("avalanche-dex-arbitrage",)
+        and params == ("robinhood-testnet-dex-paused",)
         for query, params in cursor.calls
     )
     assert any(
-        len(params) > 22 and params[0] == "avalanche-dex-arbitrage" and params[22] is True
+        len(params) > 22 and params[0] == "avalanche-dex-arbitrage" and params[22] is False
         for _query, params in cursor.calls
     )
     assert any(
-        len(params) > 22 and params[0] == "robinhood-testnet-dex-paused" and params[22] is False
+        len(params) > 22 and params[0] == "robinhood-testnet-dex-paused" and params[22] is True
         for _query, params in cursor.calls
     )
     assert any("robinhood-dex-shadow" in str(params) for _query, params in cursor.calls)

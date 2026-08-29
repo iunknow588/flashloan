@@ -7,6 +7,7 @@ from core.chain_data_registry import (
     chain_supported_protocols,
 )
 from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
+from core.flash_loan_pools import static_store_metadata, write_flash_loan_pool_static
 from core.market_config import PROTOCOL_CAPABILITIES, supported_market_summaries
 from intent_trade.flows.flash_loan_pools.presenter import (
     _empty_protocol_view,
@@ -38,6 +39,26 @@ def _chain_default_protocol_preferences() -> dict[int, list[str]]:
         return chain_default_protocol_preferences()
     except Exception:
         return {}
+
+
+def _protocol_sort_key(protocol: str) -> tuple[int, str]:
+    order = {
+        "morpho_blue": 0,
+        "venus_core": 1,
+        "aave_v3": 2,
+        "uniswap_v2": 3,
+        "uniswap_v3": 4,
+        "uniswap_v4": 5,
+        "pancakeswap_v3": 6,
+        "pancakeswap_v2": 7,
+        "biswap_v2": 8,
+        "quickswap_v2": 9,
+        "traderjoe_v2": 10,
+        "balancer_v2": 11,
+        "curve": 12,
+    }
+    normalized = str(protocol or "").strip().lower()
+    return (order.get(normalized, 1000), normalized)
 
 
 def _chain_supported_protocol_set(chain_id: int | None) -> set[str]:
@@ -132,13 +153,17 @@ def _default_protocols_for_scope(
     )
     for protocol in preferred:
         if protocol in available_protocols:
-            return [protocol]
-    non_route_protocols = sorted(protocol for protocol in available_protocols if not _is_route_only_protocol(protocol))
-    if non_route_protocols:
-        return [non_route_protocols[0]]
-    route_protocols = sorted(protocol for protocol in available_protocols if _is_route_only_protocol(protocol))
-    if route_protocols:
-        return [route_protocols[0]]
+            ordered = [protocol]
+            break
+    else:
+        ordered = []
+    remaining = [
+        protocol
+        for protocol in sorted(available_protocols, key=_protocol_sort_key)
+        if protocol not in ordered
+    ]
+    if ordered or remaining:
+        return ordered + remaining
     return ["aave_v3"]
 
 
@@ -171,6 +196,11 @@ def flash_loan_pools_payload(
     discovered_protocols: list[str] | None = None,
     **provider_options: Any,
 ) -> dict[str, Any]:
+    persist_static = bool(provider_options.pop("persist_static", False))
+    refresh_mode = str(provider_options.pop("refresh_mode", "incremental") or "incremental").strip().lower()
+    if refresh_mode not in {"incremental", "full"}:
+        refresh_mode = "incremental"
+    static_pool_store_root = provider_options.pop("static_pool_store_root", None)
     requested_protocols: list[str] = []
     for protocol in protocols or []:
         normalized = str(protocol or "").strip().lower()
@@ -267,6 +297,46 @@ def flash_loan_pools_payload(
             )
         else:
             protocol_views.append(_empty_protocol_view(protocol))
+    static_pool_store = []
+    for view in protocol_views:
+        protocol = str(view.get("protocol") or "").strip().lower()
+        if not protocol:
+            continue
+        view_chain_id = chain_id
+        cache = view.get("cache") if isinstance(view.get("cache"), dict) else {}
+        if view_chain_id is None and cache.get("chain_id") is not None:
+            try:
+                view_chain_id = int(cache["chain_id"])
+            except (TypeError, ValueError):
+                view_chain_id = None
+        network = str((cache.get("network") if isinstance(cache, dict) else "") or "").strip().lower()
+        if persist_static and "status" not in view:
+            metadata = write_flash_loan_pool_static(
+                view,
+                network=network or None,
+                chain_id=view_chain_id,
+                refresh_mode=refresh_mode,
+                root=static_pool_store_root,
+            )
+            metadata = {
+                "path": metadata.get("path"),
+                "exists": bool(metadata.get("exists")),
+                "network": metadata.get("network"),
+                "chain_id": metadata.get("chain_id"),
+                "protocol": metadata.get("protocol"),
+                "generated_at": metadata.get("generated_at"),
+                "refresh_mode": metadata.get("refresh_mode"),
+                "section_counts": metadata.get("section_counts") or {},
+            }
+        else:
+            metadata = static_store_metadata(
+                network=network or None,
+                chain_id=view_chain_id,
+                protocol=protocol,
+                root=static_pool_store_root,
+            )
+        view["static_pool_store"] = metadata
+        static_pool_store.append(metadata)
     primary_view = protocol_views[0]
     scope = {
         "chain_id": chain_id,
@@ -282,4 +352,5 @@ def flash_loan_pools_payload(
         "protocol_views": protocol_views,
         "reserve_cache": primary_view["cache"],
         "borrow_target_universe": primary_view["borrow_target_universe"],
+        "static_pool_store": static_pool_store,
     }

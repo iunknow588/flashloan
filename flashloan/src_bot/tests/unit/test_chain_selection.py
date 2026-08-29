@@ -165,9 +165,9 @@ def test_selection_filters_by_feature_and_default_market(monkeypatch):
         "robinhood-testnet-dex-paused",
     ]
     selected = resolve_chain_selection(feature="dex_arbitrage")
-    assert selected.market_id == "avalanche-dex-arbitrage"
-    assert selected.chain_id == 43114
-    assert selected.network == "avalanche"
+    assert selected.market_id == "robinhood-testnet-dex-paused"
+    assert selected.chain_id == 46630
+    assert selected.network == "robinhood-testnet"
     assert selected.market_type == "native_chain"
     assert selected.capabilities["robinhood_shadow"] is False
     assert selected.capabilities["execution"] is False
@@ -184,6 +184,18 @@ def test_selection_without_feature_defaults_to_avalanche_aave(monkeypatch):
     assert selected.as_dict()["chain_key"] == "chain:43114"
     assert selected.network == "avalanche"
     assert selected.protocol == "aave_v3"
+
+
+def test_dex_selection_defaults_to_robinhood_testnet_without_page_context(monkeypatch):
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    selected = resolve_chain_selection(feature="dex_arbitrage")
+
+    assert selected.market_id == "robinhood-testnet-dex-paused"
+    assert selected.chain_id == 46630
+    assert selected.global_chain_id == "chain:46630"
+    assert selected.network == "robinhood-testnet"
+    assert selected.protocol == "uniswap_v4"
 
 
 def test_flash_loan_selector_payload_defaults_to_robinhood_testnet(monkeypatch):

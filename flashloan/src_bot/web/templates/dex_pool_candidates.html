@@ -18,7 +18,13 @@
     button, input, select { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
     input { min-width: 240px; }
     button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    button:disabled { opacity: 0.6; cursor: wait; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .pager input { min-width: 70px; width: 82px; text-align: center; }
+    .pager select { min-width: 100px; }
+    .pager button { min-width: 76px; }
+    .page-status { color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
     .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
     .metric small { display: block; color: #667085; margin-bottom: 7px; }
@@ -49,11 +55,13 @@
     .negative { color: #b42318; }
     .empty { padding: 18px 14px; color: #667085; }
     .filters-line { color: #475467; font-size: 12px; margin-bottom: 10px; line-height: 1.45; }
+    #message { color: #344054; font-size: 13px; min-width: 120px; text-align: right; }
     main, table, td, th, .metric, .notice, .group { user-select: text; }
     button, input, select { user-select: none; }
     @media (max-width: 860px) {
       header { display: block; }
       nav { margin-top: 10px; }
+      #message { text-align: left; margin-top: 8px; }
       input { min-width: 160px; width: 100%; }
       .group-head { display: block; }
       .section-head { display: block; }
@@ -77,7 +85,8 @@
   </header>
   <main>
     <div class="toolbar">
-      <button class="primary" id="refreshBtn">刷新页面数据</button>
+      <button class="primary" id="refreshBtn">增量刷新</button>
+      <button id="fullRefreshBtn">全量刷新</button>
       <input id="searchInput" type="search" placeholder="搜索 X、YC、ZC、池子地址">
       <select id="qualityFilter">
         <option value="all" selected>显示全部分组</option>
@@ -99,6 +108,20 @@
       本页按资金池 X 分组展示候选池。每个 X 下面拆成 YC 和 ZC 两个方向：YC 表示 X 可兑换出去的方向，ZC 表示可兑换回 X 的方向。页面只负责候选结构，不负责最终报价与盈亏判断。
     </div>
     <div id="filtersLine" class="filters-line"></div>
+    <div class="pager" id="candidatePager">
+      <button id="prevPageBtn">上一页</button>
+      <button id="nextPageBtn">下一页</button>
+      <span class="page-status" id="pageStatus">第 - / - 页</span>
+      <label class="page-status" for="pageInput">跳至</label>
+      <input id="pageInput" type="number" min="1" step="1" value="1">
+      <select id="pageSizeSelect">
+        <option value="1" selected>每页 1 个 X</option>
+        <option value="2">每页 2 个 X</option>
+        <option value="5">每页 5 个 X</option>
+        <option value="10">每页 10 个 X</option>
+        <option value="20">每页 20 个 X</option>
+      </select>
+    </div>
     <section id="groupList"></section>
   </main>
 
@@ -127,6 +150,45 @@
       return String(a?.routeText || a?.pool || "").localeCompare(String(b?.routeText || b?.pool || ""));
     });
     let latestPayload = null;
+    let refreshInFlight = false;
+    let candidatePage = Math.max(1, Number(new URLSearchParams(window.location.search).get("page") || 1) || 1);
+    let candidatePageSize = Math.max(1, Math.min(20, Number(new URLSearchParams(window.location.search).get("page_size") || 1) || 1));
+    let searchTimer = null;
+
+    function syncInitialControls() {
+      const query = new URLSearchParams(window.location.search);
+      $("searchInput").value = query.get("q") || "";
+      const quality = query.get("quality") || "all";
+      if ([...$("qualityFilter").options].some(option => option.value === quality)) $("qualityFilter").value = quality;
+      if ([...$("pageSizeSelect").options].some(option => Number(option.value) === candidatePageSize)) {
+        $("pageSizeSelect").value = String(candidatePageSize);
+      }
+      $("pageInput").value = String(candidatePage);
+    }
+
+    function replaceUrlParams(updates) {
+      const next = new URL(window.location.href);
+      Object.entries(updates).forEach(([key, value]) => {
+        const text = String(value ?? "").trim();
+        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "1") || (key === "quality" && text === "all")) {
+          next.searchParams.delete(key);
+        } else {
+          next.searchParams.set(key, text);
+        }
+      });
+      window.history.replaceState({}, "", next);
+    }
+
+    function currentQuery() {
+      const query = new URLSearchParams(window.location.search);
+      if (!query.get("feature")) query.set("feature", "dex_arbitrage");
+      const text = $("searchInput").value.trim();
+      if (text) query.set("q", text); else query.delete("q");
+      query.set("page", String(candidatePage));
+      query.set("page_size", String(candidatePageSize));
+      query.set("quality", $("qualityFilter").value || "all");
+      return query;
+    }
 
     async function api(path) {
       const resp = await fetch(path, { headers: { "Accept": "application/json" }, cache: "no-cache" });
@@ -136,9 +198,35 @@
     }
 
     function candidatesApiPath() {
-      const query = new URLSearchParams(window.location.search);
-      if (!query.get("feature")) query.set("feature", "dex_arbitrage");
-      return `/api/dex-pools/candidates?${query.toString()}`;
+      return `/api/dex-pools/candidates?${currentQuery().toString()}`;
+    }
+
+    function refreshApiPath(full = false) {
+      const query = currentQuery();
+      if (full) query.set("full", "1");
+      return `/api/dex-pools/candidates/refresh?${query.toString()}`;
+    }
+
+    function setRefreshBusy(busy, label) {
+      refreshInFlight = !!busy;
+      $("refreshBtn").disabled = refreshInFlight;
+      $("fullRefreshBtn").disabled = refreshInFlight;
+      if (label) $("message").textContent = label;
+      $("refreshMeta").textContent = refreshInFlight ? "刷新中..." : `最后更新 ${fmtTime(new Date().toISOString())}`;
+      if (latestPayload) renderPager(latestPayload);
+    }
+
+    function formatRefreshState(state, payload) {
+      if (!state) return null;
+      const summary = payload?.summary || {};
+      const pairCount = state.candidateCount || summary.pairTableCount || summary.anchorGroupCount || (payload?.pairs || []).length || 0;
+      if (state.ok === false) {
+        const firstError = Array.isArray(state.errors) && state.errors.length ? state.errors[0] : "";
+        return firstError ? `${state.message || "刷新失败"}：${firstError}` : (state.message || "刷新失败");
+      }
+      const scope = state.scope ? `（${state.scope}）` : "";
+      const mode = state.requested === "full" ? "全量刷新" : "增量刷新";
+      return `${mode}${scope}完成，候选分组 ${pairCount}`;
     }
 
     function statusBadge(quality) {
@@ -146,6 +234,20 @@
       if (value === "pass" || value === "recommended") return '<span class="badge good">可候选</span>';
       if (value === "observable") return '<span class="badge neutral">可观察</span>';
       return '<span class="badge reject">待确认</span>';
+    }
+
+    function groupPools(group, direction) {
+      const key = `${direction}Pools`;
+      const refKey = `${direction}PoolsRef`;
+      if (group?.[refKey] === "sharedPools") return group.sharedPools || [];
+      return group?.[key] || [];
+    }
+
+    function groupTokens(group, direction) {
+      const key = `${direction}Tokens`;
+      const refKey = `${direction}TokensRef`;
+      if (group?.[refKey] === "sharedTokens") return group.sharedTokens || [];
+      return group?.[key] || [];
     }
 
     function renderTokenChips(tokens) {
@@ -201,10 +303,12 @@
       const parts = [
         group.anchorSymbol,
         ...(group.anchorAddresses || []),
-        ...(group.ycTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...(group.zcTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
-        ...(group.ycPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
-        ...(group.zcPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
+        ...groupTokens(group, "yc").map(item => [item.symbol, item.address, item.poolCount].join(" ")),
+        ...groupTokens(group, "zc").map(item => [item.symbol, item.address, item.poolCount].join(" ")),
+        ...(group.sharedTokens || []).map(item => [item.symbol, item.address, item.poolCount].join(" ")),
+        ...groupPools(group, "yc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
+        ...groupPools(group, "zc").map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
+        ...(group.sharedPools || []).map(row => [row.pool, row.routeText, row.counterSymbol, row.counterAddress, row.protocol, row.fee].join(" ")),
       ].join(" ").toLowerCase();
       return parts.includes(query);
     }
@@ -215,26 +319,50 @@
       return `<div class="notice">当前数据仍是旧 pair 结构，页面已兼容展示，但建议升级到 anchorGroups。</div>`;
     }
 
-    function renderGroups(payload) {
-      const query = $("searchInput").value.trim().toLowerCase();
-      const filter = $("qualityFilter").value;
-      const groups = (payload.anchorGroups || []).filter(group => {
-        const hasData = Number(group.ycPoolCount || 0) > 0 || Number(group.zcPoolCount || 0) > 0;
-        if (filter === "with_data" && !hasData) return false;
-        if (filter === "empty" && hasData) return false;
-        return groupMatches(group, query);
+    function renderPager(payload) {
+      const pagination = payload?.pagination?.candidate_groups || { page: 1, page_size: 1, page_count: 1, total_count: 0, unfiltered_count: 0 };
+      candidatePage = Number(pagination.page || 1);
+      candidatePageSize = Number(pagination.page_size || 1);
+      $("pageInput").value = String(candidatePage);
+      $("pageInput").max = String(pagination.page_count || 1);
+      if ([...$("pageSizeSelect").options].some(option => Number(option.value) === candidatePageSize)) {
+        $("pageSizeSelect").value = String(candidatePageSize);
+      }
+      $("prevPageBtn").disabled = refreshInFlight || !pagination.has_previous;
+      $("nextPageBtn").disabled = refreshInFlight || !pagination.has_next;
+      const total = Number(pagination.total_count || 0);
+      const unfiltered = Number(pagination.unfiltered_count || total);
+      const range = total ? `${pagination.display_start || 1}-${pagination.display_end || total}` : "0";
+      const suffix = unfiltered !== total ? `，筛选前 ${unfiltered}` : "";
+      $("pageStatus").textContent = `第 ${candidatePage} / ${pagination.page_count || 1} 页，显示 ${range} / ${total} 个 X 分组${suffix}`;
+      replaceUrlParams({
+        page: candidatePage,
+        page_size: candidatePageSize,
+        q: $("searchInput").value.trim(),
+        quality: $("qualityFilter").value || "all",
       });
+    }
+
+    function renderGroups(payload) {
+      const groups = payload.anchorGroups || [];
       if (!groups.length) {
         $("groupList").innerHTML = '<div class="notice">没有匹配的候选分组。</div>';
         return;
       }
-      $("groupList").innerHTML = groups.map(group => `
+      $("groupList").innerHTML = groups.map(group => {
+        const shared = !!group.ycZcSameSet;
+        const sections = shared
+          ? renderSection("YC/ZC Shared PoolKey Set", group.sharedTokens || [], group.sharedPools || [])
+          : `${renderSection("YC", groupTokens(group, "yc"), groupPools(group, "yc"))}${renderSection("ZC", groupTokens(group, "zc"), groupPools(group, "zc"))}`;
+        const sharedBadge = shared ? '<span class="badge neutral">YC/ZC shared</span>' : "";
+        return `
         <article class="group">
           <div class="group-head">
             <div>
               <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                 <h2 title="${esc(group.anchorSymbol)}">${esc(group.anchorSymbol)}</h2>
                 <span class="badge good">X</span>
+                ${sharedBadge}
                 <span class="badge neutral">YC ${esc(group.ycTokenCount || 0)} / ${esc(group.ycPoolCount || 0)}</span>
                 <span class="badge neutral">ZC ${esc(group.zcTokenCount || 0)} / ${esc(group.zcPoolCount || 0)}</span>
                 <span class="badge warn">池 ${esc(group.candidatePoolCount || 0)}</span>
@@ -243,10 +371,10 @@
             </div>
             <div class="group-meta">页面只展示候选方向，不做最终盈亏裁决。</div>
           </div>
-          ${renderSection("YC", group.ycTokens || [], group.ycPools || [])}
-          ${renderSection("ZC", group.zcTokens || [], group.zcPools || [])}
+          ${sections}
         </article>
-      `).join("");
+      `;
+      }).join("");
     }
 
     function render(payload) {
@@ -264,30 +392,88 @@
       $("generatedAt").textContent = fmtTime(source.generatedAt);
       $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;
       $("refreshMeta").textContent = `刷新时间 ${fmtTime(new Date().toISOString())}`;
-      $("scopeNotice").textContent = `本页按资金池 X 分组展示候选池。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；同一池在不同方向下会分别进入两个分区，便于后续观察室和纵览页继续筛选。`;
+      $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；同一池在不同方向下会分别进入两个分区。`;
+      renderPager(payload);
       renderGroups(payload);
     }
 
-    async function refresh() {
-      $("message").textContent = "加载中...";
+    async function load() {
+      if (refreshInFlight) return;
+      if (!refreshInFlight) $("message").textContent = "读取缓存中...";
       try {
         latestPayload = await api(candidatesApiPath());
         render(latestPayload);
-        $("message").textContent = "已更新";
+        if (!refreshInFlight) {
+          const cacheMode = latestPayload?.candidatePoolCache?.refreshMode || latestPayload?.poolStaticTable?.mode || "缓存";
+          $("message").textContent = `数据已读取：${cacheMode}`;
+        }
       } catch (err) {
         $("message").textContent = err.message;
+      } finally {
+        if (!refreshInFlight) {
+          $("refreshMeta").textContent = `最后更新 ${fmtTime(new Date().toISOString())}`;
+        }
       }
     }
 
-    $("refreshBtn").onclick = refresh;
-    $("searchInput").oninput = () => latestPayload && renderGroups(latestPayload);
-    $("qualityFilter").onchange = () => latestPayload && renderGroups(latestPayload);
+    async function refresh(full = false) {
+      if (refreshInFlight) return;
+      setRefreshBusy(true, full ? "全量刷新中，正在重建源文件..." : "增量刷新中，正在补全候选缓存...");
+      try {
+        latestPayload = await api(refreshApiPath(full));
+        render(latestPayload);
+        const refreshMessage = formatRefreshState(latestPayload.refresh_state, latestPayload);
+        $("message").textContent = refreshMessage || (full ? "全量刷新完成" : "增量刷新完成");
+      } catch (err) {
+        $("message").textContent = err.message;
+      } finally {
+        setRefreshBusy(false);
+      }
+    }
+
+    $("refreshBtn").onclick = () => refresh(false);
+    $("fullRefreshBtn").onclick = () => refresh(true);
+    $("prevPageBtn").onclick = () => {
+      candidatePage = Math.max(1, candidatePage - 1);
+      replaceUrlParams({ page: candidatePage, page_size: candidatePageSize });
+      load();
+    };
+    $("nextPageBtn").onclick = () => {
+      candidatePage += 1;
+      replaceUrlParams({ page: candidatePage, page_size: candidatePageSize });
+      load();
+    };
+    $("pageInput").onchange = () => {
+      candidatePage = Math.max(1, Number($("pageInput").value || 1) || 1);
+      replaceUrlParams({ page: candidatePage, page_size: candidatePageSize });
+      load();
+    };
+    $("pageSizeSelect").onchange = () => {
+      candidatePage = 1;
+      candidatePageSize = Math.max(1, Math.min(20, Number($("pageSizeSelect").value || 1) || 1));
+      replaceUrlParams({ page: candidatePage, page_size: candidatePageSize });
+      load();
+    };
+    $("searchInput").oninput = () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        candidatePage = 1;
+        replaceUrlParams({ page: candidatePage, page_size: candidatePageSize, q: $("searchInput").value.trim() });
+        load();
+      }, 250);
+    };
+    $("qualityFilter").onchange = () => {
+      candidatePage = 1;
+      replaceUrlParams({ page: candidatePage, page_size: candidatePageSize, quality: $("qualityFilter").value || "all" });
+      load();
+    };
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
     });
-    window.addEventListener("chainselectionprotocolschanged", () => refresh());
-    refresh();
-    setInterval(refresh, 30000);
+    window.addEventListener("chainselectionprotocolschanged", () => load());
+    syncInitialControls();
+    load();
+    setInterval(load, 30000);
   </script>
 </body>
 </html>

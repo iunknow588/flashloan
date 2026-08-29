@@ -52,16 +52,39 @@
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
-      <div class="metric"><small>可套利路径候选</small><strong id="pathCount">-</strong><span id="pathMeta">围绕锚点筛选</span></div>
-      <div class="metric"><small>观察交易对</small><strong id="watchCount">-</strong><span>未进入路径候选</span></div>
+      <div class="metric"><small>市场观察闭环</small><strong id="pathCount">-</strong><span id="pathMeta">来自链路观察</span></div>
+      <div class="metric"><small>关联 Y-Z 交易对</small><strong id="watchCount">-</strong><span id="watchMeta">观察池来源</span></div>
+      <div class="metric"><small>1000U 盈亏探针</small><strong id="profitCount">-</strong><span id="profitMeta">路由级总览</span></div>
+      <div class="metric"><small>最佳参考净利</small><strong id="bestProfit">-</strong><span id="bestProfitMeta">扣除闪电贷费与 gas</span></div>
       <div class="metric"><small>闪电贷协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
       <div class="metric"><small>池子来源</small><strong id="sourceNetwork">-</strong><span id="sourceMeta">-</span></div>
+    </section>
+    <section class="panel" style="margin-bottom:14px">
+      <h2>关联 Y-Z 交易对</h2>
+      <div class="muted">总览与市场观察使用同一份链路观察结果；这里列出可进入闭环报价的中间交易对。</div>
+      <div id="watchList" class="badges"></div>
     </section>
     <section id="pathList"></section>
   </main>
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const list = value => Array.isArray(value) ? value : [];
+    const num = (value, digits = 4) => {
+      if (value === null || value === undefined || value === "") return "-";
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits}) : "-";
+    };
+    const money = value => {
+      if (value === null || value === undefined || value === "") return "-";
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? `${parsed >= 0 ? "" : "-"}$${Math.abs(parsed).toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "-";
+    };
+    const amount = (value, symbol, digits = 8) => {
+      if (value === null || value === undefined || value === "") return "-";
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? `${parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits})} ${symbol || ""}`.trim() : "-";
+    };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
@@ -77,29 +100,61 @@
       const linkage = pair.flashLoanLinkage || {};
       const route = pair.overviewRoute || {};
       const pools = pair.executionPools || pair.preferredPools || [];
+      const profit = pair.overviewProfit || {};
+      const isObservation = route.marketObservationRoute || pair.pathSource === "market_observation";
+      const routeLabel = route.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
+      const rec = profit.recommendation || {};
+      const recClass = profit.executableCandidate ? "good" : (profit.requiresLiveQuoter ? "warn" : (profit.profitable ? "warn" : ""));
+      const tokenBasis = profit.referenceReturnBasis === "borrow_token";
+      const tokenBasisNet = tokenBasis ? `${amount(profit.referenceNetProfitAmount, profit.referenceInputSymbol)} / ${num(profit.referenceNetReturnBps, 2)} bps` : "-";
+      const tokenBasisLabel = tokenBasis && profit.referenceReturnTrusted === false ? "X 本位参考" : "X 本位收益";
       return `<article class="path">
         <div class="path-head">
           <div>
             <h2>${esc(route.pathText || pair.symbolPair)}</h2>
             <div class="badges">
-              <span class="badge good">套利候选</span>
-              <span class="badge">${esc(route.kind === "bridge_pair" ? "三跳闭环" : "两跳闭环")}</span>
+              <span class="badge good">${esc(isObservation ? "市场观察闭环" : "套利候选")}</span>
+              <span class="badge">${esc(routeLabel)}</span>
               ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((route.bridgeSymbols || []).join(" -> "))}</span>` : ''}
               <span class="badge">锚点 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
               <span class="badge">目标 ${esc(route.targetSymbol || "-")}</span>
               <span class="badge">候选池 ${esc(pools.length)}</span>
+              <span class="badge ${recClass}">${tokenBasis ? tokenBasisLabel : "1000U 净利"} ${esc(tokenBasis ? tokenBasisNet : money(profit.observedNetProfitUsd))}</span>
+              ${profit.chainSubmissionCandidate ? '<span class="badge good">链上利润控制候选</span>' : ''}
+              ${profit.trustedUsdReference === false ? '<span class="badge warn">USD 锚点不可信</span>' : ''}
+              ${profit.tokenDecimalsTrusted === false ? '<span class="badge warn">decimals 待确认</span>' : ''}
+              ${profit.requiresLiveQuoter ? '<span class="badge warn">需 Quoter/SDK 复核</span>' : ''}
             </div>
           </div>
           <div class="muted">${esc((route.candidatePairSymbols || []).join(" | ") || (linkage.route_symbols || []).join(" -> "))}</div>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>池子</th><th>协议</th><th>费率</th><th>TVL</th><th>深度等级</th></tr></thead>
+          <thead><tr><th>探针状态</th><th>毛利</th><th>闪电贷费</th><th>Gas 储备</th><th>净利</th><th>收益 bps</th><th>X 本位净收益</th><th>下一步</th></tr></thead>
+          <tbody><tr>
+            <td>${esc(profit.complete ? "完成" : "未完成")}</td>
+            <td>${money(profit.observedGrossProfitUsd)}</td>
+            <td>${money(profit.flashLoanFeeUsd)}</td>
+            <td>${money(profit.gasReserveUsd)}</td>
+            <td>${money(profit.observedNetProfitUsd)}</td>
+            <td>${num(profit.observedNetProfitBps, 2)}</td>
+            <td>${esc(tokenBasisNet)}</td>
+            <td>${esc(rec.action || profit.recommendationAction || "-")}</td>
+          </tr></tbody>
+        </table></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>路径池</th><th>协议</th><th>费率</th><th>方向</th><th>TVL</th><th>深度等级</th></tr></thead>
           <tbody>${pools.slice(0, 5).map(pool => `<tr>
             <td>${esc(pool.pool)}</td><td>${esc(pool.dex || pool.protocol || "-")}</td><td>${esc(pool.fee)}</td>
+            <td>${esc(pool.routeText || (pool.routeSymbols || []).join(" -> ") || "-")}</td>
             <td>${esc((pool.balances || {}).tvlUsd ?? "-")}</td><td>${esc((pool.depthBand || {}).label || "-")}</td>
-          </tr>`).join("") || '<tr><td colspan="5">暂无候选池</td></tr>'}</tbody>
+          </tr>`).join("") || '<tr><td colspan="6">暂无候选池</td></tr>'}</tbody>
         </table></div>
       </article>`;
+    }
+    function watchHtml(row) {
+      const label = row?.symbolPair || row?.pathText || "-";
+      const funds = list(row?.associatedFundSymbols).join(", ");
+      return `<span class="badge" title="${esc(row?.addressPair || "")}">${esc(label)}${funds ? ` / X=${esc(funds)}` : ""}</span>`;
     }
     async function refresh() {
       $("message").textContent = "正在加载 DEX 总览...";
@@ -109,12 +164,18 @@
         const source = data.poolStaticTable || {};
         $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
         const anchors = data.summary?.closedLoopAnchorSymbols || data.summary?.anchorBorrowSymbols || [];
-        $("pathMeta").textContent = `两跳闭环 ${data.summary?.directAnchorPathCount ?? 0} | 三跳闭环 ${data.summary?.bridgePathCount ?? 0} | 闭环锚点 ${anchors.join(", ") || "-"}`;
+        $("pathMeta").textContent = `X-Y-X ${data.summary?.directAnchorPathCount ?? 0} | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
         $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
+        $("watchMeta").textContent = `链路观察 ${data.summary?.marketObservationRouteCount ?? 0} 条 | 专用交易对 ${data.summary?.chainSpecificObservationPairCount ?? 0}`;
+        $("profitCount").textContent = `${data.summary?.overviewProfitableRouteCount ?? 0}/${data.summary?.overviewProbeCompleteCount ?? 0}`;
+        $("profitMeta").textContent = `链上候选 ${data.summary?.overviewChainSubmissionCandidateCount ?? 0} | 非U ${data.summary?.overviewNonStableChainSubmissionCandidateCount ?? 0} | 需 Quoter ${data.summary?.overviewLiveQuoterRequiredCount ?? 0}`;
+        $("bestProfit").textContent = money(data.summary?.overviewBestObservedNetProfitUsd);
+        $("bestProfitMeta").textContent = `起点 ${num(data.summary?.overviewProbeNotionalUsd ?? 1000, 2)}U | X本位 ${num(data.summary?.overviewBestTokenBasisNetReturnBps, 2)} bps | 可执行 ${money(data.summary?.overviewBestExecutableNetProfitUsd)}`;
         $("flashCount").textContent = (flash.available_protocols || []).length;
         $("flashNames").textContent = (flash.available_protocols || []).join(", ") || "-";
         $("sourceNetwork").textContent = source.network || "-";
         $("sourceMeta").textContent = source.exists === false ? "当前链没有静态池表" : (source.generatedAt || "-");
+        $("watchList").innerHTML = list(data.watchPairs).map(watchHtml).join("") || '<span class="badge">暂无关联 Y-Z 交易对</span>';
         $("pathList").innerHTML = (data.arbitragePaths || []).map(pairHtml).join("") || '<div class="empty">当前选择下没有满足闪电贷衔接条件的套利路径。</div>';
         $("message").textContent = "已更新";
       } catch (error) {

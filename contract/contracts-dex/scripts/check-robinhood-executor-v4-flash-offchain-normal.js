@@ -94,11 +94,36 @@ async function runExecutorOffchainNormalReadiness() {
   const tx = await executor.requestV4FlashLoan(request);
   const receipt = await tx.wait();
 
+  const nativeAmount = BigInt(process.env.ROBINHOOD_TESTNET_EXECUTOR_OFFCHAIN_NORMAL_NATIVE_AMOUNT || amount.toString());
+  const nativeMinProfit = BigInt(process.env.ROBINHOOD_TESTNET_EXECUTOR_OFFCHAIN_NORMAL_NATIVE_MIN_PROFIT || "1");
+  await owner.sendTransaction({ to: poolManagerAddress, value: nativeAmount });
+  await owner.sendTransaction({ to: routerAddress, value: nativeMinProfit });
+  await router.setNativeTransferOnNextExecute(nativeAmount + nativeMinProfit);
+  const nativeRequest = {
+    token: hre.ethers.ZeroAddress,
+    amount: nativeAmount,
+    swapTargets: [routerAddress],
+    swapCalldatas: [routeCall],
+    swapValues: [nativeAmount],
+    finalToken: hre.ethers.ZeroAddress,
+    minProfit: nativeMinProfit,
+    gasReserve: 0n,
+  };
+  const nativeTx = await executor.requestV4FlashLoanWithValues(nativeRequest);
+  const nativeReceipt = await nativeTx.wait();
+
   const poolBalance = await token.balanceOf(poolManagerAddress);
   const executorBalance = await token.balanceOf(executorAddress);
   const debt = await poolManager.currencyDebt(executorAddress, tokenAddress);
+  const nativeExecutorBalance = await hre.ethers.provider.getBalance(executorAddress);
+  const nativeDebt = await poolManager.currencyDebt(executorAddress, hre.ethers.ZeroAddress);
   const routerEvents = await router.queryFilter(router.filters.Executed());
-  const ok = poolBalance === amount && executorBalance === 0n && debt === 0n && routerEvents.length === 1;
+  const ok = poolBalance === amount
+    && executorBalance === 0n
+    && debt === 0n
+    && nativeExecutorBalance === nativeMinProfit
+    && nativeDebt === 0n
+    && routerEvents.length === 2;
 
   return {
     schemaVersion: "robinhood-executor-v4-flash-offchain-normal-v1",
@@ -117,22 +142,32 @@ async function runExecutorOffchainNormalReadiness() {
       executor: executorAddress,
     },
     amount,
+    nativeAmount,
+    nativeMinProfit,
     receipt: {
       hash: receipt.hash,
       gasUsed: receipt.gasUsed,
     },
+    nativeReceipt: {
+      hash: nativeReceipt.hash,
+      gasUsed: nativeReceipt.gasUsed,
+    },
     route: {
       hopCount: 1,
       routerEventCount: routerEvents.length,
+      nativeExecutionFunction: "requestV4FlashLoanWithValues",
+      nativeSwapValues: [nativeAmount.toString()],
     },
     balances: {
       poolManager: poolBalance,
       executor: executorBalance,
+      nativeExecutor: nativeExecutorBalance,
     },
     debt,
+    nativeDebt,
     readyForPausedRedeploy: ok,
     readyForTestnetExecutorNormalProbe: ok,
-    blockingReasons: ok ? [] : ["executor_v4_flash_accounting_not_settled"],
+    blockingReasons: ok ? [] : ["executor_v4_flash_accounting_not_settled_or_native_path_not_supported"],
   };
 }
 

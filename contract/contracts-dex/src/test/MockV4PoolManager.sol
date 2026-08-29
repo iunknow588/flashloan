@@ -28,6 +28,8 @@ contract MockV4PoolManager {
     mapping(address caller => address currency) public syncedCurrency;
     mapping(address caller => uint256 balanceAtSync) public syncedBalance;
 
+    receive() external payable {}
+
     function unlock(bytes calldata data) external returns (bytes memory result) {
         if (isUnlocked[msg.sender]) revert AlreadyUnlocked();
         isUnlocked[msg.sender] = true;
@@ -41,7 +43,12 @@ contract MockV4PoolManager {
 
     function take(address currency, address to, uint256 amount) external {
         if (!isUnlocked[msg.sender]) revert NotUnlocked();
-        if (!IERC20MockV4PoolManager(currency).transfer(to, amount)) revert TokenTransferFailed();
+        if (currency == address(0)) {
+            (bool ok,) = payable(to).call{value: amount}("");
+            if (!ok) revert TokenTransferFailed();
+        } else if (!IERC20MockV4PoolManager(currency).transfer(to, amount)) {
+            revert TokenTransferFailed();
+        }
         activeCurrency[msg.sender] = currency;
         currencyDebt[msg.sender][currency] += amount;
         emit Taken(msg.sender, currency, to, amount);
@@ -50,15 +57,14 @@ contract MockV4PoolManager {
     function sync(address currency) external {
         if (!isUnlocked[msg.sender]) revert NotUnlocked();
         syncedCurrency[msg.sender] = currency;
-        syncedBalance[msg.sender] = IERC20MockV4PoolManager(currency).balanceOf(address(this));
+        syncedBalance[msg.sender] = _balance(currency);
         emit Synced(msg.sender, currency, syncedBalance[msg.sender]);
     }
 
     function settle() external payable returns (uint256 paid) {
         if (!isUnlocked[msg.sender]) revert NotUnlocked();
         address currency = syncedCurrency[msg.sender];
-        if (currency == address(0)) revert SyncMissing();
-        uint256 currentBalance = IERC20MockV4PoolManager(currency).balanceOf(address(this));
+        uint256 currentBalance = _balance(currency);
         if (currentBalance > syncedBalance[msg.sender]) {
             paid = currentBalance - syncedBalance[msg.sender];
         }
@@ -66,5 +72,10 @@ contract MockV4PoolManager {
         if (paid > debt) paid = debt;
         currencyDebt[msg.sender][currency] = debt - paid;
         emit Settled(msg.sender, currency, paid, currencyDebt[msg.sender][currency]);
+    }
+
+    function _balance(address currency) private view returns (uint256) {
+        if (currency == address(0)) return address(this).balance;
+        return IERC20MockV4PoolManager(currency).balanceOf(address(this));
     }
 }

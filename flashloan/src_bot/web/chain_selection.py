@@ -4,7 +4,7 @@ from urllib.parse import urlsplit
 
 from flask import request
 
-from core.chain_data_registry import default_flash_loan_pool_scope
+from core.chain_data_registry import default_flash_loan_pool_scope, default_market_id_for_feature
 from core.chain_route_selector import (
     build_chain_selection_payload,
     feature_from_page_path,
@@ -15,7 +15,6 @@ from core.chain_selection import (
     available_chain_selections,
     resolve_chain_selection,
 )
-from core.market_config import DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
 from web.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
@@ -66,7 +65,7 @@ def chain_selection_payload(
     if default_market_id is None and page_pathname in {"/flash-loan", "/flash-loan/pools"}:
         default_market_id = str(default_flash_loan_pool_scope()["market_id"])
     if default_market_id is None and page_pathname in {"/", "/bot"}:
-        default_market_id = DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
+        default_market_id = default_market_id_for_feature("liquidation")
     available = available_chain_selections(database_url=database_url, feature=requested_feature)
     selected = resolve_request_chain_selection(
         database_url=database_url,

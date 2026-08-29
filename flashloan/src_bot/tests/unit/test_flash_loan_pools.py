@@ -273,6 +273,49 @@ def test_flash_loan_pools_returns_one_view_per_requested_protocol(tmp_path, monk
     assert {provider["protocol"] for provider in payload["providers"]} == {"aave_v3", "venus_core"}
 
 
+def test_flash_loan_pools_defaults_to_all_available_protocols_in_priority_order(monkeypatch):
+    monkeypatch.setattr(
+        flash_loan_pools,
+        "supported_market_summaries",
+        lambda database_url=None: [
+            {
+                "market_id": "bnb-aave-v3",
+                "feature": "liquidation",
+                "network": "bnb",
+                "chain_id": 56,
+                "market_type": "native_chain",
+                "protocol": "aave_v3",
+                "protocol_supported": True,
+            },
+            {
+                "market_id": "bnb-venus-core",
+                "feature": "liquidation",
+                "network": "bnb",
+                "chain_id": 56,
+                "market_type": "native_chain",
+                "protocol": "venus_core",
+                "protocol_supported": True,
+            },
+            {
+                "market_id": "bnb-dex-arbitrage",
+                "feature": "dex_arbitrage",
+                "network": "bnb",
+                "chain_id": 56,
+                "market_type": "native_chain",
+                "protocol": "pancakeswap_v3",
+                "protocol_supported": True,
+                "observation_only": True,
+            },
+        ],
+    )
+    monkeypatch.setattr(flash_loan_pools, "_chain_default_protocol_preferences", lambda: {56: ["venus_core"]})
+
+    payload = flash_loan_pools.flash_loan_pools_payload(chain_id=56)
+
+    assert payload["scope"]["protocols"] == []
+    assert [view["protocol"] for view in payload["protocol_views"]] == ["venus_core", "aave_v3", "pancakeswap_v3"]
+
+
 def test_flash_loan_pools_filters_chain_protocols_by_discovery_snapshot(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,
@@ -1207,6 +1250,7 @@ def test_flash_loan_pools_uses_robinhood_testnet_v4_pool_liquidity_loader(monkey
     assert view["summary"]["v4_pool_key_count"] == 1
     assert view["summary"]["v4_pool_liquidity_pool_count"] == 1
     assert view["summary"]["stable_borrow_pool_count"] == 1
+    assert view["summary"]["non_stable_borrow_pool_count"] == 1
     assert view["summary"]["stable_flash_accounting_source_count"] == 1
     assert view["summary"]["non_stable_flash_accounting_source_count"] == 1
     assert view["summary"]["stable_pool_key_count"] == 1
@@ -1216,9 +1260,9 @@ def test_flash_loan_pools_uses_robinhood_testnet_v4_pool_liquidity_loader(monkey
     assert view["summary"]["flash_borrowable_asset_count"] == 2
     assert view["summary"]["eth_call_verified_flash_asset_count"] == 0
     assert len(view["stable_borrow_pools"]) == 1
-    assert view["stable_borrow_pools"][0]["token_symbol"] == "USDC:WETH"
-    assert view["stable_borrow_pools"][0]["pool_id"] == "0x" + "a" * 64
-    assert view["non_stable_borrow_pools"] == []
+    assert view["stable_borrow_pools"][0]["token_symbol"] == "USDC"
+    assert view["stable_borrow_pools"][0]["currency_address"] == "0x" + "1" * 40
+    assert view["non_stable_borrow_pools"][0]["token_symbol"] == "WETH"
     assert view["borrow_target_universe"] is None
     assert view["stable_v4_flash_source_rows"][0]["token_symbol"] == "USDC"
     assert view["stable_v4_flash_source_rows"][0]["poolmanager_balance_raw"] == "200000000000"
@@ -1235,8 +1279,10 @@ def test_flash_loan_pools_uses_robinhood_testnet_v4_pool_liquidity_loader(monkey
     assert view["stable_pool_key_rows"][0]["pool_liquidity_units_raw"] == "123"
     assert view["stable_pool_key_rows"][0]["pool_manager_balance0"] == 200000
     assert view["stable_pool_key_rows"][0]["pool_manager_balance1"] == 50
-    assert view["stable_pool_key_rows"][0]["borrowable"] is True
-    assert view["stable_pool_key_rows"][0]["flash_borrowable"] is True
+    assert view["stable_pool_key_rows"][0]["borrowable"] is False
+    assert view["stable_pool_key_rows"][0]["flash_borrowable"] is False
+    assert view["stable_pool_key_rows"][0]["pool_role"] == "v4_observable_pool_key"
+    assert view["stable_pool_key_rows"][0]["flash_borrowable_reason"] == "poolkey_is_observation_only_not_flash_borrowable_asset"
     assert view["chainIsolation"]["poolLiquidityCacheAvailable"] is True
 
 
@@ -1285,7 +1331,123 @@ def test_robinhood_testnet_v4_flash_sources_can_come_from_chain_owned_local_json
     assert view["non_stable_v4_flash_source_rows"][1]["token_symbol"] == "WETH"
     assert view["non_stable_v4_flash_source_rows"][1]["source"] == "local_token_universe_balance_snapshot"
     assert view["stable_borrow_pools"] == []
+    assert [row["token_symbol"] for row in view["non_stable_borrow_pools"]] == ["ETH", "WETH"]
+
+
+def test_robinhood_testnet_v4_filters_low_capacity_low_candidate_flash_assets(monkeypatch):
+    def load_v4_pool_liquidity():
+        return {
+            "ok": True,
+            "source": "test-v4-liquidity.json",
+            "payload": {
+                "schemaVersion": "robinhood-testnet-v4-pool-liquidity-v1",
+                "network": "robinhood-testnet",
+                "chainId": 46630,
+                "nativePoolManagerBalanceWei": "0",
+                "flashAccountingSources": [
+                    {
+                        "address": "0x" + "5" * 40,
+                        "symbol": "DUST",
+                        "decimals": 18,
+                        "poolManagerBalanceRaw": "100000000000000000",
+                        "poolManagerBalance": 0.1,
+                        "poolIds": ["0x" + "c" * 64],
+                        "source": "v4_pool_index_active_plus_known_token_balanceOf_poolmanager",
+                    }
+                ],
+            },
+            "pools": [{"poolId": "0x" + "c" * 64, "liquidity": "1"}],
+            "pool_keys": [{"poolId": "0x" + "c" * 64}],
+        }
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        robinhood_testnet_v4_pool_liquidity_loader=load_v4_pool_liquidity,
+    )
+
+    view = payload["protocol_views"][0]
+    assert view["summary"]["flash_accounting_evidence_asset_count"] == 1
+    assert view["summary"]["flash_accounting_excluded_asset_count"] == 1
+    assert view["summary"]["flash_accounting_asset_count"] == 0
+    assert view["stable_borrow_pools"] == []
     assert view["non_stable_borrow_pools"] == []
+
+
+def test_robinhood_testnet_v4_borrow_pools_use_scanned_poolmanager_balances_not_pool_keys():
+    pool_ids = ["0x" + "a" * 64, "0x" + "b" * 64]
+
+    def load_v4_pool_liquidity():
+        return {
+            "ok": True,
+            "source": "test-v4-liquidity.json",
+            "payload": {
+                "schemaVersion": "robinhood-testnet-v4-pool-liquidity-v1",
+                "network": "robinhood-testnet",
+                "chainId": 46630,
+                "nativePoolManagerBalanceWei": "1000000000000000000",
+                "flashAccountingSources": [
+                    {
+                        "address": "0x" + "3" * 40,
+                        "symbol": "FRAX",
+                        "decimals": 18,
+                        "poolManagerBalanceRaw": "220643627094560557634862935",
+                        "poolManagerBalance": 220643627.09456056,
+                        "source": "v4_pool_index_active_token_balanceOf_poolmanager",
+                    },
+                    {
+                        "address": "0x" + "4" * 40,
+                        "symbol": "APE",
+                        "decimals": 18,
+                        "poolManagerBalanceRaw": "10610271461633481666883130",
+                        "poolManagerBalance": 10610271.461633481,
+                        "source": "v4_pool_index_active_token_balanceOf_poolmanager",
+                    },
+                ],
+            },
+            "pools": [{"poolId": pool_id, "liquidity": "1"} for pool_id in pool_ids],
+            "pool_keys": [{"poolId": pool_id} for pool_id in pool_ids],
+        }
+
+    def load_v4_pool_index():
+        return {
+            "ok": True,
+            "source": "test-v4-pool-index.json",
+            "pool_keys": [{"poolId": pool_id} for pool_id in pool_ids],
+            "pools": [
+                {
+                    "poolId": pool_ids[0],
+                    "token0Symbol": "ETH",
+                    "token1Symbol": "ABC",
+                    "token0": "0x0000000000000000000000000000000000000000",
+                    "token1": "0x" + "1" * 40,
+                },
+                {
+                    "poolId": pool_ids[1],
+                    "token0Symbol": "ETH",
+                    "token1Symbol": "XYZ",
+                    "token0": "0x0000000000000000000000000000000000000000",
+                    "token1": "0x" + "2" * 40,
+                },
+            ],
+        }
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        robinhood_testnet_v4_pool_liquidity_loader=load_v4_pool_liquidity,
+        robinhood_testnet_v4_pool_index_loader=load_v4_pool_index,
+    )
+
+    view = payload["protocol_views"][0]
+    assert view["summary"]["stable_borrow_pool_count"] == 1
+    assert view["summary"]["non_stable_borrow_pool_count"] == 2
+    assert view["summary"]["stable_flash_accounting_source_count"] == 1
+    assert view["summary"]["stable_pool_key_count"] == 0
+    assert view["summary"]["non_stable_pool_key_count"] == 2
+    assert view["stable_borrow_pools"][0]["token_symbol"] == "FRAX"
+    assert [row["token_symbol"] for row in view["non_stable_borrow_pools"]] == ["APE", "ETH"]
+    assert [row["token_symbol"] for row in view["non_stable_pool_key_rows"]] == ["ETH:ABC", "ETH:XYZ"]
 
 
 def test_robinhood_testnet_v4_pool_liquidity_builds_from_local_contract_evidence(tmp_path):

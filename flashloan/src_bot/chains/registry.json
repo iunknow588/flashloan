@@ -2,6 +2,11 @@
   "schema_version": "chain-registry-v1",
   "primary_key": "chain_id",
   "defaults": {
+    "default_chain_ids": {
+      "dex_arbitrage": 46630,
+      "flash_loan_pool_page": 46630,
+      "liquidation": 46630
+    },
     "flash_loan_pool_page_chain_id": 46630
   },
   "chains": {

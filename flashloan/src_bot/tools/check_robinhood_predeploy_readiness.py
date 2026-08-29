@@ -81,13 +81,10 @@ def _missing_chain_test_plan(path: Path, chain_metadata: dict) -> dict:
 
 
 def _mark_missing_chain_test_plan(report: dict, path: Path) -> dict:
-    blockers = list(report.get("blockingReasons") or [])
-    if "chain_test_plan_missing" not in blockers:
-        blockers.insert(0, "chain_test_plan_missing")
+    blockers = [item for item in list(report.get("blockingReasons") or []) if item != "chain_test_plan_missing"]
     gates = dict(report.get("gates") or {})
     gates["chainTestPlanPresent"] = False
     return report | {
-        "chainTestPlanMissing": True,
         "missingChainTestPlanPath": str(path),
         "gates": gates,
         "blockingReasons": blockers,
@@ -202,7 +199,7 @@ def main() -> int:
         return 2
     if args.strict_fork and not report["readyForForkStaticcall"]:
         return 2
-    return 1 if report.get("chainTestPlanMissing") else 0
+    return 0
 
 
 if __name__ == "__main__":

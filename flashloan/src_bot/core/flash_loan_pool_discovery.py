@@ -505,9 +505,16 @@ def protocol_options_for_chain(
         seen.add(protocol)
         options.append({"protocol": protocol, "display_name": str(item.get("display_name") or _protocol_label(protocol))})
     chain_candidates = _chain_protocol_candidates()
-    if not options and chain_id in chain_candidates:
+    if chain_id in chain_candidates:
         for protocol in chain_candidates[int(chain_id)]["protocols"]:
+            if protocol in seen:
+                continue
+            seen.add(protocol)
             options.append({"protocol": protocol, "display_name": _protocol_label(protocol)})
+    options = [
+        {"protocol": item["protocol"], "display_name": item["display_name"]}
+        for item in _sorted_protocols(options)
+    ]
     return options
 
 

@@ -265,7 +265,11 @@ def test_flash_loan_pool_discovery_query_and_robinhood_cache(tmp_path):
     assert bnb_scoped["raw_snapshots"] == {}
     assert morpho_scoped["raw_snapshots"]["robinhood_flash_liquidity"]["sources"] == [{"protocol": "morpho_blue"}]
     assert discovery.protocol_options_for_chain(chain_id=4663, snapshot_path=snapshot_path) == [
-        {"protocol": "morpho_blue", "display_name": "Morpho Blue"}
+        {"protocol": "morpho_blue", "display_name": "Morpho Blue"},
+        {"protocol": "aave_v3", "display_name": "Aave V3"},
+        {"protocol": "uniswap_v2", "display_name": "Uniswap V2"},
+        {"protocol": "uniswap_v3", "display_name": "Uniswap V3"},
+        {"protocol": "uniswap_v4", "display_name": "Uniswap V4"},
     ]
     assert discovery.protocol_options_for_chain(chain_id=46630, snapshot_path=snapshot_path) == [
         {"protocol": "uniswap_v4", "display_name": "Uniswap V4"}

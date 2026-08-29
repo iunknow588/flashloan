@@ -6,6 +6,7 @@ from intent_trade.chains.robinhood_testnet.v4_flash_accounting_sources import (
     _as_int_units,
     v4_flash_accounting_source_rows,
 )
+from intent_trade.chains.robinhood_testnet.v4_pool_index import load_robinhood_testnet_v4_pool_index
 from intent_trade.chains.robinhood_testnet.v4_pool_liquidity import load_robinhood_testnet_v4_pool_liquidity
 from intent_trade.chains.robinhood.shared import (
     ROBINHOOD_TESTNET_CHAIN_ID,
@@ -89,17 +90,52 @@ def _v4_pool_rows(pools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         row["pool_manager_balance1"] = token1_metadata.get("poolManagerBalance")
         row["pool_manager_balance0_raw"] = token0_metadata.get("poolManagerBalanceRaw")
         row["pool_manager_balance1_raw"] = token1_metadata.get("poolManagerBalanceRaw")
-        row["borrowable"] = bool(pool.get("borrowable", True))
+        row["borrowable"] = bool(pool.get("borrowable", False))
         row["lending_borrowable"] = bool(pool.get("lending_borrowable", False))
-        row["flash_borrowable"] = bool(pool.get("flash_borrowable", True))
+        row["flash_borrowable"] = bool(pool.get("flash_borrowable", False))
         row["flash_capable"] = True
         row["flash_borrowable_reason"] = str(
             pool.get("flash_borrowable_reason")
-            or "poolmanager_balance_is_flash_loan_source_pending_eth_call_verification"
+            or "poolkey_is_observation_only_not_flash_borrowable_asset"
         )
-        row["pool_role"] = "v4_poolmanager_flash_accounting_source"
+        row["pool_role"] = "v4_observable_pool_key"
         rows.append(row)
     return rows
+
+
+def _pool_id(pool: dict[str, Any]) -> str:
+    return str(pool.get("poolId") or pool.get("pool_id") or pool.get("id") or "").strip().lower()
+
+
+def _active_pool_ids(liquidity: dict[str, Any]) -> set[str]:
+    return {
+        pool_id
+        for pool in liquidity.get("pools") or []
+        if isinstance(pool, dict)
+        for pool_id in [_pool_id(pool)]
+        if pool_id
+    }
+
+
+def _display_pools(liquidity: dict[str, Any], pool_index: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
+    active_ids = _active_pool_ids(liquidity)
+    indexed_pools = [pool for pool in pool_index.get("pools") or [] if isinstance(pool, dict)]
+    if pool_index.get("ok") and active_ids:
+        matched = [pool for pool in indexed_pools if _pool_id(pool) in active_ids]
+        if matched:
+            return matched, pool_index.get("source")
+    return [pool for pool in liquidity.get("pools") or [] if isinstance(pool, dict)], liquidity.get("source")
+
+
+def _pool_token_addresses(pools: list[dict[str, Any]]) -> set[str]:
+    addresses: set[str] = set()
+    for pool in pools:
+        pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
+        for key in ("token0", "token1", "currency0", "currency1"):
+            value = str(pool.get(key) or pool_key.get(key) or "").strip()
+            if value.startswith("0x") and len(value) == 42 and value.lower() != "0x0000000000000000000000000000000000000000":
+                addresses.add(value.lower())
+    return addresses
 
 
 def robinhood_testnet_flash_protocol_view(
@@ -107,21 +143,44 @@ def robinhood_testnet_flash_protocol_view(
     *,
     empty_protocol_view: Callable[[str], dict[str, Any]],
     pool_liquidity_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_liquidity,
+    pool_index_loader: Callable[[], dict[str, Any]] = load_robinhood_testnet_v4_pool_index,
 ) -> dict[str, Any]:
     """Return the chain-46630 flash-pool view without touching mainnet caches."""
 
     config = _testnet_config()
     liquidity = pool_liquidity_loader()
-    pool_rows = _v4_pool_rows(liquidity.get("pools") or [])
-    flash_source_rows = v4_flash_accounting_source_rows(liquidity, pool_manager=config["pool_manager"])
+    pool_index = pool_index_loader()
+    display_pools, display_pool_source = _display_pools(liquidity, pool_index)
+    pool_rows = _v4_pool_rows(display_pools)
+    decoded_pool_key_count = int((liquidity.get("payload") or {}).get("decodedPoolKeyCount") or 0)
+    token_address_count = int((liquidity.get("payload") or {}).get("tokenAddressCount") or 0)
+    if pool_index.get("ok"):
+        decoded_pool_key_count = sum(
+            1
+            for pool in display_pools
+            if isinstance(pool, dict) and (pool.get("poolKeyDecoded") or pool.get("token0Symbol") or pool.get("token1Symbol"))
+        )
+        token_address_count = max(token_address_count, len(_pool_token_addresses(display_pools)))
+    flash_source_evidence_rows = v4_flash_accounting_source_rows(
+        liquidity,
+        pool_manager=config["pool_manager"],
+        include_ineffective=True,
+    )
+    flash_source_rows = [
+        row
+        for row in flash_source_evidence_rows
+        if row.get("effective_flash_accounting_asset", row.get("effective_flash_asset", True))
+    ]
     has_flash_sources = bool(flash_source_rows)
     executor_supported_flash_rows = [row for row in flash_source_rows if row.get("executor_supported")]
-    stable_rows = [row for row in pool_rows if row.get("is_stable")]
-    non_stable_rows = [row for row in pool_rows if not row.get("is_stable")]
+    stable_pool_key_rows = [row for row in pool_rows if row.get("is_stable")]
+    non_stable_pool_key_rows = [row for row in pool_rows if not row.get("is_stable")]
     stable_flash_source_rows = [row for row in flash_source_rows if row.get("is_stable")]
     non_stable_flash_source_rows = [row for row in flash_source_rows if not row.get("is_stable")]
-    stable_rows.sort(key=lambda item: float(item.get("depth_score_usd") or 0), reverse=True)
-    non_stable_rows.sort(key=lambda item: float(item.get("depth_score_usd") or 0), reverse=True)
+    stable_pool_key_rows.sort(key=lambda item: float(item.get("depth_score_usd") or 0), reverse=True)
+    non_stable_pool_key_rows.sort(key=lambda item: float(item.get("depth_score_usd") or 0), reverse=True)
+    stable_rows = stable_flash_source_rows
+    non_stable_rows = non_stable_flash_source_rows
     view = empty_protocol_view(protocol)
     if has_flash_sources or (pool_rows and liquidity.get("ok")):
         view.pop("status", None)
@@ -155,14 +214,18 @@ def robinhood_testnet_flash_protocol_view(
             ),
             "source": "chains/robinhood-testnet/chain.json",
             "pool_liquidity_source": liquidity.get("source"),
+            "pool_index_source": pool_index.get("source"),
+            "display_pool_source": display_pool_source,
             "schema_version": (liquidity.get("payload") or {}).get("schemaVersion"),
             "block_number": liquidity.get("block_number"),
             "refreshed_at": liquidity.get("refreshed_at"),
             "asset_count": 0,
+            "flash_accounting_evidence_asset_count": len(flash_source_evidence_rows),
             "flash_accounting_asset_count": len(flash_source_rows),
             "executor_supported_flash_accounting_asset_count": len(executor_supported_flash_rows),
             "observable_pool_key_count": len(pool_rows),
             "pool_key_count": len(liquidity.get("pool_keys") or []),
+            "indexed_pool_key_count": len(pool_index.get("pool_keys") or []),
         }
     )
     view["summary"].update(
@@ -170,8 +233,10 @@ def robinhood_testnet_flash_protocol_view(
             "flash_accounting_poolmanager_count": 1 if protocol == "uniswap_v4" and flash_source_rows else 0,
             "v4_pool_key_count": len(liquidity.get("pool_keys") or []),
             "v4_pool_liquidity_pool_count": len(pool_rows),
-            "v4_decoded_pool_key_count": int((liquidity.get("payload") or {}).get("decodedPoolKeyCount") or 0),
-            "v4_token_address_count": int((liquidity.get("payload") or {}).get("tokenAddressCount") or 0),
+            "v4_decoded_pool_key_count": decoded_pool_key_count,
+            "v4_token_address_count": token_address_count,
+            "v4_indexed_pool_key_count": len(pool_index.get("pool_keys") or []),
+            "v4_active_pool_id_count": len(_active_pool_ids(liquidity)),
             "lending_pool_count": 0,
             "aave_pool_count": 0,
             "morpho_pool_count": 0,
@@ -179,8 +244,12 @@ def robinhood_testnet_flash_protocol_view(
             "non_stable_borrow_pool_count": len(non_stable_rows),
             "stable_flash_accounting_source_count": len(stable_flash_source_rows),
             "non_stable_flash_accounting_source_count": len(non_stable_flash_source_rows),
-            "stable_pool_key_count": len(stable_rows),
-            "non_stable_pool_key_count": len(non_stable_rows),
+            "flash_accounting_evidence_asset_count": len(flash_source_evidence_rows),
+            "flash_accounting_excluded_asset_count": len(flash_source_evidence_rows) - len(flash_source_rows),
+            "min_candidate_pool_count": flash_source_evidence_rows[0].get("min_candidate_pool_count") if flash_source_evidence_rows else 5,
+            "min_poolmanager_balance": flash_source_evidence_rows[0].get("min_poolmanager_balance") if flash_source_evidence_rows else 1.0,
+            "stable_pool_key_count": len(stable_pool_key_rows),
+            "non_stable_pool_key_count": len(non_stable_pool_key_rows),
             "observable_pool_key_count": len(pool_rows),
             "borrow_asset_count": len(flash_source_rows),
             "verified_lending_borrow_asset_count": 0,
@@ -197,16 +266,17 @@ def robinhood_testnet_flash_protocol_view(
     view["stable_borrow_pools"] = stable_rows
     view["non_stable_borrow_pools"] = non_stable_rows
     view["v4_pool_key_rows"] = pool_rows
-    view["stable_pool_key_rows"] = stable_rows
-    view["non_stable_pool_key_rows"] = non_stable_rows
+    view["stable_pool_key_rows"] = stable_pool_key_rows
+    view["non_stable_pool_key_rows"] = non_stable_pool_key_rows
     view["v4_flash_accounting_source_rows"] = flash_source_rows
+    view["v4_flash_accounting_evidence_rows"] = flash_source_evidence_rows
     view["stable_v4_flash_source_rows"] = stable_flash_source_rows
     view["non_stable_v4_flash_source_rows"] = non_stable_flash_source_rows
     view["borrow_target_universe"] = None
     view["v4_pool_key_status"] = {
         "observable_pool_key_count": len(pool_rows),
-        "stable_pool_key_count": len(stable_rows),
-        "non_stable_pool_key_count": len(non_stable_rows),
+        "stable_pool_key_count": len(stable_pool_key_rows),
+        "non_stable_pool_key_count": len(non_stable_pool_key_rows),
         "flash_accounting_asset_count": len(flash_source_rows),
         "poolmanager_balance_asset_count": len(flash_source_rows),
         "verified_lending_borrow_asset_count": 0,
@@ -225,6 +295,8 @@ def robinhood_testnet_flash_protocol_view(
         "poolManagerIsConcretePool": False,
         "poolLiquidityCacheAvailable": bool(pool_rows and liquidity.get("ok")),
         "poolLiquiditySource": liquidity.get("source"),
+        "poolIndexSource": pool_index.get("source"),
+        "displayPoolSource": display_pool_source,
         "blockingReasons": list(liquidity.get("blocking_reasons") or []),
     }
     return view

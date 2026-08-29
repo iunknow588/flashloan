@@ -14,6 +14,7 @@
     .toolbar { display: flex; align-items: center; gap: 10px; margin: 18px 0; }
     button { min-height: 32px; border: 1px solid #98a2b3; border-radius: 5px; background: #fff; color: #101828; font-weight: 700; cursor: pointer; }
     button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    button:disabled { opacity: 0.6; cursor: wait; }
     .metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; min-width: 0; }
     .metric, .card { border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; }
     .metric { min-width: 0; padding: 12px; }
@@ -52,7 +53,9 @@
     <h1>闪电贷可用资金池</h1>
     <div class="subtle">展示闪电贷资金来源、V4 PoolManager 余额来源与执行验证状态；普通交易池只作为观察证据。</div>
     <div class="toolbar">
-      <button class="primary" id="refreshBtn">刷新</button>
+      <button id="refreshBtn">读取</button>
+      <button class="primary" id="incrementalRefreshBtn">增量补全</button>
+      <button id="fullRefreshBtn">全量刷新</button>
       <span class="subtle" id="message">等待加载</span>
     </div>
     <div>
@@ -140,7 +143,13 @@
       return text.startsWith("0x") && text.length > 18 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
     };
     const depthBadge = row => `<span class="badge ${esc(row.depth_class || "bad")}">${esc(row.depth_label || "不可用")}</span>`;
+    let refreshInFlight = false;
     const requestedProtocol = () => (new URLSearchParams(location.search).get("protocols") || "aave_v3").split(",")[0].trim().toLowerCase() || "aave_v3";
+    function setRefreshBusy(busy, label) {
+      refreshInFlight = Boolean(busy);
+      ["refreshBtn", "incrementalRefreshBtn", "fullRefreshBtn"].forEach(id => $(id).disabled = refreshInFlight);
+      if (label) $("message").textContent = label;
+    }
     function syncProtocolNav(selectedProtocol) {
       const selected = selectedProtocol || requestedProtocol();
       document.querySelectorAll("[data-flash-loan-protocol-link]").forEach(link => {
@@ -253,8 +262,8 @@
       $("nonStableMetricLabel").textContent = testnetV4Mode ? "非稳定币 PoolManager 余额来源" : (observableMode ? "非稳定币待验证证据" : (flashSwapMode ? "非稳定币可用 Flash Swap" : "非稳定币可用借贷来源"));
       $("borrowMetricLabel").textContent = testnetV4Mode ? "V4 余额来源" : (observableMode ? "已验证闪电贷可用来源" : "闪电贷可借资产");
       $("targetMetricLabel").textContent = testnetV4Mode ? "PoolKey 证据" : (observableMode ? "待验证 Flash 能力证据" : (flashSourceMode ? "已验证来源" : "目标资产"));
-      $("stableCount").textContent = testnetV4Mode ? (summary.stable_flash_accounting_source_count ?? stableRows.length) : (observableMode ? (summary.stable_observable_pool_count ?? stableRows.length) : (summary.stable_borrow_pool_count ?? 0));
-      $("nonStableCount").textContent = testnetV4Mode ? (summary.non_stable_flash_accounting_source_count ?? nonStableRows.length) : (observableMode ? (summary.non_stable_observable_pool_count ?? nonStableRows.length) : (summary.non_stable_borrow_pool_count ?? 0));
+      $("stableCount").textContent = testnetV4Mode ? (summary.stable_borrow_pool_count ?? summary.stable_flash_accounting_source_count ?? stableRows.length) : (observableMode ? (summary.stable_observable_pool_count ?? stableRows.length) : (summary.stable_borrow_pool_count ?? 0));
+      $("nonStableCount").textContent = testnetV4Mode ? (summary.non_stable_borrow_pool_count ?? summary.non_stable_pool_key_count ?? nonStableRows.length) : (observableMode ? (summary.non_stable_observable_pool_count ?? nonStableRows.length) : (summary.non_stable_borrow_pool_count ?? 0));
       $("borrowCount").textContent = testnetV4Mode ? (summary.flash_accounting_asset_count ?? summary.flash_borrowable_asset_count ?? 0) : (summary.borrow_asset_count ?? 0);
       $("targetCount").textContent = testnetV4Mode ? (summary.flash_accounting_poolmanager_count ?? 0) : (observableMode ? (summary.flash_capable_pool_count ?? summary.observable_pool_count ?? stableRows.length + nonStableRows.length) : (summary.borrow_target_count ?? 0));
       $("blockNumber").textContent = cache.block_number || "-";
@@ -264,6 +273,7 @@
         `链 ${cache.chain_id ?? "-"}`,
         `区块 ${cache.block_number || "-"}`,
         `更新 ${fmtTime(cache.refreshed_at)}`,
+        `静态表 ${(view.static_pool_store || {}).exists ? "已保存" : "未保存"}`,
       ].join(" | ");
       const depth = summary.depth_counts || {};
       $("depthSummary").innerHTML = (testnetV4Mode ? [
@@ -286,8 +296,8 @@
       $("stableSectionTitle").textContent = testnetV4Mode ? "V4 稳定币 PoolManager 余额来源" : (observableMode ? "稳定币待验证 DEX 观察证据" : (flashSwapMode ? "稳定币闪电贷可用 Flash Swap 来源" : "稳定币闪电贷可用借贷来源"));
       $("nonStableSectionTitle").textContent = testnetV4Mode ? "V4 非稳定币 PoolManager 余额来源" : (observableMode ? "非稳定币待验证 DEX 观察证据" : (flashSwapMode ? "非稳定币闪电贷可用 Flash Swap 来源" : "非稳定币闪电贷可用借贷来源"));
       $("targetSectionTitle").textContent = testnetV4Mode ? "V4 PoolManager 余额与 PoolKey 验证状态" : (observableMode ? "闪电贷可用性验证状态" : (flashSourceMode ? "闪电贷可借资产与来源" : "闪电贷可借资产与目标资产"));
-      $("stableSectionHint").textContent = testnetV4Mode ? "V4 没有独立闪电贷池；可取资金来自 PoolManager 对该币种的合约余额，最终仍需 eth_call 验证 unlock/take/settle。" : (observableMode ? "来自 Robinhood DEX 池发现证据；仅表示池存在并可观察，不等同于已验证闪电贷可用资金池。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电贷可用来源。") : "来自已接入闪电贷能力的 reserve cache，并按 `is_stable=true` 分类。"));
-      $("nonStableSectionHint").textContent = testnetV4Mode ? "这里是 PoolManager 聚合余额币种，不是单个 PoolKey 的池级储备。" : (observableMode ? "来自 Robinhood DEX 池发现证据；这些池尚未通过闪电贷提供方或 flash 调用验证。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电贷可用来源。") : "来自已接入闪电贷能力的 reserve cache，并按 `is_stable=false` 分类。"));
+      $("stableSectionHint").textContent = testnetV4Mode ? "来自 V4 liquidity 缓存中已扫描到 PoolManager 正余额的稳定币；普通 PoolKey 和 normal probe 不能自动算作资金池。" : (observableMode ? "来自 Robinhood DEX 池发现证据；仅表示池存在并可观察，不等同于已验证闪电贷可用资金池。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电贷可用来源。") : "来自已接入闪电贷能力的 reserve cache，并按 `is_stable=true` 分类。"));
+      $("nonStableSectionHint").textContent = testnetV4Mode ? "来自 V4 liquidity 缓存中已扫描到 PoolManager 正余额的非稳定币；PoolKey 只用于限定待扫描 token universe。" : (observableMode ? "来自 Robinhood DEX 池发现证据；这些池尚未通过闪电贷提供方或 flash 调用验证。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电贷可用来源。") : "来自已接入闪电贷能力的 reserve cache，并按 `is_stable=false` 分类。"));
       $("targetSectionHint").textContent = testnetV4Mode ? "PoolKey 用于证明 V4 交易池存在和关联币种；闪电贷额度上限按 PoolManager 币种余额评估，最终可用性以 eth_call 模拟为准。" : (observableMode ? "DEX 合约具备 flash 接口证据；但当前没有已验证余额/可借额度，因此已验证闪电贷可用来源为 0。" : (flashSourceMode ? "这里展示闪电贷可借资产与对应 flash loan / flash swap 来源；执行广播仍受观察模式开关限制。" : "展示已验证闪电贷可借资产到目标资产的映射。"));
       $("stableSectionCount").textContent = `${stableRows.length} 个${testnetV4Mode ? "余额来源" : (observableMode ? "待验证证据" : "可用来源")}`;
       $("nonStableSectionCount").textContent = `${nonStableRows.length} 个${testnetV4Mode ? "余额来源" : (observableMode ? "待验证证据" : "可用来源")}`;
@@ -307,7 +317,8 @@
         borrow_rows: []
         } : view.borrow_target_universe);
       }
-      $("message").textContent = `已加载 ${view.display_name || "Aave V3"} 闪电贷可用性`;
+      const store = view.static_pool_store || {};
+      $("message").textContent = `已加载 ${view.display_name || "Aave V3"} 闪电贷可用性${store.exists ? `，静态表 ${store.refresh_mode || "cached"}` : ""}`;
     }
     async function refresh() {
       $("message").textContent = "加载中";
@@ -317,7 +328,29 @@
       if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
       render(data);
     }
+    async function refreshStaticPools(full = false) {
+      if (refreshInFlight) return;
+      setRefreshBusy(true, full ? "全量刷新资金池中" : "增量补全资金池中");
+      try {
+        const query = new URLSearchParams(location.search);
+        if (full) query.set("full", "1");
+        const response = await fetch(`/api/flash-loan/pools/refresh?${query.toString()}`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "Accept": "application/json"},
+          body: JSON.stringify({full}),
+          cache: "no-cache",
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.error || data.refresh_state?.message || `HTTP ${response.status}`);
+        render(data);
+        $("message").textContent = data.refresh_state?.message || (full ? "资金池全量刷新完成" : "资金池增量补全完成");
+      } finally {
+        setRefreshBusy(false);
+      }
+    }
     $("refreshBtn").onclick = () => refresh().catch(error => { $("message").textContent = error.message; });
+    $("incrementalRefreshBtn").onclick = () => refreshStaticPools(false).catch(error => { $("message").textContent = error.message; setRefreshBusy(false); });
+    $("fullRefreshBtn").onclick = () => refreshStaticPools(true).catch(error => { $("message").textContent = error.message; setRefreshBusy(false); });
     window.addEventListener("chainselectionchanged", () => refresh().catch(error => { $("message").textContent = error.message; }));
     window.addEventListener("chainselectionprotocolschanged", () => refresh().catch(error => { $("message").textContent = error.message; }));
     refresh().catch(error => { $("message").textContent = error.message; });

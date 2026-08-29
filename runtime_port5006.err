@@ -1,0 +1,9 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5006
+ * Running on http://192.168.1.3:5006
+Press CTRL+C to quit
+127.0.0.1 - - [29/Aug/2026 02:22:11] "GET /api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Aug/2026 02:22:11] "GET /api/dex/quote-routes?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [29/Aug/2026 02:22:11] "GET /api/dex/quote-request?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4&pair=ETH%20->%20AAA%20->%20BBB%20->%20ETH&venue=uniswap_v4&amount=1000 HTTP/1.1" 404 -
+127.0.0.1 - - [29/Aug/2026 02:22:28] "GET /api/dex/quote-request?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4&pair=ETH%20->%20AAA%20->%20BBB%20->%20ETH&venue=uniswap_v4&amount=1000 HTTP/1.1" 404 -

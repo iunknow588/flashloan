@@ -3,17 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+from core.chain_data_registry import default_chain_scope
 from core.chain_selection import ChainSelection, resolve_chain_selection
 from core.market_config import (
-    DEFAULT_AVALANCHE_CHAIN_ID,
-    DEFAULT_AVALANCHE_DEX_MARKET_ID,
-    DEFAULT_AVALANCHE_MARKET_ID,
-    DEFAULT_COW_VIRTUAL_CHAIN_ID,
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
-    DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID,
-    DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID,
-    DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID,
     MARKET_TYPE_EXECUTION_RAIL,
     MARKET_TYPE_SHADOW_CHAIN,
     MARKET_TYPE_NATIVE_CHAIN,
@@ -112,28 +106,14 @@ def resolve_market_page_variant(
     if definition is None:
         return None
     page_key, workflow, feature, template_kind, surface = definition
-    if default_market_id is None:
-        default_market_id = (
-            DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
-            if pathname in {"/", "/bot"}
-            else DEFAULT_ROBINHOOD_DEX_MARKET_ID
-            if template_kind == "robinhood_shadow"
-            else DEFAULT_AVALANCHE_DEX_MARKET_ID
-            if feature == "dex_arbitrage"
-            else DEFAULT_AVALANCHE_MARKET_ID
-        )
-    if default_chain_id is None:
-        default_chain_id = (
-            DEFAULT_ROBINHOOD_CHAIN_ID
-            if default_market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID
-            else DEFAULT_AVALANCHE_CHAIN_ID
-            if default_market_id == DEFAULT_AVALANCHE_DEX_MARKET_ID
-            else DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID
-            if default_market_id == DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID
-            else DEFAULT_COW_VIRTUAL_CHAIN_ID
-            if feature == "dex_arbitrage"
-            else None
-        )
+    if default_market_id is None or default_chain_id is None:
+        if template_kind == "robinhood_shadow":
+            default_market_id = default_market_id or DEFAULT_ROBINHOOD_DEX_MARKET_ID
+            default_chain_id = default_chain_id or DEFAULT_ROBINHOOD_CHAIN_ID
+        else:
+            scope = default_chain_scope(feature)
+            default_market_id = default_market_id or str(scope["market_id"])
+            default_chain_id = default_chain_id or int(scope["chain_id"])
     selection = resolve_chain_selection(
         market_id=market_id,
         chain_id=chain_id,

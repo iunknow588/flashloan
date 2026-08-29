@@ -300,6 +300,22 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "dex_shadow_market_registry",
     },
+    "robinhood-dex-v4-shadow": {
+        "feature": "dex_arbitrage",
+        "display_name": "Robinhood Uniswap V4 Shadow",
+        "network": "robinhood",
+        "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
+        "native_symbol": "ETH",
+        "protocol": "uniswap_v4",
+        "rpc_env_prefixes": ("ROBINHOOD_ALCHEMY", "ROBINHOOD", "ROBINHOOD_MAINNET"),
+        "wrapped_native_address": DEFAULT_ROBINHOOD_WETH_ADDRESS,
+        "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+        "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
+        "observation_only": True,
+        "protocol_supported": False,
+        "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "migration_type": "robinhood_mainnet_v4_ui_prepared_contract_deploy_deferred",
+    },
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID: {
         "feature": "dex_arbitrage",
         "display_name": "Robinhood Testnet Paused Executor",
@@ -683,6 +699,15 @@ def _known_profile(market_id: str) -> dict[str, Any]:
     }
 
 
+def _configured_default_market_id(feature: str) -> str:
+    try:
+        from core.chain_data_registry import default_market_id_for_feature
+
+        return default_market_id_for_feature(feature)
+    except Exception:
+        return ""
+
+
 def market_id_for_chain_id(chain_id: int | None) -> str | None:
     if chain_id is None:
         return None
@@ -773,7 +798,7 @@ def _dex_router_for(profile: dict[str, Any]) -> str:
 def liquidation_market_config() -> ChainMarketConfig:
     raw_chain_id = _first_env("LIQUIDATION_CHAIN_ID", "CHAIN_ID")
     return liquidation_market_config_for(
-        market_id=_env("LIQUIDATION_MARKET_ID") or DEFAULT_AVALANCHE_MARKET_ID,
+        market_id=_env("LIQUIDATION_MARKET_ID") or _configured_default_market_id("liquidation") or DEFAULT_AVALANCHE_MARKET_ID,
         chain_id=_parse_int(raw_chain_id, DEFAULT_AVALANCHE_CHAIN_ID) if raw_chain_id else None,
     )
 
@@ -795,7 +820,7 @@ def liquidation_market_config_for(
         if not resolved_market_id:
             raise ValueError(f"no {resolved_feature} market is registered for chain_id {int(chain_id)}")
     else:
-        resolved_market_id = DEFAULT_AVALANCHE_MARKET_ID
+        resolved_market_id = _configured_default_market_id(resolved_feature) or DEFAULT_AVALANCHE_MARKET_ID
     profile = _known_profile(resolved_market_id)
     profile_chain_value = profile.get("chain_id")
     profile_chain_id = int(
@@ -817,6 +842,7 @@ def liquidation_market_config_for(
     resolved_chain_id = profile_chain_id
     native_symbol = (_env("LIQUIDATION_NATIVE_SYMBOL") or str(profile.get("native_symbol") or "ETH")).upper()
     capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
+    configured_default_market_id = _configured_default_market_id(profile_feature)
     return ChainMarketConfig(
         market_id=resolved_market_id,
         feature=str(profile.get("feature") or resolved_feature or "liquidation"),
@@ -847,20 +873,25 @@ def liquidation_market_config_for(
         explorer_url=str(profile.get("explorer_url") or ""),
         observation_only=bool(profile.get("observation_only")) or not protocol_supported,
         enabled=bool(profile.get("enabled", True)),
-        is_default=bool(profile.get("is_default"))
-        or resolved_market_id == DEFAULT_AVALANCHE_MARKET_ID,
+        is_default=resolved_market_id == configured_default_market_id
+        or (not configured_default_market_id and bool(profile.get("is_default")))
+        or (not configured_default_market_id and resolved_market_id == DEFAULT_AVALANCHE_MARKET_ID),
     )
 
 
 def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
+    default_market_ids: dict[str, str] = {}
     for market_id, profile in KNOWN_EVM_MARKETS.items():
+        feature = str(profile.get("feature") or "liquidation")
+        if feature not in default_market_ids:
+            default_market_ids[feature] = _configured_default_market_id(feature)
         protocol = str(profile["protocol"])
         capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
         summaries.append(
             {
                 "market_id": market_id,
-                "feature": profile.get("feature") or "liquidation",
+                "feature": feature,
                 "display_name": profile.get("display_name") or market_id,
                 "network": profile["network"],
                 "market_type": profile.get("market_type") or MARKET_TYPE_NATIVE_CHAIN,
@@ -870,8 +901,9 @@ def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
                 "protocol_supported": bool(profile.get("protocol_supported", capabilities.get("supported"))),
                 "observation_only": bool(profile.get("observation_only"))
                 or not bool(profile.get("protocol_supported", capabilities.get("supported"))),
-                "is_default": bool(profile.get("is_default"))
-                or market_id == DEFAULT_AVALANCHE_MARKET_ID,
+                "is_default": market_id == default_market_ids.get(feature)
+                or (not default_market_ids.get(feature) and bool(profile.get("is_default")))
+                or (not default_market_ids.get(feature) and market_id == DEFAULT_AVALANCHE_MARKET_ID),
                 "migration_type": profile.get("migration_type") or "config_and_new_executor_deployment",
                 "pool_address": profile.get("pool_address") or "",
             }

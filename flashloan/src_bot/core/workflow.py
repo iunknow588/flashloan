@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from typing import Mapping
 from urllib.parse import parse_qs, urlsplit
 
+from core.chain_data_registry import default_market_id_for_feature
 from core.contracts import ExecutionGate
 from cow_flashloan.network_scope import normalize_cow_networks
 from core.market_config import (
-    DEFAULT_AVALANCHE_DEX_MARKET_ID,
     DEFAULT_COW_DEX_MARKET_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
 )
@@ -133,7 +133,7 @@ def resolve_workflow_context(
     if pathname.startswith("/api/binance-market/cow") and not selected_market_id:
         selected_market_id = DEFAULT_COW_DEX_MARKET_ID
     if page.workflow == WORKFLOW_DEX_ARBITRAGE and not selected_market_id:
-        selected_market_id = DEFAULT_AVALANCHE_DEX_MARKET_ID
+        selected_market_id = default_market_id_for_feature("dex_arbitrage")
     is_cow_execution_rail = (
         page.workflow == WORKFLOW_DEX_ARBITRAGE
         and (not selected_market_id or selected_market_id == DEFAULT_COW_DEX_MARKET_ID)

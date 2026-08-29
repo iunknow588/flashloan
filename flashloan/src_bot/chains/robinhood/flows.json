@@ -11,7 +11,7 @@
   "flows": {
     "flash_loan_pools": {
       "handler": "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view",
-      "allowed_protocols": ["morpho_blue", "uniswap_v2", "uniswap_v3", "aave_v3"],
+      "allowed_protocols": ["morpho_blue", "uniswap_v2", "uniswap_v3", "uniswap_v4", "aave_v3"],
       "data_file_keys": ["flash_liquidity", "dex_discovery"],
       "requires_scope_match": true,
       "testnet_evidence_allowed": false
@@ -20,6 +20,34 @@
       "handler": "intent_trade.chains.robinhood.dex_pool_candidates:dex_pool_candidates_payload",
       "allowed_protocols": ["uniswap_v2", "uniswap_v3", "uniswap_v4"],
       "data_file_keys": ["dex_candidates", "dex_market_pools", "dex_discovery"],
+      "requires_scope_match": true,
+      "testnet_evidence_allowed": false
+    },
+    "market_observation": {
+      "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
+      "allowed_protocols": ["uniswap_v2", "uniswap_v3", "uniswap_v4"],
+      "data_file_keys": ["dex_candidates", "dex_market_pools", "dex_discovery", "market_observation"],
+      "requires_scope_match": true,
+      "testnet_evidence_allowed": false
+    },
+    "dex_overview": {
+      "handler": "intent_trade.chains.robinhood.dex_surfaces:dex_overview_flow",
+      "allowed_protocols": ["uniswap_v2", "uniswap_v3", "uniswap_v4"],
+      "data_file_keys": ["dex_candidates", "dex_market_pools", "dex_discovery", "market_observation"],
+      "requires_scope_match": true,
+      "testnet_evidence_allowed": false
+    },
+    "dex_quote_routes": {
+      "handler": "intent_trade.chains.robinhood.dex_surfaces:dex_quote_routes_flow",
+      "allowed_protocols": ["uniswap_v2", "uniswap_v3", "uniswap_v4"],
+      "data_file_keys": ["dex_candidates", "dex_market_pools", "dex_discovery", "market_observation"],
+      "requires_scope_match": true,
+      "testnet_evidence_allowed": false
+    },
+    "dex_quote_request": {
+      "handler": "intent_trade.chains.robinhood.dex_surfaces:dex_quote_request_flow",
+      "allowed_protocols": ["uniswap_v2", "uniswap_v3", "uniswap_v4"],
+      "data_file_keys": ["dex_candidates", "dex_market_pools", "dex_discovery", "market_observation"],
       "requires_scope_match": true,
       "testnet_evidence_allowed": false
     },

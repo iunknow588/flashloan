@@ -8,32 +8,55 @@
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
     header, main { padding: 18px 24px; }
-    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
-    main { width: min(1420px, 100%); margin: 0 auto; }
+    header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
     h1 { margin: 0; font-size: 20px; }
-    h2 { margin: 0 0 8px; font-size: 16px; }
+    h2 { margin: 0; font-size: 16px; }
     nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
-    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; }
-    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+    button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric, .panel { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .metric { min-height: 88px; }
     .metric small { display: block; color: #667085; margin-bottom: 7px; }
-    .metric strong { display: block; font-size: 18px; }
-    .muted, .metric span { color: #667085; font-size: 13px; }
-    .token-list, .pool-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
-    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
+    .metric strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .metric span, .muted { color: #667085; font-size: 13px; }
+    .note { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 12px 14px; color: #344054; line-height: 1.5; margin-bottom: 16px; }
+    .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+    .list { display: grid; gap: 12px; }
+    .route-card { border: 1px solid #e4e7ec; border-radius: 8px; background: #fbfcfe; padding: 12px; }
+    .route-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+    .route-title { overflow-wrap: anywhere; }
+    .route-subtitle { color: #667085; font-size: 12px; line-height: 1.5; margin-top: 4px; overflow-wrap: anywhere; }
+    .route-pairs { display: grid; gap: 8px; margin-top: 10px; }
+    .pair-line { border: 1px solid #e4e7ec; border-radius: 6px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+    .item { border-top: 1px solid #e4e7ec; padding-top: 10px; margin-top: 10px; }
+    .item:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+    .item strong { display: block; margin-bottom: 5px; overflow-wrap: anywhere; }
+    .meta-line { color: #475467; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+    .chip-row, .pool-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+    .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
     .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
-    .item { border-top: 1px solid #e4e7ec; padding: 10px 0; }
-    .item:first-child { border-top: 0; }
-    .item strong { display: block; margin-bottom: 5px; }
-    @media (max-width: 920px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } }
+    .badge.neutral { background: #eef6f4; color: #0f766e; border: 1px solid #cfe8e3; }
+    .badge.reject { background: #f3f4f6; color: #667085; border: 1px solid #d0d5dd; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cfe8e3; background: #eef6f4; color: #0f766e; border-radius: 999px; padding: 4px 8px; font-size: 12px; font-weight: 700; }
+    .chip small { color: #475467; font-weight: 600; }
+    .empty { padding: 18px 14px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
+    @media (max-width: 860px) {
+      header { display: block; }
+      nav { margin-top: 10px; }
+      .split { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body data-dex-surface-template="observation">
   <header>
-    <h1>市场观察 | DEX</h1>
+    <div>
+      <h1>市场观察 | DEX</h1>
+      <div class="muted" id="headerMeta">候选观察池与闭环路径</div>
+    </div>
     <nav>
       <a data-surface-link href="/dex">报价与路由</a>
       <a data-surface-link href="/dex/overview">DEX 总览</a>
@@ -45,83 +68,559 @@
   <main>
     <div class="toolbar">
       <button id="refreshBtn">刷新观察</button>
+      <button id="incrementalRefreshBtn">增量刷新文件</button>
+      <button id="fullRefreshBtn">全量刷新文件</button>
       <span id="message" class="muted">等待数据</span>
     </div>
+
     <section class="grid">
       <div class="metric"><small>观察锚点</small><strong id="borrowCount">-</strong><span id="borrowNames">-</span></div>
-      <div class="metric"><small>直接闭环池</small><strong id="directCount">-</strong><span>锚点 token 直接进入的池</span></div>
-      <div class="metric"><small>间接路由</small><strong id="indirectCount">-</strong><span>通过中间 token 形成闭环</span></div>
-      <div class="metric"><small>未匹配池</small><strong id="unmatchedCount">-</strong><span>暂不能从可借 token 闭环</span></div>
+      <div class="metric"><small>候选分组</small><strong id="groupCount">-</strong><span id="groupNames">-</span></div>
+      <div class="metric"><small>闭环观察序列</small><strong id="sequenceCount">-</strong><span id="sequenceNames">-</span></div>
+      <div class="metric"><small>资金锚点可接入交易对</small><strong id="associatedPairCount">-</strong><span id="associatedPairNames">-</span></div>
+      <div class="metric"><small>关联观察池</small><strong id="observationPoolCount">-</strong><span id="observationTokenCount">-</span></div>
+      <div class="metric"><small>直接闭环</small><strong id="directCount">-</strong><span>锚点 token 直接回到自身</span></div>
+      <div class="metric"><small>桥接闭环</small><strong id="bridgeCount">-</strong><span>通过中间 token 回到锚点</span></div>
+      <div class="metric"><small>未匹配池</small><strong id="unmatchedCount">-</strong><span>暂不能进入闭环观察</span></div>
     </section>
-    <section class="split">
+
+    <section class="note" id="scopeNotice">
+      本页按候选代币分组展示观察序列，合并显示直接闭环、桥接闭环与全部闭环路径。页面只负责候选结构与观察结果，不负责最终报价、盈亏或执行决策。
+    </section>
+
+    <section class="panel" style="margin-bottom:14px">
+      <div class="route-head">
+        <div>
+          <h2>资金锚点可接入交易对</h2>
+          <div class="route-subtitle">Robinhood Testnet V4 专用：从直接 Y-Z 交易对出发，筛选能被可借资金 X 接入并形成 X -> Y -> Z -> X 的观察交易对。</div>
+        </div>
+      </div>
+      <div id="associatedPairList" class="list"></div>
+    </section>
+
+    <section class="panel" style="margin-bottom:14px">
+      <div class="route-head">
+        <div>
+          <h2>候选代币分组</h2>
+          <div class="route-subtitle">每个候选代币对应一组 YC / ZC 集合，以及它映射出的观察组合。</div>
+        </div>
+      </div>
+      <div id="candidateGroupList" class="list"></div>
+    </section>
+
+    <section class="panel" style="margin-bottom:14px">
+      <div class="route-head">
+        <div>
+          <h2>闭环观察序列</h2>
+          <div class="route-subtitle">按候选锚点代币与候选池展开的可观察闭环序列。</div>
+        </div>
+      </div>
+      <div id="sequenceList" class="list"></div>
+    </section>
+
+    <section class="panel" style="margin-bottom:14px">
+      <div class="route-head">
+        <div>
+          <h2>关联观察池</h2>
+          <div class="route-subtitle">Robinhood Testnet V4 专用：Y-Z 直接交易对只要能关联可借资金锚点，就进入观察池检测集合。</div>
+        </div>
+      </div>
+      <div id="associatedObservationPoolList" class="list"></div>
+    </section>
+
+    <section class="split" style="margin-bottom:14px">
       <div class="panel">
-      <h2>可直接闭环观察的池子</h2>
-        <div id="directList"></div>
+        <div class="route-head">
+          <div>
+            <h2>直接闭环候选</h2>
+            <div class="route-subtitle">单个候选池即可形成闭环的路径。</div>
+          </div>
+        </div>
+        <div id="directList" class="list"></div>
       </div>
       <div class="panel">
-      <h2>可间接闭环观察的路径</h2>
-        <div id="indirectList"></div>
+        <div class="route-head">
+          <div>
+            <h2>桥接闭环候选</h2>
+            <div class="route-subtitle">需要两个或三个候选池串联形成闭环的路径。</div>
+          </div>
+        </div>
+        <div id="indirectList" class="list"></div>
       </div>
     </section>
-    <section class="panel" style="margin-top:14px">
-      <h2>暂未进入闭环观察的池子</h2>
-      <div id="unmatchedList"></div>
+
+    <section class="panel" style="margin-bottom:14px">
+      <div class="route-head">
+        <div>
+          <h2>全部闭环路径</h2>
+          <div class="route-subtitle">将直接闭环与桥接闭环合并展示，便于整体查看。</div>
+        </div>
+      </div>
+      <div id="closedLoopList" class="list"></div>
+    </section>
+
+    <section class="panel">
+      <div class="route-head">
+        <div>
+          <h2>未匹配候选池</h2>
+          <div class="route-subtitle">当前筛选条件下暂未进入闭环观察的候选池。</div>
+        </div>
+      </div>
+      <div id="unmatchedList" class="list"></div>
     </section>
   </main>
+
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const list = value => Array.isArray(value) ? value : [];
+    const OBSERVATION_POOL_PREVIEW_LIMIT = 80;
+    const shortAddress = value => {
+      const text = String(value || "").trim();
+      return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
+    };
+    const compactText = (value, max = 42) => {
+      const text = String(value || "-").trim();
+      return text.length > max ? `${text.slice(0, max)}...` : text;
+    };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
-      return url.pathname + (url.search ? url.search : "");
+      return url.pathname + (url.search || "");
     };
+
     async function fetchJson(path) {
-      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
+      const response = await fetch(apiPath(path), { cache: "no-cache", headers: { "Accept": "application/json" } });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       return data;
     }
-    function directHtml(row) {
-      const matched = row.matchedObservationSymbols || row.matchedBorrowSymbols || [];
-      return `<div class="item">
-        <strong>${esc(row.symbolPair)}</strong>
+
+    async function postJson(path) {
+      const response = await fetch(apiPath(path), { method: "POST", cache: "no-cache", headers: { "Accept": "application/json" } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.refresh_state?.message || `HTTP ${response.status}`);
+      return data;
+    }
+
+    function routeBadge(kind) {
+      const value = String(kind || "").toLowerCase();
+      if (value === "direct_closed_pair") return '<span class="badge good">直接闭环</span>';
+      if (value === "bridge_closed_loop") return '<span class="badge warn">桥接闭环</span>';
+      return '<span class="badge neutral">闭环</span>';
+    }
+
+    function pairHtml(pair) {
+      const pools = list(pair?.pools);
+      const firstPool = pools[0] || {};
+      return `<div class="pair-line">
+        <div><strong>${esc(pair?.symbolPair || "-")}</strong> <span class="muted">${esc(pair?.classification?.pairClassLabel || pair?.classification?.pairClass || "-")}</span></div>
+        <div class="meta-line">池子数：${esc(pair?.poolCount || pools.length || 0)} | 协议：${esc(pair?.protocol || firstPool.protocol || firstPool.dex || "-")} | 费率：${esc(firstPool.fee ?? pair?.fee ?? "-")}</div>
         <div class="pool-list">
-          <span class="badge">观察锚点 ${esc(matched.join(", "))}</span>
-          <span class="badge">交易 ${esc((row.tradeSymbols || []).join(" / "))}</span>
-          <span class="badge">池子 ${esc(row.poolCount)}</span>
-          <span class="badge">${esc(row.classification?.pairClassLabel || row.classification?.pairClass || "-")}</span>
+          ${pools.slice(0, 3).map(pool => `<span class="badge neutral" title="${esc(pool.pool || "-")}">${esc(shortAddress(pool.pool))}</span>`).join("")}
         </div>
       </div>`;
     }
-    function indirectHtml(row) {
-      return `<div class="item">
-        <strong>${esc(row.pathText || `${row.borrowSymbol} -> ${row.bridgeSymbol} -> ${row.targetSymbol || "target"} -> ${row.borrowSymbol}`)}</strong>
-        <div class="muted">第一跳池 ${esc(row.firstLegCount)} 个，第二跳候选 ${esc(row.secondLegCount)} 个</div>
-        <div class="pool-list">${(row.secondLegPairs || []).map(pair => `<span class="badge warn">${esc(pair.symbolPair)}</span>`).join("")}</div>
+
+    function sequenceHtml(row) {
+      const routePools = list(row?.routePools);
+      return `<div class="route-card">
+        <div class="route-head">
+          <div class="route-title">
+            <strong>${esc(row?.pathText || `${row?.anchorSymbol || "-"} -> ${row?.counterSymbol || "-"} -> ${row?.anchorSymbol || "-"}`)}</strong>
+            <div class="route-subtitle">锚点 ${esc(row?.anchorSymbol || "-")} · 候选 ${esc(row?.counterSymbol || "-")} · 池子 ${esc(row?.pool || "-")}</div>
+          </div>
+          <div class="chip-row">
+            <span class="chip">${esc(row?.candidatePoolCount || 0)}<small>候选池</small></span>
+            <span class="chip">${esc(row?.matchedPoolCount || 0)}<small>命中池</small></span>
+            <span class="chip">${esc(row?.ycPoolCount || 0)}<small>YC</small></span>
+            <span class="chip">${esc(row?.zcPoolCount || 0)}<small>ZC</small></span>
+          </div>
+        </div>
+        <div class="pool-list">
+          ${list(row?.anchorAddresses).map(addr => `<span class="badge neutral">${esc(shortAddress(addr))}</span>`).join("")}
+        </div>
+        <div class="route-pairs">
+          ${routePools.length ? routePools.map(pool => `<div class="pair-line">${esc(pool.direction || "-")} · ${esc(pool.routeText || "-")} · ${esc(shortAddress(pool.pool || "-"))}</div>`).join("") : '<div class="empty">暂无可展示的路径池。</div>'}
+        </div>
       </div>`;
     }
-    function unmatchedHtml(row) {
-      return `<span class="badge warn">${esc(row.symbolPair)} (${esc((row.tradeSymbols || []).join(" / "))})</span>`;
+
+    function routeHtml(route) {
+      const routePairs = list(route?.routePairs);
+      const pathSymbols = list(route?.pathSymbols);
+      const candidatePairs = list(route?.overviewRoute?.candidatePairSymbols);
+      return `<div class="route-card">
+        <div class="route-head">
+          <div class="route-title">
+            <strong>${esc(route?.pathText || pathSymbols.join(" -> ") || "-")}</strong>
+            <div class="route-subtitle">${esc(route?.borrowSymbol || "-")} · ${esc(route?.bridgeSymbol || route?.targetSymbol || "-")} · ${esc(route?.kind || "-")}</div>
+          </div>
+          <div class="chip-row">
+            ${routeBadge(route?.kind)}
+            <span class="chip">${esc(route?.firstLegCount || 0)}<small>首跳</small></span>
+            <span class="chip">${esc(route?.secondLegCount || 0)}<small>末跳</small></span>
+            <span class="chip">${esc(routePairs.length)}<small>路径池</small></span>
+          </div>
+        </div>
+        <div class="pool-list">
+          ${(candidatePairs.length ? candidatePairs : pathSymbols).map(symbol => `<span class="badge neutral">${esc(symbol)}</span>`).join("")}
+        </div>
+        <div class="route-pairs">
+          ${routePairs.length ? routePairs.map(pairHtml).join("") : '<div class="empty">暂无候选池明细。</div>'}
+        </div>
+      </div>`;
     }
+
+    function unmatchedHtml(row) {
+      return `<span class="badge warn" title="${esc((row?.tradeSymbols || []).join(" / "))}">${esc(row?.symbolPair || "-")}</span>`;
+    }
+
+    function fundListHtml(rows) {
+      return list(rows).map(row => `<span class="badge neutral" title="${esc(row?.address || "-")}">${esc(row?.symbol || "-")}</span>`).join("") || '<span class="badge neutral">-</span>';
+    }
+
+    function associatedPairsFromPools(pools) {
+      const grouped = new Map();
+      list(pools).forEach(pool => {
+        const key = pool?.addressPair || [pool?.token0, pool?.token1].filter(Boolean).sort().join(":") || pool?.symbolPair || pool?.pool;
+        if (!key) return;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            symbolPair: pool?.symbolPair || "-",
+            addressPair: key,
+            token0: { symbol: pool?.token0Symbol, address: pool?.token0, associatedFunds: pool?.token0AssociatedFunds },
+            token1: { symbol: pool?.token1Symbol, address: pool?.token1, associatedFunds: pool?.token1AssociatedFunds },
+            associatedFundSymbols: [],
+            poolCount: 0,
+            pools: [],
+            closedLoopReady: false,
+            observationReason: pool?.observationReason,
+          });
+        }
+        const row = grouped.get(key);
+        row.poolCount += 1;
+        row.closedLoopReady = row.closedLoopReady || Boolean(pool?.closedLoopReady);
+        row.associatedFundSymbols = Array.from(new Set([...row.associatedFundSymbols, ...list(pool?.associatedFundSymbols)])).sort();
+        row.pools.push(pool);
+      });
+      return Array.from(grouped.values()).sort((left, right) => {
+        if (Boolean(left.closedLoopReady) !== Boolean(right.closedLoopReady)) return left.closedLoopReady ? -1 : 1;
+        return String(left.symbolPair || "").localeCompare(String(right.symbolPair || ""));
+      });
+    }
+
+    function reasonText(reason) {
+      const value = String(reason || "");
+      if (
+        value === "pair_tokens_are_associated_with_flash_fund_assets"
+        || value === "both_non_fund_pair_tokens_are_associated_with_flash_fund_assets"
+        || value === "both_non_eth_pair_tokens_are_associated_with_flash_fund_assets"
+      ) {
+        return "存在直接 Y-Z 池，并可接入资金锚点 X";
+      }
+      if (value === "associated observation pair") return "关联观察交易对";
+      return value || "关联观察交易对";
+    }
+
+    function routePreviewsForAssociatedPair(row, sequences) {
+      const addressPair = String(row?.addressPair || "").toLowerCase();
+      const symbolPair = String(row?.symbolPair || "").toUpperCase();
+      const poolIds = new Set(list(row?.pools).map(pool => String(pool?.pool || pool?.poolId || "").toLowerCase()).filter(Boolean));
+      const previews = [];
+      list(sequences).forEach(sequence => {
+        const bridge = list(sequence?.routePools).find(step => String(step?.direction || "").toLowerCase() === "bridge") || sequence?.bridgePool || {};
+        const bridgeAddressPair = String(bridge?.pairAddress || "").toLowerCase();
+        const bridgeSymbolPair = String(bridge?.pairSymbol || bridge?.symbolPair || "").toUpperCase();
+        const bridgePool = String(bridge?.pool || bridge?.poolId || "").toLowerCase();
+        const matched = (addressPair && bridgeAddressPair === addressPair)
+          || (symbolPair && bridgeSymbolPair === symbolPair)
+          || (bridgePool && poolIds.has(bridgePool));
+        if (matched && sequence?.pathText && !previews.includes(sequence.pathText)) previews.push(sequence.pathText);
+      });
+      return previews;
+    }
+
+    function routeEvidenceForAssociatedPair(row, sequences) {
+      const backendEvidence = list(row?.routeEvidence);
+      if (backendEvidence.length) return backendEvidence;
+      const addressPair = String(row?.addressPair || "").toLowerCase();
+      const poolIds = new Set(list(row?.directSwapPools || row?.pools).map(pool => String(pool?.pool || pool?.poolId || "").toLowerCase()).filter(Boolean));
+      const evidence = [];
+      list(sequences).forEach(sequence => {
+        const routePools = list(sequence?.routePools);
+        const bridge = routePools.find(step => String(step?.direction || "").toLowerCase() === "bridge") || sequence?.bridgePool || {};
+        const bridgeAddressPair = String(bridge?.pairAddress || "").toLowerCase();
+        const bridgePool = String(bridge?.pool || bridge?.poolId || "").toLowerCase();
+        const matched = (addressPair && bridgeAddressPair === addressPair) || (bridgePool && poolIds.has(bridgePool));
+        if (matched) evidence.push({ ...sequence, routePools });
+      });
+      return evidence;
+    }
+
+    function routeStepHtml(step) {
+      const direction = String(step?.direction || "").toLowerCase();
+      const label = direction === "yc"
+        ? "X-Y 入口池"
+        : direction === "bridge"
+          ? "Y-Z 直接兑换池"
+          : direction === "zc"
+            ? "Z-X 出口池"
+            : "路径池";
+      return `<div class="pair-line">
+        <strong>${esc(label)}</strong>
+        <div class="meta-line">${esc(step?.routeText || "-")} | ${esc(shortAddress(step?.pool || step?.poolId || "-"))} | fee ${esc(step?.fee ?? "-")}</div>
+      </div>`;
+    }
+
+    function routeEvidenceHtml(rows) {
+      const evidence = list(rows);
+      if (!evidence.length) return '<div class="empty">暂无完整 X -> Y -> Z -> X 路径证据。</div>';
+      return evidence.slice(0, 4).map(route => {
+        const routePools = list(route?.routePools);
+        return `<div class="pair-line">
+          <strong>${esc(route?.pathText || "-")}</strong>
+          <div class="route-pairs">
+            ${routePools.length ? routePools.map(routeStepHtml).join("") : '<div class="empty">暂无三段池子明细。</div>'}
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    function associatedPairHtml(row) {
+      const pools = list(row?.pools);
+      const directSwapPools = list(row?.directSwapPools).length ? list(row?.directSwapPools) : pools;
+      const token0Funds = list(row?.token0?.associatedFunds || row?.token0AssociatedFunds);
+      const token1Funds = list(row?.token1?.associatedFunds || row?.token1AssociatedFunds);
+      const readyText = row?.closedLoopReady ? "可形成闭环" : "仅观察";
+      const fundSymbols = list(row?.associatedFundSymbols);
+      const routeEvidence = list(row?.routeEvidence);
+      const routePreviews = list(row?.closedLoopRoutePreviews || row?.routePreviews);
+      return `<div class="route-card">
+        <div class="route-head">
+          <div class="route-title">
+            <strong>Y-Z 交易对：${esc(row?.symbolPair || "-")}</strong>
+            <div class="route-subtitle">${esc(row?.addressPair || "-")} · ${esc(reasonText(row?.observationReason))} · 路径语义 X -> Y -> Z -> X</div>
+          </div>
+          <div class="chip-row">
+            <span class="chip">${esc(row?.directSwapPoolCount || directSwapPools.length || 0)}<small>直接 Y-Z 池</small></span>
+            <span class="chip">${esc(fundSymbols.join(", ") || "-")}<small>可借资金锚点 X</small></span>
+            <span class="chip">${esc(readyText)}<small>状态</small></span>
+          </div>
+        </div>
+        <div class="route-pairs">
+          <div class="pair-line">
+            <strong>可测试闭环</strong>
+            <div class="meta-line">${routePreviews.length ? routePreviews.map(esc).join(" · ") : "暂无完整 X -> Y -> Z -> X 路径"}</div>
+          </div>
+          <div class="pair-line">
+            <strong>三段池子证据</strong>
+            <div class="route-pairs">${routeEvidenceHtml(routeEvidence)}</div>
+          </div>
+          <div class="pair-line">
+            <strong>入口/出口锚点</strong>
+            <div class="meta-line">Y=${esc(row?.token0?.symbol || "-")} 关联 ${fundListHtml(token0Funds)}；Z=${esc(row?.token1?.symbol || "-")} 关联 ${fundListHtml(token1Funds)}。闭环要求同一个可借资金 X 能完成入口和出口。</div>
+          </div>
+          <div class="pair-line">
+            <strong>Y-Z 直接兑换池</strong>
+            <div class="pool-list">
+              ${directSwapPools.slice(0, 8).map(pool => `<span class="badge neutral" title="${esc(pool?.pool || pool?.poolId || "-")}">${esc(shortAddress(pool?.pool || pool?.poolId || "-"))} / ${esc(pool?.fee ?? "-")}</span>`).join("") || '<span class="badge neutral">-</span>'}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function observationPoolHtml(row) {
+      const token0Funds = list(row?.token0AssociatedFunds);
+      const token1Funds = list(row?.token1AssociatedFunds);
+      const symbolPair = row?.symbolPair || [row?.token0Symbol, row?.token1Symbol].filter(Boolean).join(":") || "-";
+      return `<div class="route-card">
+        <div class="route-head">
+          <div class="route-title">
+            <strong>${esc(symbolPair)}</strong>
+            <div class="route-subtitle">${esc(shortAddress(row?.pool || "-"))} · ${esc(row?.observationReason || "associated observation pool")}</div>
+          </div>
+          <div class="chip-row">
+            <span class="chip">${esc(row?.associatedFundSymbols?.length || 0)}<small>资金关联</small></span>
+            <span class="chip">${esc(row?.closedLoopReady ? "ready" : "observe")}<small>状态</small></span>
+          </div>
+        </div>
+        <div class="route-pairs">
+          <div class="pair-line"><strong>${esc(row?.token0Symbol || "-")}</strong><div class="pool-list">${fundListHtml(token0Funds)}</div></div>
+          <div class="pair-line"><strong>${esc(row?.token1Symbol || "-")}</strong><div class="pool-list">${fundListHtml(token1Funds)}</div></div>
+        </div>
+      </div>`;
+    }
+
+    function tokenListHtml(tokens, emptyText) {
+      const rows = list(tokens);
+      if (!rows.length) return `<div class="empty">${esc(emptyText)}</div>`;
+      return rows.slice(0, 8).map(token => {
+        const pools = list(token?.pools);
+        const title = [token?.symbol, token?.address].filter(Boolean).join(" / ") || "-";
+        return `<span class="badge neutral" title="${esc(title)}">${esc(token?.symbol || "-")} ${esc(token?.poolCount || pools.length || 0)}</span>`;
+      }).join("");
+    }
+
+    function groupTokens(group, direction) {
+      const tokens = list(group?.[`${direction}Tokens`]);
+      if (tokens.length || group?.[`${direction}TokensRef`] !== "sharedTokens") return tokens;
+      return list(group?.sharedTokens);
+    }
+
+    function groupHtml(group) {
+      const ycTokens = groupTokens(group, "yc");
+      const zcTokens = groupTokens(group, "zc");
+      const observationSequences = list(group?.observationSequences);
+      const directRoutes = list(group?.directClosedLoopRoutes);
+      const bridgeRoutes = list(group?.bridgeClosedLoopRoutes);
+      const closedRoutes = list(group?.closedLoopRoutes);
+      const anchorAddresses = list(group?.anchorAddresses);
+      const sequencePreview = observationSequences.slice(0, 6).map(seq => compactText(seq?.pathText || seq?.pool || "-")).join(" · ");
+      const state = group?.observationState || {};
+      const stateText = state.reachable
+        ? `已找到 ${observationSequences.length} 个 YC/ZC 可达小组`
+        : (group?.observationEmptyReason || state.reason || "YC 与 ZC 之间暂无可达 Y-Z 交易对池");
+      return `<div class="route-card">
+        <div class="route-head">
+          <div class="route-title">
+            <strong>${esc(group?.anchorSymbol || "-")}</strong>
+            <div class="route-subtitle">YC / ZC 集合与映射观察组合</div>
+          </div>
+          <div class="chip-row">
+            <span class="chip">${esc(group?.candidatePoolCount || 0)}<small>候选池</small></span>
+            <span class="chip">${esc(group?.ycPoolCount || 0)}<small>YC</small></span>
+            <span class="chip">${esc(group?.zcPoolCount || 0)}<small>ZC</small></span>
+            <span class="chip">${esc(group?.observationSequenceCount || 0)}<small>组合</small></span>
+          </div>
+        </div>
+        <div class="pool-list">
+          ${anchorAddresses.length ? anchorAddresses.map(addr => `<span class="badge neutral">${esc(shortAddress(addr))}</span>`).join("") : '<span class="badge neutral">-</span>'}
+        </div>
+        <div class="route-pairs">
+          <div class="pair-line">
+            <strong>YC</strong>
+            <div class="pool-list">${tokenListHtml(ycTokens, "暂无 YC 代币")}</div>
+          </div>
+          <div class="pair-line">
+            <strong>ZC</strong>
+            <div class="pool-list">${tokenListHtml(zcTokens, "暂无 ZC 代币")}</div>
+          </div>
+          <div class="pair-line">
+            <strong>观察组合</strong>
+            <div class="meta-line">${sequencePreview || "暂无观察组合"}</div>
+          </div>
+          <div class="pair-line">
+            <strong>观察状态</strong>
+            <div class="meta-line">${esc(stateText)}</div>
+          </div>
+          <div class="pair-line">
+            <strong>闭环统计</strong>
+            <div class="meta-line">直接 ${esc(directRoutes.length || 0)} / 桥接 ${esc(bridgeRoutes.length || 0)} / 全部 ${esc(closedRoutes.length || 0)}</div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function firstNonEmptyList(...lists) {
+      for (const items of lists) {
+        if (Array.isArray(items) && items.length > 0) return items;
+      }
+      return [];
+    }
+
     async function refresh() {
-      $("message").textContent = "正在加载市场观察...";
+      $("message").textContent = "正在加载";
       try {
-        const data = await fetchJson("/api/dex/market-observation");
+        const query = new URLSearchParams(window.location.search);
+        if (!query.get("feature")) query.set("feature", "dex_arbitrage");
+        const data = await fetchJson(`/api/dex/market-observation?${query.toString()}`);
+        const directClosedRoutes = list(data.directClosedLoopRoutes);
+        const closedLoopRoutes = list(data.closedLoopRoutes);
+        const bridgeRoutes = closedLoopRoutes.filter(route => String(route?.kind || "").toLowerCase() === "bridge_closed_loop");
+        const fallbackBridgeRoutes = firstNonEmptyList(list(data.indirectRoutes).filter(route => String(route?.kind || "").toLowerCase() === "bridge_closed_loop"));
+        const effectiveBridgeRoutes = bridgeRoutes.length ? bridgeRoutes : fallbackBridgeRoutes;
+        const candidateGroups = list(data.candidateObservationGroups).sort((left, right) => {
+          const leftScore = Number(left?.observationSequenceCount || 0) + Number(left?.closedLoopRouteCount || 0);
+          const rightScore = Number(right?.observationSequenceCount || 0) + Number(right?.closedLoopRouteCount || 0);
+          if (leftScore !== rightScore) return rightScore - leftScore;
+          return String(left?.anchorSymbol || "").localeCompare(String(right?.anchorSymbol || ""));
+        });
+        const chainSpecific = data.chainSpecificObservation?.robinhoodTestnetV4FundAnchorPairObservation || data.chainSpecificObservation?.robinhoodTestnetV4NonEthPairFirst || {};
+        const associatedObservationPairs = list(data.chainSpecificObservationPairs || chainSpecific.associatedObservationPairs);
+        const associatedObservationPools = list(data.chainSpecificObservationPools || chainSpecific.associatedObservationPools);
+        const effectiveAssociatedPairs = associatedObservationPairs.length ? associatedObservationPairs : associatedPairsFromPools(associatedObservationPools);
+        effectiveAssociatedPairs.forEach(pair => {
+          pair.routePreviews = routePreviewsForAssociatedPair(pair, data.observationSequences);
+          pair.routeEvidence = routeEvidenceForAssociatedPair(pair, data.observationSequences);
+        });
+        const associatedObservationTokens = list(data.chainSpecificObservationTokens || chainSpecific.associatedObservationTokens);
+
+        const staticTable = data.marketObservationStaticTable || {};
+        $("headerMeta").textContent = `链路 ${data.chain_id ?? "-"} · 协议 ${list(data.selected_protocols).join(", ") || "-"} · 静态文件 ${staticTable.exists ? "已生成" : "未生成"}`;
         $("borrowCount").textContent = data.summary?.observationAnchorCount ?? data.summary?.borrowableTokenCount ?? 0;
-        $("borrowNames").textContent = (data.observationAnchorSymbols || data.borrowableSymbols || []).join(", ") || "-";
-        $("directCount").textContent = data.summary?.directPairCount ?? 0;
-        $("indirectCount").textContent = data.summary?.indirectRouteCount ?? 0;
+        $("borrowNames").textContent = list(data.observationAnchorSymbols || data.borrowableSymbols).join(", ") || "-";
+        $("groupCount").textContent = data.summary?.candidateObservationGroupCount ?? candidateGroups.length ?? 0;
+        $("groupNames").textContent = candidateGroups.slice(0, 4).map(item => item?.anchorSymbol || "-").join(", ") || "-";
+        $("sequenceCount").textContent = data.summary?.candidateObservationSequenceCount ?? data.summary?.observationSequenceCount ?? list(data.observationSequences).length ?? 0;
+        $("sequenceNames").textContent = candidateGroups.slice(0, 4).map(item => `${item?.anchorSymbol || "-"}:${item?.observationSequenceCount || 0}`).join(", ") || "-";
+        $("associatedPairCount").textContent = data.summary?.fundAnchorPairObservationAssociatedPairCount ?? data.summary?.nonEthPairFirstAssociatedPairCount ?? effectiveAssociatedPairs.length ?? 0;
+        $("associatedPairNames").textContent = effectiveAssociatedPairs.slice(0, 4).map(item => item?.symbolPair || "-").join(", ") || "-";
+        $("observationPoolCount").textContent = data.summary?.fundAnchorPairObservationAssociatedObservationPoolCount ?? data.summary?.nonEthPairFirstAssociatedObservationPoolCount ?? associatedObservationPools.length ?? 0;
+        $("observationTokenCount").textContent = `关联 token ${data.summary?.fundAnchorPairObservationAssociatedObservationTokenCount ?? data.summary?.nonEthPairFirstAssociatedObservationTokenCount ?? associatedObservationTokens.length ?? 0}`;
+        $("directCount").textContent = data.summary?.directClosedLoopCount ?? directClosedRoutes.length ?? 0;
+        $("bridgeCount").textContent = data.summary?.indirectRouteCount ?? effectiveBridgeRoutes.length ?? 0;
         $("unmatchedCount").textContent = data.summary?.unmatchedPairCount ?? 0;
-        $("directList").innerHTML = (data.directPools || []).map(directHtml).join("") || '<div class="muted">当前选择下没有可借 token 直接交易池。</div>';
-        $("indirectList").innerHTML = (data.indirectRoutes || data.closedLoopRoutes || []).map(indirectHtml).join("") || '<div class="muted">当前选择下没有可借 token 的闭环路径。</div>';
-        $("unmatchedList").innerHTML = (data.unmatchedPools || []).map(unmatchedHtml).join("") || '<div class="muted">没有未匹配池子。</div>';
+
+        $("associatedPairList").innerHTML = effectiveAssociatedPairs.map(associatedPairHtml).join("") || '<div class="empty">当前选择下没有资金锚点可接入交易对。</div>';
+        $("candidateGroupList").innerHTML = candidateGroups.map(groupHtml).join("") || '<div class="empty">当前选择下没有按候选代币分类的观察分组。</div>';
+        $("sequenceList").innerHTML = list(data.observationSequences).map(sequenceHtml).join("") || '<div class="empty">当前选择下没有闭环观察序列。</div>';
+        const preview = data.marketObservationPreview || {};
+        const totalObservationPools = Number(preview.chainSpecificObservationPoolsTotal || data.marketObservationStaticTable?.list_counts?.chainSpecificObservationPools || associatedObservationPools.length || 0);
+        const poolPreview = associatedObservationPools.slice(0, OBSERVATION_POOL_PREVIEW_LIMIT).map(observationPoolHtml).join("");
+        const poolPreviewNotice = totalObservationPools > associatedObservationPools.length
+          ? `<div class="empty">已生成 ${esc(totalObservationPools)} 个关联观察池，页面仅预览前 ${esc(associatedObservationPools.length)} 个；全量数据保存在市场观察静态文件中。</div>`
+          : "";
+        $("associatedObservationPoolList").innerHTML = poolPreview + poolPreviewNotice || '<div class="empty">当前选择下没有关联观察池。</div>';
+        $("directList").innerHTML = directClosedRoutes.map(routeHtml).join("") || '<div class="empty">当前选择下没有直接闭环候选。</div>';
+        $("indirectList").innerHTML = effectiveBridgeRoutes.map(routeHtml).join("") || '<div class="empty">当前选择下没有桥接闭环候选。</div>';
+        $("closedLoopList").innerHTML = closedLoopRoutes.map(routeHtml).join("") || '<div class="empty">当前选择下没有闭环路径。</div>';
+        $("unmatchedList").innerHTML = list(data.unmatchedPools).map(unmatchedHtml).join("") || '<div class="empty">没有未匹配候选池。</div>';
+
         $("message").textContent = "已更新";
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = error.message || "加载失败";
       }
     }
+
     $("refreshBtn").onclick = refresh;
+    $("incrementalRefreshBtn").onclick = async () => {
+      $("message").textContent = "正在增量刷新市场观察文件";
+      const query = new URLSearchParams(window.location.search);
+      if (!query.get("feature")) query.set("feature", "dex_arbitrage");
+      query.set("full", "0");
+      try {
+        const data = await postJson(`/api/dex/market-observation/refresh?${query.toString()}`);
+        await refresh();
+        $("message").textContent = `${data.refresh_state?.message || "增量刷新完成"} · ${data.marketObservationStaticTable?.path || "-"}`;
+      } catch (error) {
+        $("message").textContent = error.message || "增量刷新失败";
+      }
+    };
+    $("fullRefreshBtn").onclick = async () => {
+      $("message").textContent = "正在全量刷新市场观察文件";
+      const query = new URLSearchParams(window.location.search);
+      if (!query.get("feature")) query.set("feature", "dex_arbitrage");
+      query.set("full", "1");
+      try {
+        const data = await postJson(`/api/dex/market-observation/refresh?${query.toString()}`);
+        await refresh();
+        $("message").textContent = `${data.refresh_state?.message || "全量刷新完成"} · ${data.marketObservationStaticTable?.path || "-"}`;
+      } catch (error) {
+        $("message").textContent = error.message || "全量刷新失败";
+      }
+    };
     window.addEventListener("chainselectionchanged", event => {
       if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
     });

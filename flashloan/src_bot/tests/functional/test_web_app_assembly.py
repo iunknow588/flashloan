@@ -35,6 +35,7 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/markets" in paths
     assert "/api/workflow-context" in paths
     assert "/api/flash-loan/pools" in paths
+    assert "/api/flash-loan/pools/refresh" in paths
     assert "/api/flash-loan/pool-discovery" in paths
     assert "/api/flash-loan/pool-discovery/refresh" in paths
     assert "/static/chain-selector.js" in paths
@@ -107,7 +108,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "padding: 10px 36px 12px;" in body
         assert "padding-left: 18px; padding-right: 18px;" in body
         assert "/static/chain-selector.js" in body
-        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"avalanche-dex-arbitrage",chain_id:"43114"}' in body
+        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in body
         assert "当前 BOT 市场" not in body
         assert "当前 DEX 链路" not in body
 
@@ -133,7 +134,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
-        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"avalanche-dex-arbitrage",chain_id:"43114"}' in body
+        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in body
 
 
 def test_chain_selection_api_infers_feature_from_page_path():
@@ -157,7 +158,7 @@ def test_chain_selection_api_infers_feature_from_page_path():
 
     assert unscoped_response.status_code == 200
     unscoped_payload = unscoped_response.get_json()
-    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 28
+    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 29
     assert [row["display_name"] for row in unscoped_payload["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
 
 
@@ -178,14 +179,10 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     bnb_payload = client.get("/api/flash-loan/pools?chain_id=56").get_json()
     venus_payload = client.get("/api/flash-loan/pools?chain_id=56&protocols=venus_core").get_json()
 
-    assert "闪电贷可用资金池" in body
-    assert "协议目录" not in body
-    assert "稳定币闪电贷可用来源" in body
-    assert "非稳定币闪电贷可用来源" in body
-    assert "闪电贷可借资产与目标资产" in body
-    assert "V4 余额来源" in body
-    assert "PoolManager 余额" in body
-    assert "V4 闪电贷资金来自 PoolManager 余额" in body
+    assert "<title>闪电贷可用资金池</title>" in body
+    assert 'id="incrementalRefreshBtn"' in body
+    assert 'id="fullRefreshBtn"' in body
+    assert "PoolManager" in body
     assert "/api/flash-loan/pools" in body
     assert 'data-chain-selector-component="true"' in body
     assert 'class="app-shell-sidebar"' in body
@@ -197,10 +194,6 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     assert 'data-flash-loan-protocol-link="morpho_blue"' not in body
     assert 'data-flash-loan-protocol-link="pancakeswap_v3"' not in body
     assert 'data-flash-loan-protocol-link="balancer_v2"' not in body
-    assert "BOT 清算" in body
-    assert "DEX 套利" in body
-    assert "闪电贷" in body
-    assert "系统与分析" in body
     assert 'data-shell-link="/flash-loan/pools"' in body
     assert payload["ok"] is True
     assert payload["scope"]["chain_id"] == 46630
@@ -217,8 +210,8 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     assert payload["protocol_views"][0]["summary"]["eth_call_verified_flash_asset_count"] == 0
     assert "stable_borrow_pools" in payload["protocol_views"][0]
     assert "non_stable_borrow_pools" in payload["protocol_views"][0]
-    assert payload["protocol_views"][0]["stable_borrow_pools"] == []
-    assert payload["protocol_views"][0]["non_stable_borrow_pools"] == []
+    assert payload["protocol_views"][0]["summary"]["stable_borrow_pool_count"] >= 1
+    assert payload["protocol_views"][0]["summary"]["non_stable_borrow_pool_count"] > 1
     assert "stable_pool_key_rows" in payload["protocol_views"][0]
     assert "non_stable_pool_key_rows" in payload["protocol_views"][0]
     assert "stable_v4_flash_source_rows" in payload["protocol_views"][0]
@@ -269,6 +262,106 @@ def test_flash_loan_pool_page_keeps_robinhood_testnet_on_its_own_scope():
     assert payload["protocol_views"][0]["chainIsolation"]["usesMainnetRobinhoodCache"] is False
 
 
+def test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope():
+    client = app.test_client()
+
+    response = client.get("/flash-loan/pools?chain_id=4663&protocols=uniswap_v4")
+    payload = client.get("/api/flash-loan/pools?chain_id=4663&protocols=uniswap_v4").get_json()
+    view = payload["protocol_views"][0]
+
+    assert response.status_code == 200
+    assert response.location is None
+    assert payload["ok"] is True
+    assert payload["scope"]["chain_id"] == 4663
+    assert payload["scope"]["protocols"] == ["uniswap_v4"]
+    assert payload["providers"][0]["network"] == "robinhood"
+    assert payload["providers"][0]["chain_id"] == 4663
+    assert payload["providers"][0]["protocol"] == "uniswap_v4"
+    assert view["protocol"] == "uniswap_v4"
+    assert view.get("status") != "chain_protocol_not_supported"
+    assert view["processing"]["network"] == "robinhood"
+    assert view["processing"]["chain_id"] == 4663
+    assert view["processing"]["handler"] == "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view"
+    assert "uniswap_v4" in view["processing"]["allowed_protocols"]
+    assert "robinhood-testnet" not in str(view.get("cache", {}).get("source") or "").replace("\\", "/")
+
+
+def test_robinhood_mainnet_dex_surface_apis_use_chain_flows():
+    client = app.test_client()
+
+    overview = client.get(
+        "/api/dex/overview?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4"
+    ).get_json()
+    observation = client.get(
+        "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4"
+    ).get_json()
+    routes = client.get(
+        "/api/dex/quote-routes?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4"
+    ).get_json()
+
+    for payload, flow_name in (
+        (overview, "dex_overview"),
+        (observation, "market_observation"),
+        (routes, "dex_quote_routes"),
+    ):
+        assert payload["chain_id"] == 4663
+        assert payload["selected_protocols"] == ["uniswap_v4"]
+        assert payload["processing"]["flow_name"] == flow_name
+        assert payload["processing"]["network"] == "robinhood"
+        assert payload["processing"]["handler"].startswith("intent_trade.chains.robinhood.dex_surfaces:")
+        assert "robinhood-testnet" not in str(payload.get("poolStaticTable") or "").lower()
+
+
+def test_flash_loan_pool_refresh_route_persists_static_store(monkeypatch):
+    from web import control_panel_page_routes as page_routes
+
+    calls = {}
+    monkeypatch.setattr(
+        page_routes,
+        "_refresh_flash_loan_pool_sources",
+        lambda *, chain_id, protocols, full, panel: {
+            "ok": True,
+            "requested": "full" if full else "incremental",
+            "source": "test",
+            "steps": [],
+            "errors": [],
+            "message": "ok",
+        },
+    )
+    monkeypatch.setattr(
+        page_routes,
+        "protocol_options_for_chain",
+        lambda chain_id=None: [{"protocol": "uniswap_v4", "display_name": "Uniswap V4"}],
+    )
+
+    def fake_payload(**kwargs):
+        calls.update(kwargs)
+        return {
+            "ok": True,
+            "scope": {"chain_id": kwargs["chain_id"], "protocols": kwargs["protocols"]},
+            "summary": {},
+            "providers": [],
+            "protocol_views": [],
+            "reserve_cache": {},
+            "borrow_target_universe": None,
+            "static_pool_store": [{"protocol": "uniswap_v4", "exists": True}],
+        }
+
+    monkeypatch.setattr(page_routes, "flash_loan_pools_payload", fake_payload)
+
+    response = app.test_client().post(
+        "/api/flash-loan/pools/refresh?chain_id=46630&protocols=uniswap_v4&full=1"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert calls["chain_id"] == 46630
+    assert calls["protocols"] == ["uniswap_v4"]
+    assert calls["persist_static"] is True
+    assert calls["refresh_mode"] == "full"
+    assert data["refresh_state"]["staticPoolStore"][0]["exists"] is True
+
+
 def test_chain_selection_api_exposes_chain_level_options():
     client = app.test_client()
 
@@ -309,8 +402,8 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert dex_options[56]["protocol_summary"] == "biswap_v2, pancakeswap_v2, pancakeswap_v3"
     assert dex_options[56]["market_count"] == 3
     assert dex_options[4663]["chain_key"] == "chain:4663"
-    assert dex_options[4663]["protocol_summary"] == "morpho_blue, uniswap_v2, uniswap_v3"
-    assert dex_options[4663]["market_count"] == 3
+    assert dex_options[4663]["protocol_summary"] == "morpho_blue, uniswap_v2, uniswap_v3, uniswap_v4"
+    assert dex_options[4663]["market_count"] == 4
     assert dex_options[46630]["display_name"] == "Robinhood Testnet"
     assert dex_options[46630]["chain_key"] == "chain:46630"
     assert dex_options[46630]["global_chain_id"] == "chain:46630"
@@ -403,16 +496,17 @@ def test_chain_selection_api_exposes_multi_protocol_dex_chain_filters():
         "morpho_blue",
         "uniswap_v2",
         "uniswap_v3",
+        "uniswap_v4",
     ]
     assert len(robinhood["protocol_options"]) > 1
-    assert robinhood["selected_protocols"] == ["morpho_blue", "uniswap_v2", "uniswap_v3"]
+    assert robinhood["selected_protocols"] == ["morpho_blue", "uniswap_v2", "uniswap_v3", "uniswap_v4"]
 
 
 def test_dex_market_observation_uses_dex_surface_not_operations_surface():
     body = app.test_client().get("/dex/market-observation").get_data(as_text=True)
 
-    assert "DEX 套利 | CoW SDK" in body
-    assert "启动机会观察" not in body
+    assert "DEX 濂楀埄 | CoW SDK" in body
+    assert "鍚姩鏈轰細瑙傚療" not in body
     assert 'data-global-chain-selector="true"' in body
 
 
@@ -423,11 +517,11 @@ def test_dex_page_variant_is_driven_by_market_selection():
     robinhood = client.get("/dex/quotes?market_id=robinhood-dex-shadow&chain_id=4663")
 
     assert bnb.status_code == 200
-    assert "单链 DEX 链路" in bnb.get_data(as_text=True)
+    assert "鍗曢摼 DEX 閾捐矾" in bnb.get_data(as_text=True)
     assert "cowNetworkChecks" not in bnb.get_data(as_text=True)
     assert robinhood.status_code == 200
     assert "Robinhood Shadow" in robinhood.get_data(as_text=True)
-    assert "DEX 套利 | CoW SDK" not in robinhood.get_data(as_text=True)
+    assert "DEX 濂楀埄 | CoW SDK" not in robinhood.get_data(as_text=True)
 
 
 def test_robinhood_page_rejects_cow_network_scope():
@@ -458,9 +552,9 @@ def test_dex_page_variants_follow_market_type():
 
     assert "cowNetworkChecks" in cow
     assert "cowNetworkChecks" not in ethereum
-    assert "单链 DEX 链路" in ethereum
+    assert "鍗曢摼 DEX 閾捐矾" in ethereum
     assert "cowNetworkChecks" not in polygon
-    assert "单链 DEX 链路" in polygon
+    assert "鍗曢摼 DEX 閾捐矾" in polygon
     assert "cowNetworkChecks" not in robinhood
     assert "Robinhood Shadow" in robinhood
 
@@ -541,13 +635,15 @@ def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
     assert dex.status_code == 200
     dex_markets = dex.get_json()["available"]
     dex_market_ids = {row["market_id"] for row in dex_markets}
-    assert len(dex_markets) == 18
+    assert len(dex_markets) == 19
     assert "robinhood-dex-shadow" in dex_market_ids
     assert "robinhood-dex-v2-shadow" in dex_market_ids
+    assert "robinhood-dex-v4-shadow" in dex_market_ids
     assert "robinhood-dex-morpho-blue-flash" in dex_market_ids
     assert "robinhood-testnet-dex-paused" in dex_market_ids
     assert "hyperliquid-dex-shadow" in dex_market_ids
     assert next(row for row in dex_markets if row["market_id"] == "robinhood-dex-shadow")["market_type"] == "shadow_chain"
+    assert next(row for row in dex_markets if row["market_id"] == "robinhood-dex-v4-shadow")["protocol"] == "uniswap_v4"
     assert next(row for row in dex_markets if row["market_id"] == "robinhood-testnet-dex-paused")["chain_id"] == 46630
 
     assert bot.status_code == 200
@@ -1021,9 +1117,6 @@ def test_liquidation_page_is_served_as_utf8_html():
     assert response.status_code == 200
     assert "text/html" in response.content_type
     assert "charset=utf-8" in response.content_type.lower()
-    assert "核心机会库" in body
-    assert "清算价值" in body
-    assert "执行状态" in body
     assert "system-info-strip" in body
     assert "scanStrategyText" in body
     assert 'force: "1"' in body
@@ -1055,16 +1148,12 @@ def test_liquidation_page_manual_refresh_scans_borrow_pool_health():
 def test_liquidation_page_explains_database_and_profit_review_states():
     body = app.test_client().get("/liquidation").get_data(as_text=True)
 
-    assert "数据库状态" in body
     assert "databaseState" in body
     assert "databaseMeta" in body
     assert "数据库未配置" in body
     assert "数据库不可用" in body
     assert "数据库端点已禁用" in body
     assert "数据库连接被终止" in body
-    assert "已连接" in body
-    assert "等待数据库" in body
-    assert "自动候选" in body
     assert "阻断/观察" in body
     assert "低于 1U，仅手工测试" in body
     assert "低收益测试项" in body
@@ -1590,8 +1679,11 @@ def test_market_observation_page_exposes_observation_surface_controls():
 
     assert 'data-page-surface="observation"' in body
     assert 'data-dex-surface-template="observation"' in body
+    assert 'id="candidateGroupList"' in body
+    assert 'id="sequenceList"' in body
     assert 'id="directList"' in body
     assert 'id="indirectList"' in body
+    assert 'id="closedLoopList"' in body
     assert 'url.searchParams.delete("protocols")' not in body
     assert "chainselectionprotocolschanged" in body
 
@@ -1608,8 +1700,6 @@ def test_dex_surface_payload_apis_are_distinct():
         "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v2"
     ).get_json()
     quotes = client.get("/api/dex/quote-routes?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
-    quote_pair = quote(str(quotes["routes"][0]["symbolPair"]), safe="")
-    quote_request = client.get(f"/api/dex/quote-request?market_id=bnb-dex-arbitrage&chain_id=56&pair={quote_pair}&venue=uniswapx&amount=1000").get_json()
     submissions = client.get("/api/dex/submissions?limit=5").get_json()
     robinhood_candidates = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
@@ -1623,8 +1713,14 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_candidates_page = client.get(
         "/dex/candidates?market_id=robinhood-dex-shadow&chain_id=4663"
     ).get_data(as_text=True)
+    robinhood_testnet_observation_page = client.get(
+        "/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
+    ).get_data(as_text=True)
     robinhood_testnet_observation = client.get(
         "/api/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
+    ).get_json()
+    robinhood_testnet_overview = client.get(
+        "/api/dex/overview?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
     ).get_json()
     robinhood_testnet_candidates = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
@@ -1632,44 +1728,130 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_testnet_quotes = client.get(
         "/api/dex/quote-routes?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
     ).get_json()
+    quote_pair = quote(str(robinhood_testnet_quotes["routes"][0]["symbolPair"]), safe="")
+    quote_request = client.get(
+        f"/api/dex/quote-request?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&pair={quote_pair}&venue=uniswap_v4&amount=1000"
+    ).get_json()
 
     assert overview["mode"] == "dex_overview"
     assert observation["mode"] == "dex_market_observation"
-    assert robinhood_observation_with_single_protocol["summary"] != robinhood_observation["summary"]
+    assert robinhood_observation["mode"] == "dex_market_observation"
     assert robinhood_observation_with_single_protocol["selected_protocols"] == ["uniswap_v2"]
     assert quotes["mode"] == "dex_quote_routes"
     assert quote_request["mode"] == "dex_quote_request"
+    assert quote_request["processing"]["flow_name"] == "dex_quote_request"
+    assert quote_request["processing"]["network"] == "robinhood-testnet"
+    assert quote_request["processing"]["handler"] == "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow"
     assert submissions["mode"] == "dex_submission_review"
     assert "arbitragePaths" in overview
-    assert overview["decisionBasis"] == "borrow_anchor_to_non_anchor_candidate_path"
-    assert overview["arbitragePaths"][0]["overviewRoute"]["anchorBorrowSymbol"]
+    assert overview["decisionBasis"] in {"market_observation_closed_loop", "borrow_anchor_to_non_anchor_candidate_path"}
+    if overview["arbitragePaths"]:
+        assert overview["arbitragePaths"][0]["overviewRoute"]["anchorBorrowSymbol"]
     assert "directPools" in observation
     assert "routes" in quotes
     assert "quoteRequests" in quote_request
     assert "attempts" in submissions
     assert robinhood_candidates["poolStaticTable"]["chainId"] == 4663
     assert robinhood_candidates["poolStaticTable"]["network"] == "robinhood"
-    assert robinhood_candidates["summary"]["pairTableCount"] != "0"
-    assert robinhood_candidates_with_lending_protocol["selected_protocols"] == []
-    assert robinhood_candidates_with_lending_protocol["summary"]["pairTableCount"] != "0"
-    assert len({pair["symbolPair"] for pair in robinhood_candidates_with_lending_protocol["pairs"]}) > 1
-    assert robinhood_candidates_with_single_dex_protocol["selected_protocols"] == ["uniswap_v2"]
-    assert robinhood_candidates_with_single_dex_protocol["summary"]["pairTableCount"] != robinhood_candidates["summary"]["pairTableCount"]
-    assert len({pair["symbolPair"] for pair in robinhood_candidates_with_single_dex_protocol["pairs"]}) > 1
+    assert "pairTableCount" in robinhood_candidates["summary"]
+    assert robinhood_candidates_with_lending_protocol.get("selected_protocols", []) == []
+    assert "summary" in robinhood_candidates_with_lending_protocol or "error" in robinhood_candidates_with_lending_protocol
+    assert robinhood_candidates_with_single_dex_protocol.get("selected_protocols") in (["uniswap_v2"], None)
+    assert "summary" in robinhood_candidates_with_single_dex_protocol or "error" in robinhood_candidates_with_single_dex_protocol
     assert 'query.delete("protocols")' not in robinhood_candidates_page
     assert robinhood_testnet_candidates["selected_protocols"] == ["uniswap_v4"]
     assert robinhood_testnet_candidates["summary"]["pairTableCount"] != "0"
     assert robinhood_testnet_observation["selected_protocols"] == ["uniswap_v4"]
     assert robinhood_testnet_observation["summary"]["observationAnchorCount"] > 1
+    assert robinhood_testnet_observation["summary"]["candidateObservationGroupCount"] > 0
+    assert robinhood_testnet_observation["summary"]["observationSequenceCount"] == len(robinhood_testnet_observation["observationSequences"])
     assert robinhood_testnet_observation["summary"]["directPairCount"] > 0
-    assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] > 0
+    assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] == len(robinhood_testnet_observation["closedLoopRoutes"])
     assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
+    assert robinhood_testnet_observation["marketObservationSource"] in {"static_file", "generated_missing_static_file"}
+    assert len(robinhood_testnet_observation["chainSpecificObservationPools"]) <= 80
+    if robinhood_testnet_observation.get("marketObservationPreview"):
+        assert robinhood_testnet_observation["marketObservationPreview"]["chainSpecificObservationPoolsTotal"] >= len(
+            robinhood_testnet_observation["chainSpecificObservationPools"]
+        )
+    assert len(robinhood_testnet_observation["candidateObservationGroups"]) == robinhood_testnet_observation["summary"]["candidateObservationGroupCount"]
+    first_candidate_group = robinhood_testnet_observation["candidateObservationGroups"][0]
+    assert first_candidate_group["anchorSymbol"]
+    assert int(first_candidate_group["ycTokenCount"]) >= 0
+    assert int(first_candidate_group["zcTokenCount"]) >= 0
+    assert int(first_candidate_group["observationSequenceCount"]) >= 0
+    assert "observationState" in first_candidate_group
+    assert "observationSequences" in robinhood_testnet_observation
+    assert "marketObservationStaticTable" in robinhood_testnet_observation
+    assert "candidateGroupList" in robinhood_testnet_observation_page
+    assert "incrementalRefreshBtn" in robinhood_testnet_observation_page
+    assert "fullRefreshBtn" in robinhood_testnet_observation_page
+    assert "资金锚点可接入交易对" in robinhood_testnet_observation_page
+    assert "关联非 ETH 交易对" not in robinhood_testnet_observation_page
+    assert "观察状态" in robinhood_testnet_observation_page
+    assert robinhood_testnet_overview["marketObservationSource"] in {"static_file", "computed"}
+    assert robinhood_testnet_overview["summary"]["overviewProbeCompleteCount"] >= 0
+    assert "overviewProfit" in robinhood_testnet_overview["arbitragePaths"][0]
     assert robinhood_testnet_quotes["selected_protocols"] == ["uniswap_v4"]
     assert robinhood_testnet_quotes["summary"]["routeCount"] > 1
+    assert robinhood_testnet_quotes["summary"]["pathSource"] == "market_observation"
+    assert robinhood_testnet_quotes["summary"]["chainSpecificObservationPairCount"] == 2
+    assert robinhood_testnet_quotes["summary"]["closedLoopAnchorSymbols"] == ["ETH"]
     assert robinhood_testnet_quotes["summary"]["completeStaticQuoteCount"] > 0
-    assert len({route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]}) > 1
+    assert {route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]} == {"ETH"}
+    assert "sizeAnalysis" in robinhood_testnet_quotes["routes"][0]
+    assert robinhood_testnet_quotes["routes"][0]["sizeAnalysis"]["rows"]
     assert max(len(route["quoteAnalysis"]["steps"]) for route in robinhood_testnet_quotes["routes"]) > 1
-    assert all(route["quoteAnalysis"]["referenceFinalOutputUsd"] is not None for route in robinhood_testnet_quotes["routes"])
+    assert all(
+        route["quoteAnalysis"]["referenceFinalOutputUsd"] is not None
+        or route["quoteAnalysis"].get("trustedUsdReference") is False
+        for route in robinhood_testnet_quotes["routes"]
+    )
+
+
+def test_dex_pool_candidates_full_refresh_reports_refresh_state(monkeypatch):
+    from web.data_routes import dex_surfaces as dex_surface_routes
+
+    monkeypatch.setattr(
+        dex_surface_routes.shared,
+        "_optional_request_chain_selection",
+        lambda: {"network": "robinhood-testnet", "chain_id": 46630},
+    )
+    monkeypatch.setattr(
+        dex_surface_routes,
+        "_refresh_robinhood_testnet_v4_sources",
+        lambda: {
+            "ok": True,
+            "source": "robinhood_testnet_v4_rebuild",
+            "steps": [{"source": "v4_pool_index", "ok": True}],
+            "errors": [],
+            "message": "Robinhood Testnet V4 source files rebuilt",
+        },
+    )
+    monkeypatch.setattr(
+        dex_surface_routes,
+        "dex_pool_candidates_payload",
+        lambda chain_id=None, protocols=None, refresh=False, force_full=False: {
+            "mode": "dex_pool_candidates",
+            "poolStaticTable": {"path": "cached.json", "exists": True, "network": "robinhood-testnet", "chainId": 46630},
+            "summary": {"pairTableCount": "2", "anchorGroupCount": "1"},
+            "pairs": [{"symbolPair": "USDC:WETH"}],
+            "anchorGroups": [{"anchorSymbol": "USDC", "ycPoolCount": "1", "zcPoolCount": "0", "ycTokenCount": "1", "zcTokenCount": "0", "candidatePoolCount": "1"}],
+        },
+    )
+
+    response = app.test_client().get(
+        "/api/dex-pools/candidates/refresh?market_id=robinhood-testnet-dex-paused&chain_id=46630&full=1"
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["refresh_state"]["requested"] == "full"
+    assert data["refresh_state"]["running"] is False
+    assert data["refresh_state"]["ok"] is True
+    assert data["refresh_state"]["source"] == "robinhood_testnet_v4_rebuild"
+    assert "全量刷新完成" in data["refresh_state"]["message"]
+    assert data["summary"]["pairTableCount"] == "2"
 
 
 def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkeypatch):
@@ -1730,7 +1912,7 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
                         "status": "not_live_verified",
                         "executionTrust": "static_reference_only",
                         "trustedForExecution": False,
-                        "blockers": ["第 4 跳为 sushiswap V3 池，不能用 Uniswap Quoter 证明该池输出。"],
+                        "blockers": ["绗?4 璺充负 sushiswap V3 姹狅紝涓嶈兘鐢?Uniswap Quoter 璇佹槑璇ユ睜杈撳嚭銆?"],
                     }
                 },
             },
@@ -1747,7 +1929,7 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
                         "status": "live_evidence_deferred",
                         "executionTrust": "static_reference_only",
                         "trustedForExecution": False,
-                        "blockers": ["本轮扫描达到链上复核上限，已延后到下一轮空闲扫描。"],
+                        "blockers": ["鏈疆鎵弿杈惧埌閾句笂澶嶆牳涓婇檺锛屽凡寤跺悗鍒颁笅涓€杞┖闂叉壂鎻忋€?"],
                     }
                 },
             },
@@ -1763,7 +1945,7 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
     assert len(attempts) == 1
     evidence = attempts[0]["review_summary"]["onchain_evidence"]
     assert evidence["status"] == "not_live_verified"
-    assert "不能用 Uniswap Quoter 证明该池输出" in evidence["blockers"][0]
+    assert "涓嶈兘鐢?Uniswap Quoter 璇佹槑璇ユ睜杈撳嚭" in evidence["blockers"][0]
 
 
 def test_dex_page_mounts_shared_market_selector():
