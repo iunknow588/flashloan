@@ -19,6 +19,7 @@ def build_submission_readiness(
     checks_passed: bool,
     route_supported: bool,
     quote_available: bool,
+    quote_verified: bool = False,
     submission_requested: bool,
     adapter_available: bool,
     sdk_ready: bool,
@@ -37,6 +38,8 @@ def build_submission_readiness(
         reasons.append("quote_checks_not_passed")
     if not quote_available:
         reasons.append(quote_error_type or "cow_quote_unavailable")
+    if not quote_verified:
+        reasons.append("quote_not_verified")
     if not submission_requested:
         reasons.append("order_submission_switch_off")
     if not adapter_available:
@@ -55,6 +58,7 @@ def build_submission_readiness(
         bool(checks_passed)
         and bool(route_supported)
         and bool(quote_available)
+        and bool(quote_verified)
         and bool(submission_requested)
         and bool(adapter_available)
         and bool(sdk_ready)
@@ -69,6 +73,8 @@ def build_submission_readiness(
         "can_submit_order": can_submit,
         "blocked_reasons": [] if can_submit else blocked_reasons,
         "quote_available": bool(quote_available),
+        "quote_verified": bool(quote_verified),
+        "submission_rule_verified": bool(quote_verified),
         "route_supported": bool(route_supported),
         "quote_error_type": quote_error_type,
     }

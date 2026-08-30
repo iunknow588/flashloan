@@ -61,6 +61,10 @@ def _optional_int(value: object) -> int | None:
     return parsed if parsed >= 0 else None
 
 
+def _is_reference_quote_adapter(target: Any) -> bool:
+    return target is reference_quote_adapter or getattr(target, "__name__", "") == getattr(reference_quote_adapter, "__name__", "")
+
+
 def reference_quote_adapter(request: dict[str, Any]) -> dict[str, Any]:
     reference_amount = request.get("referenceAmountOutRaw")
     if reference_amount in (None, ""):
@@ -102,11 +106,17 @@ def load_v4_sdk_adapter(
     target = _resolve_callable(reference)
     if not callable(target):
         raise TypeError("UNISWAP_V4_SDK_ADAPTER must resolve to a callable")
+    normalized_network = str(network or "").strip().lower()
+    if int(chain_id or 0) == 46630 or normalized_network == "robinhood-testnet":
+        if _is_reference_quote_adapter(target):
+            raise RuntimeError("Robinhood Testnet requires a real V4 quote adapter")
     return target
 
 
 def quote_v4_exact_input_single_from_env(request: dict[str, Any]) -> dict[str, Any]:
-    adapter = load_v4_sdk_adapter(network=request.get("network"), chain_id=request.get("chainId")) or reference_quote_adapter
+    adapter = load_v4_sdk_adapter(network=request.get("network"), chain_id=request.get("chainId"))
+    if adapter is None:
+        raise RuntimeError("uniswap v4 quote adapter is required")
     return quote_v4_exact_input_single(adapter=adapter, request=request)
 
 

@@ -2432,6 +2432,17 @@ def test_robinhood_testnet_requires_live_quoter_before_submission_candidate(monk
     }
 
     price_map = dex_surfaces._price_map_from_pairs(pairs)
+    monkeypatch.setattr(dex_surfaces, "load_v4_sdk_adapter", lambda **kwargs: object())
+
+    def fake_quote_v4_exact_input_single(*, adapter, request):
+        return {
+            "amountOutRaw": str(int(int(request["amountInRaw"]) * 10005 / 10000)),
+            "quoteMode": request.get("quoteMode"),
+            "sdkAdapter": "mock",
+            "quoteAdapter": "mock",
+        }
+
+    monkeypatch.setattr(dex_surfaces, "quote_v4_exact_input_single", fake_quote_v4_exact_input_single)
     analysis = dex_surfaces._route_quote_analysis(route, price_map=price_map, chain_id=46630)
 
     assert analysis["requiresLiveQuoter"] is False
@@ -2441,7 +2452,7 @@ def test_robinhood_testnet_requires_live_quoter_before_submission_candidate(monk
     assert analysis["tokenBasisReferenceProfitable"] is True
 
 
-def test_robinhood_testnet_zero_output_hop_truncates_route_without_fake_adapter_failure():
+def test_robinhood_testnet_zero_output_hop_truncates_route_with_explicit_zero_quote(monkeypatch):
     eth = "0x" + "0" * 40
     token_y = "0x" + "2" * 40
     token_z = "0x" + "3" * 40
@@ -2488,6 +2499,17 @@ def test_robinhood_testnet_zero_output_hop_truncates_route_without_fake_adapter_
         "executionPools": [pool_xy, pool_yz, pool_zx],
     }
 
+    monkeypatch.setattr(dex_surfaces, "load_v4_sdk_adapter", lambda **kwargs: object())
+
+    def fake_zero_quote(*, adapter, request):
+        return {
+            "amountOutRaw": "0",
+            "quoteMode": request.get("quoteMode"),
+            "sdkAdapter": "mock",
+            "quoteAdapter": "mock",
+        }
+
+    monkeypatch.setattr(dex_surfaces, "quote_v4_exact_input_single", fake_zero_quote)
     analysis = dex_surfaces._route_quote_analysis(route, price_map={}, chain_id=46630)
 
     assert analysis["complete"] is False

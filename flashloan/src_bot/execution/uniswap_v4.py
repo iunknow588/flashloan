@@ -70,9 +70,7 @@ def build_v4_quote_request(
 
 def quote_v4_exact_input_single(*, adapter: V4QuoteAdapter | None, request: dict[str, Any]) -> dict[str, Any]:
     if adapter is None:
-        from execution.uniswap_v4_sdk_adapter import reference_quote_adapter
-
-        adapter = reference_quote_adapter
+        raise RuntimeError("uniswap v4 quote adapter is required")
     response = adapter(dict(request))
     if not isinstance(response, dict):
         raise TypeError("uniswap v4 quote adapter must return a dict")

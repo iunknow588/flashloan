@@ -4,6 +4,7 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from market.binance_market.dex_surface_analysis import DEFAULT_QUOTE_PROBE_NOTIONAL_USD
+from market.binance_market.dex_quote_route_builder import build_quote_route_payload
 from market.binance_market.dex_quote_route_common import (
     build_quote_analysis_defaults,
     build_quote_inputs_bundle,
@@ -11,7 +12,6 @@ from market.binance_market.dex_quote_route_common import (
     build_quote_verification_payload,
     quote_route_status,
 )
-from web.dex_provenance import build_price_evidence_payload
 
 
 def _number(value: object) -> float:
@@ -56,6 +56,7 @@ def build_quote_routes_payload_from_overview(
     route_quote_analysis_fn: Callable[..., dict[str, Any]],
     route_size_analysis_fn: Callable[..., dict[str, Any]],
     quote_probe_notional_usd: float = DEFAULT_QUOTE_PROBE_NOTIONAL_USD,
+    price_map: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     paths = [path for path in overview.get("arbitragePaths") or [] if isinstance(path, dict)]
     summary = dict(overview.get("summary") or {})
@@ -129,7 +130,7 @@ def build_quote_routes_payload_from_overview(
             quote_inputs = dict(route.get("quoteInputs") or {})
         if pools:
             analysis_route["quoteInputs"] = quote_inputs
-            live_analysis = route_quote_analysis_fn(analysis_route, price_map={}, chain_id=chain_id)
+            live_analysis = route_quote_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
             if live_analysis.get("steps") or live_analysis.get("complete"):
                 quote_analysis = build_quote_analysis_defaults(
                     quote_analysis=live_analysis,
@@ -141,33 +142,25 @@ def build_quote_routes_payload_from_overview(
                     or quote_analysis.get("priceEvidenceMode")
                     or "framework_reused_live_confirmation",
                     notional_usd=quote_probe_notional_usd,
-            )
-        size_analysis = route_size_analysis_fn(analysis_route, price_map={}, chain_id=chain_id)
+                )
+        size_analysis = route_size_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
         size_analysis = dict(size_analysis)
-        quote_status = quote_route_status(quote_analysis)
-        quote_verification = build_quote_verification_payload(quote_analysis=quote_analysis)
-        route["quoteAnalysis"] = quote_analysis
-        route["sizeAnalysis"] = size_analysis
-        route["quoteStatus"] = quote_status
-        route["quoteVerification"] = quote_verification
-        route["quoteInputs"] = quote_inputs
-        route["priceEvidenceSource"] = quote_analysis.get("priceEvidenceSource") or route.get("priceEvidenceSource") or "cached_framework_live_confirmation"
-        route["priceEvidenceMode"] = quote_analysis.get("priceEvidenceMode") or route.get("priceEvidenceMode") or "framework_reused_live_confirmation"
-        route.update(
-            build_price_evidence_payload(
-                source=route["priceEvidenceSource"],
-                mode=route["priceEvidenceMode"],
-            )
+        path_source = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
+        route_payload = build_quote_route_payload(
+            route=route,
+            route_symbols=route_symbols,
+            route_addresses=route_addresses,
+            route_tokens=route_tokens,
+            pools=pools,
+            quote_analysis=quote_analysis,
+            size_analysis=size_analysis,
+            chain_id=chain_id,
+            path_source=path_source,
+            settlement=settlement,
+            price_evidence_source=quote_analysis.get("priceEvidenceSource"),
+            price_evidence_mode=quote_analysis.get("priceEvidenceMode"),
         )
-        route["routeFrameworkSource"] = route.get("routeFrameworkSource") or overview.get("routeFrameworkSource") or "market_observation"
-        route["pathSource"] = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
-        route["marketObservationSourceStage"] = (
-            route.get("marketObservationSourceStage")
-            or overview.get("marketObservationSourceStage")
-            or overview.get("marketObservationSource")
-            or "computed"
-        )
-        routes.append(route)
+        routes.append(route_payload)
         observed_value = quote_analysis.get("referenceNetProfitUsd")
         if observed_value is not None:
             observed_net_profits.append(_number(observed_value))

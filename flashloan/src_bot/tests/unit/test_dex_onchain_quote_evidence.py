@@ -1,10 +1,12 @@
+import pytest
+
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
 from execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from intent_trade.chains.robinhood_testnet import v4_quote_adapter
 
 
-def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch):
+def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
     class FakeEth:
         block_number = 123
 
@@ -59,13 +61,12 @@ def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch)
         trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
     )
 
-    assert evidence["status"] == "live_quote_reference_only"
+    assert evidence["status"] == "live_quote_failed"
     assert evidence["trustedForExecution"] is False
     assert evidence["readyForTransactionPreflight"] is False
     assert evidence["executionTrust"] == "static_reference_only"
-    assert evidence["hops"][0]["quoteMethod"] == "uniswap_v4_reference_quote"
-    assert evidence["hops"][0]["sdkAdapter"] == "reference_quote_adapter"
-    assert "reference_quote_adapter" in evidence["blockers"][0]
+    assert evidence["hops"] == []
+    assert any("quote adapter is required" in blocker.lower() for blocker in evidence["blockers"])
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
@@ -149,25 +150,64 @@ def test_robinhood_testnet_chain_id_default_v4_adapter_is_configured():
     assert callable(adapter)
 
 
-def test_robinhood_testnet_v4_pool_index_adapter_uses_spot_rate(monkeypatch):
+def test_robinhood_testnet_rejects_reference_v4_adapter_env(monkeypatch):
+    monkeypatch.setenv(
+        "ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER",
+        "execution.uniswap_v4_sdk_adapter:reference_quote_adapter",
+    )
+    for name in (
+        "UNISWAP_V4_SDK_ADAPTER",
+        "DEX_V4_SDK_ADAPTER",
+        "ROBINHOOD_TESTNET_UNISWAP_V4_SDK_ADAPTER",
+        "ROBINHOOD_V4_QUOTE_ADAPTER",
+        "ROBINHOOD_V4_SDK_ADAPTER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    with pytest.raises(RuntimeError, match="Robinhood Testnet requires a real V4 quote adapter"):
+        load_v4_sdk_adapter(network="robinhood-testnet")
+
+
+def test_robinhood_testnet_v4_pool_index_adapter_uses_live_pool_state(monkeypatch):
     monkeypatch.setattr(
         v4_quote_adapter,
         "_pool_rows",
         lambda: [
             {
-                "pool": "0x" + "1" * 40,
+                "poolId": "0x" + "1" * 64,
                 "token0": "0x" + "2" * 40,
                 "token1": "0x" + "3" * 40,
                 "fee": 100,
                 "tickSpacing": 60,
-                "sqrtPriceX96": str(2**96),
+                "sqrtPriceX96": "1",
             }
         ],
+    )
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_pool_manager_address",
+        lambda *args, **kwargs: "0x" + "4" * 40,
+    )
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_read_live_pool_state",
+        lambda **kwargs: {
+            "source": "pool_manager_extsload_live_state",
+            "poolManager": "0x" + "4" * 40,
+            "poolId": "0x" + "1" * 64,
+            "stateSlot": "0x" + "5" * 64,
+            "sqrtPriceX96": str(2**96),
+            "tick": 0,
+            "protocolFee": 0,
+            "lpFee": 100,
+            "liquidity": str(10**18),
+            "rpcUrl": "https://rpc.example",
+        },
     )
 
     quote = v4_quote_adapter.quote_v4_exact_input_single_from_pool_index(
         {
-            "pool": "0x" + "1" * 40,
+            "pool": "0x" + "1" * 64,
             "tokenIn": "0x" + "2" * 40,
             "tokenOut": "0x" + "3" * 40,
             "amountInRaw": str(10**18),
@@ -176,9 +216,11 @@ def test_robinhood_testnet_v4_pool_index_adapter_uses_spot_rate(monkeypatch):
         }
     )
 
-    assert quote["quoteMethod"] == "robinhood_testnet_v4_pool_index_spot_quote"
+    assert quote["quoteMethod"] == "robinhood_testnet_v4_poolmanager_live_state_spot_quote"
     assert quote["amountOutRaw"] == str(99 * 10**16)
     assert quote["sdkAdapter"].endswith("quote_v4_exact_input_single_from_pool_index")
+    assert quote["poolState"]["source"] == "pool_manager_extsload_live_state"
+    assert quote["poolState"]["lpFee"] == 100
 
 
 def test_non_robinhood_route_records_adapter_gap():

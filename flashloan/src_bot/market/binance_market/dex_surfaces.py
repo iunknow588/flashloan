@@ -24,7 +24,6 @@ from market.binance_market.dex_quote_surface import (
     build_quote_routes_payload_from_overview,
     build_submission_review_payload as build_dex_submission_review_payload,
 )
-from market.binance_market.dex_quote_route_builder import build_quote_route_payload
 from market.binance_market.dex_surface_cache import (
     _DEX_SURFACE_CACHE,
     _DEX_SURFACE_CACHE_LOCK,
@@ -1249,7 +1248,7 @@ def _route_quote_analysis(
         level = "reject"
         reasons = ["1000U 静态探针未覆盖交易成本"]
     executable_candidate = bool(executable_ready and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
-    testnet_live_only = bool(chain_id == ROBINHOOD_TESTNET_CHAIN_ID and requires_live_quoter)
+    testnet_live_only = bool(chain_id == ROBINHOOD_TESTNET_CHAIN_ID and requires_live_quoter and not live_price_verified)
     if testnet_live_only:
         executable_candidate = False
 
@@ -2254,8 +2253,8 @@ def dex_market_observation_surface_payload(
         return cached
     static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
     if static_snapshot.get("exists"):
-        payload = observation_payload_from_static(static_snapshot, source="generated_live_snapshot")
-        payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "generated_live_snapshot"
+        payload = observation_payload_from_static(static_snapshot, source="cached_snapshot")
+        payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "cached_snapshot"
         _cache_surface_payload(
             "dex_market_observation",
             payload,
@@ -2432,6 +2431,9 @@ def dex_quote_routes_payload(
     protocols: list[str] | None = None,
     use_static_observation: bool = False,
 ) -> dict[str, Any]:
+    pool_payload = _candidate_payload(chain_id, protocols)
+    settlement = pool_payload.get("dexSettlement") or {}
+    price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
     if chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
         overview = _cached_surface_payload(
             "dex_overview",
@@ -2452,7 +2454,12 @@ def dex_quote_routes_payload(
             protocols=protocols,
             use_static_observation=use_static_observation,
         )
-        payload = _quote_routes_payload_from_overview(overview, chain_id=chain_id, protocols=protocols)
+        payload = _quote_routes_payload_from_overview(
+            overview,
+            chain_id=chain_id,
+            protocols=protocols,
+            price_map=price_map,
+        )
         _cache_surface_payload(
             "dex_quote_routes",
             payload,
@@ -2462,8 +2469,6 @@ def dex_quote_routes_payload(
         )
         return payload
 
-    pool_payload = _candidate_payload(chain_id, protocols)
-    settlement = pool_payload.get("dexSettlement") or {}
     observation = dex_market_observation_surface_payload(
         chain_id=chain_id,
         protocols=protocols,
@@ -2485,131 +2490,38 @@ def dex_quote_routes_payload(
         )
         closed_loop_anchor_symbols = anchor_symbols
     observation_anchor_symbols = list(observation.get("observationAnchorSymbols") or [])
-    price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
-    routes = []
-    for pair in overview_paths:
-        linkage = pair.get("flashLoanLinkage") or {}
-        pools = _route_pools(pair)
-        overview_route = pair.get("overviewRoute") or {}
-        route_symbols = list(overview_route.get("pathSymbols") or linkage.get("route_symbols") or _pair_symbols(pair))
-        route_tokens = list(overview_route.get("pathTokens") or pair.get("routeTokenPath") or [])
-        route_addresses = list(overview_route.get("pathAddresses") or linkage.get("route_addresses") or pair.get("routeAddresses") or [])
-        quote_analysis = _route_quote_analysis(pair, price_map=price_map, chain_id=chain_id)
-        size_analysis = _route_size_analysis(pair, price_map=price_map, chain_id=chain_id)
-        route_payload = build_quote_route_payload(
-            route=pair,
-            route_symbols=route_symbols,
-            route_addresses=route_addresses,
-            route_tokens=route_tokens,
-            pools=pools,
-            quote_analysis=quote_analysis,
-            size_analysis=size_analysis,
-            chain_id=chain_id,
-            path_source=path_source,
-            settlement=settlement,
-        )
-        routes.append(route_payload)
-    executable_net_profits = [
-        _number((route.get("quoteAnalysis") or {}).get("netProfitUsd"))
-        for route in routes
-        if (route.get("quoteAnalysis") or {}).get("executableCandidate")
-    ]
-    observed_net_profits = []
-    for route in routes:
-        analysis = route.get("quoteAnalysis") or {}
-        observed_profit = analysis.get("netProfitUsd")
-        if observed_profit is None:
-            observed_profit = analysis.get("referenceNetProfitUsd")
-        if observed_profit is not None:
-            observed_net_profits.append(_number(observed_profit))
-    best_size_observed = max(
-        (
-            route.get("sizeAnalysis") or {}
-            for route in routes
-            if (route.get("sizeAnalysis") or {}).get("bestObservedNetProfitUsd") is not None
-        ),
-        key=lambda row: _number(row.get("bestObservedNetProfitUsd")),
-        default={},
-    )
-    best_size_executable = max(
-        (
-            route.get("sizeAnalysis") or {}
-            for route in routes
-            if (route.get("sizeAnalysis") or {}).get("bestExecutableNetProfitUsd") is not None
-        ),
-        key=lambda row: _number(row.get("bestExecutableNetProfitUsd")),
-        default={},
-    )
-    best_size_token_basis = max(
-        (
-            route.get("sizeAnalysis") or {}
-            for route in routes
-            if (route.get("sizeAnalysis") or {}).get("bestTokenBasisNetReturnBps") is not None
-        ),
-        key=lambda row: _number(row.get("bestTokenBasisNetReturnBps")),
-        default={},
-    )
-    return {
-        "mode": "dex_quote_routes",
-        "chain_id": chain_id,
-        "selected_protocols": protocols or [],
-        "marketObservationSource": observation.get("marketObservationSource") or "computed",
-        "marketObservationSourceStage": observation.get("marketObservationSourceStage")
-        or observation.get("marketObservationSource")
-        or "computed",
+    overview = {
+        "arbitragePaths": overview_paths,
         "summary": {
             "probeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
-            "routeCount": len(routes),
-            "candidateRouteCount": len(routes),
             "anchorBorrowSymbols": anchor_symbols,
             "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
             "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
             "observationAnchorSymbols": observation_anchor_symbols,
             "observationAnchorCount": len(observation_anchor_symbols),
-            "executableCandidateCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("executableCandidate")),
-            "profitableRouteCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("profitable")),
-            "chainSubmissionCandidateCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("chainSubmissionCandidate")),
-            "nonStableChainSubmissionCandidateCount": sum(
-                1
-                for route in routes
-                if (route.get("quoteAnalysis") or {}).get("chainSubmissionCandidate")
-                and not (route.get("quoteAnalysis") or {}).get("borrowAssetIsStable")
-            ),
-            "completeStaticQuoteCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("complete")),
-            "liveQuoterRequiredCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("requiresLiveQuoter")),
-            "sdkAdapterRequiredCount": sum(1 for route in routes if (route.get("quoteAnalysis") or {}).get("adapterRequired")),
-            "bestNetProfitUsd": max(executable_net_profits) if executable_net_profits else None,
-            "bestObservedNetProfitUsd": max(observed_net_profits) if observed_net_profits else None,
-            "bestObservedBorrowNotionalUsd": best_size_observed.get("bestObservedNotionalUsd"),
-            "bestObservedBorrowNetProfitUsd": best_size_observed.get("bestObservedNetProfitUsd"),
-            "bestExecutableBorrowNotionalUsd": best_size_executable.get("bestExecutableNotionalUsd"),
-            "bestExecutableBorrowNetProfitUsd": best_size_executable.get("bestExecutableNetProfitUsd"),
-            "bestTokenBasisBorrowNotionalUsd": best_size_token_basis.get("bestTokenBasisNotionalUsd"),
-            "bestTokenBasisInputSymbol": best_size_token_basis.get("bestTokenBasisInputSymbol"),
-            "bestTokenBasisNetProfitAmount": best_size_token_basis.get("bestTokenBasisNetProfitAmount"),
-            "bestTokenBasisNetReturnBps": best_size_token_basis.get("bestTokenBasisNetReturnBps"),
-            "directAnchorRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
-            "bridgeRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
-            "marketObservationRouteCount": len(observation.get("closedLoopRoutes") or []),
-            "marketObservationSequenceCount": _int((observation.get("summary") or {}).get("observationSequenceCount")),
-            "chainSpecificObservationPairCount": len(observation.get("chainSpecificObservationPairs") or []),
             "pathSource": path_source,
-            "uniswapxQuoteableRouteCount": sum(
-                1
-                for route in routes
-                for request in (route.get("quoteInputs") or {}).get("quoteRequests") or []
-                if request.get("venue") == "uniswapx"
-            ),
         },
-        "routes": routes,
         "marketObservation": {
             "summary": observation.get("summary") or {},
             "chainSpecificObservationPairs": observation.get("chainSpecificObservationPairs") or [],
         },
         "routeFrameworkSource": path_source,
+        "marketObservationSource": observation.get("marketObservationSource") or "computed",
+        "marketObservationSourceStage": observation.get("marketObservationSourceStage")
+        or observation.get("marketObservationSource")
+        or "computed",
         "dexSettlement": settlement,
         "poolStaticTable": pool_payload.get("poolStaticTable") or {},
     }
+    return build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=chain_id,
+        protocols=protocols,
+        route_quote_analysis_fn=_route_quote_analysis,
+        route_size_analysis_fn=_route_size_analysis,
+        quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
+        price_map=price_map,
+    )
 
 
 def _quote_routes_payload_from_overview(
@@ -2617,6 +2529,7 @@ def _quote_routes_payload_from_overview(
     *,
     chain_id: int | None,
     protocols: list[str] | None,
+    price_map: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     return build_quote_routes_payload_from_overview(
         overview,
@@ -2625,6 +2538,7 @@ def _quote_routes_payload_from_overview(
         route_quote_analysis_fn=_route_quote_analysis,
         route_size_analysis_fn=_route_size_analysis,
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
+        price_map=price_map,
     )
 
 

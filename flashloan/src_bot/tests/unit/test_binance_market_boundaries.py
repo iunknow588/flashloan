@@ -43,6 +43,7 @@ def test_submission_readiness_distinguishes_quote_failure_from_submission_failur
         checks_passed=True,
         route_supported=True,
         quote_available=False,
+        quote_verified=False,
         submission_requested=True,
         adapter_available=True,
         sdk_ready=True,
@@ -53,7 +54,7 @@ def test_submission_readiness_distinguishes_quote_failure_from_submission_failur
 
     assert result["ready"] is False
     assert result["can_submit_order"] is False
-    assert result["blocked_reasons"] == ["quote_api_timeout"]
+    assert result["blocked_reasons"] == ["quote_api_timeout", "quote_not_verified"]
 
 
 def test_submission_readiness_is_ready_only_when_all_execution_inputs_pass():
@@ -61,6 +62,7 @@ def test_submission_readiness_is_ready_only_when_all_execution_inputs_pass():
         checks_passed=True,
         route_supported=True,
         quote_available=True,
+        quote_verified=True,
         submission_requested=True,
         adapter_available=True,
         sdk_ready=True,
@@ -92,7 +94,12 @@ def test_submission_service_updates_legacy_payload_shape():
         "ranking": [
             {
                 "pair": "A / B",
-                "execution_precheck": {"can_submit_order": True, "checks_passed": True},
+                "execution_precheck": {
+                    "can_submit_order": True,
+                    "checks_passed": True,
+                    "quote_rule_verified": True,
+                    "submission_gate": {"ready": True, "submission_rule_verified": True},
+                },
                 "cow_sdk_result": {},
             }
         ],
@@ -107,3 +114,25 @@ def test_submission_service_updates_legacy_payload_shape():
 
     assert result["submission_summary"]["submitted"] == 1
     assert result["ranking"][0]["execution_precheck"]["status"] == "submitted_success"
+
+
+def test_submission_service_skips_rows_without_rule_verification():
+    payload = {
+        "ranking": [
+            {
+                "pair": "A / B",
+                "execution_precheck": {"can_submit_order": True, "checks_passed": True, "quote_rule_verified": False},
+                "cow_sdk_result": {},
+            }
+        ],
+        "cow_network": "bnb",
+        "cow_chain_id": 56,
+    }
+    result = submit_ready_quote_orders(
+        payload,
+        market_state={"source": "unit"},
+        submitter=lambda **_kwargs: {"submitted": True, "status": "submitted", "order_id": "order-1"},
+    )
+
+    assert result["submission_summary"]["submitted"] == 0
+    assert result["submission_summary"]["skipped"] == 1

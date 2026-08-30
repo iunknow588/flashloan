@@ -149,6 +149,7 @@ def test_build_robinhood_chain_test_plan_marks_preflight_boundary():
     assert plan["decision"]["canBroadcast"] is False
     assert plan["decision"]["canRunForkPreflight"] is True
     assert plan["preflightSpec"]["status"] == "ready_for_fork_staticcall"
+    assert plan["preflightSpec"]["executionModel"]["routeExecutionMode"] == "mixed_protocol_executor"
     assert plan["preflightSpec"]["repaymentConstraint"]["repayAmountRaw"] == "1000500000"
     assert plan["preflightSpec"]["routeHops"][0]["minAmountOutRaw"] == "391338259040044337"
     assert any(item["id"] == "fork_staticcall" for item in plan["checklist"])
@@ -322,6 +323,9 @@ def test_non_stable_chain_test_plan_uses_positive_x_profit_floor():
     assert plan["preflightSpec"]["executionRequest"]["struct"] == "V4FlashAccountingValueRequest"
     assert plan["preflightSpec"]["executionRequest"]["borrowTokenIsNative"] is True
     assert plan["preflightSpec"]["executionRequest"]["transactionValueRaw"] == "0"
+    assert plan["preflightSpec"]["executionModel"]["routeExecutionMode"] == "pool_manager_direct_swap_settle_take"
+    assert plan["preflightSpec"]["executionModel"]["requiresDirectPoolManagerFlow"] is True
+    assert plan["preflightSpec"]["executionModel"]["requiresUniversalRouter"] is False
     assert plan["preflightSpec"]["executionRequest"]["swapValues"] == [str(10**18), "0"]
 
 
@@ -361,9 +365,11 @@ def test_write_robinhood_testnet_chain_test_package_uses_testnet_scope(tmp_path)
     assert '"scope": "robinhood_testnet_46630_only"' in contracts
     assert '"repaymentConstraint": {' in contracts
     assert '"executionRequest": {' in contracts
+    assert '"executionModel": {' in contracts
     assert '"candidatePoolSupplyEvidence": null' in contracts
     assert "not_publicly_verified_on_testnet_46630" in contracts
     assert "- Chain: `robinhood-testnet`" in notes
+    assert "Route execution mode" in notes
 
 
 def test_audit_accepts_complete_preflight_plan():

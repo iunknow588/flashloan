@@ -376,6 +376,7 @@ def test_cow_execution_precheck_does_not_block_intent_mode_on_profit_floor():
                 "control_mode": "intent",
                 "min_final_amount": "1005",
             },
+            "quote_verified": True,
             "cow_flashloan_sdk_plan": {
                 "flashloan_capability": {"submission_safe": True},
             },
@@ -489,6 +490,7 @@ def _route_hop_constraint_precheck_payload() -> dict:
         "cow_flashloan_sdk_plan": {
             "flashloan_capability": {"submission_safe": True},
         },
+        "quote_verified": True,
         "binance_execution_plan": {
             "available": True,
             "route": ["USDC", "AAA", "BBB", "USDC"],
@@ -625,6 +627,7 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypa
                 "ready": True,
                 "control_mode": "intent",
             },
+            "quote_verified": True,
             "cow_flashloan_sdk_plan": {
                 "flashloan_capability": {"submission_safe": True},
             },
@@ -675,6 +678,7 @@ def test_cow_execution_precheck_keeps_three_hop_sdk_capability_as_diagnostic_onl
                 "ready": True,
                 "control_mode": "intent",
             },
+            "quote_verified": True,
             "binance_execution_plan": {
                 "available": True,
                 "route": ["USDC", "AAA", "BBB", "USDC"],
@@ -781,6 +785,7 @@ def test_cow_execution_precheck_does_not_block_when_official_sdk_plan_missing(mo
                 "ready": True,
                 "control_mode": "intent",
             },
+            "quote_verified": True,
             "binance_execution_plan": {
                 "available": True,
                 "route": ["USDC", "AAA"],
@@ -1493,9 +1498,10 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     sdk_plan = precheck["cow_flashloan_sdk_plan"]
     assert sdk_plan["single_solver_order_count"] == 1
     assert sdk_plan["diagnostic_hop_count"] == 3
-    assert precheck["status"] in {"order_submission_switch_off", "order_submission_adapter_unavailable"}
+    assert precheck["status"] in {"quote_not_verified", "order_submission_switch_off", "order_submission_adapter_unavailable"}
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
+    assert precheck["quote_verified"] is False
     assert precheck["price_guards_passed"] is False
     assert precheck["profit_prediction_disabled"] is True
     assert precheck["quote_delta_positive"] is None
@@ -1603,6 +1609,7 @@ def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, 
     precheck = payload["ranking"][0]["execution_precheck"]
 
     assert precheck["status"] in {
+        "quote_not_verified",
         "limit_order_ready_to_submit",
         "order_submission_switch_off",
         "order_submission_adapter_unavailable",
@@ -1611,6 +1618,7 @@ def test_cow_quote_unavailable_uses_quote_error_as_primary_blocker(monkeypatch, 
     assert precheck["checks_passed"] is True
     assert precheck["can_submit_order"] is False
     assert precheck["quote_available"] is False
+    assert precheck["quote_verified"] is False
     assert precheck["own_limit_order_ready"] is True
     assert precheck["quote_error_type"] == "quote_api_http_403_cloudfront_request_blocked"
     assert precheck["quote_error_type"] == "quote_api_http_403_cloudfront_request_blocked"

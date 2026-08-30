@@ -1706,6 +1706,7 @@ def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     )
     order_submission_signer_ready = cow_order_submission_signer_ready()
     order_submission_signer_status = cow_order_submission_signer_status()
+    quote_verified = bool(result.get("quote_verified"))
     order_submission_enabled = (
         order_submission_requested
         and order_submission_adapter_available
@@ -1718,6 +1719,7 @@ def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         checks_passed=checks_passed,
         route_supported=route_supported,
         quote_available=quote_available,
+        quote_verified=quote_verified,
         submission_requested=order_submission_requested,
         adapter_available=order_submission_adapter_available,
         sdk_ready=order_submission_sdk_ready,
@@ -1739,10 +1741,13 @@ def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     else:
         status = "blocked"
     if checks_passed:
-        if order_submission_enabled:
+        if not quote_verified:
+            status = "quote_not_verified"
+        elif order_submission_enabled:
             status = "limit_order_ready_to_submit"
         if not order_submission_enabled:
             disabled_reasons = {
+                "quote_not_verified": not quote_verified,
                 "order_submission_switch_off": not order_submission_requested,
                 "order_submission_adapter_unavailable": not order_submission_adapter_available,
                 "cow_flashloan_sdk_install_required": not order_submission_sdk_ready,
@@ -1756,12 +1761,16 @@ def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
                 if active:
                     status = reason
                     break
+    submission_ready = bool(submission_gate.get("ready"))
     return {
         "control_mode": control_mode,
         "control_mode_default": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
         "status": status,
         "checks_passed": checks_passed,
-        "can_submit_order": checks_passed and order_submission_enabled and not quote_submission_blocked,
+        "quote_verified": quote_verified,
+        "quote_rule_verified": quote_verified,
+        "submission_rule_verified": submission_ready,
+        "can_submit_order": submission_ready,
         "order_submission_requested": order_submission_requested,
         "order_submission_enabled": order_submission_enabled,
         "order_submission_adapter_available": order_submission_adapter_available,
@@ -1774,7 +1783,7 @@ def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
         "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
         "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),
         "min_final_amount": _decimal_text(min_final_amount),
-        "auto_execute_blocked": checks_passed and (not order_submission_enabled or quote_submission_blocked),
+        "auto_execute_blocked": checks_passed and not submission_ready,
         "route_supported": route_supported,
         "quote_available": quote_available,
         "quote_submission_blocked": quote_submission_blocked,

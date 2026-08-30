@@ -21,7 +21,22 @@ def submit_ready_quote_orders(
         if not isinstance(item, dict):
             continue
         precheck = dict(item.get("execution_precheck") or {})
-        if not precheck.get("can_submit_order"):
+        submission_gate = dict(precheck.get("submission_gate") or {})
+        rule_verified = submission_gate.get("submission_rule_verified")
+        if rule_verified is None:
+            rule_verified = precheck.get("quote_rule_verified")
+        rule_verified = bool(rule_verified)
+        if not precheck.get("can_submit_order") or not rule_verified:
+            if not rule_verified:
+                reasons = list(precheck.get("reasons") or [])
+                if "quote_not_verified" not in reasons:
+                    reasons.append("quote_not_verified")
+                precheck["reasons"] = reasons
+                precheck["status"] = "quote_not_verified"
+                precheck["can_submit_order"] = False
+                submission_gate.update({"ready": False, "submission_rule_verified": False})
+                precheck["submission_gate"] = submission_gate
+                item["execution_precheck"] = precheck
             skipped += 1
             continue
         quote_payload = {
@@ -56,8 +71,12 @@ def submit_ready_quote_orders(
                 "submission_status": submission.get("status"),
                 "submission_order_id": submission.get("order_id"),
                 "submission_tx_hash": submission.get("tx_hash"),
+                "quote_rule_verified": rule_verified,
+                "can_submit_order": False,
             }
         )
+        submission_gate.update({"ready": False, "submission_rule_verified": rule_verified})
+        precheck["submission_gate"] = submission_gate
         if submission.get("submitted"):
             submitted += 1
             precheck["status"] = "submitted_success"

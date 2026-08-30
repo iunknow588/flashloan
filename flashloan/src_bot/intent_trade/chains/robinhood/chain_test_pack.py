@@ -337,7 +337,36 @@ def _repayment_constraint(
     }
 
 
-def _execution_request(hops: list[dict[str, Any]], repayment: dict[str, Any]) -> dict[str, Any]:
+def _execution_model(hops: list[dict[str, Any]], repayment: dict[str, Any]) -> dict[str, Any]:
+    hop_protocols = [_text(hop.get("protocol")).lower() for hop in hops if _text(hop.get("protocol"))]
+    all_v4_hops = bool(hops) and all(protocol == "uniswap_v4" for protocol in hop_protocols)
+    mixed_protocol_route = len(set(hop_protocols)) > 1
+    uses_native_borrow = _is_zero_address(repayment.get("borrowToken"))
+    needs_native_value_forwarding = any(
+        int(value) > 0 for value in (_text(hop.get("amountInRaw")) for hop in hops) if value.isdigit()
+    )
+    route_execution_mode = "pool_manager_direct_swap_settle_take" if all_v4_hops else "mixed_protocol_executor"
+    return {
+        "routeExecutionMode": route_execution_mode,
+        "routeExecutionModeLabel": route_execution_mode,
+        "allV4Hops": all_v4_hops,
+        "mixedProtocolRoute": mixed_protocol_route,
+        "requiresUniversalRouter": not all_v4_hops,
+        "requiresDirectPoolManagerFlow": all_v4_hops,
+        "usesNativeBorrow": uses_native_borrow,
+        "requiresNativeValueForwarding": needs_native_value_forwarding,
+        "nestedUnlockAvoidance": all_v4_hops,
+        "status": "planned",
+    }
+
+
+def _execution_request(
+    hops: list[dict[str, Any]],
+    repayment: dict[str, Any],
+    *,
+    execution_model: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    execution_model = execution_model or _execution_model(hops, repayment)
     swap_values: list[str] = []
     for hop in hops:
         amount_in_raw = _text(hop.get("amountInRaw"))
@@ -358,6 +387,9 @@ def _execution_request(hops: list[dict[str, Any]], repayment: dict[str, Any]) ->
         "borrowTokenIsNative": uses_native_borrow,
         "requiresNativeValueForwarding": requires_native_value_forwarding,
         "nativeValueForwardingPolicy": "forward_amountInRaw_on_hops_where_tokenIn_is_zero_address",
+        "routeExecutionMode": execution_model.get("routeExecutionMode"),
+        "routeExecutionModeLabel": execution_model.get("routeExecutionModeLabel"),
+        "routeExecutionModel": execution_model,
         "swapValues": swap_values,
         "calldataStatus": "pending",
     }
@@ -611,7 +643,8 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         flash_fee_bps=float(cost_model.get("flashLoanFeeBps") or DEFAULT_FLASH_LOAN_FEE_BPS),
         cost_model=cost_model,
     )
-    execution_request = _execution_request(hop_summaries, repayment_constraint)
+    execution_model = _execution_model(hop_summaries, repayment_constraint)
+    execution_request = _execution_request(hop_summaries, repayment_constraint, execution_model=execution_model)
     plan = {
         "generatedAt": _utc_now_iso(),
         "network": network,
@@ -696,6 +729,7 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "slippageBps": slippage_bps,
             "routeHops": hop_summaries,
             "repaymentConstraint": repayment_constraint,
+            "executionModel": execution_model,
             "executionRequest": execution_request,
             "requiredChecks": [
                 "calldata_matches_verified_hops",
@@ -719,6 +753,7 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
     plan["contractHandoff"] = {
         "contractDir": str(contract_dir) if contract_dir else "",
         "expectedFiles": ["README.md", "contracts.json"] if contract_dir else [],
+        "executionModel": execution_model,
     }
     return plan
 
@@ -750,6 +785,7 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
         f"- 缃戠粶锛歚{plan.get('network')}`",
         f"- 閾?ID锛歚{plan.get('chainId')}`",
         f"- 璺緞锛歚{route.get('pathText')}`",
+        f"- Execution mode: `{_text(_as_dict(plan.get('preflightSpec')).get('executionModel', {}).get('routeExecutionMode'))}`",
         f"- 瑙﹀彂鍖哄潡锛歚{attempt.get('triggerBlockNumber')}`",
         f"- 澶嶆牳鍖哄潡锛歚{attempt.get('reviewBlockNumber')}`",
         f"- 璇佹嵁鐘舵€侊細`{evidence.get('status')}`",
@@ -790,6 +826,7 @@ def render_robinhood_chain_test_checklist(plan: dict[str, Any]) -> str:
 
 def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
     network = _text(plan.get("network")).lower()
+    execution_model = _as_dict(_as_dict(plan.get("preflightSpec")).get("executionModel"))
     common = {
         "network": plan["network"],
         "chainId": plan["chainId"],
@@ -797,6 +834,7 @@ def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
         "routePreflightStatus": plan["preflightSpec"]["status"],
         "repaymentConstraint": _as_dict(plan["preflightSpec"].get("repaymentConstraint")),
         "executionRequest": _as_dict(plan["preflightSpec"].get("executionRequest")),
+        "executionModel": execution_model,
         "deploymentGate": "blocked_until_token_continuity_calldata_repayment_and_fork_staticcall_pass",
         "broadcastEnabled": False,
         "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
@@ -864,6 +902,7 @@ def write_robinhood_chain_test_package(
                     f"- Market: `{plan['marketId']}`",
                     "- Current state: read-only evidence and preflight preparation only",
                     f"- Current route preflight status: `{plan['preflightSpec']['status']}`",
+                    f"- Route execution mode: `{_text(plan['preflightSpec'].get('executionModel', {}).get('routeExecutionMode'))}`",
                     "- Deployment gate: blocked until token continuity, calldata, repayment, and fork/static-call pass",
                     "- Deployment: no dedicated broadcast executor is added by this package",
                     "- Route test scope: calldata, slippage, repayment, and fork/static-call verification",
