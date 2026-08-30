@@ -21,10 +21,13 @@
     "deploy:unified:avalanche": "hardhat run scripts/deploy-unified-flashloan.js --network avalanche",
     "preflight:robinhood:testnet": "hardhat run scripts/preflight-robinhood-testnet.js --network robinhoodTestnet",
     "ready:robinhood:testnet": "hardhat run scripts/check-robinhood-testnet-readiness.js --network robinhoodTestnet",
+    "ready:robinhood:testnet:live": "python ../../flashloan/src_bot/tools/check_robinhood_live_testing_readiness.py",
     "plan:robinhood:testnet:paused-redeploy": "hardhat run scripts/plan-robinhood-paused-redeploy.js --network robinhoodTestnet",
     "readback:robinhood:testnet": "hardhat run scripts/readback-robinhood-paused-executor.js --network robinhoodTestnet",
+    "preflight:robinhood:testnet:dynamic-v4-route": "hardhat run scripts/preflight-robinhood-dynamic-v4-route.js --network robinhoodTestnet",
     "deploy:robinhood:testnet:v4flash:normal-probe": "hardhat run scripts/deploy-robinhood-v4-flash-normal-probe.js --network robinhoodTestnet",
     "probe:robinhood:testnet:v4flash:normal": "hardhat run scripts/probe-robinhood-v4-flash-normal.js --network robinhoodTestnet",
+    "probe:robinhood:testnet:v4flash:normal:live": "set ROBINHOOD_TESTNET_ALLOW_NORMAL_FLASH_BROADCAST=true&& hardhat run scripts/probe-robinhood-v4-flash-normal.js --network robinhoodTestnet",
     "deploy:robinhood:testnet:paused": "hardhat run scripts/deploy-robinhood-paused-executor.js --network robinhoodTestnet"
   },
   "devDependencies": {

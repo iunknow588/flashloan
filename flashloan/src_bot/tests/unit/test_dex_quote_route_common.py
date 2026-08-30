@@ -1,0 +1,185 @@
+from market.binance_market.dex_quote_route_common import (
+    build_quote_analysis_defaults,
+    build_quote_inputs_bundle,
+    build_quote_request_specs,
+    build_quote_verification_payload,
+    quote_route_status,
+)
+from market.binance_market.dex_quote_surface import build_quote_request_payload, build_quote_routes_payload_from_overview
+
+
+def test_quote_route_common_templates_cover_amm_v4_uniswapx():
+    analysis = build_quote_analysis_defaults(
+        quote_analysis={"executableCandidate": True},
+        route_symbols=["ETH", "TK1", "ETH"],
+        price_evidence_source="custom_source",
+        price_evidence_mode="custom_mode",
+    )
+
+    pools = [
+        {"pool": "0x1", "protocol": "uniswap_v4", "fee": 0},
+        {"pool": "0x2", "protocol": "uniswap_v3", "fee": 3000},
+    ]
+    requests = build_quote_request_specs(
+        pair_symbol="ETH -> TK1 -> ETH",
+        pools=pools,
+        route_symbols=["ETH", "TK1", "ETH"],
+        route_addresses=["0x0", "0x1", "0x0"],
+        route_tokens=[{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+        amm_quote_mode="overview_route_snapshot",
+        amm_status="waiting_live_price",
+        v4_quote_mode="overview_route_snapshot",
+        v4_status="waiting_live_price",
+        uniswapx_quote_mode="intent_exact_input",
+        uniswapx_status="waiting_live_price",
+        chain_id=46630,
+        settlement={"uniswapx": {"supported": True, "reactor_family": "exclusive"}},
+        adapter_hints=["pool_manager_state_required"],
+    )
+    bundle = build_quote_inputs_bundle(
+        candidate_pools=pools[:1],
+        route_pools=pools,
+        quote_requests=requests,
+        conditions=["framework only", "live verify"],
+    )
+
+    assert analysis["priceEvidenceSource"] == "custom_source"
+    assert analysis["priceEvidenceMode"] == "custom_mode"
+    assert quote_route_status(analysis) == "static_probe_ready_for_precheck"
+    assert {request["venue"] for request in requests} == {"amm_pool", "uniswap_v4", "uniswapx"}
+    assert bundle["candidatePools"] == pools[:1]
+    assert bundle["routePools"] == pools
+    assert bundle["quoteRequests"] == requests
+    assert bundle["conditions"] == ["framework only", "live verify"]
+
+
+def test_quote_route_status_and_request_payload_surface_live_verification():
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> TK1 -> ETH",
+                "routeSymbols": ["ETH", "TK1", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "quoteInputs": {
+                    "candidatePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                    "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                    "quoteRequests": [{"venue": "uniswap_v4", "quoteMode": "uniswap_v4_sdk_exact_input_route", "status": "sdk_adapter_required"}],
+                    "conditions": ["framework only", "live verify"],
+                },
+                "overviewRoute": {
+                    "pathSymbols": ["ETH", "TK1", "ETH"],
+                    "pathAddresses": ["0x0", "0x1", "0x0"],
+                    "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                },
+                "quoteAnalysis": {
+                    "complete": True,
+                    "requiresLiveQuoter": False,
+                    "adapterRequired": False,
+                    "livePriceVerified": True,
+                    "priceEvidenceMode": "live_verified",
+                    "priceEvidenceSource": "chain_live_quote",
+                    "profitable": True,
+                    "executableCandidate": True,
+                    "chainSubmissionCandidate": True,
+                    "chainSubmissionPolicy": "live_framework_reuse",
+                    "recommendation": {"level": "ready_for_precheck", "action": "进入自动交易预检", "reasons": []},
+                },
+                "quoteInputs": {"candidatePools": [], "routePools": [], "quoteRequests": []},
+            }
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda route, price_map, chain_id: {
+            "steps": [{"fromSymbol": "ETH", "toSymbol": "TK1"}],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "livePriceVerified": True,
+            "priceEvidenceSource": "chain_live_quote",
+            "priceEvidenceMode": "live_verified",
+            "executableCandidate": True,
+            "chainSubmissionCandidate": True,
+            "chainSubmissionPolicy": "live_framework_reuse",
+            "netProfitUsd": 1.0,
+        },
+        route_size_analysis_fn=lambda route, price_map, chain_id: {"rows": [{"size": 1}], "bestObservedNetProfitUsd": 1.0},
+    )
+    route = payload["routes"][0]
+    request = build_quote_request_payload(
+        quote_routes_payload=payload,
+        pair=route["symbolPair"],
+        venue="uniswap_v4",
+        amount="1000",
+    )
+
+    assert quote_route_status(route["quoteAnalysis"]) == "live_verified"
+    assert build_quote_verification_payload(quote_analysis=route["quoteAnalysis"])["status"] == "live_verified"
+    assert route["quoteStatus"] == "live_verified"
+    assert route["quoteVerification"]["status"] == "live_verified"
+    assert route["quoteVerification"]["livePriceVerified"] is True
+    assert request["quoteStatus"] == "live_verified"
+    assert request["quoteVerification"]["status"] == "live_verified"
+    assert request["quoteVerification"]["trustedForExecution"] is True
+
+
+def test_quote_routes_payload_from_overview_keeps_surface_and_analysis_aligned():
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> TK1 -> ETH",
+                "routeSymbols": ["ETH", "TK1", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "quoteInputs": {
+                    "candidatePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                    "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                    "quoteRequests": [{"venue": "amm_pool", "quoteMode": "overview_route_snapshot", "status": "waiting_live_price"}],
+                    "conditions": ["framework only"],
+                },
+                "overviewRoute": {
+                    "pathSymbols": ["ETH", "TK1", "ETH"],
+                    "pathAddresses": ["0x0", "0x1", "0x0"],
+                    "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                },
+                "quoteAnalysis": {"executableCandidate": True},
+            }
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": True, "reactor_family": "exclusive"}},
+        "poolStaticTable": {},
+    }
+
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda route, price_map, chain_id: {
+            "steps": [{"fromSymbol": "ETH", "toSymbol": "TK1"}],
+            "complete": True,
+            "executableCandidate": True,
+            "priceEvidenceSource": "live_quoter",
+            "priceEvidenceMode": "live_required",
+            "netProfitUsd": 1.0,
+        },
+        route_size_analysis_fn=lambda route, price_map, chain_id: {"rows": [{"size": 1}], "bestObservedNetProfitUsd": 1.0},
+    )
+
+    route = payload["routes"][0]
+
+    assert payload["summary"]["routeCount"] == 1
+    assert route["quoteAnalysis"]["priceEvidenceSource"] == "live_quoter"
+    assert route["quoteAnalysis"]["priceEvidenceMode"] == "live_required"
+    assert route["sizeAnalysis"]["rows"] == [{"size": 1}]
+    assert route["quoteInputs"]["quoteRequests"]

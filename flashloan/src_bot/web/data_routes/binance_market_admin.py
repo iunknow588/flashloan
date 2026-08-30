@@ -28,7 +28,6 @@ _chain_selection_error_response = market_routes._chain_selection_error_response
 _cow_submission_pause_guard = market_routes._cow_submission_pause_guard
 _set_cow_submission_pause_guard = market_routes._set_cow_submission_pause_guard
 _clear_cow_submission_pause_guard = market_routes._clear_cow_submission_pause_guard
-COW_EXECUTION_ATTEMPT_LOG_PATH = market_routes.COW_EXECUTION_ATTEMPT_LOG_PATH
 COW_EXECUTION_RETENTION_DAYS = market_routes.COW_EXECUTION_RETENTION_DAYS
 COW_EXECUTION_REVIEW_CATEGORIES = shared.COW_EXECUTION_REVIEW_CATEGORIES
 _cow_execution_attempt_groups = shared._cow_execution_attempt_groups
@@ -46,7 +45,7 @@ def register_binance_market_admin_routes(app, panel) -> None:
         networks = _request_networks_arg()
         groups = _cow_execution_attempt_groups(
             lambda **kwargs: load_recent_cow_execution_attempts_jsonl(
-                COW_EXECUTION_ATTEMPT_LOG_PATH,
+                shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
                 retention_days=COW_EXECUTION_RETENTION_DAYS,
                 **kwargs,
             ),

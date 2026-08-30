@@ -108,21 +108,13 @@ def _blocked_submission_state(precheck: dict[str, Any]) -> str:
 
 
 def default_record_attempts(attempts: list[dict[str, Any]], database_url: str | None) -> dict[str, Any]:
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
-    from web.control_panel_data_routes import COW_EXECUTION_ATTEMPT_LOG_PATH, COW_EXECUTION_RETENTION_DAYS
+    from web.control_panel_data_routes import record_cow_attempt_list_safely
 
-    if not attempts:
-        return {"recorded": 0, "source": "empty", "error": None}
-    pause_guard = cow_submission_pause_guard_status()
-    if pause_guard.get("paused"):
-        return {"recorded": 0, "source": "paused", "error": None, "pause_guard": pause_guard}
-    count = append_cow_execution_attempts_jsonl(
-        COW_EXECUTION_ATTEMPT_LOG_PATH,
+    return record_cow_attempt_list_safely(
         attempts,
-        retention_days=COW_EXECUTION_RETENTION_DAYS,
+        database_url=database_url,
         dedupe_market_candidates=False,
     )
-    return {"recorded": count, "source": "jsonl", "error": None}
 
 
 def default_quote_candidate(candidate: dict[str, Any], database_url: str | None) -> dict[str, Any]:

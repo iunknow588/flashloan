@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "robinhood-testnet-preflight-v1",
+  "runAt": "2026-08-29T05:22:37.650Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "routeRequirements": {
+    "requireV3Adapter": false,
+    "requireV4Adapter": true,
+    "flashSourceKind": 4
+  },
+  "onchainTestPolicy": {
+    "mode": "normal_only",
+    "normalFunctionFirst": true,
+    "abnormalOnchainTestsEnabled": false,
+    "abnormalOnchainTestsDeferred": true,
+    "tokenConservation": true
+  },
+  "rpc": {
+    "configured": true,
+    "source": "default_public_rpc",
+    "envName": "",
+    "host": "rpc.testnet.chain.robinhood.com",
+    "chainId": 46630,
+    "blockNumber": 109168990,
+    "ok": true,
+    "error": null
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_v4_pool_manager_as_flash_source",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_v4_universal_router",
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "hasCode": true,
+      "codeBytes": 24546,
+      "codeHash": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_v4_pool_manager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_permit2",
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "hasCode": true,
+      "codeBytes": 9152,
+      "codeHash": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259",
+      "ok": true,
+      "error": null
+    }
+  ],
+  "deployer": {
+    "configured": true,
+    "address": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "balanceWei": "39901901540000000",
+    "minBalanceWei": "1",
+    "balanceOk": true,
+    "error": null
+  },
+  "flashAccountingLiquidity": {
+    "attempted": true,
+    "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "lookbackBlocks": 20000,
+    "minUsablePools": 1,
+    "fromBlock": 109149013,
+    "toBlock": 109169013,
+    "swapLogCount": 324,
+    "activePoolIds": [
+      "0x127ad616e83f8bb22e3af20c3977fb2976f81afec10d79c49880795ee73bc135",
+      "0x28d508f75547f7455616385b9df852cd5abb15317005c3875ad2629083c7045f",
+      "0x292fe16d87d143944cb2acd8ef4348b11c8c28ad17f4ad67ea7586edec7dd9e8",
+      "0x5511f84cc1dbff7a4b58e6db04e3bd159b066d4f2ae8cb9e18f6088668052ab4",
+      "0x5814abbe96af3441e4cfb0b1b64d93c551a94017c8bf922f6feb375279b36020",
+      "0x5a053dd9ba0e0ca5d136b9a3aba68ed2a6ac107cb47ccb715a1f331fe585c79b",
+      "0x65441d8b2864301c63200e96787ca2c6f2b632805d5f3f7b2fdd4f54fe453199",
+      "0x87724490fafd1c07025b5081192dfc349312f8ceb7605d1ecbf2c97bb1bb2e5e",
+      "0xa18f5ff7451adb75c557e374d589bd830d0415102925c221431df4d65f11d6cc",
+      "0xa9d257c1b1a6a84c4a71f3f368bf1f3867c461ffaff7595f193499284be7c94a",
+      "0xdf605bc49a00dee00d1c338a6dbf0ef452ec4fedfecd243322dba680940b3857"
+    ],
+    "usableFlashAccountingPoolCount": 11,
+    "nativeBalanceWei": "442775089109788633576",
+    "ok": true,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": true,
+  "readyForBroadcast": false,
+  "blockingReasons": []
+}

@@ -94,24 +94,37 @@ def _mark_missing_chain_test_plan(report: dict, path: Path) -> dict:
 def _build_chain_test_plan_from_local_attempts(plan_path: Path, chain_json: Path) -> dict:
     chain_metadata = _read_json(chain_json)
     rows = load_recent_cow_execution_attempts_jsonl(
-        SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl",
+        SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts",
         limit=5000,
         networks=[ROBINHOOD_TESTNET_NETWORK],
         chain_ids=[ROBINHOOD_TESTNET_CHAIN_ID],
     )
     if not rows:
         raise FileNotFoundError("no robinhood-testnet attempts were available to build a chain-test plan")
-    attempt = next(
-        (
-            row
-            for row in rows
-            if int(
-                (((row.get("quote") or {}).get("live_onchain_evidence") or {}).get("triggerBlockNumber") or 0)
-            )
-            > 0
+    candidates = [
+        row
+        for row in rows
+        if (
+            ((row.get("quote") or {}).get("live_onchain_evidence") or {}).get("readyForTransactionPreflight")
+            or ((row.get("precheck") or {}).get("ready_for_transaction_preflight"))
+        )
+        and (
+            ((row.get("quote") or {}).get("live_onchain_evidence") or {}).get("trustedForExecution")
+            or ((row.get("precheck") or {}).get("trustedForExecution"))
+            or str((((row.get("quote") or {}).get("live_onchain_evidence") or {}).get("status") or "")).strip().lower()
+            == "live_verified"
+        )
+    ]
+    candidates.sort(
+        key=lambda row: (
+            int((((row.get("quote") or {}).get("live_onchain_evidence") or {}).get("triggerBlockNumber") or 0)),
+            str(row.get("created_at") or row.get("observed_at") or ""),
         ),
-        rows[0],
+        reverse=True,
     )
+    attempt = candidates[0] if candidates else None
+    if attempt is None:
+        raise FileNotFoundError("no live-ready robinhood-testnet attempts were available to build a chain-test plan")
     result = chain_test_package_flow(
         attempt=attempt,
         output_dir=plan_path.parent,

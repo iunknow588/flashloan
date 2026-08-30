@@ -1,0 +1,141 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5055
+ * Running on http://192.168.1.3:5055
+Press CTRL+C to quit
+127.0.0.1 - - [30/Aug/2026 07:47:48] "GET /dex?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:47:48] "GET /api/dex/opportunity-scanner/snapshot HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:27] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:27] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:27] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:27] "GET /api/chain-selection?page_path=/&feature=liquidation&default_market_id=robinhood-testnet-liquidation-shadow HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:28] "GET /api/chain-selection?feature=liquidation HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:28] "GET /api/liquidation/account-backfill HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:28] "GET /api/liquidation-settings HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:28] "GET /api/liquidation/pause-guard HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:29] "GET /api/system-info HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:29] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:51:29] "GET /api/liquidation/daemon/status HTTP/1.1" 200 -
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+127.0.0.1 - - [30/Aug/2026 07:51:30] "GET /api/liquidation/account-backfill HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:32] "GET /api/liquidation/account-backfill HTTP/1.1" 200 -
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+127.0.0.1 - - [30/Aug/2026 07:51:33] "GET /flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:33] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:33] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:34] "GET /api/chain-selection?page_path=/flash-loan/pools&feature=dex_arbitrage&default_market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:35] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:51:35] "GET /api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-1': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+127.0.0.1 - - [30/Aug/2026 07:51:38] "GET /dex/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:38] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:38] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:38] "GET /api/liquidation/borrow-pool?page_size=20&risk_page=1&high_page=1&core_page=1&market_id=robinhood-testnet-liquidation-shadow&chain_id=46630&protocols=morpho_blue HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:38] "GET /api/liquidation/execution-attempts?limit=20&market_id=robinhood-testnet-liquidation-shadow&chain_id=46630&protocols=morpho_blue HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:38] "GET /api/liquidation/accounts?page=1&page_size=20&market_id=robinhood-testnet-liquidation-shadow&chain_id=46630&protocols=morpho_blue HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:40] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:51:40] "GET /api/dex-pools/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&feature=dex_arbitrage&page=1&page_size=1&quality=all HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:40] "GET /api/chain-selection?page_path=/dex/candidates&feature=dex_arbitrage&default_market_id=robinhood-testnet-dex-paused&market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+127.0.0.1 - - [30/Aug/2026 07:51:45] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:51:46] "GET /api/dex-pools/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&page_size=10&feature=dex_arbitrage&page=1&quality=all HTTP/1.1" 200 -
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+error connecting in 'pool-2': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+Multiple connection attempts failed. All failures were:
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.108.241': connection failed: connection to server at "52.76.108.241", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '52.76.128.157': connection failed: connection to server at "52.76.128.157", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+- host: 'ep-young-breeze-azq1htvz.c-3.ap-southeast-1.aws.neon.tech', port: None, hostaddr: '13.251.213.89': connection failed: connection to server at "13.251.213.89", port 5432 failed: ERROR:  The endpoint has been disabled. Enable it using the API and retry.
+127.0.0.1 - - [30/Aug/2026 07:51:53] "GET /api/debt-pool/state HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:57] "GET /flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:57] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:57] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:51:58] "GET /api/chain-selection?page_path=/flash-loan/pools&feature=dex_arbitrage&default_market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:51:59] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:51:59] "GET /api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:02] "GET /dex/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:02] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:52:02] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:52:04] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:52:04] "GET /api/dex-pools/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&feature=dex_arbitrage&page=1&page_size=1&quality=all HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:04] "GET /api/chain-selection?page_path=/dex/candidates&feature=dex_arbitrage&default_market_id=robinhood-testnet-dex-paused&market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:08] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:52:10] "GET /api/dex-pools/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&page_size=10&feature=dex_arbitrage&page=1&quality=all HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:12] "GET /dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:12] "GET /static/chain-selector.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:52:12] "GET /static/workflow-context.js HTTP/1.1" 304 -
+127.0.0.1 - - [30/Aug/2026 07:52:13] "GET /api/chain-selection?page_path=/dex/market-observation&feature=dex_arbitrage&default_market_id=robinhood-testnet-dex-paused&market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:52:14] "GET /favicon.ico HTTP/1.1" 204 -
+127.0.0.1 - - [30/Aug/2026 07:53:03] "GET /api/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&feature=dex_arbitrage HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:53:48] "POST /api/dex/market-observation/refresh?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&feature=dex_arbitrage&full=1 HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:54:42] "GET /api/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&feature=dex_arbitrage HTTP/1.1" 200 -
+127.0.0.1 - - [30/Aug/2026 07:59:02] "GET /api/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -

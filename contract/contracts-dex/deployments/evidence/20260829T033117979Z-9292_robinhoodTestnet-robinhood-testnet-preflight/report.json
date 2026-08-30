@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "robinhood-testnet-preflight-v1",
+  "runAt": "2026-08-29T03:31:11.881Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "routeRequirements": {
+    "requireV3Adapter": false,
+    "requireV4Adapter": true,
+    "flashSourceKind": 4
+  },
+  "onchainTestPolicy": {
+    "mode": "normal_only",
+    "normalFunctionFirst": true,
+    "abnormalOnchainTestsEnabled": false,
+    "abnormalOnchainTestsDeferred": true,
+    "tokenConservation": true
+  },
+  "rpc": {
+    "configured": true,
+    "source": "default_public_rpc",
+    "envName": "",
+    "host": "rpc.testnet.chain.robinhood.com",
+    "chainId": 46630,
+    "blockNumber": 109120943,
+    "ok": true,
+    "error": null
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_v4_pool_manager_as_flash_source",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_v4_universal_router",
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "hasCode": true,
+      "codeBytes": 24546,
+      "codeHash": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_v4_pool_manager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": true,
+      "envName": "default_robinhood_testnet_permit2",
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "hasCode": true,
+      "codeBytes": 9152,
+      "codeHash": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259",
+      "ok": true,
+      "error": null
+    }
+  ],
+  "deployer": {
+    "configured": true,
+    "address": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "balanceWei": "39953433020000000",
+    "minBalanceWei": "1",
+    "balanceOk": true,
+    "error": null
+  },
+  "flashAccountingLiquidity": {
+    "attempted": true,
+    "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "lookbackBlocks": 20000,
+    "minUsablePools": 1,
+    "fromBlock": 109100953,
+    "toBlock": 109120953,
+    "swapLogCount": 353,
+    "activePoolIds": [
+      "0x09e51557476d0f5f7686f90745b781adcf9e6135b9f0fd81338afa01362ba16c",
+      "0x0de8b10ac6d29eb2129dd086fd8345c112ca7329088ab96b1c75a5741eae0d97",
+      "0x197d7e73cb45f6f3974316879f46fc19c80c78f3f1096ecd58effe52cd9b2152",
+      "0x604441916a6981cc69ced1ff72a99a5d03c37c2361911ae14fdd5015d4446cdc",
+      "0x85eecb39fb19277eec0e74024170478613a2a19877b66d89caa21fc8befe221d",
+      "0x87724490fafd1c07025b5081192dfc349312f8ceb7605d1ecbf2c97bb1bb2e5e",
+      "0xa9d257c1b1a6a84c4a71f3f368bf1f3867c461ffaff7595f193499284be7c94a",
+      "0xac69e6e5a29026f0f76c0ac6132a4baf521c5602846eb38497585d23d8512353",
+      "0xacdfdbecab77a4921e250ffde178db0c79cda85b58b8cca37dd7c0800640397c",
+      "0xaf250b056bbe12c268c19e837927431c661d51b92f78471c1e5f9477a048a500",
+      "0xb1b6e72e3a23bbbc6c264600e10f486cd7567eafa2a3a737f7a694b8b460285c",
+      "0xb445c05bebb8a2fb61cf8dc6427c65a4aeea36d6f9527edf22fff59da0fc846a",
+      "0xbe69368e8ce8ba5823de2dd6a5a1fab9abe2d54c854f499395af8e0424d809c5",
+      "0xc1e9dd6937098db9c64494ba14d19ca67a2e13596ba51506409b31a62ca7622b",
+      "0xc2b4097a2d885e51a76fefdc6222f3ac3fadf5932194065bfb25bfd43d97d486",
+      "0xd3306fe81a9ad68663f79e6e3c09d3d568c9e05d637fa69543a7cbf5389fe468",
+      "0xde92e8c3014742c6216c51ceb6a54d9fc7aacee5278ee688413607740c4cf585",
+      "0xe697d8ddab8594e88450bbe9127ab4a7ce07b121f125a42cbd6e04616c289079"
+    ],
+    "usableFlashAccountingPoolCount": 18,
+    "nativeBalanceWei": "442728994456689104597",
+    "ok": true,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": true,
+  "readyForBroadcast": false,
+  "blockingReasons": []
+}

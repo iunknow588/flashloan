@@ -77,9 +77,18 @@ def test_refactored_helper_modules_stay_under_line_limits():
         "market/binance_market/cow_tokens.py": 350,
         "market/binance_market/cow_math.py": 400,
         "market/binance_market/candidate_service.py": 120,
+        "market/binance_market/dex_surface_analysis.py": 260,
+        "market/binance_market/dex_quote_surface.py": 420,
         "market/binance_market/quote_service.py": 400,
         "market/binance_market/submission_readiness.py": 120,
         "market/binance_market/submission_service.py": 220,
+        "market/binance_market/pool_support.py": 450,
+        "market/binance_market/service.py": 2200,
+        "market/binance_market/dex_quote_route_common.py": 220,
+        "market/binance_market/dex_quote_route_builder.py": 260,
+        "intent_trade/chains/_dex_surface_flows.py": 220,
+        "intent_trade/chains/robinhood/dex_surfaces.py": 20,
+        "intent_trade/chains/robinhood_testnet/dex_surfaces.py": 20,
         "core/workflow.py": 300,
         "core/contracts.py": 180,
         "web/workflow_context.py": 100,
@@ -93,6 +102,7 @@ def test_refactored_helper_modules_stay_under_line_limits():
         "web/control_panel_data_cache.py": 150,
         "web/control_panel_data_db.py": 500,
         "web/control_panel_data_routes.py": 500,
+        "web/dex_provenance.py": 220,
         "web/control_panel_liquidation_execute.py": 500,
         "web/data_routes/binance_market.py": 500,
         "web/data_routes/binance_market_admin.py": 300,
@@ -249,6 +259,18 @@ def test_cow_flashloan_helpers_live_in_dedicated_package():
         assert not (SRC_ROOT / "execution" / filename).exists(), f"execution/{filename} should be in cow_flashloan"
     for retired_import in retired_imports:
         assert retired_import not in python_sources
+
+
+def test_robinhood_chain_dex_surface_wrappers_stay_thin():
+    wrapper_paths = (
+        "intent_trade/chains/robinhood/dex_surfaces.py",
+        "intent_trade/chains/robinhood_testnet/dex_surfaces.py",
+    )
+    for relative_path in wrapper_paths:
+        source = (SRC_ROOT / relative_path).read_text(encoding="utf-8")
+        assert "from intent_trade.chains._dex_surface_flows import" in source
+        assert "def _request_protocols" not in source
+        assert "from market.binance_market.dex_surfaces import" not in source
 
 
 def test_service_functionality_stays_out_of_web_routes():

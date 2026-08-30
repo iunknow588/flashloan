@@ -7,7 +7,7 @@
 - Flash-loan pool page default: yes; `/flash-loan/pools` defaults to `robinhood-testnet-dex-paused` on chain ID `46630`
 - Generic DEX pages still keep their own defaults unless a Robinhood Testnet chain scope is requested
 - Purpose: deploy/readback/pause-gate rehearsal only
-- Broadcast status: disabled
+- Broadcast status: closed after one successful normal flash probe live test; reopen only with the explicit normal-probe gate
 - Executor status: paused testnet deployment completed and read back
 - Executor contract: `RobinhoodPausedFlashLoanExecutor`
 - Development plan: `ARBITRAGE_CONTRACT_DEV_PLAN.md`
@@ -101,8 +101,10 @@ npm run ready:robinhood:executor-offchain-normal
 npm run stage:robinhood:testnet:predeploy
 npm run preflight:robinhood:testnet
 npm run ready:robinhood:testnet
+npm run ready:robinhood:testnet:live
 npm run plan:robinhood:testnet:paused-redeploy
 npm run probe:robinhood:testnet:v4flash:normal
+npm run probe:robinhood:testnet:v4flash:normal:live
 npm run deploy:robinhood:testnet:paused
 npm run readback:robinhood:testnet
 ```
@@ -125,6 +127,11 @@ It answers whether the local V4 accounting work, metadata, current paused
 readback, budget estimate, and token-conservative policy are coherent enough to
 freeze the current stage. It does not authorize deployment by itself.
 
+Use `ready:robinhood:testnet:live` before a normal-probe live transaction. Use
+`probe:robinhood:testnet:v4flash:normal:live` only after the readiness report
+is clean; it sets `ROBINHOOD_TESTNET_ALLOW_NORMAL_FLASH_BROADCAST=true` for that
+single command.
+
 Required adapter env vars for deployment:
 
 - `ROBINHOOD_TESTNET_FLASH_SOURCE` or `ROBINHOOD_TESTNET_V4_POOL_MANAGER`
@@ -142,6 +149,8 @@ If the frozen opportunity contains any V3 hop, set
 `ROBINHOOD_TESTNET_V3_SWAP_ROUTER` to have code.
 
 Template: `.env.testnet.example`
+
+Static chain addresses and defaults live in `chain.json`. Keep `contract/robinhood/testnet/.env` for runtime overrides only; global accounts stay in `flashloan/src_bot/.env`.
 
 ## Token-Conservative Test Policy
 
@@ -179,7 +188,7 @@ The executor-owned off-chain normal readiness gate has passed:
 - Robinhood testnet readiness summary includes deployed executor artifact match status.
 - V3-hop readiness hard gate: implemented through `ROBINHOOD_TESTNET_REQUIRE_V3`.
 - Official public RPC: verified on chain ID `46630`.
-- Deployer fallback key: available through `LIQUIDATION_EXECUTION_PRIVATE_KEY`; testnet balance check passes.
+- Global deployer/account key: available through `flashloan/src_bot/.env` via `LIQUIDATION_EXECUTION_PRIVATE_KEY`; testnet balance check passes.
 - Permit2: default address verified with code on testnet.
 - V4 PoolManager flash source kind `4`: selected and verified on testnet.
 - Morpho-style flash source adapter: implemented for compatibility tests, but not enabled as a Robinhood testnet source because no public deployment is verified on chain ID `46630`.
@@ -193,36 +202,40 @@ The executor-owned off-chain normal readiness gate has passed:
 - Flash-loan pool page default: Robinhood Testnet `robinhood-testnet-dex-paused` / `chain:46630`; generic DEX pages keep their own defaults.
 - CoW-specific APIs remain scoped to the CoW execution rail when no market ID is supplied.
 - Local executor artifact now includes the V4 PoolManager `unlock` / `take` / `settle` entrypoint.
-- Current paused testnet executor does not yet match the latest local artifact; the stage freeze boundary is now ready, and intentional paused redeploy still waits for manual approval.
+- Current paused testnet executor now matches the latest local artifact; the stage freeze boundary is preserved and the paused redeploy path is cleared.
 - Paused redeploy requires explicit `ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true`.
 - Paused redeploy also requires explicit stage-freeze milestone `ROBINHOOD_TESTNET_DEPLOY_MILESTONE=paused_executor_v4_accounting_freeze`.
 - Stage freeze is used to lock the current paused executor ABI/runtime and evidence baseline before any intentional redeploy; do not unfreeze until no further executor changes are planned.
 - Release criteria for unfreeze: keep the stage boundary fixed, preserve testnet-scoped readback evidence, and rerun predeploy checks before the intentional redeploy.
-- Latest readback: `contract/contracts-dex/deployments/evidence/20260825T135422573Z-34656_robinhoodTestnet-robinhood-paused-readback/report.json`.
-- Latest stage-freeze predeploy check: `contract/contracts-dex/deployments/evidence/20260827T014904709Z-2392_robinhoodTestnet-robinhood-stage-freeze-predeploy/report.json`.
-- Latest Python predeploy readiness check: `flashloan/src_bot/runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json`.
-- Current Python predeploy readiness status: closed with `chain_test_plan_missing` until a fresh Robinhood Testnet chain-test package exists.
+- Latest readback: `contract/contracts-dex/deployments/evidence/20260829T033247046Z-25660_robinhoodTestnet-robinhood-paused-readback/report.json`.
+- Latest stage-freeze predeploy check: `flashloan/src_bot/runtime/evidence/robinhood-testnet/predeploy_readiness/20260829T033523Z/report.json`.
+- Latest Python predeploy readiness check: `flashloan/src_bot/runtime/evidence/robinhood-testnet/predeploy_readiness/20260829T033523Z/report.json`.
+- Current Python predeploy readiness status: ready for deployment discussion and paused redeploy.
 - Mainnet candidate pool supply check `flashloan/src_bot/runtime/evidence/robinhood/candidate_pool_supply/20260825T151126Z/report.json` is explicitly not used for Robinhood Testnet.
 
 The preflight report checks RPC chain ID and adapter address code status before deployment. Readback reports include executor code hash plus adapter code status.
 
-Current blockers:
+Current Status / Remaining Observations:
 
-- Actual V4 PoolManager `unlock` / `take` / `settle` execution flow is implemented and covered locally, but not yet redeployed to Robinhood testnet.
-- Paused testnet executor artifact match is pending: latest readback has `matchesLocalArtifact=false`.
-- Latest readiness summary has `readyForLatestPausedExecutor=false`.
+- Actual V4 PoolManager `unlock` / `take` / `settle` execution flow is implemented and now deployed to Robinhood testnet.
+- Paused testnet executor artifact match now passes: latest readback has `matchesLocalArtifact=true`.
+- Latest readiness summary has `readyForLatestPausedExecutor=true`.
 - Deploy command safety was verified: without `ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true`, it fails before broadcast.
 - Latest paused redeploy plan: `contract/contracts-dex/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json`.
 - Plan result: deployment remains deferred until fresh usable-pool evidence, token-conservative staticcall evidence, and explicit stage approval are present.
-- Stage predeploy result: `readyForStageFreeze=true`, `stageFreezeApproved=false`, `readyForIntentionalPausedRedeploy=false`, `deploymentDeferred=true`, `broadcastAttempted=false`.
-- Python predeploy result: `auditOk=true`, `readyForForkStaticcall=false`, `readyForDeploymentDiscussion=false`, `readyForPausedRedeploy=false`.
+- Stage predeploy result: `readyForStageFreeze=true`, `stageFreezeApproved=true`, `readyForIntentionalPausedRedeploy=true`, `deploymentDeferred=true`, `broadcastAttempted=false`.
+- Python predeploy result: `auditOk=true`, `readyForForkStaticcall=true`, `readyForDeploymentDiscussion=true`, `readyForPausedRedeploy=true`.
 - Candidate pool supply result for Robinhood Testnet is intentionally zero/null; the previous mainnet `4663` candidate report is archived only as `mainnetCandidatePoolSupplyEvidenceNotUsedForTestnet` and must not be used as Robinhood Testnet `46630` execution proof.
-- Chain-test package result for Robinhood Testnet is currently missing; `check_robinhood_predeploy_readiness.py` writes a testnet-scoped closed report instead of falling back to mainnet evidence.
-- Testnet V4 pool evidence: direct RPC/explorer checks show active V4 pools with non-zero liquidity; the probe is configured now, and the remaining execution block is the usual profit/fork-staticcall gate.
+- Chain-test package result for Robinhood Testnet is now present and scoped to `flashloan/src_bot/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json`; `check_robinhood_predeploy_readiness.py` no longer falls back to mainnet evidence.
+- Testnet V4 pool evidence: direct RPC/explorer checks show active V4 pools with non-zero liquidity; the probe is configured now, and the paused redeploy path still keeps the profit/fork-staticcall gate.
 - Latest normal testnet probe check: `flashloan/src_bot/runtime/evidence/robinhood-testnet/normal_testnet_probe/latest.json`.
-- Normal testnet probe now resolves `probe.address`, `token`, and `amount`; broadcast remains disabled by design.
+- Normal testnet probe now resolves `probe.address`, `token`, and `amount`; normal-probe broadcast can be reopened only with the explicit live-test command.
+- Latest live testing readiness: `flashloan/src_bot/runtime/evidence/robinhood-testnet/live_testing_readiness/20260829T033905Z/report.json`.
+- Live testing readiness currently has `broadcastEnabled=false`, `normalTestnetProbeReady=true`, and `chainTestReady=true`.
+- Live normal probe broadcast hash: `0x00144975ae2d33961fd4414e2171dcb7cdbc4f0ce1c0b16770ad185c8a0268d2`.
+- Broadcast is closed again after paused redeploy; reopen it only for another explicit normal probe.
 - Token-conservative normal-path testnet probe is deployed and recorded on chain ID `46630`.
-- Fresh closed opportunity capture and fork/static-call are not complete.
+- Fresh closed opportunity capture and fork/static-call evidence are complete for the current Robinhood Testnet route.
 - V3 SwapRouter is still required if the frozen route contains V3 hops.
 
-Do not use this paused deployment as a production executor. It is a chain-specific Robinhood testnet rehearsal contract with `broadcastEnabled=false` and `readyForBroadcast=false`.
+Do not use this paused deployment as a production executor. It is a chain-specific Robinhood testnet rehearsal contract. Normal flash probe broadcasting was used for the live test, then closed again after paused redeploy; reopen it only with the explicit normal-probe gate.

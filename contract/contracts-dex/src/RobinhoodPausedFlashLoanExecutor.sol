@@ -41,6 +41,27 @@ interface IV4PoolManagerRobinhood {
     function settle() external payable returns (uint256 paid);
 }
 
+interface IV4PoolManagerSwapRobinhood {
+    struct PoolKey {
+        address currency0;
+        address currency1;
+        uint24 fee;
+        int24 tickSpacing;
+        address hooks;
+    }
+
+    struct SwapParams {
+        bool zeroForOne;
+        int256 amountSpecified;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function swap(PoolKey calldata key, SwapParams calldata params, bytes calldata hookData)
+        external
+        payable
+        returns (int256 amount0, int256 amount1);
+}
+
 interface IMorphoBlueFlashLoanCallback {
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external;
 }
@@ -71,6 +92,8 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     bytes1 public constant V4_ACTION_SWAP_EXACT_IN_SINGLE = 0x06;
     bytes1 public constant V4_ACTION_SETTLE_ALL = 0x0c;
     bytes1 public constant V4_ACTION_TAKE_ALL = 0x0f;
+    uint160 private constant V4_MIN_SQRT_PRICE_LIMIT = 4295128740;
+    uint160 private constant V4_MAX_SQRT_PRICE_LIMIT = 1461446703485210103287273052203988822378723970341;
     uint256 public constant MAX_ROUTE_HOPS = 8;
 
     uint8 private constant FLASH_EXECUTION_NONE = 0;
@@ -422,6 +445,34 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    function buildV4PoolManagerExactInputRouteCalldata(V4ExactInputSingle[] calldata swaps, uint256 deadline)
+        external
+        view
+        returns (address[] memory targets, bytes[] memory calldatas, address initialToken, address finalToken)
+    {
+        UniswapV4Adapter memory adapter = uniswapV4Adapter;
+        if (!adapter.enabled || adapter.poolManager == address(0)) revert V4AdapterMissing();
+        uint256 hopCount = swaps.length;
+        if (hopCount == 0 || hopCount > MAX_ROUTE_HOPS) revert InvalidRequest();
+
+        targets = new address[](hopCount);
+        calldatas = new bytes[](hopCount);
+        for (uint256 i = 0; i < hopCount; i++) {
+            _validateV4ExactInputSingle(swaps[i], deadline);
+            address tokenIn = _currencyIn(swaps[i]);
+            address tokenOut = _currencyOut(swaps[i]);
+            if (i == 0) {
+                initialToken = tokenIn;
+            } else if (_currencyOut(swaps[i - 1]) != tokenIn) {
+                revert InvalidRequest();
+            }
+            if (i == hopCount - 1) finalToken = tokenOut;
+            (, bytes memory data) = _buildV4PoolManagerExactInputSingle(adapter.poolManager, swaps[i]);
+            targets[i] = adapter.poolManager;
+            calldatas[i] = data;
+        }
+    }
+
     function buildV3V4MixedRouteCalldata(MixedRouteHop[] calldata hops, uint256 deadline)
         external
         view
@@ -628,15 +679,21 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         UniswapV4Adapter memory adapter
     ) private returns (bytes memory) {
         IV4PoolManagerRobinhood poolManager = IV4PoolManagerRobinhood(adapter.poolManager);
+        bool hasDirectPoolManagerRoute = swapTargets.length != 0 && swapTargets[0] == adapter.poolManager;
         uint256 balanceBefore = _currencyBalance(tokenAddress);
-
         poolManager.take(tokenAddress, address(this), amount);
         uint256 balanceAfterTake = _currencyBalance(tokenAddress);
         if (balanceAfterTake < balanceBefore + amount) revert BadFlashCallback();
         emit RobinhoodV4FlashAccountingBorrowed(tokenAddress, amount, balanceAfterTake);
 
-        for (uint256 i = 0; i < swapTargets.length; i++) {
-            _executeSwap(swapTargets[i], swapCalldatas[i], swapValues[i], i + 1);
+        if (hasDirectPoolManagerRoute) {
+            _executeV4DirectRouteSwaps(swapTargets, swapCalldatas, swapValues, adapter.poolManager);
+        }
+
+        if (!hasDirectPoolManagerRoute) {
+            for (uint256 i = 0; i < swapTargets.length; i++) {
+                _executeSwap(swapTargets[i], swapCalldatas[i], swapValues[i], i + 1);
+            }
         }
 
         uint256 requiredRepay = _requiredRepay(amount, source.feeBps);
@@ -658,11 +715,11 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
             if (balance < requiredBalance) revert BadFlashRepayment(balance, requiredBalance);
         }
 
-        poolManager.sync(tokenAddress);
-        uint256 paid;
+        uint256 paid = 0;
         if (tokenAddress == address(0)) {
             paid = poolManager.settle{value: requiredRepay}();
         } else {
+            poolManager.sync(tokenAddress);
             if (!IERC20RobinhoodMinimal(tokenAddress).transfer(adapter.poolManager, requiredRepay)) revert TransferFailed();
             paid = poolManager.settle();
         }
@@ -671,6 +728,50 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RobinhoodFlashRepaid(tokenAddress, requiredRepay, requiredBalance);
 
         return abi.encode(tokenAddress, amount, requiredRepay, paid);
+    }
+
+    function _executeV4DirectRouteSwaps(
+        address[] memory swapTargets,
+        bytes[] memory swapCalldatas,
+        uint256[] memory swapValues,
+        address poolManager
+    ) private {
+        for (uint256 i = 0; i < swapTargets.length; i++) {
+            uint256 swapValue = swapTargets[i] == poolManager ? 0 : swapValues[i];
+            bytes memory swapCalldata = swapTargets[i] == poolManager
+                ? _v4DirectSwapCalldataWithSpendableInput(swapCalldatas[i])
+                : swapCalldatas[i];
+            (int256 delta0, int256 delta1) = _executeSwap(swapTargets[i], swapCalldata, swapValue, i + 1);
+            if (swapTargets[i] == poolManager) {
+                _settleV4SwapDelta(swapCalldata, delta0, delta1, poolManager);
+            }
+        }
+    }
+
+    function _v4DirectSwapCalldataWithSpendableInput(bytes memory data) private view returns (bytes memory) {
+        (PoolKey memory key, IV4PoolManagerSwapRobinhood.SwapParams memory params, bytes memory hookData) =
+            _decodeV4PoolManagerSwap(data);
+        if (params.amountSpecified >= 0) return data;
+
+        uint256 requestedInput = uint256(-params.amountSpecified);
+        address inputCurrency = params.zeroForOne ? key.currency0 : key.currency1;
+        uint256 spendableInput = _currencyBalance(inputCurrency);
+        if (spendableInput >= requestedInput) return data;
+        if (spendableInput == 0) revert BadFlashRepayment(0, requestedInput);
+
+        params.amountSpecified = -int256(spendableInput);
+        return abi.encodeWithSelector(
+            IV4PoolManagerSwapRobinhood.swap.selector,
+            IV4PoolManagerSwapRobinhood.PoolKey({
+                currency0: key.currency0,
+                currency1: key.currency1,
+                fee: key.fee,
+                tickSpacing: key.tickSpacing,
+                hooks: key.hooks
+            }),
+            params,
+            hookData
+        );
     }
 
     function _validateV4ExactInputSingle(V4ExactInputSingle calldata swap, uint256 deadline) private view {
@@ -703,6 +804,31 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         inputs[0] = abi.encode(actions, params);
         target = universalRouter;
         data = abi.encodeWithSelector(IUniversalRouterRobinhood.execute.selector, commands, inputs, deadline);
+    }
+
+    function _buildV4PoolManagerExactInputSingle(address poolManager, V4ExactInputSingle calldata swap)
+        private
+        pure
+        returns (address target, bytes memory data)
+    {
+        IV4PoolManagerSwapRobinhood.SwapParams memory params = IV4PoolManagerSwapRobinhood.SwapParams({
+            zeroForOne: swap.zeroForOne,
+            amountSpecified: -int256(uint256(swap.amountIn)),
+            sqrtPriceLimitX96: swap.zeroForOne ? V4_MIN_SQRT_PRICE_LIMIT : V4_MAX_SQRT_PRICE_LIMIT
+        });
+        target = poolManager;
+        data = abi.encodeWithSelector(
+            IV4PoolManagerSwapRobinhood.swap.selector,
+            IV4PoolManagerSwapRobinhood.PoolKey({
+                currency0: swap.poolKey.currency0,
+                currency1: swap.poolKey.currency1,
+                fee: swap.poolKey.fee,
+                tickSpacing: swap.poolKey.tickSpacing,
+                hooks: swap.poolKey.hooks
+            }),
+            params,
+            swap.hookData
+        );
     }
 
     function _buildV3ExactInputSingle(V3ExactInputSingle calldata swap, uint256 deadline)
@@ -858,16 +984,66 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     function _isAllowedSwapTarget(address target) private view returns (bool) {
         if (target == address(0)) return false;
         UniswapV4Adapter memory v4 = uniswapV4Adapter;
+        if (v4.enabled && target == v4.poolManager) return true;
         if (v4.enabled && target == v4.universalRouter) return true;
         UniswapV3Adapter memory v3 = uniswapV3Adapter;
         if (v3.enabled && target == v3.swapRouter) return true;
         return false;
     }
 
-    function _executeSwap(address target, bytes memory data, uint256 value, uint256 hopIndex) private {
-        (bool ok, bytes memory reason) = target.call{value: value}(data);
-        if (!ok) revert RouterCallFailed(_revertSelector(reason));
+    function _executeSwap(address target, bytes memory data, uint256 value, uint256 hopIndex)
+        private
+        returns (int256 amount0, int256 amount1)
+    {
+        (bool ok, bytes memory returndata) = target.call{value: value}(data);
+        if (!ok) revert RouterCallFailed(_revertSelector(returndata));
         emit RobinhoodRouteHopExecuted(hopIndex, target);
+        if (returndata.length >= 64) {
+            (amount0, amount1) = abi.decode(returndata, (int256, int256));
+        } else if (returndata.length >= 32) {
+            int256 packed = abi.decode(returndata, (int256));
+            amount0 = int128(packed >> 128);
+            amount1 = int128(packed);
+        }
+    }
+
+    function _settleV4SwapDelta(
+        bytes memory data,
+        int256 amount0,
+        int256 amount1,
+        address poolManager
+    ) private {
+        (PoolKey memory key, IV4PoolManagerSwapRobinhood.SwapParams memory params,) = _decodeV4PoolManagerSwap(data);
+        address inputCurrency = params.zeroForOne ? key.currency0 : key.currency1;
+        address outputCurrency = params.zeroForOne ? key.currency1 : key.currency0;
+        int256 inputDelta = params.zeroForOne ? amount0 : amount1;
+        int256 outputDelta = params.zeroForOne ? amount1 : amount0;
+        if (inputDelta < 0) {
+            uint256 inputAmount = uint256(-inputDelta);
+            if (inputCurrency == address(0)) {
+                IV4PoolManagerRobinhood(poolManager).settle{value: inputAmount}();
+            } else {
+                IV4PoolManagerRobinhood(poolManager).sync(inputCurrency);
+                if (!IERC20RobinhoodMinimal(inputCurrency).transfer(poolManager, inputAmount)) revert TransferFailed();
+                IV4PoolManagerRobinhood(poolManager).settle();
+            }
+        }
+        if (outputDelta > 0) {
+            IV4PoolManagerRobinhood(poolManager).take(outputCurrency, address(this), uint256(outputDelta));
+        }
+    }
+
+    function _decodeV4PoolManagerSwap(bytes memory data)
+        private
+        pure
+        returns (PoolKey memory key, IV4PoolManagerSwapRobinhood.SwapParams memory params, bytes memory hookData)
+    {
+        if (data.length <= 4) revert InvalidRequest();
+        bytes memory payload = new bytes(data.length - 4);
+        for (uint256 i = 4; i < data.length; i++) {
+            payload[i - 4] = data[i];
+        }
+        (key, params, hookData) = abi.decode(payload, (PoolKey, IV4PoolManagerSwapRobinhood.SwapParams, bytes));
     }
 
     function _currencyBalance(address currency) private view returns (uint256) {

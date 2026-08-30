@@ -7,7 +7,8 @@
   "rpc_url": "https://rpc.testnet.chain.robinhood.com",
   "explorer_url": "https://explorer.testnet.chain.robinhood.com",
   "defaults": {
-    "flash_loan_pool_page": true
+    "flash_loan_pool_page": true,
+    "v4_quote_adapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index"
   },
   "features": {
     "liquidation": {

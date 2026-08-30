@@ -1379,38 +1379,52 @@ def append_cow_execution_attempts_jsonl(
     return len(additions)
 
 
+def _jsonl_source_paths(path: Path) -> list[Path]:
+    if path.is_dir():
+        paths = [item for item in path.rglob("*.jsonl") if item.is_file()]
+        legacy_file = path.with_suffix(".jsonl")
+        if legacy_file.exists() and legacy_file.is_file():
+            paths.append(legacy_file)
+        return sorted({item for item in paths})
+    return [path]
+
+
 def clear_cow_execution_attempts_jsonl(
     path: Path,
     *,
     networks: list[str] | None = None,
     category: str | None = None,
 ) -> dict[str, Any]:
-    if not path.exists():
+    source_paths = [item for item in _jsonl_source_paths(path) if item.exists()]
+    if not source_paths:
         return {"cleared": 0, "remaining": 0, "source": "jsonl", "error": None}
     wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
     wanted_category = str(category or "").strip().lower()
-    kept_rows = []
     cleared = 0
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            kept_rows.append(line)
-            continue
-        if not isinstance(row, dict):
-            kept_rows.append(line)
-            continue
-        network_matches = not wanted or str(row.get("network") or "").strip().lower() in wanted
-        category_matches = not wanted_category or cow_execution_attempt_category(row) == wanted_category
-        if network_matches and category_matches:
-            cleared += 1
-            continue
-        kept_rows.append(_json_text(row))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        for item in kept_rows:
-            handle.write(str(item) + "\n")
-    return {"cleared": cleared, "remaining": len(kept_rows), "source": "jsonl", "error": None}
+    remaining = 0
+    for source_path in source_paths:
+        kept_rows = []
+        for line in source_path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                kept_rows.append(line)
+                continue
+            if not isinstance(row, dict):
+                kept_rows.append(line)
+                continue
+            network_matches = not wanted or str(row.get("network") or "").strip().lower() in wanted
+            category_matches = not wanted_category or cow_execution_attempt_category(row) == wanted_category
+            if network_matches and category_matches:
+                cleared += 1
+                continue
+            kept_rows.append(_json_text(row))
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        with source_path.open("w", encoding="utf-8") as handle:
+            for item in kept_rows:
+                handle.write(str(item) + "\n")
+        remaining += len(kept_rows)
+    return {"cleared": cleared, "remaining": remaining, "source": "jsonl", "error": None}
 
 
 def clear_cow_execution_attempts(
@@ -1463,47 +1477,55 @@ def load_recent_cow_execution_attempts_jsonl(
     retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS,
     category: str | None = None,
 ) -> list[dict[str, Any]]:
-    if not path.exists():
+    source_paths = [item for item in _jsonl_source_paths(path) if item.exists()]
+    if not source_paths:
         return []
     wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
     wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
     wanted_market_ids = {str(item).strip().lower() for item in market_ids or [] if str(item).strip()}
     wanted_category = str(category or "").strip().lower()
     now = datetime.now(timezone.utc)
-    lines = path.read_text(encoding="utf-8").splitlines()
-    rows = []
-    network_counts: dict[str, int] = {}
+    rows: list[dict[str, Any]] = []
     global_limit = max(1, int(limit))
-    for line in reversed(lines):
+    for source_path in source_paths:
         try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
+            lines = source_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
             continue
-        if not isinstance(payload, dict):
-            continue
-        if not evidence_scope_matches(
-            payload,
-            networks=wanted,
-            chain_ids=wanted_chain_ids,
-            market_ids=wanted_market_ids,
-        ):
-            continue
-        payload_category = cow_execution_attempt_category(payload)
-        if wanted_category and payload_category != wanted_category:
-            continue
-        if not _category_within_retention(payload, now=now):
-            continue
-        network = infer_evidence_scope(payload).network
-        if wanted:
+        for line in reversed(lines):
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            if not evidence_scope_matches(
+                payload,
+                networks=wanted,
+                chain_ids=wanted_chain_ids,
+                market_ids=wanted_market_ids,
+            ):
+                continue
+            payload_category = cow_execution_attempt_category(payload)
+            if wanted_category and payload_category != wanted_category:
+                continue
+            if not _category_within_retention(payload, now=now):
+                continue
+            rows.append(_decorate_attempt_review(payload))
+    rows.sort(key=lambda item: (str(item.get("created_at") or item.get("observed_at") or ""), int(item.get("id") or 0)), reverse=True)
+    if wanted:
+        network_counts: dict[str, int] = {}
+        limited_rows: list[dict[str, Any]] = []
+        for row in rows:
+            network = infer_evidence_scope(row).network
             if network_counts.get(network, 0) >= global_limit:
                 continue
             network_counts[network] = network_counts.get(network, 0) + 1
-        rows.append(_decorate_attempt_review(payload))
-        if wanted and wanted.issubset({key for key, count in network_counts.items() if count >= global_limit}):
-            break
-        if not wanted and len(rows) >= global_limit:
-            break
-    return rows
+            limited_rows.append(row)
+            if wanted.issubset({key for key, count in network_counts.items() if count >= global_limit}):
+                break
+        return limited_rows
+    return rows[:global_limit]
 
 
 def load_recent_cow_execution_attempts(

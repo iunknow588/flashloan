@@ -53,7 +53,13 @@
       <button id="refreshBtn">刷新记录</button>
       <button id="clearBtn" class="danger">清空当前链路记录</button>
       <span id="message" class="muted">等待数据</span>
-    </div>
+        </div>
+    <section class="grid" id="routeFrameworkPanel">
+      <div class="metric"><small>当前框架</small><strong id="frameworkSource">-</strong><span id="frameworkDecision">-</span></div>
+      <div class="metric"><small>候选路由</small><strong id="frameworkRouteCount">-</strong><span id="frameworkRouteText">-</span></div>
+      <div class="metric"><small>观察闭环</small><strong id="frameworkObservationCount">-</strong><span id="frameworkObservationSource">-</span></div>
+      <div class="metric"><small>参考净利</small><strong id="frameworkProfit">-</strong><span id="frameworkProfitText">-</span></div>
+    </section>
     <section class="grid">
       <div class="metric"><small>提交/观察总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
       <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>已完成交易</span></div>
@@ -108,6 +114,11 @@
       if (value === null || value === undefined || value === "") return null;
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : null;
+    }
+    function money(value) {
+      const parsed = numberValue(value);
+      if (parsed === null) return "-";
+      return `$${parsed.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     }
     function evidence(row) {
       return row.review_summary?.onchain_evidence || row.quote?.live_onchain_evidence || {};
@@ -263,6 +274,17 @@
       $("message").textContent = "正在加载提交记录...";
       try {
         const data = await fetchJson("/api/dex/submissions?limit=300");
+        const framework = data.routeFramework || {};
+        $("frameworkSource").textContent = framework.routeFrameworkLabel || frameworkLabel(framework.routeFrameworkSource || framework.marketObservationSource || "-");
+        $("frameworkDecision").textContent = framework.decisionBasis || "-";
+        $("frameworkRouteCount").textContent = framework.routeCount ?? framework.candidateRouteCount ?? 0;
+        $("frameworkRouteText").textContent = framework.topRouteText || "-";
+        $("frameworkObservationCount").textContent = framework.observationSequenceCount ?? framework.observationAnchorCount ?? 0;
+        const frameworkObservationSourceText = framework.marketObservationLabel || frameworkLabel(framework.marketObservationSource || "-");
+        const frameworkObservationStageText = framework.marketObservationSourceStageLabel || marketObservationSourceStageLabel(framework.marketObservationSourceStage || framework.marketObservationSource || "-");
+        $("frameworkObservationSource").textContent = [frameworkObservationSourceText, frameworkObservationStageText].filter(Boolean).join(" · ");
+        $("frameworkProfit").textContent = money(framework.bestObservedNetProfitUsd ?? framework.bestExecutableNetProfitUsd);
+        $("frameworkProfitText").textContent = framework.topRouteStatus || "-";
         $("attemptCount").textContent = data.summary?.attemptCount ?? 0;
         $("successCount").textContent = data.summary?.successCount ?? 0;
         $("failedCount").textContent = data.summary?.failedCount ?? 0;

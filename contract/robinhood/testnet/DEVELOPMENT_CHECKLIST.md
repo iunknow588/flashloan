@@ -37,18 +37,43 @@
 - [x] Add local MockV4PoolManager normal-path readiness script.
 - [x] Add stage-freeze milestone gate before any further paused redeploy.
 - [x] Document that stage freeze locks the current executor ABI/runtime before intentional redeploy.
-- [ ] Freeze current executor stage before redeploy.
-  - [ ] Confirm no additional executor ABI changes are planned for this stage.
+- [x] Freeze current executor stage before redeploy.
+  - [x] Confirm no additional executor ABI changes are planned for this stage.
   - [x] Run `npm run stage:robinhood:testnet:predeploy` and archive the report.
-- [ ] Redeploy paused executor on Robinhood testnet with the latest V4 flash-accounting entrypoint after stage freeze.
-  - [ ] Set `ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true` only for the intentional redeploy command.
-  - [ ] Set `ROBINHOOD_TESTNET_DEPLOY_MILESTONE=paused_executor_v4_accounting_freeze` only after stage freeze.
-- [ ] Unfreeze only after the stage boundary and evidence baseline have been reviewed.
-  - [ ] Confirm no further executor ABI/runtime changes are planned.
-  - [ ] Rerun the stage-freeze predeploy check and paused readback immediately before onchain testing.
-- [ ] Read back latest paused executor with `matchesLocalArtifact=true`.
-- [ ] Deploy/configure token-conservative normal-path V4 flash probe on Robinhood testnet.
-- [ ] Keep abnormal on-chain tests deferred until testnet profit-token reserve exists.
+- [x] Redeploy paused executor on Robinhood testnet with the latest V4 flash-accounting entrypoint after stage freeze.
+  - [x] Set `ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true` only for the intentional redeploy command.
+  - [x] Set `ROBINHOOD_TESTNET_DEPLOY_MILESTONE=paused_executor_v4_accounting_freeze` only after stage freeze.
+- [x] Unfreeze only after the stage boundary and evidence baseline have been reviewed.
+  - [x] Confirm no further executor ABI/runtime changes are planned.
+  - [x] Rerun the stage-freeze predeploy check and paused readback immediately before paused executor redeploy.
+- [x] Read back latest paused executor with `matchesLocalArtifact=true`.
+- [x] Deploy/configure token-conservative normal-path V4 flash probe on Robinhood testnet.
+- [x] Keep abnormal on-chain tests deferred until testnet profit-token reserve exists.
+- [x] Open chain-test fork/static-call scope for Robinhood Testnet live testing.
+  - [x] Confirm normal probe address, token, and amount resolve from testnet-scoped metadata.
+  - [x] Confirm normal-probe broadcast config is open.
+  - [x] Run the first small-notional normal-probe transaction on Robinhood Testnet.
+- [x] Capture passing fork/static-call evidence for the paused redeploy discussion.
+- [x] Run Robinhood Testnet dynamic route scan and record discovered candidates.
+- [x] Add dynamic V4 route preflight script for the latest chain-test plan.
+- [x] Build dynamic 3-hop V4 route calldata from PoolKey index and latest plan.
+- [x] Temporarily open testnet execution gate for dynamic-route static-call rehearsal and restore `paused=true`.
+- [x] Set Permit2 approvals for dynamic route intermediate tokens during the guarded test rehearsal.
+- [x] Record dynamic route static-call failure without broadcasting the route transaction.
+- [x] Add direct PoolManager route builder for native-value dynamic execution and redeploy the paused executor.
+- [ ] Replace V4 `reference_quote_adapter` / spot-index quote with a real Robinhood Testnet V4 Quoter/SDK or swap static-call adapter before dynamic route submission.
+- [x] Decode/resolve Universal Router failure selector `0x5090d6c6` from dynamic route static-call.
+  - [x] Confirm `0x5090d6c6` maps to `AlreadyUnlocked()`, caused by nested PoolManager unlock when Universal Router is called inside the executor's V4 unlock callback.
+- [x] Resolve the live-chain direct-route empty-revert on the first swap target for the reference-quoted 3-hop ETH path.
+  - [x] Redeploy direct PoolManager executor with bytecode hash matching the local artifact.
+  - [x] Decode live `ERC20InsufficientBalance` and adjust later exact-input hops to spend actual previous-hop output.
+  - [x] Confirm the route now reaches repayment guard instead of PoolManager/router settlement failure.
+- [ ] Replace the stale 3-hop ETH plan with a fresh live-verified profitable candidate.
+  - Current direct-route preflight result: `BadFlashRepayment(balance=992686570454, required=1000000000000000000)`.
+  - Current executor: `0x69d9e4ac531d48E388c54EA19B11AABeCE1d59bB`.
+  - Current blocker: route executed in static-call but returned less ETH than required repayment, so broadcast was correctly skipped.
+- [ ] Rebuild chain-test package from a real V4 quote/static-call verified dynamic candidate.
+- [ ] Run fork/static-call for the dynamic 3-hop V4 route before opening dynamic route broadcast.
 
 ## Scripts
 
@@ -67,7 +92,7 @@
 - [x] Verify default Permit2 code on testnet.
 - [x] Complete paused testnet deployment.
 - [x] Complete paused testnet readback with adapter code status.
-- [x] Keep `broadcastEnabled=false`.
+- [x] Keep paused executor deploy broadcast closed unless `ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true`.
 - [x] Run adapter-code verification against real Robinhood testnet RPC.
 - [x] Add preflight/readiness reporting for token-conservative on-chain test policy.
 - [x] Add `ready:robinhood:offchain-normal` gate.
@@ -77,7 +102,15 @@
 - [x] Add Python predeploy readiness command that combines latest chain-test package status with testnet deploy state.
 - [x] Add candidate pool supply command for monitoring/search sufficiency.
 - [x] Add Robinhood testnet V4 usable-pool evidence gate before paused deploy readiness.
-- [x] Add `probe:robinhood:testnet:v4flash:normal` script with broadcast disabled by default.
+- [x] Add `probe:robinhood:testnet:v4flash:normal` script.
+- [x] Enable normal flash probe broadcast gate with `ROBINHOOD_TESTNET_ALLOW_NORMAL_FLASH_BROADCAST=true`.
+- [x] Add `probe:robinhood:testnet:v4flash:normal:live` command for an explicit live normal-probe transaction.
+- [x] Add `ready:robinhood:testnet:live` checker for normal-probe live testing readiness.
+- [x] Add `preflight:robinhood:testnet:dynamic-v4-route` for dynamic 3-hop calldata/static-call rehearsal.
+- [x] Decode `ERC20InsufficientBalance` / `BadFlashRepayment` in dynamic route preflight evidence.
+- [x] Run live testing readiness checker and archive report.
+  - Current status: `chainTestReady=true`.
+  - Current status: normal-probe broadcast gate is closed again after live testing.
 - [x] Add deployed executor artifact match summary to `ready:robinhood:testnet`.
 - [x] Keep CoW-specific APIs scoped to CoW while generic DEX pages default away from Robinhood testnet.
 
@@ -102,6 +135,8 @@
 - [x] Test paused redeploy plan summary remains non-broadcast.
 - [x] Test Python predeploy readiness blocks deployment when latest opportunity misses min profit or fork/static-call evidence.
 - [x] Test candidate pool supply does not imply execution readiness.
+- [x] Test Robinhood Testnet live readiness requires broadcast and normal probe gates.
+- [x] Test Robinhood Testnet live readiness CLI writes a scoped report.
 
 ## Archive
 

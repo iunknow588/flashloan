@@ -2,10 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 
-const DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951";
-const DEFAULT_ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER = "0x8876789976DecbFCbBbe364623C63652db8c0904";
-const DEFAULT_ROBINHOOD_TESTNET_POSITION_MANAGER = "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7";
-const DEFAULT_ROBINHOOD_TESTNET_PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+const ROBINHOOD_TESTNET_CHAIN_JSON = path.resolve(__dirname, "../../robinhood/testnet/chain.json");
 const V4_SWAP_TOPIC = hre.ethers.id("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)");
 
 function normalizeAddress(value) {
@@ -83,6 +80,32 @@ function envString(name, fallback = "") {
   const value = String(process.env[name] || "").trim();
   return value || fallback;
 }
+
+function readRobinhoodTestnetChainConfig() {
+  try {
+    const payload = JSON.parse(fs.readFileSync(ROBINHOOD_TESTNET_CHAIN_JSON, "utf8"));
+    return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeRobinhoodTestnetDefaults() {
+  const config = readRobinhoodTestnetChainConfig();
+  return {
+    chainJsonPath: ROBINHOOD_TESTNET_CHAIN_JSON,
+    defaultFlashSourceKind: Number(config.defaultFlashSourceKind ?? 4),
+    defaultFlashSource: normalizeAddress(config.defaultFlashSource || config.defaultV4PoolManager || ""),
+    defaultPermit2: normalizeAddress(config.defaultPermit2 || ""),
+    defaultV4PoolManager: normalizeAddress(config.defaultV4PoolManager || ""),
+    defaultV4UniversalRouter: normalizeAddress(config.defaultV4UniversalRouter || ""),
+    defaultPositionManager: normalizeAddress(config.defaultPositionManager || ""),
+    defaultWrappedNative: normalizeAddress(config.defaultWrappedNative || ""),
+    defaultMulticall3: normalizeAddress(config.defaultMulticall3 || ""),
+  };
+}
+
+const ROBINHOOD_TESTNET_DEFAULTS = normalizeRobinhoodTestnetDefaults();
 
 function evidenceStamp() {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.(\d+)Z$/, "$1Z");
@@ -198,7 +221,7 @@ async function inspectV4FlashAccountingPools(addressInfo, options = {}) {
 async function buildRobinhoodTestnetPreflight() {
   const rpcSource = configuredRpcSource();
   const requireV3Adapter = envBool("ROBINHOOD_TESTNET_REQUIRE_V3", false);
-  const flashSourceKind = envNumber("ROBINHOOD_TESTNET_FLASH_SOURCE_KIND", 4);
+  const flashSourceKind = envNumber("ROBINHOOD_TESTNET_FLASH_SOURCE_KIND", ROBINHOOD_TESTNET_DEFAULTS.defaultFlashSourceKind);
   const minDeployerBalanceWei = BigInt(String(process.env.ROBINHOOD_TESTNET_MIN_DEPLOYER_BALANCE_WEI || "1").trim() || "1");
   const onchainTestMode = envString("ROBINHOOD_TESTNET_ONCHAIN_TEST_MODE", "normal_only");
   const abnormalOnchainTestsEnabled = envBool("ROBINHOOD_TESTNET_ENABLE_ABNORMAL_ONCHAIN_TESTS", false);
@@ -283,23 +306,23 @@ async function buildRobinhoodTestnetPreflight() {
     "ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER",
   );
   if (!v4Router.address) {
-    v4Router.address = normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER);
-    v4Router.envName = "default_robinhood_testnet_v4_universal_router";
+    v4Router.address = ROBINHOOD_TESTNET_DEFAULTS.defaultV4UniversalRouter;
+    v4Router.envName = "chain_json.defaultV4UniversalRouter";
   }
   const v4PoolManager = envAddress(
     "ROBINHOOD_TESTNET_V4_POOL_MANAGER",
   );
   if (!v4PoolManager.address) {
-    v4PoolManager.address = normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER);
-    v4PoolManager.envName = "default_robinhood_testnet_v4_pool_manager";
+    v4PoolManager.address = ROBINHOOD_TESTNET_DEFAULTS.defaultV4PoolManager;
+    v4PoolManager.envName = "chain_json.defaultV4PoolManager";
   }
   if (!flashSource.address) {
-    flashSource.address = v4PoolManager.address;
-    flashSource.envName = "default_robinhood_testnet_v4_pool_manager_as_flash_source";
+    flashSource.address = ROBINHOOD_TESTNET_DEFAULTS.defaultFlashSource || v4PoolManager.address;
+    flashSource.envName = "chain_json.defaultFlashSource";
   }
   let permit2 = envAddress("ROBINHOOD_TESTNET_PERMIT2");
   if (!permit2.address) {
-    permit2 = { address: DEFAULT_ROBINHOOD_TESTNET_PERMIT2, envName: "default_robinhood_testnet_permit2" };
+    permit2 = { address: ROBINHOOD_TESTNET_DEFAULTS.defaultPermit2, envName: "chain_json.defaultPermit2" };
   }
 
   if (report.rpc.ok) {
@@ -385,13 +408,12 @@ module.exports = {
   buildRobinhoodTestnetPreflight,
   inspectV4FlashAccountingPools,
   configuredRpcSource,
-  DEFAULT_ROBINHOOD_TESTNET_PERMIT2,
-  DEFAULT_ROBINHOOD_TESTNET_POSITION_MANAGER,
-  DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER,
-  DEFAULT_ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER,
+  ROBINHOOD_TESTNET_CHAIN_JSON,
+  ROBINHOOD_TESTNET_DEFAULTS,
   envBool,
   envNumber,
   envString,
   normalizeAddress,
+  readRobinhoodTestnetChainConfig,
   writeEvidence,
 };

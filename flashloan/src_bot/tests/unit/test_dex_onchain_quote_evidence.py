@@ -1,5 +1,7 @@
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
+from execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
+from intent_trade.chains.robinhood_testnet import v4_quote_adapter
 
 
 def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch):
@@ -14,7 +16,7 @@ def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch)
         eth = FakeEth()
 
     monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
-    monkeypatch.setattr(dex_onchain_quote_evidence, "_load_v4_quote_adapter", lambda: None)
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_load_v4_quote_adapter", lambda **kwargs: None)
     route = {
         "symbolPair": "USDG -> STONKBROKER -> USDG",
         "routeSymbols": ["USDG", "STONKBROKER", "USDG"],
@@ -57,11 +59,13 @@ def test_v4_route_uses_reference_fallback_when_sdk_adapter_is_unset(monkeypatch)
         trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
     )
 
-    assert evidence["status"] == "live_verified"
+    assert evidence["status"] == "live_quote_reference_only"
     assert evidence["trustedForExecution"] is False
-    assert evidence["executionTrust"] == "live_quoter_verified_readonly"
+    assert evidence["readyForTransactionPreflight"] is False
+    assert evidence["executionTrust"] == "static_reference_only"
     assert evidence["hops"][0]["quoteMethod"] == "uniswap_v4_reference_quote"
     assert evidence["hops"][0]["sdkAdapter"] == "reference_quote_adapter"
+    assert "reference_quote_adapter" in evidence["blockers"][0]
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
@@ -79,7 +83,7 @@ def test_v4_route_uses_injected_quote_adapter(monkeypatch):
     monkeypatch.setattr(
         dex_onchain_quote_evidence,
         "_load_v4_quote_adapter",
-        lambda: lambda request: {
+        lambda **kwargs: lambda request: {
             "amountOutRaw": "1003000000",
             "quoteMethod": "uniswap_v4_sdk_exact_input_single",
             "quoterGasEstimate": 123456,
@@ -131,6 +135,50 @@ def test_v4_route_uses_injected_quote_adapter(monkeypatch):
     assert evidence["hops"][0]["quoteMethod"] == "uniswap_v4_sdk_exact_input_single"
     assert evidence["hops"][0]["amountOutRaw"] == "1003000000"
     assert evidence["trustedForExecution"] is False
+
+
+def test_robinhood_testnet_chain_default_v4_adapter_is_configured():
+    adapter = load_v4_sdk_adapter(network="robinhood-testnet")
+
+    assert callable(adapter)
+
+
+def test_robinhood_testnet_chain_id_default_v4_adapter_is_configured():
+    adapter = load_v4_sdk_adapter(chain_id=46630)
+
+    assert callable(adapter)
+
+
+def test_robinhood_testnet_v4_pool_index_adapter_uses_spot_rate(monkeypatch):
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_pool_rows",
+        lambda: [
+            {
+                "pool": "0x" + "1" * 40,
+                "token0": "0x" + "2" * 40,
+                "token1": "0x" + "3" * 40,
+                "fee": 100,
+                "tickSpacing": 60,
+                "sqrtPriceX96": str(2**96),
+            }
+        ],
+    )
+
+    quote = v4_quote_adapter.quote_v4_exact_input_single_from_pool_index(
+        {
+            "pool": "0x" + "1" * 40,
+            "tokenIn": "0x" + "2" * 40,
+            "tokenOut": "0x" + "3" * 40,
+            "amountInRaw": str(10**18),
+            "fee": 100,
+            "quoteMode": "uniswap_v4_sdk_exact_input_single",
+        }
+    )
+
+    assert quote["quoteMethod"] == "robinhood_testnet_v4_pool_index_spot_quote"
+    assert quote["amountOutRaw"] == str(99 * 10**16)
+    assert quote["sdkAdapter"].endswith("quote_v4_exact_input_single_from_pool_index")
 
 
 def test_non_robinhood_route_records_adapter_gap():

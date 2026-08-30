@@ -2,6 +2,9 @@
 *.env
 !.env.example
 !.env.testnet.example
+contract/robinhood/**/.env
+!contract/robinhood/**/.env.example
+!contract/robinhood/**/.env.testnet.example
 node_modules/
 .venv/
 .node-dependencies-installed

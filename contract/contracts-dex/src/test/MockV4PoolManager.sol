@@ -10,6 +10,20 @@ interface IUnlockCallbackMockV4 {
     function unlockCallback(bytes calldata data) external returns (bytes memory);
 }
 
+struct MockV4PoolKey {
+    address currency0;
+    address currency1;
+    uint24 fee;
+    int24 tickSpacing;
+    address hooks;
+}
+
+struct MockV4SwapParams {
+    bool zeroForOne;
+    int256 amountSpecified;
+    uint160 sqrtPriceLimitX96;
+}
+
 contract MockV4PoolManager {
     error AlreadyUnlocked();
     error NotUnlocked();
@@ -18,17 +32,55 @@ contract MockV4PoolManager {
     error SyncMissing();
 
     event Unlocked(address indexed caller);
+    event SwapExecuted(address indexed caller, address indexed currency0, address indexed currency1, uint256 amountSpecified, uint256 amountOutMinimum);
     event Taken(address indexed caller, address indexed currency, address indexed to, uint256 amount);
     event Synced(address indexed caller, address indexed currency, uint256 balance);
     event Settled(address indexed caller, address indexed currency, uint256 paid, uint256 remainingDebt);
+    event ScriptedSwapTransfer(address indexed token, address indexed to, uint256 amount);
 
     mapping(address caller => bool unlocked) public isUnlocked;
     mapping(address caller => address currency) public activeCurrency;
     mapping(address caller => mapping(address currency => uint256 debt)) public currencyDebt;
     mapping(address caller => address currency) public syncedCurrency;
     mapping(address caller => uint256 balanceAtSync) public syncedBalance;
+    address public scriptedSwapToken;
+    uint256 public scriptedSwapAmount;
+    uint256 public scriptedNativeSwapAmount;
+    address[] public scriptedSwapTokens;
+    uint256[] public scriptedSwapAmounts;
+    uint256 public scriptedSwapCursor;
+    uint256[] public scriptedNativeSwapAmounts;
+    uint256 public scriptedNativeSwapCursor;
 
     receive() external payable {}
+
+    function setTransferOnNextSwap(address token, uint256 amount) external {
+        scriptedSwapToken = token;
+        scriptedSwapAmount = amount;
+    }
+
+    function setNativeTransferOnNextSwap(uint256 amount) external {
+        scriptedNativeSwapAmount = amount;
+    }
+
+    function setSwapTransferQueue(address[] calldata tokens, uint256[] calldata amounts) external {
+        delete scriptedSwapTokens;
+        delete scriptedSwapAmounts;
+        scriptedSwapCursor = 0;
+        require(tokens.length == amounts.length, "queue_length");
+        for (uint256 i = 0; i < tokens.length; i++) {
+            scriptedSwapTokens.push(tokens[i]);
+            scriptedSwapAmounts.push(amounts[i]);
+        }
+    }
+
+    function setNativeSwapTransferQueue(uint256[] calldata amounts) external {
+        delete scriptedNativeSwapAmounts;
+        scriptedNativeSwapCursor = 0;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            scriptedNativeSwapAmounts.push(amounts[i]);
+        }
+    }
 
     function unlock(bytes calldata data) external returns (bytes memory result) {
         if (isUnlocked[msg.sender]) revert AlreadyUnlocked();
@@ -39,6 +91,37 @@ contract MockV4PoolManager {
         uint256 debt = currencyDebt[msg.sender][currency];
         isUnlocked[msg.sender] = false;
         if (debt != 0) revert DebtNotSettled(currency, debt);
+    }
+
+    function swap(MockV4PoolKey calldata key, MockV4SwapParams calldata params, bytes calldata) external payable returns (int256, int256) {
+        if (!isUnlocked[msg.sender]) revert NotUnlocked();
+        uint256 amountSpecified = uint256(params.amountSpecified >= 0 ? params.amountSpecified : -params.amountSpecified);
+        emit SwapExecuted(msg.sender, key.currency0, key.currency1, amountSpecified, 0);
+        address token = scriptedSwapToken;
+        uint256 amount = scriptedSwapAmount;
+        if (scriptedSwapCursor < scriptedSwapAmounts.length) {
+            token = scriptedSwapTokens[scriptedSwapCursor];
+            amount = scriptedSwapAmounts[scriptedSwapCursor];
+            scriptedSwapCursor += 1;
+        }
+        if (token != address(0) && amount > 0) {
+            scriptedSwapToken = address(0);
+            scriptedSwapAmount = 0;
+            if (!IERC20MockV4PoolManager(token).transfer(msg.sender, amount)) revert TokenTransferFailed();
+            emit ScriptedSwapTransfer(token, msg.sender, amount);
+        }
+        uint256 nativeAmount = scriptedNativeSwapAmount;
+        if (scriptedNativeSwapCursor < scriptedNativeSwapAmounts.length) {
+            nativeAmount = scriptedNativeSwapAmounts[scriptedNativeSwapCursor];
+            scriptedNativeSwapCursor += 1;
+        }
+        if (nativeAmount > 0) {
+            scriptedNativeSwapAmount = 0;
+            (bool ok,) = payable(msg.sender).call{value: nativeAmount}("");
+            if (!ok) revert TokenTransferFailed();
+            emit ScriptedSwapTransfer(address(0), msg.sender, nativeAmount);
+        }
+        return (0, 0);
     }
 
     function take(address currency, address to, uint256 amount) external {

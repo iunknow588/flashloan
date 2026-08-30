@@ -188,6 +188,7 @@ def test_robinhood_chain_test_scope_only_enables_robinhood_family():
     assert mainnet["canDeployTestnet"] is False
     assert mainnet["canBroadcast"] is False
     assert testnet["enabled"] is True
+    assert testnet["canRunForkStaticcall"] is True
     assert testnet["canDeployTestnet"] is True
     assert testnet["canBroadcast"] is False
     assert bnb["enabled"] is False
@@ -307,7 +308,7 @@ def test_non_stable_chain_test_plan_uses_positive_x_profit_floor():
 
     assert plan["decision"]["readyForTransactionPreflight"] is True
     assert plan["chainTestScope"]["mode"] == "testnet_deploy_readback_only"
-    assert plan["decision"]["canRunForkPreflight"] is False
+    assert plan["decision"]["canRunForkPreflight"] is True
     assert plan["decision"]["canDeployTestnet"] is True
     assert plan["evidence"]["profitBasis"] == "borrow_token"
     assert plan["evidence"]["netProfitAmount"] == 0.0095

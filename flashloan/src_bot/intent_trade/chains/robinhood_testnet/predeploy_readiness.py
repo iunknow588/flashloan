@@ -225,10 +225,10 @@ def summarize_robinhood_predeploy_readiness(
     blockers.extend(_chain_test_blockers(chain_test_plan))
     if not fork_passed:
         blockers.append("fork_staticcall_not_passed")
-    if contracts_metadata.get("readyForLatestPausedExecutor") is not False:
-        blockers.append("latest_executor_gate_state_unexpected")
-    if contracts_metadata.get("matchesLocalArtifact") is not False:
-        blockers.append("current_executor_mismatch_state_unexpected")
+    if contracts_metadata.get("readyForLatestPausedExecutor") is not True:
+        blockers.append("latest_executor_gate_not_ready")
+    if contracts_metadata.get("matchesLocalArtifact") is not True:
+        blockers.append("current_executor_mismatch_not_ready")
     if not stage_approved:
         blockers.append("stage_freeze_not_approved")
 

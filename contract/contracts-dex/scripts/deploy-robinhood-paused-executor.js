@@ -3,9 +3,7 @@ const path = require("path");
 const hre = require("hardhat");
 const {
   buildRobinhoodTestnetPreflight,
-  DEFAULT_ROBINHOOD_TESTNET_PERMIT2,
-  DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER,
-  DEFAULT_ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER,
+  ROBINHOOD_TESTNET_DEFAULTS,
   normalizeAddress,
   writeEvidence: writePreflightEvidence,
 } = require("./preflight-robinhood-testnet");
@@ -159,10 +157,10 @@ async function main() {
   const flashSource = envAddress(
     "ROBINHOOD_TESTNET_FLASH_SOURCE",
     "ROBINHOOD_TESTNET_V4_POOL_MANAGER",
-  ) || normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER);
+  ) || ROBINHOOD_TESTNET_DEFAULTS.defaultFlashSource || ROBINHOOD_TESTNET_DEFAULTS.defaultV4PoolManager;
   const universalRouter = envAddress(
     "ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER",
-  ) || normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_V4_UNIVERSAL_ROUTER);
+  ) || ROBINHOOD_TESTNET_DEFAULTS.defaultV4UniversalRouter;
   const v3Router = envAddress(
     "ROBINHOOD_TESTNET_V3_SWAP_ROUTER",
     "ROBINHOOD_TESTNET_V3_ROUTER",
@@ -171,9 +169,9 @@ async function main() {
   const v3Quoter = envAddress("ROBINHOOD_TESTNET_V3_QUOTER");
   const poolManager = envAddress(
     "ROBINHOOD_TESTNET_V4_POOL_MANAGER",
-  ) || normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER);
+  ) || ROBINHOOD_TESTNET_DEFAULTS.defaultV4PoolManager;
   const permit2 = envAddress("ROBINHOOD_TESTNET_PERMIT2")
-    || normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_PERMIT2);
+    || ROBINHOOD_TESTNET_DEFAULTS.defaultPermit2;
 
   const missing = [];
   requireAddress(flashSource, "ROBINHOOD_TESTNET_FLASH_SOURCE or ROBINHOOD_TESTNET_V4_POOL_MANAGER", missing);

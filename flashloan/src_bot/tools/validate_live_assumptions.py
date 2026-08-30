@@ -18,6 +18,7 @@ from validation.db_contention import run_live_contention
 from validation.liquidation_profit import calculate_liquidation_profit, profit_input_from_event
 from validation.rpc_probe import probe_rpc_urls
 from validation.scan_windows import summarize_opportunity_windows
+from db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
 
 
 def _default_path(*parts: str) -> Path:
@@ -35,7 +36,7 @@ def build_validation_report(
 ) -> dict[str, Any]:
     market = liquidation_market_config()
     liquidation_rows = load_records(liquidation_path)
-    cow_rows = load_records(cow_path)
+    cow_rows = load_recent_cow_execution_attempts_jsonl(cow_path, limit=5000)
     scan_rows = load_records(scan_path)
     profit_rows = [calculate_liquidation_profit(profit_input_from_event(row)) for row in liquidation_rows]
     calculated = [row for row in profit_rows if row.get("status") == "calculated"]
@@ -107,7 +108,7 @@ def _missing_inputs(rows: list[dict[str, Any]]) -> dict[str, int]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate liquidation, CoW, RPC, scan-window, and DB assumptions.")
     parser.add_argument("--liquidation", type=Path, default=_default_path("runtime", "logs", "liquidation_events.jsonl"))
-    parser.add_argument("--cow", type=Path, default=_default_path("runtime", "logs", "cow_execution_attempts.jsonl"))
+    parser.add_argument("--cow", type=Path, default=_default_path("runtime", "logs", "cow_execution_attempts"))
     parser.add_argument("--scan", type=Path, default=_default_path("runtime", "logs", "liquidation_health_scans.jsonl"))
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--live-rpc-probe", action="store_true")

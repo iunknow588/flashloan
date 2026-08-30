@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from core.chain_data_registry import chain_data_by_chain_id
 from core.env_loader import local_json_only_enabled
-from market.binance_market.dex_surfaces import dex_quote_routes_payload
+from market.binance_market.dex_surfaces import dex_overview_payload, dex_quote_routes_payload
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, capture_onchain_trigger_context
 
 
@@ -21,8 +21,6 @@ OnchainEvidenceProvider = Callable[..., dict[str, Any]]
 TriggerContextProvider = Callable[..., dict[str, Any]]
 
 CACHE_PATH = Path(__file__).resolve().parent / "cache" / "dex_opportunity_snapshot.json"
-COW_EXECUTION_ATTEMPT_LOG_PATH = Path(__file__).resolve().parents[1] / "runtime" / "logs" / "cow_execution_attempts.jsonl"
-COW_EXECUTION_RETENTION_DAYS = 7
 _SCANNER: DexOpportunityScanner | None = None
 _SCANNER_LOCK = threading.Lock()
 
@@ -31,7 +29,7 @@ def default_quote_payload_provider(*, chain_id: int | None = None, protocols: li
     return dex_quote_routes_payload(
         chain_id=chain_id,
         protocols=protocols,
-        use_static_observation=True,
+        use_static_observation=False,
     )
 
 
@@ -111,11 +109,13 @@ def _trigger_block_number(trigger_context: dict[str, Any] | None) -> int | None:
     return None
 
 
-def _recordable_route(route: dict[str, Any]) -> bool:
+def _recordable_route(route: dict[str, Any], *, chain_id: int | None = None) -> bool:
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     quote_requests = (route.get("quoteInputs") or {}).get("quoteRequests") or []
     reference_profit = _number_or_none(analysis.get("referenceNetProfitUsd"))
     reference_token_profit = _number_or_none(analysis.get("referenceNetProfitAmount"))
+    live_verified = bool(analysis.get("livePriceVerified")) or str(analysis.get("priceEvidenceMode") or "").strip().lower() == "live_verified"
+    quote_verified = bool(analysis.get("quote_verified"))
     requires_live_quoter = bool(analysis.get("requiresLiveQuoter")) or bool(analysis.get("adapterRequired"))
     adapter_required = any(
         str((request or {}).get("venue") or "").strip().lower() == "uniswap_v4"
@@ -124,12 +124,14 @@ def _recordable_route(route: dict[str, Any]) -> bool:
         if isinstance(request, dict)
     )
     return bool(
-        analysis.get("executableCandidate")
-        or analysis.get("chainSubmissionCandidate")
-        or (reference_profit is not None and reference_profit > 0)
-        or (reference_token_profit is not None and reference_token_profit > 0)
+        live_verified
+        or quote_verified
         or requires_live_quoter
         or adapter_required
+        or (reference_profit is not None and reference_profit > 0)
+        or (reference_token_profit is not None and reference_token_profit > 0)
+        or (analysis.get("executableCandidate") and not requires_live_quoter and not adapter_required)
+        or (analysis.get("chainSubmissionCandidate") and not requires_live_quoter and not adapter_required)
     )
 
 
@@ -412,7 +414,7 @@ def build_dex_opportunity_attempts(
     raw_routes = []
     recordable_routes: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
     for index, route in enumerate(payload.get("routes") or [], start=1):
-        if isinstance(route, dict) and _recordable_route(route):
+        if isinstance(route, dict) and _recordable_route(route, chain_id=chain_id):
             route_with_trigger = deepcopy(route)
             quote_inputs = route_with_trigger.get("quoteInputs") if isinstance(route_with_trigger.get("quoteInputs"), dict) else {}
             route_with_trigger["quoteInputs"] = {**quote_inputs, "triggerContext": trigger_context or {}}
@@ -480,16 +482,13 @@ def build_dex_opportunity_attempts(
 
 
 def default_record_attempts(attempts: list[dict[str, Any]]) -> dict[str, Any]:
-    if not attempts:
-        return {"recorded": 0, "source": "empty", "error": None}
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from web.control_panel_data_routes import record_cow_attempt_list_safely
 
-    file_count = append_cow_execution_attempts_jsonl(
-        COW_EXECUTION_ATTEMPT_LOG_PATH,
+    return record_cow_attempt_list_safely(
         attempts,
-        retention_days=COW_EXECUTION_RETENTION_DAYS,
+        database_url=None,
+        dedupe_market_candidates=False,
     )
-    return {"recorded": file_count, "source": "jsonl", "error": None}
 
 
 class DexOpportunityScanner:
@@ -793,6 +792,33 @@ def ensure_dex_opportunity_scanner_running(
 ) -> DexOpportunityScanner:
     scanner = get_dex_opportunity_scanner()
     scanner.start(chain_id=chain_id, protocols=protocols)
+    snapshot = scanner.snapshot(chain_id=chain_id)
+    if not (snapshot.get("snapshot") or {}).get("payload"):
+        try:
+            dex_overview_payload(
+                chain_id=chain_id,
+                protocols=protocols or [],
+                use_static_observation=False,
+            )
+            payload = scanner.quote_payload_provider(chain_id=chain_id, protocols=protocols or [])
+            if isinstance(payload, dict):
+                warmed = {
+                    "chain_id": chain_id,
+                    "payload": payload,
+                    "summary": _snapshot_summary(payload),
+                    "trigger_context": scanner.trigger_context_provider(
+                        chain_id=chain_id,
+                        network=_network_for_chain_id(chain_id),
+                        observed_at=_now_iso(),
+                    ),
+                    "updated_at": _now_iso(),
+                    "error": None,
+                    "recording": {"candidate_count": 0, "recorded": 0, "source": "warmup", "error": None},
+                }
+                with scanner._lock:
+                    scanner._snapshots[_chain_key(chain_id)] = warmed
+        except Exception:
+            pass
     return scanner
 
 

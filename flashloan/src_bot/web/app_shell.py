@@ -12,6 +12,7 @@ from web.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
 )
+from web.dex_provenance import render_dex_provenance_bootstrap
 
 
 _BOT_LINKS = (
@@ -276,6 +277,8 @@ def inject_app_shell_markup(
             default_market_id=default_market_id,
             default_chain_id=default_chain_id,
         )
+    if feature_value == "dex_arbitrage":
+        shell += render_dex_provenance_bootstrap()
     shell += (
         '<script src="/static/workflow-context.js"></script>'
         '<script>(function(){window.addEventListener("workflowcontextready",function(event){var c=event.detail&&event.detail.context||{};var e=document.querySelector("[data-shell-gate]");if(e)e.textContent=(c.execution_gate&&c.execution_gate.broadcast_enabled)?"Broadcast enabled":"Observation mode";});window.addEventListener("chainselectionready",function(event){var p=event.detail||{};var e=document.querySelector("[data-shell-gate]");if(e&&p.selected)e.title=(p.selected.market_id||"")+" / "+(p.selected.chain_id||"");});})();</script>'

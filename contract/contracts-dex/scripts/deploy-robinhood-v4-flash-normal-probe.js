@@ -3,7 +3,7 @@ const path = require("path");
 const hre = require("hardhat");
 const {
   buildRobinhoodTestnetPreflight,
-  DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+  ROBINHOOD_TESTNET_DEFAULTS,
   envBool,
   normalizeAddress,
 } = require("./preflight-robinhood-testnet");
@@ -83,7 +83,7 @@ async function main() {
   const network = await hre.ethers.provider.getNetwork();
   const chainId = Number(network.chainId);
   const poolManager = normalizeAddress(
-    process.env.ROBINHOOD_TESTNET_V4_POOL_MANAGER || DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+    process.env.ROBINHOOD_TESTNET_V4_POOL_MANAGER || ROBINHOOD_TESTNET_DEFAULTS.defaultV4PoolManager,
   );
   const report = {
     schemaVersion: "robinhood-v4-flash-normal-probe-deploy-v1",

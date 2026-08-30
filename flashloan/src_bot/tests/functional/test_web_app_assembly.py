@@ -1,6 +1,11 @@
+﻿from pathlib import Path
 from urllib.parse import quote
 
 from web.control_panel import app
+
+
+TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "web" / "templates"
+STATIC_DIR = Path(__file__).resolve().parents[2] / "web" / "static"
 
 
 EXPECTED_UNIFIED_CHAIN_ORDER = [
@@ -96,6 +101,40 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/liquidation/account/<account>/static-call-and-save" in paths
 
 
+def test_dex_pages_label_static_framework_as_static_not_history():
+    overview = (TEMPLATE_DIR / "dex_overview.html").read_text(encoding="utf-8")
+    quotes = (TEMPLATE_DIR / "dex_quotes.html").read_text(encoding="utf-8")
+    submissions = (TEMPLATE_DIR / "dex_submissions.html").read_text(encoding="utf-8")
+    client = app.test_client()
+    overview_body = client.get("/dex/overview").get_data(as_text=True)
+    quotes_body = client.get("/dex/quotes").get_data(as_text=True)
+    submissions_body = client.get("/dex/submissions").get_data(as_text=True)
+    embed_body = client.get("/dex/overview?embed=1").get_data(as_text=True)
+
+    assert "历史路由框架" not in overview
+    assert "历史路由框架" not in quotes
+    assert "function frameworkLabel(source)" not in overview
+    assert "const frameworkLabel = source => {" not in quotes
+    assert "function frameworkLabel(source)" not in submissions
+    assert "静态框架" in overview_body
+    assert "静态框架" in quotes_body
+    assert "/static/dex-provenance.js" in overview_body
+    assert "/static/dex-provenance.js" in quotes_body
+    assert "/static/dex-provenance.js" in submissions_body
+    assert "/static/dex-provenance.js" in embed_body
+    assert "window.__DEX_PROVENANCE__" in embed_body
+
+
+def test_dex_provenance_script_exports_shared_labels():
+    script = (STATIC_DIR / "dex-provenance.js").read_text(encoding="utf-8")
+
+    assert "function frameworkLabel(source)" in script
+    assert "function priceEvidenceLabel(source)" in script
+    assert "function priceEvidenceModeLabel(mode)" in script
+    assert "function marketObservationSourceStageLabel(source)" in script
+    assert "window.priceEvidenceLabel = priceEvidenceLabel" in script
+    assert "window.marketObservationSourceStageLabel = marketObservationSourceStageLabel" in script
+
 def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     client = app.test_client()
 
@@ -108,6 +147,8 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "padding: 10px 36px 12px;" in body
         assert "padding-left: 18px; padding-right: 18px;" in body
         assert "/static/chain-selector.js" in body
+        assert "/static/dex-provenance.js" in body
+        assert "window.__DEX_PROVENANCE__" in body
         assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in body
         assert "当前 BOT 市场" not in body
         assert "当前 DEX 链路" not in body
@@ -120,6 +161,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
 
     submissions_body = client.get("/dex/submissions").get_data(as_text=True)
     assert "/api/dex/submissions/clear" in submissions_body
+    assert 'id="routeFrameworkPanel"' in submissions_body
     assert "观察/复核盈亏比例" in submissions_body
     assert "清空当前链路记录" in submissions_body
     assert "未通过链上复核" in submissions_body
@@ -1701,6 +1743,9 @@ def test_dex_surface_payload_apis_are_distinct():
     ).get_json()
     quotes = client.get("/api/dex/quote-routes?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
     submissions = client.get("/api/dex/submissions?limit=5").get_json()
+    robinhood_testnet_submissions = client.get(
+        "/api/dex/submissions?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&limit=5"
+    ).get_json()
     robinhood_candidates = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
     ).get_json()
@@ -1743,6 +1788,10 @@ def test_dex_surface_payload_apis_are_distinct():
     assert quote_request["processing"]["network"] == "robinhood-testnet"
     assert quote_request["processing"]["handler"] == "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow"
     assert submissions["mode"] == "dex_submission_review"
+    assert "routeFramework" in submissions
+    assert robinhood_testnet_submissions["routeFramework"]["routeFrameworkSource"] in {"market_observation", "candidate_pool_fallback"}
+    assert robinhood_testnet_submissions["routeFramework"]["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
+    assert robinhood_testnet_submissions["routeFramework"]["topRouteText"]
     assert "arbitragePaths" in overview
     assert overview["decisionBasis"] in {"market_observation_closed_loop", "borrow_anchor_to_non_anchor_candidate_path"}
     if overview["arbitragePaths"]:
@@ -1768,7 +1817,8 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_testnet_observation["summary"]["directPairCount"] > 0
     assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] == len(robinhood_testnet_observation["closedLoopRoutes"])
     assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
-    assert robinhood_testnet_observation["marketObservationSource"] in {"static_file", "generated_missing_static_file"}
+    assert robinhood_testnet_observation["marketObservationSource"] in {"generated_live_snapshot", "refreshed_live_snapshot"}
+    assert robinhood_testnet_observation["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot"}
     assert len(robinhood_testnet_observation["chainSpecificObservationPools"]) <= 80
     if robinhood_testnet_observation.get("marketObservationPreview"):
         assert robinhood_testnet_observation["marketObservationPreview"]["chainSpecificObservationPoolsTotal"] >= len(
@@ -1789,10 +1839,12 @@ def test_dex_surface_payload_apis_are_distinct():
     assert "资金锚点可接入交易对" in robinhood_testnet_observation_page
     assert "关联非 ETH 交易对" not in robinhood_testnet_observation_page
     assert "观察状态" in robinhood_testnet_observation_page
-    assert robinhood_testnet_overview["marketObservationSource"] in {"static_file", "computed"}
+    assert robinhood_testnet_overview["marketObservationSource"] in {"computed", "cached_framework_live_confirmation"}
+    assert robinhood_testnet_overview["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
     assert robinhood_testnet_overview["summary"]["overviewProbeCompleteCount"] >= 0
     assert "overviewProfit" in robinhood_testnet_overview["arbitragePaths"][0]
     assert robinhood_testnet_quotes["selected_protocols"] == ["uniswap_v4"]
+    assert robinhood_testnet_quotes["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
     assert robinhood_testnet_quotes["summary"]["routeCount"] > 1
     assert robinhood_testnet_quotes["summary"]["pathSource"] == "market_observation"
     assert robinhood_testnet_quotes["summary"]["chainSpecificObservationPairCount"] == 2
@@ -1807,6 +1859,81 @@ def test_dex_surface_payload_apis_are_distinct():
         or route["quoteAnalysis"].get("trustedUsdReference") is False
         for route in robinhood_testnet_quotes["routes"]
     )
+
+
+def test_dex_surface_payload_minimal_interfaces_are_consistent(monkeypatch):
+    from web.data_routes import dex_surfaces as web_dex_surfaces
+
+    monkeypatch.setattr(
+        web_dex_surfaces,
+        "selected_chain_id_from_request",
+        lambda: ({"network": "robinhood-testnet", "chain_id": 46630}, 46630),
+    )
+    monkeypatch.setattr(web_dex_surfaces, "request_dex_protocols_arg", lambda: ["uniswap_v4"])
+    monkeypatch.setattr(web_dex_surfaces, "_bootstrap_dex_surface_dependencies", lambda **kwargs: None)
+    monkeypatch.setattr(web_dex_surfaces, "_dex_surface_payload_for_chain", lambda **kwargs: {
+        "mode": kwargs["mode"],
+        "chain_id": kwargs["chain_id"],
+        "selected_protocols": kwargs["protocols"],
+        "summary": {"routeCount": 1},
+        "routeFrameworkSource": "market_observation",
+        "marketObservationSourceStage": "cached_snapshot",
+    })
+    monkeypatch.setattr(
+        web_dex_surfaces,
+        "_finalize_market_observation_payload",
+        lambda payload, **kwargs: {
+            **payload,
+            "marketObservationSource": "cached_snapshot",
+            "marketObservationSourceStage": "cached_snapshot",
+            "marketObservationStaticTable": {"path": "observation.json", "exists": True},
+        },
+    )
+    monkeypatch.setattr(web_dex_surfaces, "_market_observation_page_payload", lambda payload, **kwargs: payload)
+    monkeypatch.setattr(
+        web_dex_surfaces,
+        "_submission_review_framework_payload",
+        lambda **kwargs: {
+            "routeFrameworkLabel": "静态框架",
+            "marketObservationSourceStageLabel": "缓存静态快照",
+        },
+    )
+    monkeypatch.setattr(
+        web_dex_surfaces,
+        "dex_submission_review_payload",
+        lambda **kwargs: {
+            "mode": "dex_submission_review",
+            "summary": {"attemptCount": len(kwargs.get("attempts") or [])},
+            "attempts": kwargs.get("attempts") or [],
+        },
+    )
+    monkeypatch.setattr(web_dex_surfaces.shared, "_cow_execution_attempt_groups", lambda *args, **kwargs: {"all": []})
+    monkeypatch.setattr(web_dex_surfaces.shared, "_flatten_cow_execution_groups", lambda groups, limit: [])
+    monkeypatch.setattr(web_dex_surfaces, "submission_networks_from_request", lambda chain_selection: ["robinhood-testnet"])
+
+    client = app.test_client()
+    overview = client.get("/api/dex/overview?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4").get_json()
+    observation = client.get("/api/dex/market-observation?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4").get_json()
+    quotes = client.get("/api/dex/quote-routes?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4").get_json()
+    submissions = client.get("/api/dex/submissions?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&limit=5").get_json()
+
+    for payload, mode in (
+        (overview, "dex_overview"),
+        (observation, "dex_market_observation"),
+        (quotes, "dex_quote_routes"),
+        (submissions, "dex_submission_review"),
+    ):
+        assert payload["mode"] == mode
+        if mode != "dex_submission_review":
+            assert payload["chain_id"] == 46630
+            assert payload["selected_protocols"] == ["uniswap_v4"]
+
+    assert "summary" in overview
+    assert "summary" in observation
+    assert "summary" in quotes
+    assert "routeFramework" in submissions
+    assert "routeFrameworkLabel" in submissions["routeFramework"]
+    assert "marketObservationSourceStageLabel" in submissions["routeFramework"]
 
 
 def test_dex_pool_candidates_full_refresh_reports_refresh_state(monkeypatch):
@@ -1875,7 +2002,7 @@ def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkey
         ],
     )
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
-    monkeypatch.setattr(dex_surface_routes.shared, "COW_EXECUTION_ATTEMPT_LOG_PATH", path)
+    monkeypatch.setattr(dex_surface_routes.shared, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path)
     client = app.test_client()
 
     before = client.get("/api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20").get_json()
@@ -1936,7 +2063,7 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
         ],
     )
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: None)
-    monkeypatch.setattr(dex_surface_routes.shared, "COW_EXECUTION_ATTEMPT_LOG_PATH", path)
+    monkeypatch.setattr(dex_surface_routes.shared, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path)
     client = app.test_client()
 
     payload = client.get("/api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20").get_json()
@@ -1954,4 +2081,18 @@ def test_dex_page_mounts_shared_market_selector():
     assert 'data-dex-surface-template="quotes"' in body
     assert 'data-chain-selector-component="true"' in body
     assert "data-surface-link" in body
+
+
+def test_dex_submissions_page_exposes_route_framework_panel():
+    client = app.test_client()
+
+    body = client.get("/dex/submissions?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4").get_data(as_text=True)
+    payload = client.get(
+        "/api/dex/submissions?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&limit=5"
+    ).get_json()
+
+    assert 'id="routeFrameworkPanel"' in body
+    assert payload["routeFramework"]["routeFrameworkSource"] in {"market_observation", "candidate_pool_fallback"}
+    assert payload["routeFramework"]["topRouteText"]
+
 

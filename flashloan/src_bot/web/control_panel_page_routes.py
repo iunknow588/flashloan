@@ -26,6 +26,7 @@ from page_state import (
 )
 from web.chain_selection import inject_chain_selector_markup
 from web.app_shell import inject_app_shell_markup
+from web.dex_provenance import inject_dex_provenance_markup
 from web.flash_loan_pools import flash_loan_pools_payload
 from web.market_page_registry import resolve_market_page_variant
 from web.workflow_context import inject_workflow_context_markup
@@ -85,6 +86,8 @@ def _html_response(
         )
     if page_surface:
         html = _add_body_attribute(html, "data-page-surface", page_surface)
+    if feature == "dex_arbitrage" and not shell_enabled:
+        html = inject_dex_provenance_markup(html)
     if include_chain_selector:
         html = inject_chain_selector_markup(
             html,
@@ -119,6 +122,8 @@ def _panel_html_response(
             selected_chain_id=selected_chain_id,
             include_chain_selector=include_chain_selector,
         )
+    elif feature == "dex_arbitrage":
+        html = inject_dex_provenance_markup(html)
     if include_chain_selector:
         html = inject_chain_selector_markup(
             html,

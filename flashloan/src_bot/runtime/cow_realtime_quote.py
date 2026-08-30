@@ -9,17 +9,13 @@ import threading
 import time
 from typing import Any
 
-from db.storage_cow_execution import (
-    append_cow_execution_attempts_jsonl,
-    build_cow_market_candidate_attempts,
-)
+from db.storage_cow_execution import build_cow_market_candidate_attempts
 from runtime.cow_arbitrage_daemon import default_quote_candidate
 from runtime.cow_candidate_queue import candidate_signature
 from web.control_panel_cow_pause import cow_submission_pause_guard_status
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
 
 _LOCK = threading.Lock()
 _IN_FLIGHT = 0
@@ -285,17 +281,13 @@ def _build_market_state(
 
 
 def _record_attempts(attempts: list[dict[str, Any]], database_url: str | None) -> dict[str, Any]:
-    if not attempts:
-        return {"recorded": 0, "source": "empty", "error": None}
-    pause_guard = cow_submission_pause_guard_status()
-    if pause_guard.get("paused"):
-        return {"recorded": 0, "source": "paused", "error": None, "pause_guard": pause_guard}
-    count = append_cow_execution_attempts_jsonl(
-        DEFAULT_ATTEMPT_LOG_PATH,
+    from web.control_panel_data_routes import record_cow_attempt_list_safely
+
+    return record_cow_attempt_list_safely(
         attempts,
+        database_url=database_url,
         dedupe_market_candidates=False,
     )
-    return {"recorded": count, "source": "jsonl", "error": None}
 
 
 def _quote_one_attempt(attempt: dict[str, Any], database_url: str | None, route_key: str) -> None:

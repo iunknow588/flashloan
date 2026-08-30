@@ -207,6 +207,10 @@ def static_snapshot_from_observation(
         "protocol_key": _protocol_key(selected_protocols),
         "surface": "dex_market_observation",
         "source": observation.get("marketObservationSource") or "dex_market_observation_payload",
+        "marketObservationSourceStage": observation.get("marketObservationSourceStage")
+        or observation.get("marketObservationSource")
+        or observation.get("source")
+        or "dex_market_observation_payload",
         "flow_name": observation.get("flow_name") or processing.get("flow_name") or observation.get("mode") or "dex_market_observation",
         "handler": observation.get("handler") or processing.get("handler"),
         "chain_key": scope_key,
@@ -317,7 +321,7 @@ def static_store_metadata(
     return market_observation_static_table(payload)
 
 
-def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "static_file") -> dict[str, Any]:
+def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "cached_snapshot") -> dict[str, Any]:
     payload = {
         key: value
         for key, value in snapshot.items()
@@ -346,6 +350,7 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
     payload["summary"].setdefault("closedLoopRouteCount", len(payload.get("closedLoopRoutes") or []))
     payload["mode"] = payload.get("mode") or "dex_market_observation"
     payload["selected_protocols"] = payload.get("selected_protocols") or snapshot.get("protocols") or []
+    payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or source
     payload["marketObservationStaticTable"] = {
         **market_observation_static_table(snapshot),
     }

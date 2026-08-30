@@ -68,7 +68,7 @@ def robinhood_chain_test_scope(network: Any = None, chain_id: Any = None) -> dic
             "chainId": ROBINHOOD_TESTNET_CHAIN_ID,
             "mode": "testnet_deploy_readback_only",
             "canCaptureLiveOpportunity": False,
-            "canRunForkStaticcall": False,
+            "canRunForkStaticcall": True,
             "canDeployTestnet": True,
             "canBroadcast": False,
             "disabledReason": None,

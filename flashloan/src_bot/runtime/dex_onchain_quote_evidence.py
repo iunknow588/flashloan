@@ -9,6 +9,7 @@ from typing import Any, Callable
 from web3 import Web3
 
 from execution.uniswap_v4 import build_v4_quote_request, quote_v4_exact_input_single
+from execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from execution.uniswap_v3 import quote_v3_exact_input_single, snapshot_v3_pool
 from intent_trade.chains.robinhood import config as robinhood
 from intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
@@ -148,17 +149,22 @@ def _pool_for_step(step: dict[str, Any], pools: dict[str, dict[str, Any]]) -> di
     return pools.get(_text(step.get("pool")).lower(), {})
 
 
-def _load_v4_quote_adapter() -> Any | None:
-    reference = str(os.getenv("UNISWAP_V4_QUOTE_ADAPTER") or os.getenv("DEX_V4_QUOTE_ADAPTER") or "").strip()
-    if not reference:
-        return None
-    module_name, separator, attr_path = reference.partition(":")
-    if not module_name or not separator or not attr_path:
-        raise ValueError("UNISWAP_V4_QUOTE_ADAPTER must use module:callable format")
-    target: Any = importlib.import_module(module_name)
-    for part in attr_path.split("."):
-        target = getattr(target, part)
-    return target
+def _load_v4_quote_adapter(*, network: str | None = None, chain_id: int | None = None) -> Any | None:
+    reference = (
+        os.getenv("UNISWAP_V4_QUOTE_ADAPTER")
+        or os.getenv("DEX_V4_QUOTE_ADAPTER")
+        or os.getenv("ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER")
+        or os.getenv("ROBINHOOD_V4_QUOTE_ADAPTER")
+    )
+    if reference:
+        module_name, separator, attr_path = str(reference).strip().partition(":")
+        if not module_name or not separator or not attr_path:
+            raise ValueError("UNISWAP_V4_QUOTE_ADAPTER must use module:callable format")
+        target: Any = importlib.import_module(module_name)
+        for part in attr_path.split("."):
+            target = getattr(target, part)
+        return target
+    return load_v4_sdk_adapter(network=network, chain_id=chain_id)
 
 
 def _pool_side(pool: dict[str, Any], symbol: str) -> tuple[str | None, str | None, int | None]:
@@ -350,7 +356,21 @@ def _quote_v4_hop(
         route_symbols=(from_symbol, to_symbol),
         reference_amount_out_raw=reference_amount_out_raw,
     )
-    quote = quote_v4_exact_input_single(adapter=_load_v4_quote_adapter(), request=request)
+    request["poolState"] = {
+        "pool": pool_address,
+        "token0": _checksum(token_in),
+        "token1": _checksum(token_out),
+        "token0Symbol": from_symbol,
+        "token1Symbol": to_symbol,
+        "token0Decimals": in_decimals,
+        "token1Decimals": out_decimals,
+        "tickSpacing": pool.get("tickSpacing"),
+        "sqrtPriceX96": pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96"),
+    }
+    quote = quote_v4_exact_input_single(
+        adapter=_load_v4_quote_adapter(network=network, chain_id=chain_id),
+        request=request,
+    )
     amount_out = int(quote["amountOutRaw"])
     return {
         "status": "live_verified",
@@ -675,6 +695,13 @@ def build_route_onchain_evidence(
     token_continuity_ok = not token_continuity_issues
     if token_continuity_issues:
         blockers.append("链上复核跳间 token 地址不连续：存在同名不同合约地址，不能进入交易预检。")
+    reference_quote_only = any(
+        _text(hop.get("sdkAdapter") or hop.get("quoteAdapter")).lower() == "reference_quote_adapter"
+        or _text(hop.get("quoteMethod")).lower() == "uniswap_v4_reference_quote"
+        for hop in hop_rows
+    )
+    if reference_quote_only:
+        blockers.append("V4 路由仍使用 reference_quote_adapter；必须接入真实 V4 Quoter/SDK 或 swap static-call 后才能进入交易预检。")
     all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and not blockers
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
     final_decimals = int(hop_rows[-1]["outputDecimals"]) if hop_rows else None
@@ -753,9 +780,12 @@ def build_route_onchain_evidence(
         "quoter": quoter,
         "routeSymbols": route_symbols,
         "routeAddresses": route.get("routeAddresses") or [],
-        "status": "live_verified" if all_hops_verified else "live_quote_failed",
+        "status": "live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"),
         "executionTrust": "live_quoter_verified_readonly" if all_hops_verified else "static_reference_only",
         "trustedForExecution": False,
+        "priceEvidenceMode": "live_verified" if all_hops_verified else "live_required",
+        "priceEvidenceSource": "chain_live_quote" if all_hops_verified else "chain_live_quote_required",
+        "livePriceVerified": bool(all_hops_verified),
         "readyForTransactionPreflight": meets_submission_profit_threshold,
         "hops": hop_rows,
         "costModel": {

@@ -1,10 +1,10 @@
-# Robinhood Contract Notes
+# Robinhood Contract Packages
 
-- Chain: `robinhood`
-- Chain ID: `4663`
-- Market: `robinhood-dex-shadow`
-- Current state: read-only evidence and preflight preparation only
-- Current route preflight status: `not_ready`
-- Deployment gate: blocked until token continuity, calldata, repayment, and fork/static-call pass
-- Deployment: no dedicated broadcast executor is added by this package
-- Route test scope: calldata, slippage, repayment, and fork/static-call verification
+This directory is the Robinhood contract root.
+
+- `mainnet/`: independent Robinhood mainnet contract package
+- `testnet/`: independent Robinhood testnet contract package
+- `contracts.json` here is kept as a compatibility mirror for older tooling
+
+Each chain package should own its own contract metadata, deployment notes, and
+evidence pointers so the two chains do not share a single contract surface.

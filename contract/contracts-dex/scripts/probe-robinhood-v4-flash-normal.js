@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const {
-  DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+  ROBINHOOD_TESTNET_DEFAULTS,
   envBool,
   normalizeAddress,
 } = require("./preflight-robinhood-testnet");
@@ -170,7 +170,7 @@ function resolveNormalFlashProbeInputs() {
       firstDefined(
         liquidity.poolManager,
         evidence.poolManager,
-        DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER,
+        ROBINHOOD_TESTNET_DEFAULTS.defaultV4PoolManager,
       ),
     ),
     probe: {
@@ -304,7 +304,7 @@ async function main() {
       broadcastEnabled: allowBroadcast,
     },
     defaults: {
-      poolManager: normalizeAddress(DEFAULT_ROBINHOOD_TESTNET_V4_POOL_MANAGER),
+      poolManager: ROBINHOOD_TESTNET_DEFAULTS.defaultV4PoolManager,
     },
     signer: signer ? signer.address : null,
     resolvedInputs: resolved,

@@ -273,6 +273,41 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     ).to.be.revertedWithCustomError(executor, "InvalidRequest");
   });
 
+  it("builds direct V4 PoolManager route calldata only when tokens are continuous", async function () {
+    const { executor } = await deployFixture();
+    const poolManager = addr(0x6104n);
+    await executor.setUniswapV4Adapter(true, addr(0x6105n), poolManager, addr(0x6106n), ethers.ZeroHash);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenA = addr(0x7301n);
+    const tokenB = addr(0x7302n);
+    const tokenC = addr(0x7303n);
+
+    const [targets, calldatas, initialToken, finalToken] = await executor.buildV4PoolManagerExactInputRouteCalldata(
+      [v4SwapForDirection(tokenA, tokenB), v4SwapForDirection(tokenB, tokenC), v4SwapForDirection(tokenC, tokenA)],
+      deadline,
+    );
+
+    expect(targets).to.deep.equal([poolManager, poolManager, poolManager]);
+    expect(calldatas).to.have.length(3);
+    expect(initialToken).to.equal(tokenA);
+    expect(finalToken).to.equal(tokenA);
+
+    const poolManagerInterface = new ethers.Interface([
+      "function swap((address currency0,address currency1,uint24 fee,int24 tickSpacing,address hooks),(bool zeroForOne,int256 amountSpecified,uint160 sqrtPriceLimitX96),bytes hookData)",
+    ]);
+    const decoded = poolManagerInterface.decodeFunctionData("swap", calldatas[0]);
+    expect(decoded[0].currency0).to.equal(tokenA);
+    expect(decoded[0].currency1).to.equal(tokenB);
+
+    await expect(
+      executor.buildV4PoolManagerExactInputRouteCalldata(
+        [v4Swap(tokenA, tokenB, true), v4Swap(tokenC, tokenA, false)],
+        deadline,
+      ),
+    ).to.be.revertedWithCustomError(executor, "InvalidRequest");
+  });
+
   it("builds V3/V4 mixed route calldata with token continuity checks", async function () {
     const { executor } = await deployFixture();
     const v3Router = addr(0x6201n);
@@ -453,6 +488,46 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
       .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
       .withArgs(tokenAddress, amount, amount);
     expect(await router.queryFilter(router.filters.Executed())).to.have.length(1);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
+  });
+
+  it("runs a mocked direct V4 PoolManager route before settling", async function () {
+    const { executor, token, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    await token.mint(await poolManager.getAddress(), amount * 2n);
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const tokenAddress = await token.getAddress();
+    const Token = await ethers.getContractFactory("TestERC20");
+    const tokenBContract = await Token.deploy("Token B", "TKB", 6, (await ethers.getSigners())[0].address);
+    const tokenCContract = await Token.deploy("Token C", "TKC", 6, (await ethers.getSigners())[0].address);
+    const tokenB = await tokenBContract.getAddress();
+    const tokenC = await tokenCContract.getAddress();
+    await tokenBContract.mint(await poolManager.getAddress(), amount);
+    await tokenCContract.mint(await poolManager.getAddress(), amount);
+    await poolManager.setSwapTransferQueue([tokenB, tokenC, tokenAddress], [amount, amount, amount]);
+
+    const [targets, calldatas] = await executor.buildV4PoolManagerExactInputRouteCalldata(
+      [v4SwapForDirection(tokenAddress, tokenB), v4SwapForDirection(tokenB, tokenC), v4SwapForDirection(tokenC, tokenAddress)],
+      deadline,
+    );
+    const request = {
+      token: tokenAddress,
+      amount,
+      swapTargets: Array.from(targets),
+      swapCalldatas: Array.from(calldatas),
+      finalToken: tokenAddress,
+      minProfit: 0n,
+      gasReserve: 0n,
+    };
+
+    await expect(executor.requestV4FlashLoan(request))
+      .to.emit(executor, "RobinhoodRouteHopExecuted")
+      .withArgs(1n, await poolManager.getAddress())
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(tokenAddress, amount, amount);
+    expect(await token.balanceOf(await poolManager.getAddress())).to.equal(amount);
     expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
   });
 

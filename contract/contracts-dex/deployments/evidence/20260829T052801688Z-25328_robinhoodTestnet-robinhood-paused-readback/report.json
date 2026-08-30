@@ -1,0 +1,113 @@
+{
+  "schemaVersion": "robinhood-paused-executor-readback-v1",
+  "runAt": "2026-08-29T05:28:01.676Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "blockNumber": 109171502,
+  "executor": {
+    "address": "0xFe6075512eC82E280d047BD0958d6af34697DAf5",
+    "contract": "RobinhoodPausedFlashLoanExecutor",
+    "hasCode": true,
+    "codeBytes": 18983,
+    "codeHash": "0xae64cf5d059fb41c326ddfff49aecd81ead4ee7db6482747b8a9a0693afd8409",
+    "localArtifact": {
+      "contract": "RobinhoodPausedFlashLoanExecutor",
+      "available": true,
+      "codeBytes": 18983,
+      "codeHash": "0xae64cf5d059fb41c326ddfff49aecd81ead4ee7db6482747b8a9a0693afd8409"
+    },
+    "matchesLocalArtifact": true
+  },
+  "config": {
+    "owner": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "paused": true,
+    "flashSourceAdapter": {
+      "enabled": true,
+      "kind": "4",
+      "source": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "feeBps": "0",
+      "metadataHash": "0xd10567e52572996a20e466a22ac581441f18c878f03544a6b5d8b0aa30e1fc94"
+    },
+    "uniswapV3Adapter": {
+      "enabled": false,
+      "swapRouter": "0x0000000000000000000000000000000000000000",
+      "factory": "0x0000000000000000000000000000000000000000",
+      "quoter": "0x0000000000000000000000000000000000000000",
+      "metadataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "uniswapV4Adapter": {
+      "enabled": true,
+      "universalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "metadataHash": "0x506818a6d26e3ddf02404efd15db515749a1958df228a0b688090c0cc8a2a871"
+    },
+    "repaymentGuard": {
+      "minProfit": "0",
+      "gasReserve": "0",
+      "maxFlashFeeBps": "0",
+      "enforceBalance": true
+    }
+  },
+  "adapterCode": [
+    {
+      "label": "flashSource",
+      "configured": true,
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    {
+      "label": "v3SwapRouter",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v3Factory",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v3Quoter",
+      "configured": false,
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "configured": true,
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "hasCode": true,
+      "codeBytes": 24546,
+      "codeHash": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f"
+    },
+    {
+      "label": "v4PoolManager",
+      "configured": true,
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    {
+      "label": "permit2",
+      "configured": true,
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "hasCode": true,
+      "codeBytes": 9152,
+      "codeHash": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259"
+    }
+  ],
+  "broadcastEnabled": false,
+  "readyForBroadcast": false,
+  "executionGate": "paused_testnet_rehearsal_only"
+}

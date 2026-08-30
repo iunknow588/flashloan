@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "robinhood-dynamic-v4-route-preflight-v1",
+  "runAt": "2026-08-29T04:51:43.326Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "expectedChainId": 46630,
+  "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "sourceFiles": {
+    "planPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+    "poolIndexPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json"
+  },
+  "executor": {
+    "address": "0x8BfF99D0e481958054B3CA98c5B61C666746B0B2",
+    "hasCode": true,
+    "pausedBefore": true,
+    "pausedAfter": true
+  },
+  "route": {
+    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+    "hopCount": 3,
+    "triggerBlockNumber": 107982013
+  },
+  "policy": {
+    "mode": "dynamic_route_staticcall_first",
+    "broadcastRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_DYNAMIC_ROUTE_BROADCAST=true",
+    "unpauseRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_DYNAMIC_ROUTE_UNPAUSE=true",
+    "broadcastEnabled": true,
+    "unpauseEnabled": true,
+    "rePauseAfterTest": true
+  },
+  "calldataBuild": {
+    "attempted": true,
+    "ok": true,
+    "targetCount": 3,
+    "calldataCount": 3,
+    "initialToken": "0x0000000000000000000000000000000000000000",
+    "finalToken": "0x0000000000000000000000000000000000000000",
+    "error": null
+  },
+  "staticCall": {
+    "attempted": true,
+    "ok": false,
+    "result": null,
+    "error": "execution reverted"
+  },
+  "estimateGas": {
+    "attempted": false,
+    "ok": false,
+    "gas": null,
+    "error": null
+  },
+  "broadcast": {
+    "attempted": false,
+    "ok": false,
+    "hash": null,
+    "error": null
+  },
+  "repaymentConstraint": {
+    "borrowAmountRaw": "1000000000000000000",
+    "borrowSymbol": "ETH",
+    "borrowToken": "0x0000000000000000000000000000000000000000",
+    "finalAmountRaw": "9865364850000000000000",
+    "finalSymbol": "ETH",
+    "finalToken": "0x0000000000000000000000000000000000000000",
+    "flashLoanFeeBps": 5,
+    "gasReserveRaw": "0",
+    "minProfitRaw": "1",
+    "minProfitRule": "positive_x_profit_min_raw_unit",
+    "profitBasis": "borrow_token",
+    "repayAmountRaw": "1000500000000000000"
+  },
+  "hopAudit": [
+    {
+      "hop": 1,
+      "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+      "tokenIn": "0x0000000000000000000000000000000000000000",
+      "tokenOut": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+      "zeroForOne": true,
+      "amountIn": "1000000000000000000",
+      "amountOutMinimum": "4925250000000000000000",
+      "blockers": []
+    },
+    {
+      "hop": 2,
+      "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+      "tokenIn": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+      "tokenOut": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "currency0": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+      "currency1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "zeroForOne": true,
+      "amountIn": "4950000000000000000000",
+      "amountOutMinimum": "9820948500000000000000",
+      "blockers": []
+    },
+    {
+      "hop": 3,
+      "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+      "tokenIn": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "tokenOut": "0x0000000000000000000000000000000000000000",
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "zeroForOne": false,
+      "amountIn": "9870300000000000000000",
+      "amountOutMinimum": "9816038025750000000000",
+      "blockers": []
+    }
+  ],
+  "blockingReasons": [
+    "dynamic_route_static_call_failed"
+  ],
+  "readyForDynamicBroadcast": false
+}

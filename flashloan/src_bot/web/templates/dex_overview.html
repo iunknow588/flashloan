@@ -96,25 +96,33 @@
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       return data;
     }
+    let marketObservationSourceStage = "computed";
     function pairHtml(pair) {
       const linkage = pair.flashLoanLinkage || {};
       const route = pair.overviewRoute || {};
       const pools = pair.executionPools || pair.preferredPools || [];
       const profit = pair.overviewProfit || {};
-      const isObservation = route.marketObservationRoute || pair.pathSource === "market_observation";
+      const routeFrameworkSource = pair.routeFrameworkSource || pair.pathSource || "market_observation";
+      const routeFrameworkStage = pair.marketObservationSourceStage || marketObservationSourceStage;
+      const priceEvidenceSource = pair.priceEvidenceSource || profit.priceEvidenceSource || (profit.requiresLiveQuoter ? "live_quoter_required" : "static_reference_probe");
+      const livePriceVerified = Boolean(profit?.priceEvidenceMode === "live_verified" || profit?.livePriceVerified);
+      const priceEvidenceText = pair.priceEvidenceSourceLabel || profit.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
       const routeLabel = route.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
       const rec = profit.recommendation || {};
       const recClass = profit.executableCandidate ? "good" : (profit.requiresLiveQuoter ? "warn" : (profit.profitable ? "warn" : ""));
       const tokenBasis = profit.referenceReturnBasis === "borrow_token";
-      const tokenBasisNet = tokenBasis ? `${amount(profit.referenceNetProfitAmount, profit.referenceInputSymbol)} / ${num(profit.referenceNetReturnBps, 2)} bps` : "-";
+      const tokenBasisNet = livePriceVerified && tokenBasis ? `${amount(profit.referenceNetProfitAmount, profit.referenceInputSymbol)} / ${num(profit.referenceNetReturnBps, 2)} bps` : "-";
       const tokenBasisLabel = tokenBasis && profit.referenceReturnTrusted === false ? "X 本位参考" : "X 本位收益";
       return `<article class="path">
         <div class="path-head">
           <div>
             <h2>${esc(route.pathText || pair.symbolPair)}</h2>
             <div class="badges">
-              <span class="badge good">${esc(isObservation ? "市场观察闭环" : "套利候选")}</span>
+              <span class="badge good">${esc(frameworkLabel(routeFrameworkSource))}</span>
+              <span class="badge">${esc(`观察阶段 ${marketObservationSourceStageLabel(routeFrameworkStage)}`)}</span>
               <span class="badge">${esc(routeLabel)}</span>
+              <span class="badge">${esc(`价格证据 ${priceEvidenceText}`)}</span>
+              <span class="badge ${livePriceVerified ? "good" : "warn"}">${esc(livePriceVerified ? "实时价格已验证" : "实时价格未接入")}</span>
               ${route.kind === "bridge_pair" && (route.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((route.bridgeSymbols || []).join(" -> "))}</span>` : ''}
               <span class="badge">锚点 ${esc(route.anchorBorrowSymbol || (linkage.borrow_symbols || []).join(", ") || "-")}</span>
               <span class="badge">目标 ${esc(route.targetSymbol || "-")}</span>
@@ -132,11 +140,11 @@
           <thead><tr><th>探针状态</th><th>毛利</th><th>闪电贷费</th><th>Gas 储备</th><th>净利</th><th>收益 bps</th><th>X 本位净收益</th><th>下一步</th></tr></thead>
           <tbody><tr>
             <td>${esc(profit.complete ? "完成" : "未完成")}</td>
-            <td>${money(profit.observedGrossProfitUsd)}</td>
+            <td>${livePriceVerified ? money(profit.observedGrossProfitUsd) : "-"}</td>
             <td>${money(profit.flashLoanFeeUsd)}</td>
             <td>${money(profit.gasReserveUsd)}</td>
-            <td>${money(profit.observedNetProfitUsd)}</td>
-            <td>${num(profit.observedNetProfitBps, 2)}</td>
+            <td>${livePriceVerified ? money(profit.observedNetProfitUsd) : "-"}</td>
+            <td>${livePriceVerified ? num(profit.observedNetProfitBps, 2) : "-"}</td>
             <td>${esc(tokenBasisNet)}</td>
             <td>${esc(rec.action || profit.recommendationAction || "-")}</td>
           </tr></tbody>
@@ -162,9 +170,10 @@
         const data = await fetchJson("/api/dex/overview");
         const flash = data.flashLoanLiquidity || {};
         const source = data.poolStaticTable || {};
+        marketObservationSourceStage = data.marketObservationSourceStage || data.marketObservationSource || "computed";
         $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
         const anchors = data.summary?.closedLoopAnchorSymbols || data.summary?.anchorBorrowSymbols || [];
-        $("pathMeta").textContent = `X-Y-X ${data.summary?.directAnchorPathCount ?? 0} | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
+        $("pathMeta").textContent = `${frameworkLabel(data.summary?.pathSource || "market_observation")} ${data.summary?.directAnchorPathCount ?? 0} | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
         $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
         $("watchMeta").textContent = `链路观察 ${data.summary?.marketObservationRouteCount ?? 0} 条 | 专用交易对 ${data.summary?.chainSpecificObservationPairCount ?? 0}`;
         $("profitCount").textContent = `${data.summary?.overviewProfitableRouteCount ?? 0}/${data.summary?.overviewProbeCompleteCount ?? 0}`;

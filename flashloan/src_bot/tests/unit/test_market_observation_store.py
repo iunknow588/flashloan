@@ -66,6 +66,35 @@ def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
     assert market_observation_static_path(chain_id=46630, protocols=["uniswap_v4"], root=tmp_path).exists()
 
 
+def test_market_observation_static_store_isolated_by_chain(tmp_path):
+    write_market_observation_static(
+        {
+            "mode": "dex_market_observation",
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "summary": {"closedLoopRouteCount": 1},
+            "chainSpecificObservationPairs": [{"symbolPair": "AAA:BBB"}],
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="full",
+        root=tmp_path,
+    )
+
+    testnet_path = market_observation_static_path(chain_id=46630, protocols=["uniswap_v4"], root=tmp_path)
+    mainnet_path = market_observation_static_path(chain_id=4663, protocols=["uniswap_v4"], root=tmp_path)
+    testnet_loaded = load_market_observation_static(chain_id=46630, protocols=["uniswap_v4"], root=tmp_path)
+    mainnet_loaded = load_market_observation_static(chain_id=4663, protocols=["uniswap_v4"], root=tmp_path)
+
+    assert testnet_path != mainnet_path
+    assert testnet_path.as_posix().endswith("robinhood-testnet/46630/uniswap_v4/observation.json")
+    assert mainnet_path.as_posix().endswith("robinhood/4663/uniswap_v4/observation.json")
+    assert testnet_loaded["exists"] is True
+    assert mainnet_loaded["exists"] is False
+    assert testnet_loaded["network"] == "robinhood-testnet"
+    assert mainnet_loaded["network"] == "robinhood"
+
+
 def test_market_observation_static_payload_backfills_anchor_lists():
     snapshot = {
         "exists": True,
@@ -82,7 +111,8 @@ def test_market_observation_static_payload_backfills_anchor_lists():
 
     payload = observation_payload_from_static(snapshot)
 
-    assert payload["marketObservationSource"] == "static_file"
+    assert payload["marketObservationSource"] == "cached_snapshot"
+    assert payload["marketObservationSourceStage"] == "cached_snapshot"
     assert payload["observationAnchorSymbols"] == ["ETH", "USDC"]
     assert payload["borrowableSymbols"] == ["ETH", "USDC"]
     assert payload["directPools"] == []

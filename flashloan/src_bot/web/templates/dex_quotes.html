@@ -16,20 +16,18 @@
     nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
     button { min-height: 36px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
     button.copy-btn { min-height: 30px; border-color: #d0d5dd; background: #fff; color: #344054; font-size: 12px; }
-    button.copy-btn:active { transform: translateY(1px); }
     .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric, .route { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
     .metric small { display: block; color: #667085; margin-bottom: 7px; }
     .metric strong { display: block; font-size: 18px; }
-    .muted, .metric span { color: #667085; font-size: 13px; }
+    .metric span, .muted { color: #667085; font-size: 13px; }
     .route { margin-bottom: 12px; }
     .route-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-    .route-head h2 { overflow-wrap: anywhere; }
     .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
-    .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
     .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge.warn { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; }
     .badge.bad { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
     .analysis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
     .analysis div { border: 1px solid #e4e7ec; border-radius: 6px; padding: 8px; background: #fafafa; }
@@ -42,7 +40,7 @@
     .recommendation { margin-top: 10px; padding: 10px; border-radius: 6px; background: #f8fafc; border: 1px solid #e4e7ec; }
     ol { margin: 8px 0 0 18px; padding: 0; color: #344054; line-height: 1.55; }
     .empty { padding: 18px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
-    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .route-head { display: block; } }
   </style>
 </head>
 <body data-dex-surface-template="quotes">
@@ -63,8 +61,8 @@
     </div>
     <section class="grid">
       <div class="metric"><small>待报价闭环</small><strong id="routeCount">-</strong><span id="routeSourceMeta">来自市场观察</span></div>
-      <div class="metric"><small>1000U 探针完成</small><strong id="completeCount">-</strong><span id="probeMeta">静态 AMM 深度推演</span></div>
-      <div class="metric"><small>可进入预检</small><strong id="readyCount">-</strong><span id="profitMeta">扣除闪电贷费与 gas 储备</span></div>
+      <div class="metric"><small>1000U 探针完成</small><strong id="completeCount">-</strong><span id="probeMeta">实时 AMM 推演</span></div>
+      <div class="metric"><small>可进入预检</small><strong id="readyCount">-</strong><span id="profitMeta">扣除闪电贷费和 gas 储备</span></div>
       <div class="metric"><small>结算能力</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
     </section>
     <section id="routeList"></section>
@@ -96,6 +94,7 @@
       chain_profit_check_candidate: "链上利润控制候选",
       static_probe_not_profitable: "静态探针未覆盖成本",
       static_probe_incomplete: "静态探针数据不足",
+      live_verified: "链上价格已验证",
       requires_live_quoter: "需要链上 Quoter 复核",
       sdk_adapter_required: "需要 v4 SDK 适配器",
       uniswap_v4_sdk_adapter_required: "V4 SDK 适配器请求",
@@ -110,6 +109,13 @@
       static_v2_probe: "V2 静态探针",
     };
     const label = value => labelMap[value] || value || "-";
+    const routeWarnings = analysis => Array.isArray(analysis?.warnings) ? analysis.warnings : [];
+    const zeroOutputWarningText = analysis => {
+      const warning = routeWarnings(analysis).find(item => String(item || "").includes("zero_output"));
+      if (!warning) return "";
+      const hop = String(warning).match(/hop_(\d+)/)?.[1];
+      return hop ? `第 ${hop} 跳输出为 0，路径已截断` : "路径输出为 0，已截断";
+    };
     let latestRoutes = [];
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
@@ -122,31 +128,32 @@
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       return data;
     }
+    let marketObservationSourceStage = "computed";
     function lines(items) {
       return (items || []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
     }
     function analysisView(analysis) {
-      const referenceMode = Boolean(analysis?.requiresLiveQuoter || analysis?.adapterRequired);
+      const livePriceVerified = Boolean(analysis?.priceEvidenceMode === "live_verified" || analysis?.livePriceVerified);
       return {
-        referenceMode,
-        finalLabel: referenceMode ? "1000U 参考输出" : "1000U 探针最终输出",
-        grossLabel: referenceMode ? "参考毛利润" : "毛利润",
-        netLabel: referenceMode ? "参考净利润" : "净利润",
-        bpsLabel: referenceMode ? "参考净收益 bps" : "净收益 bps",
+        livePriceVerified,
+        finalLabel: "1000U 实时输出",
+        grossLabel: "实时毛利润",
+        netLabel: "实时净利润",
+        bpsLabel: "实时净收益 bps",
         offchainThresholdUsd: analysis?.offchainMinProfitUsd ?? analysis?.minProfitUsd,
         submissionThresholdUsd: analysis?.submissionMinProfitUsd ?? analysis?.flashLoanFeeUsd,
         offchainNetProfitUsd: analysis?.offchainNetProfitUsd ?? analysis?.netProfitUsd,
         submissionNetProfitUsd: analysis?.submissionNetProfitUsd ?? (analysis?.grossProfitUsd != null && analysis?.flashLoanFeeUsd != null ? Number(analysis.grossProfitUsd) - Number(analysis.flashLoanFeeUsd) : null),
-        finalOutputUsd: referenceMode ? (analysis?.referenceFinalOutputUsd ?? analysis?.finalOutputUsd) : analysis?.finalOutputUsd,
-        grossProfitUsd: referenceMode ? (analysis?.referenceGrossProfitUsd ?? analysis?.grossProfitUsd) : analysis?.grossProfitUsd,
-        netProfitUsd: referenceMode ? (analysis?.referenceNetProfitUsd ?? analysis?.netProfitUsd) : analysis?.netProfitUsd,
-        netProfitBps: referenceMode ? (analysis?.referenceNetProfitBps ?? analysis?.netProfitBps) : analysis?.netProfitBps,
-        tokenBasis: analysis?.referenceReturnBasis === "borrow_token",
-        tokenNetProfitAmount: analysis?.referenceNetProfitAmount,
-        tokenNetReturnBps: analysis?.referenceNetReturnBps,
-        tokenFinalOutputAmount: analysis?.referenceFinalOutputAmount,
-        tokenSymbol: analysis?.referenceInputSymbol,
-        tokenTrusted: analysis?.referenceReturnTrusted,
+        finalOutputUsd: livePriceVerified ? analysis?.finalOutputUsd : null,
+        grossProfitUsd: livePriceVerified ? analysis?.grossProfitUsd : null,
+        netProfitUsd: livePriceVerified ? analysis?.netProfitUsd : null,
+        netProfitBps: livePriceVerified ? analysis?.netProfitBps : null,
+        tokenBasis: livePriceVerified && analysis?.referenceReturnBasis === "borrow_token",
+        tokenNetProfitAmount: livePriceVerified ? analysis?.referenceNetProfitAmount : null,
+        tokenNetReturnBps: livePriceVerified ? analysis?.referenceNetReturnBps : null,
+        tokenFinalOutputAmount: livePriceVerified ? analysis?.referenceFinalOutputAmount : null,
+        tokenSymbol: livePriceVerified ? analysis?.referenceInputSymbol : null,
+        tokenTrusted: livePriceVerified ? analysis?.referenceReturnTrusted : null,
       };
     }
     function stepView(step) {
@@ -169,43 +176,53 @@
       const view = analysisView(analysis);
       const overview = route.overviewRoute || {};
       const bridgeSymbols = overview.bridgeSymbols || [];
+      const routeFrameworkSource = route.routeFrameworkSource || route.pathSource || "market_observation";
+      const routeFrameworkStage = route.marketObservationSourceStage || marketObservationSourceStage;
+      const priceEvidenceSource = route.priceEvidenceSource || analysis.priceEvidenceSource || (analysis.requiresLiveQuoter || analysis.adapterRequired ? "live_quoter_required" : "static_reference_probe");
+      const priceEvidenceText = route.priceEvidenceSourceLabel || analysis.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
+      const routeKindLabel = overview.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
+      const truncatedText = zeroOutputWarningText(analysis);
       return lines([
-        `路径来源：${route.pathSource === "market_observation" ? "市场观察闭环" : "候选池回退"}`,
-        `路径类型：${overview.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环"}`,
+        `路由框架来源：${frameworkLabel(routeFrameworkSource)}`,
+        `观察来源阶段：${marketObservationSourceStageLabel(routeFrameworkStage)}`,
+        `价格证据来源：${priceEvidenceText}`,
+        `实时价格状态：${view.livePriceVerified ? "已验证" : "未接入"}`,
+        `路由类型：${routeKindLabel}`,
         `中间路径：${bridgeSymbols.join(" -> ") || "-"}`,
         `实际路由：${(route.routeSymbols || []).join(" -> ") || "-"}`,
         `策略：${route.strategy || "-"}`,
         `状态：${label(route.quoteStatus)} / ${rec.action || "-"}`,
         `链上利润控制候选：${analysis.chainSubmissionCandidate ? "是" : "否"} / ${analysis.chainSubmissionPolicy || "-"}`,
-        `${view.finalLabel}：${money(view.finalOutputUsd)}`,
-        `${view.grossLabel}：${money(view.grossProfitUsd)}`,
+        `${view.finalLabel}：${view.livePriceVerified ? money(view.finalOutputUsd) : "-"}`,
+        `${view.grossLabel}：${view.livePriceVerified ? money(view.grossProfitUsd) : "-"}`,
         `闪电贷费：${money(analysis.flashLoanFeeUsd)}`,
         `离线门槛：${money(view.offchainThresholdUsd)}`,
         `链上提交门槛：${money(view.submissionThresholdUsd)}`,
         `Gas 储备：${money(analysis.gasReserveUsd)}`,
-        `${view.netLabel}：${money(view.netProfitUsd)}`,
-        `链上净利润：${money(view.submissionNetProfitUsd)}`,
-        `${view.bpsLabel}：${num(view.netProfitBps, 2)}`,
-        `X 本位最终输出：${amount(view.tokenFinalOutputAmount, view.tokenSymbol)}`,
-        `X 本位净收益：${amount(view.tokenNetProfitAmount, view.tokenSymbol)} / ${num(view.tokenNetReturnBps, 2)} bps`,
+        `${view.netLabel}：${view.livePriceVerified ? money(view.netProfitUsd) : "-"}`,
+        `链上净利润：${view.livePriceVerified ? money(view.submissionNetProfitUsd) : "-"}`,
+        `${view.bpsLabel}：${view.livePriceVerified ? num(view.netProfitBps, 2) : "-"}`,
+        `X 本位最终输出：${view.livePriceVerified ? amount(view.tokenFinalOutputAmount, view.tokenSymbol) : "-"}`,
+        `X 本位净收益：${view.livePriceVerified ? `${amount(view.tokenNetProfitAmount, view.tokenSymbol)} / ${num(view.tokenNetReturnBps, 2)} bps` : "-"}`,
         `最佳参考借入规模：${money(size.bestObservedNotionalUsd)} / 净利 ${money(size.bestObservedNetProfitUsd)}`,
         `最佳可执行借入规模：${money(size.bestExecutableNotionalUsd)} / 净利 ${money(size.bestExecutableNetProfitUsd)}`,
+        truncatedText ? `提示：${truncatedText}` : "",
         "",
         "逐跳报价：",
-        ...(steps.length ? steps.map(step => [
-          `${step.hop || "-"}。${step.fromSymbol || "-"} -> ${step.toSymbol || "-"}`,
-          `协议：${step.protocol || step.dex || "-"}`,
-          `报价来源：${label(step.quoteSource)}`,
-          `池子：${step.pool || "-"}`,
-          `费率 bps：${num(step.feeBps, 2)}`,
-          `输入：${num(step.inputAmount, 8)} ${step.fromSymbol || ""} (${money(step.inputUsd)})`,
-          (() => {
-            const stepDisplay = stepView(step);
-            return `${stepDisplay.label}：${num(stepDisplay.outputAmount, 8)} ${step.toSymbol || ""} (${money(stepDisplay.outputUsd)})`;
-          })(),
-          `有效汇率：${num(stepView(step).effectiveRate, 8)}`,
-          `价格影响 bps：${num(step.priceImpactBps, 2)}`,
-        ].join(" | ")) : ["缺少可计算的逐跳报价。"]),
+        ...(steps.length ? steps.map(step => {
+          const stepDisplay = stepView(step);
+          return [
+            `${step.hop || "-"}。${step.fromSymbol || "-"} -> ${step.toSymbol || "-"}`,
+            `协议：${step.protocol || step.dex || "-"}`,
+            `报价来源：${label(step.quoteSource)}`,
+            `池子：${step.pool || "-"}`,
+            `费率 bps：${num(step.feeBps, 2)}`,
+            `输入：${num(step.inputAmount, 8)} ${step.fromSymbol || ""} (${money(step.inputUsd)})`,
+            `${stepDisplay.label}：${num(stepDisplay.outputAmount, 8)} ${step.toSymbol || ""} (${money(stepDisplay.outputUsd)})`,
+            `有效汇率：${num(stepDisplay.effectiveRate, 8)}`,
+            `价格影响 bps：${num(step.priceImpactBps, 2)}`,
+          ].join(" | ");
+        }) : ["缺少可计算的逐跳报价。"]),
         "",
         "操作建议：",
         rec.action || "-",
@@ -219,7 +236,7 @@
         "",
         "执行条件：",
         ...((route.quoteInputs?.conditions || []).map(item => `- ${item}`)),
-      ]).join("\n");
+      ]).filter(Boolean).join("\n");
     }
     async function copyText(text, button) {
       try {
@@ -254,28 +271,36 @@
       const view = analysisView(analysis);
       const overview = route.overviewRoute || {};
       const recClass = rec.level === "ready_for_precheck" ? "good" : (rec.level === "reject" || rec.level === "blocked" ? "bad" : "warn");
-      const isObservation = route.pathSource === "market_observation" || overview.marketObservationRoute;
+      const routeFrameworkSource = route.routeFrameworkSource || route.pathSource || "market_observation";
+      const routeFrameworkStage = route.marketObservationSourceStage || marketObservationSourceStage;
+      const priceEvidenceSource = route.priceEvidenceSource || analysis.priceEvidenceSource || (analysis.requiresLiveQuoter || analysis.adapterRequired ? "live_quoter_required" : "static_reference_probe");
+      const priceEvidenceText = route.priceEvidenceSourceLabel || analysis.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
       const routeKindLabel = overview.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
-      const tokenBasisText = view.tokenBasis ? `${amount(view.tokenNetProfitAmount, view.tokenSymbol)} / ${num(view.tokenNetReturnBps, 2)} bps` : "-";
+      const tokenBasisText = view.livePriceVerified && view.tokenBasis ? `${amount(view.tokenNetProfitAmount, view.tokenSymbol)} / ${num(view.tokenNetReturnBps, 2)} bps` : "-";
       const tokenBasisBadgeClass = analysis.tokenBasisProfitable ? "good" : "warn";
       const tokenBasisLabel = view.tokenTrusted === false ? "X 本位参考" : "X 本位";
+      const truncatedText = zeroOutputWarningText(analysis);
       const stepRows = (analysis.steps || []).map(step => {
         const stepDisplay = stepView(step);
-        const stepBadges = stepDisplay.referenceMode ? '<span class="badge warn">参考价</span>' : '';
+        const zeroOutput = Number(stepDisplay.outputAmount ?? step.outputAmount ?? 0) <= 0;
+        const stepBadges = [
+          view.livePriceVerified && stepDisplay.referenceMode ? '<span class="badge warn">实时价格不完整</span>' : '',
+          zeroOutput ? '<span class="badge bad">输出为 0</span>' : '',
+        ].join("");
         return `<tr>
-        <td>${esc(step.hop)}</td>
-        <td>${esc(step.fromSymbol)} → ${esc(step.toSymbol)}</td>
-        <td>${esc(step.protocol || step.dex || "-")}</td>
-        <td>${esc(label(step.quoteSource))}</td>
-        <td>${esc(step.pool || "-")}</td>
-        <td>${num(step.feeBps, 2)}</td>
-        <td>${num(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td>
-        <td>${money(step.inputUsd)}</td>
-        <td>${stepBadges}${num(stepDisplay.outputAmount, 8)} ${esc(step.toSymbol)}</td>
-        <td>${money(stepDisplay.outputUsd)}</td>
-        <td>${num(stepDisplay.effectiveRate, 8)}</td>
-        <td>${num(step.priceImpactBps, 2)}</td>
-      </tr>`;
+          <td>${esc(step.hop)}</td>
+          <td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td>
+          <td>${esc(step.protocol || step.dex || "-")}</td>
+          <td>${esc(label(step.quoteSource))}</td>
+          <td>${esc(step.pool || "-")}</td>
+          <td>${num(step.feeBps, 2)}</td>
+          <td>${num(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td>
+          <td>${money(step.inputUsd)}</td>
+          <td>${stepBadges}${view.livePriceVerified ? `${num(stepDisplay.outputAmount, 8)} ${esc(step.toSymbol)}` : "-"}</td>
+          <td>${view.livePriceVerified ? money(stepDisplay.outputUsd) : "-"}</td>
+          <td>${view.livePriceVerified ? num(stepDisplay.effectiveRate, 8) : "-"}</td>
+          <td>${num(step.priceImpactBps, 2)}</td>
+        </tr>`;
       }).join("");
       const sizeRows = (size.rows || []).map(row => `<tr>
         <td>${money(row.notionalUsd)}</td>
@@ -286,43 +311,50 @@
         <td>${money(row.gasReserveUsd)}</td>
         <td>${money(row.observedNetProfitUsd)}</td>
         <td>${num(row.observedNetProfitBps, 2)}</td>
-        <td>${amount(row.referenceNetProfitAmount, row.referenceInputSymbol)}</td>
-        <td>${num(row.referenceNetReturnBps, 2)}</td>
+        <td>${view.livePriceVerified ? amount(row.referenceNetProfitAmount, row.referenceInputSymbol) : "-"}</td>
+        <td>${view.livePriceVerified ? num(row.referenceNetReturnBps, 2) : "-"}</td>
       </tr>`).join("");
       return `<article class="route">
         <div class="route-head">
-          <h2>${esc(route.symbolPair)}</h2>
+          <div>
+            <h2>${esc(route.symbolPair)}</h2>
+            <div class="badges">
+              <span class="badge ${recClass}">${esc(rec.action || route.quoteStatus)}</span>
+              <span class="badge good">${esc(frameworkLabel(routeFrameworkSource))}</span>
+              <span class="badge">${esc(`观察阶段 ${marketObservationSourceStageLabel(routeFrameworkStage)}`)}</span>
+              <span class="badge">${esc(routeKindLabel)}</span>
+              <span class="badge">${esc(`价格证据 ${priceEvidenceText}`)}</span>
+              <span class="badge ${view.livePriceVerified ? "good" : "warn"}">${esc(view.livePriceVerified ? "实时价格已验证" : "实时价格未接入")}</span>
+              ${truncatedText ? `<span class="badge bad">${esc(truncatedText)}</span>` : ""}
+              <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
+              <span class="badge">1000U 探针</span>
+              <span class="badge">池子 ${esc(route.poolCount)}</span>
+              <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
+              ${analysis.chainSubmissionCandidate ? '<span class="badge good">链上利润控制候选</span>' : ""}
+              ${view.tokenBasis ? `<span class="badge ${tokenBasisBadgeClass}">${esc(tokenBasisLabel)} ${esc(tokenBasisText)}</span>` : ""}
+              ${overview.kind === "bridge_pair" && (overview.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((overview.bridgeSymbols || []).join(" -> "))}</span>` : ""}
+              ${analysis.trustedUsdReference === false ? '<span class="badge warn">USD 锚点不可信</span>' : ""}
+              ${analysis.tokenDecimalsTrusted === false ? '<span class="badge warn">decimals 待确认</span>' : ""}
+              ${view.referenceMode ? '<span class="badge warn">参考价待链上复核</span>' : ""}
+              ${analysis.adapterRequired ? '<span class="badge warn">V4 SDK 适配器待接入</span>' : ""}
+            </div>
+          </div>
+          <div class="muted">${esc((route.candidatePairSymbols || []).join(" | ") || (route.quoteInputs?.candidatePairs || []).join(" | ") || "-")}</div>
           <button class="copy-btn" type="button" data-copy-route="${index}">复制本组</button>
         </div>
-        <div class="badges">
-          <span class="badge ${recClass}">${esc(rec.action || route.quoteStatus)}</span>
-          <span class="badge good">${esc(isObservation ? "市场观察路径" : "候选池回退")}</span>
-          <span class="badge">${esc(routeKindLabel)}</span>
-          <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
-          <span class="badge">1000U 探针</span>
-          <span class="badge">池子 ${esc(route.poolCount)}</span>
-          <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
-          ${analysis.chainSubmissionCandidate ? '<span class="badge good">链上利润控制候选</span>' : ''}
-          ${view.tokenBasis ? `<span class="badge ${tokenBasisBadgeClass}">${esc(tokenBasisLabel)} ${esc(tokenBasisText)}</span>` : ''}
-          ${overview.kind === "bridge_pair" && (overview.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((overview.bridgeSymbols || []).join(" -> "))}</span>` : ''}
-          ${analysis.trustedUsdReference === false ? '<span class="badge warn">USD 锚点不可信</span>' : ''}
-          ${analysis.tokenDecimalsTrusted === false ? '<span class="badge warn">decimals 待确认</span>' : ''}
-          ${view.referenceMode ? '<span class="badge warn">参考价待链上复核</span>' : ''}
-          ${analysis.adapterRequired ? '<span class="badge warn">V4 SDK 适配器待接入</span>' : ''}
-        </div>
         <div class="analysis">
-          <div><small>${esc(view.finalLabel.replace(/^1000U\s*/, ""))}</small><strong>${money(view.finalOutputUsd)}</strong></div>
-          <div><small>${esc(view.grossLabel)}</small><strong>${money(view.grossProfitUsd)}</strong></div>
+          <div><small>${esc(view.finalLabel.replace(/^1000U\s*/, ""))}</small><strong>${view.livePriceVerified ? money(view.finalOutputUsd) : "-"}</strong></div>
+          <div><small>${esc(view.grossLabel)}</small><strong>${view.livePriceVerified ? money(view.grossProfitUsd) : "-"}</strong></div>
           <div><small>闪电贷费</small><strong>${money(analysis.flashLoanFeeUsd)}</strong></div>
           <div><small>离线门槛</small><strong>${money(view.offchainThresholdUsd)}</strong></div>
           <div><small>链上提交门槛</small><strong>${money(view.submissionThresholdUsd)}</strong></div>
           <div><small>Gas 储备</small><strong>${money(analysis.gasReserveUsd)}</strong></div>
-          <div><small>${esc(view.netLabel)}</small><strong>${money(view.netProfitUsd)}</strong></div>
-          <div><small>链上净利润</small><strong>${money(view.submissionNetProfitUsd)}</strong></div>
-          <div><small>${esc(view.bpsLabel)}</small><strong>${num(view.netProfitBps, 2)}</strong></div>
-          <div><small>X 本位最终输出</small><strong>${amount(view.tokenFinalOutputAmount, view.tokenSymbol)}</strong></div>
+          <div><small>${esc(view.netLabel)}</small><strong>${view.livePriceVerified ? money(view.netProfitUsd) : "-"}</strong></div>
+          <div><small>链上净利润</small><strong>${view.livePriceVerified ? money(view.submissionNetProfitUsd) : "-"}</strong></div>
+          <div><small>${esc(view.bpsLabel)}</small><strong>${view.livePriceVerified ? num(view.netProfitBps, 2) : "-"}</strong></div>
+          <div><small>X 本位最终输出</small><strong>${view.livePriceVerified ? amount(view.tokenFinalOutputAmount, view.tokenSymbol) : "-"}</strong></div>
           <div><small>X 本位净收益</small><strong>${esc(tokenBasisText)}</strong></div>
-          <div><small>最佳参考规模</small><strong>${money(size.bestObservedNotionalUsd)}</strong></div>
+          <div><small>最佳参考借入规模</small><strong>${money(size.bestObservedNotionalUsd)}</strong></div>
           <div><small>最佳参考净利</small><strong>${money(size.bestObservedNetProfitUsd)}</strong></div>
         </div>
         <div class="table-wrap"><table>
@@ -338,7 +370,7 @@
           <ol>${(rec.reasons || []).map(item => `<li>${esc(item)}</li>`).join("")}</ol>
         </div>
         <div class="muted">候选池：${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div>
-        <div class="badges">${quoteRequests.map(item => `<span class="badge">${esc(label(item.venue))} · ${esc(label(item.quoteMode))} · ${esc(label(item.status))}</span>`).join("")}</div>
+        <div class="badges">${quoteRequests.map(item => `<span class="badge">${esc(label(item.venue))} / ${esc(label(item.quoteMode))} / ${esc(label(item.status))}</span>`).join("")}</div>
         <ol>${(route.quoteInputs?.conditions || []).map(item => `<li>${esc(item)}</li>`).join("")}</ol>
       </article>`;
     }
@@ -355,26 +387,27 @@
       const data = snapshot.payload || {};
       const summary = data.summary || snapshot.summary || {};
       const uniswapx = data.dexSettlement?.uniswapx || {};
+      marketObservationSourceStage = data.marketObservationSourceStage || data.marketObservationSource || marketObservationSourceStage;
       $("routeCount").textContent = summary.routeCount ?? summary.route_count ?? 0;
-      $("routeSourceMeta").textContent = `${summary.pathSource === "market_observation" ? "来自市场观察闭环" : "候选池回退"} | 观察闭环 ${summary.marketObservationRouteCount ?? 0} | Y-Z ${summary.chainSpecificObservationPairCount ?? 0}`;
+      $("routeSourceMeta").textContent = `${frameworkLabel(summary.pathSource || "market_observation")} | 观察闭环 ${summary.marketObservationRouteCount ?? 0} | Y-Z ${summary.chainSpecificObservationPairCount ?? 0}`;
       $("completeCount").textContent = summary.completeStaticQuoteCount ?? summary.complete_static_quote_count ?? 0;
       $("probeMeta").textContent = `起点 ${num(summary.probeNotionalUsd ?? 1000, 2)}U | 需 Quoter ${summary.liveQuoterRequiredCount ?? summary.live_quoter_required_count ?? 0}`;
       $("readyCount").textContent = summary.executableCandidateCount ?? summary.executable_candidate_count ?? 0;
-      $("profitMeta").textContent = `链上候选 ${summary.chainSubmissionCandidateCount ?? 0} | 非U ${summary.nonStableChainSubmissionCandidateCount ?? 0} | X本位 ${num(summary.bestTokenBasisNetReturnBps, 2)} bps`;
-      $("settlement").textContent = uniswapx.supported ? "UniswapX 可衔接" : "AMM 路由优先";
-      $("settlementMeta").textContent = uniswapx.supported ? `可查询 ${summary.uniswapxQuoteableRouteCount || summary.uniswapx_quoteable_route_count || 0} 条 UniswapX 报价请求` : "当前链未启用 UniswapX 结算";
+      $("profitMeta").textContent = `链上候选 ${summary.chainSubmissionCandidateCount ?? 0} | 非稳态 ${summary.nonStableChainSubmissionCandidateCount ?? 0} | X本位 ${num(summary.bestTokenBasisNetReturnBps, 2)} bps`;
+      $("settlement").textContent = uniswapx.supported ? "UniswapX 可用" : "AMM 路由优先";
+      $("settlementMeta").textContent = uniswapx.supported ? `可报价 ${summary.uniswapxQuoteableRouteCount || summary.uniswapx_quoteable_route_count || 0} 条 UniswapX 请求` : "当前链未启用 UniswapX 结算";
       if (data.routes) {
         latestRoutes = data.routes || [];
         $("routeList").innerHTML = latestRoutes.map(routeHtml).join("") || '<div class="empty">DEX 总览当前没有可进入报价阶段的路径。</div>';
       } else {
         latestRoutes = [];
-        $("routeList").innerHTML = '<div class="empty">扫描线程已启动，正在等待第一次报价快照。</div>';
+        $("routeList").innerHTML = '<div class="empty">扫描已启动，正在等待第一轮报价快照。</div>';
       }
       const status = scanner.running ? "扫描线程运行中" : "扫描线程未运行";
       const duration = scanner.last_duration_ms === null || scanner.last_duration_ms === undefined ? "-" : `${scanner.last_duration_ms} ms`;
       const updated = formatTime(snapshot.updated_at || scanner.snapshot_updated_at);
       const error = snapshot.error || scanner.last_error;
-      $("message").textContent = `${status} | 每 ${num(scanner.interval_seconds || 3, 1)} 秒 | 上次耗时 ${duration} | 已扫描 ${scanner.scan_count ?? 0} 次 | 更新 ${updated}${error ? ` | 最近错误 ${error}` : ""}`;
+      $("message").textContent = `${status} | 间隔 ${num(scanner.interval_seconds || 3, 1)} 秒 | 上次耗时 ${duration} | 已扫描 ${scanner.scan_count ?? 0} 次 | 更新 ${updated}${error ? ` | 最近错误 ${error}` : ""}`;
     }
     async function refreshSnapshot() {
       if (snapshotRefreshing) return;
@@ -388,7 +421,7 @@
       }
     }
     async function startScanner() {
-      $("message").textContent = "正在启动三秒机会扫描线程...";
+      $("message").textContent = "正在启动三秒扫描线程...";
       try {
         renderScannerResponse(await fetchJson("/api/dex/opportunity-scanner/start"));
       } catch (error) {
@@ -396,9 +429,11 @@
       }
     }
     async function refresh() {
-      $("message").textContent = "正在立即扫描当前链路...";
+      $("message").textContent = "正在立刻扫描当前链路...";
       try {
-        renderScannerResponse(await fetchJson("/api/dex/opportunity-scanner/scan-now"));
+        const data = await fetchJson("/api/dex/opportunity-scanner/scan-now");
+        marketObservationSourceStage = data.marketObservationSourceStage || data.marketObservationSource || "computed";
+        renderScannerResponse(data);
       } catch (error) {
         $("message").textContent = error.message;
       }

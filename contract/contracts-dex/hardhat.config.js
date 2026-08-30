@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, "../../flashloan/src_bot/.env"), override: false });
+dotenv.config({ path: path.resolve(__dirname, "../robinhood/testnet/.env"), override: false });
 const testEnvPath = path.resolve(__dirname, "../../flashloan/src_bot/.env.test");
 const testEnv = dotenv.config({ path: testEnvPath, processEnv: {} }).parsed || {};
 const sensitiveEnvMarkers = ["PRIVATE_KEY", "SECRET", "PASSWORD", "DATABASE_URL", "JWT"];

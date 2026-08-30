@@ -7,7 +7,6 @@ from decimal import Decimal
 import json
 import os
 from pathlib import Path
-import threading
 import time
 from typing import Any
 
@@ -51,6 +50,22 @@ from market.binance_market.cow_tokens import (
     load_cow_supported_token_registry,
     refresh_cow_supported_token_cache,
 )
+from market.binance_market.pool_support import (
+    DEFAULT_AVALANCHE_V3_POOL_CACHE_PATH,
+    DEFAULT_BNB_POOL_CACHE_PATH,
+    WRAPPED_SYMBOL_ALIASES,
+    _effective_pool_count,
+    _filter_pairs_by_avalanche_pool_route_support,
+    _filter_pairs_by_pool_route_support,
+    _filter_rows_by_avalanche_pool_symbol_support,
+    _filter_rows_by_pool_symbol_support,
+    _pool_address_text,
+    _pool_pair_info,
+    _pool_route_support,
+    _pool_symbol,
+    _symbol_alias_set,
+)
+from market.binance_market import pool_support as pool_support_module
 from market.binance_market.cow_math import (
     _amount_from_price_rule,
     _decimal_percent_delta,
@@ -75,8 +90,6 @@ from market.binance_market.candidate_service import build_pair_candidates
 SRC_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AAVE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "aave_reserve_assets.json"
 DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "state" / "binance_market_snapshot.json"
-DEFAULT_AVALANCHE_V3_POOL_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
-DEFAULT_BNB_POOL_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "bnb_arbitrage_pool_static_table.json"
 DEFAULT_COW_FLASHLOAN_CONTROL_MODE = "intent"
 DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS = 120.0
 COW_NETWORK_LABELS = {
@@ -92,22 +105,8 @@ COW_NETWORK_LABELS = {
     "ink": "Ink",
     "sepolia": "Sepolia",
 }
-WRAPPED_SYMBOL_ALIASES = {
-    "ETH": ("WETH",),
-    "AVAX": ("WAVAX", "WAVAX.E"),
-    "BTC": ("BTC.B", "BTCB"),
-    "BTC.B": ("BTC",),
-    "WBTC": ("WBTC.E",),
-    "WBTC.E": ("WBTC",),
-    "LINK": ("LINK.E",),
-    "AAVE": ("AAVE.E",),
-    "MATIC": ("WPOL", "WMATIC", "POL"),
-    "POL": ("WPOL", "WMATIC", "MATIC"),
-    "BNB": ("WBNB",),
-    "XDAI": ("WXDAI", "WDAI"),
-}
-_POOL_STATIC_TABLE_LOCK = threading.Lock()
-_POOL_STATIC_TABLE_MEMORY_CACHE: dict[str, dict[str, Any]] = {}
+
+
 STABLE_ROUTE_CANDIDATES = (
     (
         "stable_usdc_to_y_to_x_to_usdc",
@@ -142,318 +141,12 @@ def _cow_flashloan_control_mode() -> str:
     return "intent"
 
 
-def _symbol_alias_set(symbol: str) -> set[str]:
-    value = str(symbol or "").strip().upper()
-    if not value:
-        return set()
-    aliases = {value}
-    if "." in value:
-        aliases.add(value.split(".", 1)[0])
-    aliases.update(str(item).upper() for item in WRAPPED_SYMBOL_ALIASES.get(value, ()))
-    return aliases
-
-
-def _pool_symbol(entry: dict[str, Any], side: str) -> str:
-    return str(
-        entry.get(f"token{side}_symbol")
-        or entry.get(f"token_{side.lower()}_symbol")
-        or entry.get(f"token{0 if side == 'X' else 1}_symbol")
-        or ""
-    ).strip().upper()
-
-
-def _effective_pool_count(entry: dict[str, Any]) -> int:
-    rows = entry.get("pools") if isinstance(entry.get("pools"), list) else [entry]
-    count = 0
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        if int(row.get("adapterKind", row.get("adapter_kind", 1)) or 0) != 1:
-            continue
-        if str(row.get("pool") or row.get("pool_address") or row.get("address") or "").strip():
-            count += 1
-    return count
-
-
 def _load_avalanche_v3_pool_filter(cache_path: Path = DEFAULT_AVALANCHE_V3_POOL_CACHE_PATH) -> dict[str, Any]:
-    key = str(cache_path)
-    with _POOL_STATIC_TABLE_LOCK:
-        cached = _POOL_STATIC_TABLE_MEMORY_CACHE.get(key)
-        if cached:
-            return cached
-        payload: dict[str, Any] = {
-            "enabled": True,
-            "network": "avalanche",
-            "source": str(cache_path),
-            "loaded": False,
-            "pair_count": 0,
-            "symbols": [],
-            "pairs": {},
-            "error": None,
-        }
-        try:
-            data = json.loads(cache_path.read_text(encoding="utf-8"))
-            pairs: dict[tuple[str, str], dict[str, Any]] = {}
-            symbols: set[str] = set()
-            for entry in data.get("pools") or []:
-                if not isinstance(entry, dict):
-                    continue
-                left = _pool_symbol(entry, "X")
-                right = _pool_symbol(entry, "Y")
-                if not left or not right:
-                    continue
-                count = _effective_pool_count(entry)
-                if count <= 0:
-                    continue
-                pair_key = tuple(sorted((left, right)))
-                pairs[pair_key] = {
-                    "pair": f"{left}:{right}",
-                    "left": left,
-                    "right": right,
-                    "effectivePoolCount": count,
-                }
-                symbols.update((left, right))
-            payload.update(
-                {
-                    "loaded": True,
-                    "pair_count": len(pairs),
-                    "symbols": sorted(symbols),
-                    "pairs": pairs,
-                    "cache_block_number": str(data.get("block_number") or data.get("sourceDiscoveryBlockNumber") or ""),
-                    "fetched_at": str(data.get("fetched_at") or data.get("sourceDiscoveryFetchedAt") or data.get("generatedAt") or ""),
-                    "factory": str(data.get("factory") or ""),
-                    "quoter": str(data.get("quoter") or ""),
-                    "mode": str(data.get("mode") or ""),
-                }
-            )
-        except Exception as exc:
-            payload["error"] = str(exc)
-        _POOL_STATIC_TABLE_MEMORY_CACHE[key] = payload
-        return payload
-
-
-def _pool_pair_info(pool_filter: dict[str, Any] | None, left: str, right: str) -> dict[str, Any] | None:
-    if not pool_filter or not pool_filter.get("loaded"):
-        return None
-    pairs = pool_filter.get("pairs") if isinstance(pool_filter.get("pairs"), dict) else {}
-    for left_alias in _symbol_alias_set(left):
-        for right_alias in _symbol_alias_set(right):
-            item = pairs.get(tuple(sorted((left_alias, right_alias))))
-            if item:
-                return item
-    return None
-
-
-def _pool_route_support(
-    x_symbol: str,
-    y_symbol: str,
-    *,
-    network: str | None,
-    pool_filter: dict[str, Any] | None,
-) -> dict[str, Any]:
-    selected_network = str(network or "").strip().lower()
-    if selected_network == "bnb":
-        stable_candidates = ("USDT", "USDC")
-        matched_routes = []
-        attempted_routes = []
-        for stable in stable_candidates:
-            required = [(stable, x_symbol), (x_symbol, y_symbol), (y_symbol, stable)]
-            missing = []
-            matched = []
-            effective = 0
-            for left, right in required:
-                item = _pool_pair_info(pool_filter, left, right)
-                if not item:
-                    missing.append(f"{left}:{right}")
-                    continue
-                count = int(item.get("effectivePoolCount") or 0)
-                effective += count
-                matched.append(
-                    {
-                        "requestedPair": f"{left}:{right}",
-                        "cachePair": item.get("pair"),
-                        "effectivePoolCount": count,
-                    }
-                )
-            attempted_routes.append({"route": f"{stable}->{x_symbol}->{y_symbol}->{stable}", "missingPairs": missing})
-            if not missing and pool_filter and pool_filter.get("loaded"):
-                matched_routes.append(
-                    {
-                        "borrowSymbol": stable,
-                        "route": f"{stable}->{x_symbol}->{y_symbol}->{stable}",
-                        "matchedPairs": matched,
-                        "effectivePoolSlots": effective,
-                    }
-                )
-        best = max(matched_routes, key=lambda item: int(item["effectivePoolSlots"]), default=None)
-        return {
-            "supported": best is not None,
-            "reason": None if best else "missing_required_bnb_high_quality_pool_pair",
-            "requiredPairs": best.get("route").split("->") if best else [],
-            "missingPairs": [] if best else [item for route in attempted_routes for item in route["missingPairs"]],
-            "matchedPairs": best.get("matchedPairs") if best else [],
-            "effectivePoolSlots": best.get("effectivePoolSlots") if best else 0,
-            "borrowSymbol": best.get("borrowSymbol") if best else None,
-            "attemptedRoutes": attempted_routes,
-        }
-    if selected_network != "avalanche":
-        return {
-            "supported": False,
-            "reason": "unsupported_network_pool_filter",
-            "requiredPairs": [],
-            "missingPairs": [],
-            "matchedPairs": [],
-            "effectivePoolSlots": 0,
-        }
-    required = [("USDC", x_symbol), ("USDC", y_symbol), (x_symbol, y_symbol)]
-    missing = []
-    matched = []
-    effective = 0
-    for left, right in required:
-        item = _pool_pair_info(pool_filter, left, right)
-        if not item:
-            missing.append(f"{left}:{right}")
-            continue
-        count = int(item.get("effectivePoolCount") or 0)
-        effective += count
-        matched.append(
-            {
-                "requestedPair": f"{left}:{right}",
-                "cachePair": item.get("pair"),
-                "effectivePoolCount": count,
-            }
-        )
-    return {
-        "supported": not missing and bool(pool_filter and pool_filter.get("loaded")),
-        "reason": None if not missing else "missing_required_avalanche_v3_pool_pair",
-        "requiredPairs": [f"{left}:{right}" for left, right in required],
-        "missingPairs": missing,
-        "matchedPairs": matched,
-        "effectivePoolSlots": effective,
-    }
-
-
-def _filter_rows_by_avalanche_pool_symbol_support(rows: list[dict[str, Any]], pool_filter: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    if not pool_filter or not pool_filter.get("loaded"):
-        return [], [
-            dict(row, pool_supported=False, pool_filter_reason=pool_filter.get("error") if pool_filter else "pool_filter_unavailable")
-            for row in rows
-        ]
-    supported_symbols = set()
-    for symbol in pool_filter.get("symbols") or []:
-        supported_symbols.update(_symbol_alias_set(str(symbol)))
-    supported = []
-    unsupported = []
-    for row in rows:
-        base = str(row.get("base_symbol") or "").upper()
-        copied = dict(row)
-        if _symbol_alias_set(base) & supported_symbols:
-            copied["pool_supported"] = True
-            supported.append(copied)
-        else:
-            copied["pool_supported"] = False
-            copied["pool_filter_reason"] = "symbol_not_in_avalanche_v3_pool_static_table"
-            unsupported.append(copied)
-    return supported, unsupported
-
-
-def _filter_pairs_by_avalanche_pool_route_support(
-    top_rows: list[dict[str, Any]],
-    bottom_rows: list[dict[str, Any]],
-    *,
-    network: str | None,
-    pool_filter: dict[str, Any] | None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    keep_top: dict[str, dict[str, Any]] = {}
-    keep_bottom: dict[str, dict[str, Any]] = {}
-    rejected = []
-    for x in top_rows:
-        for y in bottom_rows:
-            if x.get("symbol") == y.get("symbol"):
-                continue
-            support = _pool_route_support(
-                str(x.get("base_symbol") or ""),
-                str(y.get("base_symbol") or ""),
-                network=network,
-                pool_filter=pool_filter,
-            )
-            if support["supported"]:
-                keep_top.setdefault(str(x.get("symbol") or ""), dict(x))
-                keep_bottom.setdefault(str(y.get("symbol") or ""), dict(y))
-            else:
-                rejected.append(
-                    {
-                        "pair": f"{x.get('base_symbol')}:{y.get('base_symbol')}",
-                        "missingPairs": support.get("missingPairs") or [],
-                        "reason": support.get("reason"),
-                    }
-                )
-    return list(keep_top.values()), list(keep_bottom.values()), rejected
+    return pool_support_module._load_avalanche_v3_pool_filter(cache_path)
 
 
 def _load_bnb_pool_filter(cache_path: Path = DEFAULT_BNB_POOL_CACHE_PATH) -> dict[str, Any]:
-    """Load only high-quality BNB pool edges from the BNB-specific static table."""
-    key = str(cache_path)
-    with _POOL_STATIC_TABLE_LOCK:
-        cached = _POOL_STATIC_TABLE_MEMORY_CACHE.get(key)
-        if cached:
-            return cached
-        payload: dict[str, Any] = {
-            "enabled": True,
-            "network": "bnb",
-            "source": str(cache_path),
-            "loaded": False,
-            "pair_count": 0,
-            "symbols": [],
-            "pairs": {},
-            "error": None,
-        }
-        try:
-            data = json.loads(cache_path.read_text(encoding="utf-8"))
-            if str(data.get("network") or "").lower() != "bnb" or int(data.get("chainId") or 0) != 56:
-                raise ValueError("BNB static pool table has an unexpected network or chain ID")
-            pairs: dict[tuple[str, str], dict[str, Any]] = {}
-            symbols: set[str] = set()
-            for row in data.get("pools") or []:
-                if not isinstance(row, dict) or str(row.get("status") or "") != "recommended":
-                    continue
-                left = str(row.get("token0Symbol") or "").strip().upper()
-                right = str(row.get("token1Symbol") or "").strip().upper()
-                if not left or not right or not _pool_address_text(row):
-                    continue
-                pair_key = tuple(sorted((left, right)))
-                item = pairs.setdefault(
-                    pair_key,
-                    {
-                        "pair": f"{left}:{right}",
-                        "left": left,
-                        "right": right,
-                        "effectivePoolCount": 0,
-                        "bestTvlUsd": 0.0,
-                    },
-                )
-                item["effectivePoolCount"] += 1
-                item["bestTvlUsd"] = max(float(item["bestTvlUsd"]), float(row.get("tvlUsd") or 0))
-                symbols.update((left, right))
-            payload.update(
-                {
-                    "loaded": True,
-                    "pair_count": len(pairs),
-                    "symbols": sorted(symbols),
-                    "pairs": pairs,
-                    "cache_block_number": str(data.get("generatedBlockNumber") or ""),
-                    "fetched_at": str(data.get("generatedAt") or ""),
-                    "mode": "bnb_recommended_pools_only",
-                }
-            )
-        except Exception as exc:
-            payload["error"] = str(exc)
-        _POOL_STATIC_TABLE_MEMORY_CACHE[key] = payload
-        return payload
-
-
-def _pool_address_text(row: dict[str, Any]) -> str:
-    return str(row.get("pool") or row.get("pool_address") or row.get("address") or "").strip()
+    return pool_support_module._load_bnb_pool_filter(cache_path)
 
 
 def _pool_filter_for_network(network: str | None) -> dict[str, Any] | None:
@@ -465,78 +158,10 @@ def _pool_filter_for_network(network: str | None) -> dict[str, Any] | None:
     return None
 
 
-def _filter_rows_by_pool_symbol_support(
-    rows: list[dict[str, Any]],
-    pool_filter: dict[str, Any] | None,
-    *,
-    network: str | None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    if str(network or "").lower() == "avalanche":
-        return _filter_rows_by_avalanche_pool_symbol_support(rows, pool_filter)
-    if not pool_filter or not pool_filter.get("loaded"):
-        return [], [
-            dict(row, pool_supported=False, pool_filter_reason=pool_filter.get("error") if pool_filter else "pool_filter_unavailable")
-            for row in rows
-        ]
-    supported_symbols = set(str(symbol).upper() for symbol in pool_filter.get("symbols") or [])
-    supported = []
-    unsupported = []
-    for row in rows:
-        copied = dict(row)
-        base = str(copied.get("base_symbol") or "").upper()
-        if base in supported_symbols:
-            copied["pool_supported"] = True
-            supported.append(copied)
-        else:
-            copied["pool_supported"] = False
-            copied["pool_filter_reason"] = "symbol_not_in_bnb_high_quality_pool_static_table"
-            unsupported.append(copied)
-    return supported, unsupported
-
-
-def _filter_pairs_by_pool_route_support(
-    top_rows: list[dict[str, Any]],
-    bottom_rows: list[dict[str, Any]],
-    *,
-    network: str | None,
-    pool_filter: dict[str, Any] | None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    if str(network or "").lower() == "avalanche":
-        return _filter_pairs_by_avalanche_pool_route_support(
-            top_rows,
-            bottom_rows,
-            network=network,
-            pool_filter=pool_filter,
-        )
-    keep_top: dict[str, dict[str, Any]] = {}
-    keep_bottom: dict[str, dict[str, Any]] = {}
-    rejected = []
-    for x in top_rows:
-        for y in bottom_rows:
-            if x.get("symbol") == y.get("symbol"):
-                continue
-            support = _pool_route_support(
-                str(x.get("base_symbol") or ""),
-                str(y.get("base_symbol") or ""),
-                network=network,
-                pool_filter=pool_filter,
-            )
-            if support["supported"]:
-                keep_top.setdefault(str(x.get("symbol") or ""), dict(x))
-                keep_bottom.setdefault(str(y.get("symbol") or ""), dict(y))
-            else:
-                rejected.append(
-                    {
-                        "pair": f"{x.get('base_symbol')}:{y.get('base_symbol')}",
-                        "missingPairs": support.get("missingPairs") or [],
-                        "reason": support.get("reason"),
-                    }
-                )
-    return list(keep_top.values()), list(keep_bottom.values()), rejected
-
-
 def _stable_symbol(symbol: str) -> bool:
     return str(symbol or "").upper() in {"USDC", "USDT"}
+
+
 def _basket_rows_from_extremes(extremes: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(extremes, dict):
         return []
@@ -1400,7 +1025,7 @@ def select_binance_market_extremes(
     )
 
 
-def _cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) -> list[dict[str, Any]]:
+def __legacy_cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) -> list[dict[str, Any]]:
     x = str(pair.get("x_base_symbol") or "").upper()
     y = str(pair.get("y_base_symbol") or "").upper()
     if not x or not y or x == y:
@@ -1448,7 +1073,24 @@ def _cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) 
     return specs
 
 
-def _cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None) -> dict[str, Any]:
+def _candidate_pair_count(top_rows: list[dict[str, Any]], bottom_rows: list[dict[str, Any]], min_spread_percent: float) -> int:
+    count = 0
+    min_spread = max(0.0, float(min_spread_percent))
+    for x in top_rows:
+        for y in bottom_rows:
+            if x.get("symbol") == y.get("symbol"):
+                continue
+            spread = (
+                float(x["change_percent"]) - float(y["change_percent"])
+                if x.get("change_percent") is not None and y.get("change_percent") is not None
+                else None
+            )
+            if spread is not None and spread > min_spread:
+                count += 1
+    return count
+
+
+def __legacy_cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None) -> dict[str, Any]:
     fee_amounts = [
         {
             "hop": hop.get("hop"),
@@ -1479,14 +1121,14 @@ def _cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None)
     }
 
 
-def _cow_min_profit_usd_for_amount(amount: Any) -> Decimal:
+def __legacy_cow_min_profit_usd_for_amount(amount: Any) -> Decimal:
     notional = _decimal_value(amount)
     if notional is None or notional <= 0:
         notional = Decimal("1000")
     return notional * DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT / Decimal("100")
 
 
-def _cow_pure_profit_intent(
+def __legacy_cow_pure_profit_intent(
     *,
     amount: Any,
     input_symbol: Any,
@@ -1530,7 +1172,7 @@ def _cow_pure_profit_intent(
     )
 
 
-def _cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: Decimal) -> dict[str, Any]:
+def __legacy_cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: Decimal) -> dict[str, Any]:
     if not isinstance(plan, dict) or not plan.get("available"):
         return {
             "ready": False,
@@ -1593,7 +1235,7 @@ def _cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: 
     }
 
 
-def _cow_sdk_result_snapshot(result: dict[str, Any], precheck: dict[str, Any]) -> dict[str, Any]:
+def __legacy_cow_sdk_result_snapshot(result: dict[str, Any], precheck: dict[str, Any]) -> dict[str, Any]:
     submission = result.get("cow_submission_result") if isinstance(result.get("cow_submission_result"), dict) else {}
     return {
         "status": str(precheck.get("status") or "quote_precheck"),
@@ -1618,27 +1260,27 @@ def _cow_sdk_result_snapshot(result: dict[str, Any], precheck: dict[str, Any]) -
     }
 
 
-def _cow_order_submission_requested() -> bool:
+def __legacy_cow_order_submission_requested() -> bool:
     return cow_order_submission_requested()
 
 
-def _cow_order_submission_adapter_available() -> bool:
+def __legacy_cow_order_submission_adapter_available() -> bool:
     return cow_order_submission_adapter_available()
 
 
-def _cow_order_submission_sdk_ready() -> bool:
+def __legacy_cow_order_submission_sdk_ready() -> bool:
     return cow_order_submission_sdk_ready()
 
 
-def _cow_order_submission_sdk_status() -> dict[str, Any]:
+def __legacy_cow_order_submission_sdk_status() -> dict[str, Any]:
     return cow_order_submission_sdk_status()
 
 
-def _cow_order_submission_enabled() -> bool:
+def __legacy_cow_order_submission_enabled() -> bool:
     return cow_order_submission_enabled()
 
 
-def _attach_cow_flashloan_sdk_plan(
+def __legacy_attach_cow_flashloan_sdk_plan(
     result: dict[str, Any],
     plan: dict[str, Any] | None,
     registry: dict[str, CowToken],
@@ -1713,7 +1355,7 @@ def _attach_cow_flashloan_sdk_plan(
         result["cow_flashloan_sdk_error"] = str(exc)
 
 
-def _execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def __legacy_execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {
         str(item.get("symbol") or "").upper(): item
         for item in plan.get("market_prices") or []
@@ -1721,7 +1363,7 @@ def _execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
-def _cow_query_price_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -> Decimal | None:
+def __legacy_cow_query_price_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -> Decimal | None:
     if not hop:
         return None
     sell_amount = _decimal_value(hop.get("sell_amount"))
@@ -1737,7 +1379,7 @@ def _cow_query_price_for_step(step: dict[str, Any], hop: dict[str, Any] | None) 
     return None
 
 
-def _cow_query_rate_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -> Decimal | None:
+def __legacy_cow_query_rate_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -> Decimal | None:
     if not hop:
         return None
     rate = _decimal_value(hop.get("exchange_rate"))
@@ -1750,7 +1392,7 @@ def _cow_query_rate_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -
     return buy_amount / sell_amount
 
 
-def _apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
+def __legacy_apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(plan, dict) or not plan.get("available"):
         return plan
     enriched = deepcopy(plan)
@@ -1872,7 +1514,7 @@ def _apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]
     return enriched
 
 
-def _apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
+def __legacy_apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(plan, dict) or not plan.get("available"):
         return plan
     enriched = deepcopy(plan)
@@ -1943,7 +1585,7 @@ def _apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any
     return enriched
 
 
-def _cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
+def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
     plan = result.get("binance_execution_plan") if isinstance(result, dict) else None
     steps = plan.get("steps") if isinstance(plan, dict) else []
     hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
@@ -2214,279 +1856,28 @@ def _cow_route_support(spec: dict[str, Any], registry: dict[str, Any], *, cow_ne
     }
 
 
-def build_cow_route_precheck(
-    market_state: dict[str, Any],
-    *,
-    amount: str | int | float | Decimal = "1000",
-    quote_limit: int = 25,
-    cow_network: str | None = DEFAULT_COW_TEST_NETWORK,
-    aave_cache_path: Path = DEFAULT_AAVE_CACHE_PATH,
-    registry: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    network_config = cow_network_config(network=cow_network)
-    selected_pairs = list(market_state.get("pairs") or [])[: max(1, int(quote_limit))]
-    route_specs = [spec for pair in selected_pairs for spec in _cow_route_specs(pair, amount)]
-    token_registry = registry if registry is not None else build_token_registry(
-        aave_cache_path=aave_cache_path,
-        include_cow_token_list=True,
-        cow_network=network_config.network,
-    )
-    routes = [
-        _cow_route_support(spec, token_registry, cow_network=network_config.network)
-        for spec in route_specs
-    ]
-    return {
-        "cow_network": network_config.network,
-        "cow_chain_id": network_config.chain_id,
-        "cow_testnet": network_config.testnet,
-        "selected_pair_count": len(selected_pairs),
-        "route_count": len(routes),
-        "supported_route_count": sum(1 for item in routes if item["supported"]),
-        "unsupported_route_count": sum(1 for item in routes if not item["supported"]),
-        "routes": routes,
-    }
-
-
-def _candidate_pair_count(top_rows: list[dict[str, Any]], bottom_rows: list[dict[str, Any]], min_spread_percent: float) -> int:
-    count = 0
-    min_spread = max(0.0, float(min_spread_percent))
-    for x in top_rows:
-        for y in bottom_rows:
-            if x.get("symbol") == y.get("symbol"):
-                continue
-            spread = (
-                float(x["change_percent"]) - float(y["change_percent"])
-                if x.get("change_percent") is not None and y.get("change_percent") is not None
-                else None
-            )
-            if spread is not None and spread > min_spread:
-                count += 1
-    return count
-
-
-def build_cow_network_market_claims(
-    extremes: dict[str, Any] | None,
-    network_token_caches: dict[str, dict[str, Any]],
-    *,
-    limit: int = DEFAULT_COW_NETWORK_DISPLAY_LIMIT,
-    min_spread_percent: float = 1.0,
-    min_side_change_percent: float = DEFAULT_MIN_SIDE_CHANGE_PERCENT,
-    min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
-    threshold_detail: dict[str, Any] | None = None,
-) -> list[dict[str, Any]]:
-    min_side_change_percent = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT
-    market_rows = _basket_rows_from_extremes(extremes)
-    display_market_rows = _price_filtered_market_rows(
-        market_rows,
-        min_token_price_usd=min_token_price_usd,
-    )
-    eligible_market_rows, excluded_market_rows = _eligible_market_rows(
-        market_rows,
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-    )
-    summaries = []
-    for network, token_cache in network_token_caches.items():
-        config = cow_network_config(network=network)
-        if config.testnet or config.network not in {"avalanche", "bnb"}:
-            continue
-        registry = _market_registry_for_network(
-            config.network,
-            token_cache.get("registry") if isinstance(token_cache, dict) else {},
-        )
-        supported_rows, unsupported_rows = _cow_supported_market_rows(display_market_rows, registry or {})
-        candidate_supported_rows, _ = _cow_supported_market_rows(eligible_market_rows, registry or {})
-        pool_filter = _pool_filter_for_network(config.network)
-        pool_supported_rows, pool_unsupported_rows = _filter_rows_by_pool_symbol_support(
-            supported_rows,
-            pool_filter,
-            network=config.network,
-        )
-        candidate_pool_supported_rows, candidate_pool_unsupported_rows = _filter_rows_by_pool_symbol_support(
-            candidate_supported_rows,
-            pool_filter,
-            network=config.network,
-        )
-        top_rows, bottom_rows = _rank_supported_extremes(
-            pool_supported_rows,
-            limit,
-            min_side_change_percent=min_side_change_percent,
-            min_token_price_usd=min_token_price_usd,
-            enforce_side_move=False,
-        )
-        candidate_top_rows, candidate_bottom_rows = _rank_supported_extremes(
-            candidate_pool_supported_rows,
-            limit,
-            min_side_change_percent=min_side_change_percent,
-            min_token_price_usd=min_token_price_usd,
-        )
-        candidate_top_rows, candidate_bottom_rows, rejected_pairs = _filter_pairs_by_pool_route_support(
-            candidate_top_rows,
-            candidate_bottom_rows,
-            network=config.network,
-            pool_filter=pool_filter,
-        )
-        supported_route_pairs = {
-            f"{x.get('base_symbol')}:{y.get('base_symbol')}"
-            for x in candidate_top_rows
-            for y in candidate_bottom_rows
-            if x.get("symbol") != y.get("symbol")
-            and _pool_route_support(
-                str(x.get("base_symbol") or ""),
-                str(y.get("base_symbol") or ""),
-                network=config.network,
-                pool_filter=pool_filter,
-            ).get("supported")
-        }
-        for row in top_rows:
-            row["pool_route_supported"] = any(
-                f"{row.get('base_symbol')}:{bottom.get('base_symbol')}" in supported_route_pairs
-                for bottom in bottom_rows
-            )
-        for row in bottom_rows:
-            row["pool_route_supported"] = any(
-                f"{top.get('base_symbol')}:{row.get('base_symbol')}" in supported_route_pairs
-                for top in top_rows
-            )
-        if not pool_supported_rows:
-            continue
-        summaries.append(
-            {
-                "network": config.network,
-                "label": COW_NETWORK_LABELS.get(config.network, config.network),
-                "chain_id": config.chain_id,
-                "token_cache_source": token_cache.get("source") if isinstance(token_cache, dict) else None,
-                "token_cache_count": token_cache.get("token_count") if isinstance(token_cache, dict) else 0,
-                "supported_symbol_count": len(pool_supported_rows),
-                "unsupported_symbol_count": len(unsupported_rows) + len(pool_unsupported_rows),
-                "candidate_supported_symbol_count": len(candidate_top_rows) + len(candidate_bottom_rows),
-                "market_eligible_symbol_count": len(eligible_market_rows),
-                "market_excluded_symbol_count": len(excluded_market_rows),
-                "market_display_symbol_count": len(display_market_rows),
-                "pool_filter": {
-                    "enabled": True,
-                    "loaded": bool(pool_filter.get("loaded")),
-                    "source": pool_filter.get("source"),
-                    "pair_count": pool_filter.get("pair_count"),
-                    "cache_block_number": pool_filter.get("cache_block_number"),
-                    "fetched_at": pool_filter.get("fetched_at"),
-                    "symbol_supported_count": len(pool_supported_rows),
-                    "symbol_unsupported_count": len(pool_unsupported_rows),
-                    "candidate_symbol_unsupported_count": len(candidate_pool_unsupported_rows),
-                    "rejected_pair_count": len(rejected_pairs),
-                    "rejected_pairs": rejected_pairs[:20],
-                    "error": pool_filter.get("error"),
-                },
-                "min_side_change_percent": float(min_side_change_percent),
-                "min_token_price_usd": float(min_token_price_usd),
-                "min_spread_percent": max(0.0, float(min_spread_percent)),
-                "threshold_detail": threshold_detail or {},
-                "pair_count": _candidate_pair_count(candidate_top_rows, candidate_bottom_rows, min_spread_percent),
-                "top": top_rows,
-                "bottom": bottom_rows,
-            }
-        )
-    return sorted(summaries, key=lambda item: (-int(item.get("supported_symbol_count") or 0), item.get("network") or ""))
-
-
-def build_cow_supported_market_overview(
-    extremes: dict[str, Any] | None,
-    network_token_caches: dict[str, dict[str, Any]],
-    *,
-    limit: int = 50,
-    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
-    min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
-    threshold_detail: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    min_side_change_percent = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT
-    market_rows = _basket_rows_from_extremes(extremes)
-    display_market_rows = _price_filtered_market_rows(
-        market_rows,
-        min_token_price_usd=min_token_price_usd,
-    )
-    top_eligible_market_rows, top_excluded_market_rows = _eligible_market_rows(
-        market_rows,
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-        side="top",
-    )
-    bottom_eligible_market_rows, bottom_excluded_market_rows = _eligible_market_rows(
-        market_rows,
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-        side="bottom",
-    )
-    all_eligible_market_rows, all_excluded_market_rows = _eligible_market_rows(
-        market_rows,
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-    )
-    top_supported_rows, top_unsupported_rows, top_eligible_symbols = _cow_supported_union_market_rows(
-        top_eligible_market_rows,
-        network_token_caches,
-    )
-    bottom_supported_rows, bottom_unsupported_rows, bottom_eligible_symbols = _cow_supported_union_market_rows(
-        bottom_eligible_market_rows,
-        network_token_caches,
-    )
-    all_supported_rows, all_unsupported_rows, all_eligible_symbols = _cow_supported_union_market_rows(
-        all_eligible_market_rows,
-        network_token_caches,
-    )
-    display_supported_rows, display_unsupported_rows, display_eligible_symbols = _cow_supported_union_market_rows(
-        display_market_rows,
-        network_token_caches,
-    )
-    top_rows, _ = _rank_supported_extremes(
-        display_supported_rows,
-        max(1, int(limit)),
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-        enforce_side_move=False,
-    )
-    _, bottom_rows = _rank_supported_extremes(
-        display_supported_rows,
-        max(1, int(limit)),
-        min_side_change_percent=min_side_change_percent,
-        min_token_price_usd=min_token_price_usd,
-        enforce_side_move=False,
-    )
-    return {
-        "limit": max(1, int(limit)),
-        "source_market_row_count": len(market_rows),
-        "eligible_symbol_count": len(display_eligible_symbols),
-        "supported_symbol_count": len(display_supported_rows),
-        "unsupported_symbol_count": len(display_unsupported_rows),
-        "candidate_supported_symbol_count": len(all_supported_rows),
-        "market_eligible_symbol_count": len(all_eligible_market_rows),
-        "market_excluded_symbol_count": len(all_excluded_market_rows),
-        "market_display_symbol_count": len(display_market_rows),
-        "market_excluded_reason_counts": _market_filter_reason_counts(all_excluded_market_rows),
-        "top_filter": {
-            "source_market_row_count": len(market_rows),
-            "eligible_symbol_count": len(top_eligible_symbols),
-            "supported_symbol_count": len(top_supported_rows),
-            "unsupported_symbol_count": len(top_unsupported_rows),
-            "market_eligible_symbol_count": len(top_eligible_market_rows),
-            "market_excluded_symbol_count": len(top_excluded_market_rows),
-            "market_excluded_reason_counts": _market_filter_reason_counts(top_excluded_market_rows),
-        },
-        "bottom_filter": {
-            "source_market_row_count": len(market_rows),
-            "eligible_symbol_count": len(bottom_eligible_symbols),
-            "supported_symbol_count": len(bottom_supported_rows),
-            "unsupported_symbol_count": len(bottom_unsupported_rows),
-            "market_eligible_symbol_count": len(bottom_eligible_market_rows),
-            "market_excluded_symbol_count": len(bottom_excluded_market_rows),
-            "market_excluded_reason_counts": _market_filter_reason_counts(bottom_excluded_market_rows),
-        },
-        "min_side_change_percent": float(min_side_change_percent),
-        "min_token_price_usd": float(min_token_price_usd),
-        "threshold_detail": threshold_detail or {},
-        "top": top_rows,
-        "bottom": bottom_rows,
-    }
-
-
+from market.binance_market.cow_surface import (
+    _apply_cow_quote_analysis,
+    _apply_cow_quote_targets,
+    _attach_cow_flashloan_sdk_plan,
+    _cow_cost_summary,
+    _cow_execution_precheck,
+    _cow_min_profit_usd_for_amount,
+    _cow_order_submission_adapter_available,
+    _cow_order_submission_enabled,
+    _cow_order_submission_requested,
+    _cow_order_submission_sdk_ready,
+    _cow_order_submission_sdk_status,
+    _cow_own_limit_order_intent,
+    _cow_pure_profit_intent,
+    _cow_query_price_for_step,
+    _cow_query_rate_for_step,
+    _cow_route_specs,
+    _cow_sdk_result_snapshot,
+    build_cow_network_market_claims,
+    build_cow_route_precheck,
+    build_cow_supported_market_overview,
+    _execution_plan_rows,
+)
 from market.binance_market.quote_service import build_binance_market_state, build_cow_quote_verification
 

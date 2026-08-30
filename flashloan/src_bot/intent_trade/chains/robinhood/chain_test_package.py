@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(SRC_ROOT) not in sys.path:
@@ -122,6 +123,15 @@ def _attempt_score(row: dict) -> tuple[int, str]:
     return 0, str(row.get("created_at") or row.get("observed_at") or "")
 
 
+def _attempt_is_live_ready(row: dict) -> bool:
+    evidence = row.get("quote", {}).get("live_onchain_evidence") if isinstance(row.get("quote"), dict) else {}
+    precheck = row.get("precheck") if isinstance(row.get("precheck"), dict) else {}
+    status = str(evidence.get("status") or precheck.get("status") or row.get("state") or "").strip().lower()
+    ready = bool(evidence.get("readyForTransactionPreflight") or precheck.get("ready_for_transaction_preflight"))
+    trusted = bool(evidence.get("trustedForExecution") or precheck.get("trustedForExecution"))
+    return ready and (trusted or status == "live_verified")
+
+
 def _read_json(path: Path) -> dict:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -165,11 +175,13 @@ def _select_attempt(rows: list[dict], pair: str | None, *, trigger_block: int | 
         if not wanted or row_pair == wanted or route_pair == wanted:
             if trigger_block is not None and _block_number(row) != trigger_block:
                 continue
+            if not _attempt_is_live_ready(row):
+                continue
             candidates.append(row)
     if candidates:
         candidates.sort(key=_attempt_score, reverse=True)
         return candidates[0]
-    raise ValueError("no matching Robinhood attempt row was found")
+    raise ValueError("no live-ready Robinhood attempt row was found")
 
 
 def chain_test_package_flow(
@@ -198,12 +210,14 @@ def chain_test_package_flow(
         selected_attempt = _read_json(attempt_json)
     if selected_attempt is None:
         rows = load_recent_cow_execution_attempts_jsonl(
-            log_path or SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl",
+            log_path or SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts",
             limit=limit,
             networks=[requested_network],
             chain_ids=[requested_chain_id],
         )
         selected_attempt = _select_attempt(rows, pair, trigger_block=trigger_block)
+    if not _attempt_is_live_ready(selected_attempt):
+        raise ValueError("selected Robinhood attempt is not live-ready for chain-test packaging")
     network = _text(
         _attempt_network(selected_attempt)
         or (request.network if request is not None else "")
@@ -235,7 +249,7 @@ def chain_test_package_flow(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a Robinhood chain-test package from a verified attempt row.")
     parser.add_argument("--attempt-json", type=Path, help="One attempt row as JSON.")
-    parser.add_argument("--log-path", type=Path, default=SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl")
+    parser.add_argument("--log-path", type=Path, default=SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts")
     parser.add_argument("--limit", type=int, default=5000)
     parser.add_argument("--pair", default="USDG -> WETH -> VLAD -> WETH -> USDG")
     parser.add_argument("--trigger-block", type=int, default=None)

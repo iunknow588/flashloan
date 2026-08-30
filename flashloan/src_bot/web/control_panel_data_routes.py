@@ -2,6 +2,7 @@ from pathlib import Path
 
 from flask import jsonify, request
 
+from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
 from core.sensitive_data import redact_sensitive_text
 from db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
@@ -44,6 +45,7 @@ from web.route_context import RouteContext
 ROUTE_CONTEXT = RouteContext()
 SRC_ROOT = Path(__file__).resolve().parents[1]
 COW_EXECUTION_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
+COW_EXECUTION_ATTEMPT_LOG_ROOT = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts"
 COW_EXECUTION_RETENTION_DAYS = 7
 COW_EXECUTION_REVIEW_CATEGORIES = [
     COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
@@ -53,6 +55,61 @@ COW_EXECUTION_REVIEW_CATEGORIES = [
 # Compatibility name retained for route imports; it now means the default,
 # not the only network supported by the DEX workflow.
 DEX_ARBITRAGE_SUPPORTED_NETWORK = DEFAULT_COW_NETWORK
+
+
+def cow_execution_attempt_log_path(
+    *,
+    network: str | None = None,
+    chain_id: int | None = None,
+    market_state: dict | None = None,
+    fallback: Path | None = None,
+) -> Path:
+    state = market_state if isinstance(market_state, dict) else {}
+    state_filter = state.get("cow_filter") if isinstance(state.get("cow_filter"), dict) else {}
+    resolved_network = str(
+        network
+        or state_filter.get("network")
+        or state.get("network")
+        or state.get("cow_network")
+        or ""
+    ).strip().lower()
+    resolved_chain_id = chain_id
+    if resolved_chain_id is None:
+        for value in (
+            state_filter.get("chain_id"),
+            state.get("chain_id"),
+            state.get("cow_chain_id"),
+        ):
+            if value is None or value == "":
+                continue
+            try:
+                resolved_chain_id = int(value)
+                break
+            except (TypeError, ValueError):
+                continue
+    row = None
+    if resolved_chain_id is not None:
+        row = chain_data_by_chain_id(int(resolved_chain_id))
+    elif resolved_network:
+        row = chain_data_by_network(resolved_network)
+    if row:
+        resolved_network = str(row.get("network") or resolved_network or "").strip().lower()
+        if resolved_chain_id is None:
+            try:
+                resolved_chain_id = int(row.get("chain_id"))
+            except (TypeError, ValueError):
+                resolved_chain_id = resolved_chain_id
+    if not resolved_network and resolved_chain_id is None:
+        if fallback is not None:
+            return fallback
+        return COW_EXECUTION_ATTEMPT_LOG_PATH
+    if not resolved_network:
+        row = chain_data_by_network(state.get("network") or state.get("cow_network"))
+        if row:
+            resolved_network = str(row.get("network") or "").strip().lower()
+    scope_network = resolved_network or "unknown"
+    scope_chain = str(resolved_chain_id if resolved_chain_id is not None else "no-chain-id")
+    return COW_EXECUTION_ATTEMPT_LOG_ROOT / scope_network / scope_chain / "attempts.jsonl"
 
 
 def panel_call(name: str, *args, **kwargs):
@@ -208,6 +265,7 @@ def record_cow_attempt_list_safely(
     attempts: list[dict],
     *,
     database_url: str | None,
+    dedupe_market_candidates: bool = True,
 ) -> dict:
     if not attempts:
         return {"recorded": 0, "source": "empty", "error": None}
@@ -219,12 +277,27 @@ def record_cow_attempt_list_safely(
             "error": None,
             "pause_guard": pause_guard,
         }
-    file_count = append_cow_execution_attempts_jsonl(
-        COW_EXECUTION_ATTEMPT_LOG_PATH,
-        attempts,
-        retention_days=COW_EXECUTION_RETENTION_DAYS,
-    )
-    return {"recorded": file_count, "source": "jsonl", "error": None}
+    grouped_attempts: dict[Path, list[dict]] = {}
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        path = cow_execution_attempt_log_path(
+            network=attempt.get("network") or attempt.get("cow_network"),
+            chain_id=attempt.get("chain_id") or attempt.get("cow_chain_id"),
+            market_state=attempt.get("market_state"),
+        )
+        grouped_attempts.setdefault(path, []).append(attempt)
+    file_count = 0
+    log_paths: list[str] = []
+    for path, rows in grouped_attempts.items():
+        file_count += append_cow_execution_attempts_jsonl(
+            path,
+            rows,
+            retention_days=COW_EXECUTION_RETENTION_DAYS,
+            dedupe_market_candidates=dedupe_market_candidates,
+        )
+        log_paths.append(str(path))
+    return {"recorded": file_count, "source": "jsonl", "error": None, "log_paths": log_paths}
 
 
 def record_cow_execution_attempts_safely(
