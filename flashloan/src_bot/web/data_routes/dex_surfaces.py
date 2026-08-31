@@ -9,6 +9,7 @@ from db.storage_cow_execution import (
     clear_cow_execution_attempts_jsonl,
     load_recent_cow_execution_attempts_jsonl,
 )
+from market.binance_market.dex_strategy_registry import dex_strategy_definition, dex_strategy_key_for_path, dex_strategy_keys, dex_strategy_path_for_key, resolve_dex_strategy_key
 from market.binance_market.dex_surfaces import (
     dex_market_observation_payload,
     dex_market_observation_surface_payload,
@@ -24,6 +25,7 @@ from runtime.dex_opportunity_scanner import (
     run_dex_opportunity_scan_now,
 )
 from web import control_panel_data_routes as shared
+from web.dex_strategy_config import dex_strategy_state, write_dex_strategy_config
 from web.data_routes import dex_surface_orchestration as dex_surface_orchestration
 from web.data_routes.dex_surface_orchestration import (
     _attach_chain_flow_processing,
@@ -37,6 +39,7 @@ from web.data_routes.dex_surface_orchestration import (
 from web.data_routes.dex_surface_response import (
     candidate_pagination_args,
     paginate_candidate_payload,
+    request_dex_strategy_arg,
     request_dex_protocols_arg,
     selected_chain_id_from_request,
     submission_networks_from_request,
@@ -106,7 +109,49 @@ def _submission_review_framework_payload(*, chain_id: int | None, protocols: lis
     )
 
 
+def _attach_dex_strategy(payload: dict) -> dict:
+    payload["dex_strategy"] = request_dex_strategy_arg()
+    return payload
+
+
 def register_dex_surface_routes(app, panel) -> None:
+    @app.get("/api/dex/strategy")
+    def dex_strategy():
+        try:
+            config = dex_strategy_state()
+            requested_strategy_raw = str(request.args.get("dex_strategy", "")).strip().lower()
+            requested_strategy = requested_strategy_raw if requested_strategy_raw in set(dex_strategy_keys()) else ""
+            page_path = request.args.get("page_path", "").strip()
+            page_strategy = dex_strategy_key_for_path(page_path) if page_path else ""
+            selected_strategy = resolve_dex_strategy_key(requested_strategy or page_strategy or config.get("active_strategy"))
+            selected_definition = dex_strategy_definition(selected_strategy) or {}
+            current_definition = dex_strategy_definition(page_strategy) or {}
+            payload = {
+                "ok": True,
+                **config,
+                "requested_strategy": requested_strategy or None,
+                "page_strategy": page_strategy or None,
+                "selected_strategy": selected_strategy,
+                "dex_strategy": selected_strategy,
+                "selected_strategy_definition": selected_definition,
+                "selected_strategy_path": str(selected_definition.get("default_path") or dex_strategy_path_for_key(selected_strategy)),
+                "page_strategy_definition": current_definition,
+                "page_strategy_path": str(current_definition.get("default_path") or dex_strategy_path_for_key(page_strategy)),
+                "page_path": page_path or None,
+            }
+            return jsonify(payload)
+        except Exception as exc:
+            return jsonify({"ok": False, "error": shared.data_error_message(exc) or str(exc)}), 400
+
+    @app.post("/api/dex/strategy")
+    def post_dex_strategy():
+        try:
+            payload = write_dex_strategy_config(request.get_json(silent=True) or {})
+            state = dex_strategy_state()
+            return jsonify({"ok": True, **state, "config": payload})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": shared.data_error_message(exc) or str(exc)}), 400
+
     @app.get("/api/dex/overview")
     def dex_overview():
         try:
@@ -127,11 +172,11 @@ def register_dex_surface_routes(app, panel) -> None:
             fallback=lambda: dex_overview_payload(
                 chain_id=selected_chain_id,
                 protocols=protocols,
-                use_static_observation=True,
+                use_static_observation=False,
             ),
         )
         payload["chain_selection"] = chain_selection
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/market-observation")
     def dex_market_observation():
@@ -162,7 +207,7 @@ def register_dex_surface_routes(app, panel) -> None:
         )
         payload = _market_observation_page_payload(payload)
         payload["chain_selection"] = chain_selection
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.post("/api/dex/market-observation/refresh")
     def dex_market_observation_refresh():
@@ -199,7 +244,7 @@ def register_dex_surface_routes(app, panel) -> None:
             "associatedPairCount": (payload.get("marketObservationStaticTable") or {}).get("summary", {}).get("fundAnchorPairObservationAssociatedPairCount"),
         }
         payload = _market_observation_page_payload(payload)
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/quote-routes")
     def dex_quote_routes():
@@ -221,11 +266,11 @@ def register_dex_surface_routes(app, panel) -> None:
             fallback=lambda: dex_quote_routes_payload(
                 chain_id=selected_chain_id,
                 protocols=protocols,
-                use_static_observation=True,
+                use_static_observation=False,
             ),
         )
         payload["chain_selection"] = chain_selection
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/opportunity-scanner/start")
     def dex_opportunity_scanner_start():
@@ -237,7 +282,7 @@ def register_dex_surface_routes(app, panel) -> None:
         ensure_dex_opportunity_scanner_running(chain_id=selected_chain_id, protocols=protocols)
         payload = dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/opportunity-scanner/snapshot")
     def dex_opportunity_scanner_snapshot():
@@ -248,7 +293,7 @@ def register_dex_surface_routes(app, panel) -> None:
         protocols = request_dex_protocols_arg()
         payload = dex_opportunity_snapshot(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/opportunity-scanner/scan-now")
     def dex_opportunity_scanner_scan_now():
@@ -259,7 +304,7 @@ def register_dex_surface_routes(app, panel) -> None:
         protocols = request_dex_protocols_arg()
         payload = run_dex_opportunity_scan_now(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
-        return jsonify(payload)
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/quote-request")
     def dex_quote_request():
@@ -287,14 +332,14 @@ def register_dex_surface_routes(app, panel) -> None:
                 pair=pair,
                 venue=venue,
                 amount=amount,
-                use_static_observation=True,
+                use_static_observation=False,
             ),
             pair=pair,
             venue=venue,
             amount=amount,
         )
         payload["chain_selection"] = chain_selection
-        return jsonify(payload), 200 if payload.get("ok") else 404
+        return jsonify(_attach_dex_strategy(payload)), 200 if payload.get("ok") else 404
 
     @app.get("/api/dex-pools/candidates")
     def dex_pool_candidates():
@@ -311,7 +356,7 @@ def register_dex_surface_routes(app, panel) -> None:
         page, page_size, query, quality = candidate_pagination_args()
         payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
-        return jsonify(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality))
+        return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
 
     @app.get("/api/dex-pools/candidates/refresh")
     @app.post("/api/dex-pools/candidates/refresh")
@@ -347,7 +392,7 @@ def register_dex_surface_routes(app, panel) -> None:
         payload["chain_selection"] = chain_selection
         payload["refresh_state"] = _refresh_state_summary(payload, {**refresh_state, "running": False})
         page, page_size, query, quality = candidate_pagination_args()
-        return jsonify(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality))
+        return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
 
     @app.get("/api/dex/submissions")
     def dex_submission_review():
@@ -382,6 +427,7 @@ def register_dex_surface_routes(app, panel) -> None:
                 ),
                 "routeFramework": route_framework,
                 "chain_selection": chain_selection,
+                "dex_strategy": request_dex_strategy_arg(),
             }
         )
 
@@ -398,6 +444,7 @@ def register_dex_surface_routes(app, panel) -> None:
                 "ok": True,
                 "mode": "dex_submission_clear",
                 "chain_selection": chain_selection,
+                "dex_strategy": request_dex_strategy_arg(),
                 "networks": networks,
                 "cleared": sum(int(item.get("cleared") or 0) for item in results),
                 "results": results,

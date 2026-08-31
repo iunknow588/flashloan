@@ -4,6 +4,7 @@ import math
 
 from flask import request
 
+from market.binance_market.dex_strategy_registry import resolve_dex_strategy_key
 from web import control_panel_data_routes as shared
 
 
@@ -160,6 +161,10 @@ def request_dex_protocols_arg() -> list[str]:
     return [protocol for protocol in request_protocols_arg() if protocol in DEX_QUOTE_PROTOCOLS]
 
 
+def request_dex_strategy_arg() -> str:
+    return resolve_dex_strategy_key(request.args.get("dex_strategy", "").strip())
+
+
 def selected_chain_id_from_request() -> tuple[dict | None, int | None]:
     chain_selection = shared._optional_request_chain_selection()
     selected_chain_id = None
@@ -182,6 +187,7 @@ __all__ = [
     "candidate_pagination_args",
     "paginate_candidate_payload",
     "request_dex_protocols_arg",
+    "request_dex_strategy_arg",
     "request_protocols_arg",
     "selected_chain_id_from_request",
     "submission_networks_from_request",

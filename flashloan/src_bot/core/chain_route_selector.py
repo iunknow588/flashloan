@@ -103,7 +103,12 @@ def _chain_order_key(selection: ChainSelection, fallback_index: int) -> tuple[in
     return (1, fallback_index, network or market_id or selection_chain_key(selection))
 
 
-def chain_scope_options(selections: Iterable[ChainSelection], feature: str | None = None) -> list[dict[str, Any]]:
+def chain_scope_options(
+    selections: Iterable[ChainSelection],
+    feature: str | None = None,
+    *,
+    include_chain_config: bool = True,
+) -> list[dict[str, Any]]:
     groups: dict[str, list[ChainSelection]] = {}
     group_indexes: dict[str, int] = {}
     for selection in selections:
@@ -142,7 +147,7 @@ def chain_scope_options(selections: Iterable[ChainSelection], feature: str | Non
                 }
             )
         chain_key = selection_chain_key(selected)
-        chain_config = chain_config_for_selection(selected)
+        chain_config = chain_config_for_selection(selected) if include_chain_config else {}
         payload = dict(selected.as_dict())
         payload.update(
             {
@@ -174,9 +179,14 @@ def build_chain_selection_payload(
     workflow: str = "unknown",
     execution_mode: str | None = None,
     scope_type: str = "single_chain",
+    include_chain_config: bool = True,
 ) -> dict[str, Any]:
     available_rows = list(available)
-    chain_options = chain_scope_options(available_rows, feature)
+    chain_options = chain_scope_options(
+        available_rows,
+        feature,
+        include_chain_config=include_chain_config,
+    )
     selected_chain = next(
         (item for item in chain_options if item.get("chain_key") == selection_chain_key(selected)),
         None,
@@ -211,7 +221,11 @@ def build_chain_selection_payload(
         or (selected_chain or {}).get("default_market_id")
         or selected.market_id
     )
-    selected_chain_config = (selected_chain or {}).get("chain_config") or chain_config_for_selection(selected)
+    selected_chain_config = (
+        (selected_chain or {}).get("chain_config")
+        if include_chain_config
+        else {}
+    ) or (chain_config_for_selection(selected) if include_chain_config else {})
     return {
         "ok": True,
         "selected": {

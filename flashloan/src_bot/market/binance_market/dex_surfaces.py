@@ -2454,18 +2454,19 @@ def dex_market_observation_surface_payload(
     if cached is not None:
         cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
         return cached
-    static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
-    if static_snapshot.get("exists"):
-        payload = observation_payload_from_static(static_snapshot, source="cached_snapshot")
-        payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "cached_snapshot"
-        _cache_surface_payload(
-            "dex_market_observation",
-            payload,
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
-        return payload
+    if use_static_observation:
+        static_snapshot = load_market_observation_static(chain_id=chain_id, protocols=protocols)
+        if static_snapshot.get("exists"):
+            payload = observation_payload_from_static(static_snapshot, source="cached_snapshot")
+            payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "cached_snapshot"
+            _cache_surface_payload(
+                "dex_market_observation",
+                payload,
+                chain_id=chain_id,
+                protocols=protocols,
+                use_static_observation=use_static_observation,
+            )
+            return payload
     payload = dex_market_observation_payload(chain_id=chain_id, protocols=protocols)
     payload["marketObservationSourceStage"] = payload.get("marketObservationSourceStage") or payload.get("marketObservationSource") or "computed"
     return payload

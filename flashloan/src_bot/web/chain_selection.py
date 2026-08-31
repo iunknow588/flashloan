@@ -31,6 +31,13 @@ def _request_chain_id() -> int | None:
         raise ChainSelectionError("invalid_chain_id", f"invalid chain_id: {raw}") from None
 
 
+def _request_bool(name: str, *, default: bool = True) -> bool:
+    raw = request.args.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() not in {"0", "false", "no", "off"}
+
+
 def resolve_request_chain_selection(
     *,
     database_url: str | None = None,
@@ -86,6 +93,7 @@ def chain_selection_payload(
         workflow=request.args.get("workflow", "").strip() or "unknown",
         execution_mode=request.args.get("execution_mode", "").strip() or None,
         scope_type=request.args.get("scope", "").strip() or "single_chain",
+        include_chain_config=_request_bool("include_chain_config", default=True),
     )
 
 

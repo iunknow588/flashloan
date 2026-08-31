@@ -38,18 +38,18 @@ def _bootstrap_dex_surface_dependencies(
         "dex_quote_routes": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
             lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
         ),
         "dex_quote_request": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
             lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
-            lambda: quote_routes_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
+            lambda: quote_routes_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
         ),
         "dex_submission_review": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
             lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
         ),
     }
     for warm in warmers.get(flow_name, ()):
@@ -68,7 +68,7 @@ def _submission_review_framework_payload(
 ) -> dict:
     if chain_id is None:
         return {}
-    overview = overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True)
+    overview = overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False)
     overview_summary = overview.get("summary") if isinstance(overview.get("summary"), dict) else {}
     closed_loop_routes = [route for route in overview.get("arbitragePaths") or [] if isinstance(route, dict)]
     top_route = closed_loop_routes[0] if closed_loop_routes else {}

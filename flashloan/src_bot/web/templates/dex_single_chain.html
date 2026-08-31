@@ -87,6 +87,7 @@
       const current = new URLSearchParams(location.search);
       const query = new URLSearchParams();
       query.set("feature", "dex_arbitrage");
+      query.set("include_chain_config", "false");
       if (current.get("market_id")) query.set("market_id", current.get("market_id"));
       if (current.get("chain_id")) query.set("chain_id", current.get("chain_id"));
       return query;

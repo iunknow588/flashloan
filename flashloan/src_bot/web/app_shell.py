@@ -7,11 +7,15 @@ from urllib.parse import urlencode
 from flask import request
 
 from core.chain_data_registry import chain_default_protocol_preferences
+from core.chain_route_selector import chain_scope_options, feature_from_page_path
+from core.chain_selection import available_chain_selections, resolve_chain_selection
 from core.flash_loan_pool_discovery import protocol_options_for_chain
 from web.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
 )
+from web.dex_strategy_selector_component import render_dex_strategy_bootstrap
+from market.binance_market.dex_strategy_registry import dex_strategy_key_for_path, dex_strategy_keys, dex_strategy_path_for_key
 from web.dex_provenance import render_dex_provenance_bootstrap
 
 
@@ -99,6 +103,9 @@ def _links(
         protocols = str(request.args.get("protocols", "")).strip()
         if protocols:
             scope_query["protocols"] = protocols
+        dex_strategy = str(request.args.get("dex_strategy", "")).strip()
+        if dex_strategy:
+            scope_query["dex_strategy"] = dex_strategy
     for label, href in items:
         active = " active" if _active_path(current_path, href) else ""
         target = href
@@ -204,7 +211,40 @@ def inject_app_shell_markup(
     feature_value = str(feature or "").strip().lower()
     selected_market_value = str(selected_market_id or default_market_id or "").strip()
     selected_chain_value = selected_chain_id if selected_chain_id is not None else default_chain_id
-    selector = render_chain_selector_component(variant="app_shell") if include_chain_selector else ""
+    current_strategy_key = dex_strategy_key_for_path(current_path)
+    strategy_key_set = set(dex_strategy_keys())
+    requested_strategy_raw = str(request.args.get("dex_strategy", "")).strip().lower()
+    requested_strategy_key = requested_strategy_raw if requested_strategy_raw in strategy_key_set else ""
+    selected_strategy_key = requested_strategy_key or current_strategy_key
+    selected_strategy_path = dex_strategy_path_for_key(selected_strategy_key)
+    selector = ""
+    if include_chain_selector:
+        resolved_feature = feature_value or feature_from_page_path(current_path) or None
+        chain_selections = available_chain_selections(database_url=None, feature=resolved_feature)
+        selected_chain = None
+        if chain_selections:
+            try:
+                selected_chain = resolve_chain_selection(
+                    market_id=selected_market_value or None,
+                    chain_id=selected_chain_value,
+                    feature=resolved_feature,
+                    default_market_id=default_market_id,
+                    selections=chain_selections,
+                )
+            except Exception:
+                selected_chain = next((item for item in chain_selections if item.is_default), chain_selections[0])
+        chain_options = chain_scope_options(
+            chain_selections,
+            resolved_feature,
+            include_chain_config=False,
+        ) if chain_selections else []
+        selector = render_chain_selector_component(
+            variant="app_shell",
+            include_strategy_control=True,
+            selected_strategy_key=selected_strategy_key,
+            chain_options=chain_options,
+            selected_chain_key=selected_chain.global_chain_id if selected_chain else None,
+        )
     title = _page_title(current_path, feature_value)
     shell = f'''
 <style id="flashloan-app-shell-style">
@@ -212,15 +252,21 @@ def inject_app_shell_markup(
   body:not(.embedded) > header {{ display: none !important; }}
   body.embedded {{ padding: 0 !important; }}
   [data-app-shell="true"] {{ position: fixed; inset: 0 0 auto 0; z-index: 1000; font-family: Arial, "Microsoft YaHei", sans-serif; }}
-  .app-shell-topbar {{ min-height: 116px; display: grid; grid-template-columns: minmax(160px, 3fr) minmax(260px, 4fr) minmax(0, 5fr); grid-template-rows: auto auto; align-items: center; gap: 8px 18px; padding: 10px 36px 12px; background: #101828; color: #fff; box-shadow: 0 1px 5px rgba(16,24,40,.2); }}
+  .app-shell-topbar {{ min-height: 116px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto auto; align-items: center; gap: 8px 18px; padding: 10px 36px 12px; background: #101828; color: #fff; box-shadow: 0 1px 5px rgba(16,24,40,.2); }}
   .app-shell-brand {{ grid-column: 1; grid-row: 1; color: #fff; text-decoration: none; font-size: 18px; font-weight: 800; white-space: nowrap; }}
   .app-shell-title {{ grid-column: 1; grid-row: 2; color: #d0d5dd; font-size: 11px; white-space: nowrap; }}
   .app-shell-selector {{ display: contents; }}
-  .app-shell-protocols {{ grid-column: 3; grid-row: 1; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow: hidden; }}
-  .app-shell-chain-control {{ grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: flex-start; gap: 8px; white-space: nowrap; }}
-  .app-shell-label {{ color: #98a2b3; font-size: 11px; white-space: nowrap; }}
-  .app-shell-chain-control select {{ min-height: 32px; width: 240px; border: 1px solid #667085; border-radius: 5px; padding: 0 8px; background: #fff; color: #101828; font-weight: 700; }}
-  .app-shell-selector-meta {{ grid-column: 2 / 4; grid-row: 2; display: flex; justify-content: flex-start; align-items: center; gap: 14px; min-width: 0; color: #d0d5dd; font-size: 11px; }}
+  .app-shell-dex-strategy-control {{ grid-column: 2; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 100%; min-width: 0; }}
+  .app-shell-protocols {{ grid-column: 4; grid-row: 1; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow: hidden; }}
+  .app-shell-chain-control {{ grid-column: 3; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 100%; min-width: 0; }}
+  .app-shell-control-line {{ display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }}
+  .app-shell-label {{ flex: 0 0 auto; color: #98a2b3; font-size: 11px; white-space: nowrap; }}
+  .app-shell-dex-strategy-control select {{ min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box; border: 1px solid #667085; border-radius: 5px; padding: 0 10px; background: #fff; color: #101828; font-weight: 700; }}
+  .app-shell-dex-strategy-meta {{ width: 100%; min-width: 0; color: #f2f4f7; font-size: 12px; line-height: 1.4; }}
+  .app-shell-dex-strategy-name {{ display: block; color: #f2f4f7; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  .app-shell-dex-strategy-desc {{ display: -webkit-box; margin-top: 2px; color: #d0d5dd; white-space: normal; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
+  .app-shell-chain-control select {{ min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box; border: 1px solid #667085; border-radius: 5px; padding: 0 10px; background: #fff; color: #101828; font-weight: 700; }}
+  .app-shell-selector-meta {{ grid-column: 2 / 5; grid-row: 2; display: flex; justify-content: flex-start; align-items: center; gap: 14px; min-width: 0; color: #d0d5dd; font-size: 11px; }}
   .app-shell-selector-meta [data-chain-selection-meta] {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
   .app-shell-gate {{ color: #fdb022; font-size: 11px; white-space: nowrap; }}
   .app-shell-protocols .protocol-chip {{ display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; min-height: 22px; box-sizing: border-box; line-height: 1.2; padding: 2px 7px; border: 1px solid #5b6678; border-radius: 5px; background: #263244; color: #eef4ff; font-size: 10px; font-weight: 700; }}
@@ -240,16 +286,18 @@ def inject_app_shell_markup(
   .app-shell-sublink.active {{ background: #e6f4f1; color: #0f766e; }}
   .app-shell-subnote {{ display: block; padding: 6px 8px; color: #98a2b3; font-size: 12px; }}
   @media (max-width: 900px) {{
-    body:not(.embedded) {{ padding-left: 0 !important; padding-top: 148px !important; }}
-    .app-shell-topbar {{ min-height: 148px; grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 6px; padding-left: 18px; padding-right: 18px; }}
+    body:not(.embedded) {{ padding-left: 0 !important; padding-top: 184px !important; }}
+    .app-shell-topbar {{ min-height: 184px; grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 6px; padding-left: 18px; padding-right: 18px; }}
     .app-shell-brand {{ grid-column: 1; grid-row: 1; }}
     .app-shell-title {{ grid-column: 1; grid-row: 1; justify-self: end; }}
-    .app-shell-selector {{ display: grid; grid-column: 1; grid-row: 2 / 4; grid-template-columns: 1fr; grid-template-rows: auto auto auto; width: 100%; }}
-    .app-shell-chain-control {{ grid-column: 1; grid-row: 1; justify-content: flex-start; }}
-    .app-shell-protocols {{ grid-column: 1; grid-row: 2; justify-content: flex-start; }}
-    .app-shell-chain-control select {{ width: min(100%, 280px); }}
-    .app-shell-selector-meta {{ grid-column: 1; grid-row: 3; justify-content: flex-start; flex-wrap: wrap; }}
-    .app-shell-sidebar {{ top: 148px; width: 100%; height: auto; max-height: 52px; padding: 5px 8px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }}
+    .app-shell-selector {{ display: grid; grid-column: 1; grid-row: 2 / 4; grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; width: 100%; }}
+    .app-shell-dex-strategy-control {{ grid-column: 1; grid-row: 1; justify-content: flex-start; }}
+    .app-shell-chain-control {{ grid-column: 1; grid-row: 2; justify-content: flex-start; }}
+    .app-shell-protocols {{ grid-column: 1; grid-row: 3; justify-content: flex-start; }}
+    .app-shell-selector-meta {{ grid-column: 1; grid-row: 4; justify-content: flex-start; flex-wrap: wrap; }}
+    .app-shell-dex-strategy-control select {{ width: auto; min-width: 0; }}
+    .app-shell-chain-control select {{ width: auto; min-width: 0; }}
+    .app-shell-sidebar {{ top: 184px; width: 100%; height: auto; max-height: 52px; padding: 5px 8px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }}
     .app-shell-group {{ display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 0 0; }}
     .app-shell-group-title {{ margin: 0 4px; }}
     .app-shell-link {{ display: inline-block; padding: 6px 8px; }}
@@ -276,6 +324,13 @@ def inject_app_shell_markup(
             feature=feature_value,
             default_market_id=default_market_id,
             default_chain_id=default_chain_id,
+            include_chain_config=False,
+        )
+        shell += render_dex_strategy_bootstrap(
+            feature=feature_value,
+            selected_strategy_key=selected_strategy_key,
+            selected_strategy_path=selected_strategy_path,
+            current_strategy_key=current_strategy_key,
         )
     if feature_value == "dex_arbitrage":
         shell += render_dex_provenance_bootstrap()

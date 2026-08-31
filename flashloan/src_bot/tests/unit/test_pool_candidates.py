@@ -1959,7 +1959,7 @@ def test_dex_market_observation_includes_bridge_closed_loop(monkeypatch):
     )
 
 
-def test_dex_market_observation_surface_uses_static_snapshot_first(monkeypatch):
+def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monkeypatch):
     snapshot = {
         "exists": True,
         "path": "observation.json",
@@ -1990,7 +1990,11 @@ def test_dex_market_observation_surface_uses_static_snapshot_first(monkeypatch):
     monkeypatch.setattr(dex_surfaces, "_cached_framework_surface_payload", lambda *args, **kwargs: None)
     monkeypatch.setattr(dex_surfaces, "load_market_observation_static", lambda **kwargs: snapshot)
 
-    observation = dex_surfaces.dex_market_observation_surface_payload(chain_id=46630, protocols=["uniswap_v4"])
+    observation = dex_surfaces.dex_market_observation_surface_payload(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        use_static_observation=True,
+    )
 
     assert observation["marketObservationSource"] == "cached_snapshot"
     assert observation["marketObservationSourceStage"] == "cached_snapshot"

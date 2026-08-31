@@ -92,6 +92,7 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/dex/quote-request" in paths
     assert "/api/dex/submissions" in paths
     assert "/api/dex/submissions/clear" in paths
+    assert "/static/dex-strategy-selector.js" in paths
     assert "/api/execution/state" in paths
     assert "/robinhood-dex" in paths
     assert "/api/robinhood-dex/observation" in paths
@@ -142,14 +143,30 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         body = client.get(path).get_data(as_text=True)
         assert "data-chain-selector" in body
         assert 'data-chain-selector-component="true"' in body
+        assert 'data-dex-strategy-selector="true"' in body
+        assert 'data-chain-selector-select="true"' in body
+        assert 'data-dex-strategy-select="true"' in body
         assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-dex-strategy-control"' in body
+        assert 'class="app-shell-control-line"' in body
+        assert 'data-dex-strategy-meta' in body
+        assert 'id="app-shell-dex-strategy-summary"' in body
         assert 'class="app-shell-chain-control"' in body
+        assert 'data-chain-selector-signature="' in body
+        assert 'option value="chain:46630"' in body
         assert "padding: 10px 36px 12px;" in body
         assert "padding-left: 18px; padding-right: 18px;" in body
         assert "/static/chain-selector.js" in body
+        assert "/static/dex-strategy-selector.js" in body
         assert "/static/dex-provenance.js" in body
         assert "window.__DEX_PROVENANCE__" in body
         assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in body
+        assert "window.__DEX_STRATEGY_DEFAULT__" in body
+        assert "Binance 速度策略" in body
+        assert "闭环扫描策略" in body
+        assert "每 200ms 以币安行情涨跌幅筛选差异最大的代币池。" in body
+        assert "直接扫描所有闭环链路，实时复核可套利机会。" in body
+        assert "includeChainConfig: false" in body
         assert "当前 BOT 市场" not in body
         assert "当前 DEX 链路" not in body
 
@@ -460,6 +477,18 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert hyperliquid["protocol_options"] == []
 
 
+def test_chain_selection_api_can_omit_chain_config_for_lightweight_ui():
+    client = app.test_client()
+
+    payload = client.get(
+        "/api/chain-selection?feature=dex_arbitrage&page_path=/dex&chain_id=46630&include_chain_config=false"
+    ).get_json()
+
+    assert payload["selected_chain_config"] == {}
+    assert all(option["chain_config"] == {} for option in payload["chain_options"])
+    assert payload["selected"]["chain_config"] == {}
+
+
 def test_chain_selection_api_defaults_protocol_filter_to_all_chain_protocols():
     client = app.test_client()
 
@@ -636,6 +665,18 @@ def test_chain_selector_invalidates_scope_bound_browser_state_before_navigation(
     assert 'link.hasAttribute("data-flash-loan-protocol-link")' in source
     assert "function isFlashLoanPoolPath(pathname)" in source
     assert 'data-chain-protocols-flashloan-disabled' in source
+    assert 'data-chain-selector-select' in source
+
+
+def test_dex_strategy_selector_is_registered():
+    response = app.test_client().get("/static/dex-strategy-selector.js")
+    source = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "function currentStrategyKey()" in source
+    assert "function renderStrategyMeta(mount, definition)" in source
+    assert 'const STATE_EVENT = "dexstrategychanged";' in source
+    assert 'data-dex-strategy-select' in source
 
 
 def test_chain_selection_api_keeps_same_chain_markets_distinct(monkeypatch):
@@ -1036,6 +1077,17 @@ def test_dex_api_rejects_explicit_direct_mode_until_supported():
     assert response.headers["X-Execution-Mode"] == "direct"
 
 
+def test_dex_strategy_api_exposes_registered_strategies():
+    response = app.test_client().get("/api/dex/strategy?page_path=/dex")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["selected_strategy"] == "closed_loop_routes"
+    assert payload["dex_strategy"] == "closed_loop_routes"
+    assert any(item["key"] == "binance_velocity" for item in payload["strategies"])
+
+
 def test_chain_neutral_api_is_read_only():
     response = app.test_client().post("/api/opportunity-health", json={"attempt": "execute"})
 
@@ -1070,6 +1122,14 @@ def test_left_navigation_preserves_selected_dex_market_scope():
     assert 'href="/bot"' in body
 
 
+def test_left_navigation_preserves_selected_dex_strategy_scope():
+    client = app.test_client()
+    body = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1&dex_strategy=closed_loop_routes").get_data(as_text=True)
+
+    assert 'href="/dex?market_id=ethereum-dex-arbitrage&chain_id=1&dex_strategy=closed_loop_routes"' in body
+    assert 'href="/dex/overview?market_id=ethereum-dex-arbitrage&chain_id=1&dex_strategy=closed_loop_routes"' in body
+
+
 def test_left_navigation_preserves_selected_liquidation_market_scope():
     client = app.test_client()
     body = client.get("/bot?market_id=bnb-aave-v3&chain_id=56").get_data(as_text=True)
@@ -1087,19 +1147,28 @@ def test_app_shell_owns_one_visible_global_chain_selector():
         body = client.get(path).get_data(as_text=True)
         assert body.count('data-global-chain-selector="true"') == 1
         assert body.count('data-chain-selector-component="true"') == 1
+        assert body.count('data-dex-strategy-component="true"') == 1
+        assert body.count('data-dex-strategy-meta') == 1
         assert body.count('/static/chain-selector.js') == 1
+        assert body.count('/static/dex-strategy-selector.js') == 1
         assert '<a class="app-shell-brand" href="/bot">FLASH LOAN</a>' in body
         assert "BOT 清算" in body
         assert "DEX 套利" in body
         assert "闪电贷" in body
         assert "系统与分析" in body
+        assert 'class="app-shell-dex-strategy-control"' in body
+        assert 'class="app-shell-dex-strategy-meta"' in body
         assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert 'class="app-shell-selector-meta"' in body
-        assert "grid-template-columns: minmax(160px, 3fr) minmax(260px, 4fr) minmax(0, 5fr);" in body
-        assert ".app-shell-chain-control { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: flex-start;" in body
-        assert ".app-shell-protocols { grid-column: 3; grid-row: 1; display: flex; flex-wrap: wrap; justify-content: flex-start;" in body
-        assert ".app-shell-selector-meta { grid-column: 2 / 4; grid-row: 2; display: flex; justify-content: flex-start;" in body
+        assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in body
+        assert ".app-shell-dex-strategy-control { grid-column: 2; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-chain-control { grid-column: 3; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-protocols { grid-column: 4; grid-row: 1; display: flex; flex-wrap: wrap; justify-content: flex-start;" in body
+        assert ".app-shell-selector-meta { grid-column: 2 / 5; grid-row: 2; display: flex; justify-content: flex-start;" in body
+        assert ".app-shell-dex-strategy-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box;" in body
+        assert ".app-shell-chain-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box;" in body
+        assert ".app-shell-dex-strategy-meta { width: 100%; min-width: 0; color: #f2f4f7; font-size: 12px; line-height: 1.4; }" in body
         assert "justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow: hidden;" in body
         assert ".app-shell-protocols .protocol-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; min-height: 22px;" in body
         assert ".app-shell-protocols .protocol-chip input { flex: 0 0 auto; width: 13px; height: 13px; margin: 0;" in body

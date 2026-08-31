@@ -208,6 +208,10 @@
       next.searchParams.delete("scope");
       next.searchParams.delete("execution_mode");
     }
+    const currentStrategy = currentQuery().get("dex_strategy");
+    if (currentStrategy) {
+      next.searchParams.set("dex_strategy", currentStrategy);
+    }
     return next;
   }
 
@@ -280,6 +284,9 @@
         url.searchParams.set(key, current.get(key));
       }
     });
+    if (current.get("dex_strategy") && !url.searchParams.get("dex_strategy")) {
+      url.searchParams.set("dex_strategy", current.get("dex_strategy"));
+    }
     const currentSelection = currentScope();
     const currentIsCow = isCowExecutionRail(currentSelection) || current.get("market_id") === "cow-dex-arbitrage";
     if (currentIsCow && current.get("cow_networks") && !url.searchParams.get("cow_networks")) {
@@ -298,6 +305,10 @@
 
   function preserveSelectionLinks(selection) {
     const selectedQuery = queryFromSelection(selection);
+    const currentStrategy = currentQuery().get("dex_strategy");
+    if (currentStrategy) {
+      selectedQuery.set("dex_strategy", currentStrategy);
+    }
     document.querySelectorAll("a[href^='/']").forEach(function (link) {
       const href = link.getAttribute("href") || "";
       if (href.startsWith("/api/") || href.startsWith("/static/") || href === "#") return;
@@ -616,6 +627,7 @@
     requestQuery.set("page_path", window.location.pathname);
     if (feature) requestQuery.set("feature", feature);
     if (config.defaultMarketId) requestQuery.set("default_market_id", config.defaultMarketId);
+    if (config.includeChainConfig === false) requestQuery.set("include_chain_config", "false");
     if (query.get("market_id")) requestQuery.set("market_id", query.get("market_id"));
     if (query.get("chain_id")) requestQuery.set("chain_id", query.get("chain_id"));
     if (query.get("protocols")) requestQuery.set("protocols", query.get("protocols"));
@@ -624,9 +636,16 @@
     if (!response.ok || !payload.ok) throw new Error(payload.error || ("HTTP " + response.status));
     const chainOptions = (payload.chain_options && payload.chain_options.length ? payload.chain_options : payload.available) || [];
 
-    let select = mount.matches && mount.matches("select") ? mount : mount.querySelector("select");
+    let select = mount.querySelector("[data-chain-selector-select]") || mount.querySelector(".app-shell-chain-control select");
+    if (!select && mount.matches && mount.matches("select")) {
+      select = mount;
+    }
+    if (!select) {
+      select = mount.querySelector("select");
+    }
     if (!select) {
       select = document.createElement("select");
+      select.setAttribute("data-chain-selector-select", "true");
       select.setAttribute("aria-label", "选择链和市场");
       mount.appendChild(select);
     }

@@ -576,6 +576,7 @@
     async function refreshMarketScope(forceRender = false) {
       try {
         const query = appendMarketParams(new URLSearchParams());
+        query.set("include_chain_config", "false");
         const d = await api(`/api/chain-selection?feature=liquidation${query.toString() ? `&${query}` : ""}`);
         latestChainSelectionPayload = d;
         const selected = d.selected || {};

@@ -33,6 +33,7 @@ from web.workflow_context import inject_workflow_context_markup
 
 
 CHAIN_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "chain_selector.js"
+DEX_STRATEGY_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "dex_strategy_selector.js"
 
 
 def _add_body_attribute(html: str, name: str, value: str) -> str:
@@ -457,6 +458,10 @@ def register_page_routes(app, panel) -> None:
     @app.get("/static/chain-selector.js")
     def chain_selector_script():
         return send_file(CHAIN_SELECTOR_SCRIPT, mimetype="application/javascript")
+
+    @app.get("/static/dex-strategy-selector.js")
+    def dex_strategy_selector_script():
+        return send_file(DEX_STRATEGY_SELECTOR_SCRIPT, mimetype="application/javascript")
 
     @app.get("/static/workflow-context.js")
     def workflow_context_script():
