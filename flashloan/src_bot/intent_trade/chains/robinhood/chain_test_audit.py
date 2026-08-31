@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -60,6 +60,7 @@ def audit_robinhood_chain_test_plan(plan: dict[str, Any]) -> dict[str, Any]:
     route = _as_dict(plan.get("route"))
     decision = _as_dict(plan.get("decision"))
     preflight = _as_dict(plan.get("preflightSpec"))
+    evidence = _as_dict(plan.get("evidence"))
     chain_scope = _as_dict(plan.get("chainTestScope"))
     repayment = _as_dict(preflight.get("repaymentConstraint"))
     hops = [hop for hop in _as_list(preflight.get("routeHops")) if isinstance(hop, dict)]
@@ -116,6 +117,47 @@ def audit_robinhood_chain_test_plan(plan: dict[str, Any]) -> dict[str, Any]:
         if parsed is None or parsed <= 0:
             issues.append(_issue(ERROR, "repayment_raw_amount_invalid", f"repaymentConstraint.{field} 不是正整数。"))
 
+    requested_borrow_raw = _int_or_none(evidence.get("routeRequestedBorrowAmountRaw"))
+    max_executable_raw = _int_or_none(evidence.get("routeMaxExecutableAmountRaw"))
+    shortfall_raw = _int_or_none(evidence.get("routeExecutionSizeShortfallRaw"))
+    size_gate_exceeded = evidence.get("routeExecutionSizeProbeExceeded")
+    if requested_borrow_raw is not None and max_executable_raw is not None:
+        expected_exceeded = requested_borrow_raw > max_executable_raw
+        if bool(size_gate_exceeded) != expected_exceeded:
+            issues.append(
+                _issue(
+                    ERROR,
+                    "route_execution_size_gate_inconsistent",
+                    "size gate evidence does not match requested and executable amounts.",
+                )
+            )
+        if expected_exceeded:
+            expected_shortfall = requested_borrow_raw - max_executable_raw
+            if shortfall_raw is None or shortfall_raw != expected_shortfall:
+                issues.append(
+                    _issue(
+                        ERROR,
+                        "route_execution_size_shortfall_mismatch",
+                        "size gate shortfall does not match requested minus max executable.",
+                    )
+                )
+            if decision.get("readyForTransactionPreflight") is True:
+                issues.append(
+                    _issue(
+                        ERROR,
+                        "route_execution_size_gate_exceeded_but_preflight_ready",
+                        "size gate is exceeded but readyForTransactionPreflight is still true.",
+                    )
+                )
+            if preflight.get("status") == "ready_for_fork_staticcall":
+                issues.append(
+                    _issue(
+                        ERROR,
+                        "route_execution_size_gate_exceeded_but_preflight_ready_status",
+                        "size gate is exceeded but preflight status is still ready_for_fork_staticcall.",
+                    )
+                )
+
     if decision.get("trustedForExecution") is True and not _has_passing_fork_evidence(plan):
         issues.append(_issue(ERROR, "trusted_without_fork_evidence", "缺少通过的 fork/static-call 证据，trustedForExecution 不能为 true。"))
 
@@ -137,3 +179,4 @@ def audit_robinhood_chain_test_plan(plan: dict[str, Any]) -> dict[str, Any]:
         "actualHopCount": len(hops),
         "issues": issues,
     }
+

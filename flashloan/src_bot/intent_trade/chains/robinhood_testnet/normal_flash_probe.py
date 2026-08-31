@@ -92,6 +92,14 @@ def _best_source_row(
     return source_rows[0] if source_rows else {}
 
 
+def _source_row_balance_raw(source_row: dict[str, Any]) -> int:
+    for key in ("poolmanager_balance_raw", "available_liquidity_raw", "balance_raw"):
+        balance = _int(source_row.get(key))
+        if balance is not None and balance > 0:
+            return balance
+    return 0
+
+
 def _load_plan() -> dict[str, Any]:
     return _read_json(chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "chain_test"))
 
@@ -215,6 +223,13 @@ def _resolve_probe_token_and_amount(
         token_symbol = _text(source_row.get("token_symbol"))
     if _int(source_row.get("decimals")):
         decimals = int(source_row["decimals"])
+    balance_raw = _source_row_balance_raw(source_row)
+    balance_human = None
+    if balance_raw > 0:
+        try:
+            balance_human = format(Decimal(balance_raw) / (Decimal(10) ** int(decimals)), "f")
+        except Exception:
+            balance_human = None
     human = None
     try:
         human = format(Decimal(amount_raw) / (Decimal(10) ** int(decimals)), "f") if amount_raw else "0"
@@ -226,8 +241,8 @@ def _resolve_probe_token_and_amount(
             "symbol": token_symbol,
             "decimals": decimals,
             "source": "chain_test_plan.preflightSpec.repaymentConstraint",
-            "poolManagerBalanceRaw": source_row.get("poolmanager_balance_raw") or source_row.get("available_liquidity_raw") or "",
-            "poolManagerBalance": source_row.get("poolmanager_balance") or source_row.get("available_liquidity") or None,
+            "poolManagerBalanceRaw": str(balance_raw) if balance_raw > 0 else "",
+            "poolManagerBalance": balance_human or source_row.get("poolmanager_balance") or source_row.get("available_liquidity") or None,
             "poolManagerSource": source_row.get("source") or "",
         },
         "amount": {
@@ -235,6 +250,12 @@ def _resolve_probe_token_and_amount(
             "human": human or str(amount_raw),
             "decimals": decimals,
             "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw",
+        },
+        "borrowableLiquidity": {
+            "raw": str(balance_raw),
+            "human": balance_human,
+            "ready": bool(balance_raw > 0 and amount_raw > 0 and balance_raw >= amount_raw),
+            "source": source_row.get("source") or "",
         },
         "selectedSource": source_row,
     }
@@ -272,8 +293,15 @@ def resolve_robinhood_testnet_normal_flash_probe(
     )
     token = resolved["token"]
     amount = resolved["amount"]
+    borrowable_liquidity = _as_dict(resolved.get("borrowableLiquidity"))
     route_hops = _plan_route_hops(chain_test_plan)
-    ready = bool(probe.get("address") and token.get("address") and _int(amount.get("amount") or 0) and route_hops)
+    ready = bool(
+        probe.get("address")
+        and token.get("address")
+        and _int(amount.get("amount") or 0)
+        and route_hops
+        and borrowable_liquidity.get("ready") is True
+    )
     blockers = []
     if not probe.get("address"):
         blockers.append("probe_address_missing")
@@ -281,6 +309,13 @@ def resolve_robinhood_testnet_normal_flash_probe(
         blockers.append("token_address_missing")
     if _int(amount.get("amount") or 0) in (None, 0):
         blockers.append("normal_flash_amount_missing_or_zero")
+    if not borrowable_liquidity.get("ready"):
+        available_raw = _int(borrowable_liquidity.get("raw")) or 0
+        requested_raw = _int(amount.get("amount")) or 0
+        if available_raw <= 0:
+            blockers.append("borrowable_liquidity_not_verified")
+        elif requested_raw > available_raw:
+            blockers.append("borrow_amount_exceeds_poolmanager_balance")
     return {
         "schemaVersion": "robinhood-normal-test-probe-config-v1",
         "network": ROBINHOOD_TESTNET_NETWORK,
@@ -293,6 +328,7 @@ def resolve_robinhood_testnet_normal_flash_probe(
         },
         "token": token,
         "amount": amount,
+        "borrowableLiquidity": borrowable_liquidity,
         "route": {
             "pathText": _text(chain_test_plan.get("route", {}).get("pathText")),
             "closed": bool(_as_dict(chain_test_plan.get("route")).get("closed")),

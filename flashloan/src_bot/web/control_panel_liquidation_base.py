@@ -45,6 +45,8 @@ from db.storage import (
     load_liquidation_scan_config_library as db_load_liquidation_scan_config_library,
     prune_liquidation_accounts as db_prune_liquidation_accounts,
     record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
+    configured_database_url as storage_configured_database_url,
+    database_url_or_none as storage_database_url_or_none,
     require_psycopg,
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
@@ -220,12 +222,7 @@ def liquidation_scan_refresh_profile() -> dict[str, float]:
     }
 
 def configured_database_url() -> str:
-    if local_json_only_enabled():
-        raise RuntimeError("DATABASE_URL is disabled because FLASHLOAN_LOCAL_JSON_ONLY is enabled.")
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError("缺少 DATABASE_URL。请先在 .env 或系统环境变量中配置数据库连接。")
-    return database_url
+    return storage_configured_database_url()
 
 
 def aave_rpc_urls() -> list[str]:
@@ -249,9 +246,7 @@ def liquidation_market_payload(market_id: str | None = None, chain_id: int | Non
         if market_id is not None or chain_id is not None
         else liquidation_market_config()
     )
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if database_unavailable_reason(database_url):
-        database_url = ""
+    database_url = database_url_or_none()
     return {
         "active": market.as_dict(),
         "supported_markets": supported_market_summaries(database_url or None),
@@ -559,10 +554,7 @@ def liquidation_config_blocked_reasons(config_health: dict) -> list[str]:
 
 
 def database_url_or_none() -> Optional[str]:
-    if local_json_only_enabled():
-        return None
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    return database_url or None
+    return storage_database_url_or_none()
 
 
 def ensure_database_schema_cached(database_url: str, *, ttl_seconds: float = 300.0, force: bool = False) -> None:

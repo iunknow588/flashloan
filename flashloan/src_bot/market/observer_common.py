@@ -37,6 +37,7 @@ from db.storage_observer import (
     append_binance_pair_price_history,
     append_observations,
 )
+from db.storage_common import configured_database_url
 from db.storage_schema import ensure_database_schema
 from db.storage_liquidation import try_acquire_observer_lock
 from execution.liquidation_realtime_params import read_aave_flashloan_premium
@@ -429,9 +430,7 @@ def resolve_binance_top_symbols(rest_bases: list[str], limit: int) -> list[str]:
 
 
 def load_config() -> ObserverConfig:
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise ValueError("DATABASE_URL is required.")
+    database_url = configured_database_url()
     scan_profile_name, scan_profile = binance_scan_profile()
     rpc_urls = avalanche_rpc_urls()
     rest_bases = env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")

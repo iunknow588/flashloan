@@ -30,6 +30,7 @@ from db.storage import (
     liquidation_execution_attempt_stats,
     load_schema_migrations,
 )
+from db.storage_common import configured_database_url
 
 
 load_env_files(__file__)
@@ -125,9 +126,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build a read-only liquidation observation report.")
     parser.add_argument("--output", default=str(default_output_path()))
     args = parser.parse_args()
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise SystemExit("DATABASE_URL is required")
+    database_url = configured_database_url()
     report = build_liquidation_observation_report(database_url)
     path = write_liquidation_observation_report(report, args.output)
     print(

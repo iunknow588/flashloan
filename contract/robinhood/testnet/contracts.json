@@ -21,6 +21,7 @@
   "defaultFlashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "defaultFlashSourceKind": 4,
   "defaultV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "defaultV4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
   "defaultV4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
   "defaultPositionManager": "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7",
   "defaultWrappedNative": "0x7943e237c7F95DA44E0301572D358911207852Fa",

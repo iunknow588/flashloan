@@ -67,7 +67,7 @@ def main() -> int:
     latest_payload = report | {"reportPath": str(evidence_dir / "report.json")}
     _write_json(args.output_dir / "latest.json", latest_payload)
     print(json.dumps(latest_payload, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0 if report.get("measurementReady") else 1
+    return 0 if report.get("readyForNormalBroadcast") else 1
 
 
 if __name__ == "__main__":

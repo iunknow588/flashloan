@@ -45,7 +45,7 @@ from web.control_panel_opportunity_health import (
     opportunity_health_rows,
     opportunity_health_summary,
 )
-from web.control_panel_liquidation_base import configured_database_url
+from web.control_panel_liquidation_base import database_url_or_none
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = SRC_ROOT
@@ -97,7 +97,7 @@ def safe_latest(fetcher) -> Optional[dict]:
 
 
 def latest_binance_extremes() -> Optional[dict]:
-    return read_latest_binance_extremes(configured_database_url(), LATEST_EXTREMES_PATH)
+    return read_latest_binance_extremes(database_url_or_none(), LATEST_EXTREMES_PATH)
 
 
 def latest_binance_extremes_file() -> Optional[dict]:
@@ -105,7 +105,7 @@ def latest_binance_extremes_file() -> Optional[dict]:
 
 
 def latest_arbitrage_simulation() -> Optional[dict]:
-    return read_latest_arbitrage_simulation(configured_database_url(), LATEST_ARBITRAGE_PATH)
+    return read_latest_arbitrage_simulation(database_url_or_none(), LATEST_ARBITRAGE_PATH)
 
 
 def latest_arbitrage_simulation_file() -> Optional[dict]:
@@ -135,49 +135,49 @@ def borrow_target_universe() -> Optional[dict]:
 
 
 def observation_count() -> Optional[int]:
-    return read_observation_count(configured_database_url())
+    return read_observation_count(database_url_or_none())
 
 
 def database_table_counts() -> Optional[dict]:
-    return read_database_table_counts(configured_database_url())
+    return read_database_table_counts(database_url_or_none())
 
 
 def recent_observations(symbol: str, limit: int) -> list[dict]:
-    return read_recent_observations(configured_database_url(), symbol, limit)
+    return read_recent_observations(database_url_or_none(), symbol, limit)
 
 
 def recent_binance_price_history(symbol: str, limit: int) -> list[dict]:
-    return read_recent_binance_price_history(configured_database_url(), symbol, limit)
+    return read_recent_binance_price_history(database_url_or_none(), symbol, limit)
 
 
 def recent_aave_pair_prices(x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
-    return read_recent_aave_pair_prices(configured_database_url(), x_symbol, y_symbol, limit)
+    return read_recent_aave_pair_prices(database_url_or_none(), x_symbol, y_symbol, limit)
 
 
 def recent_binance_pair_prices(x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
-    return read_recent_binance_pair_prices(configured_database_url(), x_symbol, y_symbol, limit)
+    return read_recent_binance_pair_prices(database_url_or_none(), x_symbol, y_symbol, limit)
 
 
 def latest_candidate_price_rows(symbols: list[str]) -> dict[str, dict]:
-    return read_latest_candidate_price_rows(configured_database_url(), symbols)
+    return read_latest_candidate_price_rows(database_url_or_none(), symbols)
 
 
 def recent_velocity_timepoints(limit: int = 200) -> list[dict]:
-    return read_recent_velocity_timepoints(configured_database_url(), limit)
+    return read_recent_velocity_timepoints(database_url_or_none(), limit)
 
 
 def velocity_timepoint_snapshot(snapshot_id: int | None = None) -> Optional[dict]:
-    return read_velocity_timepoint_snapshot(configured_database_url(), snapshot_id)
+    return read_velocity_timepoint_snapshot(database_url_or_none(), snapshot_id)
 
 
 def available_chart_symbols(limit: int = 500) -> list[str]:
-    symbols = read_available_chart_symbols(configured_database_url(), limit)
+    symbols = read_available_chart_symbols(database_url_or_none(), limit)
     merged = list(dict.fromkeys([*ASSETS.keys(), *symbols]))
     return merged[:limit]
 
 
 def available_candidate_symbols(limit: int = 500) -> list[str]:
-    symbols = read_available_candidate_symbols(configured_database_url(), limit)
+    symbols = read_available_candidate_symbols(database_url_or_none(), limit)
     merged = list(dict.fromkeys([*symbols, *ASSETS.keys()]))
     return merged[:limit]
 
@@ -272,8 +272,8 @@ def build_velocity_summary(snapshot: dict, side_limit: int = SUMMARY_SIDE_LIMIT)
     if end_at.tzinfo is None:
         end_at = end_at.replace(tzinfo=timezone.utc)
     start_at = end_at - timedelta(seconds=float(snapshot["window_seconds"]))
-    aave_start_prices = read_latest_observation_prices_at_or_before(configured_database_url(), symbols, start_at)
-    aave_end_prices = read_latest_observation_prices_at_or_before(configured_database_url(), symbols, end_at)
+    aave_start_prices = read_latest_observation_prices_at_or_before(database_url_or_none(), symbols, start_at)
+    aave_end_prices = read_latest_observation_prices_at_or_before(database_url_or_none(), symbols, end_at)
     rows = []
     aave_row_count = 0
     aave_symbols: set[str] = set()

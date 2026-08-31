@@ -183,3 +183,201 @@ def test_quote_routes_payload_from_overview_keeps_surface_and_analysis_aligned()
     assert route["quoteAnalysis"]["priceEvidenceMode"] == "live_required"
     assert route["sizeAnalysis"]["rows"] == [{"size": 1}]
     assert route["quoteInputs"]["quoteRequests"]
+
+
+def test_quote_routes_payload_limits_expensive_size_probes_for_late_non_testnet_routes(monkeypatch):
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> TK1 -> ETH",
+                "routeSymbols": ["ETH", "TK1", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {"pathSymbols": ["ETH", "TK1", "ETH"], "pathAddresses": ["0x0", "0x1", "0x0"], "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}]},
+                "quoteAnalysis": {"complete": True, "executableCandidate": False, "chainSubmissionCandidate": False},
+            },
+            {
+                "symbolPair": "ETH -> TK2 -> ETH",
+                "routeSymbols": ["ETH", "TK2", "ETH"],
+                "routeAddresses": ["0x0", "0x2", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK2"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x2", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {"pathSymbols": ["ETH", "TK2", "ETH"], "pathAddresses": ["0x0", "0x2", "0x0"], "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK2"}, {"symbol": "ETH"}]},
+                "quoteAnalysis": {"complete": True, "executableCandidate": False, "chainSubmissionCandidate": False},
+            },
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+    calls = {"size": 0}
+
+    def route_quote_analysis_fn(route, price_map, chain_id):
+        return {
+            "steps": [{"fromSymbol": "ETH", "toSymbol": route["routeSymbols"][1]}],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "livePriceVerified": False,
+            "priceEvidenceSource": "static_reference_probe",
+            "priceEvidenceMode": "reference_only",
+            "executableCandidate": False,
+            "chainSubmissionCandidate": False,
+            "chainSubmissionPolicy": "live_framework_reuse",
+            "netProfitUsd": None,
+        }
+
+    def route_size_analysis_fn(route, price_map, chain_id):
+        calls["size"] += 1
+        return {"rows": [{"size": 1}], "bestObservedNetProfitUsd": 1.0}
+
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "1")
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=56,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+    )
+
+    assert calls["size"] == 1
+    assert payload["routes"][0]["sizeAnalysis"]["rows"] == [{"size": 1}]
+    assert payload["routes"][1]["sizeAnalysis"] == {}
+
+
+def test_quote_routes_payload_probes_all_robinhood_testnet_routes(monkeypatch):
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> TK1 -> ETH",
+                "routeSymbols": ["ETH", "TK1", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {"pathSymbols": ["ETH", "TK1", "ETH"], "pathAddresses": ["0x0", "0x1", "0x0"], "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}]},
+                "quoteAnalysis": {"complete": True, "executableCandidate": False, "chainSubmissionCandidate": False},
+            },
+            {
+                "symbolPair": "ETH -> TK2 -> ETH",
+                "routeSymbols": ["ETH", "TK2", "ETH"],
+                "routeAddresses": ["0x0", "0x2", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK2"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x2", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {"pathSymbols": ["ETH", "TK2", "ETH"], "pathAddresses": ["0x0", "0x2", "0x0"], "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK2"}, {"symbol": "ETH"}]},
+                "quoteAnalysis": {"complete": True, "executableCandidate": False, "chainSubmissionCandidate": False},
+            },
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+    calls = {"size": 0}
+
+    def route_quote_analysis_fn(route, price_map, chain_id):
+        return {
+            "steps": [{"fromSymbol": "ETH", "toSymbol": route["routeSymbols"][1]}],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "livePriceVerified": False,
+            "priceEvidenceSource": "static_reference_probe",
+            "priceEvidenceMode": "reference_only",
+            "executableCandidate": False,
+            "chainSubmissionCandidate": False,
+            "chainSubmissionPolicy": "live_framework_reuse",
+            "netProfitUsd": None,
+        }
+
+    def route_size_analysis_fn(route, price_map, chain_id):
+        calls["size"] += 1
+        return {"rows": [{"size": calls["size"]}], "bestObservedNetProfitUsd": float(calls["size"])}
+
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+    )
+
+    assert calls["size"] == 2
+    assert payload["routes"][0]["sizeAnalysis"]["rows"] == [{"size": 1}]
+    assert payload["routes"][1]["sizeAnalysis"]["rows"] == [{"size": 2}]
+
+
+def test_quote_routes_payload_skips_live_refresh_when_cached_framework_steps_exist(monkeypatch):
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> TK1 -> ETH",
+                "routeSymbols": ["ETH", "TK1", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {"pathSymbols": ["ETH", "TK1", "ETH"], "pathAddresses": ["0x0", "0x1", "0x0"], "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "ETH"}]},
+                "quoteAnalysis": {"steps": [{"fromSymbol": "ETH", "toSymbol": "TK1"}], "executableCandidate": False},
+                "quoteInputs": {
+                    "candidatePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                    "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                    "quoteRequests": [],
+                    "conditions": ["framework only"],
+                },
+            }
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+    calls = {"quote": 0, "size": 0}
+
+    def route_quote_analysis_fn(route, price_map, chain_id):
+        calls["quote"] += 1
+        return {
+            "steps": [{"fromSymbol": "ETH", "toSymbol": "TK1"}],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "livePriceVerified": False,
+            "priceEvidenceSource": "chain_live_quote",
+            "priceEvidenceMode": "live_required",
+            "executableCandidate": False,
+            "chainSubmissionCandidate": False,
+            "chainSubmissionPolicy": "live_framework_reuse",
+            "netProfitUsd": None,
+        }
+
+    def route_size_analysis_fn(route, price_map, chain_id):
+        calls["size"] += 1
+        return {"rows": [{"size": 1}], "bestObservedNetProfitUsd": 1.0}
+
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+    )
+
+    assert calls["quote"] == 0
+    assert calls["size"] == 1
+    assert payload["routes"][0]["quoteAnalysis"]["steps"] == [{"fromSymbol": "ETH", "toSymbol": "TK1"}]
+    assert payload["routes"][0]["quoteAnalysis"]["executableCandidate"] is False
+
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "1")
+    refreshed = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+    )
+
+    assert calls["quote"] == 1
+    assert calls["size"] == 2
+    assert refreshed["routes"][0]["quoteAnalysis"]["priceEvidenceSource"] == "chain_live_quote"

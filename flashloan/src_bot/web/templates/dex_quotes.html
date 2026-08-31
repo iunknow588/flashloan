@@ -166,6 +166,12 @@
         effectiveRate: referenceMode ? (step?.referenceEffectiveRate ?? step?.effectiveRate) : step?.effectiveRate,
       };
     }
+    function routeInputSymbol(route, analysis) {
+      return (route?.routeSymbols || [])[0] || analysis?.referenceInputSymbol || analysis?.inputSymbol || "";
+    }
+    function routeSizeAmount(value, route, analysis) {
+      return amount(value, routeInputSymbol(route, analysis));
+    }
     function routeCopyText(route) {
       const pools = route.quoteInputs?.candidatePools || [];
       const quoteRequests = route.quoteInputs?.quoteRequests || [];
@@ -180,6 +186,7 @@
       const routeFrameworkStage = route.marketObservationSourceStage || marketObservationSourceStage;
       const priceEvidenceSource = route.priceEvidenceSource || analysis.priceEvidenceSource || (analysis.requiresLiveQuoter || analysis.adapterRequired ? "live_quoter_required" : "static_reference_probe");
       const priceEvidenceText = route.priceEvidenceSourceLabel || analysis.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
+      const routeInputSymbolText = routeInputSymbol(route, analysis);
       const routeKindLabel = overview.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
       const truncatedText = zeroOutputWarningText(analysis);
       return lines([
@@ -206,6 +213,7 @@
         `X 本位净收益：${view.livePriceVerified ? `${amount(view.tokenNetProfitAmount, view.tokenSymbol)} / ${num(view.tokenNetReturnBps, 2)} bps` : "-"}`,
         `最佳参考借入规模：${money(size.bestObservedNotionalUsd)} / 净利 ${money(size.bestObservedNetProfitUsd)}`,
         `最佳可执行借入规模：${money(size.bestExecutableNotionalUsd)} / 净利 ${money(size.bestExecutableNetProfitUsd)}`,
+        `最大可执行量：${routeSizeAmount(size.maxExecutableAmountRaw, route, analysis)} / 首个失败量：${routeSizeAmount(size.firstFailureAmountRaw, route, analysis)}`,
         truncatedText ? `提示：${truncatedText}` : "",
         "",
         "逐跳报价：",
@@ -275,6 +283,7 @@
       const routeFrameworkStage = route.marketObservationSourceStage || marketObservationSourceStage;
       const priceEvidenceSource = route.priceEvidenceSource || analysis.priceEvidenceSource || (analysis.requiresLiveQuoter || analysis.adapterRequired ? "live_quoter_required" : "static_reference_probe");
       const priceEvidenceText = route.priceEvidenceSourceLabel || analysis.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
+      const routeInputSymbolText = routeInputSymbol(route, analysis);
       const routeKindLabel = overview.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
       const tokenBasisText = view.livePriceVerified && view.tokenBasis ? `${amount(view.tokenNetProfitAmount, view.tokenSymbol)} / ${num(view.tokenNetReturnBps, 2)} bps` : "-";
       const tokenBasisBadgeClass = analysis.tokenBasisProfitable ? "good" : "warn";
@@ -304,6 +313,8 @@
       }).join("");
       const sizeRows = (size.rows || []).map(row => `<tr>
         <td>${money(row.notionalUsd)}</td>
+        <td>${routeSizeAmount(row.maxExecutableAmountRaw, route, analysis)}</td>
+        <td>${routeSizeAmount(row.firstFailureAmountRaw, route, analysis)}</td>
         <td>${esc(row.complete ? "完成" : "未完成")}</td>
         <td>${row.requiresLiveQuoter ? '<span class="badge warn">需复核</span>' : '<span class="badge good">静态可用</span>'}</td>
         <td>${money(row.observedGrossProfitUsd)}</td>
@@ -330,6 +341,7 @@
               <span class="badge">1000U 探针</span>
               <span class="badge">池子 ${esc(route.poolCount)}</span>
               <span class="badge">报价通道 ${esc(route.quoteVenueCount || quoteRequests.length || 0)}</span>
+              <span class="badge ${size.maxExecutableAmountRaw ? "good" : "warn"}">最大可执行量 ${esc(routeSizeAmount(size.maxExecutableAmountRaw, route, analysis))}</span>
               ${analysis.chainSubmissionCandidate ? '<span class="badge good">链上利润控制候选</span>' : ""}
               ${view.tokenBasis ? `<span class="badge ${tokenBasisBadgeClass}">${esc(tokenBasisLabel)} ${esc(tokenBasisText)}</span>` : ""}
               ${overview.kind === "bridge_pair" && (overview.bridgeSymbols || []).length ? `<span class="badge warn">中间路径 ${esc((overview.bridgeSymbols || []).join(" -> "))}</span>` : ""}
@@ -353,6 +365,8 @@
           <div><small>链上净利润</small><strong>${view.livePriceVerified ? money(view.submissionNetProfitUsd) : "-"}</strong></div>
           <div><small>${esc(view.bpsLabel)}</small><strong>${view.livePriceVerified ? num(view.netProfitBps, 2) : "-"}</strong></div>
           <div><small>X 本位最终输出</small><strong>${view.livePriceVerified ? amount(view.tokenFinalOutputAmount, view.tokenSymbol) : "-"}</strong></div>
+          <div><small>最大可执行量</small><strong>${routeSizeAmount(size.maxExecutableAmountRaw, route, analysis)}</strong></div>
+          <div><small>首个失败量</small><strong>${routeSizeAmount(size.firstFailureAmountRaw, route, analysis)}</strong></div>
           <div><small>X 本位净收益</small><strong>${esc(tokenBasisText)}</strong></div>
           <div><small>最佳参考借入规模</small><strong>${money(size.bestObservedNotionalUsd)}</strong></div>
           <div><small>最佳参考净利</small><strong>${money(size.bestObservedNetProfitUsd)}</strong></div>
@@ -362,8 +376,8 @@
           <tbody>${stepRows || '<tr><td colspan="12">缺少可计算的逐跳报价。</td></tr>'}</tbody>
         </table></div>
         <div class="table-wrap"><table>
-          <thead><tr><th>借入规模</th><th>探针</th><th>报价要求</th><th>毛利</th><th>闪电贷费</th><th>Gas 储备</th><th>净利</th><th>收益 bps</th><th>X 本位净收益</th><th>X 本位 bps</th></tr></thead>
-          <tbody>${sizeRows || '<tr><td colspan="10">暂无规模估算。</td></tr>'}</tbody>
+          <thead><tr><th>借入规模</th><th>最大可执行量</th><th>首个失败量</th><th>探针</th><th>报价要求</th><th>毛利</th><th>闪电贷费</th><th>Gas 储备</th><th>净利</th><th>收益 bps</th><th>X 本位净收益</th><th>X 本位 bps</th></tr></thead>
+          <tbody>${sizeRows || '<tr><td colspan="12">暂无规模估算。</td></tr>'}</tbody>
         </table></div>
         <div class="recommendation">
           <strong>操作建议：${esc(rec.action || "-")}</strong>

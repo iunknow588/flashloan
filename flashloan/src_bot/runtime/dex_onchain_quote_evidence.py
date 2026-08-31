@@ -61,6 +61,10 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
+def _as_dict(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _number(value: object) -> float | None:
     try:
         parsed = float(value)
@@ -69,6 +73,13 @@ def _number(value: object) -> float | None:
     if parsed != parsed or parsed in (float("inf"), float("-inf")):
         return None
     return parsed
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _decimal(value: object) -> Decimal:
@@ -559,6 +570,29 @@ def _unsupported_evidence(
     }
 
 
+def _route_size_advice(route: dict[str, Any]) -> tuple[dict[str, Any], int | None, int | None]:
+    size_analysis = _as_dict(route.get("sizeAnalysis"))
+    if not size_analysis:
+        size_analysis = _as_dict(_as_dict(route.get("quoteAnalysis")).get("sizeAnalysis"))
+    if not size_analysis:
+        size_analysis = _as_dict(_as_dict(route.get("overviewRoute")).get("sizeAnalysis"))
+    execution_probe = _as_dict(
+        size_analysis.get("executionSizeProbe")
+        or size_analysis.get("routeExecutionSizeProbe")
+    )
+    max_executable_raw = _int_or_none(
+        size_analysis.get("maxExecutableAmountRaw")
+        or execution_probe.get("maxExecutableAmountRaw")
+        or route.get("maxExecutableAmountRaw")
+    )
+    first_failure_raw = _int_or_none(
+        size_analysis.get("firstFailureAmountRaw")
+        or execution_probe.get("firstFailureAmountRaw")
+        or route.get("firstFailureAmountRaw")
+    )
+    return execution_probe, max_executable_raw, first_failure_raw
+
+
 def _transaction_development(ready: bool, blockers: list[str]) -> dict[str, Any]:
     if ready:
         return {
@@ -578,6 +612,133 @@ def _transaction_development(ready: bool, blockers: list[str]) -> dict[str, Any]
     }
 
 
+def _probe_robinhood_testnet_route_execution_size(
+    route: dict[str, Any],
+    *,
+    payload: dict[str, Any] | None,
+    chain_id: int | None,
+    observed_at: str,
+    trigger_context: dict[str, Any],
+    quote_hop_provider: QuoteHopProvider | None,
+    requested_amount_raw: int,
+    max_attempts: int | None = None,
+    min_probe_amount_raw: int | None = None,
+) -> dict[str, Any]:
+    max_attempts = max(1, int(max_attempts or os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_ATTEMPTS", "24") or 24))
+    min_probe_amount_raw = max(1, int(min_probe_amount_raw or os.getenv("DEX_V4_EXECUTION_SIZE_MIN_PROBE_AMOUNT_RAW", "1") or 1))
+    target_amount_raw = max(1, int(requested_amount_raw))
+    attempts = 0
+    last_success_raw: int | None = None
+    last_failure_raw: int | None = None
+
+    def _passes(evidence: dict[str, Any]) -> bool:
+        return bool(
+            _text(evidence.get("status")).lower() == "live_verified"
+            and evidence.get("readyForTransactionPreflight") is True
+        )
+
+    def _evaluate(amount_raw: int) -> dict[str, Any]:
+        nonlocal attempts
+        attempts += 1
+        return build_route_onchain_evidence(
+            route,
+            payload=payload,
+            chain_id=chain_id,
+            observed_at=observed_at,
+            trigger_context=trigger_context,
+            quote_hop_provider=quote_hop_provider,
+            borrow_input_amount_override_raw=int(amount_raw),
+            skip_execution_size_probe=True,
+        )
+
+    try:
+        evidence = _evaluate(target_amount_raw)
+    except Exception as exc:
+        return {
+            "status": "route_execution_size_probe_failed",
+            "searchStatus": "probe_failed",
+            "probeAttempts": attempts,
+            "requestedAmountRaw": str(target_amount_raw),
+            "maxExecutableAmountRaw": None,
+            "firstFailureAmountRaw": None,
+            "error": str(exc),
+        }
+
+    if _passes(evidence):
+        return {
+            "status": "route_execution_size_probe_complete",
+            "searchStatus": "requested_amount_verified",
+            "probeAttempts": attempts,
+            "requestedAmountRaw": str(target_amount_raw),
+            "maxExecutableAmountRaw": str(target_amount_raw),
+            "firstFailureAmountRaw": None,
+        }
+
+    upper_bound = target_amount_raw
+    lower_bound: int | None = None
+    probe = max(min_probe_amount_raw, target_amount_raw // 2)
+    last_failure_raw = target_amount_raw
+    while probe >= min_probe_amount_raw and attempts < max_attempts:
+        try:
+            evidence = _evaluate(probe)
+        except Exception:
+            last_failure_raw = probe
+            upper_bound = probe
+            if probe <= min_probe_amount_raw:
+                break
+            next_probe = max(min_probe_amount_raw, probe // 2)
+            if next_probe == probe:
+                break
+            probe = next_probe
+            continue
+        if _passes(evidence):
+            lower_bound = probe
+            last_success_raw = probe
+            break
+        last_failure_raw = probe
+        upper_bound = probe
+        if probe <= min_probe_amount_raw:
+            break
+        next_probe = max(min_probe_amount_raw, probe // 2)
+        if next_probe == probe:
+            break
+        probe = next_probe
+
+    if lower_bound is None or last_success_raw is None:
+        return {
+            "status": "route_execution_size_probe_unexecutable",
+            "searchStatus": "no_successful_amount_found",
+            "probeAttempts": attempts,
+            "requestedAmountRaw": str(target_amount_raw),
+            "maxExecutableAmountRaw": None,
+            "firstFailureAmountRaw": str(last_failure_raw) if last_failure_raw is not None else str(target_amount_raw),
+        }
+
+    while upper_bound - lower_bound > 1 and attempts < max_attempts:
+        mid = (upper_bound + lower_bound) // 2
+        try:
+            evidence = _evaluate(mid)
+        except Exception:
+            upper_bound = mid
+            last_failure_raw = mid
+            continue
+        if _passes(evidence):
+            lower_bound = mid
+            last_success_raw = mid
+        else:
+            upper_bound = mid
+            last_failure_raw = mid
+
+    return {
+        "status": "route_execution_size_probe_complete",
+        "searchStatus": "bounded" if last_failure_raw is not None else "lower_bound_verified",
+        "probeAttempts": attempts,
+        "requestedAmountRaw": str(target_amount_raw),
+        "maxExecutableAmountRaw": str(last_success_raw if last_success_raw is not None else lower_bound),
+        "firstFailureAmountRaw": str(last_failure_raw) if last_failure_raw is not None else None,
+    }
+
+
 def build_route_onchain_evidence(
     route: dict[str, Any],
     *,
@@ -586,6 +747,8 @@ def build_route_onchain_evidence(
     observed_at: str | None = None,
     trigger_context: dict[str, Any] | None = None,
     quote_hop_provider: QuoteHopProvider | None = None,
+    borrow_input_amount_override_raw: int | None = None,
+    skip_execution_size_probe: bool = False,
 ) -> dict[str, Any]:
     observed = observed_at or _now_iso()
     table = payload.get("poolStaticTable") if isinstance(payload, dict) and isinstance(payload.get("poolStaticTable"), dict) else {}
@@ -639,24 +802,66 @@ def build_route_onchain_evidence(
             trigger_context=trigger,
         )
 
+    input_symbol = _norm_symbol(route_symbols[0] if route_symbols else analysis.get("inputSymbol"))
+    first_pool = _pool_for_step(steps[0], pools) if steps else {}
+    input_address, _, input_decimals = _pool_side(first_pool, input_symbol)
+    input_decimals = input_decimals if input_decimals is not None else _token_decimals(w3, input_address, input_symbol, token_cache)
+    route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
+    route_size_execution_probe, route_max_executable_raw, route_first_failure_raw = _route_size_advice(route)
+    reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
+    borrow_input_amount = (
+        reference_input_amount
+        if route_closed and reference_input_amount is not None
+        else _positive_decimal_or_none(analysis.get("notionalUsd"))
+        or Decimal("1000")
+    )
+    requested_borrow_input_amount_raw = (
+        int(borrow_input_amount_override_raw)
+        if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0
+        else _raw_from_human(borrow_input_amount, input_decimals)
+    )
+    selected_borrow_input_amount_raw = int(requested_borrow_input_amount_raw)
+    if route_max_executable_raw is not None and route_max_executable_raw > 0:
+        selected_borrow_input_amount_raw = min(selected_borrow_input_amount_raw, route_max_executable_raw)
+    borrow_input_amount = Decimal(int(selected_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))
+    execution_size_probe: dict[str, Any] | None = route_size_execution_probe or None
+    route_has_size_metadata = bool(route_max_executable_raw or route_first_failure_raw or route_size_execution_probe)
+    all_v4_route = bool(steps) and all(
+        str(step.get("protocol") or step.get("dex") or "").strip().lower() == "uniswap_v4"
+        for step in steps
+    )
+    testnet_closed_loop_v4_route = bool(
+        chain_id == ROBINHOOD_TESTNET_CHAIN_ID and route_closed and all_v4_route
+    )
+    if (
+        not skip_execution_size_probe
+        and chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        and selected_borrow_input_amount_raw > 0
+        and (route_has_size_metadata or testnet_closed_loop_v4_route)
+    ):
+        execution_size_probe = _probe_robinhood_testnet_route_execution_size(
+            route,
+            payload=payload,
+            chain_id=chain_id,
+            observed_at=observed,
+            trigger_context=trigger,
+            quote_hop_provider=quote_hop_provider,
+            requested_amount_raw=selected_borrow_input_amount_raw,
+        )
+        try:
+            probed_amount_raw = int(execution_size_probe.get("maxExecutableAmountRaw") or 0)
+        except (TypeError, ValueError):
+            probed_amount_raw = None
+        if probed_amount_raw is not None and probed_amount_raw > 0:
+            selected_borrow_input_amount_raw = probed_amount_raw
+            borrow_input_amount = Decimal(probed_amount_raw) / (Decimal(10) ** int(input_decimals))
+
     hop_provider = quote_hop_provider
     hop_rows: list[dict[str, Any]] = []
     amount_in_raw: int | None = None
     blockers: list[str] = []
     try:
-        input_symbol = _norm_symbol(route_symbols[0] if route_symbols else analysis.get("inputSymbol"))
-        first_pool = _pool_for_step(steps[0], pools) if steps else {}
-        input_address, _, input_decimals = _pool_side(first_pool, input_symbol)
-        input_decimals = input_decimals if input_decimals is not None else _token_decimals(w3, input_address, input_symbol, token_cache)
-        route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
-        reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
-        borrow_input_amount = (
-            reference_input_amount
-            if route_closed and reference_input_amount is not None
-            else _positive_decimal_or_none(analysis.get("notionalUsd"))
-            or Decimal("1000")
-        )
-        amount_in_raw = _raw_from_human(borrow_input_amount, input_decimals)
+        amount_in_raw = selected_borrow_input_amount_raw
         for step in steps:
             pool = _pool_for_step(step, pools)
             protocol = _protocol_key(step.get("protocol"), step.get("dex"), step.get("fee"), pool.get("protocol"), pool.get("dex"))
@@ -706,19 +911,10 @@ def build_route_onchain_evidence(
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
     final_decimals = int(hop_rows[-1]["outputDecimals"]) if hop_rows else None
     final_amount = Decimal(hop_rows[-1]["amountOut"]) if hop_rows else None
-    input_symbol = _norm_symbol(route_symbols[0] if route_symbols else analysis.get("inputSymbol"))
-    route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
     borrow_asset_is_stable = bool(
         analysis.get("borrowAssetIsStable")
         if analysis.get("borrowAssetIsStable") is not None
         else input_symbol in _STABLE_DECIMALS
-    )
-    reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
-    borrow_input_amount = (
-        reference_input_amount
-        if route_closed and reference_input_amount is not None
-        else _positive_decimal_or_none(analysis.get("notionalUsd"))
-        or Decimal("1000")
     )
     notional = _positive_decimal_or_none(analysis.get("notionalUsd")) or (
         borrow_input_amount if borrow_asset_is_stable else Decimal("1000")
@@ -780,6 +976,9 @@ def build_route_onchain_evidence(
         "quoter": quoter,
         "routeSymbols": route_symbols,
         "routeAddresses": route.get("routeAddresses") or [],
+        "requestedBorrowInputAmountRaw": str(requested_borrow_input_amount_raw),
+        "selectedBorrowInputAmountRaw": str(selected_borrow_input_amount_raw),
+        "executionSizeProbe": execution_size_probe,
         "status": "live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"),
         "executionTrust": "live_quoter_verified_readonly" if all_hops_verified else "static_reference_only",
         "trustedForExecution": False,
@@ -790,6 +989,10 @@ def build_route_onchain_evidence(
         "hops": hop_rows,
         "costModel": {
             "notionalUsd": float(notional),
+            "requestedBorrowInputAmountRaw": int(requested_borrow_input_amount_raw),
+            "requestedBorrowInputAmount": float(Decimal(int(requested_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))),
+            "selectedBorrowInputAmountRaw": int(selected_borrow_input_amount_raw),
+            "selectedBorrowInputAmount": float(borrow_input_amount),
             "borrowInputAmount": float(borrow_input_amount),
             "borrowInputSymbol": input_symbol,
             "finalOutputAmount": float(final_amount) if final_amount is not None else None,
@@ -834,6 +1037,7 @@ def build_route_onchain_evidence(
             "borrowAssetClass": "stable" if borrow_asset_is_stable else "non_stable",
             "borrowAssetIsStable": borrow_asset_is_stable,
             "borrowInputAmount": float(borrow_input_amount),
+            "requestedBorrowInputAmount": float(Decimal(int(requested_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))),
             "borrowInputSymbol": input_symbol,
             "finalOutputAmount": float(final_amount) if final_amount is not None else None,
             "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,

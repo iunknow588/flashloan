@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "robinhood-dynamic-v4-route-preflight-v1",
+  "runAt": "2026-08-31T01:17:19.152Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "expectedChainId": 46630,
+  "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "sourceFiles": {
+    "planPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+    "poolIndexPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json"
+  },
+  "executor": {
+    "address": "0x69d9e4ac531d48E388c54EA19B11AABeCE1d59bB",
+    "hasCode": false,
+    "pausedBefore": null,
+    "pausedAfter": null
+  },
+  "route": {
+    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+    "hopCount": 0,
+    "triggerBlockNumber": 107982013
+  },
+  "policy": {
+    "mode": "dynamic_route_staticcall_first",
+    "broadcastRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_DYNAMIC_ROUTE_BROADCAST=true",
+    "unpauseRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_DYNAMIC_ROUTE_UNPAUSE=true",
+    "broadcastEnabled": true,
+    "unpauseEnabled": true,
+    "approvalEnabled": false,
+    "rePauseAfterTest": true
+  },
+  "calldataBuild": {
+    "attempted": false,
+    "ok": false,
+    "targetCount": 0,
+    "calldataCount": 0,
+    "initialToken": null,
+    "finalToken": null,
+    "error": null
+  },
+  "approvals": {
+    "attempted": false,
+    "ok": false,
+    "tokens": [],
+    "errors": []
+  },
+  "nativeValueRoute": {
+    "requiresForwarding": false,
+    "validationMode": "static_call_first"
+  },
+  "routeVerification": {
+    "referenceQuoteDetected": false,
+    "individualHopChecksOk": null,
+    "amountChainVerified": false
+  },
+  "staticCall": {
+    "attempted": false,
+    "ok": false,
+    "result": null,
+    "error": null
+  },
+  "estimateGas": {
+    "attempted": false,
+    "ok": false,
+    "gas": null,
+    "error": null
+  },
+  "repaymentCheck": {
+    "balanceRaw": null,
+    "requiredRaw": null,
+    "shortfallRaw": null
+  },
+  "hopExecutionChecks": [],
+  "broadcast": {
+    "attempted": false,
+    "ok": false,
+    "hash": null,
+    "error": null
+  },
+  "operationError": null,
+  "repaymentConstraint": {
+    "borrowAmountRaw": null,
+    "borrowSymbol": "",
+    "borrowToken": "",
+    "finalAmountRaw": "",
+    "finalSymbol": "",
+    "finalToken": "",
+    "flashLoanFeeBps": 5,
+    "gasReserveRaw": "0",
+    "minProfitRaw": "1",
+    "minProfitRule": "positive_x_profit_min_raw_unit",
+    "profitBasis": "borrow_token",
+    "repayAmountRaw": null
+  },
+  "hopAudit": [],
+  "blockingReasons": [
+    "chain_test_plan_not_ready_for_transaction_preflight"
+  ],
+  "readyForDynamicBroadcast": false
+}

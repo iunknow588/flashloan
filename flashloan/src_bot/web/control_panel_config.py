@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 
 from core.config_schema import parse_env_float
-from core.env_loader import local_json_only_enabled
 from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
+from db.storage_common import database_url_or_none as storage_database_url_or_none
 from web.parameter_config import (
     LEGACY_STRATEGY_CONFIG_PATHS,
     STRATEGY_CONFIG_PATH,
@@ -24,9 +24,7 @@ MIN_SAMPLING_SECONDS = 0.2
 
 
 def _database_url_or_none() -> str | None:
-    if local_json_only_enabled():
-        return None
-    return os.getenv("DATABASE_URL", "").strip() or None
+    return storage_database_url_or_none()
 
 
 def unified_sampling_profile(config: dict) -> dict:

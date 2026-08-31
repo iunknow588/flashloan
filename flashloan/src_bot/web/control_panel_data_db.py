@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from db.storage import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
+from db.storage import EXPECTED_SCHEMA_MIGRATION_IDS
+from db.storage_common import db_connection
 from web.control_panel_data_compact import fetch_one, iso
 
 
 def observation_count(database_url: str) -> Optional[int]:
+    if not database_url:
+        return None
     try:
         row = fetch_one(database_url, "SELECT COUNT(*) FROM observations")
         return int(row[0]) if row else 0
@@ -16,6 +19,8 @@ def observation_count(database_url: str) -> Optional[int]:
 
 
 def database_table_counts(database_url: str) -> Optional[dict]:
+    if not database_url:
+        return None
     query = """
         SELECT
             (SELECT COUNT(*) FROM observations) AS observations,
@@ -82,6 +87,8 @@ def database_table_counts(database_url: str) -> Optional[dict]:
 
 
 def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
+    if not database_url:
+        return []
     query = """
         SELECT symbol
         FROM (
@@ -97,8 +104,7 @@ def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
         ORDER BY MAX(latest_at) DESC, symbol
         LIMIT %s
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (limit,))
             rows = cursor.fetchall()
@@ -106,6 +112,8 @@ def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
 
 
 def available_candidate_symbols(database_url: str, limit: int = 500) -> list[str]:
+    if not database_url:
+        return []
     query = """
         SELECT symbol
         FROM (
@@ -125,8 +133,7 @@ def available_candidate_symbols(database_url: str, limit: int = 500) -> list[str
         ORDER BY MAX(latest_at) DESC, symbol
         LIMIT %s
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (limit,))
             rows = cursor.fetchall()
@@ -134,14 +141,15 @@ def available_candidate_symbols(database_url: str, limit: int = 500) -> list[str
 
 
 def recent_velocity_timepoints(database_url: str, limit: int = 200) -> list[dict]:
+    if not database_url:
+        return []
     query = """
         SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
         FROM binance_window_extremes
         ORDER BY observed_at DESC
         LIMIT %s
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (limit,))
             rows = cursor.fetchall()
@@ -222,12 +230,13 @@ def decode_extreme_json(raw: str | None) -> list[dict]:
 
 
 def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict]:
+    if not database_url:
+        return []
     query = """
         SELECT observed_at, symbol, asset, binance_price, aave_price, diff_percent
         FROM observations WHERE symbol = %s ORDER BY observed_at DESC LIMIT %s
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (symbol, limit))
             rows = cursor.fetchall()
@@ -248,6 +257,8 @@ def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict
 def latest_observation_prices(database_url: str, symbols: list[str]) -> dict[str, dict]:
     if not symbols:
         return {}
+    if not database_url:
+        return {}
     query = """
         SELECT DISTINCT ON (symbol)
                observed_at, symbol, asset, binance_price, aave_price, diff_percent
@@ -255,8 +266,7 @@ def latest_observation_prices(database_url: str, symbols: list[str]) -> dict[str
         WHERE symbol = ANY(%s)
         ORDER BY symbol, observed_at DESC
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (symbols,))
             rows = cursor.fetchall()
@@ -276,6 +286,8 @@ def latest_observation_prices(database_url: str, symbols: list[str]) -> dict[str
 def latest_observation_prices_at_or_before(database_url: str, symbols: list[str], cutoff_at) -> dict[str, dict]:
     if not symbols:
         return {}
+    if not database_url:
+        return {}
     query = """
         SELECT DISTINCT ON (symbol)
                observed_at, symbol, asset, binance_price, aave_price, diff_percent
@@ -283,8 +295,7 @@ def latest_observation_prices_at_or_before(database_url: str, symbols: list[str]
         WHERE symbol = ANY(%s) AND observed_at <= %s
         ORDER BY symbol, observed_at DESC
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (symbols, cutoff_at))
             rows = cursor.fetchall()
@@ -302,6 +313,8 @@ def latest_observation_prices_at_or_before(database_url: str, symbols: list[str]
 
 
 def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
+    if not database_url:
+        return []
     query = """
         WITH x_rows AS (
             SELECT observed_at, aave_price,
@@ -324,8 +337,7 @@ def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, lim
         JOIN y_rows ON x_rows.rn = y_rows.rn
         ORDER BY x_rows.rn DESC
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (x_symbol, limit, y_symbol, limit))
             rows = cursor.fetchall()
@@ -347,6 +359,8 @@ def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, lim
 
 
 def recent_binance_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
+    if not database_url:
+        return []
     query = """
         SELECT observed_at, x_symbol, y_symbol, x_usdc_price, y_usdc_price, x_y_price, event_time, source
         FROM binance_pair_price_history
@@ -354,8 +368,7 @@ def recent_binance_pair_prices(database_url: str, x_symbol: str, y_symbol: str, 
         ORDER BY event_time DESC
         LIMIT %s
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (x_symbol, y_symbol, y_symbol, x_symbol, limit))
             rows = cursor.fetchall()
@@ -391,6 +404,8 @@ def recent_binance_pair_prices(database_url: str, x_symbol: str, y_symbol: str, 
 def latest_candidate_price_rows(database_url: str, symbols: list[str]) -> dict[str, dict]:
     if not symbols:
         return {}
+    if not database_url:
+        return {}
     query = """
         SELECT DISTINCT ON (symbol)
                observed_at, symbol, price_usdc, change_percent, rank_side,
@@ -399,8 +414,7 @@ def latest_candidate_price_rows(database_url: str, symbols: list[str]) -> dict[s
         WHERE symbol = ANY(%s)
         ORDER BY symbol, event_time DESC
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (symbols,))
             rows = cursor.fetchall()
@@ -424,6 +438,8 @@ def latest_candidate_price_rows(database_url: str, symbols: list[str]) -> dict[s
 
 
 def recent_binance_price_history(database_url: str, symbol: str, limit: int) -> list[dict]:
+    if not database_url:
+        return []
     query = """
         SELECT observed_at, symbol, price, event_time, source
         FROM binance_price_history
@@ -431,8 +447,7 @@ def recent_binance_price_history(database_url: str, symbol: str, limit: int) -> 
         ORDER BY event_time DESC
         LIMIT %s
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (symbol, limit))
             rows = cursor.fetchall()
@@ -449,4 +464,3 @@ def recent_binance_price_history(database_url: str, symbol: str, limit: int) -> 
         }
         for row in rows
     ]
-

@@ -1,10 +1,15 @@
 ﻿from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+SRC_ROOT = Path(__file__).resolve().parents[3]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
 from market.binance_market.dex_surfaces import (
     DEFAULT_FLASH_LOAN_FEE_BPS,
@@ -24,6 +29,7 @@ DEFAULT_ROBINHOOD_CHAIN_ID = ROBINHOOD_CHAIN_ID
 DEFAULT_ROBINHOOD_NETWORK = ROBINHOOD_NETWORK
 DEFAULT_ROBINHOOD_MARKET_ID = "robinhood-dex-shadow"
 DEFAULT_ROBINHOOD_TESTNET_MARKET_ID = "robinhood-testnet-dex-paused"
+ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT = SRC_ROOT / "runtime" / "cache" / "dex_opportunity_snapshot.json"
 _TOKEN_DECIMALS_FALLBACK = {
     "ETH": 18,
     "WETH": 18,
@@ -226,6 +232,14 @@ def _as_list(value: object) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _route_path(attempt: dict[str, Any]) -> list[str]:
     quote = _as_dict(attempt.get("quote"))
     precheck = _as_dict(attempt.get("precheck"))
@@ -251,6 +265,87 @@ def _route_path(attempt: dict[str, Any]) -> list[str]:
     if pair:
         return [part.strip() for part in pair.split("->") if part.strip()]
     return []
+
+
+def _route_path_text(route_path: list[str]) -> str:
+    return " -> ".join(item for item in (_text(value) for value in route_path) if item)
+
+
+def _latest_snapshot_route(route_path: list[str], *, chain_id: int, network: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    if network != ROBINHOOD_TESTNET_NETWORK or chain_id != ROBINHOOD_TESTNET_CHAIN_ID:
+        return {}, {}
+    snapshot = _read_json(ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT)
+    snapshots = _as_dict(snapshot.get("snapshots"))
+    chain_snapshot = _as_dict(snapshots.get(str(chain_id)))
+    payload = _as_dict(chain_snapshot.get("payload"))
+    wanted = _route_path_text(route_path).lower()
+    if not wanted:
+        return {}, {}
+    for route in _as_list(payload.get("routes")):
+        if not isinstance(route, dict):
+            continue
+        overview = _as_dict(route.get("overviewRoute"))
+        candidates = [
+            _text(route.get("pathText")),
+            _text(route.get("routePathText")),
+            _text(overview.get("pathText")),
+            _text(route.get("symbolPair")),
+            _route_path_text(_as_list(route.get("routeSymbols"))),
+            _route_path_text(_as_list(overview.get("pathSymbols"))),
+        ]
+        for candidate in candidates:
+            if candidate and candidate.lower() == wanted:
+                return route, snapshot
+    return {}, snapshot
+
+
+def _latest_snapshot_route_size_advice(
+    latest_snapshot_route: dict[str, Any],
+    latest_snapshot: dict[str, Any],
+    *,
+    requested_borrow_amount_raw: int | None,
+) -> dict[str, Any]:
+    size_analysis = _as_dict(latest_snapshot_route.get("sizeAnalysis"))
+    quote_analysis = _as_dict(latest_snapshot_route.get("quoteAnalysis"))
+    execution_probe = _as_dict(
+        size_analysis.get("executionSizeProbe")
+        or size_analysis.get("routeExecutionSizeProbe")
+        or quote_analysis.get("executionSizeProbe")
+        or quote_analysis.get("routeExecutionSizeProbe")
+    )
+    max_executable_raw = _int_or_none(
+        size_analysis.get("maxExecutableAmountRaw")
+        or quote_analysis.get("maxExecutableAmountRaw")
+        or execution_probe.get("maxExecutableAmountRaw")
+    )
+    route_executable_candidate = quote_analysis.get("executableCandidate")
+    route_chain_submission_candidate = quote_analysis.get("chainSubmissionCandidate")
+    route_execution_size_probe_status = _text(
+        execution_probe.get("status")
+        or size_analysis.get("executionSizeProbeStatus")
+        or quote_analysis.get("executionSizeProbeStatus")
+    )
+    route_execution_size_probe_exceeded = bool(
+        requested_borrow_amount_raw is not None
+        and max_executable_raw is not None
+        and requested_borrow_amount_raw > max_executable_raw
+    )
+    route_execution_size_shortfall_raw = (
+        requested_borrow_amount_raw - max_executable_raw
+        if route_execution_size_probe_exceeded
+        else None
+    )
+    return {
+        "latestSnapshotUpdatedAt": _text(latest_snapshot.get("updated_at")),
+        "routeMaxExecutableAmountRaw": max_executable_raw,
+        "routeExecutionSizeProbe": execution_probe or None,
+        "routeExecutionSizeProbeStatus": route_execution_size_probe_status,
+        "routeExecutableCandidate": None if route_executable_candidate is None else bool(route_executable_candidate),
+        "routeChainSubmissionCandidate": None if route_chain_submission_candidate is None else bool(route_chain_submission_candidate),
+        "routeRequestedBorrowAmountRaw": requested_borrow_amount_raw,
+        "routeExecutionSizeProbeExceeded": route_execution_size_probe_exceeded,
+        "routeExecutionSizeShortfallRaw": route_execution_size_shortfall_raw,
+    }
 
 
 def _hop_summaries(hops: list[dict[str, Any]], *, slippage_bps: int) -> list[dict[str, Any]]:
@@ -342,8 +437,10 @@ def _execution_model(hops: list[dict[str, Any]], repayment: dict[str, Any]) -> d
     all_v4_hops = bool(hops) and all(protocol == "uniswap_v4" for protocol in hop_protocols)
     mixed_protocol_route = len(set(hop_protocols)) > 1
     uses_native_borrow = _is_zero_address(repayment.get("borrowToken"))
-    needs_native_value_forwarding = any(
-        int(value) > 0 for value in (_text(hop.get("amountInRaw")) for hop in hops) if value.isdigit()
+    needs_native_value_forwarding = (
+        False
+        if all_v4_hops
+        else any(int(value) > 0 for value in (_text(hop.get("amountInRaw")) for hop in hops) if value.isdigit())
     )
     route_execution_mode = "pool_manager_direct_swap_settle_take" if all_v4_hops else "mixed_protocol_executor"
     return {
@@ -368,12 +465,15 @@ def _execution_request(
 ) -> dict[str, Any]:
     execution_model = execution_model or _execution_model(hops, repayment)
     swap_values: list[str] = []
-    for hop in hops:
-        amount_in_raw = _text(hop.get("amountInRaw"))
-        swap_values.append(amount_in_raw if _is_zero_address(hop.get("tokenIn")) else "0")
-    requires_native_value_forwarding = any(int(value) > 0 for value in swap_values if value.isdigit())
+    if execution_model.get("requiresDirectPoolManagerFlow"):
+        swap_values = ["0" for _ in hops]
+    else:
+        for hop in hops:
+            amount_in_raw = _text(hop.get("amountInRaw"))
+            swap_values.append(amount_in_raw if _is_zero_address(hop.get("tokenIn")) else "0")
+    requires_native_value_forwarding = bool(execution_model.get("requiresNativeValueForwarding"))
     uses_native_borrow = _is_zero_address(repayment.get("borrowToken"))
-    function_name = "requestV4FlashLoanWithValues" if uses_native_borrow or requires_native_value_forwarding else "requestV4FlashLoan"
+    function_name = "requestV4FlashLoanWithValues" if requires_native_value_forwarding else "requestV4FlashLoan"
     return {
         "executorContract": "RobinhoodPausedFlashLoanExecutor",
         "function": function_name,
@@ -517,6 +617,11 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         ]
     )
     route_closed = bool(route_path and route_path[0] == route_path[-1])
+    latest_snapshot_route, latest_snapshot = _latest_snapshot_route(
+        route_path,
+        chain_id=chain_id,
+        network=network,
+    )
     requested_ready_for_preflight = bool(
         evidence.get("readyForTransactionPreflight")
         or evidence.get("ready_for_transaction_preflight")
@@ -534,7 +639,51 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
     token_continuity_ok = not token_continuity_issues
     validation = _as_dict(evidence.get("validation"))
     cost_model = dict(_as_dict(evidence.get("costModel")))
+    requested_borrow_amount_raw = _int_or_none(evidence.get("requestedBorrowInputAmountRaw"))
+    selected_borrow_amount_raw = _int_or_none(evidence.get("selectedBorrowInputAmountRaw"))
+    original_requested_borrow_amount_raw = requested_borrow_amount_raw
+    repayment_borrow_amount_raw = None
+    latest_snapshot_route_size_advice = {
+        "latestSnapshotUpdatedAt": _text(latest_snapshot.get("updated_at")),
+        "routeMaxExecutableAmountRaw": None,
+        "routeExecutionSizeProbe": None,
+        "routeExecutionSizeProbeStatus": "",
+        "routeExecutableCandidate": None,
+        "routeChainSubmissionCandidate": None,
+        "routeRequestedBorrowAmountRaw": None,
+        "routeExecutionSizeProbeExceeded": False,
+        "routeExecutionSizeShortfallRaw": None,
+    }
+    latest_snapshot_route_max_executable_raw = None
+    latest_snapshot_route_execution_probe = {}
+    latest_snapshot_route_updated_at = _text(latest_snapshot.get("updated_at"))
     if hop_summaries:
+        latest_snapshot_route_size_advice = _latest_snapshot_route_size_advice(
+            latest_snapshot_route,
+            latest_snapshot,
+            requested_borrow_amount_raw=requested_borrow_amount_raw,
+        )
+        latest_snapshot_route_max_executable_raw = _int_or_none(
+            latest_snapshot_route_size_advice.get("routeMaxExecutableAmountRaw")
+        )
+        latest_snapshot_route_execution_probe = _as_dict(
+            latest_snapshot_route_size_advice.get("routeExecutionSizeProbe")
+        )
+        latest_snapshot_route_updated_at = _text(latest_snapshot_route_size_advice.get("latestSnapshotUpdatedAt"))
+        if selected_borrow_amount_raw is None:
+            selected_borrow_amount_raw = latest_snapshot_route_max_executable_raw
+        if selected_borrow_amount_raw is None:
+            selected_borrow_amount_raw = _int_or_none(hop_summaries[0].get("amountInRaw"))
+        if selected_borrow_amount_raw is None:
+            selected_borrow_amount_raw = requested_borrow_amount_raw
+        repayment_borrow_amount_raw = selected_borrow_amount_raw
+        if (
+            repayment_borrow_amount_raw is not None
+            and latest_snapshot_route_max_executable_raw is not None
+            and repayment_borrow_amount_raw <= latest_snapshot_route_max_executable_raw
+            and latest_snapshot_route_size_advice.get("routeExecutableCandidate") is False
+        ):
+            latest_snapshot_route_size_advice["routeExecutableCandidate"] = True
         if not cost_model:
             notional = _number(
                 quote.get("input_amount")
@@ -586,6 +735,24 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
                 "On-chain reviewed route has token discontinuity; calldata and fork/static-call preflight are blocked.",
             ]
         )
+    route_size_probe_blocked = False
+    if latest_snapshot_route and latest_snapshot_route_max_executable_raw is not None:
+        if repayment_borrow_amount_raw is not None and repayment_borrow_amount_raw > latest_snapshot_route_max_executable_raw:
+            route_size_probe_blocked = True
+            blockers = _unique(
+                [
+                    *blockers,
+                    "latest_snapshot_route_execution_size_probe_exceeded",
+                ]
+            )
+    if latest_snapshot_route and latest_snapshot_route_size_advice.get("routeExecutableCandidate") is False:
+        route_size_probe_blocked = True
+        blockers = _unique(
+            [
+                *blockers,
+                "latest_snapshot_route_not_executable_candidate",
+            ]
+        )
     evidence_has_hops = bool(_as_list(evidence.get("hops")))
     all_hops_quoted = bool(validation.get("allHopsQuoted") if evidence_has_hops else hop_summaries) and token_continuity_ok
     profit_basis = _profit_basis(cost_model, route_path[0] if route_path else "")
@@ -627,6 +794,7 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         and route_closed
         and token_continuity_ok
         and all_hops_quoted
+        and not route_size_probe_blocked
     )
     chain_scope = robinhood_chain_test_scope(
         network,
@@ -634,6 +802,8 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
     )
     if token_continuity_issues:
         preflight_status = "blocked_token_discontinuity"
+    elif route_size_probe_blocked:
+        preflight_status = "blocked_route_execution_size_probe"
     elif ready_for_preflight and not trusted_for_execution:
         preflight_status = "ready_for_fork_staticcall"
     else:
@@ -689,6 +859,29 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "netProfitUsd": cost_model.get("netProfitUsd"),
             "netProfitBps": cost_model.get("netProfitBps"),
             "minProfitUsd": cost_model.get("minProfitUsd"),
+            "latestSnapshotUpdatedAt": latest_snapshot_route_updated_at or _text(latest_snapshot.get("updated_at")),
+            "routeOriginalRequestedBorrowAmountRaw": original_requested_borrow_amount_raw,
+            "routeRequestedBorrowAmountRaw": repayment_borrow_amount_raw or requested_borrow_amount_raw,
+            "routeSelectedBorrowAmountRaw": selected_borrow_amount_raw or repayment_borrow_amount_raw,
+            "routeMaxExecutableAmountRaw": latest_snapshot_route_max_executable_raw,
+            "routeExecutionSizeProbeStatus": latest_snapshot_route_size_advice.get("routeExecutionSizeProbeStatus"),
+            "routeExecutableCandidate": latest_snapshot_route_size_advice.get("routeExecutableCandidate"),
+            "routeChainSubmissionCandidate": latest_snapshot_route_size_advice.get("routeChainSubmissionCandidate"),
+            "routeExecutionSizeProbe": latest_snapshot_route_execution_probe or None,
+            "routeExecutionSizeProbeExceeded": bool(
+                repayment_borrow_amount_raw is not None
+                and latest_snapshot_route_max_executable_raw is not None
+                and repayment_borrow_amount_raw > latest_snapshot_route_max_executable_raw
+            ),
+            "routeExecutionSizeShortfallRaw": (
+                repayment_borrow_amount_raw - latest_snapshot_route_max_executable_raw
+                if repayment_borrow_amount_raw is not None
+                and latest_snapshot_route_max_executable_raw is not None
+                and repayment_borrow_amount_raw > latest_snapshot_route_max_executable_raw
+                else None
+            ),
+            "routeOriginalExecutionSizeProbeExceeded": latest_snapshot_route_size_advice.get("routeExecutionSizeProbeExceeded"),
+            "routeOriginalExecutionSizeShortfallRaw": latest_snapshot_route_size_advice.get("routeExecutionSizeShortfallRaw"),
             "profitBasis": profit_basis,
             "borrowInputAmount": cost_model.get("borrowInputAmount"),
             "borrowInputSymbol": cost_model.get("borrowInputSymbol"),
@@ -792,12 +985,23 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
         f"- Trusted for execution: `{'yes' if decision.get('trustedForExecution') else 'no'}`",
         f"- Ready for preflight: `{'yes' if decision.get('readyForTransactionPreflight') else 'no'}`",
         "",
+        "## Size Gate",
+        "",
+        f"- Requested borrow raw: `{_text(evidence.get('routeRequestedBorrowAmountRaw'))}`",
+        f"- Max executable raw: `{_text(evidence.get('routeMaxExecutableAmountRaw'))}`",
+    ]
+    if evidence.get("routeExecutionSizeProbeExceeded"):
+        lines.append(f"- Shortfall raw: `{_text(evidence.get('routeExecutionSizeShortfallRaw'))}`")
+    lines.extend(
+        [
+            "",
         "## 缁撹",
         "",
         conclusion,
         "",
         "## 鍏抽敭闃绘柇",
-    ]
+        ]
+    )
     blockers = evidence.get("blockers") or decision.get("blockedReasons") or []
     if blockers:
         lines.extend([f"- {item}" for item in blockers])
@@ -845,6 +1049,7 @@ def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
             "scope": "robinhood_testnet_46630_only",
             "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
             "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "defaultV4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
             "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
             "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
             "candidatePoolSupplyEvidence": None,
@@ -903,6 +1108,7 @@ def write_robinhood_chain_test_package(
                     "- Current state: read-only evidence and preflight preparation only",
                     f"- Current route preflight status: `{plan['preflightSpec']['status']}`",
                     f"- Route execution mode: `{_text(plan['preflightSpec'].get('executionModel', {}).get('routeExecutionMode'))}`",
+                    "- Default V4 quoter: `0x8dc178efb8111bb0973dd9d722ebeff267c98f94`",
                     "- Deployment gate: blocked until token continuity, calldata, repayment, and fork/static-call pass",
                     "- Deployment: no dedicated broadcast executor is added by this package",
                     "- Route test scope: calldata, slippage, repayment, and fork/static-call verification",

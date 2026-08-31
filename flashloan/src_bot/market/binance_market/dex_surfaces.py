@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from decimal import Decimal
+from functools import lru_cache
 from importlib import import_module
 import os
 import sys
@@ -18,6 +19,8 @@ from core.market_observation_store import (
 )
 from execution.uniswap_v4 import build_v4_quote_request, quote_v4_exact_input_single
 from execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
+from intent_trade.chains.robinhood_testnet.v4_quote_adapter import probe_v4_executable_amount_from_pool_index
+from intent_trade.chains.robinhood_testnet.v4_pool_liquidity import _load_token_balance_scan_cache
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_quote_surface import (
     build_quote_request_payload as build_dex_quote_request_payload,
@@ -40,12 +43,22 @@ from market.binance_market.dex_surface_analysis import (
     build_route_size_analysis,
 )
 from strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
+from web3 import Web3
 
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
 DEFAULT_AMM_FEE_BPS = 30.0
 ROBINHOOD_TESTNET_CHAIN_ID = 46630
+ERC20_DECIMALS_ABI = [
+    {
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"type": "uint8"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
 
 
 def _chain_observation_module(chain_id: int | None):
@@ -146,6 +159,10 @@ def _norm_symbol(value: object) -> str:
     return str(value or "").strip().upper()
 
 
+def _text(value: object) -> str:
+    return str(value or "").strip()
+
+
 def _token_address(value: object) -> str:
     text = str(value or "").strip()
     return text.lower() if text.startswith("0x") and len(text) == 42 else ""
@@ -153,7 +170,14 @@ def _token_address(value: object) -> str:
 
 def _pool_address(value: object) -> str:
     if isinstance(value, dict):
-        return str(value.get("pool") or value.get("pool_address") or value.get("address") or "").strip()
+        return str(
+            value.get("pool")
+            or value.get("poolId")
+            or value.get("pool_id")
+            or value.get("pool_address")
+            or value.get("address")
+            or ""
+        ).strip()
     return str(value or "").strip()
 
 
@@ -249,6 +273,138 @@ def _pool_tokens(pool: dict[str, Any]) -> list[dict[str, Any]]:
     return tokens
 
 
+def _pool_manager_address(pool: dict[str, Any], chain_id: int | None = None) -> str:
+    candidates = [pool.get("poolManager"), pool.get("pool_manager")]
+    if chain_id is not None:
+        row = chain_data_by_chain_id(chain_id) or {}
+        contracts = row.get("contracts") if isinstance(row.get("contracts"), dict) else {}
+        candidates.extend([contracts.get("v4_pool_manager"), row.get("defaultV4PoolManager")])
+    for candidate in candidates:
+        text = _text(candidate)
+        if text.startswith("0x") and len(text) == 42:
+            return text.lower()
+    return ""
+
+
+@lru_cache(maxsize=16)
+def _v4_token_metadata_cache(pool_manager: str) -> dict[str, dict[str, Any]]:
+    normalized_pool_manager = _text(pool_manager).lower()
+    if not normalized_pool_manager:
+        return {}
+    try:
+        cache = _load_token_balance_scan_cache(pool_manager=normalized_pool_manager)
+    except Exception:
+        return {}
+    entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
+    metadata: dict[str, dict[str, Any]] = {}
+    for address, entry in entries.items():
+        if not isinstance(entry, dict):
+            continue
+        normalized = _token_address(address) or _token_address(entry.get("address"))
+        if not normalized:
+            continue
+        symbol = _norm_symbol(entry.get("symbol") or entry.get("token_symbol"))
+        decimals = entry.get("decimals")
+        try:
+            decimals = int(decimals) if decimals not in (None, "") else None
+        except (TypeError, ValueError):
+            decimals = None
+        metadata[normalized] = {
+            "address": normalized,
+            "symbol": symbol,
+            "decimals": decimals,
+            "metadataOk": bool(symbol and decimals is not None),
+            "source": "token_balance_scan_cache",
+        }
+    return metadata
+
+
+def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int | None = None) -> dict[str, Any]:
+    address = _token_address(pool.get(f"token{index}"))
+    symbol = _norm_symbol(pool.get(f"token{index}Symbol"))
+    decimals_value = pool.get(f"token{index}Decimals") or pool.get(f"token{index}_decimals")
+    try:
+        decimals = int(decimals_value) if decimals_value not in (None, "") else None
+    except (TypeError, ValueError):
+        decimals = None
+    if address == "0x0000000000000000000000000000000000000000":
+        return {
+            "address": address,
+            "symbol": symbol or "ETH",
+            "decimals": 18,
+            "metadataOk": True,
+            "source": "native_currency",
+        }
+    if address:
+        cached = _v4_token_metadata_cache(_pool_manager_address(pool, chain_id)).get(address.lower())
+        if cached:
+            symbol = symbol or _norm_symbol(cached.get("symbol"))
+            if decimals is None:
+                try:
+                    cached_decimals = cached.get("decimals")
+                    decimals = int(cached_decimals) if cached_decimals not in (None, "") else None
+                except (TypeError, ValueError):
+                    decimals = None
+            if decimals is not None:
+                return {
+                    "address": address,
+                    "symbol": symbol or address[:8].upper(),
+                    "decimals": decimals,
+                    "metadataOk": bool(symbol and decimals is not None),
+                    "source": "token_balance_scan_cache",
+                }
+        live_decimals = _live_v4_token_decimals(address, chain_id=chain_id)
+        if live_decimals is not None:
+            if not symbol:
+                symbol = address[:8].upper()
+            return {
+                "address": address,
+                "symbol": symbol,
+                "decimals": live_decimals,
+                "metadataOk": bool(symbol and live_decimals is not None),
+                "source": "chain_live_erc20_decimals",
+            }
+    if not symbol and address:
+        symbol = address[:8].upper()
+    payload = {
+        "address": address,
+        "symbol": symbol,
+        "decimals": decimals,
+        "metadataOk": bool(symbol and decimals is not None),
+        "source": "pool_index",
+    }
+    return payload
+
+
+def _v4_token_decimals(pool: dict[str, Any], index: int, *, chain_id: int | None = None) -> int | None:
+    metadata = _v4_pool_token_metadata(pool, index, chain_id=chain_id)
+    decimals = metadata.get("decimals")
+    try:
+        return int(decimals) if decimals not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+@lru_cache(maxsize=2048)
+def _live_v4_token_decimals(address: str, *, chain_id: int | None = None) -> int | None:
+    normalized = _token_address(address)
+    if not normalized or normalized == "0x0000000000000000000000000000000000000000":
+        return 18
+    row = chain_data_by_chain_id(chain_id or 0) or {}
+    rpc_url = str(row.get("rpc_url") or row.get("rpcUrl") or "").strip()
+    if not rpc_url:
+        return None
+    timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "6") or 6)
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": timeout}))
+        if not w3.is_connected():
+            return None
+        contract = w3.eth.contract(address=Web3.to_checksum_address(normalized), abi=ERC20_DECIMALS_ABI)
+        return int(contract.functions.decimals().call())
+    except Exception:
+        return None
+
+
 def _pair_tokens(pair: dict[str, Any]) -> list[dict[str, Any]]:
     tokens = []
     for address_key, symbol_key in (("tokenX", "tokenXSymbol"), ("tokenY", "tokenYSymbol")):
@@ -310,17 +466,8 @@ def _pool_reserve_usd(pool: dict[str, Any], index: int, price_map: dict[str, flo
     return None
 
 
-def _pool_token_decimals_trusted(pool: dict[str, Any], index: int) -> bool:
-    symbols = _pool_symbols(pool)
-    symbol = symbols[index] if index < len(symbols) else ""
-    if symbol in {"ETH", "WETH", "WETH.E"}:
-        return True
-    keys = (
-        f"token{index}Decimals",
-        f"token{index}_decimals",
-    )
-    pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
-    return any(pool.get(key) not in (None, "") or pool_key.get(key) not in (None, "") for key in keys)
+def _pool_token_decimals_trusted(pool: dict[str, Any], index: int, *, chain_id: int | None = None) -> bool:
+    return _v4_token_decimals(pool, index, chain_id=chain_id) is not None
 
 
 def _propagate_price_aliases(price_map: dict[str, float]) -> None:
@@ -441,7 +588,7 @@ def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
     return None
 
 
-def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str) -> float | None:
+def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str, *, chain_id: int | None = None) -> float | None:
     if _pool_protocol(pool) != "uniswap_v4":
         return None
     sqrt_price_x96 = _pool_sqrt_price_x96(pool)
@@ -453,10 +600,9 @@ def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str) -> flo
     token0, token1 = tokens[:2]
     if {from_symbol, to_symbol} != {token0.get("symbol"), token1.get("symbol")}:
         return None
-    try:
-        decimals0 = int(token0.get("decimals") or pool.get("token0Decimals") or 18)
-        decimals1 = int(token1.get("decimals") or pool.get("token1Decimals") or 18)
-    except (TypeError, ValueError):
+    decimals0 = _v4_token_decimals(pool, 0, chain_id=chain_id)
+    decimals1 = _v4_token_decimals(pool, 1, chain_id=chain_id)
+    if decimals0 is None or decimals1 is None:
         return None
     raw_price = Decimal(sqrt_price_x96) * Decimal(sqrt_price_x96) / Decimal(2**192)
     human_price = raw_price * (Decimal(10) ** (decimals0 - decimals1))
@@ -480,12 +626,13 @@ def _reference_price_quote(
     input_usd: float,
     price_map: dict[str, float],
     reason: str,
+    chain_id: int | None = None,
 ) -> dict[str, Any] | None:
     fee_bps = _fee_bps(pool)
     fee_factor = max(0.0, 1.0 - fee_bps / 10_000.0)
     rate = _market_reference_rate(pool, from_symbol, to_symbol)
     if rate is None and _pool_protocol(pool) == "uniswap_v4":
-        rate = _v4_spot_rate(pool, from_symbol, to_symbol)
+        rate = _v4_spot_rate(pool, from_symbol, to_symbol, chain_id=chain_id)
     if input_amount is None:
         input_price = price_map.get(from_symbol)
         if input_price and input_price > 0:
@@ -498,7 +645,7 @@ def _reference_price_quote(
     out_index = _pool_side_index(pool, to_symbol, to_address)
     token_decimals_trusted = True
     if _pool_protocol(pool) == "uniswap_v4" and in_index is not None and out_index is not None:
-        token_decimals_trusted = _pool_token_decimals_trusted(pool, in_index) and _pool_token_decimals_trusted(pool, out_index)
+        token_decimals_trusted = _pool_token_decimals_trusted(pool, in_index, chain_id=chain_id) and _pool_token_decimals_trusted(pool, out_index, chain_id=chain_id)
     if output_amount is not None and output_price and output_price > 0:
         output_usd = output_amount * output_price
     elif rate is not None:
@@ -707,38 +854,28 @@ def _edge_quote(
     if protocol == "uniswap_v4":
         if input_amount is not None and input_amount > 0:
             network = _chain_network_name(chain_id) or str(pool.get("network") or "").strip().lower()
-            try:
-                adapter = load_v4_sdk_adapter(network=network, chain_id=chain_id)
-            except Exception:
-                adapter = None
+            adapter = None
+            if network:
+                try:
+                    adapter = load_v4_sdk_adapter(network=network, chain_id=chain_id)
+                except Exception:
+                    adapter = None
             if adapter is not None:
                 try:
-                    try:
-                        input_decimals = int(
-                            pool.get(f"token{in_index}Decimals")
-                            or pool.get(f"token{in_index}_decimals")
-                            or 18
-                        )
-                    except (TypeError, ValueError):
-                        input_decimals = 18
-                    try:
-                        output_decimals = int(
-                            pool.get(f"token{out_index}Decimals")
-                            or pool.get(f"token{out_index}_decimals")
-                            or 18
-                        )
-                    except (TypeError, ValueError):
-                        output_decimals = 18
-                    token_in = _pool_tokens(pool)[in_index].get("address") if len(_pool_tokens(pool)) > in_index else None
-                    token_out = _pool_tokens(pool)[out_index].get("address") if len(_pool_tokens(pool)) > out_index else None
-                    if token_in and token_out:
+                    input_decimals = _v4_token_decimals(pool, in_index, chain_id=chain_id)
+                    output_decimals = _v4_token_decimals(pool, out_index, chain_id=chain_id)
+                    pool_tokens = _pool_tokens(pool)
+                    token_in = pool_tokens[in_index].get("address") if len(pool_tokens) > in_index else None
+                    token_out = pool_tokens[out_index].get("address") if len(pool_tokens) > out_index else None
+                    if token_in and token_out and input_decimals is not None and output_decimals is not None:
+                        amount_in_raw = _raw_from_human(input_amount, input_decimals)
                         request = build_v4_quote_request(
-                            network=network or "robinhood-testnet",
+                            network=network,
                             chain_id=chain_id,
                             pool=_pool_address(pool),
                             token_in=_token_address(token_in),
                             token_out=_token_address(token_out),
-                            amount_in_raw=_raw_from_human(input_amount, input_decimals),
+                            amount_in_raw=amount_in_raw,
                             block_number=None,
                             fee=pool.get("fee"),
                             route_symbols=(from_symbol, to_symbol),
@@ -749,8 +886,8 @@ def _edge_quote(
                             "token1": _token_address(pool.get("token1")),
                             "token0Symbol": _norm_symbol(pool.get("token0Symbol")),
                             "token1Symbol": _norm_symbol(pool.get("token1Symbol")),
-                            "token0Decimals": pool.get("token0Decimals") or pool.get("token0_decimals"),
-                            "token1Decimals": pool.get("token1Decimals") or pool.get("token1_decimals"),
+                            "token0Decimals": _v4_token_decimals(pool, 0, chain_id=chain_id),
+                            "token1Decimals": _v4_token_decimals(pool, 1, chain_id=chain_id),
                             "tickSpacing": pool.get("tickSpacing"),
                             "sqrtPriceX96": pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96"),
                         }
@@ -758,6 +895,11 @@ def _edge_quote(
                         amount_out_raw = int(quote["amountOutRaw"])
                         output_amount = _human_from_raw(amount_out_raw, output_decimals)
                         output_price = _number(price_map.get(to_symbol))
+                        token_decimals_trusted = _pool_token_decimals_trusted(pool, in_index, chain_id=chain_id) and _pool_token_decimals_trusted(
+                            pool,
+                            out_index,
+                            chain_id=chain_id,
+                        )
                         output_usd = output_amount * output_price if output_price > 0 else None
                         return {
                             "pool": pool.get("pool"),
@@ -769,13 +911,13 @@ def _edge_quote(
                             "toSymbol": to_symbol,
                             "tokenIn": _token_address(from_address),
                             "tokenOut": _token_address(to_address),
+                            "amountInRaw": str(amount_in_raw),
+                            "amountOutRaw": str(amount_out_raw),
                             "inputAmount": input_amount,
                             "inputUsd": input_usd,
                             "outputAmount": output_amount,
                             "outputUsd": output_usd,
-                            "effectiveRate": amount_out_raw / _raw_from_human(input_amount, input_decimals)
-                            if input_amount and input_decimals >= 0
-                            else None,
+                            "effectiveRate": amount_out_raw / amount_in_raw if amount_in_raw > 0 else None,
                             "reserveInUsd": _pool_reserve_usd(pool, in_index, price_map),
                             "reserveOutUsd": _pool_reserve_usd(pool, out_index, price_map),
                             "priceImpactBps": None,
@@ -786,6 +928,8 @@ def _edge_quote(
                             "priceEvidenceMode": "live_verified",
                             "livePriceVerified": bool(output_usd is not None),
                             "trustedUsdPrice": bool(output_usd is not None),
+                            "tokenDecimalsTrusted": token_decimals_trusted,
+                            "tokenDecimalAssumption": None if token_decimals_trusted else "missing_token_decimals_untrusted",
                             "quoteMode": quote.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
                             "adapterRequired": False,
                             "sdkAdapter": quote.get("sdkAdapter") or quote.get("quoteAdapter"),
@@ -803,6 +947,7 @@ def _edge_quote(
             input_usd=input_usd,
             price_map=price_map,
             reason="uniswap_v4_sdk_adapter_required",
+            chain_id=chain_id,
         )
         if quote is None:
             return {
@@ -846,6 +991,7 @@ def _edge_quote(
             input_usd=input_usd,
             price_map=price_map,
             reason="concentrated_liquidity_pool_requires_quoter",
+            chain_id=chain_id,
         )
     fee_bps = _fee_bps(pool)
     fee_factor = max(0.0, 1.0 - fee_bps / 10_000.0)
@@ -875,6 +1021,7 @@ def _edge_quote(
                 input_usd=input_usd,
                 price_map=price_map,
                 reason="pool_reserve_price_deviates_from_market_reference",
+                chain_id=chain_id,
             )
     input_after_fee_usd = input_usd * fee_factor
     output_usd = reserve_out_usd * input_after_fee_usd / (reserve_in_usd + input_after_fee_usd)
@@ -1151,11 +1298,7 @@ def _route_quote_analysis(
     token_basis_trusted = bool(token_basis_complete and not assumed_token_decimals)
     token_basis_reference_profitable = bool(reference_net_profit_amount is not None and reference_net_profit_amount > 0)
     token_basis_profitable = bool(token_basis_trusted and token_basis_reference_profitable)
-    non_stable_chain_submission_candidate = bool(
-        token_basis_complete
-        and not borrow_asset_is_stable
-        and token_basis_reference_profitable
-    )
+    non_stable_chain_submission_candidate = bool(token_basis_profitable and not borrow_asset_is_stable)
     executable_ready = bool(complete and not requires_live_quoter)
     final_output_usd = reference_final_output_usd if executable_ready else None
     gross_profit_usd = reference_gross_profit_usd if executable_ready else None
@@ -1235,6 +1378,14 @@ def _route_quote_analysis(
                 "非 U 资金池 X 不套用 6U 固定利润门槛；X 本位净收益为正即可进入链上利润控制候选",
                 *reasons,
             ]
+    elif token_basis_profitable and token_basis_complete and not borrow_asset_is_stable and reference_net_profit_usd is None:
+        action = f"{input_symbol} 本位闭环已验证正收益，进入链上预检"
+        level = "ready_for_precheck"
+        reasons = [
+            "链上 live quote 已验证闭环 token 本位正收益",
+            "当前缺少可信 USD 锚点，但这不应阻断非稳定 X 本位候选",
+            "仍需 static-call / gas / repayment 复核后再广播",
+        ]
     elif net_profit_usd is not None and net_profit_usd >= min_profit_usd:
         action = "进入自动交易预检"
         level = "ready_for_precheck"
@@ -1247,12 +1398,17 @@ def _route_quote_analysis(
         action = "不建议执行"
         level = "reject"
         reasons = ["1000U 静态探针未覆盖交易成本"]
-    executable_candidate = bool(executable_ready and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
+    executable_candidate = bool(
+        executable_ready
+        and not assumed_token_decimals
+        and net_profit_usd is not None
+        and net_profit_usd >= min_profit_usd
+    )
     testnet_live_only = bool(chain_id == ROBINHOOD_TESTNET_CHAIN_ID and requires_live_quoter and not live_price_verified)
     if testnet_live_only:
         executable_candidate = False
 
-    return {
+    payload = {
         "method": "static_amm_depth_probe",
         "notionalUsd": notional_usd,
         "inputSymbol": input_symbol,
@@ -1293,13 +1449,18 @@ def _route_quote_analysis(
         "referenceNetReturnBps": reference_net_return_bps,
         "referenceGasExcluded": token_basis_complete,
         "referenceReturnBasis": "borrow_token" if token_basis_complete else ("usd" if reference_net_profit_usd is not None else None),
-        "referenceReturnTrusted": bool(reference_final_output_usd is not None and (token_basis_trusted or reference_net_profit_usd is not None or live_price_verified)),
+        "referenceReturnTrusted": bool(
+            reference_final_output_usd is not None
+            and not assumed_token_decimals
+            and (token_basis_trusted or reference_net_profit_usd is not None or live_price_verified)
+        ),
         "borrowAssetClass": borrow_asset_class,
         "borrowAssetIsStable": borrow_asset_is_stable,
         "tokenBasisReferenceProfitable": token_basis_reference_profitable,
         "tokenBasisProfitable": token_basis_profitable,
         "chainSubmissionCandidate": bool(
             not testnet_live_only
+            and not assumed_token_decimals
             and (
                 non_stable_chain_submission_candidate
                 or (executable_ready and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
@@ -1315,16 +1476,21 @@ def _route_quote_analysis(
         "chainSubmissionMinProfitAmount": 0.0 if not borrow_asset_is_stable else None,
         "chainSubmissionMinProfitSymbol": input_symbol if not borrow_asset_is_stable else None,
         "profitable": bool(
-            (not untrusted_usd_reference and net_profit_usd is not None and net_profit_usd > 0)
+            (not untrusted_usd_reference and not assumed_token_decimals and net_profit_usd is not None and net_profit_usd > 0)
             or token_basis_profitable
         ),
         "executableCandidate": executable_candidate,
         "sdkAdapterRequiredStepCount": sum(1 for step in steps if step.get("executionTrust") == "sdk_adapter_required"),
-        "trustedUsdReference": bool(reference_final_output_usd is not None and (not untrusted_usd_reference or live_price_verified)),
+        "trustedUsdReference": bool(
+            reference_final_output_usd is not None
+            and not assumed_token_decimals
+            and (not untrusted_usd_reference or live_price_verified)
+        ),
         "tokenDecimalsTrusted": not assumed_token_decimals,
         "recommendation": {"level": level, "action": action, "reasons": reasons},
         "warnings": warnings,
     }
+    return payload
 
 
 def _borrowable_symbols_from_discovery(chain_id: int | None) -> list[str]:
@@ -2130,6 +2296,43 @@ def _path_candidates_from_market_observation(observation: dict[str, Any], *, cha
     return candidates
 
 
+def _route_framework_context_from_observation(
+    observation: dict[str, Any],
+    pool_payload: dict[str, Any],
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+) -> dict[str, Any]:
+    overview_paths = _path_candidates_from_market_observation(observation, chain_id=chain_id)
+    path_source = "market_observation"
+    watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
+    if not overview_paths:
+        overview_paths, watch_pairs, anchor_symbols = _overview_path_candidates(pool_payload, chain_id, protocols=protocols)
+        closed_loop_anchor_symbols = _observation_anchor_symbols(pool_payload, chain_id=chain_id, protocols=protocols)
+        used_market_observation = False
+        path_source = "candidate_pool_fallback"
+    else:
+        anchor_symbols = sorted(
+            {
+                str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
+                for path in overview_paths
+                if str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip()
+            }
+        )
+        closed_loop_anchor_symbols = anchor_symbols
+        used_market_observation = True
+    observation_anchor_symbols = list(observation.get("observationAnchorSymbols") or [])
+    return {
+        "overview_paths": overview_paths,
+        "watch_pairs": watch_pairs,
+        "anchor_symbols": anchor_symbols,
+        "closed_loop_anchor_symbols": closed_loop_anchor_symbols,
+        "observation_anchor_symbols": observation_anchor_symbols,
+        "path_source": path_source,
+        "used_market_observation": used_market_observation,
+    }
+
+
 def _overview_path_candidates(
     pool_payload: dict[str, Any],
     chain_id: int | None,
@@ -2286,17 +2489,146 @@ def _route_with_overview_profit(
     )
 
 
+def _route_execution_size_probe(
+    route_analysis: dict[str, Any],
+    *,
+    chain_id: int | None = None,
+) -> dict[str, Any] | None:
+    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID:
+        return None
+    steps = [
+        step
+        for step in route_analysis.get("steps") or []
+        if isinstance(step, dict)
+        and str(step.get("protocol") or step.get("dex") or "").strip().lower() == "uniswap_v4"
+    ]
+    if not steps:
+        return None
+    network = _chain_network_name(chain_id)
+    if not network:
+        return None
+
+    max_probe_attempts = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_ATTEMPTS", "24") or 24))
+    max_probe_multiplier = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_MULTIPLIER", "64") or 64))
+    min_probe_amount_raw = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MIN_PROBE_AMOUNT_RAW", "1") or 1))
+    step_probes: list[dict[str, Any]] = []
+    successful_maxima: list[int] = []
+    first_failures: list[int] = []
+    total_attempts = 0
+
+    for index, step in enumerate(steps, start=1):
+        input_decimals = _int(step.get("inputDecimals")) or 18
+        amount_in_raw = _int(step.get("amountInRaw"))
+        if amount_in_raw <= 0:
+            amount_in_raw = _raw_from_human(
+                step.get("inputAmount") or step.get("amountIn") or step.get("referenceInputAmount"),
+                input_decimals,
+            )
+        request = {
+            "network": network,
+            "chainId": chain_id,
+            "pool": step.get("pool"),
+            "tokenIn": step.get("tokenIn"),
+            "tokenOut": step.get("tokenOut"),
+            "amountInRaw": str(amount_in_raw or 0),
+            "fee": step.get("fee") or step.get("feeBps"),
+            "quoteMode": step.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
+            "minProbeAmountRaw": str(min_probe_amount_raw),
+            "maxProbeAttempts": str(max_probe_attempts),
+            "maxProbeMultiplier": str(max_probe_multiplier),
+        }
+        try:
+            result = probe_v4_executable_amount_from_pool_index(request)
+            total_attempts += _int(result.get("probeAttempts"))
+            max_executable_amount_raw = _int(result.get("maxExecutableAmountRaw"))
+            first_failure_amount_raw = _int(result.get("firstFailureAmountRaw"))
+            probe_row = {
+                "step": index,
+                "pool": step.get("pool"),
+                "tokenIn": step.get("tokenIn"),
+                "tokenOut": step.get("tokenOut"),
+                "amountInRaw": str(amount_in_raw or 0),
+                "status": result.get("status"),
+                "searchStatus": result.get("searchStatus"),
+                "probeAttempts": result.get("probeAttempts"),
+                "maxExecutableAmountRaw": result.get("maxExecutableAmountRaw"),
+                "firstFailureAmountRaw": result.get("firstFailureAmountRaw"),
+                "quoterAddress": result.get("quoterAddress"),
+            }
+            if max_executable_amount_raw > 0:
+                successful_maxima.append(max_executable_amount_raw)
+            if first_failure_amount_raw > 0:
+                first_failures.append(first_failure_amount_raw)
+        except Exception as exc:
+            probe_row = {
+                "step": index,
+                "pool": step.get("pool"),
+                "tokenIn": step.get("tokenIn"),
+                "tokenOut": step.get("tokenOut"),
+                "amountInRaw": str(amount_in_raw or 0),
+                "status": "probe_failed",
+                "searchStatus": "probe_failed",
+                "error": str(exc),
+            }
+        step_probes.append(probe_row)
+
+    if not step_probes:
+        return None
+
+    probe_success_count = len(successful_maxima)
+    failed_count = len(step_probes) - probe_success_count
+    if probe_success_count == 0:
+        status = "liquidity_probe_unexecutable"
+    elif failed_count > 0:
+        status = "liquidity_probe_partial"
+    else:
+        status = "liquidity_probe_complete"
+    search_status = "bounded" if first_failures else ("lower_bound_verified" if successful_maxima else "no_successful_amount_found")
+    route_max_executable_raw = min(successful_maxima) if successful_maxima else None
+    route_first_failure_raw = min(first_failures) if first_failures else None
+    return {
+        "status": status,
+        "searchStatus": search_status,
+        "probeAttempts": total_attempts,
+        "stepProbes": step_probes,
+        "maxExecutableAmountRaw": str(route_max_executable_raw) if route_max_executable_raw is not None else None,
+        "firstFailureAmountRaw": str(route_first_failure_raw) if route_first_failure_raw is not None else None,
+    }
+
+
 def _route_size_analysis(
     route: dict[str, Any],
     *,
     price_map: dict[str, float],
     chain_id: int | None = None,
 ) -> dict[str, Any]:
+    route_analysis = _route_quote_analysis(route, price_map=price_map, chain_id=chain_id)
+    execution_size_probe = _route_execution_size_probe(route_analysis, chain_id=chain_id)
+
+    def route_quote_analysis_with_probe(
+        inner_route: dict[str, Any],
+        *,
+        price_map: dict[str, float],
+        chain_id: int | None = None,
+        notional_usd: float = QUOTE_PROBE_NOTIONAL_USD,
+        token_basis_input_amount: float | None = None,
+    ) -> dict[str, Any]:
+        analysis = _route_quote_analysis(
+            inner_route,
+            price_map=price_map,
+            chain_id=chain_id,
+            notional_usd=notional_usd,
+            token_basis_input_amount=token_basis_input_amount,
+        )
+        if execution_size_probe and inner_route is route:
+            analysis = {**analysis, **execution_size_probe, "executionSizeProbe": execution_size_probe}
+        return analysis
+
     return build_route_size_analysis(
         route,
         price_map=price_map,
         chain_id=chain_id,
-        route_quote_analysis_fn=_route_quote_analysis,
+        route_quote_analysis_fn=route_quote_analysis_with_probe,
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
     )
 
@@ -2307,29 +2639,35 @@ def dex_overview_payload(
     protocols: list[str] | None = None,
     use_static_observation: bool = False,
 ) -> dict[str, Any]:
+    cached = _cached_framework_surface_payload(
+        "dex_overview",
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
+    if cached is not None:
+        cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
+        return cached
     observation = dex_market_observation_surface_payload(
         chain_id=chain_id,
         protocols=protocols,
         use_static_observation=use_static_observation,
     )
-    ready_paths = _path_candidates_from_market_observation(observation, chain_id=chain_id)
-    used_market_observation = bool(ready_paths)
     pool_payload = _candidate_payload(chain_id, protocols)
     price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
-    watch_pairs = list(observation.get("chainSpecificObservationPairs") or [])
-    anchor_symbols = sorted(
-        {
-            str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
-            for path in ready_paths
-            if str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip()
-        }
+    frame_context = _route_framework_context_from_observation(
+        observation,
+        pool_payload,
+        chain_id=chain_id,
+        protocols=protocols,
     )
-    if not ready_paths:
-        ready_paths, watch_pairs, anchor_symbols = _overview_path_candidates(pool_payload, chain_id, protocols=protocols)
-        used_market_observation = False
+    ready_paths = frame_context["overview_paths"]
+    used_market_observation = bool(frame_context["used_market_observation"])
+    watch_pairs = list(frame_context["watch_pairs"])
+    anchor_symbols = list(frame_context["anchor_symbols"])
+    closed_loop_anchor_symbols = list(frame_context["closed_loop_anchor_symbols"])
+    observation_anchor_symbols = list(frame_context["observation_anchor_symbols"])
     ready_paths = [_route_with_overview_profit(route, price_map=price_map, chain_id=chain_id) for route in ready_paths]
-    closed_loop_anchor_symbols = anchor_symbols if used_market_observation else list(observation.get("observationAnchorSymbols") or anchor_symbols)
-    observation_anchor_symbols = list(observation.get("observationAnchorSymbols") or [])
     overview_profits = [route.get("overviewProfit") or {} for route in ready_paths]
     observed_net_profits = [
         _number(profit.get("observedNetProfitUsd"))
@@ -2361,7 +2699,7 @@ def dex_overview_payload(
             if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
             else "borrow_anchor_to_non_anchor_candidate_path"
         )
-    return {
+    payload = {
         "mode": "dex_overview",
         "chain_id": chain_id,
         "selected_protocols": protocols or [],
@@ -2413,6 +2751,14 @@ def dex_overview_payload(
         "arbitragePaths": ready_paths,
         "watchPairs": watch_pairs,
     }
+    _cache_surface_payload(
+        "dex_overview",
+        payload,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
+    return payload
 
 
 def dex_market_observation_payload(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
@@ -2435,84 +2781,30 @@ def dex_quote_routes_payload(
     settlement = pool_payload.get("dexSettlement") or {}
     price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
     if chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
-        overview = _cached_surface_payload(
-            "dex_overview",
+        return _quote_routes_payload_for_robinhood_testnet(
             chain_id=chain_id,
             protocols=protocols,
             use_static_observation=use_static_observation,
-        )
-        if overview is None:
-            overview = dex_overview_payload(
-                chain_id=chain_id,
-                protocols=protocols,
-                use_static_observation=use_static_observation,
-            )
-        _cache_surface_payload(
-            "dex_overview",
-            overview,
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
-        payload = _quote_routes_payload_from_overview(
-            overview,
-            chain_id=chain_id,
-            protocols=protocols,
             price_map=price_map,
         )
-        _cache_surface_payload(
-            "dex_quote_routes",
-            payload,
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
-        return payload
 
     observation = dex_market_observation_surface_payload(
         chain_id=chain_id,
         protocols=protocols,
         use_static_observation=use_static_observation,
     )
-    overview_paths = _path_candidates_from_market_observation(observation, chain_id=chain_id)
-    path_source = "market_observation"
-    if not overview_paths:
-        overview_paths, _watch_pairs, anchor_symbols = _overview_path_candidates(pool_payload, chain_id, protocols=protocols)
-        closed_loop_anchor_symbols = _observation_anchor_symbols(pool_payload, chain_id=chain_id, protocols=protocols)
-        path_source = "candidate_pool_fallback"
-    else:
-        anchor_symbols = sorted(
-            {
-                str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip().upper()
-                for path in overview_paths
-                if str((path.get("overviewRoute") or {}).get("anchorBorrowSymbol") or "").strip()
-            }
-        )
-        closed_loop_anchor_symbols = anchor_symbols
-    observation_anchor_symbols = list(observation.get("observationAnchorSymbols") or [])
-    overview = {
-        "arbitragePaths": overview_paths,
-        "summary": {
-            "probeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
-            "anchorBorrowSymbols": anchor_symbols,
-            "closedLoopAnchorSymbols": closed_loop_anchor_symbols,
-            "closedLoopAnchorCount": len(closed_loop_anchor_symbols),
-            "observationAnchorSymbols": observation_anchor_symbols,
-            "observationAnchorCount": len(observation_anchor_symbols),
-            "pathSource": path_source,
-        },
-        "marketObservation": {
-            "summary": observation.get("summary") or {},
-            "chainSpecificObservationPairs": observation.get("chainSpecificObservationPairs") or [],
-        },
-        "routeFrameworkSource": path_source,
-        "marketObservationSource": observation.get("marketObservationSource") or "computed",
-        "marketObservationSourceStage": observation.get("marketObservationSourceStage")
-        or observation.get("marketObservationSource")
-        or "computed",
-        "dexSettlement": settlement,
-        "poolStaticTable": pool_payload.get("poolStaticTable") or {},
-    }
+    frame_context = _route_framework_context_from_observation(
+        observation,
+        pool_payload,
+        chain_id=chain_id,
+        protocols=protocols,
+    )
+    overview = _quote_routes_overview_payload(
+        observation=observation,
+        pool_payload=pool_payload,
+        frame_context=frame_context,
+        settlement=settlement,
+    )
     return build_quote_routes_payload_from_overview(
         overview,
         chain_id=chain_id,
@@ -2540,6 +2832,107 @@ def _quote_routes_payload_from_overview(
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
     )
+
+
+def _quote_routes_payload_for_robinhood_testnet(
+    *,
+    chain_id: int | None,
+    protocols: list[str] | None,
+    use_static_observation: bool,
+    price_map: dict[str, float],
+) -> dict[str, Any]:
+    observation = _cached_framework_surface_payload(
+        "dex_market_observation",
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
+    if observation is not None:
+        pool_payload = _candidate_payload(chain_id, protocols)
+        frame_context = _route_framework_context_from_observation(
+            observation,
+            pool_payload,
+            chain_id=chain_id,
+            protocols=protocols,
+        )
+        overview = _quote_routes_overview_payload(
+            observation=observation,
+            pool_payload=pool_payload,
+            frame_context=frame_context,
+            settlement=pool_payload.get("dexSettlement") or {},
+        )
+    else:
+        overview = _cached_surface_payload(
+            "dex_overview",
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        )
+        if overview is None:
+            overview = dex_overview_payload(
+                chain_id=chain_id,
+                protocols=protocols,
+                use_static_observation=use_static_observation,
+            )
+            _cache_surface_payload(
+                "dex_overview",
+                overview,
+                chain_id=chain_id,
+                protocols=protocols,
+                use_static_observation=use_static_observation,
+            )
+    payload = _quote_routes_payload_from_overview(
+        overview,
+        chain_id=chain_id,
+        protocols=protocols,
+        price_map=price_map,
+    )
+    observed_anchor_symbols = list(observation.get("observationAnchorSymbols") or []) if observation is not None else []
+    if observed_anchor_symbols:
+        payload_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+        payload_summary["anchorBorrowSymbols"] = observed_anchor_symbols
+        payload_summary["closedLoopAnchorSymbols"] = observed_anchor_symbols
+        payload["summary"] = payload_summary
+    _cache_surface_payload(
+        "dex_quote_routes",
+        payload,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
+    return payload
+
+
+def _quote_routes_overview_payload(
+    *,
+    observation: dict[str, Any],
+    pool_payload: dict[str, Any],
+    frame_context: dict[str, Any],
+    settlement: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "arbitragePaths": frame_context["overview_paths"],
+        "summary": {
+            "probeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
+            "anchorBorrowSymbols": frame_context["anchor_symbols"],
+            "closedLoopAnchorSymbols": frame_context["closed_loop_anchor_symbols"],
+            "closedLoopAnchorCount": len(frame_context["closed_loop_anchor_symbols"]),
+            "observationAnchorSymbols": frame_context["observation_anchor_symbols"],
+            "observationAnchorCount": len(frame_context["observation_anchor_symbols"]),
+            "pathSource": frame_context["path_source"],
+        },
+        "marketObservation": {
+            "summary": observation.get("summary") or {},
+            "chainSpecificObservationPairs": observation.get("chainSpecificObservationPairs") or [],
+        },
+        "routeFrameworkSource": frame_context["path_source"],
+        "marketObservationSource": observation.get("marketObservationSource") or "computed",
+        "marketObservationSourceStage": observation.get("marketObservationSourceStage")
+        or observation.get("marketObservationSource")
+        or "computed",
+        "dexSettlement": settlement,
+        "poolStaticTable": pool_payload.get("poolStaticTable") or {},
+    }
 
 
 def dex_quote_request_payload(

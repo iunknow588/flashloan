@@ -167,9 +167,10 @@ def _select_recordable_routes(
     routes: list[tuple[int, dict[str, Any], dict[str, Any]]],
     *,
     max_routes: int | None,
+    testnet_full_scan: bool = False,
 ) -> list[tuple[int, dict[str, Any], dict[str, Any]]]:
     selected = list(routes)
-    if max_routes is not None and max_routes >= 0:
+    if not testnet_full_scan and max_routes is not None and max_routes >= 0:
         selected.sort(key=lambda item: _route_priority_key(item[1], original_index=item[0]))
         selected = selected[:max_routes]
         selected.sort(key=lambda item: item[0])
@@ -434,11 +435,20 @@ def build_dex_opportunity_attempts(
             )
     if not recordable_routes:
         return []
-    selected_routes = _select_recordable_routes(recordable_routes, max_routes=max_recordable_routes)
+    testnet_full_scan = _chain_network(payload, chain_id) == "robinhood-testnet"
+    selected_routes = _select_recordable_routes(
+        recordable_routes,
+        max_routes=max_recordable_routes,
+        testnet_full_scan=testnet_full_scan,
+    )
     raw_routes = [route for _, route, _ in selected_routes]
     raw_attempts = [attempt for _, _, attempt in selected_routes]
     evidence_provider = onchain_evidence_provider or build_route_onchain_evidence
-    budget = len(raw_attempts) if max_onchain_evidence_routes is None else max(0, min(len(raw_attempts), int(max_onchain_evidence_routes)))
+    budget = (
+        len(raw_attempts)
+        if testnet_full_scan or max_onchain_evidence_routes is None
+        else max(0, min(len(raw_attempts), int(max_onchain_evidence_routes)))
+    )
     selected_indexes: set[int] = set()
     if budget:
         start = int(onchain_evidence_offset or 0) % len(raw_attempts)

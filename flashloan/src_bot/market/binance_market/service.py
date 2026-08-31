@@ -1392,6 +1392,122 @@ def __legacy_cow_query_rate_for_step(step: dict[str, Any], hop: dict[str, Any] |
     return buy_amount / sell_amount
 
 
+def __legacy_cow_quote_step_context(
+    step: dict[str, Any],
+    rows: dict[str, dict[str, Any]],
+    hop: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    role = str(step.get("target_role") or "")
+    from_symbol = str(step.get("from_symbol") or "").upper()
+    to_symbol = str(step.get("to_symbol") or "").upper()
+    sell_amount = _decimal_value(hop.get("sell_amount") if hop else None) or _decimal_value(step.get("input_amount"))
+    if sell_amount is None or sell_amount <= 0:
+        return None
+    query_price = _cow_query_price_for_step(step, hop)
+    query_rate = _cow_query_rate_for_step(step, hop)
+    price_candidates: list[dict[str, Any]] = []
+    rate_candidates: list[dict[str, Any]] = []
+    target_price_candidate = None
+    acceptable_price_candidate = None
+    target_rate_candidate = None
+    acceptable_rate_candidate = None
+    target_value = None
+    acceptable_value = None
+    target_amount = None
+    min_amount = None
+    query_field = None
+    quote_fields: dict[str, Any] = {}
+    selection_rule = ""
+
+    if role == "buy_price_ceiling":
+        price_candidates = _market_price_candidates(to_symbol, rows, query_price=query_price)
+        target_price_candidate = _select_decimal_candidate(price_candidates, "price", "min")
+        acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
+        target_value = target_price_candidate.get("price") if target_price_candidate else None
+        acceptable_value = acceptable_price_candidate.get("price") if acceptable_price_candidate else None
+        target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
+        min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
+        query_field = "query_price_usd_per_token"
+        selection_rule = "买入：三价取最低价作为目标价，中间价作为可接受滑点价"
+        quote_fields = {
+            "query_price_usd_per_token": _decimal_text(query_price),
+            "target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_slippage_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_exchange_rate": _decimal_text((target_amount / sell_amount) if target_amount is not None else None),
+            "acceptable_slippage_exchange_rate": _decimal_text((min_amount / sell_amount) if min_amount is not None else None),
+            "target_output_amount": _decimal_text(target_amount),
+            "min_output_amount": _decimal_text(min_amount),
+            "selection_rule": selection_rule,
+        }
+    elif role == "sell_price_floor":
+        price_candidates = _market_price_candidates(from_symbol, rows, query_price=query_price)
+        target_price_candidate = _select_decimal_candidate(price_candidates, "price", "max")
+        acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
+        target_value = target_price_candidate.get("price") if target_price_candidate else None
+        acceptable_value = acceptable_price_candidate.get("price") if acceptable_price_candidate else None
+        target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
+        min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
+        query_field = "query_price_usd_per_token"
+        selection_rule = "卖出：三价取最高价作为目标价，中间价作为可接受滑点价"
+        quote_fields = {
+            "query_price_usd_per_token": _decimal_text(query_price),
+            "target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_slippage_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_exchange_rate": _decimal_text((target_amount / sell_amount) if target_amount is not None else None),
+            "acceptable_slippage_exchange_rate": _decimal_text((min_amount / sell_amount) if min_amount is not None else None),
+            "target_output_amount": _decimal_text(target_amount),
+            "min_output_amount": _decimal_text(min_amount),
+            "selection_rule": selection_rule,
+        }
+    elif role == "network_optimized_reference":
+        rate_candidates = _exchange_rate_candidates(from_symbol, to_symbol, rows, query_rate=query_rate)
+        target_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "max")
+        acceptable_rate_candidate = target_rate_candidate
+        target_value = target_rate_candidate.get("rate") if target_rate_candidate else None
+        acceptable_value = acceptable_rate_candidate.get("rate") if acceptable_rate_candidate else None
+        target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
+        min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
+        query_field = "query_exchange_rate"
+        selection_rule = "中间兑换：三种兑换比例取最高比例作为目标，中间比例作为可接受滑点"
+        quote_fields = {
+            "query_exchange_rate": _decimal_text(query_rate),
+            "target_exchange_rate": _decimal_text(target_value),
+            "min_exchange_rate": _decimal_text(acceptable_value),
+            "selected_target_exchange_rate": _decimal_text(target_value),
+            "acceptable_slippage_exchange_rate": _decimal_text(acceptable_value),
+            "target_output_amount": _decimal_text(target_amount),
+            "min_output_amount": _decimal_text(min_amount),
+            "selection_rule": selection_rule,
+        }
+    else:
+        target_amount = _decimal_value(step.get("target_output_amount"))
+        min_amount = _decimal_value(step.get("min_output_amount"))
+
+    return {
+        "role": role,
+        "from_symbol": from_symbol,
+        "to_symbol": to_symbol,
+        "sell_amount": sell_amount,
+        "query_price": query_price,
+        "query_rate": query_rate,
+        "query_field": query_field,
+        "quote_fields": quote_fields,
+        "price_candidates": _serialize_decimal_candidates(price_candidates, "price"),
+        "rate_candidates": _serialize_decimal_candidates(rate_candidates, "rate"),
+        "selected_target_source": _selected_source(target_price_candidate or target_rate_candidate),
+        "selected_acceptable_source": _selected_source(acceptable_price_candidate or acceptable_rate_candidate),
+        "target_value": target_value,
+        "acceptable_value": acceptable_value,
+        "target_amount": target_amount,
+        "min_amount": min_amount,
+        "selection_rule": selection_rule,
+    }
+
+
 def __legacy_apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(plan, dict) or not plan.get("available"):
         return plan
@@ -1402,102 +1518,27 @@ def __legacy_apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[s
         if not isinstance(step, dict):
             continue
         hop = hops[index] if index < len(hops) else None
-        role = str(step.get("target_role") or "")
-        from_symbol = str(step.get("from_symbol") or "").upper()
-        to_symbol = str(step.get("to_symbol") or "").upper()
-        sell_amount = _decimal_value(hop.get("sell_amount") if hop else None) or _decimal_value(step.get("input_amount"))
-        if sell_amount is None or sell_amount <= 0:
+        context = __legacy_cow_quote_step_context(step, rows, hop)
+        if context is None:
             continue
-        query_price = _cow_query_price_for_step(step, hop)
-        query_rate = _cow_query_rate_for_step(step, hop)
-        target_price_candidate = None
-        acceptable_price_candidate = None
-        target_rate_candidate = None
-        acceptable_rate_candidate = None
-        price_candidates: list[dict[str, Any]] = []
-        rate_candidates: list[dict[str, Any]] = []
-        if role == "buy_price_ceiling":
-            price_candidates = _market_price_candidates(to_symbol, rows, query_price=query_price)
-            target_price_candidate = _select_decimal_candidate(price_candidates, "price", "min")
-            acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
-            target_value = target_price_candidate.get("price") if target_price_candidate else None
-            acceptable_value = acceptable_price_candidate.get("price") if acceptable_price_candidate else None
-            target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
-            min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
-            step.update(
-                {
-                    "query_price_usd_per_token": _decimal_text(query_price),
-                    "target_price_usd_per_token": _decimal_text(target_value),
-                    "acceptable_price_usd_per_token": _decimal_text(acceptable_value),
-                    "selected_target_price_usd_per_token": _decimal_text(target_value),
-                    "acceptable_slippage_price_usd_per_token": _decimal_text(acceptable_value),
-                    "selected_target_exchange_rate": _decimal_text((target_amount / sell_amount) if target_amount is not None else None),
-                    "acceptable_slippage_exchange_rate": _decimal_text((min_amount / sell_amount) if min_amount is not None else None),
-                    "target_output_amount": _decimal_text(target_amount),
-                    "min_output_amount": _decimal_text(min_amount),
-                    "selection_rule": "买入：三价取最低价作为目标价，中间价作为可接受滑点价",
-                }
-            )
-        elif role == "sell_price_floor":
-            price_candidates = _market_price_candidates(from_symbol, rows, query_price=query_price)
-            target_price_candidate = _select_decimal_candidate(price_candidates, "price", "max")
-            acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
-            target_value = target_price_candidate.get("price") if target_price_candidate else None
-            acceptable_value = acceptable_price_candidate.get("price") if acceptable_price_candidate else None
-            target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
-            min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
-            step.update(
-                {
-                    "query_price_usd_per_token": _decimal_text(query_price),
-                    "target_price_usd_per_token": _decimal_text(target_value),
-                    "acceptable_price_usd_per_token": _decimal_text(acceptable_value),
-                    "selected_target_price_usd_per_token": _decimal_text(target_value),
-                    "acceptable_slippage_price_usd_per_token": _decimal_text(acceptable_value),
-                    "selected_target_exchange_rate": _decimal_text((target_amount / sell_amount) if target_amount is not None else None),
-                    "acceptable_slippage_exchange_rate": _decimal_text((min_amount / sell_amount) if min_amount is not None else None),
-                    "target_output_amount": _decimal_text(target_amount),
-                    "min_output_amount": _decimal_text(min_amount),
-                    "selection_rule": "卖出：三价取最高价作为目标价，中间价作为可接受滑点价",
-                }
-            )
-        elif role == "network_optimized_reference":
-            rate_candidates = _exchange_rate_candidates(from_symbol, to_symbol, rows, query_rate=query_rate)
-            target_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "max")
-            acceptable_rate_candidate = target_rate_candidate
-            target_value = target_rate_candidate.get("rate") if target_rate_candidate else None
-            acceptable_value = acceptable_rate_candidate.get("rate") if acceptable_rate_candidate else None
-            target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
-            min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
-            step.update(
-                {
-                    "query_exchange_rate": _decimal_text(query_rate),
-                    "target_exchange_rate": _decimal_text(target_value),
-                    "min_exchange_rate": _decimal_text(acceptable_value),
-                    "selected_target_exchange_rate": _decimal_text(target_value),
-                    "acceptable_slippage_exchange_rate": _decimal_text(acceptable_value),
-                    "target_output_amount": _decimal_text(target_amount),
-                    "min_output_amount": _decimal_text(min_amount),
-                    "selection_rule": "中间兑换：三种兑换比例取最高比例作为目标，中间比例作为可接受滑点",
-                }
-            )
-        else:
-            target_amount = _decimal_value(step.get("target_output_amount"))
-            min_amount = _decimal_value(step.get("min_output_amount"))
-        step["price_candidates"] = _serialize_decimal_candidates(price_candidates, "price")
-        step["rate_candidates"] = _serialize_decimal_candidates(rate_candidates, "rate")
-        step["selected_target_source"] = _selected_source(target_price_candidate or target_rate_candidate)
-        step["selected_acceptable_source"] = _selected_source(acceptable_price_candidate or acceptable_rate_candidate)
-        step["query_sell_amount_before_fee"] = _decimal_text(sell_amount)
+        step.update(context["quote_fields"])
+        step["price_candidates"] = context["price_candidates"]
+        step["rate_candidates"] = context["rate_candidates"]
+        step["selected_target_source"] = context["selected_target_source"]
+        step["selected_acceptable_source"] = context["selected_acceptable_source"]
+        step["query_sell_amount_before_fee"] = _decimal_text(context["sell_amount"])
         step["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
         sdk_parameters = dict(step.get("cow_sdk_parameters") or {})
         sdk_parameters.update(
             {
                 "quote_kind": "sell",
-                "sell_token_symbol": from_symbol,
-                "buy_token_symbol": to_symbol,
-                "sell_amount_before_fee": _decimal_text(sell_amount),
-                "target_buy_amount_after_fee": _decimal_text(target_amount),
-                "min_buy_amount_after_fee": _decimal_text(min_amount),
+                "sell_token_symbol": context["from_symbol"],
+                "buy_token_symbol": context["to_symbol"],
+                "sell_amount_before_fee": _decimal_text(context["sell_amount"]),
+                "target_buy_amount_after_fee": context["quote_fields"].get("target_output_amount")
+                or _decimal_text(context["target_amount"]),
+                "min_buy_amount_after_fee": context["quote_fields"].get("min_output_amount")
+                or _decimal_text(context["min_amount"]),
                 "query_buy_amount_after_fee": hop.get("buy_amount") if hop else None,
                 "selected_target_source": step.get("selected_target_source"),
                 "selected_acceptable_source": step.get("selected_acceptable_source"),
@@ -1524,58 +1565,39 @@ def __legacy_apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[
         if not isinstance(step, dict):
             continue
         hop = hops[index] if index < len(hops) else None
-        role = str(step.get("target_role") or "")
-        from_symbol = str(step.get("from_symbol") or "").upper()
-        to_symbol = str(step.get("to_symbol") or "").upper()
-        sell_amount = _decimal_value(hop.get("sell_amount") if hop else None) or _decimal_value(step.get("input_amount"))
-        if sell_amount is None or sell_amount <= 0:
+        context = __legacy_cow_quote_step_context(step, rows, hop)
+        if context is None:
             continue
-        query_price = _cow_query_price_for_step(step, hop)
-        query_rate = _cow_query_rate_for_step(step, hop)
-        price_candidates: list[dict[str, Any]] = []
-        rate_candidates: list[dict[str, Any]] = []
-        if role == "buy_price_ceiling":
-            price_candidates = _market_price_candidates(to_symbol, rows, query_price=query_price)
-            target_value = _decimal_value(step.get("target_price_usd_per_token"))
-            acceptable_value = _decimal_value(step.get("acceptable_price_usd_per_token"))
-            step["query_price_usd_per_token"] = _decimal_text(query_price)
+        role = context["role"]
+        if context["query_field"] == "query_price_usd_per_token":
+            price_candidates = _market_price_candidates(context["to_symbol"] if role == "buy_price_ceiling" else context["from_symbol"], rows, query_price=context["query_price"])
+            target_value = _decimal_value(step.get("selected_target_price_usd_per_token") or step.get("target_price_usd_per_token"))
+            acceptable_value = _decimal_value(step.get("acceptable_slippage_price_usd_per_token") or step.get("acceptable_price_usd_per_token"))
+            step["query_price_usd_per_token"] = _decimal_text(context["query_price"])
             step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
-            step["query_window_timing"] = _query_window_timing(price_candidates, "price", query_value=query_price)
+            step["query_window_timing"] = _query_window_timing(price_candidates, "price", query_value=context["query_price"])
             step["query_guard_analysis"] = _query_guard_analysis(
                 role=role,
-                query_value=query_price,
+                query_value=context["query_price"],
                 target_value=target_value,
                 acceptable_value=acceptable_value,
             )
-        elif role == "sell_price_floor":
-            price_candidates = _market_price_candidates(from_symbol, rows, query_price=query_price)
-            target_value = _decimal_value(step.get("target_price_usd_per_token"))
-            acceptable_value = _decimal_value(step.get("acceptable_price_usd_per_token"))
-            step["query_price_usd_per_token"] = _decimal_text(query_price)
-            step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
-            step["query_window_timing"] = _query_window_timing(price_candidates, "price", query_value=query_price)
-            step["query_guard_analysis"] = _query_guard_analysis(
-                role=role,
-                query_value=query_price,
-                target_value=target_value,
-                acceptable_value=acceptable_value,
-            )
-        elif role == "network_optimized_reference":
-            rate_candidates = _exchange_rate_candidates(from_symbol, to_symbol, rows, query_rate=query_rate)
-            target_value = _decimal_value(step.get("target_exchange_rate"))
-            acceptable_value = _decimal_value(step.get("min_exchange_rate"))
-            step["query_exchange_rate"] = _decimal_text(query_rate)
+        elif context["query_field"] == "query_exchange_rate":
+            rate_candidates = _exchange_rate_candidates(context["from_symbol"], context["to_symbol"], rows, query_rate=context["query_rate"])
+            target_value = _decimal_value(step.get("selected_target_exchange_rate") or step.get("target_exchange_rate"))
+            acceptable_value = _decimal_value(step.get("acceptable_slippage_exchange_rate") or step.get("min_exchange_rate"))
+            step["query_exchange_rate"] = _decimal_text(context["query_rate"])
             step["query_rate_position"] = _decimal_rank_analysis(rate_candidates, "rate")
-            step["query_window_timing"] = _query_window_timing(rate_candidates, "rate", query_value=query_rate)
+            step["query_window_timing"] = _query_window_timing(rate_candidates, "rate", query_value=context["query_rate"])
             step["query_guard_analysis"] = _query_guard_analysis(
                 role=role,
-                query_value=query_rate,
+                query_value=context["query_rate"],
                 target_value=target_value,
                 acceptable_value=acceptable_value,
             )
-        step["price_candidates"] = _serialize_decimal_candidates(price_candidates, "price")
-        step["rate_candidates"] = _serialize_decimal_candidates(rate_candidates, "rate")
-        step["query_sell_amount_before_fee"] = _decimal_text(sell_amount)
+        step["price_candidates"] = context["price_candidates"]
+        step["rate_candidates"] = context["rate_candidates"]
+        step["query_sell_amount_before_fee"] = _decimal_text(context["sell_amount"])
         step["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
         sdk_parameters = dict(step.get("cow_sdk_parameters") or {})
         sdk_parameters["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None

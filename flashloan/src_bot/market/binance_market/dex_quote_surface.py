@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Callable
 from urllib.parse import quote
 
+from intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_analysis import DEFAULT_QUOTE_PROBE_NOTIONAL_USD
 from market.binance_market.dex_quote_route_builder import build_quote_route_payload
 from market.binance_market.dex_quote_route_common import (
@@ -74,26 +76,29 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_symbol = None
     best_token_basis_amount = None
     best_token_basis_bps = None
+    force_live_refresh = str(os.getenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
+    size_probe_limit = max(0, int(os.getenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "3") or 3))
+    probe_all_testnet_routes = chain_id == ROBINHOOD_TESTNET_CHAIN_ID
 
-    for path in paths:
+    for route_index, path in enumerate(paths, start=1):
         route = dict(path)
         overview_route = route.get("overviewRoute") or {}
         route_symbols = list(route.get("routeSymbols") or overview_route.get("pathSymbols") or [])
         route_addresses = list(route.get("routeAddresses") or [])
         route_tokens = list(route.get("routeTokenPath") or [])
         pools = _framework_route_pools(route)
+        base_quote_analysis = route.get("quoteAnalysis") or route.get("overviewProfit") or {}
         quote_analysis = build_quote_analysis_defaults(
-            quote_analysis=route.get("quoteAnalysis") or route.get("overviewProfit") or {},
+            quote_analysis=base_quote_analysis,
             route_symbols=route_symbols,
             price_evidence_source=route.get("priceEvidenceSource")
-            or (route.get("quoteAnalysis") or {}).get("priceEvidenceSource")
+            or base_quote_analysis.get("priceEvidenceSource")
             or "cached_framework_live_confirmation",
             price_evidence_mode=route.get("priceEvidenceMode")
-            or (route.get("quoteAnalysis") or {}).get("priceEvidenceMode")
+            or base_quote_analysis.get("priceEvidenceMode")
             or "framework_reused_live_confirmation",
             notional_usd=quote_probe_notional_usd,
         )
-        size_analysis = dict(route.get("sizeAnalysis") or {})
         analysis_route = dict(route)
         if not route.get("quoteInputs"):
             quote_requests = build_quote_request_specs(
@@ -128,10 +133,10 @@ def build_quote_routes_payload_from_overview(
             )
         else:
             quote_inputs = dict(route.get("quoteInputs") or {})
-        if pools:
+        if pools and (force_live_refresh or not base_quote_analysis.get("steps")):
             analysis_route["quoteInputs"] = quote_inputs
             live_analysis = route_quote_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
-            if live_analysis.get("steps") or live_analysis.get("complete"):
+            if isinstance(live_analysis, dict) and (live_analysis.get("steps") or live_analysis.get("complete")):
                 quote_analysis = build_quote_analysis_defaults(
                     quote_analysis=live_analysis,
                     route_symbols=route_symbols,
@@ -143,8 +148,18 @@ def build_quote_routes_payload_from_overview(
                     or "framework_reused_live_confirmation",
                     notional_usd=quote_probe_notional_usd,
                 )
-        size_analysis = route_size_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
-        size_analysis = dict(size_analysis)
+        size_analysis = dict(route.get("sizeAnalysis") or {})
+        should_probe_size = bool(
+            size_analysis
+            or probe_all_testnet_routes
+            or route_index <= size_probe_limit
+            or quote_analysis.get("livePriceVerified")
+            or quote_analysis.get("executableCandidate")
+            or quote_analysis.get("chainSubmissionCandidate")
+        )
+        if should_probe_size:
+            size_analysis = route_size_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
+            size_analysis = dict(size_analysis)
         path_source = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
         route_payload = build_quote_route_payload(
             route=route,

@@ -1,6 +1,8 @@
-﻿from pathlib import Path
+﻿import json
+from pathlib import Path
 
 from copy import deepcopy
+import intent_trade.chains.robinhood.chain_test_pack as chain_test_pack
 from intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
 from intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
 from intent_trade.chains.robinhood.chain_test_policy import robinhood_chain_test_scope
@@ -135,6 +137,100 @@ def _sample_attempt():
     }
 
 
+
+
+def _testnet_size_cap_attempt():
+    return {
+        "observed_at": "2026-08-31T04:38:21.763336+00:00",
+        "created_at": "2026-08-31T04:38:21.763336+00:00",
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
+        "pair": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+        "route_path": ["ETH", "0X71178B", "0XC9F9C8", "ETH"],
+        "state": "live_verified",
+        "execution_phase": "market_candidate",
+        "trigger_block_number": 109454378,
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "live_verified",
+                "executionTrust": "live_quoter_verified_readonly",
+                "trustedForExecution": False,
+                "readyForTransactionPreflight": True,
+                "blockNumber": 109454378,
+                "triggerBlockNumber": 109454378,
+                "requestedBorrowInputAmountRaw": "1000000000000000000",
+                "routeSymbols": ["ETH", "0X71178B", "0XC9F9C8", "ETH"],
+                "validation": {
+                    "allHopsQuoted": True,
+                    "routeClosed": True,
+                    "finalOutputSymbol": "ETH",
+                    "profitableAfterCosts": True,
+                    "meetsSubmissionProfitThreshold": True,
+                },
+                "blockers": [],
+                "hops": [
+                    {
+                        "hop": 1,
+                        "protocol": "uniswap_v4",
+                        "quoteMethod": "v4_sdk_exact_input_single",
+                        "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+                        "fromSymbol": "ETH",
+                        "toSymbol": "0X71178B",
+                        "tokenIn": "0x0000000000000000000000000000000000000000",
+                        "tokenOut": "0x71178bac73cbeb415514eb542a8995b82669778d",
+                        "amountInRaw": "1000000000000000000",
+                        "amountOutRaw": "4950000000000000000000",
+                        "amountIn": "1",
+                        "amountOut": "4950",
+                        "inputDecimals": 18,
+                        "outputDecimals": 18,
+                        "fee": 10000,
+                    },
+                    {
+                        "hop": 2,
+                        "protocol": "uniswap_v4",
+                        "quoteMethod": "v4_sdk_exact_input_single",
+                        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+                        "fromSymbol": "0X71178B",
+                        "toSymbol": "0XC9F9C8",
+                        "tokenIn": "0x71178bac73cbeb415514eb542a8995b82669778d",
+                        "tokenOut": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+                        "amountInRaw": "4950000000000000000000",
+                        "amountOutRaw": "9870300000000000000000",
+                        "amountIn": "4950",
+                        "amountOut": "9870.3",
+                        "inputDecimals": 18,
+                        "outputDecimals": 18,
+                        "fee": 30,
+                    },
+                    {
+                        "hop": 3,
+                        "protocol": "uniswap_v4",
+                        "quoteMethod": "v4_sdk_exact_input_single",
+                        "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+                        "fromSymbol": "0XC9F9C8",
+                        "toSymbol": "ETH",
+                        "tokenIn": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+                        "tokenOut": "0x0000000000000000000000000000000000000000",
+                        "amountInRaw": "9870300000000000000000",
+                        "amountOutRaw": "1002000000000000000",
+                        "amountIn": "9870.3",
+                        "amountOut": "1.002",
+                        "inputDecimals": 18,
+                        "outputDecimals": 18,
+                        "fee": 5,
+                    },
+                ],
+            }
+        },
+        "precheck": {
+            "status": "transaction_development_required",
+            "ready_for_transaction_preflight": True,
+            "trustedForExecution": False,
+            "reasons": [],
+        },
+    }
+
 def test_build_robinhood_chain_test_plan_marks_preflight_boundary():
     plan = build_robinhood_chain_test_plan(_sample_attempt())
 
@@ -177,6 +273,101 @@ def test_build_robinhood_chain_test_plan_falls_back_to_quote_hops_when_live_evid
     assert plan["evidence"]["allHopsQuoted"] is True
     assert plan["evidence"]["finalOutputSymbol"] == "USDG"
     assert audit["ok"] is True
+
+def test_robinhood_chain_test_plan_records_latest_snapshot_size_gate_block(tmp_path, monkeypatch):
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-08-31T04:50:30.225613+00:00",
+                "snapshots": {
+                    "46630": {
+                        "payload": {
+                            "routes": [
+                                {
+                                    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+                                    "sizeAnalysis": {
+                                        "maxExecutableAmountRaw": "498365714991916341",
+                                        "executionSizeProbe": {
+                                            "status": "liquidity_probe_complete",
+                                        },
+                                    },
+                                    "quoteAnalysis": {
+                                        "executableCandidate": False,
+                                        "chainSubmissionCandidate": False,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chain_test_pack, "ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT", snapshot_path)
+
+    plan = build_robinhood_chain_test_plan(_testnet_size_cap_attempt())
+
+    assert plan["evidence"]["routeOriginalRequestedBorrowAmountRaw"] == 1000000000000000000
+    assert plan["evidence"]["routeRequestedBorrowAmountRaw"] == 498365714991916341
+    assert plan["evidence"]["routeMaxExecutableAmountRaw"] == 498365714991916341
+    assert plan["evidence"]["routeExecutionSizeProbeExceeded"] is False
+    assert plan["evidence"]["routeOriginalExecutionSizeProbeExceeded"] is True
+    assert plan["evidence"]["routeOriginalExecutionSizeShortfallRaw"] == 501634285008083659
+    assert plan["decision"]["readyForTransactionPreflight"] is True
+    assert plan["preflightSpec"]["status"] == "ready_for_fork_staticcall"
+    assert plan["decision"]["blockedReasons"] == []
+
+
+def test_robinhood_chain_test_audit_rejects_size_gate_inconsistency(tmp_path, monkeypatch):
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-08-31T04:50:30.225613+00:00",
+                "snapshots": {
+                    "46630": {
+                        "payload": {
+                            "routes": [
+                                {
+                                    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+                                    "sizeAnalysis": {
+                                        "maxExecutableAmountRaw": "498365714991916341",
+                                        "executionSizeProbe": {
+                                            "status": "liquidity_probe_complete",
+                                        },
+                                    },
+                                    "quoteAnalysis": {
+                                        "executableCandidate": False,
+                                        "chainSubmissionCandidate": False,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chain_test_pack, "ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT", snapshot_path)
+
+    plan = build_robinhood_chain_test_plan(_testnet_size_cap_attempt())
+    plan["evidence"]["routeRequestedBorrowAmountRaw"] = 1000000000000000000
+    plan["evidence"]["routeExecutionSizeProbeExceeded"] = True
+    plan["evidence"]["routeExecutionSizeShortfallRaw"] = 501634285008083659
+    plan["decision"]["readyForTransactionPreflight"] = True
+    plan["preflightSpec"]["status"] = "ready_for_fork_staticcall"
+
+    audit = audit_robinhood_chain_test_plan(plan)
+    codes = {issue["code"] for issue in audit["issues"]}
+
+    assert audit["ok"] is False
+    assert "route_execution_size_gate_exceeded_but_preflight_ready" in codes
+    assert "route_execution_size_gate_exceeded_but_preflight_ready_status" in codes
 
 
 def test_robinhood_chain_test_scope_only_enables_robinhood_family():
@@ -319,14 +510,118 @@ def test_non_stable_chain_test_plan_uses_positive_x_profit_floor():
     assert plan["preflightSpec"]["repaymentConstraint"]["minProfitRaw"] == "1"
     assert plan["preflightSpec"]["repaymentConstraint"]["gasReserveRaw"] == "0"
     assert plan["preflightSpec"]["repaymentConstraint"]["minProfitRule"] == "positive_x_profit_min_raw_unit"
-    assert plan["preflightSpec"]["executionRequest"]["function"] == "requestV4FlashLoanWithValues"
-    assert plan["preflightSpec"]["executionRequest"]["struct"] == "V4FlashAccountingValueRequest"
+    assert plan["preflightSpec"]["executionRequest"]["function"] == "requestV4FlashLoan"
+    assert plan["preflightSpec"]["executionRequest"]["struct"] == "V4FlashAccountingRequest"
     assert plan["preflightSpec"]["executionRequest"]["borrowTokenIsNative"] is True
+    assert plan["preflightSpec"]["executionRequest"]["requiresNativeValueForwarding"] is False
     assert plan["preflightSpec"]["executionRequest"]["transactionValueRaw"] == "0"
     assert plan["preflightSpec"]["executionModel"]["routeExecutionMode"] == "pool_manager_direct_swap_settle_take"
     assert plan["preflightSpec"]["executionModel"]["requiresDirectPoolManagerFlow"] is True
     assert plan["preflightSpec"]["executionModel"]["requiresUniversalRouter"] is False
-    assert plan["preflightSpec"]["executionRequest"]["swapValues"] == [str(10**18), "0"]
+    assert plan["preflightSpec"]["executionModel"]["requiresNativeValueForwarding"] is False
+    assert plan["preflightSpec"]["executionRequest"]["swapValues"] == ["0", "0"]
+
+
+def test_non_stable_three_hop_v4_chain_test_plan_uses_direct_pool_manager_flow():
+    attempt = deepcopy(_sample_attempt())
+    attempt["network"] = "robinhood-testnet"
+    attempt["chain_id"] = 46630
+    attempt["pair"] = "ETH -> A -> B -> ETH"
+    attempt["route_path"] = ["ETH", "A", "B", "ETH"]
+    evidence = attempt["quote"]["live_onchain_evidence"]
+    evidence["network"] = "robinhood-testnet"
+    evidence["chainId"] = 46630
+    evidence["routeSymbols"] = ["ETH", "A", "B", "ETH"]
+    evidence["validation"] = {
+        "allHopsQuoted": True,
+        "routeClosed": True,
+        "finalOutputSymbol": "ETH",
+        "borrowAssetIsStable": False,
+        "profitableAfterCosts": True,
+        "netPositiveAfterCosts": True,
+        "meetsSubmissionProfitThreshold": True,
+        "meetsOffchainProfitThreshold": False,
+    }
+    evidence["costModel"] = {
+        "profitBasis": "borrow_token",
+        "borrowInputAmount": 1.0,
+        "borrowInputSymbol": "ETH",
+        "finalOutputAmount": 1.01,
+        "finalOutputSymbol": "ETH",
+        "flashLoanFeeBps": 5.0,
+        "flashLoanFeeAmount": 0.0005,
+        "submissionNetProfitAmount": 0.0095,
+        "netProfitAmount": 0.0095,
+        "netProfitAmountSymbol": "ETH",
+        "netProfitAmountBps": 95.0,
+        "finalOutputUsd": None,
+        "netProfitUsd": None,
+    }
+    evidence["hops"] = [
+        {
+            "hop": 1,
+            "protocol": "uniswap_v4",
+            "quoteMethod": "uniswap_v4_sdk_exact_input_single",
+            "pool": "0x" + "1" * 40,
+            "fromSymbol": "ETH",
+            "toSymbol": "A",
+            "tokenIn": "0x0000000000000000000000000000000000000000",
+            "tokenOut": "0x" + "a" * 40,
+            "amountInRaw": str(10**18),
+            "amountOutRaw": str(2 * 10**18),
+            "amountIn": "1",
+            "amountOut": "2",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "fee": 3000,
+        },
+        {
+            "hop": 2,
+            "protocol": "uniswap_v4",
+            "quoteMethod": "uniswap_v4_sdk_exact_input_single",
+            "pool": "0x" + "2" * 40,
+            "fromSymbol": "A",
+            "toSymbol": "B",
+            "tokenIn": "0x" + "a" * 40,
+            "tokenOut": "0x" + "b" * 40,
+            "amountInRaw": str(2 * 10**18),
+            "amountOutRaw": str(3 * 10**18),
+            "amountIn": "2",
+            "amountOut": "3",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "fee": 3000,
+        },
+        {
+            "hop": 3,
+            "protocol": "uniswap_v4",
+            "quoteMethod": "uniswap_v4_sdk_exact_input_single",
+            "pool": "0x" + "3" * 40,
+            "fromSymbol": "B",
+            "toSymbol": "ETH",
+            "tokenIn": "0x" + "b" * 40,
+            "tokenOut": "0x0000000000000000000000000000000000000000",
+            "amountInRaw": str(3 * 10**18),
+            "amountOutRaw": str(101 * 10**16),
+            "amountIn": "3",
+            "amountOut": "1.01",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "fee": 3000,
+        },
+    ]
+    attempt["precheck"]["ready_for_transaction_preflight"] = True
+    attempt["precheck"]["requires_live_quoter"] = False
+    attempt["precheck"]["reference_profit_amount"] = None
+
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    assert plan["route"]["hopCount"] == 3
+    assert plan["preflightSpec"]["executionModel"]["routeExecutionMode"] == "pool_manager_direct_swap_settle_take"
+    assert plan["preflightSpec"]["executionModel"]["allV4Hops"] is True
+    assert plan["preflightSpec"]["executionModel"]["requiresDirectPoolManagerFlow"] is True
+    assert plan["preflightSpec"]["executionRequest"]["swapValues"] == ["0", "0", "0"]
+    assert len(plan["preflightSpec"]["routeHops"]) == 3
 
 
 def test_write_robinhood_chain_test_package_creates_contract_notes(tmp_path):
@@ -363,6 +658,7 @@ def test_write_robinhood_testnet_chain_test_package_uses_testnet_scope(tmp_path)
     assert plan["marketId"] == "robinhood-testnet-dex-paused"
     assert plan["chainTestScope"]["mode"] == "testnet_deploy_readback_only"
     assert '"scope": "robinhood_testnet_46630_only"' in contracts
+    assert '"defaultV4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94"' in contracts
     assert '"repaymentConstraint": {' in contracts
     assert '"executionRequest": {' in contracts
     assert '"executionModel": {' in contracts
@@ -443,3 +739,7 @@ def test_chain_test_package_rejects_testnet_attempt_for_mainnet_scope():
 
     assert "network_scope_mismatch" in message
     assert "chain_id_scope_mismatch" in message
+
+
+
+

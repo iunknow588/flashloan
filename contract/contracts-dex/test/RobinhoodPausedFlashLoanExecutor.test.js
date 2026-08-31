@@ -531,6 +531,49 @@ describe("RobinhoodPausedFlashLoanExecutor", function () {
     expect(await poolManager.currencyDebt(await executor.getAddress(), tokenAddress)).to.equal(0n);
   });
 
+  it("runs a mocked direct V4 PoolManager native ETH route before settling", async function () {
+    const { owner, executor, poolManager } = await deployV4FlashFixture();
+    const amount = 1_000n;
+    const minProfit = 1n;
+    await owner.sendTransaction({ to: await poolManager.getAddress(), value: amount + minProfit });
+    await executor.setPaused(false);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = BigInt(block.timestamp + 600);
+    const Token = await ethers.getContractFactory("TestERC20");
+    const tokenBContract = await Token.deploy("Token B", "TKB", 6, owner.address);
+    const tokenB = await tokenBContract.getAddress();
+    await tokenBContract.mint(await poolManager.getAddress(), amount);
+    await poolManager.setSwapTransferQueue([tokenB], [amount]);
+    await poolManager.setNativeSwapTransferQueue([minProfit]);
+
+    const [targets, calldatas, initialToken, finalToken] = await executor.buildV4PoolManagerExactInputRouteCalldata(
+      [v4SwapForDirection(ethers.ZeroAddress, tokenB), v4SwapForDirection(tokenB, ethers.ZeroAddress)],
+      deadline,
+    );
+    const request = {
+      token: ethers.ZeroAddress,
+      amount,
+      swapTargets: Array.from(targets),
+      swapCalldatas: Array.from(calldatas),
+      finalToken: ethers.ZeroAddress,
+      minProfit,
+      gasReserve: 0n,
+    };
+
+    expect(initialToken).to.equal(ethers.ZeroAddress);
+    expect(finalToken).to.equal(ethers.ZeroAddress);
+
+    await expect(executor.requestV4FlashLoan(request))
+      .to.emit(executor, "RobinhoodV4FlashAccountingBorrowed")
+      .withArgs(ethers.ZeroAddress, amount, amount)
+      .and.to.emit(executor, "RobinhoodV4FlashAccountingSettled")
+      .withArgs(ethers.ZeroAddress, amount, amount);
+
+    expect(await poolManager.queryFilter(poolManager.filters.SwapExecuted())).to.have.length(2);
+    expect(await ethers.provider.getBalance(await executor.getAddress())).to.equal(minProfit);
+    expect(await poolManager.currencyDebt(await executor.getAddress(), ethers.ZeroAddress)).to.equal(0n);
+  });
+
   it("previews required balance in borrowed token raw units", async function () {
     const { executor } = await deployFixture();
 

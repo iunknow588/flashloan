@@ -12,6 +12,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.env_loader import load_env_files
 from db.storage import ensure_database_schema, load_latest_liquidation_account_reports
+from db.storage_common import configured_database_url
 from execution.liquidation_samples import serialize_liquidation_failure_samples, write_liquidation_sample_library
 
 
@@ -32,9 +33,7 @@ def main() -> int:
     parser.add_argument("--write-failure-samples", action="store_true", help="Also serialize selected failure samples into liquidation_failure_samples.")
     args = parser.parse_args()
 
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise SystemExit("DATABASE_URL is required")
+    database_url = configured_database_url()
 
     ensure_database_schema(database_url)
     reports = load_latest_liquidation_account_reports(database_url, limit=args.limit)

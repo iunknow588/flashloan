@@ -11,15 +11,14 @@ if str(SRC_ROOT) not in sys.path:
 
 from core.env_loader import load_env_files
 from db.storage import ensure_database_schema, rebuild_liquidation_scan_config_library
+from db.storage_common import configured_database_url
 
 
 load_env_files(__file__)
 
 
 def main() -> int:
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise SystemExit("DATABASE_URL is required")
+    database_url = configured_database_url()
     ensure_database_schema(database_url)
     result = rebuild_liquidation_scan_config_library(database_url)
     print(json.dumps(result, ensure_ascii=False, indent=2))

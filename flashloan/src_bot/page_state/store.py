@@ -4,8 +4,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from core.env_loader import local_json_only_enabled
-from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
+from db.storage_common import (
+    database_unavailable_reason,
+    database_url_or_none as storage_database_url_or_none,
+    is_database_unavailable_error,
+    mark_database_unavailable,
+)
 from web.parameter_config import load_page_state_parameter_map, save_page_state_parameter_map
 
 
@@ -66,11 +70,7 @@ class PageStateStore:
         self._states: _StateCache = _StateCache(self)
 
     def _database_url_or_none(self) -> str | None:
-        import os
-
-        if local_json_only_enabled():
-            return None
-        return os.getenv("DATABASE_URL", "").strip() or None
+        return storage_database_url_or_none()
 
     def _database_sync_enabled(self) -> bool:
         import os

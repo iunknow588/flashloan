@@ -22,6 +22,12 @@ const DEFAULT_V4_POOL_INDEX = path.join(
   "v4_pool_index",
   "latest.json",
 );
+const DEFAULT_OPPORTUNITY_SNAPSHOT = path.join(
+  SRC_BOT_ROOT,
+  "runtime",
+  "cache",
+  "dex_opportunity_snapshot.json",
+);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -133,6 +139,34 @@ function envBigInt(name, fallback = 0n) {
   }
 }
 
+function parseIsoTime(value) {
+  const parsed = Date.parse(String(value || "").trim());
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function snapshotExecutableCandidateCount(snapshot) {
+  const chainSnapshot = snapshot?.snapshots && typeof snapshot.snapshots === "object"
+    ? snapshot.snapshots[String(46630)] || snapshot.snapshots[46630]
+    : null;
+  const summary = chainSnapshot?.summary && typeof chainSnapshot.summary === "object" ? chainSnapshot.summary : {};
+  const payloadSummary = chainSnapshot?.payload?.summary && typeof chainSnapshot.payload.summary === "object"
+    ? chainSnapshot.payload.summary
+    : {};
+  const values = [
+    summary.executableCandidateCount,
+    summary.executable_candidate_count,
+    summary.overviewExecutableCandidateCount,
+    payloadSummary.executableCandidateCount,
+    payloadSummary.executable_candidate_count,
+    payloadSummary.overviewExecutableCandidateCount,
+  ];
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  return null;
+}
+
 function poolIndexById(poolIndex) {
   const rows = Array.isArray(poolIndex.poolKeys) ? poolIndex.poolKeys : [];
   const result = new Map();
@@ -200,8 +234,10 @@ function nativeSwapValue(hop) {
 async function runDynamicRoutePreflight() {
   const planPath = path.resolve(process.env.ROBINHOOD_TESTNET_CHAIN_TEST_PLAN || DEFAULT_CHAIN_TEST_PLAN);
   const poolIndexPath = path.resolve(process.env.ROBINHOOD_TESTNET_V4_POOL_INDEX || DEFAULT_V4_POOL_INDEX);
+  const opportunitySnapshotPath = path.resolve(process.env.ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT || DEFAULT_OPPORTUNITY_SNAPSHOT);
   const plan = readJson(planPath);
   const poolIndex = readJson(poolIndexPath);
+  const opportunitySnapshot = maybeReadJson(opportunitySnapshotPath);
   const executorAddress = normalizeAddress(
     process.env.ROBINHOOD_TESTNET_EXECUTOR_ADDRESS
       || process.env.ROBINHOOD_TESTNET_PAUSED_EXECUTOR_ADDRESS
@@ -233,6 +269,11 @@ async function runDynamicRoutePreflight() {
     expectedChainId: 46630,
     signer: signer ? signer.address : null,
     sourceFiles: { planPath, poolIndexPath },
+    liveOpportunitySnapshot: {
+      path: opportunitySnapshotPath,
+      updatedAt: opportunitySnapshot.updated_at || null,
+      executableCandidateCount: snapshotExecutableCandidateCount(opportunitySnapshot),
+    },
     executor: { address: executorAddress || null, hasCode: false, pausedBefore: null, pausedAfter: null },
     route: {
       pathText: plan?.route?.pathText || plan?.attempt?.pathText || "",
@@ -258,6 +299,11 @@ async function runDynamicRoutePreflight() {
     },
     staticCall: { attempted: false, ok: false, result: null, error: null },
     estimateGas: { attempted: false, ok: false, gas: null, error: null },
+    repaymentCheck: {
+      balanceRaw: null,
+      requiredRaw: null,
+      shortfallRaw: null,
+    },
     hopExecutionChecks: [],
     broadcast: { attempted: false, ok: false, hash: null, error: null },
     operationError: null,
@@ -266,6 +312,29 @@ async function runDynamicRoutePreflight() {
     blockingReasons: Array.from(new Set(allBlockers)),
     readyForDynamicBroadcast: false,
   };
+  const planGeneratedAt = parseIsoTime(plan?.generatedAt || plan?.generated_at);
+  const snapshotUpdatedAt = parseIsoTime(opportunitySnapshot.updated_at);
+  const snapshotExecutableCandidates = snapshotExecutableCandidateCount(opportunitySnapshot);
+  if (
+    snapshotUpdatedAt !== null
+    && planGeneratedAt !== null
+    && snapshotUpdatedAt > planGeneratedAt
+  ) {
+    report.blockingReasons.push("dynamic_route_chain_test_plan_stale_snapshot");
+  }
+  if (snapshotExecutableCandidates !== null && snapshotExecutableCandidates <= 0) {
+    report.blockingReasons.push("dynamic_route_no_executable_candidate_snapshot");
+  }
+  const planReadyForTransactionPreflight = Boolean(plan?.decision?.readyForTransactionPreflight);
+  if (report.blockingReasons.includes("dynamic_route_chain_test_plan_stale_snapshot") || report.blockingReasons.includes("dynamic_route_no_executable_candidate_snapshot")) {
+    report.blockingReasons = Array.from(new Set(report.blockingReasons));
+    return stringify(report);
+  }
+  if (!planReadyForTransactionPreflight) {
+    report.blockingReasons.push("chain_test_plan_not_ready_for_transaction_preflight");
+    report.blockingReasons = Array.from(new Set(report.blockingReasons));
+    return stringify(report);
+  }
 
   if (report.chainId !== report.expectedChainId) report.blockingReasons.push("unexpected_chain_id");
   if (!executorAddress) report.blockingReasons.push("executor_address_missing");
@@ -438,7 +507,14 @@ async function runDynamicRoutePreflight() {
             report.blockingReasons.push("dynamic_v4_currency_not_settled");
           }
           if (report.staticCall.error?.decoded?.name === "BadFlashRepayment") {
+            const [balanceRaw, requiredRaw] = report.staticCall.error.decoded.args || [];
+            const balance = toBigInt(balanceRaw);
+            const required = toBigInt(requiredRaw);
+            report.repaymentCheck.balanceRaw = balance.toString();
+            report.repaymentCheck.requiredRaw = required.toString();
+            report.repaymentCheck.shortfallRaw = required > balance ? (required - balance).toString() : "0";
             report.blockingReasons.push("dynamic_v4_bad_flash_repayment");
+            report.blockingReasons.push("dynamic_v4_balance_shortfall");
           }
           if (report.executor.pausedBefore && !allowUnpause) report.blockingReasons.push("paused_gate_blocks_execution");
           else report.blockingReasons.push("dynamic_route_static_call_failed");
@@ -469,7 +545,14 @@ async function runDynamicRoutePreflight() {
             report.blockingReasons.push("dynamic_v4_currency_not_settled");
           }
           if (report.estimateGas.error?.decoded?.name === "BadFlashRepayment") {
+            const [balanceRaw, requiredRaw] = report.estimateGas.error.decoded.args || [];
+            const balance = toBigInt(balanceRaw);
+            const required = toBigInt(requiredRaw);
+            report.repaymentCheck.balanceRaw = balance.toString();
+            report.repaymentCheck.requiredRaw = required.toString();
+            report.repaymentCheck.shortfallRaw = required > balance ? (required - balance).toString() : "0";
             report.blockingReasons.push("dynamic_v4_bad_flash_repayment");
+            report.blockingReasons.push("dynamic_v4_balance_shortfall");
           }
           report.blockingReasons.push("dynamic_route_estimate_gas_failed");
         }

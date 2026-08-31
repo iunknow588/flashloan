@@ -12,7 +12,7 @@ from market.aave_reserve_cache import load_aave_reserve_symbols
 from core.config_schema import parse_env_float, parse_env_int
 from core.env_loader import load_env_files
 from market.observer import ASSETS, DEFAULT_EXECUTABLE_SYMBOLS, DEFAULT_RPC, env_list
-from db.storage import require_psycopg
+from db.storage_common import configured_database_url, db_connection
 from strategy.limits import DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT, DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT
 
 
@@ -34,7 +34,9 @@ def executable_symbols() -> set[str]:
     return {symbol for symbol in configured if symbol in ASSETS}
 
 
-def fetch_candidates(database_url: str, since_minutes: int, limit: int) -> list[dict]:
+def fetch_candidates(database_url: str | None, since_minutes: int, limit: int) -> list[dict]:
+    if not database_url:
+        return []
     query = """
         SELECT observed_at, window_seconds, sample_count,
                top_symbol_1, top_change_percent_1, top_start_price_1, top_end_price_1,
@@ -48,8 +50,7 @@ def fetch_candidates(database_url: str, since_minutes: int, limit: int) -> list[
     """
     min_up = parse_env_float("TRIGGER_MIN_UP_CHANGE_PERCENT", DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT, minimum=0)[0]
     min_down = parse_env_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT, minimum=0)[0]
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, (since_minutes, min_up, min_down, limit))
             rows = cursor.fetchall()
@@ -143,9 +144,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not configured")
+    database_url = configured_database_url()
 
     executable = executable_symbols()
     candidates = fetch_candidates(database_url, args.since_minutes, args.limit)

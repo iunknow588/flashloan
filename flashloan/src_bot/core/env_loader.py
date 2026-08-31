@@ -9,17 +9,18 @@ SENSITIVE_ENV_MARKERS = (
     "DATABASE_URL",
     "JWT",
 )
-LOCAL_JSON_ONLY_ENV_KEYS = (
-    "FLASHLOAN_LOCAL_JSON_ONLY",
-    "FLASHLOAN_DISABLE_DATABASE",
-)
+
+
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def disable_database_alias_enabled() -> bool:
+    return _env_flag("FLASHLOAN_DISABLE_DATABASE")
 
 
 def local_json_only_enabled() -> bool:
-    return any(
-        os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
-        for name in LOCAL_JSON_ONLY_ENV_KEYS
-    )
+    return _env_flag("FLASHLOAN_LOCAL_JSON_ONLY") or disable_database_alias_enabled()
 
 
 def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:

@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-from db.storage import require_psycopg
+from db.storage_common import db_connection
 
 
 def testnet_trade_stats(repo_root: Path) -> dict:
@@ -31,7 +31,9 @@ def testnet_trade_stats(repo_root: Path) -> dict:
     }
 
 
-def trade_stats(database_url: str) -> dict:
+def trade_stats(database_url: str | None) -> dict | None:
+    if not database_url:
+        return None
     query = """
         SELECT
             COUNT(*) AS candidates,
@@ -63,8 +65,9 @@ def testnet_trade_log_path(repo_root: Path) -> Path:
 
 
 def fetch_one(database_url: str, query: str, params: tuple = ()) -> tuple | None:
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    if not database_url:
+        return None
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             return cursor.fetchone()

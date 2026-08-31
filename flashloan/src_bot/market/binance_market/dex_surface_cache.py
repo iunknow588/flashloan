@@ -5,7 +5,7 @@ import threading
 from typing import Any
 
 
-_DEX_SURFACE_CACHE: dict[tuple[str, int | None, tuple[str, ...]], dict[str, Any]] = {}
+_DEX_SURFACE_CACHE: dict[tuple[str, int | None, tuple[str, ...], bool], dict[str, Any]] = {}
 _DEX_SURFACE_CACHE_LOCK = threading.Lock()
 
 
@@ -18,8 +18,9 @@ def _surface_cache_key(
     *,
     chain_id: int | None,
     protocols: list[str] | None,
-) -> tuple[str, int | None, tuple[str, ...]]:
-    return (surface, chain_id, _protocols_key(protocols))
+    use_static_observation: bool = False,
+) -> tuple[str, int | None, tuple[str, ...], bool]:
+    return (surface, chain_id, _protocols_key(protocols), bool(use_static_observation))
 
 
 def _cache_surface_payload(
@@ -30,7 +31,12 @@ def _cache_surface_payload(
     protocols: list[str] | None,
     use_static_observation: bool = False,
 ) -> None:
-    key = _surface_cache_key(surface, chain_id=chain_id, protocols=protocols)
+    key = _surface_cache_key(
+        surface,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
     with _DEX_SURFACE_CACHE_LOCK:
         _DEX_SURFACE_CACHE[key] = deepcopy(payload)
 
@@ -42,7 +48,12 @@ def _cached_surface_payload(
     protocols: list[str] | None,
     use_static_observation: bool = False,
 ) -> dict[str, Any] | None:
-    key = _surface_cache_key(surface, chain_id=chain_id, protocols=protocols)
+    key = _surface_cache_key(
+        surface,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
     with _DEX_SURFACE_CACHE_LOCK:
         payload = _DEX_SURFACE_CACHE.get(key)
     return deepcopy(payload) if payload is not None else None

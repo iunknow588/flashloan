@@ -42,13 +42,13 @@ def _with_facade_fetch_one(function, *args):
         data_db.fetch_one = original_fetch_one
 
 
-def latest_binance_extremes(database_url: str, latest_path: Path) -> Optional[dict]:
+def latest_binance_extremes(database_url: str | None, latest_path: Path) -> Optional[dict]:
     data = read_json(latest_path)
     if data:
         compact = compact_extremes_payload(data)
         if compact:
             return compact
-    return latest_extremes_from_db(database_url)
+    return latest_extremes_from_db(database_url) if database_url else None
 
 
 def latest_binance_extremes_file(latest_path: Path) -> Optional[dict]:
@@ -60,7 +60,9 @@ def latest_arbitrage_simulation_file(latest_path: Path) -> Optional[dict]:
     return read_json(latest_path)
 
 
-def latest_arbitrage_simulation(database_url: str, latest_path: Path) -> Optional[dict]:
+def latest_arbitrage_simulation(database_url: str | None, latest_path: Path) -> Optional[dict]:
+    if not database_url:
+        return read_json(latest_path)
     return read_json(latest_path) or latest_arbitrage_from_db(database_url)
 
 

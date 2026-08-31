@@ -10,20 +10,18 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
-from db.storage import ensure_database_schema, record_liquidation_scan_config_snapshot, require_psycopg
+from db.storage import ensure_database_schema, record_liquidation_scan_config_snapshot
+from db.storage_common import configured_database_url, db_connection
 
 
 load_env_files(__file__)
 
 
 def main() -> int:
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise SystemExit("DATABASE_URL is required")
+    database_url = configured_database_url()
 
     ensure_database_schema(database_url)
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM liquidation_accounts")
             cursor.execute("DELETE FROM liquidation_discovery_scans")

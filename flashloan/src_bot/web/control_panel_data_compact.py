@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from db.storage import require_psycopg
+from db.storage_common import db_connection
 
 
 def compact_extreme(items: list[dict], index: int) -> dict:
@@ -151,9 +151,10 @@ def string_like_arbitrage_keys() -> set[str]:
     }
 
 
-def fetch_one(database_url: str, query: str, params: tuple = ()) -> Optional[tuple]:
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+def fetch_one(database_url: str | None, query: str, params: tuple = ()) -> Optional[tuple]:
+    if not database_url:
+        return None
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             return cursor.fetchone()

@@ -11,17 +11,10 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
+from db.storage_common import configured_database_url, db_connection
 
 
 load_env_files(__file__)
-
-
-def require_psycopg():
-    try:
-        import psycopg
-    except ImportError as exc:
-        raise RuntimeError("Missing dependency: install psycopg[binary]") from exc
-    return psycopg
 
 
 def pct(start: float, end: float) -> float:
@@ -57,10 +50,11 @@ def summarize(values: list[dict], thresholds: list[float]) -> dict:
     return summary
 
 
-def load_price_history(database_url: str, hours: float) -> list[tuple]:
-    psycopg = require_psycopg()
+def load_price_history(database_url: str | None, hours: float) -> list[tuple]:
+    if not database_url:
+        return []
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -150,9 +144,7 @@ def main() -> int:
     parser.add_argument("--thresholds", type=float, nargs="+", default=[1.0])
     args = parser.parse_args()
 
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not configured")
+    database_url = configured_database_url()
 
     rows = load_price_history(database_url, args.hours)
     for window_seconds in args.window_seconds:

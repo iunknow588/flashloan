@@ -138,6 +138,213 @@ def test_v4_route_uses_injected_quote_adapter(monkeypatch):
     assert evidence["trustedForExecution"] is False
 
 
+def test_robinhood_testnet_closed_loop_v4_route_probes_size_without_route_metadata(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    captured = {"probe_calls": 0}
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(
+        dex_onchain_quote_evidence,
+        "_probe_robinhood_testnet_route_execution_size",
+        lambda *args, **kwargs: {
+            "status": "route_execution_size_probe_complete",
+            "searchStatus": "bounded",
+            "probeAttempts": 3,
+            "requestedAmountRaw": "1000000000000000000",
+            "maxExecutableAmountRaw": "750000000000000000",
+            "firstFailureAmountRaw": "800000000000000000",
+        },
+    )
+
+    def fake_quote_hop_provider(*, w3, quoter, step, pool, amount_in_raw, block_number, token_cache):
+        captured["probe_calls"] += 1
+        output_map = {
+            1: "0x" + "2" * 40,
+            2: "0x" + "3" * 40,
+            3: "0x" + "0" * 40,
+        }
+        amount_out_raw = amount_in_raw + 1
+        return {
+            "status": "live_verified",
+            "quoteMethod": "fake_quote",
+            "pool": step.get("pool"),
+            "tokenIn": step.get("tokenIn"),
+            "tokenOut": step.get("tokenOut"),
+            "fee": step.get("fee") or 0,
+            "amountInRaw": str(amount_in_raw),
+            "amountOutRaw": str(amount_out_raw),
+            "amountIn": "1",
+            "amountOut": "2",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "quoterGasEstimate": 12345,
+        }
+
+    route = {
+        "network": "robinhood-testnet",
+        "routeSymbols": ["ETH", "A", "B", "ETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "protocol": "uniswap_v4",
+                    "token0": "0x0000000000000000000000000000000000000000",
+                    "token1": "0x" + "2" * 40,
+                    "token0Symbol": "ETH",
+                    "token1Symbol": "A",
+                },
+                {
+                    "pool": "0x" + "2" * 40,
+                    "protocol": "uniswap_v4",
+                    "token0": "0x" + "2" * 40,
+                    "token1": "0x" + "3" * 40,
+                    "token0Symbol": "A",
+                    "token1Symbol": "B",
+                },
+                {
+                    "pool": "0x" + "3" * 40,
+                    "protocol": "uniswap_v4",
+                    "token0": "0x" + "3" * 40,
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token0Symbol": "B",
+                    "token1Symbol": "ETH",
+                },
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "referenceInputAmount": 1.0,
+            "inputSymbol": "ETH",
+            "outputSymbol": "ETH",
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "executableCandidate": True,
+            "chainSubmissionCandidate": True,
+            "steps": [
+                {"hop": 1, "fromSymbol": "ETH", "toSymbol": "A", "protocol": "uniswap_v4", "pool": "0x" + "1" * 40, "tokenIn": "0x0000000000000000000000000000000000000000", "tokenOut": "0x" + "2" * 40, "fee": 100},
+                {"hop": 2, "fromSymbol": "A", "toSymbol": "B", "protocol": "uniswap_v4", "pool": "0x" + "2" * 40, "tokenIn": "0x" + "2" * 40, "tokenOut": "0x" + "3" * 40, "fee": 3000},
+                {"hop": 3, "fromSymbol": "B", "toSymbol": "ETH", "protocol": "uniswap_v4", "pool": "0x" + "3" * 40, "tokenIn": "0x" + "3" * 40, "tokenOut": "0x0000000000000000000000000000000000000000", "fee": 500},
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=fake_quote_hop_provider,
+    )
+
+    assert captured["probe_calls"] == 3
+    assert evidence["executionSizeProbe"]["status"] == "route_execution_size_probe_complete"
+    assert evidence["executionSizeProbe"]["maxExecutableAmountRaw"] == "750000000000000000"
+    assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000"
+    assert evidence["status"] == "live_verified"
+
+
+def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_quote(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    captured_amounts = []
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+
+    def fake_quote_hop_provider(*, w3, quoter, step, pool, amount_in_raw, block_number, token_cache):
+        captured_amounts.append(int(amount_in_raw))
+        amount_out_raw = int(amount_in_raw) + int(amount_in_raw // 2) + 1
+        return {
+            "status": "live_verified",
+            "quoteMethod": "fake_quote",
+            "pool": step.get("pool"),
+            "tokenIn": step.get("tokenIn"),
+            "tokenOut": step.get("tokenOut"),
+            "fee": step.get("fee") or 0,
+            "amountInRaw": str(amount_in_raw),
+            "amountOutRaw": str(amount_out_raw),
+            "amountIn": "1",
+            "amountOut": "2",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "quoterGasEstimate": 12345,
+        }
+
+    route = {
+        "network": "robinhood-testnet",
+        "routeSymbols": ["ETH", "A", "B", "ETH"],
+        "routeAddresses": [
+            "0x0000000000000000000000000000000000000000",
+            "0x" + "2" * 40,
+            "0x" + "3" * 40,
+            "0x0000000000000000000000000000000000000000",
+        ],
+        "sizeAnalysis": {
+            "status": "liquidity_probe_complete",
+            "searchStatus": "bounded",
+            "probeAttempts": 3,
+            "maxExecutableAmountRaw": "750000000000000000",
+            "firstFailureAmountRaw": "800000000000000000",
+            "executionSizeProbe": {
+                "status": "liquidity_probe_complete",
+                "searchStatus": "bounded",
+                "probeAttempts": 3,
+                "maxExecutableAmountRaw": "750000000000000000",
+                "firstFailureAmountRaw": "800000000000000000",
+            },
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "referenceInputAmount": 1.0,
+            "inputSymbol": "ETH",
+            "outputSymbol": "ETH",
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "executableCandidate": True,
+            "chainSubmissionCandidate": True,
+            "steps": [
+                {"hop": 1, "fromSymbol": "ETH", "toSymbol": "A", "protocol": "uniswap_v4", "pool": "0x" + "1" * 40, "tokenIn": "0x0000000000000000000000000000000000000000", "tokenOut": "0x" + "2" * 40, "fee": 100},
+                {"hop": 2, "fromSymbol": "A", "toSymbol": "B", "protocol": "uniswap_v4", "pool": "0x" + "2" * 40, "tokenIn": "0x" + "2" * 40, "tokenOut": "0x" + "3" * 40, "fee": 3000},
+                {"hop": 3, "fromSymbol": "B", "toSymbol": "ETH", "protocol": "uniswap_v4", "pool": "0x" + "3" * 40, "tokenIn": "0x" + "3" * 40, "tokenOut": "0x0000000000000000000000000000000000000000", "fee": 500},
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=fake_quote_hop_provider,
+    )
+
+    assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000"
+    assert evidence["selectedBorrowInputAmountRaw"] == "750000000000000000"
+    assert evidence["hops"][0]["amountInRaw"] == "750000000000000000"
+    assert captured_amounts[-3] == 750000000000000000
+    assert evidence["status"] == "live_verified"
+
+
 def test_robinhood_testnet_chain_default_v4_adapter_is_configured():
     adapter = load_v4_sdk_adapter(network="robinhood-testnet")
 
@@ -204,6 +411,11 @@ def test_robinhood_testnet_v4_pool_index_adapter_uses_live_pool_state(monkeypatc
             "rpcUrl": "https://rpc.example",
         },
     )
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_quote_v4_exact_input_single",
+        lambda **kwargs: (99 * 10**16, 123456),
+    )
 
     quote = v4_quote_adapter.quote_v4_exact_input_single_from_pool_index(
         {
@@ -216,11 +428,215 @@ def test_robinhood_testnet_v4_pool_index_adapter_uses_live_pool_state(monkeypatc
         }
     )
 
-    assert quote["quoteMethod"] == "robinhood_testnet_v4_poolmanager_live_state_spot_quote"
+    assert quote["quoteMethod"] == "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call"
     assert quote["amountOutRaw"] == str(99 * 10**16)
     assert quote["sdkAdapter"].endswith("quote_v4_exact_input_single_from_pool_index")
+    assert quote["quoterGasEstimate"] == 123456
     assert quote["poolState"]["source"] == "pool_manager_extsload_live_state"
     assert quote["poolState"]["lpFee"] == 100
+
+
+def test_robinhood_testnet_v4_pool_index_adapter_normalizes_raw_v4_fee_units(monkeypatch):
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_pool_rows",
+        lambda: [
+            {
+                "poolId": "0x" + "1" * 64,
+                "token0": "0x" + "2" * 40,
+                "token1": "0x" + "3" * 40,
+                "fee": 10000,
+                "tickSpacing": 60,
+                "sqrtPriceX96": str(2**96),
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_pool_manager_address",
+        lambda *args, **kwargs: "0x" + "4" * 40,
+    )
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_read_live_pool_state",
+        lambda **kwargs: {
+            "source": "pool_manager_extsload_live_state",
+            "poolManager": "0x" + "4" * 40,
+            "poolId": "0x" + "1" * 64,
+            "stateSlot": "0x" + "5" * 64,
+            "sqrtPriceX96": str(2**96),
+            "tick": 0,
+            "protocolFee": 0,
+            "lpFee": 10000,
+            "liquidity": str(10**18),
+            "rpcUrl": "https://rpc.example",
+        },
+    )
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_quote_v4_exact_input_single",
+        lambda **kwargs: (99 * 10**16, 123456),
+    )
+
+    quote = v4_quote_adapter.quote_v4_exact_input_single_from_pool_index(
+        {
+            "pool": "0x" + "1" * 64,
+            "tokenIn": "0x" + "2" * 40,
+            "tokenOut": "0x" + "3" * 40,
+            "amountInRaw": str(10**18),
+            "fee": 10000,
+            "quoteMode": "uniswap_v4_sdk_exact_input_single",
+        }
+    )
+
+    assert quote["quoteMethod"] == "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call"
+    assert quote["amountOutRaw"] == str(99 * 10**16)
+    assert quote["poolState"]["lpFee"] == 10000
+
+
+def test_robinhood_testnet_v4_liquidity_probe_finds_max_executable_amount(monkeypatch):
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_resolve_v4_quote_context",
+        lambda request: {
+            "pool": {
+                "pool": "0x" + "1" * 64,
+                "poolId": "0x" + "1" * 64,
+                "token0": "0x" + "2" * 40,
+                "token1": "0x" + "3" * 40,
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x" + "0" * 40,
+            },
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "poolId": "0x" + "1" * 64,
+            "poolManager": "0x" + "4" * 40,
+            "quoterAddress": "0x" + "5" * 40,
+            "w3": None,
+            "rpcUrl": "https://rpc.example",
+            "liveState": {
+                "source": "pool_manager_extsload_live_state",
+                "poolManager": "0x" + "4" * 40,
+                "poolId": "0x" + "1" * 64,
+                "stateSlot": "0x" + "6" * 64,
+                "sqrtPriceX96": str(2**96),
+                "tick": 0,
+                "protocolFee": 0,
+                "lpFee": 3000,
+                "liquidity": str(10**18),
+                "rpcUrl": "https://rpc.example",
+            },
+            "amountInRaw": int(request["amountInRaw"]),
+            "feeBps": 30,
+            "hookData": b"",
+            "zeroForOne": True,
+            "poolKey": (
+                "0x" + "2" * 40,
+                "0x" + "3" * 40,
+                3000,
+                60,
+                "0x" + "0" * 40,
+            ),
+            "callFrom": None,
+        },
+    )
+
+    def fake_quote(**kwargs):
+        amount = int(kwargs["amount_in_raw"])
+        if amount > 60:
+            raise RuntimeError("robinhood testnet v4 quoter reverted: NotEnoughLiquidity(bytes32)")
+        return amount * 2, 123456
+
+    monkeypatch.setattr(v4_quote_adapter, "_quote_v4_exact_input_single", fake_quote)
+
+    result = v4_quote_adapter.probe_v4_executable_amount_from_pool_index(
+        {
+            "pool": "0x" + "1" * 64,
+            "tokenIn": "0x" + "2" * 40,
+            "tokenOut": "0x" + "3" * 40,
+            "amountInRaw": "100",
+            "fee": 3000,
+            "quoteMode": "uniswap_v4_sdk_exact_input_single",
+            "maxProbeAttempts": 24,
+        }
+    )
+
+    assert result["status"] == "liquidity_probe_complete"
+    assert result["maxExecutableAmountRaw"] == "60"
+    assert result["firstFailureAmountRaw"] == "61"
+    assert int(result["probeAttempts"]) > 1
+
+
+def test_robinhood_testnet_v4_liquidity_probe_reports_unexecutable_amount(monkeypatch):
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_resolve_v4_quote_context",
+        lambda request: {
+            "pool": {
+                "pool": "0x" + "1" * 64,
+                "poolId": "0x" + "1" * 64,
+                "token0": "0x" + "2" * 40,
+                "token1": "0x" + "3" * 40,
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x" + "0" * 40,
+            },
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "poolId": "0x" + "1" * 64,
+            "poolManager": "0x" + "4" * 40,
+            "quoterAddress": "0x" + "5" * 40,
+            "w3": None,
+            "rpcUrl": "https://rpc.example",
+            "liveState": {
+                "source": "pool_manager_extsload_live_state",
+                "poolManager": "0x" + "4" * 40,
+                "poolId": "0x" + "1" * 64,
+                "stateSlot": "0x" + "6" * 64,
+                "sqrtPriceX96": str(2**96),
+                "tick": 0,
+                "protocolFee": 0,
+                "lpFee": 3000,
+                "liquidity": str(10**18),
+                "rpcUrl": "https://rpc.example",
+            },
+            "amountInRaw": int(request["amountInRaw"]),
+            "feeBps": 30,
+            "hookData": b"",
+            "zeroForOne": True,
+            "poolKey": (
+                "0x" + "2" * 40,
+                "0x" + "3" * 40,
+                3000,
+                60,
+                "0x" + "0" * 40,
+            ),
+            "callFrom": None,
+        },
+    )
+
+    def fake_quote(**kwargs):
+        raise RuntimeError("robinhood testnet v4 quoter reverted: NotEnoughLiquidity(bytes32)")
+
+    monkeypatch.setattr(v4_quote_adapter, "_quote_v4_exact_input_single", fake_quote)
+
+    result = v4_quote_adapter.probe_v4_executable_amount_from_pool_index(
+        {
+            "pool": "0x" + "1" * 64,
+            "tokenIn": "0x" + "2" * 40,
+            "tokenOut": "0x" + "3" * 40,
+            "amountInRaw": "1",
+            "fee": 3000,
+            "quoteMode": "uniswap_v4_sdk_exact_input_single",
+            "maxProbeAttempts": 4,
+        }
+    )
+
+    assert result["status"] == "liquidity_probe_unexecutable"
+    assert result["searchStatus"] == "no_successful_amount_found"
+    assert result["minExecutableAmountRaw"] is None
+    assert result["maxExecutableAmountRaw"] is None
 
 
 def test_non_robinhood_route_records_adapter_gap():

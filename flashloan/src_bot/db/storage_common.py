@@ -8,6 +8,7 @@ import time
 from typing import Callable, Iterator, TypeVar
 
 from core.config_schema import parse_env_int
+from core.env_loader import local_json_only_enabled
 
 OBSERVER_ADVISORY_LOCK_ID = 2026072801
 SCHEMA_ADVISORY_LOCK_ID = 2026073102
@@ -89,6 +90,21 @@ def require_psycopg_pool():
     except ImportError:
         return None
     return ConnectionPool
+
+
+def database_url_or_none(database_url: str | None = None) -> str | None:
+    if local_json_only_enabled():
+        return None
+    return str(database_url or os.getenv("DATABASE_URL", "")).strip() or None
+
+
+def configured_database_url(database_url: str | None = None) -> str:
+    resolved = database_url_or_none(database_url)
+    if resolved:
+        return resolved
+    if local_json_only_enabled():
+        raise RuntimeError("DATABASE_URL is disabled because FLASHLOAN_LOCAL_JSON_ONLY is enabled.")
+    raise RuntimeError("DATABASE_URL is missing. Set it in .env or the environment.")
 
 
 def _pool_enabled() -> bool:

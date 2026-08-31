@@ -18,6 +18,7 @@ from validation.db_contention import run_live_contention
 from validation.liquidation_profit import calculate_liquidation_profit, profit_input_from_event
 from validation.rpc_probe import probe_rpc_urls
 from validation.scan_windows import summarize_opportunity_windows
+from db.storage_common import database_url_or_none
 from db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
 
 
@@ -60,7 +61,7 @@ def build_validation_report(
         "transaction_boundary": "db_connection context commits on normal exit and rolls back on exception",
         "live_lock_benchmark": "not_run",
     }
-    database_url = os.getenv("DATABASE_URL", "").strip()
+    database_url = database_url_or_none()
     if live_db_contention and database_url:
         try:
             database["live_lock_benchmark"] = run_live_contention(database_url, workers=db_workers)

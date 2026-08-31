@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -20,6 +19,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
+from db.storage_common import (
+    configured_database_url,
+    database_url_or_none,
+    db_connection,
+)
 
 
 load_env_files(__file__)
@@ -53,21 +57,13 @@ def parse_time(value: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def require_psycopg():
-    try:
-        import psycopg
-    except ImportError as exc:
-        raise RuntimeError(
-            "Missing dependency: install psycopg[binary] or run pip install -r requirements.txt"
-        ) from exc
-    return psycopg
-
-
 def load_observations(
-    database_url: str, symbols: Optional[set[str]]
+    database_url: str | None, symbols: Optional[set[str]]
 ) -> dict[str, list[Observation]]:
     """Read observations from Postgres and group them by trading pair."""
 
+    if not database_url:
+        return {}
     grouped: dict[str, list[Observation]] = defaultdict(list)
     params: list[object] = []
     where = ""
@@ -82,8 +78,7 @@ def load_observations(
         {where}
         ORDER BY symbol, observed_at
     """
-    psycopg = require_psycopg()
-    with psycopg.connect(database_url, connect_timeout=8) as connection:
+    with db_connection(database_url, connect_timeout=8) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
@@ -212,7 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--database-url",
-        default=os.getenv("DATABASE_URL"),
+        default=database_url_or_none(),
         help="Postgres DATABASE_URL",
     )
     parser.add_argument(
@@ -242,13 +237,10 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     symbols = parse_symbols(args.symbols)
 
-    if not args.database_url:
-        raise RuntimeError(
-            "DATABASE_URL is required. Configure the environment or pass --database-url."
-        )
+    database_url = configured_database_url(args.database_url)
 
     LOG.info("reading database")
-    grouped = load_observations(args.database_url, symbols)
+    grouped = load_observations(database_url, symbols)
 
     if not grouped:
         raise RuntimeError(

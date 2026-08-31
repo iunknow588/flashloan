@@ -12,7 +12,7 @@ from tools.liquidation_observation_report import (
     write_liquidation_observation_report,
 )
 from web import control_panel_data_routes as shared
-from web.control_panel_liquidation_base import configured_database_url
+from web.control_panel_liquidation_base import database_url_or_none
 from web.control_panel_liquidation_routes import liquidation_coverage_payload
 from web.control_panel_market import database_table_counts, observation_count, safe_latest
 from web.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
@@ -38,7 +38,7 @@ def register_liquidation_data_routes(app, panel) -> None:
             {
                 "rows": observation_count(),
                 "db_counts": database_table_counts(),
-                "trade_stats": safe_latest(lambda: read_trade_stats(configured_database_url())),
+                "trade_stats": safe_latest(lambda: read_trade_stats(database_url_or_none())),
                 "testnet_trade_stats": safe_latest(lambda: read_testnet_trade_stats(REPO_ROOT)),
                 "liquidation": {
                     "schema": {

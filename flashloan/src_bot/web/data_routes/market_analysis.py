@@ -12,7 +12,7 @@ from market.observer import ASSETS
 from market.binance_market.service import DEFAULT_BINANCE_RAW_SIDE_LIMIT
 from strategy.arbitrage import build_pair_strategy_analysis, simulate_four_route_cycles
 from web import control_panel_data_routes as shared
-from web.control_panel_liquidation_base import aave_rpc_urls, configured_database_url
+from web.control_panel_liquidation_base import aave_rpc_urls, database_url_or_none
 from web.control_panel_market import (
     assert_fresh_execution_plan,
     available_candidate_symbols,
@@ -139,7 +139,7 @@ def register_market_analysis_routes(app, panel) -> None:
     
     @app.get("/api/trade-stats")
     def get_trade_stats():
-        return jsonify({"stats": safe_latest(lambda: read_trade_stats(configured_database_url()))})
+        return jsonify({"stats": safe_latest(lambda: read_trade_stats(database_url_or_none()))})
     
     
     @app.get("/api/testnet-trade-stats")

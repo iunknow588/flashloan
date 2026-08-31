@@ -1,6 +1,6 @@
 import os
 
-from core.env_loader import load_env_files
+from core.env_loader import disable_database_alias_enabled, local_json_only_enabled, load_env_files
 
 
 def test_load_env_files_prefers_process_environment(monkeypatch, tmp_path):
@@ -69,3 +69,23 @@ def test_load_env_files_skips_database_url_in_local_json_only_mode(monkeypatch, 
 
     assert "DATABASE_URL" not in os.environ
     assert os.environ["SETTING"] == "local"
+
+
+def test_load_env_files_skips_database_url_in_disable_database_alias_mode(monkeypatch, tmp_path):
+    child = tmp_path / "src_bot"
+    child.mkdir()
+    (child / ".env").write_text(
+        "DATABASE_URL=postgresql://remote.example/db\nSETTING=alias\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("FLASHLOAN_LOCAL_JSON_ONLY", raising=False)
+    monkeypatch.setenv("FLASHLOAN_DISABLE_DATABASE", "true")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SETTING", raising=False)
+
+    load_env_files(child / "run.py")
+
+    assert disable_database_alias_enabled() is True
+    assert local_json_only_enabled() is True
+    assert "DATABASE_URL" not in os.environ
+    assert os.environ["SETTING"] == "alias"

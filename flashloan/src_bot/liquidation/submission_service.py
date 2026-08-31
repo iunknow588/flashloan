@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from db.storage_common import database_url_or_none
 from db.storage_liquidation_attempts import record_liquidation_execution_attempt
 from execution.receipt_formatter import format_tx_receipt
 from execution.revert_parser import build_failure_record
@@ -10,7 +11,7 @@ from execution.revert_parser import build_failure_record
 
 def archive_submission_failure(payload: dict[str, Any], *, parsed: dict[str, Any] | None = None) -> None:
     try:
-        database_url = os.getenv("DATABASE_URL", "").strip()
+        database_url = database_url_or_none()
         if not database_url:
             return
         record = build_failure_record(parsed or {}, payload=payload)
