@@ -89,7 +89,15 @@ def parse_env_int(name: str, default: int | str, *, minimum: int | None = None) 
     return value, None
 
 
-def _chain_id_check(chain_id: int | None, expected_chain_id: int) -> tuple[ConfigCheck, int]:
+def _chain_id_check(chain_id: int | None, expected_chain_id: int | None) -> tuple[ConfigCheck, int | None]:
+    if expected_chain_id is None:
+        configured_chain_id, expected_error = parse_env_int("CHAIN_ID", chain_id if chain_id is not None else 0)
+        if _env("LIQUIDATION_CHAIN_ID"):
+            configured_chain_id, expected_error = parse_env_int("LIQUIDATION_CHAIN_ID", chain_id if chain_id is not None else 0)
+        actual_chain_id = chain_id if chain_id is not None else configured_chain_id
+        if expected_error:
+            return ConfigCheck("CHAIN_ID", False, "error", expected_error), actual_chain_id
+        return ConfigCheck("CHAIN_ID", True, "info", f"chain id is {actual_chain_id}"), actual_chain_id
     configured_chain_id, expected_error = parse_env_int("CHAIN_ID", expected_chain_id)
     if _env("LIQUIDATION_CHAIN_ID"):
         configured_chain_id, expected_error = parse_env_int("LIQUIDATION_CHAIN_ID", expected_chain_id)
@@ -155,10 +163,11 @@ def _private_key_owner_check() -> ConfigCheck:
 
 
 def liquidation_config_health(market_id: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
+    effective_market_id = market_id or _env("LIQUIDATION_MARKET_ID") or None
     market = (
-        liquidation_market_config_for(market_id=market_id, chain_id=chain_id)
-        if market_id is not None
-        else liquidation_market_config()
+        liquidation_market_config_for(market_id=effective_market_id, chain_id=None)
+        if effective_market_id is not None
+        else liquidation_market_config(chain_id=chain_id)
     )
     execution_enabled = _env_bool("LIQUIDATION_EXECUTION_ENABLED", bool(market.protocol_supported))
     auto_execute_requested = _env_bool("LIQUIDATION_AUTO_EXECUTE", True)
@@ -234,7 +243,6 @@ def liquidation_config_health(market_id: str | None = None, chain_id: int | None
                 f"{market.protocol} is not EVM liquidation-call compatible",
             )
         )
-
     chain_check, actual_chain_id = _chain_id_check(chain_id, market.chain_id)
     checks.append(chain_check)
 

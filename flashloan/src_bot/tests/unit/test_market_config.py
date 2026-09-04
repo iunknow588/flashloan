@@ -10,6 +10,10 @@ from core.market_config import (
     DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS,
     DEFAULT_POLYGON_DEX_MARKET_ID,
     DEFAULT_AVALANCHE_DEX_MARKET_ID,
+    LEGACY_BNB_DEX_MARKET_ID,
+    LEGACY_COW_DEX_MARKET_ID,
+    LEGACY_ETHEREUM_DEX_MARKET_ID,
+    LEGACY_POLYGON_DEX_MARKET_ID,
     MARKET_TYPE_EXECUTION_RAIL,
     MARKET_TYPE_NATIVE_CHAIN,
     MARKET_TYPE_SHADOW_CHAIN,
@@ -18,10 +22,33 @@ from core.market_config import (
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     DEFAULT_ROBINHOOD_MORPHO_MARKET_ID,
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID,
+    LEGACY_ROBINHOOD_BOT_MARKET_ID,
+    LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID,
+    LEGACY_ROBINHOOD_DEX_MARKET_ID,
+    LEGACY_ROBINHOOD_MORPHO_MARKET_ID,
+    LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID,
     liquidation_market_config,
     liquidation_market_config_for,
+    liquidation_market_scope_is_explicit,
     supported_market_summaries,
 )
+
+
+CANONICAL_AVALANCHE_AAVE = "liquidation-43114-aave-v3"
+CANONICAL_BNB_AAVE = "liquidation-56-aave-v3"
+CANONICAL_BNB_VENUS = "liquidation-56-venus-core"
+CANONICAL_ETHEREUM_AAVE = "liquidation-1-aave-v3"
+CANONICAL_ROBINHOOD_BOT = "liquidation-4663-aave-v3"
+CANONICAL_ROBINHOOD_MORPHO = "liquidation-4663-morpho-blue"
+CANONICAL_ROBINHOOD_TESTNET_BOT = "liquidation-46630-morpho-blue"
+CANONICAL_BNB_DEX = "dex-arbitrage-56-pancakeswap-v3"
+CANONICAL_ETHEREUM_DEX = "dex-arbitrage-1-uniswap-v3"
+CANONICAL_POLYGON_DEX = "dex-arbitrage-137-uniswap-v3"
+CANONICAL_AVALANCHE_DEX = "dex-arbitrage-43114-uniswap-v3"
+CANONICAL_COW_DEX = "dex-arbitrage-0-cow-protocol"
+CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v3"
+CANONICAL_ROBINHOOD_TESTNET_DEX = "dex-arbitrage-46630-uniswap-v4"
+CANONICAL_HYPERLIQUID_DEX = "dex-arbitrage-hyperliquid-hyperliquid-native"
 
 
 def _clear_market_env(monkeypatch):
@@ -56,13 +83,27 @@ def test_default_market_comes_from_chain_manager(monkeypatch):
 
     market = liquidation_market_config()
 
-    assert market.market_id == DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
+    assert market.market_id == CANONICAL_ROBINHOOD_TESTNET_BOT
+    assert market.legacy_market_id == LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID
     assert market.chain_id == 46630
     assert market.protocol == "morpho_blue"
     assert market.evm_compatible is True
     assert market.protocol_supported is False
     assert market.observation_only is True
     assert market.rpc_urls
+
+
+def test_liquidation_market_scope_explicit_detection(monkeypatch):
+    _clear_market_env(monkeypatch)
+
+    assert liquidation_market_scope_is_explicit() is False
+
+    monkeypatch.setenv("LIQUIDATION_PROTOCOL", "venus_core")
+    assert liquidation_market_scope_is_explicit() is True
+
+    monkeypatch.delenv("LIQUIDATION_PROTOCOL", raising=False)
+    monkeypatch.setenv("CHAIN_ID", "43114")
+    assert liquidation_market_scope_is_explicit() is True
 
 
 def test_bnb_aave_market_uses_bnb_rpc_env(monkeypatch):
@@ -72,7 +113,8 @@ def test_bnb_aave_market_uses_bnb_rpc_env(monkeypatch):
 
     market = liquidation_market_config()
 
-    assert market.market_id == "bnb-aave-v3"
+    assert market.market_id == CANONICAL_BNB_AAVE
+    assert market.legacy_market_id == "bnb-aave-v3"
     assert market.network == "bnb"
     assert market.chain_id == 56
     assert market.native_symbol == "BNB"
@@ -86,7 +128,8 @@ def test_bnb_venus_market_defaults_to_observation_mode(monkeypatch):
 
     market = liquidation_market_config_for(chain_id=56)
 
-    assert market.market_id == "bnb-venus-core"
+    assert market.market_id == CANONICAL_BNB_VENUS
+    assert market.legacy_market_id == "bnb-venus-core"
     assert market.network == "bnb"
     assert market.protocol == "venus_core"
     assert market.protocol_supported is False
@@ -111,7 +154,8 @@ def test_config_health_accepts_matching_bnb_chain(monkeypatch):
 
     assert health["expected_chain_id"] == 56
     assert health["chain_id"] == 56
-    assert health["market"]["market_id"] == "bnb-aave-v3"
+    assert health["market"]["market_id"] == CANONICAL_BNB_AAVE
+    assert health["market"]["legacy_market_id"] == "bnb-aave-v3"
     assert not any("chain id" in error for error in health["errors"])
 
 
@@ -130,37 +174,44 @@ def test_hyperliquid_native_is_not_treated_as_evm_aave(monkeypatch):
 def test_supported_market_summaries_classifies_migration_type():
     summaries = {row["market_id"]: row for row in supported_market_summaries()}
 
-    assert summaries["bnb-aave-v3"]["migration_type"] == "config_and_new_executor_deployment"
-    assert summaries[DEFAULT_ROBINHOOD_BOT_MARKET_ID]["feature"] == "liquidation"
-    assert summaries[DEFAULT_ROBINHOOD_BOT_MARKET_ID]["protocol_supported"] is False
-    assert summaries[DEFAULT_ROBINHOOD_BOT_MARKET_ID]["observation_only"] is True
-    assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["feature"] == "liquidation"
-    assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["protocol"] == "morpho_blue"
-    assert summaries[DEFAULT_ROBINHOOD_MORPHO_MARKET_ID]["pool_address"] == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["feature"] == "liquidation"
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["network"] == "robinhood-testnet"
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["chain_id"] == 46630
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID]["observation_only"] is True
-    assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
-    assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["observation_only"] is True
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["network"] == "robinhood-testnet"
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["chain_id"] == 46630
-    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["feature"] == "dex_arbitrage"
-    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["network"] == "bnb"
-    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["protocol"] == "pancakeswap_v3"
-    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["is_default"] is False
-    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["is_default"] is False
-    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["chain_id"] == DEFAULT_COW_VIRTUAL_CHAIN_ID
-    assert summaries[DEFAULT_COW_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_EXECUTION_RAIL
-    assert summaries[DEFAULT_BNB_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
-    assert summaries[DEFAULT_ETHEREUM_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
-    assert summaries[DEFAULT_POLYGON_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
-    assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
-    assert summaries[DEFAULT_AVALANCHE_DEX_MARKET_ID]["is_default"] is False
-    assert summaries[DEFAULT_ROBINHOOD_DEX_MARKET_ID]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
-    assert summaries[DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID]["is_default"] is True
-    assert summaries["hyperliquid-native"]["migration_type"] == "new_protocol_adapter_required"
+    assert summaries[CANONICAL_BNB_AAVE]["migration_type"] == "config_and_new_executor_deployment"
+    assert summaries[CANONICAL_ROBINHOOD_BOT]["feature"] == "liquidation"
+    assert summaries[CANONICAL_ROBINHOOD_BOT]["legacy_market_id"] == LEGACY_ROBINHOOD_BOT_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_BOT]["protocol_supported"] is False
+    assert summaries[CANONICAL_ROBINHOOD_BOT]["observation_only"] is True
+    assert summaries[CANONICAL_ROBINHOOD_MORPHO]["feature"] == "liquidation"
+    assert summaries[CANONICAL_ROBINHOOD_MORPHO]["legacy_market_id"] == LEGACY_ROBINHOOD_MORPHO_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_MORPHO]["protocol"] == "morpho_blue"
+    assert summaries[CANONICAL_ROBINHOOD_MORPHO]["pool_address"] == "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["feature"] == "liquidation"
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["legacy_market_id"] == LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["network"] == "robinhood-testnet"
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["chain_id"] == 46630
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["observation_only"] is True
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["feature"] == "dex_arbitrage"
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_DEX_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["observation_only"] is True
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["feature"] == "dex_arbitrage"
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["network"] == "robinhood-testnet"
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["chain_id"] == 46630
+    assert summaries[CANONICAL_BNB_DEX]["feature"] == "dex_arbitrage"
+    assert summaries[CANONICAL_BNB_DEX]["legacy_market_id"] == LEGACY_BNB_DEX_MARKET_ID
+    assert summaries[CANONICAL_BNB_DEX]["network"] == "bnb"
+    assert summaries[CANONICAL_BNB_DEX]["protocol"] == "pancakeswap_v3"
+    assert summaries[CANONICAL_BNB_DEX]["is_default"] is False
+    assert summaries[CANONICAL_COW_DEX]["is_default"] is False
+    assert summaries[CANONICAL_COW_DEX]["chain_id"] == DEFAULT_COW_VIRTUAL_CHAIN_ID
+    assert summaries[CANONICAL_COW_DEX]["market_type"] == MARKET_TYPE_EXECUTION_RAIL
+    assert summaries[CANONICAL_BNB_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[CANONICAL_ETHEREUM_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[CANONICAL_POLYGON_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[CANONICAL_AVALANCHE_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
+    assert summaries[CANONICAL_AVALANCHE_DEX]["is_default"] is False
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is True
+    assert summaries[CANONICAL_HYPERLIQUID_DEX]["legacy_market_id"] == "hyperliquid-dex-shadow"
+    assert summaries[CANONICAL_HYPERLIQUID_DEX]["migration_type"] == "dex_native_protocol_placeholder"
 
 
 def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
@@ -169,7 +220,8 @@ def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
 
     market = liquidation_market_config_for(chain_id=4663, feature="dex_arbitrage")
 
-    assert market.market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID
+    assert market.market_id == CANONICAL_ROBINHOOD_DEX
+    assert market.legacy_market_id == LEGACY_ROBINHOOD_DEX_MARKET_ID
     assert market.feature == "dex_arbitrage"
     assert market.network == "robinhood"
     assert market.chain_id == 4663
@@ -187,7 +239,8 @@ def test_robinhood_liquidation_market_prefers_morpho_flash_source(monkeypatch):
 
     market = liquidation_market_config_for(chain_id=4663, feature="liquidation")
 
-    assert market.market_id == DEFAULT_ROBINHOOD_MORPHO_MARKET_ID
+    assert market.market_id == CANONICAL_ROBINHOOD_MORPHO
+    assert market.legacy_market_id == LEGACY_ROBINHOOD_MORPHO_MARKET_ID
     assert market.feature == "liquidation"
     assert market.network == "robinhood"
     assert market.chain_id == 4663
@@ -206,10 +259,12 @@ def test_ethereum_and_polygon_dex_markets_use_network_defaults(monkeypatch):
     ethereum = liquidation_market_config_for(chain_id=1, feature="dex_arbitrage")
     polygon = liquidation_market_config_for(chain_id=137, feature="dex_arbitrage")
 
-    assert ethereum.market_id == DEFAULT_ETHEREUM_DEX_MARKET_ID
+    assert ethereum.market_id == CANONICAL_ETHEREUM_DEX
+    assert ethereum.legacy_market_id == LEGACY_ETHEREUM_DEX_MARKET_ID
     assert ethereum.dex_router_address == DEFAULT_ETHEREUM_UNISWAP_V2_ROUTER_ADDRESS
     assert ethereum.rpc_urls
-    assert polygon.market_id == DEFAULT_POLYGON_DEX_MARKET_ID
+    assert polygon.market_id == CANONICAL_POLYGON_DEX
+    assert polygon.legacy_market_id == LEGACY_POLYGON_DEX_MARKET_ID
     assert polygon.dex_router_address == DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS
     assert polygon.rpc_urls
 
@@ -224,6 +279,8 @@ def test_cow_dex_market_keeps_virtual_chain_zero(monkeypatch):
     )
 
     assert market.chain_id == 0
+    assert market.market_id == CANONICAL_COW_DEX
+    assert market.legacy_market_id == LEGACY_COW_DEX_MARKET_ID
     assert market.network == "cow"
     assert market.market_type == MARKET_TYPE_EXECUTION_RAIL
     assert market.protocol == "cow_protocol"
@@ -246,7 +303,11 @@ def test_supported_market_summaries_prefers_database_rows_when_available(monkeyp
 
     monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", lambda database_url: db_rows)
 
-    assert supported_market_summaries("postgresql://example") == db_rows
+    summaries = supported_market_summaries("postgresql://example")
+
+    assert summaries[0]["market_id"] == CANONICAL_ROBINHOOD_DEX
+    assert summaries[0]["legacy_market_id"] == "db-robinhood-dex"
+    assert summaries[0]["protocol_id"] == "uniswap_v3"
 
 
 def test_supported_market_summaries_falls_back_when_database_unavailable(monkeypatch):
@@ -259,8 +320,10 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
 
     summaries = {row["market_id"]: row for row in supported_market_summaries("postgresql://disabled")}
 
-    assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in summaries
-    assert DEFAULT_ROBINHOOD_BOT_MARKET_ID in summaries
+    assert CANONICAL_ROBINHOOD_DEX in summaries
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_DEX_MARKET_ID
+    assert CANONICAL_ROBINHOOD_BOT in summaries
+    assert summaries[CANONICAL_ROBINHOOD_BOT]["legacy_market_id"] == LEGACY_ROBINHOOD_BOT_MARKET_ID
 
 
 def test_supported_market_summaries_short_circuits_repeated_database_failures(monkeypatch):
@@ -282,8 +345,8 @@ def test_supported_market_summaries_short_circuits_repeated_database_failures(mo
 
     assert first == second
     assert len(calls) == 1
-    assert DEFAULT_ROBINHOOD_DEX_MARKET_ID in {row["market_id"] for row in first}
-    assert DEFAULT_ROBINHOOD_BOT_MARKET_ID in {row["market_id"] for row in first}
+    assert CANONICAL_ROBINHOOD_DEX in {row["market_id"] for row in first}
+    assert CANONICAL_ROBINHOOD_BOT in {row["market_id"] for row in first}
 
 
 def test_market_scope_rejects_chain_and_feature_mismatch(monkeypatch):
@@ -292,7 +355,8 @@ def test_market_scope_rejects_chain_and_feature_mismatch(monkeypatch):
     with pytest.raises(ValueError, match="belongs to chain_id"):
         liquidation_market_config_for("bnb-venus-core", chain_id=43114)
     ethereum = liquidation_market_config_for(chain_id=1)
-    assert ethereum.market_id == "ethereum-aave-v3-shadow"
+    assert ethereum.market_id == CANONICAL_ETHEREUM_AAVE
+    assert ethereum.legacy_market_id == "ethereum-aave-v3-shadow"
     assert ethereum.protocol_supported is False
     assert ethereum.observation_only is True
 
@@ -314,7 +378,8 @@ def test_robinhood_testnet_is_independent_paused_deploy_chain(monkeypatch):
 
     market = liquidation_market_config_for(chain_id=46630, feature="dex_arbitrage")
 
-    assert market.market_id == DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID
+    assert market.market_id == CANONICAL_ROBINHOOD_TESTNET_DEX
+    assert market.legacy_market_id == LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID
     assert market.network == "robinhood-testnet"
     assert market.chain_id == 46630
     assert market.protocol == "uniswap_v4"
@@ -330,7 +395,8 @@ def test_robinhood_testnet_liquidation_shadow_is_available_to_bot(monkeypatch):
 
     market = liquidation_market_config_for(chain_id=46630, feature="liquidation")
 
-    assert market.market_id == DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID
+    assert market.market_id == CANONICAL_ROBINHOOD_TESTNET_BOT
+    assert market.legacy_market_id == LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID
     assert market.feature == "liquidation"
     assert market.network == "robinhood-testnet"
     assert market.chain_id == 46630
@@ -391,7 +457,7 @@ def test_market_analysis_uses_chain_specific_dex_router(monkeypatch):
     )
 
     assert context["source"] == "market_config"
-    assert context["market_id"] == DEFAULT_BNB_DEX_MARKET_ID
+    assert context["market_id"] == CANONICAL_BNB_DEX
     assert context["chain_id"] == 56
     assert context["router_address"] == "0x10ED43C718714eb63d5aA57B78B54704E256024E"
 

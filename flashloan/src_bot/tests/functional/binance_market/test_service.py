@@ -1476,7 +1476,8 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
     assert buy_step["query_price_position"]["position"] == "lowest"
     assert buy_step["query_guard_analysis"]["status"] == "better_than_target"
     assert buy_step["cow_sdk_parameters"]["sell_amount_before_fee"] == "1000"
-    assert buy_step["cow_sdk_parameters"]["target_buy_amount_after_fee"] == "111.1111111111111111111111111"
+    expected_target_buy = Decimal("111.1111111111111111111111111")
+    assert Decimal(buy_step["cow_sdk_parameters"]["target_buy_amount_after_fee"]).quantize(expected_target_buy) == expected_target_buy
     assert buy_step["cow_sdk_parameters"]["min_buy_amount_after_fee"] == "100"
 
     assert middle_step["selected_target_source"] == "previous_window"

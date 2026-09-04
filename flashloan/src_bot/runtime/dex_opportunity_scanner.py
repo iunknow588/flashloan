@@ -75,7 +75,87 @@ def _snapshot_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
         "uniswapx_quoteable_route_count": int(summary.get("uniswapxQuoteableRouteCount") or 0),
         "best_net_profit_usd": summary.get("bestNetProfitUsd"),
         "best_observed_net_profit_usd": summary.get("bestObservedNetProfitUsd"),
+        "static_live_quoter_required_count": int(summary.get("staticLiveQuoterRequiredCount") or 0),
+        "static_sdk_adapter_required_count": int(summary.get("staticSdkAdapterRequiredCount") or 0),
+        "onchain_evidence_reviewed_route_count": int(summary.get("onchainEvidenceReviewedRouteCount") or 0),
+        "onchain_evidence_deferred_route_count": int(summary.get("onchainEvidenceDeferredRouteCount") or 0),
+        "onchain_evidence_failed_route_count": int(summary.get("onchainEvidenceFailedRouteCount") or 0),
+        "live_verified_route_count": int(summary.get("liveVerifiedRouteCount") or 0),
+        "live_profitable_route_count": int(summary.get("liveProfitableRouteCount") or 0),
+        "best_live_net_profit_usd": summary.get("bestLiveNetProfitUsd"),
     }
+
+
+def _route_evidence(route: dict[str, Any]) -> dict[str, Any]:
+    evidence = route.get("live_onchain_evidence")
+    if isinstance(evidence, dict) and evidence:
+        return evidence
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    evidence = analysis.get("live_onchain_evidence")
+    return evidence if isinstance(evidence, dict) else {}
+
+
+def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Reconcile the payload summary after live evidence mutates its routes."""
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    payload["summary"] = summary
+    routes = [route for route in payload.get("routes") or [] if isinstance(route, dict)]
+    evidence_rows = [_route_evidence(route) for route in routes]
+    statuses = [str(row.get("status") or "").strip().lower() for row in evidence_rows]
+    has_evidence = any(bool(row) for row in evidence_rows)
+    reviewed_count = sum(
+        status
+        in {
+            "live_verified",
+            "live_quote_failed",
+            "live_quote_reference_only",
+            "route_unprofitable",
+            "slippage_limit_exceeded",
+            "pool_insufficient_for_profitable_execution",
+        }
+        for status in statuses
+    )
+    deferred_count = sum(status == "live_evidence_deferred" for status in statuses)
+    failed_count = sum(status == "live_quote_failed" for status in statuses)
+    unreviewed_count = sum(not evidence for evidence in evidence_rows)
+    ready_count = sum(bool(row.get("readyForTransactionPreflight")) for row in evidence_rows)
+    adapter_count = sum(
+        status in {"", "live_evidence_deferred"}
+        and bool((route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}).get("adapterRequired"))
+        for route, status in zip(routes, statuses)
+    )
+    live_profits = []
+    for row in evidence_rows:
+        if str(row.get("status") or "").strip().lower() != "live_verified":
+            continue
+        costs = row.get("costModel") if isinstance(row.get("costModel"), dict) else {}
+        try:
+            value = float(costs.get("netProfitUsd"))
+        except (TypeError, ValueError):
+            continue
+        if value == value and value not in (float("inf"), float("-inf")):
+            live_profits.append(value)
+
+    if has_evidence:
+        summary.setdefault("staticLiveQuoterRequiredCount", summary.get("liveQuoterRequiredCount"))
+        summary.setdefault("staticProfitableRouteCount", summary.get("profitableRouteCount"))
+        summary.setdefault("staticBestNetProfitUsd", summary.get("bestNetProfitUsd"))
+        summary.setdefault("staticBestObservedNetProfitUsd", summary.get("bestObservedNetProfitUsd"))
+        summary.setdefault("staticSdkAdapterRequiredCount", summary.get("sdkAdapterRequiredCount"))
+        summary["onchainEvidenceReviewedRouteCount"] = reviewed_count
+        summary["onchainEvidenceDeferredRouteCount"] = deferred_count
+        summary["onchainEvidenceFailedRouteCount"] = failed_count
+        summary["onchainEvidencePendingRouteCount"] = deferred_count + unreviewed_count
+        summary["liveQuoterRequiredCount"] = deferred_count + unreviewed_count
+        summary["executableCandidateCount"] = ready_count
+        summary["chainSubmissionCandidateCount"] = ready_count
+        summary["sdkAdapterRequiredCount"] = adapter_count
+        summary["liveVerifiedRouteCount"] = sum(status == "live_verified" for status in statuses)
+        summary["liveProfitableRouteCount"] = sum(value > 0 for value in live_profits)
+        summary["bestLiveNetProfitUsd"] = max(live_profits) if live_profits else None
+        summary["profitableRouteCount"] = summary["liveProfitableRouteCount"]
+        summary["bestNetProfitUsd"] = summary["bestLiveNetProfitUsd"]
+    return summary
 
 
 def _number_or_none(value: object) -> float | None:
@@ -400,6 +480,107 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
     return attempt
 
 
+def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+    """Keep the scan snapshot route aligned with the evidence used for attempts."""
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    analysis = deepcopy(analysis)
+    status = str(evidence.get("status") or "not_live_verified")
+    live_verified = bool(evidence.get("livePriceVerified")) or status == "live_verified"
+    validation = evidence.get("validation") if isinstance(evidence.get("validation"), dict) else {}
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
+
+    analysis.update(
+        {
+            "live_onchain_evidence": deepcopy(evidence),
+            "onchainEvidenceStatus": status,
+            "livePriceVerified": live_verified,
+            "priceEvidenceMode": evidence.get("priceEvidenceMode") or ("live_verified" if live_verified else "live_required"),
+            "priceEvidenceSource": evidence.get("priceEvidenceSource") or ("chain_live_quote" if live_verified else "chain_live_quote_required"),
+            "requiresLiveQuoter": not live_verified,
+            "adapterRequired": False if status != "live_evidence_deferred" else bool(analysis.get("adapterRequired")),
+            "quote_verified": live_verified,
+            "executableCandidate": bool(evidence.get("readyForTransactionPreflight")),
+            "chainSubmissionCandidate": bool(evidence.get("readyForTransactionPreflight")),
+            "finalOutputUsd": costs.get("finalOutputUsd") if live_verified else None,
+            "grossProfitUsd": costs.get("grossProfitUsd") if live_verified else None,
+            "netProfitUsd": costs.get("netProfitUsd") if live_verified else None,
+            "netProfitBps": costs.get("netProfitBps") if live_verified else None,
+            "referenceFinalOutputAmount": costs.get("finalOutputAmount") if live_verified else None,
+            "referenceFinalOutputSymbol": costs.get("finalOutputSymbol") or validation.get("finalOutputSymbol"),
+            "referenceNetProfitAmount": costs.get("netProfitAmount") if live_verified else None,
+            "referenceNetReturnBps": costs.get("netProfitAmountBps") if live_verified else None,
+            "referenceInputSymbol": costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol"),
+            "referenceReturnBasis": costs.get("profitBasis") or analysis.get("referenceReturnBasis"),
+            "referenceReturnTrusted": live_verified,
+        }
+    )
+    if blockers:
+        analysis["recommendation"] = {
+            "level": status,
+            "action": (
+                "历史区块状态不可用，已延后链上复核"
+                if status == "live_evidence_deferred"
+                else "链上逐跳复核失败，禁止进入交易预检"
+                if not live_verified
+                else "链上复核完成，当前未满足交易提交条件"
+            ),
+            "reasons": blockers,
+        }
+
+    static_steps = analysis.get("steps") if isinstance(analysis.get("steps"), list) else []
+    live_hops = evidence.get("hops") if isinstance(evidence.get("hops"), list) else []
+    if live_hops:
+        merged_steps = []
+        for index, hop in enumerate(live_hops):
+            base = deepcopy(static_steps[index]) if index < len(static_steps) and isinstance(static_steps[index], dict) else {}
+            if isinstance(hop, dict):
+                base.update(
+                    {
+                        "hop": hop.get("hop", base.get("hop", index + 1)),
+                        "fromSymbol": hop.get("fromSymbol", base.get("fromSymbol")),
+                        "toSymbol": hop.get("toSymbol", base.get("toSymbol")),
+                        "protocol": hop.get("protocol", base.get("protocol")),
+                        "pool": hop.get("pool", base.get("pool")),
+                        "quoteSource": hop.get("quoteSource", base.get("quoteSource")),
+                        "executionTrust": hop.get("executionTrust", base.get("executionTrust")),
+                        "liveQuoteError": hop.get("liveQuoteError"),
+                        "inputAmount": hop.get("amountIn", base.get("inputAmount")),
+                        "outputAmount": hop.get("amountOut") if hop.get("amountOut") is not None else None,
+                        "outputUsd": None if hop.get("amountOutRaw") is None else base.get("outputUsd"),
+                        "effectiveRate": None if hop.get("amountOutRaw") is None else base.get("effectiveRate"),
+                    }
+                )
+            merged_steps.append(base)
+        analysis["steps"] = merged_steps
+
+    verification = dict(route.get("quoteVerification") or {})
+    verification.update(
+        {
+            "status": status,
+            "livePriceVerified": live_verified,
+            "requiresLiveQuoter": not live_verified,
+            "adapterRequired": False if status != "live_evidence_deferred" else bool(verification.get("adapterRequired")),
+            "executableCandidate": bool(evidence.get("readyForTransactionPreflight")),
+            "chainSubmissionCandidate": bool(evidence.get("readyForTransactionPreflight")),
+            "trustedForExecution": bool(evidence.get("trustedForExecution")),
+            "executionTrust": evidence.get("executionTrust"),
+            "readyForTransactionPreflight": bool(evidence.get("readyForTransactionPreflight")),
+            "blockNumber": evidence.get("blockNumber"),
+            "triggerBlockNumber": evidence.get("triggerBlockNumber"),
+            "blockers": blockers,
+        }
+    )
+    route["quoteAnalysis"] = analysis
+    route["live_onchain_evidence"] = deepcopy(evidence)
+    route["onchainEvidenceStatus"] = status
+    route["quoteVerification"] = verification
+    route["quoteStatus"] = status
+    route["priceEvidenceSource"] = analysis["priceEvidenceSource"]
+    route["priceEvidenceMode"] = analysis["priceEvidenceMode"]
+    return route
+
+
 def build_dex_opportunity_attempts(
     payload: dict[str, Any],
     *,
@@ -443,10 +624,13 @@ def build_dex_opportunity_attempts(
     )
     raw_routes = [route for _, route, _ in selected_routes]
     raw_attempts = [attempt for _, _, attempt in selected_routes]
+    payload_routes = payload.get("routes") if isinstance(payload.get("routes"), list) else []
     evidence_provider = onchain_evidence_provider or build_route_onchain_evidence
+    # Keep the testnet candidate universe broad, but bound live RPC work per scan.
+    # A full static candidate scan must not turn into an unbounded Quoter scan.
     budget = (
         len(raw_attempts)
-        if testnet_full_scan or max_onchain_evidence_routes is None
+        if max_onchain_evidence_routes is None
         else max(0, min(len(raw_attempts), int(max_onchain_evidence_routes)))
     )
     selected_indexes: set[int] = set()
@@ -455,39 +639,40 @@ def build_dex_opportunity_attempts(
         selected_indexes = {(start + offset) % len(raw_attempts) for offset in range(budget)}
     attempts = []
     deferred_reason = "本轮扫描达到链上复核上限，已延后到下一轮空闲扫描。"
-    for attempt_index, (route, attempt) in enumerate(zip(raw_routes, raw_attempts)):
+    for attempt_index, (original_index, route, attempt) in enumerate(selected_routes):
         if attempt_index in selected_indexes:
             evidence = evidence_provider(route, payload=payload, chain_id=chain_id, observed_at=observed_at, trigger_context=trigger_context or {})
+            _merge_onchain_evidence_into_route(route, evidence)
             attempts.append(_apply_onchain_evidence_to_attempt(attempt, evidence))
         else:
-            attempts.append(
-                _apply_onchain_evidence_to_attempt(
-                    attempt,
-                    {
-                        "evidenceVersion": 1,
-                        "observedAt": observed_at,
-                        "network": _chain_network(payload, chain_id),
-                        "chainId": chain_id,
-                        "status": "live_evidence_deferred",
-                        "executionTrust": "static_reference_only",
-                        "trustedForExecution": False,
-                        "blockNumber": None,
-                        "triggerContext": trigger_context or {},
-                        "triggerBlockNumber": (trigger_context or {}).get("triggerBlockNumber") or (trigger_context or {}).get("blockNumber"),
-                        "quoteBlockSource": "deferred",
-                        "routeSymbols": route.get("routeSymbols") or [],
-                        "routeAddresses": route.get("routeAddresses") or [],
-                        "hops": [],
-                        "costModel": {},
-                        "blockers": [deferred_reason],
-                        "transactionDevelopment": {
-                            "status": "blocked_before_transaction_development",
-                            "executionEnabled": False,
-                            "blockers": [deferred_reason],
-                        },
-                    },
-                )
-            )
+            evidence = {
+                "evidenceVersion": 1,
+                "observedAt": observed_at,
+                "network": _chain_network(payload, chain_id),
+                "chainId": chain_id,
+                "status": "live_evidence_deferred",
+                "executionTrust": "static_reference_only",
+                "trustedForExecution": False,
+                "blockNumber": None,
+                "triggerContext": trigger_context or {},
+                "triggerBlockNumber": (trigger_context or {}).get("triggerBlockNumber") or (trigger_context or {}).get("blockNumber"),
+                "quoteBlockSource": "deferred",
+                "routeSymbols": route.get("routeSymbols") or [],
+                "routeAddresses": route.get("routeAddresses") or [],
+                "hops": [],
+                "costModel": {},
+                "blockers": [deferred_reason],
+                "transactionDevelopment": {
+                    "status": "blocked_before_transaction_development",
+                    "executionEnabled": False,
+                    "blockers": [deferred_reason],
+                },
+            }
+            _merge_onchain_evidence_into_route(route, evidence)
+            attempts.append(_apply_onchain_evidence_to_attempt(attempt, evidence))
+        if 0 < original_index <= len(payload_routes) and isinstance(payload_routes[original_index - 1], dict):
+            payload_routes[original_index - 1].clear()
+            payload_routes[original_index - 1].update(deepcopy(route))
     return attempts
 
 
@@ -505,7 +690,7 @@ class DexOpportunityScanner:
     def __init__(
         self,
         *,
-        interval_seconds: float = 3.0,
+        interval_seconds: float = 180.0,
         record_cooldown_seconds: float = 60.0,
         quote_payload_provider: QuotePayloadProvider | None = None,
         record_attempts: RecordAttempts | None = None,
@@ -515,6 +700,7 @@ class DexOpportunityScanner:
         record_opportunities: bool = True,
         max_onchain_evidence_routes: int = 5,
         max_recordable_routes: int = 5,
+        testnet_max_onchain_evidence_routes: int | None = None,
     ) -> None:
         self.interval_seconds = max(0.5, float(interval_seconds))
         self.record_cooldown_seconds = max(0.0, float(record_cooldown_seconds))
@@ -526,6 +712,11 @@ class DexOpportunityScanner:
         self.record_opportunities = bool(record_opportunities)
         self.max_onchain_evidence_routes = max(0, int(max_onchain_evidence_routes))
         self.max_recordable_routes = max(0, int(max_recordable_routes))
+        self.testnet_max_onchain_evidence_routes = (
+            None
+            if testnet_max_onchain_evidence_routes is None
+            else max(0, int(testnet_max_onchain_evidence_routes))
+        )
         self._evidence_cursor: dict[str, int] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -575,6 +766,8 @@ class DexOpportunityScanner:
             "running": bool(thread and thread.is_alive()),
             "interval_seconds": self.interval_seconds,
             "record_cooldown_seconds": self.record_cooldown_seconds,
+            "max_onchain_evidence_routes": self.max_onchain_evidence_routes,
+            "testnet_max_onchain_evidence_routes": self.testnet_max_onchain_evidence_routes,
             "watched_chain_keys": watched_keys,
             "chain_id": chain_id,
             "scan_count": scan_count,
@@ -647,6 +840,7 @@ class DexOpportunityScanner:
             try:
                 payload = self.quote_payload_provider(chain_id=chain_id, protocols=protocols)
                 recording = self._record_opportunities(payload, chain_id=chain_id, observed_at=started_at, trigger_context=trigger_context)
+                _refresh_payload_summary(payload)
                 snapshot = {
                     "chain_id": chain_id,
                     "payload": payload,
@@ -723,27 +917,38 @@ class DexOpportunityScanner:
         observed_at: str,
         trigger_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if not self.record_opportunities:
-            recording = {"candidate_count": 0, "recorded": 0, "source": "disabled", "error": None}
-            with self._lock:
-                self._last_recording = recording
-            return recording
+        max_onchain_evidence_routes = self.max_onchain_evidence_routes
+        if (
+            self.testnet_max_onchain_evidence_routes is not None
+            and _chain_network(payload, chain_id) == "robinhood-testnet"
+        ):
+            max_onchain_evidence_routes = self.testnet_max_onchain_evidence_routes
         attempts = build_dex_opportunity_attempts(
             payload,
             chain_id=chain_id,
             observed_at=observed_at,
             onchain_evidence_provider=self.onchain_evidence_provider,
-            max_onchain_evidence_routes=self.max_onchain_evidence_routes,
+            max_onchain_evidence_routes=max_onchain_evidence_routes,
             max_recordable_routes=self.max_recordable_routes,
             onchain_evidence_offset=self._evidence_cursor.get(_chain_key(chain_id), 0),
             trigger_context=trigger_context,
         )
-        if attempts and self.max_onchain_evidence_routes > 0:
+        if attempts and max_onchain_evidence_routes > 0:
             self._evidence_cursor[_chain_key(chain_id)] = (
-                self._evidence_cursor.get(_chain_key(chain_id), 0) + self.max_onchain_evidence_routes
+                self._evidence_cursor.get(_chain_key(chain_id), 0) + max_onchain_evidence_routes
             ) % len(attempts)
-        if not self.record_opportunities or not attempts:
-            recording = {"candidate_count": len(attempts), "recorded": 0, "source": "empty", "error": None}
+        if not attempts:
+            recording = {"candidate_count": 0, "recorded": 0, "source": "empty", "error": None}
+            with self._lock:
+                self._last_recording = recording
+            return recording
+        if not self.record_opportunities:
+            recording = {
+                "candidate_count": len(attempts),
+                "recorded": 0,
+                "source": "disabled",
+                "error": None,
+            }
             with self._lock:
                 self._last_recording = recording
             return recording
@@ -781,7 +986,7 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
         if _SCANNER is None:
             local_only = local_json_only_enabled()
             _SCANNER = DexOpportunityScanner(
-                interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 15.0, minimum=0.5, maximum=120.0),
+                interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 180.0, minimum=1.0, maximum=3600.0),
                 record_cooldown_seconds=_env_float(
                     "DEX_OPPORTUNITY_RECORD_COOLDOWN_SECONDS",
                     60.0,
@@ -789,10 +994,13 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                     maximum=3600.0,
                 ),
                 record_opportunities=not local_only,
-                max_onchain_evidence_routes=0 if local_only else int(
+                max_onchain_evidence_routes=int(
                     _env_float("DEX_OPPORTUNITY_ONCHAIN_EVIDENCE_ROUTES", 1.0, minimum=0.0, maximum=10.0)
                 ),
                 max_recordable_routes=int(_env_float("DEX_OPPORTUNITY_SCAN_ROUTE_LIMIT", 5.0, minimum=1.0, maximum=20.0)),
+                testnet_max_onchain_evidence_routes=int(
+                    _env_float("DEX_OPPORTUNITY_TESTNET_ONCHAIN_EVIDENCE_ROUTES", 4.0, minimum=0.0, maximum=10.0)
+                ),
             )
         return _SCANNER
 

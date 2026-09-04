@@ -154,6 +154,37 @@ def test_live_testing_readiness_allows_live_test_only_when_every_gate_is_open():
     assert report["blockingReasons"] == []
 
 
+def test_live_testing_readiness_rejects_ready_plan_when_new_snapshot_has_no_live_profit():
+    plan = _live_ready_plan()
+    plan["generatedAt"] = "2026-08-31T08:08:32.710541+00:00"
+    snapshot = {
+        "updated_at": "2026-09-03T00:16:06.002936+00:00",
+        "snapshots": {
+            "46630": {
+                "updated_at": "2026-09-03T00:16:06.002936+00:00",
+                "summary": {
+                    "live_profitable_route_count": 0,
+                    "live_verified_route_count": 3,
+                },
+            }
+        },
+    }
+
+    report = summarize_robinhood_testnet_live_testing_readiness(
+        chain_metadata=_base_chain_metadata(),
+        contracts_metadata=_base_contracts_metadata(),
+        chain_test_plan=plan,
+        current_opportunity_snapshot=snapshot,
+    )
+
+    assert report["readyForLiveTest"] is False
+    assert report["chainTestReady"] is False
+    assert report["gates"]["opportunitySnapshotNewerThanPlan"] is True
+    assert report["gates"]["currentSnapshotHasNoLiveProfitableRoute"] is True
+    assert "chain_test_plan_stale_against_current_opportunity_snapshot" in report["blockingReasons"]
+    assert "current_opportunity_snapshot_has_no_live_profitable_route" in report["blockingReasons"]
+
+
 def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
     chain_path = tmp_path / "contract" / "robinhood" / "testnet" / "chain.json"
     contracts_path = tmp_path / "contract" / "robinhood" / "testnet" / "contracts.json"

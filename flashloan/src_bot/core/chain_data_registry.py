@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from core.market_identity import canonical_market_id, normalize_feature
+
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 CHAIN_DATA_ROOT = SRC_ROOT / "chains"
@@ -418,7 +420,7 @@ def chain_config_summary(
         "rpc_url": _text(row.get("rpc_url")),
         "explorer_url": _text(row.get("explorer_url")),
         "defaults": _as_dict(row.get("defaults")),
-        "features": _as_dict(row.get("features")),
+        "features": _canonical_feature_scopes(row),
         "flash_loan": {
             "default_protocols": list(flash_loan.get("default_protocols") or []),
             "candidate_protocols": list(flash_loan.get("candidate_protocols") or []),
@@ -529,9 +531,54 @@ def _registry_default_chain_id(defaults: dict[str, Any], key: str) -> int | None
     return _int_or_none(default_chain_ids.get(key)) or _int_or_none(defaults.get(f"{key}_chain_id"))
 
 
+def _normalize_feature_name(feature: object) -> str:
+    try:
+        return normalize_feature(feature)
+    except ValueError:
+        return _text(feature).lower()
+
+
+def _feature_scope_with_canonical_market_id(
+    row: dict[str, Any],
+    feature_name: str,
+    feature_scope: dict[str, Any],
+    *,
+    protocols: list[str] | None = None,
+) -> dict[str, Any]:
+    payload = dict(feature_scope)
+    protocol = _text(payload.get("protocol")) or ((protocols or [""])[0] if protocols else "")
+    configured_market_id = _text(payload.get("default_market_id"))
+    legacy_market_id = _text(payload.get("legacy_default_market_id")) or configured_market_id
+    if protocol:
+        canonical_id = canonical_market_id(
+            feature_name,
+            int(row["chain_id"]),
+            protocol,
+            network=row.get("network"),
+        )
+        payload["default_market_id"] = canonical_id
+        if legacy_market_id and legacy_market_id != canonical_id:
+            payload["legacy_default_market_id"] = legacy_market_id
+    return payload
+
+
+def _canonical_feature_scopes(row: dict[str, Any]) -> dict[str, Any]:
+    protocols = list(_as_dict(row.get("flash_loan")).get("default_protocols") or [])
+    result: dict[str, Any] = {}
+    for raw_feature_name, raw_scope in _as_dict(row.get("features")).items():
+        feature_name = _normalize_feature_name(raw_feature_name)
+        result[feature_name] = _feature_scope_with_canonical_market_id(
+            row,
+            feature_name,
+            _as_dict(raw_scope),
+            protocols=protocols,
+        )
+    return result
+
+
 def default_chain_scope(feature: str, *, root: Path | None = None) -> dict[str, Any]:
     chain_root = root or CHAIN_DATA_ROOT
-    normalized_feature = _text(feature).lower()
+    normalized_feature = _normalize_feature_name(feature)
     registry = load_chain_registry(root=chain_root)
     chain_id = _registry_default_chain_id(_as_dict(registry.get("defaults")), normalized_feature)
     if chain_id is None:
@@ -539,12 +586,18 @@ def default_chain_scope(feature: str, *, root: Path | None = None) -> dict[str, 
     row = chain_data_by_chain_id(chain_id, root=chain_root)
     if not row:
         raise ValueError(f"default chain {chain_id} is not registered")
-    feature = _as_dict(_as_dict(row.get("features")).get(normalized_feature))
+    feature = _feature_scope_with_canonical_market_id(
+        row,
+        normalized_feature,
+        _as_dict(_as_dict(row.get("features")).get(normalized_feature)),
+        protocols=list(row["flash_loan"]["default_protocols"] or []),
+    )
     protocols = row["flash_loan"]["default_protocols"]
     return {
         "network": row["network"],
         "chain_id": int(row["chain_id"]),
         "market_id": _text(feature.get("default_market_id")),
+        "legacy_market_id": _text(feature.get("legacy_default_market_id")),
         "protocol": _text(feature.get("protocol")) or (protocols[0] if protocols else ""),
     }
 
@@ -568,12 +621,18 @@ def default_flash_loan_pool_scope(*, root: Path | None = None) -> dict[str, Any]
     row = chain_data_by_chain_id(chain_id, root=chain_root)
     if not row:
         raise ValueError(f"default flash loan pool chain {chain_id} is not registered")
-    feature = _as_dict(_as_dict(row.get("features")).get("dex_arbitrage"))
+    feature = _feature_scope_with_canonical_market_id(
+        row,
+        "dex_arbitrage",
+        _as_dict(_as_dict(row.get("features")).get("dex_arbitrage")),
+        protocols=list(row["flash_loan"]["default_protocols"] or []),
+    )
     protocols = row["flash_loan"]["default_protocols"]
     return {
         "network": row["network"],
         "chain_id": int(row["chain_id"]),
         "market_id": _text(feature.get("default_market_id")),
+        "legacy_market_id": _text(feature.get("legacy_default_market_id")),
         "protocol": protocols[0] if protocols else _text(feature.get("protocol")),
     }
 

@@ -1,8 +1,9 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const PROTOCOL_EVENT = "chainselectionprotocolschanged";
   const COW_NETWORK_EVENT = "chainselectioncownetworkschanged";
+  const SHELL_SELECTION_STORAGE_KEY = "flashloan:app-shell-selection";
   const DEFAULT_COW_NETWORKS = ["bnb"];
   const COW_NETWORK_ORDER = [
     "bnb",
@@ -16,6 +17,19 @@
     "plasma",
     "ink",
   ];
+
+  function shellStorageFeature(feature) {
+    const normalized = String(feature || "").trim().toLowerCase();
+    if (normalized === "liquidation" || normalized === "dex_arbitrage") {
+      return normalized;
+    }
+    return pathFeature(window.location.pathname) || "";
+  }
+
+  function shellSelectionStorageKey(feature) {
+    const normalized = shellStorageFeature(feature);
+    return normalized ? SHELL_SELECTION_STORAGE_KEY + ":" + normalized : SHELL_SELECTION_STORAGE_KEY;
+  }
 
   function normalizeProtocol(value) {
     return String(value || "").trim().toLowerCase();
@@ -60,6 +74,83 @@
     return window.__FLASHLOAN_MARKET_SCOPE__ || {};
   }
 
+  function readStoredShellSelection(feature) {
+    try {
+      const key = shellSelectionStorageKey(feature);
+      const raw = window.sessionStorage.getItem(key) ||
+        (key === SHELL_SELECTION_STORAGE_KEY ? "" : window.sessionStorage.getItem(SHELL_SELECTION_STORAGE_KEY));
+      const stored = raw ? JSON.parse(raw) : null;
+      return stored && typeof stored === "object" ? stored : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeStoredShellSelection(selection, feature) {
+    if (!selection || typeof selection !== "object") return;
+    const key = shellSelectionStorageKey(feature || selection.feature);
+    const snapshot = {
+      chain_key: selection.chain_key || selection.global_chain_id || "",
+      chain_id: selection.chain_id === null || selection.chain_id === undefined ? null : selection.chain_id,
+      market_id: selection.market_id || "",
+      global_chain_id: selection.global_chain_id || selection.chain_key || "",
+      feature: selection.feature || "",
+      display_name: selection.display_name || "",
+      network: selection.network || "",
+      protocol: selection.protocol || "",
+      protocol_summary: selection.protocol_summary || "",
+      observation_only: Boolean(selection.observation_only),
+      enabled: selection.enabled !== false,
+      protocol_supported: selection.protocol_supported !== false,
+      capabilities: selection.capabilities && typeof selection.capabilities === "object"
+        ? selection.capabilities
+        : {},
+      protocol_options: Array.isArray(selection.protocol_options)
+        ? selection.protocol_options
+        : [],
+      selected_protocols: unique(selection.selected_protocols || []),
+      selected_cow_networks: orderedCowNetworks(selection.selected_cow_networks || []),
+    };
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(snapshot));
+      if (key !== SHELL_SELECTION_STORAGE_KEY) {
+        window.sessionStorage.removeItem(SHELL_SELECTION_STORAGE_KEY);
+      }
+    } catch (_) {
+      // Storage can be unavailable in private or embedded browser contexts.
+    }
+  }
+
+  function hasExplicitScope(query) {
+    return Boolean(
+      query.get("market_id") ||
+      query.get("chain_id") ||
+      query.get("protocol_id") ||
+      query.get("protocols") ||
+      query.get("cow_network") ||
+      query.get("cow_networks")
+    );
+  }
+
+  function applyStoredShellScope(query, stored, targetFeature) {
+    if (!stored || hasExplicitScope(query)) return query;
+    const storedFeature = String(stored.feature || "").trim().toLowerCase();
+    const requestedFeature = String(targetFeature || "").trim().toLowerCase();
+    if (stored.chain_id !== null && stored.chain_id !== undefined && String(stored.chain_id)) {
+      query.set("chain_id", String(stored.chain_id));
+    } else if (stored.market_id && (!requestedFeature || storedFeature === requestedFeature)) {
+      query.set("market_id", String(stored.market_id));
+    }
+    if (requestedFeature && storedFeature && requestedFeature !== storedFeature) return query;
+    if (stored.selected_protocols && stored.selected_protocols.length) {
+      query.set("protocols", protocolSignature(stored.selected_protocols));
+    }
+    if (stored.selected_cow_networks && stored.selected_cow_networks.length) {
+      query.set("cow_networks", orderedCowNetworks(stored.selected_cow_networks).join(","));
+    }
+    return query;
+  }
+
   function protocolOptions() {
     const scope = currentScope();
     return Array.isArray(scope.protocol_options) ? scope.protocol_options : [];
@@ -92,14 +183,12 @@
     return (available || []).map(selectionKey).join("|");
   }
 
-  function isRobinhoodShadowMarket(value) {
-    return String(value || "").toLowerCase() === "robinhood-dex-shadow";
-  }
-
   function isCowExecutionRail(selection) {
+    const marketId = String(selection && selection.market_id || "").toLowerCase();
     return !!selection && (
       String(selection.market_type || "").toLowerCase() === "execution_rail" ||
-      String(selection.market_id || "").toLowerCase() === "cow-dex-arbitrage"
+      marketId === "dex-arbitrage-0-cow-protocol" ||
+      marketId === "cow-dex-arbitrage"
     );
   }
 
@@ -108,7 +197,7 @@
     if (path === "/" || path === "/liquidation" || path === "/account-scan" || path === "/execution" || path === "/audit" || path.startsWith("/bot")) {
       return "liquidation";
     }
-    if (path === "/binance-market" || path === "/dex-arbitrage" || path === "/dex-pools" || path === "/candidate-pools" || path === "/market-observation" || path.startsWith("/dex") || path.startsWith("/robinhood-dex")) {
+    if (path === "/binance-market" || path === "/dex-arbitrage" || path === "/dex-pools" || path === "/candidate-pools" || path === "/market-observation" || path === "/flash-loan" || path.startsWith("/flash-loan") || path.startsWith("/dex") || path.startsWith("/robinhood-dex")) {
       return "dex_arbitrage";
     }
     return "";
@@ -120,9 +209,25 @@
   }
 
   function clearMarketScope(url) {
-    ["market_id", "chain_id", "feature", "cow_network", "cow_networks", "protocols"].forEach(function (key) {
+    ["market_id", "feature", "protocol_id", "protocols", "cow_network", "cow_networks", "scope", "execution_mode"].forEach(function (key) {
       url.searchParams.delete(key);
     });
+  }
+
+  function applyChainOnlyToUrl(url, selection) {
+    const next = url;
+    next.searchParams.delete("market_id");
+    next.searchParams.delete("protocols");
+    next.searchParams.delete("protocol_id");
+    next.searchParams.delete("cow_network");
+    next.searchParams.delete("cow_networks");
+    next.searchParams.delete("scope");
+    next.searchParams.delete("execution_mode");
+    next.searchParams.delete("feature");
+    if (selection && selection.chain_id !== null && selection.chain_id !== undefined) {
+      next.searchParams.set("chain_id", String(selection.chain_id));
+    }
+    return next;
   }
 
   function currentFeature(pathname) {
@@ -151,12 +256,14 @@
         query.set("scope", cowNetworks.length > 1 ? "multi_chain" : "single_chain");
       }
       query.delete("protocols");
+      query.delete("protocol_id");
     } else {
       const protocols = Array.isArray(selection && selection.selected_protocols)
         ? selection.selected_protocols
         : parseProtocolList(selection && selection.protocols);
       if (protocols.length) {
         query.set("protocols", protocolSignature(protocols));
+        query.delete("protocol_id");
       }
     }
     return query;
@@ -177,19 +284,23 @@
       }
     }
     next.searchParams.delete("feature");
+    next.searchParams.delete("protocol_id");
     if (isFlashLoanPoolPath(next.pathname)) {
       // Flash loan pool protocol navigation lives in the left sidebar.
       // Chain changes must preserve that sidebar-selected protocol.
     } else if (isCowExecutionRail(selection)) {
       next.searchParams.delete("protocols");
+      next.searchParams.delete("protocol_id");
     } else {
       const protocols = Array.isArray(selection && selection.selected_protocols)
         ? selection.selected_protocols
         : parseProtocolList(selection && selection.protocols);
       if (protocols.length) {
         next.searchParams.set("protocols", protocolSignature(protocols));
+        next.searchParams.delete("protocol_id");
       } else {
         next.searchParams.delete("protocols");
+        next.searchParams.delete("protocol_id");
       }
     }
     if (targetFeature === "dex_arbitrage") {
@@ -215,11 +326,12 @@
     return next;
   }
 
-  function clearScopeStorage(storage) {
+  function clearScopeStorage(storage, feature) {
     if (!storage) return;
+    const featureKey = shellSelectionStorageKey(feature);
     for (let index = storage.length - 1; index >= 0; index -= 1) {
       const key = storage.key(index);
-      if (key && (key.startsWith("flashloan:") || key.startsWith("flashloan-"))) {
+      if (key && (key === SHELL_SELECTION_STORAGE_KEY || key === featureKey || (!feature && key.startsWith("flashloan:")))) {
         storage.removeItem(key);
       }
     }
@@ -227,9 +339,14 @@
 
   function invalidateScopeCaches(previous, next) {
     if (selectionKey(previous) === selectionKey(next)) return false;
+    const feature = shellStorageFeature(
+      (next && next.feature) ||
+      (previous && previous.feature) ||
+      window.__FLASHLOAN_MARKET_SCOPE__ && window.__FLASHLOAN_MARKET_SCOPE__.feature
+    );
     try {
-      clearScopeStorage(window.sessionStorage);
-      clearScopeStorage(window.localStorage);
+      clearScopeStorage(window.sessionStorage, feature);
+      clearScopeStorage(window.localStorage, feature);
     } catch (_) {
       // Storage can be unavailable in private or embedded browser contexts.
     }
@@ -265,12 +382,16 @@
 
   function withSelection(path) {
     const url = new URL(path, window.location.origin);
-    const current = currentQuery();
-    const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
     const targetFeature = pathFeature(url.pathname);
+    const current = applyStoredShellScope(currentQuery(), readStoredShellSelection(targetFeature), targetFeature);
+    const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
     const currentFeatureValue = pathFeature(window.location.pathname);
     if (targetFeature && currentFeatureValue && targetFeature !== currentFeatureValue) {
+      const chainId = current.get("chain_id") || fallback.chain_id;
       clearMarketScope(url);
+      if (chainId && !url.searchParams.get("chain_id")) {
+        url.searchParams.set("chain_id", String(chainId));
+      }
       return url.pathname + (url.search ? url.search : "");
     }
     if (!current.get("chain_id") && !fallback.chain_id && fallback.market_id && !url.searchParams.get("market_id")) {
@@ -279,7 +400,7 @@
     if (!current.get("chain_id") && fallback.chain_id && !url.searchParams.get("chain_id")) {
       url.searchParams.set("chain_id", String(fallback.chain_id));
     }
-    ["chain_id", "workflow", "execution_mode", "scope", "protocols"].forEach(function (key) {
+    ["chain_id", "workflow", "execution_mode", "scope", "protocols", "protocol_id"].forEach(function (key) {
       if (current.get(key) && !url.searchParams.get(key)) {
         url.searchParams.set(key, current.get(key));
       }
@@ -288,7 +409,8 @@
       url.searchParams.set("dex_strategy", current.get("dex_strategy"));
     }
     const currentSelection = currentScope();
-    const currentIsCow = isCowExecutionRail(currentSelection) || current.get("market_id") === "cow-dex-arbitrage";
+    const currentMarketId = String(current.get("market_id") || "").toLowerCase();
+    const currentIsCow = isCowExecutionRail(currentSelection) || currentMarketId === "dex-arbitrage-0-cow-protocol" || currentMarketId === "cow-dex-arbitrage";
     if (currentIsCow && current.get("cow_networks") && !url.searchParams.get("cow_networks")) {
       url.searchParams.set("cow_networks", current.get("cow_networks"));
     }
@@ -315,8 +437,11 @@
       if (link.hasAttribute("data-flash-loan-protocol-link")) return;
       const url = new URL(href, window.location.origin);
       const targetFeature = pathFeature(url.pathname);
-      if (targetFeature && selection && selection.feature && targetFeature !== selection.feature) {
-        clearMarketScope(url);
+      if (!targetFeature || !selection || !selection.feature) {
+        return;
+      }
+      if (targetFeature !== String(selection.feature || "").toLowerCase()) {
+        applyChainOnlyToUrl(url, selection);
         link.setAttribute("href", url.pathname + (url.search ? url.search : ""));
         return;
       }
@@ -342,27 +467,30 @@
     });
   }
 
-  function renderSelectionMeta(mount, selected) {
+  function renderSelectionSummary(mount, selected) {
     selected = selected || {};
-    const meta = mount && mount.querySelector ? mount.querySelector("[data-chain-selection-meta]") : null;
-    if (!meta) return;
+    const routeMeta = mount && mount.querySelector ? mount.querySelector("[data-chain-selection-meta]") : null;
+    const optionsMeta = mount && mount.querySelector ? mount.querySelector("[data-chain-selection-options-meta]") : null;
+    if (!routeMeta && !optionsMeta) return;
     const selectedList = unique(selected && selected.selected_protocols);
     const cowNetworkList = orderedCowNetworks(selected && selected.selected_cow_networks);
     const globalChainId = selected.global_chain_id || selected.chain_key || "";
-    meta.textContent = [
+    const routeText = [
       selected.display_name || selected.market_id || "Current route",
       globalChainId ? "Link " + globalChainId : "",
-      cowNetworkList.length ? "Networks " + cowNetworkList.join(", ") : (selected.protocol_summary || selected.protocol),
-      !cowNetworkList.length && selectedList.length ? "Protocols " + selectedList.join(", ") : "",
       selected.observation_only ? "Observation only" : "Execution capable",
     ].filter(Boolean).join(" | ");
-    return;
-    meta.textContent = [
-      selected.display_name || selected.market_id || "当前链路",
-      selected.protocol_summary || selected.protocol,
-      selectedList.length ? "协议 " + selectedList.join(", ") : "",
-      selected.observation_only ? "仅观察" : "可执行",
-    ].filter(Boolean).join(" | ");
+    if (routeMeta) {
+      routeMeta.textContent = routeText;
+      routeMeta.title = routeText;
+    }
+    if (optionsMeta) {
+      const protocolText = cowNetworkList.length
+        ? "Networks " + cowNetworkList.join(", ")
+        : (selectedList.length ? "Protocols " + selectedList.join(", ") : (selected.protocol_summary || selected.protocol || "Protocols"));
+      optionsMeta.textContent = protocolText;
+      optionsMeta.title = protocolText;
+    }
   }
 
   async function fetchCowNetworkConfig() {
@@ -445,6 +573,7 @@
       window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
     }
     window.__FLASHLOAN_MARKET_SCOPE__ = nextScope;
+    writeStoredShellSelection(nextScope, nextScope.feature);
     syncCowNetworkInputs(normalized);
     const detail = {
       selected: nextScope,
@@ -465,11 +594,11 @@
     mount.innerHTML = "";
     if (!options.length) {
       mount.hidden = false;
-      mount.setAttribute("data-chain-protocols-empty", "true");
+      mount.setAttribute("data-chain-selection-empty", "true");
       return [];
     }
     mount.hidden = false;
-    mount.removeAttribute("data-chain-protocols-empty");
+    mount.removeAttribute("data-chain-selection-empty");
     options.forEach(function (item) {
       const network = normalizeProtocol(item.network);
       const labelText = item.label || item.network;
@@ -491,7 +620,7 @@
         const next = setSelectedCowNetworks(checked, { cowConfig: cowConfig });
         renderCowNetworkBadgeList(mount, cowConfig, next);
         const selectorMount = mount.closest ? mount.closest("[data-chain-selector]") : null;
-        if (selectorMount) renderSelectionMeta(selectorMount, currentScope());
+        if (selectorMount) renderSelectionSummary(selectorMount, currentScope());
       };
       chip.appendChild(checkbox);
       chip.appendChild(document.createTextNode(labelText));
@@ -511,11 +640,11 @@
     mount.innerHTML = "";
     if (!normalizedOptions.length) {
       mount.hidden = false;
-      mount.setAttribute("data-chain-protocols-empty", "true");
+      mount.setAttribute("data-chain-selection-empty", "true");
       return [];
     }
     mount.hidden = false;
-    mount.removeAttribute("data-chain-protocols-empty");
+    mount.removeAttribute("data-chain-selection-empty");
     normalizedOptions.forEach(function (item) {
       const chip = document.createElement("label");
       chip.className = "protocol-chip" + (selected.has(item.protocol) ? " active" : "");
@@ -530,7 +659,7 @@
         const next = setSelectedProtocols(checked);
         renderProtocolBadgeList(mount, protocolOptionsList, next);
         const selectorMount = mount.closest ? mount.closest("[data-chain-selector]") : null;
-        if (selectorMount) renderSelectionMeta(selectorMount, currentScope());
+        if (selectorMount) renderSelectionSummary(selectorMount, currentScope());
       };
       chip.appendChild(checkbox);
       chip.appendChild(document.createTextNode(item.display_name));
@@ -585,13 +714,16 @@
     const url = new URL(window.location.href);
     if (normalized.length) {
       url.searchParams.set("protocols", protocolSignature(normalized));
+      url.searchParams.delete("protocol_id");
     } else {
       url.searchParams.delete("protocols");
+      url.searchParams.delete("protocol_id");
     }
     if (options.updateUrl !== false && window.history && typeof window.history.replaceState === "function") {
       window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
     }
     window.__FLASHLOAN_MARKET_SCOPE__ = nextScope;
+    writeStoredShellSelection(nextScope, nextScope.feature);
     const detail = {
       selected: nextScope,
       previous: scope,
@@ -622,7 +754,13 @@
       : String(document.body.dataset.chainFeature || "").trim().toLowerCase();
     const mount = config.mount || document.querySelector("[data-chain-selector]");
     if (!mount) return null;
-    const query = currentQuery();
+    const originalQuery = currentQuery();
+    const storedShellSelection = readStoredShellSelection(feature);
+    const query = applyStoredShellScope(
+      new URLSearchParams(originalQuery),
+      storedShellSelection,
+      feature
+    );
     const requestQuery = new URLSearchParams();
     requestQuery.set("page_path", window.location.pathname);
     if (feature) requestQuery.set("feature", feature);
@@ -630,6 +768,7 @@
     if (config.includeChainConfig === false) requestQuery.set("include_chain_config", "false");
     if (query.get("market_id")) requestQuery.set("market_id", query.get("market_id"));
     if (query.get("chain_id")) requestQuery.set("chain_id", query.get("chain_id"));
+    if (query.get("protocol_id")) requestQuery.set("protocol_id", query.get("protocol_id"));
     if (query.get("protocols")) requestQuery.set("protocols", query.get("protocols"));
     const response = await fetch("/api/chain-selection?" + requestQuery.toString(), { cache: "no-cache" });
     const payload = await response.json();
@@ -649,12 +788,13 @@
       select.setAttribute("aria-label", "选择链和市场");
       mount.appendChild(select);
     }
-    const protocolMount = mount.querySelector("[data-chain-protocols]") || (() => {
+    const selectionMount = mount.querySelector("[data-chain-selection-options]") || (() => {
       const node = document.createElement("div");
-      node.setAttribute("data-chain-protocols", "true");
+      node.setAttribute("data-chain-selection-options", "true");
       mount.appendChild(node);
       return node;
     })();
+    selectionMount.hidden = false;
 
     const selected = payload.selected || {};
     const nextKey = availableKey(chainOptions);
@@ -668,11 +808,44 @@
     }
 
     let scope = syncScopeFromSelection(selected, payload);
-    let protocolList = [];
-    if (isFlashLoanPoolPath(window.location.pathname)) {
-      protocolMount.hidden = true;
-      protocolMount.setAttribute("data-chain-protocols-flashloan-disabled", "true");
-    } else if (isCowExecutionRail(scope)) {
+    const storedMatchesSelection = Boolean(
+      storedShellSelection &&
+      selectionKey(storedShellSelection) &&
+      selectionKey(storedShellSelection) === selectionKey(scope)
+    );
+    if (!hasExplicitScope(originalQuery) && storedMatchesSelection) {
+      scope = {
+        ...scope,
+        ...storedShellSelection,
+        chain_key: storedShellSelection.chain_key || scope.chain_key,
+        global_chain_id: storedShellSelection.global_chain_id || scope.global_chain_id,
+        chain_id: storedShellSelection.chain_id ?? scope.chain_id,
+        market_id: storedShellSelection.market_id || scope.market_id,
+        protocol_options: Array.isArray(storedShellSelection.protocol_options) &&
+          storedShellSelection.protocol_options.length
+          ? storedShellSelection.protocol_options
+          : scope.protocol_options,
+        selected_protocols: Array.isArray(storedShellSelection.selected_protocols) &&
+          storedShellSelection.selected_protocols.length
+          ? storedShellSelection.selected_protocols
+          : scope.selected_protocols,
+      };
+      window.__FLASHLOAN_MARKET_SCOPE__ = scope;
+    }
+    if (hasExplicitScope(originalQuery) || !storedShellSelection) {
+      writeStoredShellSelection(scope, scope.feature || feature);
+    }
+    if (!hasExplicitScope(originalQuery) && storedShellSelection) {
+      const restoredUrl = applySelectionToUrl(new URL(window.location.href), scope);
+      if (window.history && typeof window.history.replaceState === "function") {
+        window.history.replaceState(
+          {},
+          "",
+          restoredUrl.pathname + (restoredUrl.search ? restoredUrl.search : "")
+        );
+      }
+    }
+    if (isCowExecutionRail(scope)) {
       const cowConfig = await fetchCowNetworkConfig();
       const cowNetworks = selectedCowNetworks(cowConfig);
       scope = {
@@ -681,20 +854,20 @@
         selected_cow_networks: cowNetworks,
       };
       window.__FLASHLOAN_MARKET_SCOPE__ = scope;
-      protocolList = renderCowNetworkBadgeList(protocolMount, cowConfig, cowNetworks);
+      renderCowNetworkBadgeList(selectionMount, cowConfig, cowNetworks);
     } else {
       const protocolOptionsList = scope.protocol_options || payload.protocol_options || [];
       const currentProtocols = scope.selected_protocols && scope.selected_protocols.length
         ? scope.selected_protocols
         : protocolOptionsList.map(function (item) { return item && item.protocol; }).filter(Boolean);
-      protocolList = renderProtocolBadgeList(
-        protocolMount,
+      renderProtocolBadgeList(
+        selectionMount,
         protocolOptionsList,
         currentProtocols
       );
     }
 
-    renderSelectionMeta(mount, scope);
+    renderSelectionSummary(mount, scope);
 
     select.onchange = function () {
       const option = select.options[select.selectedIndex];
@@ -715,11 +888,14 @@
       const target = next.pathname + (next.search ? next.search : "");
       invalidateScopeCaches(previous, item);
       window.__FLASHLOAN_MARKET_SCOPE__ = nextSelection;
+      writeStoredShellSelection(nextSelection, nextSelection.feature);
       preserveSelectionLinks(nextSelection);
-      window.location.assign(target);
+      if (window.AppShell && typeof window.AppShell.navigate === "function" && !window.AppShell.isEmbedded()) {
+        window.AppShell.navigate(target);
+      } else {
+        window.location.assign(target);
+      }
     };
-
-    if (protocolMount && !protocolList.length) protocolMount.hidden = true;
 
     preserveSelectionLinks(scope);
     if (select.dataset) {
@@ -746,4 +922,15 @@
     matchesProtocols: matchesProtocols,
     protocolSignature: protocolSignature,
   };
+
+  window.addEventListener("appshellnavigate", function (event) {
+    const detail = event.detail || {};
+    const target = new URL(detail.href || window.location.href, window.location.origin);
+    const feature = pathFeature(target.pathname);
+    if (!feature) return;
+    init({ feature: feature, includeChainConfig: false }).catch(function (error) {
+      console.error("chain selector:", error);
+    });
+  });
 })();
+

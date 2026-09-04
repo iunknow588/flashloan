@@ -12,10 +12,9 @@ from urllib.parse import quote
 from core.chain_data_registry import chain_data_by_chain_id
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
 from core.market_observation_store import (
+    load_market_observation_overview_static,
     load_market_observation_static,
-    market_observation_static_table,
     observation_payload_from_static,
-    static_store_metadata as market_observation_static_store_metadata,
 )
 from execution.uniswap_v4 import build_v4_quote_request, quote_v4_exact_input_single
 from execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
@@ -59,6 +58,25 @@ ERC20_DECIMALS_ABI = [
         "type": "function",
     }
 ]
+
+
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _v4_live_quote_enabled() -> bool:
+    return _env_flag("DEX_V4_LIVE_QUOTE_ENABLED", default=False)
+
+
+def _v4_execution_size_probe_enabled() -> bool:
+    return _env_flag("DEX_V4_EXECUTION_SIZE_PROBE_ENABLED", default=False)
+
+
+def _v4_live_token_metadata_enabled() -> bool:
+    return _env_flag("DEX_V4_LIVE_TOKEN_METADATA_ENABLED", default=False)
 
 
 def _chain_observation_module(chain_id: int | None):
@@ -353,17 +371,18 @@ def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int |
                     "metadataOk": bool(symbol and decimals is not None),
                     "source": "token_balance_scan_cache",
                 }
-        live_decimals = _live_v4_token_decimals(address, chain_id=chain_id)
-        if live_decimals is not None:
-            if not symbol:
-                symbol = address[:8].upper()
-            return {
-                "address": address,
-                "symbol": symbol,
-                "decimals": live_decimals,
-                "metadataOk": bool(symbol and live_decimals is not None),
-                "source": "chain_live_erc20_decimals",
-            }
+        if _v4_live_token_metadata_enabled():
+            live_decimals = _live_v4_token_decimals(address, chain_id=chain_id)
+            if live_decimals is not None:
+                if not symbol:
+                    symbol = address[:8].upper()
+                return {
+                    "address": address,
+                    "symbol": symbol,
+                    "decimals": live_decimals,
+                    "metadataOk": bool(symbol and live_decimals is not None),
+                    "source": "chain_live_erc20_decimals",
+                }
     if not symbol and address:
         symbol = address[:8].upper()
     payload = {
@@ -602,8 +621,8 @@ def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str, *, cha
         return None
     decimals0 = _v4_token_decimals(pool, 0, chain_id=chain_id)
     decimals1 = _v4_token_decimals(pool, 1, chain_id=chain_id)
-    if decimals0 is None or decimals1 is None:
-        return None
+    decimals0 = 18 if decimals0 is None else decimals0
+    decimals1 = 18 if decimals1 is None else decimals1
     raw_price = Decimal(sqrt_price_x96) * Decimal(sqrt_price_x96) / Decimal(2**192)
     human_price = raw_price * (Decimal(10) ** (decimals0 - decimals1))
     if human_price <= 0:
@@ -613,6 +632,42 @@ def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str, *, cha
     if from_symbol == token1.get("symbol") and to_symbol == token0.get("symbol"):
         return float(Decimal(1) / human_price)
     return None
+
+
+def _v4_static_depth_impact_bps(
+    pool: dict[str, Any],
+    *,
+    from_symbol: str,
+    input_amount: float | None,
+    from_index: int | None,
+    chain_id: int | None = None,
+) -> float | None:
+    if input_amount is None or input_amount <= 0 or from_index not in {0, 1}:
+        return None
+    liquidity = _optional_number(pool.get("liquidity"))
+    sqrt_price_x96 = _pool_sqrt_price_x96(pool)
+    decimals = _v4_token_decimals(pool, from_index, chain_id=chain_id)
+    if liquidity is None or liquidity <= 0 or sqrt_price_x96 is None or decimals is None:
+        return None
+    sqrt_price = Decimal(sqrt_price_x96) / Decimal(2**96)
+    amount_raw = Decimal(str(input_amount)) * (Decimal(10) ** decimals)
+    if from_index == 0:
+        next_sqrt = Decimal(1) / (Decimal(1) / sqrt_price + amount_raw / Decimal(str(liquidity)))
+    else:
+        next_sqrt = sqrt_price + amount_raw / Decimal(str(liquidity))
+    price_ratio = (next_sqrt / sqrt_price) ** 2
+    return float(abs(Decimal(1) - price_ratio) * Decimal(10_000))
+
+
+def _static_depth_available(pool: dict[str, Any]) -> bool:
+    protocol = _pool_protocol(pool)
+    if protocol == "uniswap_v4":
+        return _optional_number(pool.get("liquidity")) not in (None, 0) and _pool_tvl_usd(pool) > 0
+    return (
+        _pool_reserve_amount(pool, 0) is not None and _pool_reserve_amount(pool, 1) is not None
+    ) or (
+        _pool_reserve_usd(pool, 0) is not None and _pool_reserve_usd(pool, 1) is not None
+    )
 
 
 def _reference_price_quote(
@@ -653,6 +708,13 @@ def _reference_price_quote(
         reference_usd_mode = "fee_only_without_trusted_output_usd_price"
     else:
         return None
+    price_impact_bps = _v4_static_depth_impact_bps(
+        pool,
+        from_symbol=from_symbol,
+        input_amount=input_amount,
+        from_index=in_index,
+        chain_id=chain_id,
+    ) if _pool_protocol(pool) == "uniswap_v4" else None
 
     return {
         "pool": pool.get("pool"),
@@ -674,7 +736,9 @@ def _reference_price_quote(
         "referenceEffectiveRate": rate * fee_factor if rate is not None else None,
         "reserveInUsd": _pool_reserve_usd(pool, _pool_side_index(pool, from_symbol, from_address) or 0, price_map),
         "reserveOutUsd": _pool_reserve_usd(pool, _pool_side_index(pool, to_symbol, to_address) or 0, price_map),
-        "priceImpactBps": None,
+        "priceImpactBps": price_impact_bps,
+        "priceImpactLimitBps": 10.0,
+        "staticDepthAvailable": _static_depth_available(pool),
         "depthBand": pool.get("depthBand") or {},
         "quoteSource": "reference_price_requires_live_quoter",
         "executionTrust": "reference_only",
@@ -852,7 +916,7 @@ def _edge_quote(
         return None
     protocol = _pool_protocol(pool)
     if protocol == "uniswap_v4":
-        if input_amount is not None and input_amount > 0:
+        if _v4_live_quote_enabled() and input_amount is not None and input_amount > 0:
             network = _chain_network_name(chain_id) or str(pool.get("network") or "").strip().lower()
             adapter = None
             if network:
@@ -935,8 +999,57 @@ def _edge_quote(
                             "sdkAdapter": quote.get("sdkAdapter") or quote.get("quoteAdapter"),
                             "quoteAdapter": quote.get("quoteAdapter") or quote.get("sdkAdapter"),
                         }
-                except Exception:
-                    pass
+                except Exception as exc:
+                    live_quote_error = str(exc)
+                else:
+                    live_quote_error = ""
+            else:
+                live_quote_error = ""
+            if live_quote_error:
+                quote = _reference_price_quote(
+                    pool=pool,
+                    from_symbol=from_symbol,
+                    to_symbol=to_symbol,
+                    from_address=from_address,
+                    to_address=to_address,
+                    input_amount=input_amount,
+                    input_usd=input_usd,
+                    price_map=price_map,
+                    reason="uniswap_v4_live_quote_failed",
+                    chain_id=chain_id,
+                )
+                if quote is None:
+                    quote = {
+                        "pool": pool.get("pool"),
+                        "protocol": pool.get("protocol") or pool.get("dex"),
+                        "dex": pool.get("dex") or pool.get("protocol"),
+                        "fee": pool.get("fee"),
+                        "feeBps": _fee_bps(pool),
+                        "fromSymbol": from_symbol,
+                        "toSymbol": to_symbol,
+                        "tokenIn": _token_address(from_address),
+                        "tokenOut": _token_address(to_address),
+                        "inputAmount": input_amount,
+                        "inputUsd": input_usd,
+                        "outputAmount": None,
+                        "outputUsd": None,
+                        "effectiveRate": None,
+                        "reserveInUsd": _pool_reserve_usd(pool, in_index, price_map),
+                        "reserveOutUsd": _pool_reserve_usd(pool, out_index, price_map),
+                        "priceImpactBps": None,
+                        "depthBand": pool.get("depthBand") or {},
+                    }
+                quote.update(
+                    {
+                        "quoteSource": "uniswap_v4_live_quote_failed",
+                        "executionTrust": "live_quote_failed",
+                        "quoteMode": "uniswap_v4_sdk_exact_input_single",
+                        "adapterRequired": False,
+                        "liveQuoteError": live_quote_error,
+                        "warning": "uniswap_v4_live_quote_failed",
+                    }
+                )
+                return quote
         quote = _reference_price_quote(
             pool=pool,
             from_symbol=from_symbol,
@@ -1113,6 +1226,7 @@ def _route_quote_analysis(
     route_symbols = _route_symbols_from_tokens(route_tokens) if route_tokens else list(overview_route.get("pathSymbols") or route.get("routeSymbols") or [])
     route_addresses = _route_addresses_from_tokens(route_tokens) if route_tokens else []
     pools = _route_pools(route)
+    static_depth_available = bool(pools) and all(_static_depth_available(pool) for pool in pools)
     warnings: list[str] = []
     if route_symbols and not route_tokens:
         warnings.append("route_identity_symbol_fallback")
@@ -1214,6 +1328,12 @@ def _route_quote_analysis(
         steps.append(quote)
         trust = str(quote.get("executionTrust") or "").strip().lower()
         has_reference_output = quote.get("referenceOutputUsd") is not None or quote.get("referenceOutputAmount") is not None
+        if trust == "live_quote_failed":
+            warnings.append(f"hop_{index}_live_quote_failed")
+            if quote.get("liveQuoteError"):
+                warnings.append(f"hop_{index}_live_quote_error:{quote['liveQuoteError']}")
+            warnings.append(f"route_truncated_at_hop_{index}_live_quote_failed")
+            break
         if trust in {"reference_only", "sdk_adapter_required"} and not has_reference_output:
             warnings.append(f"hop_{index}_requires_live_quoter")
             warnings.append(f"route_truncated_at_hop_{index}_requires_live_quoter")
@@ -1234,7 +1354,10 @@ def _route_quote_analysis(
             warnings.append(f"route_truncated_at_hop_{index}_zero_output")
             break
     complete = len(steps) == max(0, len(route_symbols) - 1) and all(step.get("status") == "quoted" for step in steps)
-    requires_live_quoter = any(step.get("executionTrust") == "reference_only" for step in steps)
+    requires_live_quoter = any(
+        step.get("executionTrust") in {"reference_only", "live_quote_failed"}
+        for step in steps
+    )
     adapter_required = any(step.get("executionTrust") == "sdk_adapter_required" for step in steps)
     requires_live_quoter = requires_live_quoter or adapter_required
     untrusted_usd_reference = any(step.get("trustedUsdPrice") is False for step in steps)
@@ -1293,6 +1416,23 @@ def _route_quote_analysis(
         if reference_net_profit_amount is not None and token_basis_input_amount
         else None
     )
+    depth_impact_bps = [
+        _optional_number(step.get("priceImpactBps"))
+        for step in steps
+        if step.get("priceImpactBps") is not None
+    ]
+    max_static_depth_impact_bps = max(depth_impact_bps) if depth_impact_bps else None
+    depth_status = "available" if static_depth_available else "unavailable"
+    if static_depth_available and max_static_depth_impact_bps is not None and max_static_depth_impact_bps > 10.0:
+        depth_status = "exceeds_10_bps"
+    live_price_verified_now = bool(steps) and all(
+        str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter"
+        for step in steps
+    )
+    if not static_depth_available and not live_price_verified_now:
+        warnings.append("static_depth_evidence_unavailable")
+    elif depth_status == "exceeds_10_bps" and not live_price_verified_now:
+        warnings.append("static_price_impact_exceeds_10_bps_reduce_borrow_amount")
     borrow_asset_is_stable = bool(input_symbol and _is_stable_anchor(input_symbol))
     borrow_asset_class = "stable" if borrow_asset_is_stable else "non_stable"
     token_basis_trusted = bool(token_basis_complete and not assumed_token_decimals)
@@ -1312,26 +1452,25 @@ def _route_quote_analysis(
         fully_live_adapter = bool(steps) and all(str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter" for step in steps)
         if not fully_live_adapter:
             requires_live_quoter = True
-            adapter_required = True
             executable_ready = False
             final_output_usd = None
             gross_profit_usd = None
             net_profit_usd = None
             net_profit_bps = None
-            reference_final_output_usd = None
-            reference_gross_profit_usd = None
-            submission_net_profit_usd = None
-            reference_net_profit_usd = None
-            reference_net_profit_bps = None
             non_stable_chain_submission_candidate = False
     live_price_verified = bool(steps) and all(
         str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter" and step.get("trustedUsdPrice") is True
         for step in steps
     )
+    live_quote_failures = [
+        f"第 {step.get('hop') or '?'} 跳链上 Quoter 失败：{step.get('liveQuoteError')}"
+        for step in steps
+        if step.get("executionTrust") == "live_quote_failed" and step.get("liveQuoteError")
+    ]
     if not complete:
         action = "等待真实报价"
         level = "blocked"
-        reasons = ["部分跳数缺少可计算池子或深度，不能进入自动交易"]
+        reasons = live_quote_failures or ["部分跳数缺少可计算池子或深度，不能进入自动交易"]
     elif requires_live_quoter:
         action = (
             f"{input_symbol} 本位参考收益为正，待链上复核"
@@ -1357,9 +1496,23 @@ def _route_quote_analysis(
             else ["路径包含 V3/V4 或参考价报价跳，静态余额不能作为自动交易依据", "必须用链上 Quoter 或协议 SDK 复核每一跳输出后才能进入预检"]
         )
         if strict_live_price_only:
-            reasons = [
+            reasons = live_quote_failures or [
                 "Robinhood Testnet 强制链上实时价格，静态参考价已禁用",
                 "路由框架可以保留，但任何价格、收益和 bps 都必须来自 live quoter / onchain evidence",
+            ]
+        if depth_status == "unavailable":
+            action = "已生成保守初始量，继续探索深度"
+            reasons = [
+                "当前池子缺少可用于离线深度计算的 liquidity 或 TVL，收益只保留为参考值",
+                "初始借贷量采用交易量阶梯中的最小探针，继续观察各跳输出和滑点",
+                "补充深度快照后，按 10 bps 滑点限制重新放大量化",
+            ]
+        elif depth_status == "exceeds_10_bps":
+            action = "滑点超过 10 bps，降低初始交易额度"
+            reasons = [
+                "离线深度估算发现至少一跳超过 10 bps 滑点限制",
+                "应沿交易量阶梯降低初始借贷量，直到所有跳数满足 10 bps",
+                *reasons,
             ]
         elif untrusted_usd_reference:
             reasons = [
@@ -1447,6 +1600,10 @@ def _route_quote_analysis(
         "referenceNetProfitAmount": reference_net_profit_amount,
         "referenceGrossReturnBps": reference_gross_return_bps,
         "referenceNetReturnBps": reference_net_return_bps,
+        "staticDepthStatus": depth_status,
+        "staticDepthAvailable": static_depth_available,
+        "maxStaticDepthImpactBps": max_static_depth_impact_bps,
+        "staticDepthImpactLimitBps": 10.0,
         "referenceGasExcluded": token_basis_complete,
         "referenceReturnBasis": "borrow_token" if token_basis_complete else ("usd" if reference_net_profit_usd is not None else None),
         "referenceReturnTrusted": bool(
@@ -1598,6 +1755,99 @@ def _observation_anchor_symbols(
 
 def _candidate_payload(chain_id: int | None, protocols: list[str] | None = None) -> dict[str, Any]:
     return dex_pool_candidates_payload(chain_id=chain_id, protocols=protocols or [])
+
+
+def _overview_pool_payload_from_static_observation(observation: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "summary": {},
+        "pairs": [],
+        "poolStaticTable": observation.get("poolStaticTable") or {},
+        "flashLoanLiquidity": observation.get("flashLoanLiquidity") or {},
+        "dexSettlement": observation.get("dexSettlement") or {},
+    }
+
+
+def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: int | None) -> list[dict[str, Any]]:
+    paths = []
+    for summary in snapshot.get("closedLoopRouteSummaries") or []:
+        if not isinstance(summary, dict):
+            continue
+        path_symbols = [
+            _norm_symbol(symbol)
+            for symbol in summary.get("pathSymbols") or []
+            if _norm_symbol(symbol)
+        ]
+        if not path_symbols:
+            path_symbols = [
+                _norm_symbol(symbol)
+                for symbol in str(summary.get("pathText") or "").split("->")
+                if _norm_symbol(symbol)
+            ]
+        path_text = str(summary.get("pathText") or " -> ".join(path_symbols)).strip()
+        if len(path_symbols) < 2 or not path_text:
+            continue
+        anchor = _norm_symbol(summary.get("anchorSymbol") or path_symbols[0])
+        target = _norm_symbol(
+            summary.get("counterSymbol")
+            or (path_symbols[-2] if len(path_symbols) > 2 else path_symbols[-1])
+        )
+        kind = "direct_anchor_pair" if len(path_symbols) <= 3 else "bridge_pair"
+        route = {
+            "symbolPair": path_text,
+            "routeSymbols": path_symbols,
+            "routeAddresses": list(summary.get("anchorAddresses") or []),
+            "routeTokenPath": [{"symbol": symbol, "address": ""} for symbol in path_symbols],
+            "tokenXSymbol": anchor,
+            "tokenYSymbol": target,
+            "executionPools": [],
+            "overviewRoute": {
+                "kind": kind,
+                "anchorBorrowSymbol": anchor,
+                "targetSymbol": target,
+                "bridgeSymbols": path_symbols[1:-1],
+                "pathSymbols": path_symbols,
+                "pathText": path_text,
+                "candidatePairSymbols": list(summary.get("pairSymbols") or []),
+                "analysisStage": "market_observation_closed_loop",
+                "nextStep": "quotes_and_route_analysis",
+                "observationSource": summary.get("source") or "market_observation",
+                "marketObservationRoute": True,
+            },
+            "flashLoanLinkage": {
+                "strategy": (
+                    "robinhood_testnet_market_observation_closed_loop"
+                    if chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+                    else "market_observation_closed_loop"
+                ),
+                "borrow_symbols": [anchor] if anchor else [],
+                "route_symbols": path_symbols,
+                "route_addresses": list(summary.get("anchorAddresses") or []),
+                "ready_for_atomic_arbitrage": False,
+            },
+            "overviewProfit": {
+                "method": "static_overview_summary",
+                "notionalUsd": QUOTE_PROBE_NOTIONAL_USD,
+                "complete": False,
+                "requiresLiveQuoter": True,
+                "adapterRequired": True,
+                "profitable": False,
+                "executableCandidate": False,
+                "chainSubmissionCandidate": False,
+                "referenceReturnBasis": "borrow_token",
+                "referenceReturnTrusted": False,
+                "recommendationLevel": "requires_live_quote",
+                "recommendationAction": "等待链上 Quoter/SDK 复核",
+                "warnings": ["overview_summary_without_live_quote"],
+                "priceEvidenceSource": "chain_live_quote_required",
+                "priceEvidenceMode": "live_required",
+            },
+            "routeFrameworkSource": "market_observation",
+            "pathSource": "market_observation",
+            "marketObservationSourceStage": "cached_snapshot",
+            "priceEvidenceSource": "chain_live_quote_required",
+        }
+        paths.append(route)
+    return paths
 
 
 def _candidate_anchor_symbols(
@@ -2495,7 +2745,7 @@ def _route_execution_size_probe(
     *,
     chain_id: int | None = None,
 ) -> dict[str, Any] | None:
-    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID:
+    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or not _v4_execution_size_probe_enabled():
         return None
     steps = [
         step
@@ -2585,15 +2835,17 @@ def _route_execution_size_probe(
     else:
         status = "liquidity_probe_complete"
     search_status = "bounded" if first_failures else ("lower_bound_verified" if successful_maxima else "no_successful_amount_found")
-    route_max_executable_raw = min(successful_maxima) if successful_maxima else None
-    route_first_failure_raw = min(first_failures) if first_failures else None
     return {
         "status": status,
         "searchStatus": search_status,
         "probeAttempts": total_attempts,
         "stepProbes": step_probes,
-        "maxExecutableAmountRaw": str(route_max_executable_raw) if route_max_executable_raw is not None else None,
-        "firstFailureAmountRaw": str(route_first_failure_raw) if route_first_failure_raw is not None else None,
+        # Each hop is denominated in a different token, so these values cannot
+        # be collapsed into a route-level borrow amount. The route probe below
+        # derives that amount by quoting the complete path.
+        "inputAmountUnit": "per_hop",
+        "maxExecutableAmountRaw": None,
+        "firstFailureAmountRaw": None,
     }
 
 
@@ -2649,12 +2901,100 @@ def dex_overview_payload(
     if cached is not None:
         cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
         return cached
-    observation = dex_market_observation_surface_payload(
-        chain_id=chain_id,
-        protocols=protocols,
-        use_static_observation=use_static_observation,
+    use_compact_static_overview = bool(
+        use_static_observation and chain_id == ROBINHOOD_TESTNET_CHAIN_ID
     )
-    pool_payload = _candidate_payload(chain_id, protocols)
+    compact_snapshot = (
+        load_market_observation_overview_static(chain_id=chain_id, protocols=protocols)
+        if use_compact_static_overview
+        else {}
+    )
+    if compact_snapshot.get("exists"):
+        if compact_snapshot.get("closedLoopRouteSummaries"):
+            overview_paths = _overview_paths_from_static_summary(compact_snapshot, chain_id=chain_id)
+            pool_payload = _overview_pool_payload_from_static_observation(compact_snapshot)
+            payload = {
+                "mode": "dex_overview",
+                "chain_id": chain_id,
+                "selected_protocols": protocols or [],
+                "summary": {
+                    **(compact_snapshot.get("summary") or {}),
+                    "arbitragePathCount": len(overview_paths),
+                    "candidatePathCount": len(overview_paths),
+                    "directAnchorPathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
+                    "bridgePathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
+                    "watchPairCount": len(compact_snapshot.get("chainSpecificObservationPairs") or []),
+                    "marketObservationRouteCount": len(overview_paths),
+                    "overviewProbeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
+                    "overviewProbeCompleteCount": 0,
+                    "overviewLiveQuoterRequiredCount": len(overview_paths),
+                    "overviewProfitableRouteCount": 0,
+                    "overviewExecutableCandidateCount": 0,
+                    "overviewChainSubmissionCandidateCount": 0,
+                },
+                "decisionBasis": "robinhood_testnet_market_observation_closed_loop" if chain_id == ROBINHOOD_TESTNET_CHAIN_ID else "market_observation_closed_loop",
+                "marketObservationSource": "cached_snapshot",
+                "marketObservationSourceStage": "cached_snapshot",
+                "routeFrameworkSource": "market_observation",
+                "marketObservation": {
+                    "summary": compact_snapshot.get("summary") or {},
+                    "chainSpecificObservationPairs": compact_snapshot.get("chainSpecificObservationPairs") or [],
+                },
+                "marketObservationSnapshotKind": "dex_overview_compact",
+                "poolStaticTable": pool_payload.get("poolStaticTable") or {},
+                "flashLoanLiquidity": pool_payload.get("flashLoanLiquidity") or {},
+                "dexSettlement": pool_payload.get("dexSettlement") or {},
+                "arbitragePaths": overview_paths,
+                "watchPairs": compact_snapshot.get("chainSpecificObservationPairs") or [],
+            }
+            _cache_surface_payload(
+                "dex_overview",
+                payload,
+                chain_id=chain_id,
+                protocols=protocols,
+                use_static_observation=use_static_observation,
+            )
+            return payload
+        # The overview index owns route summaries, while the observation
+        # snapshot owns the compact per-hop evidence used for the rough probe.
+        # Read that scoped snapshot here instead of rebuilding candidate pools.
+        observation_snapshot = load_market_observation_static(
+            chain_id=chain_id,
+            protocols=protocols,
+        )
+        observation = observation_payload_from_static(
+            observation_snapshot if observation_snapshot.get("exists") else compact_snapshot,
+            source="cached_snapshot",
+        )
+        observation["marketObservationSnapshotKind"] = "dex_overview_compact"
+        pool_payload = _overview_pool_payload_from_static_observation(observation)
+    elif use_compact_static_overview:
+        # A legacy full snapshot can exceed 100 MB because it retains every
+        # observed V4 pool. Do not parse or rebuild it inside a page request.
+        observation = {
+            "mode": "dex_market_observation",
+            "chain_id": chain_id,
+            "selected_protocols": protocols or [],
+            "summary": {},
+            "marketObservationSource": "overview_snapshot_pending",
+            "marketObservationSourceStage": "overview_snapshot_pending",
+            "marketObservationSnapshotKind": "dex_overview_compact",
+            "marketObservationStaticTable": {
+                "exists": False,
+                "network": _chain_network_name(chain_id),
+                "chain_id": chain_id,
+                "protocols": protocols or [],
+                "source": "overview_snapshot_pending",
+            },
+        }
+        pool_payload = _overview_pool_payload_from_static_observation(observation)
+    else:
+        observation = dex_market_observation_surface_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        )
+        pool_payload = _candidate_payload(chain_id, protocols)
     price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
     frame_context = _route_framework_context_from_observation(
         observation,
@@ -2746,6 +3086,7 @@ def dex_overview_payload(
             "chainSpecificObservationPairs": observation.get("chainSpecificObservationPairs") or [],
             "chainSpecificObservationPools": observation.get("chainSpecificObservationPools") or [],
         },
+        "marketObservationSnapshotKind": observation.get("marketObservationSnapshotKind"),
         "poolStaticTable": pool_payload.get("poolStaticTable") or {},
         "flashLoanLiquidity": pool_payload.get("flashLoanLiquidity") or {},
         "dexSettlement": pool_payload.get("dexSettlement") or {},
@@ -2778,6 +3119,15 @@ def dex_quote_routes_payload(
     protocols: list[str] | None = None,
     use_static_observation: bool = False,
 ) -> dict[str, Any]:
+    cached = _cached_framework_surface_payload(
+        "dex_quote_routes",
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
+    if cached is not None:
+        cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
+        return cached
     pool_payload = _candidate_payload(chain_id, protocols)
     settlement = pool_payload.get("dexSettlement") or {}
     price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
@@ -2806,7 +3156,7 @@ def dex_quote_routes_payload(
         frame_context=frame_context,
         settlement=settlement,
     )
-    return build_quote_routes_payload_from_overview(
+    payload = build_quote_routes_payload_from_overview(
         overview,
         chain_id=chain_id,
         protocols=protocols,
@@ -2815,6 +3165,19 @@ def dex_quote_routes_payload(
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
     )
+    payload["marketObservationSource"] = observation.get("marketObservationSource") or "computed"
+    payload["marketObservationSourceStage"] = (
+        observation.get("marketObservationSourceStage")
+        or payload["marketObservationSource"]
+    )
+    _cache_surface_payload(
+        "dex_quote_routes",
+        payload,
+        chain_id=chain_id,
+        protocols=protocols,
+        use_static_observation=use_static_observation,
+    )
+    return payload
 
 
 def _quote_routes_payload_from_overview(
@@ -2848,6 +3211,12 @@ def _quote_routes_payload_for_robinhood_testnet(
         protocols=protocols,
         use_static_observation=use_static_observation,
     )
+    if observation is None and use_static_observation:
+        observation = dex_market_observation_surface_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        )
     if observation is not None:
         pool_payload = _candidate_payload(chain_id, protocols)
         frame_context = _route_framework_context_from_observation(
@@ -2888,11 +3257,18 @@ def _quote_routes_payload_for_robinhood_testnet(
         protocols=protocols,
         price_map=price_map,
     )
+    source_observation = observation if observation is not None else overview
+    payload["marketObservationSource"] = source_observation.get("marketObservationSource") or "computed"
+    payload["marketObservationSourceStage"] = (
+        source_observation.get("marketObservationSourceStage")
+        or payload["marketObservationSource"]
+    )
     observed_anchor_symbols = list(observation.get("observationAnchorSymbols") or []) if observation is not None else []
     if observed_anchor_symbols:
         payload_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
-        payload_summary["anchorBorrowSymbols"] = observed_anchor_symbols
-        payload_summary["closedLoopAnchorSymbols"] = observed_anchor_symbols
+        payload_summary["observationAnchorSymbols"] = observed_anchor_symbols
+        payload_summary.setdefault("anchorBorrowSymbols", observed_anchor_symbols)
+        payload_summary.setdefault("closedLoopAnchorSymbols", observed_anchor_symbols)
         payload["summary"] = payload_summary
     _cache_surface_payload(
         "dex_quote_routes",

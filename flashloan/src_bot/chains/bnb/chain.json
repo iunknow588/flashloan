@@ -6,11 +6,13 @@
   "native_symbol": "BNB",
   "features": {
     "liquidation": {
-      "default_market_id": "bnb-venus-core",
+      "default_market_id": "liquidation-56-venus-core",
+      "legacy_default_market_id": "bnb-venus-core",
       "protocol": "venus_core"
     },
     "dex_arbitrage": {
-      "default_market_id": "bnb-dex-arbitrage",
+      "default_market_id": "dex-arbitrage-56-pancakeswap-v3",
+      "legacy_default_market_id": "bnb-dex-arbitrage",
       "protocol": "pancakeswap_v3"
     }
   },

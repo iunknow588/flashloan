@@ -44,6 +44,8 @@ V2_PAIR_ABI = [
 ROBINHOOD_DEFAULT_V3_QUOTER = "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7"
 _STABLE_DECIMALS = {"AUSD", "BUSD", "DAI", "EURC", "FDUSD", "FRAX", "PYUSD", "RLUSD", "USDC", "USDD", "USDE", "USDG", "USDT"}
 _TOKEN_DECIMALS_FALLBACK = {"WETH": 18, "ETH": 18, "WBTC": 8, "BTC": 8, **{symbol: 6 for symbol in _STABLE_DECIMALS}}
+DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS = 10
+DEFAULT_ROUTE_SIZE_PROBE_ATTEMPTS = 10
 
 
 QuoteHopProvider = Callable[..., dict[str, Any]]
@@ -59,6 +61,11 @@ def _norm_symbol(value: object) -> str:
 
 def _text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _is_missing_historical_state_error(exc: BaseException) -> bool:
+    message = _text(exc).lower()
+    return "missing trie node" in message or "state is not available" in message or "state .* not found" in message
 
 
 def _as_dict(value: object) -> dict[str, Any]:
@@ -135,7 +142,7 @@ def _fee_bps(value: object) -> int:
         parsed = float(text)
     except ValueError:
         return 30
-    if parsed > 100:
+    if parsed >= 100:
         return int(parsed / 100)
     return int(parsed)
 
@@ -367,27 +374,32 @@ def _quote_v4_hop(
         route_symbols=(from_symbol, to_symbol),
         reference_amount_out_raw=reference_amount_out_raw,
     )
+    pool_token0, pool_token0_symbol, pool_token0_decimals = _pool_side(pool, _norm_symbol(pool.get("token0Symbol")))
+    pool_token1, pool_token1_symbol, pool_token1_decimals = _pool_side(pool, _norm_symbol(pool.get("token1Symbol")))
     request["poolState"] = {
         "pool": pool_address,
-        "token0": _checksum(token_in),
-        "token1": _checksum(token_out),
-        "token0Symbol": from_symbol,
-        "token1Symbol": to_symbol,
-        "token0Decimals": in_decimals,
-        "token1Decimals": out_decimals,
+        "token0": _checksum(pool_token0 or token_in),
+        "token1": _checksum(pool_token1 or token_out),
+        "token0Symbol": pool_token0_symbol or from_symbol,
+        "token1Symbol": pool_token1_symbol or to_symbol,
+        "token0Decimals": pool_token0_decimals if pool_token0_decimals is not None else in_decimals,
+        "token1Decimals": pool_token1_decimals if pool_token1_decimals is not None else out_decimals,
         "tickSpacing": pool.get("tickSpacing"),
         "sqrtPriceX96": pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96"),
+        "liquidity": pool.get("liquidity"),
     }
     quote = quote_v4_exact_input_single(
         adapter=_load_v4_quote_adapter(network=network, chain_id=chain_id),
         request=request,
     )
     amount_out = int(quote["amountOutRaw"])
+    quote_pool_state = quote.get("poolState") if isinstance(quote.get("poolState"), dict) else {}
+    merged_pool_state = {**request["poolState"], **quote_pool_state}
     return {
         "status": "live_verified",
         "quoteMethod": quote.get("quoteMethod") or "uniswap_v4_sdk_exact_input_single",
         "quoteMode": quote.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
-        "poolState": quote.get("poolState") or {"protocol": "uniswap_v4", "pool": pool_address, "blockNumber": int(block_number)},
+        "poolState": merged_pool_state,
         "protocol": "uniswap_v4",
         "pool": pool_address,
         "tokenIn": _checksum(token_in),
@@ -401,6 +413,8 @@ def _quote_v4_hop(
         "outputDecimals": out_decimals,
         "quoterGasEstimate": int(quote.get("quoterGasEstimate") or quote.get("gasEstimate") or 0),
         "sdkAdapter": quote.get("sdkAdapter") or quote.get("quoteAdapter"),
+        "priceImpactBps": quote.get("priceImpactBps"),
+        "priceImpactSource": quote.get("priceImpactSource"),
     }
 
 
@@ -491,6 +505,105 @@ def _token_continuity_issues(hops: list[dict[str, Any]]) -> list[dict[str, Any]]
     return issues
 
 
+def _spot_amount_out_raw(hop: dict[str, Any]) -> int | None:
+    """Return the zero-size spot output in raw units from the live pool state."""
+    state = hop.get("poolState") if isinstance(hop.get("poolState"), dict) else {}
+    token_in = _text(hop.get("tokenIn")).lower()
+    token_out = _text(hop.get("tokenOut")).lower()
+    token0 = _text(state.get("token0")).lower()
+    token1 = _text(state.get("token1")).lower()
+    if not token_in or not token_out or {token_in, token_out} != {token0, token1}:
+        return None
+    amount_in_raw = _int_or_none(hop.get("amountInRaw"))
+    if amount_in_raw is None or amount_in_raw <= 0:
+        return None
+    if "reserve0Raw" in state and "reserve1Raw" in state:
+        reserve_in = _int_or_none(state.get("reserve0Raw" if token_in == token0 else "reserve1Raw"))
+        reserve_out = _int_or_none(state.get("reserve1Raw" if token_in == token0 else "reserve0Raw"))
+        if reserve_in and reserve_out and reserve_in > 0:
+            return (amount_in_raw * reserve_out) // reserve_in
+        return None
+    sqrt_price_x96 = _int_or_none(state.get("sqrtPriceX96"))
+    if sqrt_price_x96 is None or sqrt_price_x96 <= 0:
+        return None
+    q192 = 1 << 192
+    if token_in == token0:
+        return (amount_in_raw * sqrt_price_x96 * sqrt_price_x96) // q192
+    return (amount_in_raw * q192) // (sqrt_price_x96 * sqrt_price_x96)
+
+
+def _hop_fee_bps(hop: dict[str, Any], step: dict[str, Any], pool: dict[str, Any]) -> int:
+    return _fee_bps(
+        hop.get("feeBps")
+        or hop.get("fee")
+        or step.get("feeBps")
+        or step.get("fee")
+        or pool.get("feeBps")
+        or pool.get("fee")
+    )
+
+
+def _annotate_hop_price_impact(
+    hop: dict[str, Any],
+    *,
+    step: dict[str, Any],
+    pool: dict[str, Any],
+    limit_bps: int = DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+) -> dict[str, Any]:
+    """Measure price impact against live spot, excluding the explicitly reported LP fee."""
+    annotated = dict(hop)
+    amount_out_raw = _int_or_none(hop.get("amountOutRaw"))
+    spot_amount_out_raw = _spot_amount_out_raw(hop)
+    supplied_impact = _number(hop.get("priceImpactBps"))
+    fee_bps = _hop_fee_bps(hop, step, pool)
+    annotated["feeBps"] = fee_bps
+    annotated["priceImpactLimitBps"] = int(limit_bps)
+    annotated["priceImpactSource"] = "live_pool_spot_price_excluding_lp_fee"
+    annotated["priceImpactFeeExcluded"] = True
+    if supplied_impact is not None:
+        annotated["priceImpactBps"] = supplied_impact
+        annotated["priceImpactWithinLimit"] = supplied_impact <= limit_bps
+        annotated["priceImpactSource"] = hop.get("priceImpactSource") or "quote_provider"
+        return annotated
+    if amount_out_raw is None or spot_amount_out_raw is None or spot_amount_out_raw <= 0:
+        annotated.update(
+            {
+                "spotAmountOutRaw": str(spot_amount_out_raw) if spot_amount_out_raw is not None else None,
+                "priceImpactBps": None,
+                "priceImpactWithinLimit": False,
+                "priceImpactError": "live pool spot price is unavailable for this hop",
+            }
+        )
+        return annotated
+    expected_after_fee_raw = spot_amount_out_raw * max(0, 10_000 - fee_bps) // 10_000
+    if expected_after_fee_raw <= 0:
+        annotated.update(
+            {
+                "spotAmountOutRaw": str(spot_amount_out_raw),
+                "expectedAmountOutAfterFeeRaw": str(expected_after_fee_raw),
+                "priceImpactBps": None,
+                "priceImpactWithinLimit": False,
+                "priceImpactError": "live spot output after fee is non-positive",
+            }
+        )
+        return annotated
+    impact_bps = max(
+        Decimal("0"),
+        (Decimal(expected_after_fee_raw) - Decimal(amount_out_raw))
+        / Decimal(expected_after_fee_raw)
+        * Decimal(10_000),
+    )
+    annotated.update(
+        {
+            "spotAmountOutRaw": str(spot_amount_out_raw),
+            "expectedAmountOutAfterFeeRaw": str(expected_after_fee_raw),
+            "priceImpactBps": float(impact_bps),
+            "priceImpactWithinLimit": bool(impact_bps <= Decimal(int(limit_bps))),
+        }
+    )
+    return annotated
+
+
 def capture_onchain_trigger_context(
     *,
     chain_id: int | None,
@@ -570,7 +683,7 @@ def _unsupported_evidence(
     }
 
 
-def _route_size_advice(route: dict[str, Any]) -> tuple[dict[str, Any], int | None, int | None]:
+def _route_size_advice(route: dict[str, Any]) -> tuple[dict[str, Any], int | None, int | None, int | None]:
     size_analysis = _as_dict(route.get("sizeAnalysis"))
     if not size_analysis:
         size_analysis = _as_dict(_as_dict(route.get("quoteAnalysis")).get("sizeAnalysis"))
@@ -580,17 +693,31 @@ def _route_size_advice(route: dict[str, Any]) -> tuple[dict[str, Any], int | Non
         size_analysis.get("executionSizeProbe")
         or size_analysis.get("routeExecutionSizeProbe")
     )
+    input_amount_unit = _text(size_analysis.get("inputAmountUnit")).lower()
     max_executable_raw = _int_or_none(
-        size_analysis.get("maxExecutableAmountRaw")
-        or execution_probe.get("maxExecutableAmountRaw")
-        or route.get("maxExecutableAmountRaw")
+        (
+            size_analysis.get("maxExecutableAmountRaw")
+            or execution_probe.get("maxExecutableAmountRaw")
+            or route.get("maxExecutableAmountRaw")
+        )
+        if input_amount_unit != "per_hop"
+        else None
     )
     first_failure_raw = _int_or_none(
-        size_analysis.get("firstFailureAmountRaw")
-        or execution_probe.get("firstFailureAmountRaw")
-        or route.get("firstFailureAmountRaw")
+        (
+            size_analysis.get("firstFailureAmountRaw")
+            or execution_probe.get("firstFailureAmountRaw")
+            or route.get("firstFailureAmountRaw")
+        )
+        if input_amount_unit != "per_hop"
+        else None
     )
-    return execution_probe, max_executable_raw, first_failure_raw
+    recommended_raw = _int_or_none(
+        size_analysis.get("recommendedBorrowInputAmountRaw")
+        or execution_probe.get("recommendedBorrowInputAmountRaw")
+        or route.get("recommendedBorrowInputAmountRaw")
+    )
+    return execution_probe, max_executable_raw, first_failure_raw, recommended_raw
 
 
 def _transaction_development(ready: bool, blockers: list[str]) -> dict[str, Any]:
@@ -624,18 +751,51 @@ def _probe_robinhood_testnet_route_execution_size(
     max_attempts: int | None = None,
     min_probe_amount_raw: int | None = None,
 ) -> dict[str, Any]:
-    max_attempts = max(1, int(max_attempts or os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_ATTEMPTS", "24") or 24))
+    max_attempts = max(1, min(10, int(max_attempts or os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_ATTEMPTS", str(DEFAULT_ROUTE_SIZE_PROBE_ATTEMPTS)) or DEFAULT_ROUTE_SIZE_PROBE_ATTEMPTS)))
     min_probe_amount_raw = max(1, int(min_probe_amount_raw or os.getenv("DEX_V4_EXECUTION_SIZE_MIN_PROBE_AMOUNT_RAW", "1") or 1))
+    max_probe_multiplier = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_MULTIPLIER", "64") or 64))
     target_amount_raw = max(1, int(requested_amount_raw))
+    max_probe_amount_raw = min((1 << 128) - 1, max(target_amount_raw, min_probe_amount_raw) * max_probe_multiplier)
     attempts = 0
-    last_success_raw: int | None = None
-    last_failure_raw: int | None = None
+    candidate_rows: list[dict[str, Any]] = []
 
     def _passes(evidence: dict[str, Any]) -> bool:
+        validation = _as_dict(evidence.get("validation"))
+        # The real evidence builder always emits these gates. Keep injected legacy
+        # providers usable in tests while never weakening the live evidence path.
+        price_impact_gate = validation.get("allHopsWithinPriceImpactLimit", True)
+        profit_gate = validation.get("profitableAfterCosts", True)
         return bool(
             _text(evidence.get("status")).lower() == "live_verified"
-            and evidence.get("readyForTransactionPreflight") is True
+            and validation.get("allHopsQuoted", True) is True
+            and validation.get("routeClosed", True) is True
+            and validation.get("tokenContinuity", True) is True
+            and profit_gate is True
+            and price_impact_gate is True
         )
+
+    def _failure_reason(evidence: dict[str, Any]) -> str | None:
+        validation = _as_dict(evidence.get("validation"))
+        status = _text(evidence.get("status")).lower()
+        if validation.get("allHopsWithinPriceImpactLimit") is False and validation.get("allHopsQuoted") is True:
+            return "price_impact_limit_exceeded"
+        if validation.get("profitableAfterCosts") is False and validation.get("allHopsQuoted") is True:
+            return "not_profitable_after_costs"
+        if status == "slippage_limit_exceeded":
+            return "price_impact_limit_exceeded"
+        if status != "live_verified":
+            return status or "live_quote_failed"
+        if validation.get("allHopsQuoted") is not True:
+            return "not_all_hops_quoted"
+        if validation.get("routeClosed") is not True:
+            return "route_not_closed"
+        if validation.get("tokenContinuity") is not True:
+            return "token_continuity_failed"
+        if validation.get("allHopsWithinPriceImpactLimit") is not True:
+            return "price_impact_limit_exceeded"
+        if validation.get("profitableAfterCosts") is not True:
+            return "not_profitable_after_costs"
+        return None
 
     def _evaluate(amount_raw: int) -> dict[str, Any]:
         nonlocal attempts
@@ -651,91 +811,160 @@ def _probe_robinhood_testnet_route_execution_size(
             skip_execution_size_probe=True,
         )
 
-    try:
-        evidence = _evaluate(target_amount_raw)
-    except Exception as exc:
+    def _record(amount_raw: int, evidence: dict[str, Any]) -> tuple[bool, str | None]:
+        validation = _as_dict(evidence.get("validation"))
+        costs = _as_dict(evidence.get("costModel"))
+        passed = _passes(evidence)
+        reason = None if passed else _failure_reason(evidence)
+        candidate_rows.append(
+            {
+                "attempt": attempts,
+                "amountRaw": str(amount_raw),
+                "status": "profitable_and_within_limits" if passed else "quoted_but_not_eligible",
+                "allHopsQuoted": validation.get("allHopsQuoted") is True,
+                "allHopsWithinPriceImpactLimit": validation.get("allHopsWithinPriceImpactLimit") is True,
+                "profitableAfterCosts": validation.get("profitableAfterCosts") is True,
+                "netProfitAmount": costs.get("netProfitAmount"),
+                "netProfitAmountBps": costs.get("netProfitAmountBps"),
+                "blockers": list(evidence.get("blockers") or []),
+                "failureReason": reason,
+            }
+        )
+        return passed, reason
+
+    def _stop_without_size(reason: str) -> dict[str, Any]:
+        search_status = (
+            "pool_insufficient_for_profitable_execution"
+            if reason == "price_impact_limit_exceeded"
+            else "not_profitable_at_low_slippage"
+            if reason == "not_profitable_after_costs"
+            else reason
+        )
         return {
-            "status": "route_execution_size_probe_failed",
-            "searchStatus": "probe_failed",
+            "status": "route_execution_size_probe_unexecutable",
+            "searchStatus": search_status,
             "probeAttempts": attempts,
+            "maxProbeAttempts": max_attempts,
             "requestedAmountRaw": str(target_amount_raw),
+            "selectedProfitableAmountRaw": None,
             "maxExecutableAmountRaw": None,
-            "firstFailureAmountRaw": None,
-            "error": str(exc),
+            "firstFailureAmountRaw": str(target_amount_raw),
+            "attempts": candidate_rows,
+            "failureReason": reason,
         }
 
-    if _passes(evidence):
-        return {
-            "status": "route_execution_size_probe_complete",
-            "searchStatus": "requested_amount_verified",
-            "probeAttempts": attempts,
-            "requestedAmountRaw": str(target_amount_raw),
-            "maxExecutableAmountRaw": str(target_amount_raw),
-            "firstFailureAmountRaw": None,
-        }
-
-    upper_bound = target_amount_raw
     lower_bound: int | None = None
-    probe = max(min_probe_amount_raw, target_amount_raw // 2)
-    last_failure_raw = target_amount_raw
-    while probe >= min_probe_amount_raw and attempts < max_attempts:
+    upper_bound: int | None = None
+    first_ineligible_amount_raw: int | None = None
+    expansion_stop_reason: str | None = None
+    probe = target_amount_raw
+    while attempts < max_attempts and probe >= min_probe_amount_raw:
         try:
             evidence = _evaluate(probe)
-        except Exception:
-            last_failure_raw = probe
+            passed, reason = _record(probe, evidence)
+            if passed:
+                lower_bound = probe
+                break
+            if reason != "price_impact_limit_exceeded":
+                return _stop_without_size(reason or "not_eligible")
             upper_bound = probe
-            if probe <= min_probe_amount_raw:
-                break
-            next_probe = max(min_probe_amount_raw, probe // 2)
-            if next_probe == probe:
-                break
-            probe = next_probe
-            continue
-        if _passes(evidence):
-            lower_bound = probe
-            last_success_raw = probe
-            break
-        last_failure_raw = probe
-        upper_bound = probe
-        if probe <= min_probe_amount_raw:
+            first_ineligible_amount_raw = probe
+        except Exception as exc:
+            candidate_rows.append(
+                {
+                    "attempt": attempts,
+                    "amountRaw": str(probe),
+                    "status": "quote_failed",
+                    "error": str(exc),
+                }
+            )
+            return _stop_without_size("live_quote_failed")
+        if lower_bound is not None:
             break
         next_probe = max(min_probe_amount_raw, probe // 2)
         if next_probe == probe:
             break
         probe = next_probe
 
-    if lower_bound is None or last_success_raw is None:
+    if lower_bound is None:
         return {
             "status": "route_execution_size_probe_unexecutable",
-            "searchStatus": "no_successful_amount_found",
+            "searchStatus": "pool_insufficient_for_profitable_execution",
             "probeAttempts": attempts,
+            "maxProbeAttempts": max_attempts,
             "requestedAmountRaw": str(target_amount_raw),
+            "selectedProfitableAmountRaw": None,
             "maxExecutableAmountRaw": None,
-            "firstFailureAmountRaw": str(last_failure_raw) if last_failure_raw is not None else str(target_amount_raw),
+            "firstFailureAmountRaw": str(target_amount_raw),
+            "attempts": candidate_rows,
+            "failureReason": "after up to 10 half-size attempts, no amount passed live quote, 10 bps per-hop impact, and positive net-profit gates",
         }
 
-    while upper_bound - lower_bound > 1 and attempts < max_attempts:
-        mid = (upper_bound + lower_bound) // 2
+    probe = min(max_probe_amount_raw, max(lower_bound * 2, lower_bound + 1))
+    while attempts < max_attempts and probe <= max_probe_amount_raw:
         try:
-            evidence = _evaluate(mid)
-        except Exception:
-            upper_bound = mid
-            last_failure_raw = mid
-            continue
-        if _passes(evidence):
-            lower_bound = mid
-            last_success_raw = mid
-        else:
-            upper_bound = mid
-            last_failure_raw = mid
+            evidence = _evaluate(probe)
+            passed, reason = _record(probe, evidence)
+            if passed:
+                lower_bound = probe
+                if probe >= max_probe_amount_raw:
+                    break
+                next_probe = min(max_probe_amount_raw, max(probe * 2, probe + 1))
+                if next_probe == probe:
+                    break
+                probe = next_probe
+                continue
+            first_ineligible_amount_raw = probe
+            expansion_stop_reason = reason or "not_eligible"
+            upper_bound = probe if reason == "price_impact_limit_exceeded" else None
+            break
+        except Exception as exc:
+            candidate_rows.append(
+                {
+                    "attempt": attempts,
+                    "amountRaw": str(probe),
+                    "status": "quote_failed",
+                        "error": str(exc),
+                    }
+            )
+            first_ineligible_amount_raw = probe
+            expansion_stop_reason = "live_quote_failed"
+            upper_bound = None
+            break
+
+    if upper_bound is not None and lower_bound is not None:
+        while upper_bound - lower_bound > 1 and attempts < max_attempts:
+            mid = (upper_bound + lower_bound) // 2
+            try:
+                evidence = _evaluate(mid)
+                passed, _ = _record(mid, evidence)
+                if passed:
+                    lower_bound = mid
+                else:
+                    upper_bound = mid
+            except Exception as exc:
+                candidate_rows.append(
+                    {
+                        "attempt": attempts,
+                        "amountRaw": str(mid),
+                        "status": "quote_failed",
+                        "error": str(exc),
+                    }
+                )
+                upper_bound = mid
 
     return {
         "status": "route_execution_size_probe_complete",
-        "searchStatus": "bounded" if last_failure_raw is not None else "lower_bound_verified",
+        "searchStatus": "profitable_amount_found",
         "probeAttempts": attempts,
+        "maxProbeAttempts": max_attempts,
         "requestedAmountRaw": str(target_amount_raw),
-        "maxExecutableAmountRaw": str(last_success_raw if last_success_raw is not None else lower_bound),
-        "firstFailureAmountRaw": str(last_failure_raw) if last_failure_raw is not None else None,
+        "selectedProfitableAmountRaw": str(lower_bound),
+        "maxExecutableAmountRaw": str(lower_bound),
+        "firstFailureAmountRaw": str(upper_bound or first_ineligible_amount_raw) if (upper_bound or first_ineligible_amount_raw) is not None else (str(target_amount_raw) if lower_bound != target_amount_raw else None),
+        "attempts": candidate_rows,
+        "failureReason": None,
+        "expansionStopReason": expansion_stop_reason,
     }
 
 
@@ -807,7 +1036,7 @@ def build_route_onchain_evidence(
     input_address, _, input_decimals = _pool_side(first_pool, input_symbol)
     input_decimals = input_decimals if input_decimals is not None else _token_decimals(w3, input_address, input_symbol, token_cache)
     route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
-    route_size_execution_probe, route_max_executable_raw, route_first_failure_raw = _route_size_advice(route)
+    route_size_execution_probe, route_max_executable_raw, route_first_failure_raw, route_recommended_raw = _route_size_advice(route)
     reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
     borrow_input_amount = (
         reference_input_amount
@@ -820,9 +1049,14 @@ def build_route_onchain_evidence(
         if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0
         else _raw_from_human(borrow_input_amount, input_decimals)
     )
-    selected_borrow_input_amount_raw = int(requested_borrow_input_amount_raw)
-    if route_max_executable_raw is not None and route_max_executable_raw > 0:
-        selected_borrow_input_amount_raw = min(selected_borrow_input_amount_raw, route_max_executable_raw)
+    if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0:
+        selected_borrow_input_amount_raw = int(borrow_input_amount_override_raw)
+    elif route_recommended_raw is not None and route_recommended_raw > 0:
+        selected_borrow_input_amount_raw = int(route_recommended_raw)
+    elif route_max_executable_raw is not None and route_max_executable_raw > 0:
+        selected_borrow_input_amount_raw = int(route_max_executable_raw)
+    else:
+        selected_borrow_input_amount_raw = int(requested_borrow_input_amount_raw)
     borrow_input_amount = Decimal(int(selected_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))
     execution_size_probe: dict[str, Any] | None = route_size_execution_probe or None
     route_has_size_metadata = bool(route_max_executable_raw or route_first_failure_raw or route_size_execution_probe)
@@ -839,6 +1073,9 @@ def build_route_onchain_evidence(
         and selected_borrow_input_amount_raw > 0
         and (route_has_size_metadata or testnet_closed_loop_v4_route)
     ):
+        probe_amount_raw = selected_borrow_input_amount_raw
+        # Chain-offchain coarse sizing already chose the best starting point.
+        # On-chain verification begins there, then halves only if needed.
         execution_size_probe = _probe_robinhood_testnet_route_execution_size(
             route,
             payload=payload,
@@ -846,7 +1083,7 @@ def build_route_onchain_evidence(
             observed_at=observed,
             trigger_context=trigger,
             quote_hop_provider=quote_hop_provider,
-            requested_amount_raw=selected_borrow_input_amount_raw,
+            requested_amount_raw=probe_amount_raw,
         )
         try:
             probed_amount_raw = int(execution_size_probe.get("maxExecutableAmountRaw") or 0)
@@ -860,11 +1097,12 @@ def build_route_onchain_evidence(
     hop_rows: list[dict[str, Any]] = []
     amount_in_raw: int | None = None
     blockers: list[str] = []
-    try:
-        amount_in_raw = selected_borrow_input_amount_raw
-        for step in steps:
-            pool = _pool_for_step(step, pools)
-            protocol = _protocol_key(step.get("protocol"), step.get("dex"), step.get("fee"), pool.get("protocol"), pool.get("dex"))
+    amount_in_raw = selected_borrow_input_amount_raw
+    for step in steps:
+        pool = _pool_for_step(step, pools)
+        protocol = _protocol_key(step.get("protocol"), step.get("dex"), step.get("fee"), pool.get("protocol"), pool.get("dex"))
+        hop_number = int(step.get("hop") or len(hop_rows) + 1)
+        try:
             if hop_provider is not None:
                 hop = hop_provider(w3=w3, quoter=quoter, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
             elif protocol == "uniswap_v2":
@@ -882,19 +1120,71 @@ def build_route_onchain_evidence(
                 )
             else:
                 hop = _quote_v3_hop(w3=w3, quoter=quoter, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
-            hop["hop"] = int(step.get("hop") or len(hop_rows) + 1)
-            hop["fromSymbol"] = _norm_symbol(step.get("fromSymbol"))
-            hop["toSymbol"] = _norm_symbol(step.get("toSymbol"))
-            hop["staticQuote"] = {
-                "outputAmount": step.get("outputAmount"),
-                "outputUsd": step.get("outputUsd"),
-                "quoteSource": step.get("quoteSource"),
-                "executionTrust": step.get("executionTrust"),
-            }
-            hop_rows.append(hop)
-            amount_in_raw = int(hop["amountOutRaw"])
-    except Exception as exc:
-        blockers.append(f"链上逐跳复核失败：{exc}")
+        except Exception as exc:
+            if _is_missing_historical_state_error(exc):
+                hop_rows.append(
+                    {
+                        "hop": hop_number,
+                        "status": "live_evidence_deferred",
+                        "executionTrust": "static_reference_only",
+                        "quoteSource": "historical_state_unavailable",
+                        "quoteMethod": f"{protocol}_exact_input",
+                        "protocol": protocol,
+                        "pool": step.get("pool") or pool.get("pool"),
+                        "fromSymbol": _norm_symbol(step.get("fromSymbol")),
+                        "toSymbol": _norm_symbol(step.get("toSymbol")),
+                        "amountInRaw": str(amount_in_raw),
+                        "amountOutRaw": None,
+                        "liveQuoteError": str(exc),
+                    }
+                )
+                blockers.append(
+                    f"第 {hop_number} 跳历史区块 {block_number} 的 trie 状态不可用，已延后复核，不判定为路线失败：{exc}"
+                )
+                break
+            hop_rows.append(
+                {
+                    "hop": hop_number,
+                    "status": "live_quote_failed",
+                    "executionTrust": "live_quote_failed",
+                    "quoteSource": "chain_live_quote_failed",
+                    "quoteMethod": f"{protocol}_exact_input",
+                    "protocol": protocol,
+                    "pool": step.get("pool") or pool.get("pool"),
+                    "fromSymbol": _norm_symbol(step.get("fromSymbol")),
+                    "toSymbol": _norm_symbol(step.get("toSymbol")),
+                    "tokenIn": step.get("tokenIn") or _pool_side(pool, _norm_symbol(step.get("fromSymbol")))[0],
+                    "tokenOut": step.get("tokenOut") or _pool_side(pool, _norm_symbol(step.get("toSymbol")))[0],
+                    "amountInRaw": str(amount_in_raw),
+                    "amountOutRaw": None,
+                    "liveQuoteError": str(exc),
+                    "staticQuote": {
+                        "outputAmount": step.get("outputAmount"),
+                        "outputUsd": step.get("outputUsd"),
+                        "quoteSource": step.get("quoteSource"),
+                        "executionTrust": step.get("executionTrust"),
+                    },
+                }
+            )
+            blockers.append(f"第 {hop_number} 跳链上逐跳复核失败：{exc}")
+            break
+        hop["hop"] = hop_number
+        hop["fromSymbol"] = _norm_symbol(step.get("fromSymbol"))
+        hop["toSymbol"] = _norm_symbol(step.get("toSymbol"))
+        hop["staticQuote"] = {
+            "outputAmount": step.get("outputAmount"),
+            "outputUsd": step.get("outputUsd"),
+            "quoteSource": step.get("quoteSource"),
+            "executionTrust": step.get("executionTrust"),
+        }
+        hop = _annotate_hop_price_impact(
+            hop,
+            step=step,
+            pool=pool,
+            limit_bps=DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+        )
+        hop_rows.append(hop)
+        amount_in_raw = int(hop["amountOutRaw"])
 
     token_continuity_issues = _token_continuity_issues(hop_rows)
     token_continuity_ok = not token_continuity_issues
@@ -907,17 +1197,49 @@ def build_route_onchain_evidence(
     )
     if reference_quote_only:
         blockers.append("V4 路由仍使用 reference_quote_adapter；必须接入真实 V4 Quoter/SDK 或 swap static-call 后才能进入交易预检。")
-    all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and not blockers
+    all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and token_continuity_ok and not any(
+        _text(hop.get("status")).lower() in {"live_quote_failed", "quote_failed"}
+        for hop in hop_rows
+    ) and not reference_quote_only
+    hop_price_impact_rows = [
+        hop for hop in hop_rows if isinstance(hop, dict) and hop.get("amountOutRaw") is not None
+    ]
+    all_hops_within_price_impact_limit = bool(hop_price_impact_rows) and len(hop_price_impact_rows) == len(steps) and all(
+        hop.get("priceImpactWithinLimit") is True for hop in hop_price_impact_rows
+    )
+    price_impact_issues = [
+        {
+            "hop": hop.get("hop"),
+            "fromSymbol": hop.get("fromSymbol"),
+            "toSymbol": hop.get("toSymbol"),
+            "priceImpactBps": hop.get("priceImpactBps"),
+            "limitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+            "error": hop.get("priceImpactError"),
+        }
+        for hop in hop_rows
+        if hop.get("priceImpactWithinLimit") is not True
+    ]
+    historical_state_unavailable = any(
+        _text(hop.get("status")).lower() == "live_evidence_deferred"
+        for hop in hop_rows
+    )
+    if all_hops_verified and not all_hops_within_price_impact_limit:
+        blockers.append(
+            f"至少一跳价格影响无法确认或超过 {DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS} bps，不能进入交易预检。"
+        )
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
-    final_decimals = int(hop_rows[-1]["outputDecimals"]) if hop_rows else None
-    final_amount = Decimal(hop_rows[-1]["amountOut"]) if hop_rows else None
+    final_hop = hop_rows[-1] if all_hops_verified and hop_rows else None
+    final_decimals = int(final_hop["outputDecimals"]) if final_hop and final_hop.get("outputDecimals") is not None else None
+    final_amount = Decimal(final_hop["amountOut"]) if final_hop and final_hop.get("amountOut") is not None else None
     borrow_asset_is_stable = bool(
         analysis.get("borrowAssetIsStable")
         if analysis.get("borrowAssetIsStable") is not None
         else input_symbol in _STABLE_DECIMALS
     )
-    notional = _positive_decimal_or_none(analysis.get("notionalUsd")) or (
-        borrow_input_amount if borrow_asset_is_stable else Decimal("1000")
+    notional = (
+        borrow_input_amount
+        if borrow_asset_is_stable
+        else (_positive_decimal_or_none(analysis.get("notionalUsd")) or Decimal("1000"))
     )
     token_gross_profit = (
         final_amount - borrow_input_amount
@@ -942,6 +1264,7 @@ def build_route_onchain_evidence(
     min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
     net_positive_after_costs = bool(
         all_hops_verified
+        and all_hops_within_price_impact_limit
         and (
             (borrow_asset_is_stable and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
             or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
@@ -949,6 +1272,7 @@ def build_route_onchain_evidence(
     )
     meets_submission_profit_threshold = bool(
         all_hops_verified
+        and all_hops_within_price_impact_limit
         and (
             (borrow_asset_is_stable and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
             or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
@@ -962,6 +1286,29 @@ def build_route_onchain_evidence(
         blockers.append("稳定币资金池路线的链上净利润未达到 6U 门槛。")
     if borrow_asset_is_stable and final_output_usd is None:
         blockers.append("最终输出不是稳定币或缺少可信 USD 计价，不能进入自动交易预检。")
+    pool_insufficient_for_profitable_execution = bool(
+        execution_size_probe
+        and execution_size_probe.get("searchStatus") == "pool_insufficient_for_profitable_execution"
+    )
+    if pool_insufficient_for_profitable_execution:
+        blockers.append("当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。")
+    evidence_status = (
+        "live_evidence_deferred"
+        if historical_state_unavailable
+        else (
+            "pool_insufficient_for_profitable_execution"
+        if pool_insufficient_for_profitable_execution
+        else (
+            "slippage_limit_exceeded"
+            if all_hops_verified and not all_hops_within_price_impact_limit
+            else (
+                "route_unprofitable"
+                if all_hops_verified and all_hops_within_price_impact_limit and not net_positive_after_costs
+                else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
+            )
+        )
+        )
+    )
     return {
         "evidenceVersion": 1,
         "observedAt": observed,
@@ -979,7 +1326,7 @@ def build_route_onchain_evidence(
         "requestedBorrowInputAmountRaw": str(requested_borrow_input_amount_raw),
         "selectedBorrowInputAmountRaw": str(selected_borrow_input_amount_raw),
         "executionSizeProbe": execution_size_probe,
-        "status": "live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"),
+        "status": evidence_status,
         "executionTrust": "live_quoter_verified_readonly" if all_hops_verified else "static_reference_only",
         "trustedForExecution": False,
         "priceEvidenceMode": "live_verified" if all_hops_verified else "live_required",
@@ -1019,9 +1366,18 @@ def build_route_onchain_evidence(
             "netProfitBps": float(net_profit_bps if borrow_asset_is_stable else token_net_profit_bps)
             if (net_profit_bps if borrow_asset_is_stable else token_net_profit_bps) is not None
             else None,
+            "hopPriceImpactLimitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+            "maxHopPriceImpactBps": max(
+                (float(hop.get("priceImpactBps")) for hop in hop_rows if _number(hop.get("priceImpactBps")) is not None),
+                default=None,
+            ),
+            "priceImpactIssues": price_impact_issues,
         },
         "validation": {
             "allHopsQuoted": all_hops_verified,
+            "allHopsWithinPriceImpactLimit": all_hops_within_price_impact_limit,
+            "hopPriceImpactLimitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+            "priceImpactIssues": price_impact_issues,
             "routeClosed": route_closed,
             "tokenContinuity": token_continuity_ok,
             "tokenContinuityIssues": token_continuity_issues,
@@ -1043,6 +1399,8 @@ def build_route_onchain_evidence(
             "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
             "netProfitAmountSymbol": input_symbol,
             "nonStablePositiveXProfitPolicy": bool(not borrow_asset_is_stable),
+            "executionSizeSearchStatus": execution_size_probe.get("searchStatus") if execution_size_probe else None,
+            "poolInsufficientForProfitableExecution": pool_insufficient_for_profitable_execution,
         },
         "blockers": blockers,
         "transactionDevelopment": _transaction_development(meets_submission_profit_threshold, blockers),

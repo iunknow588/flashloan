@@ -54,12 +54,42 @@ def select_accounts(
     force: bool = False,
     market_id: str | None = None,
     chain_id: int | None = None,
+    price_triggered_accounts: list[str] | None = None,
 ) -> dict[str, Any]:
     source_accounts = unique_accounts(accounts)
+    scan_mode = str(getattr(config, "scan_mode", "timer_driven") or "timer_driven").strip().lower()
+    if scan_mode == "price_driven" and not force:
+        triggered_accounts = unique_accounts(price_triggered_accounts or [])
+        selected = [account for account in triggered_accounts if account in source_accounts]
+        if selected:
+            strategy = "price_driven_scan"
+            included_tiers = ["price_driven"]
+        elif triggered_accounts:
+            strategy = "price_driven_no_match"
+            included_tiers = []
+        else:
+            strategy = "price_driven_idle"
+            included_tiers = []
+        return {
+            "selected_accounts": selected,
+            "strategy": strategy,
+            "scan_mode": scan_mode,
+            "included_tiers": included_tiers,
+            "account_count": len(source_accounts),
+            "selected_account_count": len(selected),
+            "core_account_count": 0,
+            "high_frequency_account_count": 0,
+            "core_due": False,
+            "high_frequency_due": False,
+            "borrow_health_due": False,
+            "price_triggered_account_count": len(triggered_accounts),
+        }
+
     if not source_accounts:
         return {
             "selected_accounts": [],
             "strategy": "empty_account_pool",
+            "scan_mode": scan_mode,
             "included_tiers": [],
             "account_count": 0,
             "selected_account_count": 0,
@@ -126,14 +156,15 @@ def select_accounts(
             strategy = "fallback_borrow_health"
             selected = list(source_accounts)
 
-    return {
-        "selected_accounts": selected,
-        "strategy": strategy,
-        "included_tiers": included_tiers,
-        "account_count": len(source_accounts),
-        "selected_account_count": len(selected),
-        "core_account_count": len(core_accounts),
-        "high_frequency_account_count": len(high_accounts),
+        return {
+            "selected_accounts": selected,
+            "strategy": strategy,
+            "scan_mode": scan_mode,
+            "included_tiers": included_tiers,
+            "account_count": len(source_accounts),
+            "selected_account_count": len(selected),
+            "core_account_count": len(core_accounts),
+            "high_frequency_account_count": len(high_accounts),
         "core_due": core_due,
         "high_frequency_due": high_due,
         "borrow_health_due": borrow_due,
@@ -149,3 +180,5 @@ def mark_selection_finished(selection: dict[str, Any], *, scan_cache: dict[str, 
         scan_cache["last_high_frequency_scan_monotonic"] = now
     if "borrow_health" in tiers:
         scan_cache["last_borrow_health_scan_monotonic"] = now
+    if "price_driven" in tiers:
+        scan_cache["last_price_scan_monotonic"] = now

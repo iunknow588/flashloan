@@ -97,6 +97,7 @@ def resolve_market_page_variant(
     *,
     market_id: str | None = None,
     chain_id: int | None = None,
+    protocol_id: str | None = None,
     database_url: str | None = None,
     default_market_id: str | None = None,
     default_chain_id: int | None = None,
@@ -118,6 +119,7 @@ def resolve_market_page_variant(
         market_id=market_id,
         chain_id=chain_id,
         feature=feature,
+        protocol_id=protocol_id,
         database_url=database_url,
         default_market_id=default_market_id,
     )

@@ -14,17 +14,33 @@ $script:PreferredRemoteUrl = ""
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Initialize-Utf8Session {
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+
+    try {
+        [Console]::InputEncoding = $utf8
+        [Console]::OutputEncoding = $utf8
+    } catch {
+        # Best effort only.
+    }
+
+    $global:OutputEncoding = $utf8
+    $PSDefaultParameterValues['*:Encoding'] = 'utf8'
+}
+
+Initialize-Utf8Session
+
 function Get-EnvFileValues {
     param(
         [string]$EnvPath
     )
 
     $values = @{}
-    if (-not (Test-Path $EnvPath)) {
+    if (-not (Test-Path -LiteralPath $EnvPath)) {
         return $values
     }
 
-    foreach ($line in Get-Content -Path $EnvPath -ErrorAction SilentlyContinue) {
+    foreach ($line in Get-Content -LiteralPath $EnvPath -Encoding utf8 -ErrorAction SilentlyContinue) {
         $trimmed = $line.Trim()
         if (-not $trimmed -or $trimmed.StartsWith("#")) {
             continue

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from core.market_identity import canonical_market_id_from_legacy
+
 
 def _as_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
@@ -38,6 +40,11 @@ def _first_text(*values: object) -> str:
         if text:
             return text
     return ""
+
+
+def _market_id(value: object) -> str:
+    text = _text(value).lower()
+    return canonical_market_id_from_legacy(text) or text
 
 
 def _first_network(*values: object) -> str:
@@ -94,13 +101,13 @@ def infer_evidence_scope(payload: dict[str, Any]) -> EvidenceScope:
             trigger_context.get("chainId"),
             trigger_context.get("chain_id"),
         ),
-        market_id=_first_text(
+        market_id=_market_id(_first_text(
             payload.get("market_id"),
             quote.get("market_id"),
             precheck.get("market_id"),
             market_state.get("market_id"),
             cow_filter.get("market_id"),
-        ),
+        )),
     )
 
 
@@ -118,7 +125,7 @@ def _wanted_chain_ids(values: Iterable[object] | None) -> set[int]:
 
 
 def _wanted_market_ids(values: Iterable[object] | None) -> set[str]:
-    return {_text(item).lower() for item in values or [] if _text(item)}
+    return {_market_id(item) for item in values or [] if _text(item)}
 
 
 def evidence_scope_matches(
@@ -153,7 +160,7 @@ def evidence_scope_mismatch_reasons(
     reasons: list[str] = []
     network = _network(expected_network)
     chain_id = _int_or_none(expected_chain_id)
-    market_id = _text(expected_market_id).lower()
+    market_id = _market_id(expected_market_id)
     if network and scope.network != network:
         reasons.append("network_scope_mismatch")
     if chain_id is not None and scope.chain_id != chain_id:

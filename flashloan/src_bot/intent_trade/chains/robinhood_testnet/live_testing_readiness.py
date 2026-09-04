@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
@@ -16,6 +17,7 @@ from intent_trade.chains.robinhood_testnet.predeploy_readiness import (
     _int,
     _is_testnet_plan_scope,
     _plan_scope,
+    _text,
 )
 
 
@@ -25,6 +27,7 @@ def summarize_robinhood_testnet_live_testing_readiness(
     contracts_metadata: dict[str, Any],
     chain_test_plan: dict[str, Any],
     chain_test_audit: dict[str, Any] | None = None,
+    current_opportunity_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     audit = chain_test_audit or audit_robinhood_chain_test_plan(chain_test_plan)
     stage = _as_dict(chain_metadata.get("stageFreezePredeploy"))
@@ -47,6 +50,32 @@ def summarize_robinhood_testnet_live_testing_readiness(
     audit_ok = _bool(audit.get("ok"))
     stage_approved = _bool(stage.get("stageFreezeApproved") or chain_metadata.get("stageFreezeApproved"))
     execution_first = _bool(live_testing.get("executionFirst"))
+    snapshot_chain = _as_dict(
+        _as_dict(current_opportunity_snapshot).get("snapshots", {}).get(str(chain_metadata.get("chainId")))
+        if isinstance(_as_dict(current_opportunity_snapshot).get("snapshots"), dict)
+        else {}
+    )
+    snapshot_updated_at = _text(snapshot_chain.get("updated_at") or _as_dict(current_opportunity_snapshot).get("updated_at"))
+    plan_generated_at = _text(chain_test_plan.get("generatedAt"))
+
+    def _parse_timestamp(value: str) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    snapshot_time = _parse_timestamp(snapshot_updated_at)
+    plan_time = _parse_timestamp(plan_generated_at)
+    snapshot_is_newer_than_plan = bool(snapshot_time and plan_time and snapshot_time > plan_time)
+    snapshot_summary = _as_dict(snapshot_chain.get("summary"))
+    current_live_profitable_route_count = _int(snapshot_summary.get("live_profitable_route_count"))
+    if current_live_profitable_route_count == 0:
+        current_live_profitable_route_count = _int(snapshot_summary.get("liveProfitableRouteCount"))
+    current_snapshot_has_no_live_profitable_route = bool(
+        snapshot_chain and current_live_profitable_route_count == 0
+    )
     chain_test_plan_evidence_scoped = _evidence_path_is_testnet_scoped(
         chain_metadata.get("lastChainTestPlanEvidence"),
         "/chain_test/latest/plan.json",
@@ -83,6 +112,7 @@ def summarize_robinhood_testnet_live_testing_readiness(
         and normal_probe_ready
         and normal_probe_measurement_ready
         and (execution_first or not _chain_test_blockers(chain_test_plan))
+        and not snapshot_is_newer_than_plan
     )
 
     blockers: list[str] = []
@@ -107,6 +137,10 @@ def summarize_robinhood_testnet_live_testing_readiness(
         blockers.append("aave_or_morpho_flashloan_claim_without_verified_testnet_liquidity")
     if not chain_test_ready:
         blockers.append("chain_test_readiness_not_ready_for_live_testing")
+    if snapshot_is_newer_than_plan:
+        blockers.append("chain_test_plan_stale_against_current_opportunity_snapshot")
+    if snapshot_is_newer_than_plan and current_snapshot_has_no_live_profitable_route:
+        blockers.append("current_opportunity_snapshot_has_no_live_profitable_route")
     if not broadcast_enabled:
         blockers.append("broadcast_gate_closed")
     if not normal_probe_ready:
@@ -150,6 +184,8 @@ def summarize_robinhood_testnet_live_testing_readiness(
             "predeployReadinessEvidenceScoped": predeploy_readiness_evidence_scoped,
             "lendingLiquidityEvidenceScoped": lending_liquidity_evidence_scoped,
             "candidatePoolSupplyEvidenceUnset": candidate_pool_supply_evidence_unset,
+            "opportunitySnapshotNewerThanPlan": snapshot_is_newer_than_plan,
+            "currentSnapshotHasNoLiveProfitableRoute": current_snapshot_has_no_live_profitable_route,
         },
         "evidence": {
             "chainTestPlan": chain_metadata.get("lastChainTestPlanEvidence"),
@@ -158,6 +194,9 @@ def summarize_robinhood_testnet_live_testing_readiness(
             "candidatePoolSupply": chain_metadata.get("lastCandidatePoolSupplyEvidence"),
             "normalTestnetProbe": chain_metadata.get("lastNormalTestnetProbeEvidence"),
             "pausedRedeployPlan": chain_metadata.get("lastPausedRedeployPlanEvidence"),
+            "currentOpportunitySnapshotUpdatedAt": snapshot_updated_at or None,
+            "chainTestPlanGeneratedAt": plan_generated_at or None,
+            "currentLiveProfitableRouteCount": current_live_profitable_route_count if snapshot_chain else None,
         },
         "blockingReasons": _dedupe(blockers),
         "nextRequiredActions": [

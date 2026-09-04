@@ -85,7 +85,8 @@ def test_flash_loan_pool_default_scope_is_robinhood_testnet_v4():
     assert scope == {
         "network": "robinhood-testnet",
         "chain_id": 46630,
-        "market_id": "robinhood-testnet-dex-paused",
+        "market_id": "dex-arbitrage-46630-uniswap-v4",
+        "legacy_market_id": "robinhood-testnet-dex-paused",
         "protocol": "uniswap_v4",
     }
     assert chain_default_protocol_preferences()[46630] == ["uniswap_v4"]
@@ -97,9 +98,10 @@ def test_feature_default_scope_comes_from_chain_registry():
 
     assert scope["network"] == "robinhood-testnet"
     assert scope["chain_id"] == 46630
-    assert scope["market_id"] == "robinhood-testnet-dex-paused"
-    assert default_market_id_for_feature("dex_arbitrage") == "robinhood-testnet-dex-paused"
-    assert default_market_id_for_feature("liquidation") == "robinhood-testnet-liquidation-shadow"
+    assert scope["market_id"] == "dex-arbitrage-46630-uniswap-v4"
+    assert scope["legacy_market_id"] == "robinhood-testnet-dex-paused"
+    assert default_market_id_for_feature("dex_arbitrage") == "dex-arbitrage-46630-uniswap-v4"
+    assert default_market_id_for_feature("liquidation") == "liquidation-46630-morpho-blue"
 
 
 def test_global_chain_id_and_config_summary_are_chain_owned():
@@ -113,7 +115,8 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
     assert summary["chain_key"] == "chain:46630"
     assert summary["network"] == "robinhood-testnet"
     assert summary["chainId"] == 46630
-    assert summary["features"]["dex_arbitrage"]["default_market_id"] == "robinhood-testnet-dex-paused"
+    assert summary["features"]["dex_arbitrage"]["default_market_id"] == "dex-arbitrage-46630-uniswap-v4"
+    assert summary["features"]["dex_arbitrage"]["legacy_default_market_id"] == "robinhood-testnet-dex-paused"
     assert summary["flash_loan"]["candidate_protocols"] == ["uniswap_v4"]
     assert summary["contracts"]["v4_pool_manager"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
     assert "flash_loan_pools" in summary["flow_names"]

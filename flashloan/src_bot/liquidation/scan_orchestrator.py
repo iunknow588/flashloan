@@ -63,6 +63,7 @@ def run_borrow_health_scan(
     load_accounts: Callable[..., list[str]],
     unique_accounts: Callable[[list[str]], list[str]],
     select_accounts: Callable[..., dict[str, Any]],
+    load_price_triggered_accounts: Callable[..., list[str]] | None = None,
     rpc_urls: Callable[[], list[str]],
     pool_address: Callable[[], str],
     scan_health: Callable[[list[str], str, str, Any], list[dict[str, Any]]],
@@ -77,7 +78,32 @@ def run_borrow_health_scan(
     ensure_schema(database_url)
     source_accounts = load_accounts(database_url, **market_kwargs)
     source_account_count = len(unique_accounts(source_accounts))
-    selection = select_accounts(database_url, source_accounts, config, force=force, **market_kwargs)
+    price_triggered_accounts: list[str] = []
+    scan_mode = str(getattr(config, "scan_mode", "timer_driven") or "timer_driven").strip().lower()
+    if scan_mode == "price_driven" and not force and load_price_triggered_accounts is not None:
+        try:
+            price_triggered_accounts = load_price_triggered_accounts(**market_kwargs)
+        except TypeError:
+            if market_kwargs:
+                raise
+            price_triggered_accounts = load_price_triggered_accounts()
+    if scan_mode == "price_driven" and not force:
+        selection = select_accounts(
+            database_url,
+            source_accounts,
+            config,
+            force=force,
+            price_triggered_accounts=price_triggered_accounts,
+            **market_kwargs,
+        )
+    else:
+        selection = select_accounts(
+            database_url,
+            source_accounts,
+            config,
+            force=force,
+            **market_kwargs,
+        )
     accounts = list(selection.get("selected_accounts") or [])
     if progress:
         progress(scan_progress(
@@ -87,10 +113,11 @@ def run_borrow_health_scan(
             scan_selection=selection,
         ))
     if not accounts:
+        no_price_accounts = str(selection.get("strategy") or "").startswith("price_driven")
         return BorrowHealthScanResult(
             source_account_count=source_account_count,
             selected_accounts=accounts,
-            error="database liquidation account table is empty",
+            error=None if no_price_accounts else "database liquidation account table is empty",
             scan_selection=selection,
         )
 

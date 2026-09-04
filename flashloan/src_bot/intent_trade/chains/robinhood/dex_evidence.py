@@ -6,6 +6,7 @@ from pathlib import Path
 from itertools import combinations
 from typing import Any
 
+from core.market_config import DEFAULT_ROBINHOOD_DEX_MARKET_ID
 from intent_trade.chains.common.routes import best_edges_by_pair, triangle_routes
 from intent_trade.chains.robinhood import config as robinhood
 
@@ -123,7 +124,7 @@ def build_robinhood_pool_records(
 def build_current_robinhood_candidates(
     pool_rows: list[dict[str, Any]],
     *,
-    market_id: str = "robinhood-dex-shadow",
+    market_id: str = DEFAULT_ROBINHOOD_DEX_MARKET_ID,
 ) -> list[dict[str, Any]]:
     observable_rows = [row for row in pool_rows if row.get("status") == "observable"]
     candidates: list[dict[str, Any]] = []

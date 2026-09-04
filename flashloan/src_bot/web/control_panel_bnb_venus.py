@@ -11,7 +11,8 @@ from execution.health_checker import health_factor_band
 from execution.venus_liquidation_scan import venus_health_factor
 
 
-BNB_MARKET_ID = "bnb-venus-core"
+LEGACY_BNB_MARKET_ID = "bnb-venus-core"
+BNB_MARKET_ID = "liquidation-56-venus-core"
 BNB_CHAIN_ID = 56
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[3] / "data_info" / "BNB" / "liquidation"
 
@@ -204,6 +205,11 @@ def _normalize_report(report: dict[str, Any], observed_at: str | None) -> dict[s
     total_debt = raw_summary.get("total_debt_value_usd", raw_summary.get("total_debt_base"))
     summary = {
         **raw_summary,
+        "market_id": BNB_MARKET_ID,
+        "legacy_market_id": LEGACY_BNB_MARKET_ID,
+        "chain_id": BNB_CHAIN_ID,
+        "network": "bnb",
+        "protocol": "venus_core",
         "status": status,
         "health_factor": health_factor,
         "health_factor_band": band,
@@ -216,6 +222,7 @@ def _normalize_report(report: dict[str, Any], observed_at: str | None) -> dict[s
     }
     return {
         "market_id": BNB_MARKET_ID,
+        "legacy_market_id": LEGACY_BNB_MARKET_ID,
         "chain_id": BNB_CHAIN_ID,
         "network": "bnb",
         "protocol": "venus_core",
@@ -251,6 +258,7 @@ def _normalize_report(report: dict[str, Any], observed_at: str | None) -> dict[s
         "report": {
             **report,
             "market_id": BNB_MARKET_ID,
+            "legacy_market_id": LEGACY_BNB_MARKET_ID,
             "chain_id": BNB_CHAIN_ID,
             "summary": summary,
             "positions": _normalized_positions(
@@ -274,6 +282,7 @@ def _normalize_report(report: dict[str, Any], observed_at: str | None) -> dict[s
             "context": {
                 "market": {
                     "market_id": BNB_MARKET_ID,
+                    "legacy_market_id": LEGACY_BNB_MARKET_ID,
                     "chain_id": BNB_CHAIN_ID,
                     "network": "bnb",
                     "protocol": "venus_core",
@@ -373,6 +382,7 @@ def bnb_venus_borrow_pool_payload(
         "scan_blocked": False,
         "scan_response_source": "file_observation",
         "market_id": BNB_MARKET_ID,
+        "legacy_market_id": LEGACY_BNB_MARKET_ID,
         "chain_id": BNB_CHAIN_ID,
         "network": "bnb",
         "protocol": "venus_core",
@@ -460,6 +470,7 @@ def bnb_venus_accounts_payload(*, page: int = 1, page_size: int = 20) -> dict[st
     accounts = [
         {
             "market_id": BNB_MARKET_ID,
+            "legacy_market_id": LEGACY_BNB_MARKET_ID,
             "chain_id": BNB_CHAIN_ID,
             "network": "bnb",
             "protocol": "venus_core",
@@ -483,6 +494,7 @@ def bnb_venus_accounts_payload(*, page: int = 1, page_size: int = 20) -> dict[st
         "health_report_account_count": health_report_account_count,
         "registry_window": {
             "market_id": BNB_MARKET_ID,
+            "legacy_market_id": LEGACY_BNB_MARKET_ID,
             "chain_id": BNB_CHAIN_ID,
             "network": "bnb",
             "protocol": "venus_core",
@@ -517,6 +529,7 @@ def bnb_venus_account_payload(account: str) -> dict[str, Any]:
             "cached": True,
             "account": account,
             "market_id": BNB_MARKET_ID,
+            "legacy_market_id": LEGACY_BNB_MARKET_ID,
             "chain_id": BNB_CHAIN_ID,
             "error": metadata.get("error") or "account is not present in the BNB Venus observation file",
         }
@@ -526,6 +539,7 @@ def bnb_venus_account_payload(account: str) -> dict[str, Any]:
         "cached": True,
         "source": "bnb_venus_current_health_pool",
         "market_id": BNB_MARKET_ID,
+        "legacy_market_id": LEGACY_BNB_MARKET_ID,
         "chain_id": BNB_CHAIN_ID,
         "network": "bnb",
         "protocol": "venus_core",

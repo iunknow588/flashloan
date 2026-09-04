@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,39 @@ def _latest_v4_liquidity_path() -> Path | None:
     return Path(__file__).resolve().parents[3] / "runtime" / "evidence" / ROBINHOOD_TESTNET_NETWORK / "v4_pool_liquidity" / "latest.json"
 
 
+def _block_timestamp(block: Any) -> int | None:
+    value = block.get("timestamp") if isinstance(block, dict) else getattr(block, "timestamp", None)
+    return _int_or_none(value)
+
+
+def _live_trigger_context(*, chain_id: int | None, network: str, observed_at: str) -> dict[str, Any] | None:
+    try:
+        from intent_trade.chains.robinhood_testnet.v4_quote_adapter import _connect_chain_rpc
+
+        w3, rpc_url = _connect_chain_rpc(network, chain_id)
+        head_block_number = int(w3.eth.block_number)
+        confirmations = max(0, int(os.getenv("DEX_ONCHAIN_TRIGGER_CONFIRMATIONS", "2") or 2))
+        block_number = max(1, head_block_number - confirmations)
+        block = w3.eth.get_block(block_number)
+    except Exception:
+        return None
+    return {
+        "source": "scan_trigger_chain_head_confirmed",
+        "observedAt": observed_at,
+        "network": network,
+        "chainId": chain_id or ROBINHOOD_TESTNET_CHAIN_ID,
+        "available": True,
+        "blockNumber": block_number,
+        "triggerBlockNumber": block_number,
+        "blockTimestamp": _block_timestamp(block),
+        "rpcUrl": rpc_url,
+        "error": None,
+        "headBlockNumber": head_block_number,
+        "confirmations": confirmations,
+        "evidencePath": None,
+    }
+
+
 def capture_robinhood_testnet_trigger_context(
     *,
     chain_id: int | None,
@@ -67,6 +101,14 @@ def capture_robinhood_testnet_trigger_context(
         context["error"] = "testnet trigger context requested outside robinhood-testnet scope"
         return context
 
+    live_context = _live_trigger_context(
+        chain_id=chain_id,
+        network=ROBINHOOD_TESTNET_NETWORK,
+        observed_at=observed,
+    )
+    if live_context is not None:
+        return live_context
+
     path = _latest_v4_liquidity_path()
     if path is None:
         context["error"] = "testnet v4 liquidity evidence path is not configured"
@@ -91,6 +133,7 @@ def capture_robinhood_testnet_trigger_context(
 
     context.update(
         {
+            "source": "testnet_local_v4_pool_liquidity_cache_fallback",
             "available": True,
             "blockNumber": block_number,
             "triggerBlockNumber": block_number,
@@ -99,6 +142,7 @@ def capture_robinhood_testnet_trigger_context(
             "evidenceBlockNumber": block_number,
             "evidenceGeneratedAt": payload.get("generatedAt"),
             "evidenceSource": payload.get("discoveryMethod"),
+            "error": "live trigger block capture unavailable; using cached evidence block",
         }
     )
     return context

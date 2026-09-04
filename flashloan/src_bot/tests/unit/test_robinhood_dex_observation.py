@@ -61,7 +61,7 @@ def test_robinhood_observation_rejects_robinhood_testnet_scope():
             run_rpc_probe=False,
         )
     except ValueError as exc:
-        assert "Robinhood DEX observation requires the robinhood-dex-shadow market scope" in str(exc)
+        assert "Robinhood DEX observation requires the dex-arbitrage-4663-uniswap-v3 market scope" in str(exc)
     else:
         raise AssertionError("Robinhood testnet must not use the Robinhood mainnet DEX observation handler")
 

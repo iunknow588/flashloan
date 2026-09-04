@@ -17,6 +17,7 @@ from core.market_config import (
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     supported_market_summaries,
 )
+from core.market_identity import canonical_market_id_from_legacy
 from account_pool import account_pool_state_payload
 from page_state import (
     account_scan_state_payload,
@@ -34,6 +35,7 @@ from web.workflow_context import inject_workflow_context_markup
 
 CHAIN_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "chain_selector.js"
 DEX_STRATEGY_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "dex_strategy_selector.js"
+APP_SHELL_SCRIPT = Path(__file__).resolve().parent / "static" / "app_shell.js"
 
 
 def _add_body_attribute(html: str, name: str, value: str) -> str:
@@ -48,6 +50,60 @@ def _add_body_attribute(html: str, name: str, value: str) -> str:
     return pattern.sub(replace, html, count=1)
 
 
+def _add_body_class(html: str, class_name: str) -> str:
+    pattern = re.compile(r"<body([^>]*)>", re.IGNORECASE)
+
+    def replace(match: re.Match) -> str:
+        attrs = match.group(1) or ""
+        class_match = re.search(r'\sclass=(["\'])(.*?)\1', attrs, re.IGNORECASE)
+        if not class_match:
+            return f'<body{attrs} class="{class_name}">'
+        classes = class_match.group(2).split()
+        if class_name in classes:
+            return match.group(0)
+        next_value = " ".join([*classes, class_name])
+        start, end = class_match.span(2)
+        return f"<body{attrs[:start]}{next_value}{attrs[end:]}>"
+
+    return pattern.sub(replace, html, count=1)
+
+
+def _inject_before_head_close(html: str, markup: str) -> str:
+    if "</head>" in html.lower():
+        return re.sub(r"</head>", markup + "</head>", html, count=1, flags=re.IGNORECASE)
+    return markup + html
+
+
+def _prepare_embedded_html(html: str) -> str:
+    html = _add_body_class(html, "embedded")
+    return _inject_before_head_close(
+        html,
+        """
+<style id="flashloan-embedded-style">
+  body.embedded { padding: 0 !important; }
+  body.embedded > header { display: none !important; }
+  body.embedded .chain-selector-shell { display: none !important; }
+  body.embedded main { margin-top: 0 !important; }
+</style>
+<script>
+(function(){
+  if (window.parent === window) return;
+  document.addEventListener("click", function(event) {
+    var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (link.target && link.target !== "_self") return;
+    if (link.hasAttribute("download")) return;
+    var url = new URL(link.getAttribute("href"), window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname.indexOf("/api/") === 0 || url.pathname.indexOf("/static/") === 0) return;
+    event.preventDefault();
+    window.parent.postMessage({type: "flashloan:navigate", href: url.pathname + url.search + url.hash}, window.location.origin);
+  });
+})();
+</script>
+""",
+    )
+
+
 def _request_scope_defaults(
     default_market_id: str | None,
     default_chain_id: int | None,
@@ -60,6 +116,24 @@ def _request_scope_defaults(
         return market_id, int(raw_chain_id)
     except ValueError:
         return market_id, default_chain_id
+
+
+def _request_protocol_id() -> str | None:
+    raw = request.args.get("protocol_id", "").strip()
+    if raw:
+        return raw
+    for item in request.args.get("protocols", "").replace("|", ",").split(","):
+        protocol = item.strip()
+        if protocol:
+            return protocol
+    return None
+
+
+def _request_shell_feature() -> str:
+    feature = request.args.get("feature", "").strip().lower()
+    if feature in {"liquidation", "dex_arbitrage"}:
+        return feature
+    return "liquidation"
 
 
 def _html_response(
@@ -85,6 +159,8 @@ def _html_response(
             selected_chain_id=selected_chain_id,
             include_chain_selector=include_chain_selector,
         )
+    else:
+        html = _prepare_embedded_html(html)
     if page_surface:
         html = _add_body_attribute(html, "data-page-surface", page_surface)
     if feature == "dex_arbitrage" and not shell_enabled:
@@ -99,6 +175,9 @@ def _html_response(
     html = inject_workflow_context_markup(html)
     response = Response(html, mimetype="text/html")
     response.charset = "utf-8"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     return response
 
 
@@ -123,8 +202,10 @@ def _panel_html_response(
             selected_chain_id=selected_chain_id,
             include_chain_selector=include_chain_selector,
         )
-    elif feature == "dex_arbitrage":
-        html = inject_dex_provenance_markup(html)
+    else:
+        html = _prepare_embedded_html(html)
+        if feature == "dex_arbitrage":
+            html = inject_dex_provenance_markup(html)
     if include_chain_selector:
         html = inject_chain_selector_markup(
             html,
@@ -138,6 +219,9 @@ def _panel_html_response(
         mimetype="text/html",
     )
     response.charset = "utf-8"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     return response
 
 
@@ -279,6 +363,7 @@ def _market_page_response(
             request.path,
             market_id=request.args.get("market_id", "").strip() or None,
             chain_id=_request_chain_id(),
+            protocol_id=_request_protocol_id(),
             database_url=_panel_database_url(panel),
             default_market_id=default_market_id,
             default_chain_id=default_chain_id,
@@ -377,7 +462,10 @@ def register_page_routes(app, panel) -> None:
 
     @app.get("/ops")
     def operations_panel():
-        return _panel_html_response(panel.render_control_panel(), include_chain_selector=False)
+        return _panel_html_response(
+            panel.render_control_panel(),
+            feature=_request_shell_feature(),
+        )
 
     @app.get("/binance-market")
     @app.get("/dex-arbitrage")
@@ -397,7 +485,8 @@ def register_page_routes(app, panel) -> None:
     def dex_pool_candidates_panel():
         requested_market_id = request.args.get("market_id", "").strip()
         requested_chain_id = request.args.get("chain_id", "").strip()
-        if requested_market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID or requested_chain_id == str(DEFAULT_ROBINHOOD_CHAIN_ID):
+        normalized_market_id = canonical_market_id_from_legacy(requested_market_id) or requested_market_id
+        if normalized_market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID or requested_chain_id == str(DEFAULT_ROBINHOOD_CHAIN_ID):
             return _market_page_response(
                 panel,
                 template_path=panel.DEX_POOL_CANDIDATES_TEMPLATE_PATH,
@@ -435,17 +524,26 @@ def register_page_routes(app, panel) -> None:
     @app.get("/config")
     @app.get("/settings")
     def config_panel():
-        return _panel_html_response(panel.render_control_panel(), include_chain_selector=False)
+        return _panel_html_response(
+            panel.render_control_panel(),
+            feature=_request_shell_feature(),
+        )
 
     @app.get("/exchange-matrix")
     @app.get("/analytics/exchange-matrix")
     def exchange_matrix_panel():
-        return _html_response(panel.EXCHANGE_MATRIX_TEMPLATE_PATH, include_chain_selector=False)
+        return _html_response(
+            panel.EXCHANGE_MATRIX_TEMPLATE_PATH,
+            feature=_request_shell_feature(),
+        )
 
     @app.get("/opportunity-health")
     @app.get("/analytics/opportunity-health")
     def opportunity_health_panel():
-        return _html_response(panel.OPPORTUNITY_HEALTH_TEMPLATE_PATH, include_chain_selector=False)
+        return _html_response(
+            panel.OPPORTUNITY_HEALTH_TEMPLATE_PATH,
+            feature=_request_shell_feature(),
+        )
 
     @app.get("/healthz")
     def healthz():
@@ -462,6 +560,10 @@ def register_page_routes(app, panel) -> None:
     @app.get("/static/dex-strategy-selector.js")
     def dex_strategy_selector_script():
         return send_file(DEX_STRATEGY_SELECTOR_SCRIPT, mimetype="application/javascript")
+
+    @app.get("/static/app-shell.js")
+    def app_shell_script():
+        return send_file(APP_SHELL_SCRIPT, mimetype="application/javascript")
 
     @app.get("/static/workflow-context.js")
     def workflow_context_script():

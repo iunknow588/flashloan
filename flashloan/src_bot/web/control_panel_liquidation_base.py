@@ -92,25 +92,44 @@ DEFAULT_LIQUIDATION_CONFIG = {
     "LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS": 1800,
     "LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS": 300,
     "LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS": 1,
+    "LIQUIDATION_SCAN_MODE": "timer_driven",
 }
 
 DEFAULT_LIQUIDATION_SCAN_VERSION = "2026-08-03.1"
 
 
-def liquidation_runtime_config() -> dict[str, float]:
+def normalize_liquidation_scan_mode(value: object | None) -> str:
+    raw = str(value or "").strip().lower().replace("-", "_")
+    if raw in {"price", "price_driven", "price_mode", "binance_price", "market_price", "event_driven"}:
+        return "price_driven"
+    return "timer_driven"
+
+
+def liquidation_scan_mode() -> str:
+    raw = os.getenv("LIQUIDATION_SCAN_MODE")
+    if raw is not None:
+        return normalize_liquidation_scan_mode(raw)
+    config = liquidation_runtime_config()
+    return normalize_liquidation_scan_mode(config.get("LIQUIDATION_SCAN_MODE"))
+
+
+def liquidation_runtime_config() -> dict[str, float | str]:
     config = dict(DEFAULT_LIQUIDATION_CONFIG)
     raw = read_liquidation_runtime_config_parameters()
     if isinstance(raw, dict):
         config.update({key: raw[key] for key in config if key in raw})
     for key in config:
         if os.getenv(key) is not None:
+            if key == "LIQUIDATION_SCAN_MODE":
+                config[key] = normalize_liquidation_scan_mode(os.getenv(key))
+                continue
             value, error = parse_env_float(key, config[key])
             if not error:
                 config[key] = value
     return config
 
 
-def write_liquidation_runtime_config(values: dict) -> dict[str, float]:
+def write_liquidation_runtime_config(values: dict) -> dict[str, float | str]:
     current = liquidation_runtime_config()
     if "retention_days" in values:
         retention_days = int(values.get("retention_days") or current["LIQUIDATION_RETENTION_DAYS"])
@@ -125,6 +144,8 @@ def write_liquidation_runtime_config(values: dict) -> dict[str, float]:
         current["LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS"] = max(30.0, float(values.get("high_frequency_refresh_seconds") or 300))
     if "core_opportunity_refresh_seconds" in values:
         current["LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS"] = max(1.0, float(values.get("core_opportunity_refresh_seconds") or 1))
+    if "scan_mode" in values:
+        current["LIQUIDATION_SCAN_MODE"] = normalize_liquidation_scan_mode(values.get("scan_mode"))
     if not save_liquidation_runtime_config_parameters(current):
         write_json_parameter(LIQUIDATION_CONFIG_PATH, current)
     for key, value in current.items():
@@ -254,10 +275,14 @@ def liquidation_market_payload(market_id: str | None = None, chain_id: int | Non
 
 
 def aave_pool_address() -> str:
-    return liquidation_market_config().pool_address
+    return (
+        os.getenv("LIQUIDATION_POOL_ADDRESS", os.getenv("AAVE_POOL_ADDRESS", "")).strip()
+        or liquidation_market_config().pool_address
+    )
 
 
 def liquidation_scan_config() -> LiquidationScanConfig:
+    runtime_config = liquidation_runtime_config()
     wide_scan_seconds, _ = parse_env_float("LIQUIDATION_WIDE_SCAN_SECONDS", 1800)
     near_scan_seconds, _ = parse_env_float("LIQUIDATION_NEAR_SCAN_SECONDS", 0.2)
     borrow_health_refresh_seconds, _ = parse_env_float("LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS", 1800)
@@ -283,6 +308,7 @@ def liquidation_scan_config() -> LiquidationScanConfig:
         borrow_health_refresh_seconds=borrow_health_refresh_seconds,
         high_frequency_refresh_seconds=high_frequency_refresh_seconds,
         core_opportunity_refresh_seconds=core_opportunity_refresh_seconds,
+        scan_mode=normalize_liquidation_scan_mode(runtime_config.get("LIQUIDATION_SCAN_MODE")),
         warning_health_factor=warning_health_factor,
         liquidation_health_factor=liquidation_health_factor,
         max_candidates=max_candidates,

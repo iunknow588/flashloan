@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from core.sensitive_data import redact_sensitive_text
 from core.config_schema import parse_env_float, parse_env_int
-from core.market_config import liquidation_market_config
+from core.market_config import liquidation_market_config, liquidation_market_scope_is_explicit
 
 
 AccountLoader = Callable[[], list[str]]
@@ -45,7 +45,11 @@ class LiquidationEngineConfig:
         max_accounts_per_tick, _ = parse_env_int("LIQUIDATION_ENGINE_MAX_ACCOUNTS", 100)
         auto_execute_requested = os.getenv("LIQUIDATION_AUTO_EXECUTE", "true").strip().lower() in {"1", "true", "yes", "on"}
         manual_test_completed = os.getenv("LIQUIDATION_MANUAL_TEST_COMPLETED", "true").strip().lower() in {"1", "true", "yes", "on"}
-        market_supported = bool(liquidation_market_config().protocol_supported)
+        # Only clamp auto-execute when the operator explicitly selected a market scope.
+        explicit_market_scope = liquidation_market_scope_is_explicit()
+        market_supported = True
+        if explicit_market_scope:
+            market_supported = bool(liquidation_market_config().protocol_supported)
         return cls(
             poll_interval_seconds=max(1.0, poll_interval_seconds),
             event_poll_interval_seconds=max(1.0, event_poll_interval_seconds),

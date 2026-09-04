@@ -38,6 +38,7 @@ def market_observation_flow(
     return dex_market_observation_surface_payload(
         chain_id=request.chain_id,
         protocols=requested_protocols,
+        use_static_observation=True,
     )
 
 

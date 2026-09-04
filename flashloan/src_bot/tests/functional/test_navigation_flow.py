@@ -16,11 +16,17 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'data-app-shell="true"' in control_panel
     assert 'data-global-chain-selector="true"' in control_panel
     assert 'data-chain-selector-component="true"' in control_panel
-    assert "FLASH LOAN" in control_panel
-    assert 'class="app-shell-protocols" data-chain-protocols="true"' in control_panel
+    assert 'class="app-shell-branding"' not in control_panel
+    assert 'class="app-shell-protocols" data-chain-selection-options="true"' in control_panel
+    assert 'class="app-shell-protocol-control"' in control_panel
     assert 'class="app-shell-chain-control"' in control_panel
     assert 'class="app-shell-selector-meta"' in control_panel
     assert 'data-shell-link="/dex/robinhood-shadow"' not in control_panel
+    assert 'data-dex-strategy-component="true"' not in control_panel
+    assert 'data-shell-link="/bot"' in control_panel
+    assert 'data-shell-link="/bot/account-scan"' in control_panel
+    assert 'data-shell-link="/dex"' not in control_panel
+    assert 'data-shell-link="/flash-loan/pools"' not in control_panel
 
     for link in [
         "/bot",
@@ -28,17 +34,22 @@ def test_control_panel_navigation_chain_links_expected_pages():
         "/bot/account-scan",
         "/bot/execution",
         "/bot/audit",
-        "/dex",
-        "/dex/overview",
-        "/dex/market-observation",
-        "/dex/candidates",
-        "/dex/submissions",
         "/ops",
         "/settings",
         "/analytics/exchange-matrix",
         "/analytics/opportunity-health",
     ]:
         assert link in control_panel
+
+    for link in [
+        "/dex",
+        "/dex/overview",
+        "/dex/market-observation",
+        "/dex/candidates",
+        "/dex/submissions",
+        "/flash-loan/pools",
+    ]:
+        assert f'data-shell-link="{link}"' not in control_panel
 
     for path in [
         "/account-scan",
@@ -72,6 +83,8 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert "autoReturnToDebtPoolIfReady" in account_scan_panel
     assert "from=account_scan" in account_scan_panel
     assert "accountPoolScanBtn" in account_scan_panel
+    assert 'data-shell-link="/bot/account-scan"' in account_scan_panel
+    assert 'data-shell-link="/dex"' not in account_scan_panel
 
     assert "document.body.classList.add(\"embedded\")" in execution_panel
     assert "accountInput" in execution_panel
@@ -101,12 +114,34 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'data-route-action="auto-execute"' not in binance_market_panel
     assert 'data-app-shell="true"' in dex_arbitrage_panel
     assert 'data-app-shell="true"' in binance_market_panel
+    assert 'data-dex-strategy-component="true"' in dex_arbitrage_panel
+    assert 'data-dex-strategy-component="true"' in binance_market_panel
     assert 'data-dex-surface-template="quotes"' in dex_arbitrage_panel
     assert "cowNetworkChecks" not in dex_arbitrage_panel
     assert "cowNetworkChecks" not in binance_market_panel
-    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in binance_market_panel
+    assert 'data-shell-link="/bot"' not in dex_arbitrage_panel
+    assert 'data-shell-link="/bot"' not in binance_market_panel
+    assert 'data-shell-link="/bot/account-scan"' not in dex_arbitrage_panel
+    assert 'data-shell-link="/bot/account-scan"' not in binance_market_panel
+    assert 'data-shell-link="/dex"' in dex_arbitrage_panel
+    assert 'data-shell-link="/dex"' in binance_market_panel
+    assert 'data-shell-link="/flash-loan/pools"' in dex_arbitrage_panel
+    assert 'data-shell-link="/flash-loan/pools"' in binance_market_panel
+    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"dex-arbitrage-46630-uniswap-v4",chain_id:"46630"}' in binance_market_panel
     assert '/static/chain-selector.js' in binance_market_panel
     assert 'data-chain-selector-component="true"' in binance_market_panel
+
+
+def test_html_pages_disable_browser_cache():
+    client = app.test_client()
+
+    account_scan_response = client.get("/account-scan")
+    binance_market_response = client.get("/binance-market")
+
+    for response in (account_scan_response, binance_market_response):
+        assert response.headers.get("Cache-Control") == "no-store, no-cache, must-revalidate, max-age=0"
+        assert response.headers.get("Pragma") == "no-cache"
+        assert response.headers.get("Expires") == "0"
 
 
 def test_liquidation_account_page_supports_embedded_execution_detail():

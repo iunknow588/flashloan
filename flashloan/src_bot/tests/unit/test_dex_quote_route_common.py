@@ -5,6 +5,7 @@ from market.binance_market.dex_quote_route_common import (
     build_quote_verification_payload,
     quote_route_status,
 )
+from market.binance_market.dex_surface_analysis import build_route_size_analysis
 from market.binance_market.dex_quote_surface import build_quote_request_payload, build_quote_routes_payload_from_overview
 
 
@@ -185,6 +186,51 @@ def test_quote_routes_payload_from_overview_keeps_surface_and_analysis_aligned()
     assert route["quoteInputs"]["quoteRequests"]
 
 
+def test_offchain_size_ladder_emits_recommended_raw_borrow_amount():
+    route = {
+        "routeSymbols": ["ETH", "TK1", "ETH"],
+        "routeTokenPath": [
+            {"symbol": "ETH", "decimals": 18},
+            {"symbol": "TK1", "decimals": 18},
+            {"symbol": "ETH", "decimals": 18},
+        ],
+    }
+
+    def quote_analysis(_route, *, price_map, chain_id, notional_usd=1000.0, token_basis_input_amount=None):
+        amount = token_basis_input_amount or 1.0
+        return {
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "referenceInputAmount": amount,
+            "referenceInputSymbol": "ETH",
+            "referenceFinalOutputAmount": amount * 1.01,
+            "referenceFinalOutputSymbol": "ETH",
+            "referenceNetProfitAmount": amount * 0.0095,
+            "referenceNetReturnBps": 95.0,
+            "referenceReturnBasis": "borrow_token",
+            "referenceReturnTrusted": True,
+            "tokenBasisReferenceProfitable": True,
+            "tokenBasisProfitable": True,
+            "chainSubmissionCandidate": True,
+            "executableCandidate": True,
+            "observedNetProfitUsd": amount,
+            "netProfitUsd": amount,
+        }
+
+    analysis = build_route_size_analysis(
+        route,
+        price_map={},
+        chain_id=46630,
+        route_quote_analysis_fn=quote_analysis,
+    )
+
+    assert analysis["recommendedBorrowInputAmount"] == 100.0
+    assert analysis["recommendedBorrowInputAmountRaw"] == str(100 * 10**18)
+    assert analysis["recommendedBorrowInputAmountBasis"] == "borrow_token"
+    assert analysis["recommendedBorrowInputAmountReason"] == "best_positive_observed_net_profit"
+
+
 def test_quote_routes_payload_limits_expensive_size_probes_for_late_non_testnet_routes(monkeypatch):
     overview = {
         "arbitragePaths": [
@@ -296,6 +342,7 @@ def test_quote_routes_payload_probes_all_robinhood_testnet_routes(monkeypatch):
         return {"rows": [{"size": calls["size"]}], "bestObservedNetProfitUsd": float(calls["size"])}
 
     monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_PROBE_ALL_TESTNET_ROUTES", "1")
     payload = build_quote_routes_payload_from_overview(
         overview,
         chain_id=46630,
@@ -356,6 +403,7 @@ def test_quote_routes_payload_skips_live_refresh_when_cached_framework_steps_exi
         return {"rows": [{"size": 1}], "bestObservedNetProfitUsd": 1.0}
 
     monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_PROBE_ALL_TESTNET_ROUTES", "1")
     payload = build_quote_routes_payload_from_overview(
         overview,
         chain_id=46630,

@@ -6,7 +6,8 @@
   "native_symbol": "AVAX",
   "features": {
     "dex_arbitrage": {
-      "default_market_id": "avalanche-testnet-dex-shadow",
+      "default_market_id": "dex-arbitrage-43113-uniswap-v3",
+      "legacy_default_market_id": "avalanche-testnet-dex-shadow",
       "protocol": "uniswap_v3"
     }
   },

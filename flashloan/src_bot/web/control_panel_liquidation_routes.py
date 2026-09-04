@@ -4,6 +4,7 @@ from flask import jsonify, request
 
 from core.sensitive_data import redact_sensitive_text
 from core.market_config import DEFAULT_BNB_CHAIN_ID, DEFAULT_BNB_MARKET_ID
+from core.market_identity import canonical_market_id_from_legacy
 from debt_pool import validate_liquidatable_context
 from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 from liquidation.scan_request import parse_scan_request
@@ -84,7 +85,9 @@ def _request_execution_target_kwargs() -> dict:
 
 
 def _is_bnb_venus_request(market_id: str | None = None, chain_id: int | None = None) -> bool:
-    if str(market_id or "").strip().lower() == DEFAULT_BNB_MARKET_ID:
+    normalized_market_id = canonical_market_id_from_legacy(market_id) or str(market_id or "").strip().lower()
+    bnb_venus_market_id = canonical_market_id_from_legacy(DEFAULT_BNB_MARKET_ID) or DEFAULT_BNB_MARKET_ID
+    if normalized_market_id == bnb_venus_market_id:
         return True
     try:
         return market_id is None and int(chain_id) == DEFAULT_BNB_CHAIN_ID
@@ -490,6 +493,7 @@ def register_liquidation_routes(app, panel) -> None:
                 "retention_days": liquidation_retention_days(),
                 "scan_interval_seconds": liquidation_scan_interval_seconds(),
                 "discovery_interval_seconds": liquidation_discovery_interval_seconds(),
+                "scan_mode": config.get("LIQUIDATION_SCAN_MODE"),
                 "raw": config,
             }
         )
@@ -507,6 +511,7 @@ def register_liquidation_routes(app, panel) -> None:
                 "retention_days": liquidation_retention_days(),
                 "scan_interval_seconds": liquidation_scan_interval_seconds(),
                 "discovery_interval_seconds": liquidation_discovery_interval_seconds(),
+                "scan_mode": config.get("LIQUIDATION_SCAN_MODE"),
                 "raw": config,
             }
         )

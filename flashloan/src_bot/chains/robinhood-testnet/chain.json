@@ -12,13 +12,15 @@
   },
   "features": {
     "liquidation": {
-      "default_market_id": "robinhood-testnet-liquidation-shadow",
+      "default_market_id": "liquidation-46630-morpho-blue",
+      "legacy_default_market_id": "robinhood-testnet-liquidation-shadow",
       "protocol": "morpho_blue",
       "observation_only": true,
       "protocol_supported": false
     },
     "dex_arbitrage": {
-      "default_market_id": "robinhood-testnet-dex-paused",
+      "default_market_id": "dex-arbitrage-46630-uniswap-v4",
+      "legacy_default_market_id": "robinhood-testnet-dex-paused",
       "protocol": "uniswap_v4"
     }
   },

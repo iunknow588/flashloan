@@ -14,6 +14,7 @@ from intent_trade.chains.robinhood.dex_evidence import (
     build_robinhood_pool_records,
     write_robinhood_evidence_package,
 )
+from core.market_config import DEFAULT_ROBINHOOD_DEX_MARKET_ID
 from db.storage_chain_markets import replace_current_dex_arbitrage_candidates
 
 
@@ -70,7 +71,7 @@ def main() -> int:
     if args.database_url.strip():
         recorded = replace_current_dex_arbitrage_candidates(
             args.database_url.strip(),
-            market_id="robinhood-dex-shadow",
+            market_id=DEFAULT_ROBINHOOD_DEX_MARKET_ID,
             chain_id=4663,
             network="robinhood",
             candidates=candidates,

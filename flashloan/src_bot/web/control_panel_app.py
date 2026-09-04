@@ -99,6 +99,11 @@ def install_chain_selection_context(app: Flask, panel) -> None:
             if workflow_context.execution_mode:
                 response.headers["X-Execution-Mode"] = workflow_context.execution_mode
             response.headers["X-Chain-Scope"] = workflow_context.scope_type
+        content_type = str(response.headers.get("Content-Type", "")).lower()
+        if content_type.startswith("text/html"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         return response
 
 

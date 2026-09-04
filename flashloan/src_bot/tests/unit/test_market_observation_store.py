@@ -1,7 +1,13 @@
+import json
+
 from core.market_observation_store import (
+    compact_market_observation_static,
     load_market_observation_static,
+    load_market_observation_overview_static,
     market_observation_static_path,
+    market_observation_overview_static_path,
     observation_payload_from_static,
+    static_snapshot_from_observation,
     write_market_observation_static,
 )
 
@@ -56,7 +62,7 @@ def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
     assert merged["refresh_mode"] == "incremental"
     assert loaded["exists"] is True
     assert loaded["list_counts"]["chainSpecificObservationPairs"] == 2
-    assert loaded["list_counts"]["closedLoopRoutes"] == 2
+    assert loaded["list_counts"]["observationSequences"] == 2
     assert loaded["chainSpecificObservationPairs"][0]["poolCount"] == 2
     assert loaded["poolStaticTable"]["network"] == "robinhood-testnet"
     assert loaded["poolStaticTable"]["chainId"] == 46630
@@ -64,6 +70,99 @@ def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
     assert loaded["chain_key"] == "robinhood-testnet:46630:uniswap_v4"
     assert loaded["processing"]["flow_name"] == "market_observation"
     assert market_observation_static_path(chain_id=46630, protocols=["uniswap_v4"], root=tmp_path).exists()
+    overview = load_market_observation_overview_static(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    )
+    assert overview["exists"] is True
+    assert overview["snapshot_kind"] == "dex_overview_compact"
+    assert overview["chainSpecificObservationPairs"][0]["poolCount"] == 2
+    assert "observationSequences" not in overview
+    assert [row["pathText"] for row in overview["closedLoopRouteSummaries"]] == [
+        "ETH -> AAA -> BBB -> ETH",
+        "ETH -> CCC -> DDD -> ETH",
+    ]
+    assert overview["observationSnapshotPath"] == str(
+        market_observation_static_path(chain_id=46630, protocols=["uniswap_v4"], root=tmp_path)
+    )
+    assert market_observation_overview_static_path(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    ).exists()
+
+
+def test_incremental_merge_replaces_candidate_group_by_anchor(tmp_path):
+    write_market_observation_static(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "observationAnchorSymbols": ["ETH"],
+            "candidateObservationGroups": [
+                {"anchorSymbol": "ETH", "observationSequenceCount": 1}
+            ],
+            "observationSequences": [
+                {"anchorSymbol": "ETH", "pathText": "ETH -> AAA -> BBB -> ETH"}
+            ],
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="full",
+        root=tmp_path,
+    )
+    stored = write_market_observation_static(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "observationAnchorSymbols": ["ETH"],
+            "candidateObservationGroups": [
+                {"anchorSymbol": "ETH", "observationSequenceCount": 2}
+            ],
+            "observationSequences": [
+                {"anchorSymbol": "ETH", "pathText": "ETH -> AAA -> BBB -> ETH"},
+                {"anchorSymbol": "ETH", "pathText": "ETH -> CCC -> DDD -> ETH"},
+            ],
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="incremental",
+        root=tmp_path,
+    )
+
+    assert len(stored["candidateObservationGroups"]) == 1
+    assert stored["candidateObservationGroups"][0]["observationSequenceCount"] == 2
+    assert len(stored["observationSequences"]) == 2
+
+
+def test_incremental_merge_preserves_anchor_symbol_lists(tmp_path):
+    write_market_observation_static(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "borrowableSymbols": ["ETH"],
+            "observationAnchorSymbols": ["ETH"],
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="full",
+        root=tmp_path,
+    )
+    stored = write_market_observation_static(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "borrowableSymbols": ["USDC"],
+            "observationAnchorSymbols": ["USDC"],
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="incremental",
+        root=tmp_path,
+    )
+
+    assert stored["borrowableSymbols"] == ["ETH", "USDC"]
+    assert stored["observationAnchorSymbols"] == ["ETH", "USDC"]
 
 
 def test_market_observation_static_store_isolated_by_chain(tmp_path):
@@ -101,6 +200,7 @@ def test_market_observation_static_payload_backfills_anchor_lists():
         "path": "observation.json",
         "chain_id": 46630,
         "protocols": ["uniswap_v4"],
+        "marketObservationSourceStage": "generated_live_snapshot",
         "summary": {},
         "anchorGroups": [
             {"anchorSymbol": "ETH"},
@@ -124,5 +224,184 @@ def test_market_observation_static_payload_backfills_anchor_lists():
     }
     assert payload["summary"]["observationAnchorCount"] == 2
     assert payload["summary"]["closedLoopRouteCount"] == 1
+    assert payload["closedLoopRoutes"][0]["pathText"] == "ETH -> A -> B -> ETH"
     assert payload["marketObservationStaticTable"]["surface"] == "dex_market_observation"
     assert payload["marketObservationStaticTable"]["chain_key"] == "robinhood-testnet:46630:uniswap_v4"
+
+
+def test_static_snapshot_drops_full_pool_and_token_exports():
+    snapshot = static_snapshot_from_observation(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "chainSpecificObservationPools": [{"poolId": "pool-1"}],
+            "chainSpecificObservationTokens": [{"address": "0xtoken"}],
+            "chainSpecificObservation": {"fullIndex": [{"poolId": "pool-1"}]},
+            "bridgePoolIndexLookup": {"pools": [{"poolId": "pool-1"}]},
+            "chainSpecificObservationPairs": [{"symbolPair": "AAA:BBB"}],
+            "observationSequences": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+        }
+    )
+
+    assert "chainSpecificObservationPools" not in snapshot
+    assert "chainSpecificObservationTokens" not in snapshot
+    assert "chainSpecificObservation" not in snapshot
+    assert "bridgePoolIndexLookup" not in snapshot
+    assert snapshot["chainSpecificObservationPairs"] == [{"symbolPair": "AAA:BBB"}]
+    assert "closedLoopRoutes" not in snapshot
+    assert snapshot["observationSequences"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
+
+
+def test_static_snapshot_keeps_only_route_handoff_fields():
+    snapshot = static_snapshot_from_observation(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "anchorGroups": [
+                {
+                    "anchorSymbol": "ETH",
+                    "sharedPools": [{"pool": "candidate-only"}],
+                    "sharedTokens": [{"symbol": "AAA", "pools": [{"pool": "candidate-only"}]}],
+                    "ycPoolCount": "2",
+                    "zcPoolCount": "2",
+                }
+            ],
+            "candidateObservationGroups": [
+                {
+                    "anchorSymbol": "ETH",
+                    "sharedPools": [{"pool": "candidate-only"}],
+                    "sharedTokens": [{"symbol": "AAA", "address": "0xaaa", "poolCount": "2", "pools": [{"pool": "candidate-only"}]}],
+                    "observationSequences": [{"pathText": "duplicate"}],
+                    "closedLoopRoutes": [{"pathText": "duplicate"}],
+                }
+            ],
+            "observationSequences": [
+                {
+                    "anchorSymbol": "ETH",
+                    "pathText": "ETH -> AAA -> BBB -> ETH",
+                    "ycPool": {"pool": "pool-1"},
+                    "bridgePool": {"pool": "pool-2"},
+                    "zcPool": {"pool": "pool-3"},
+                    "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+                }
+            ],
+            "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+            "indirectRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+            "directPools": [{"symbolPair": "ETH:AAA"}],
+            "unmatchedPools": [{"symbolPair": "CCC:DDD"}],
+        }
+    )
+
+    assert "anchorGroups" not in snapshot
+    assert "closedLoopRoutes" not in snapshot
+    assert "indirectRoutes" not in snapshot
+    assert "directPools" not in snapshot
+    assert "unmatchedPools" not in snapshot
+    assert snapshot["candidateObservationGroups"] == [
+        {
+            "anchorSymbol": "ETH",
+            "sharedTokens": [{"symbol": "AAA", "address": "0xaaa", "poolCount": "2"}],
+            "ycTokensRef": "sharedTokens",
+            "zcTokensRef": "sharedTokens",
+            "observationSequenceCount": 1,
+            "observationSequencePreview": ["ETH -> AAA -> BBB -> ETH"],
+            "observationReachable": True,
+            "observationState": {"status": "reachable", "reachable": True, "groupCount": 1},
+            "observationCombinationCount": 1,
+            "observationCombinationPreview": ["ETH -> AAA -> BBB -> ETH"],
+        }
+    ]
+    assert "ycPool" not in snapshot["observationSequences"][0]
+    assert snapshot["observationSequences"][0]["routePools"] == [
+        {"pool": "pool-1"},
+        {"pool": "pool-2"},
+        {"pool": "pool-3"},
+    ]
+
+
+def test_incremental_merge_removes_legacy_full_exports(tmp_path):
+    path = market_observation_static_path(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    )
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "chain_id": 46630,
+                "protocols": ["uniswap_v4"],
+                "chainSpecificObservationPools": [{"poolId": "legacy"}],
+                "chainSpecificObservationTokens": [{"address": "0xlegacy"}],
+                "chainSpecificObservation": {"legacy": True},
+                "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stored = write_market_observation_static(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+        },
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        refresh_mode="incremental",
+        root=tmp_path,
+    )
+
+    assert "chainSpecificObservationPools" not in stored
+    assert "chainSpecificObservationTokens" not in stored
+    assert "chainSpecificObservation" not in stored
+    assert stored["observationSequences"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
+
+
+def test_compact_market_observation_static_migrates_legacy_snapshot(tmp_path):
+    path = market_observation_static_path(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    )
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "network": "robinhood-testnet",
+                "chain_id": 46630,
+                "protocols": ["uniswap_v4"],
+                "selected_protocols": ["uniswap_v4"],
+                "generated_at": "2026-09-01T00:00:00Z",
+                "chainSpecificObservationPools": [{"poolId": "legacy"}],
+                "chainSpecificObservationTokens": [{"address": "0xlegacy"}],
+                "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    compact = compact_market_observation_static(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    )
+    loaded = load_market_observation_static(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    )
+    overview = load_market_observation_overview_static(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        root=tmp_path,
+    )
+
+    assert compact["observationSequences"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
+    assert "chainSpecificObservationPools" not in loaded
+    assert "chainSpecificObservationTokens" not in loaded
+    assert overview["snapshot_kind"] == "dex_overview_compact"
+    assert "observationSequences" not in overview
+    assert overview["closedLoopRouteSummaries"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
+    assert observation_payload_from_static(loaded)["closedLoopRoutes"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"

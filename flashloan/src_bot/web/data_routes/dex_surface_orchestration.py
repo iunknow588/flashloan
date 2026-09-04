@@ -31,25 +31,24 @@ def _bootstrap_dex_surface_dependencies(
         "dex_market_observation": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
         ),
-        "dex_overview": (
-            lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-        ),
+        # Overview is a display surface. It consumes the compact static
+        # snapshot and must not synchronously rebuild the V4 pool universe.
+        "dex_overview": (),
         "dex_quote_routes": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
+            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
         "dex_quote_request": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
-            lambda: quote_routes_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
+            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: quote_routes_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
         "dex_submission_review": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False),
+            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
+            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
     }
     for warm in warmers.get(flow_name, ()):
@@ -68,7 +67,7 @@ def _submission_review_framework_payload(
 ) -> dict:
     if chain_id is None:
         return {}
-    overview = overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=False)
+    overview = overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True)
     overview_summary = overview.get("summary") if isinstance(overview.get("summary"), dict) else {}
     closed_loop_routes = [route for route in overview.get("arbitragePaths") or [] if isinstance(route, dict)]
     top_route = closed_loop_routes[0] if closed_loop_routes else {}

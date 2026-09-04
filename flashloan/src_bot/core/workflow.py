@@ -11,6 +11,7 @@ from core.market_config import (
     DEFAULT_COW_DEX_MARKET_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
 )
+from core.market_identity import canonical_market_id_from_legacy
 from core.workflow_market_scope import validate_robinhood_market_network
 from core.workflow_pages import PageScopeContract, page_scope_contract
 
@@ -97,6 +98,12 @@ def _query_values(query: Mapping[str, object] | str | None, name: str) -> list[s
                 result.append(normalized)
     return result
 
+
+def _canonical_market_token(market_id: object) -> str:
+    value = str(market_id or "").strip().lower()
+    return canonical_market_id_from_legacy(value) or value
+
+
 def resolve_workflow_context(
     path: str,
     query: Mapping[str, object] | str | None = None,
@@ -134,9 +141,12 @@ def resolve_workflow_context(
         selected_market_id = DEFAULT_COW_DEX_MARKET_ID
     if page.workflow == WORKFLOW_DEX_ARBITRAGE and not selected_market_id:
         selected_market_id = default_market_id_for_feature("dex_arbitrage")
+    selected_market_id = _canonical_market_token(selected_market_id)
+    cow_market_id = _canonical_market_token(DEFAULT_COW_DEX_MARKET_ID)
+    robinhood_dex_market_id = _canonical_market_token(DEFAULT_ROBINHOOD_DEX_MARKET_ID)
     is_cow_execution_rail = (
         page.workflow == WORKFLOW_DEX_ARBITRAGE
-        and (not selected_market_id or selected_market_id == DEFAULT_COW_DEX_MARKET_ID)
+        and (not selected_market_id or selected_market_id == cow_market_id)
     )
     mode_values = _query_values(query, "execution_mode")
     default_mode = page.default_execution_mode or ""
@@ -150,7 +160,7 @@ def resolve_workflow_context(
         )
 
     if page.workflow == WORKFLOW_DEX_ARBITRAGE:
-        if selected_market_id == DEFAULT_ROBINHOOD_DEX_MARKET_ID:
+        if selected_market_id == robinhood_dex_market_id:
             validate_robinhood_market_network(selected_market_id, raw_selected_networks)
         if raw_selected_networks and not is_cow_execution_rail:
             raise WorkflowContextError(
@@ -176,7 +186,7 @@ def resolve_workflow_context(
         page.workflow == WORKFLOW_DEX_ARBITRAGE
         and requested_scope == SCOPE_MULTI_CHAIN
         and selected_market_id
-        and selected_market_id != DEFAULT_COW_DEX_MARKET_ID
+        and selected_market_id != cow_market_id
     ):
         raise WorkflowContextError(
             "execution_scope_mismatch",
@@ -206,7 +216,7 @@ def resolve_workflow_context(
             "robinhood_single_chain_only",
             "Robinhood DEX shadow observation is restricted to one chain",
         )
-    if page.workflow == WORKFLOW_DEX_ARBITRAGE and selected_market_id == "robinhood-dex-shadow":
+    if page.workflow == WORKFLOW_DEX_ARBITRAGE and selected_market_id == robinhood_dex_market_id:
         if scope_type == SCOPE_MULTI_CHAIN:
             raise WorkflowContextError(
                 "robinhood_single_chain_only",

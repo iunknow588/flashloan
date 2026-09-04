@@ -6,6 +6,7 @@ from urllib.parse import urlencode, urlsplit
 from core.chain_data_registry import chain_config_summary, global_chain_id
 from core.chain_selection import ChainSelection
 from core.contracts import MarketScope
+from core.market_identity import canonical_market_id_from_legacy
 from core.market_config import market_id_for_scope
 
 
@@ -80,6 +81,11 @@ def is_route_only_protocol(protocol: str) -> bool:
     return str(protocol or "").strip().lower() in ROUTE_ONLY_PROTOCOLS
 
 
+def _canonical_market_token(market_id: object) -> str:
+    value = str(market_id or "").strip().lower()
+    return canonical_market_id_from_legacy(value) or value
+
+
 def chain_config_for_selection(selection: ChainSelection) -> dict[str, Any]:
     try:
         if selection.chain_id is not None:
@@ -90,12 +96,12 @@ def chain_config_for_selection(selection: ChainSelection) -> dict[str, Any]:
 
 
 def _chain_order_key(selection: ChainSelection, fallback_index: int) -> tuple[int, int, str]:
-    market_id = str(selection.market_id or "").strip().lower()
+    market_id = _canonical_market_token(selection.market_id)
     network = str(selection.network or "").strip().lower()
     market_type = str(selection.market_type or "").strip().lower()
-    if market_type == "execution_rail" or market_id == "cow-dex-arbitrage":
+    if market_type == "execution_rail" or market_id == "dex-arbitrage-0-cow-protocol":
         network = "cow"
-    elif market_id == "hyperliquid-native":
+    elif market_id == "dex-arbitrage-hyperliquid-hyperliquid-native":
         network = "hyperliquid"
     order = CHAIN_SELECTOR_ORDER.get(network)
     if order is not None:
@@ -139,11 +145,15 @@ def chain_scope_options(
             protocol_options.append(
                 {
                     "protocol": protocol,
+                    "protocol_id": protocol,
                     "display_name": protocol_display_name(protocol),
                     "market_ids": [item.market_id for item in protocol_group],
                     "market_count": len(protocol_group),
                     "is_default": bool(protocol_selected.is_default),
                     "market_id": protocol_selected.market_id,
+                    "canonical_market_id": protocol_selected.canonical_market_id
+                    or protocol_selected.market_id,
+                    "legacy_market_id": protocol_selected.legacy_market_id,
                 }
             )
         chain_key = selection_chain_key(selected)
@@ -155,8 +165,11 @@ def chain_scope_options(
                 "global_chain_id": chain_key,
                 "default_market_id": selected.market_id,
                 "representative_market_id": selected.market_id,
+                "canonical_market_id": selected.canonical_market_id or selected.market_id,
+                "legacy_market_id": selected.legacy_market_id,
                 "display_name": chain_display_name(selected),
                 "protocol": selected.protocol,
+                "protocol_id": selected.protocol,
                 "protocol_summary": ", ".join(protocols) if protocols else "链路",
                 "protocols": protocols,
                 "protocol_options": protocol_options,

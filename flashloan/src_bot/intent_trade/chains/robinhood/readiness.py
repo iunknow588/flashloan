@@ -14,6 +14,7 @@ from typing import Any
 
 from core.contracts import ExecutionGate
 from core.market_config import DEFAULT_ROBINHOOD_CHAIN_ID, DEFAULT_ROBINHOOD_DEX_MARKET_ID
+from core.market_identity import canonical_market_id_from_legacy
 
 
 def _stage(
@@ -157,7 +158,9 @@ def robinhood_deployment_status(
     max_age_seconds = _configured_evidence_max_age_seconds(evidence_max_age_seconds)
     network = str(profile.get("network") or "robinhood").strip().lower()
     chain_id = int(profile.get("chain_id") or DEFAULT_ROBINHOOD_CHAIN_ID)
-    market_id = str(profile.get("market_id") or DEFAULT_ROBINHOOD_DEX_MARKET_ID)
+    market_id = canonical_market_id_from_legacy(profile.get("market_id")) or str(
+        profile.get("market_id") or DEFAULT_ROBINHOOD_DEX_MARKET_ID
+    )
     observation_only = bool(profile.get("observation_only", True))
     rpc_ok = bool(isinstance(rpc_status, dict) and rpc_status.get("ok"))
 

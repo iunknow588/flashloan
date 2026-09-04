@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from core.market_config import liquidation_market_config
 from db.storage_liquidation_pool import (
     _core_opportunity_viable,
     _core_profit_assessment,
@@ -131,7 +132,8 @@ def test_sync_core_pool_keeps_low_profit_manual_test_items(monkeypatch):
     assert len(captured_core_params) == 2
     low = captured_core_params[0]
     high = captured_core_params[1]
-    assert low[0:4] == ("avalanche-aave-v3", 43114, "avalanche", "aave_v3")
+    market = liquidation_market_config()
+    assert low[0:4] == (market.market_id, market.chain_id, market.network, market.protocol)
     assert low[12] == 0.75
     assert low[16] == "low_profit_manual_test"
     assert json.loads(low[17]) == ["profit_below_minimum"]

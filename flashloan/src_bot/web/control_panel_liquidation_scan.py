@@ -355,6 +355,7 @@ def select_liquidation_scan_accounts(
     force: bool = False,
     market_id: str | None = None,
     chain_id: int | None = None,
+    price_triggered_accounts: list[str] | None = None,
 ) -> dict:
     return borrow_pool_panel.select_scan_accounts(
         _PANEL,
@@ -364,6 +365,7 @@ def select_liquidation_scan_accounts(
         force=force,
         market_id=market_id,
         chain_id=chain_id,
+        price_triggered_accounts=price_triggered_accounts,
     )
 
 

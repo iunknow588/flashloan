@@ -15,6 +15,7 @@ from core.chain_selection import (
     available_chain_selections,
     resolve_chain_selection,
 )
+from core.contracts import MarketScope
 from web.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
@@ -38,6 +39,18 @@ def _request_bool(name: str, *, default: bool = True) -> bool:
     return str(raw).strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _request_protocol_id() -> str | None:
+    raw = request.args.get("protocol_id", "").strip()
+    if raw:
+        return raw
+    protocols = request.args.get("protocols", "").replace("|", ",")
+    for item in protocols.split(","):
+        protocol = item.strip()
+        if protocol:
+            return protocol
+    return None
+
+
 def resolve_request_chain_selection(
     *,
     database_url: str | None = None,
@@ -49,6 +62,7 @@ def resolve_request_chain_selection(
         market_id=request.args.get("market_id", "").strip() or None,
         chain_id=_request_chain_id(),
         feature=feature or request.args.get("feature", "").strip() or None,
+        protocol_id=_request_protocol_id(),
         database_url=database_url,
         default_market_id=default_market_id,
         selections=selections,
@@ -94,6 +108,28 @@ def chain_selection_payload(
         execution_mode=request.args.get("execution_mode", "").strip() or None,
         scope_type=request.args.get("scope", "").strip() or "single_chain",
         include_chain_config=_request_bool("include_chain_config", default=True),
+    )
+
+
+def request_market_scope(
+    *,
+    expected_feature: str | None = None,
+    database_url: str | None = None,
+    default_market_id: str | None = None,
+    workflow: str = "unknown",
+    execution_mode: str | None = None,
+    scope_type: str | None = None,
+) -> MarketScope:
+    selection = resolve_request_chain_selection(
+        database_url=database_url,
+        feature=expected_feature,
+        default_market_id=default_market_id,
+    )
+    return MarketScope.from_selection(
+        selection,
+        workflow=workflow,
+        execution_mode=execution_mode or request.args.get("execution_mode", "").strip() or None,
+        scope_type=scope_type or request.args.get("scope", "").strip() or "single_chain",
     )
 
 

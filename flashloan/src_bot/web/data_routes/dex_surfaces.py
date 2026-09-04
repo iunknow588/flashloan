@@ -114,6 +114,69 @@ def _attach_dex_strategy(payload: dict) -> dict:
     return payload
 
 
+def _overview_response_payload(payload: dict) -> dict:
+    """Keep the overview response at route-summary granularity."""
+    if not isinstance(payload, dict):
+        return payload
+    response = dict(payload)
+    profit_keys = {
+        "method", "notionalUsd", "complete", "requiresLiveQuoter", "adapterRequired",
+        "observedGrossProfitUsd", "flashLoanFeeUsd", "gasReserveUsd", "offchainMinProfitUsd",
+        "submissionMinProfitUsd", "submissionNetProfitUsd", "observedNetProfitUsd",
+        "referenceNetProfitUsd", "observedNetProfitBps", "referenceInputAmount",
+        "referenceInputSymbol", "referenceFinalOutputAmount", "referenceFinalOutputSymbol",
+        "referenceNetProfitAmount", "referenceNetReturnBps", "referenceReturnBasis",
+        "referenceReturnTrusted", "borrowAssetClass", "borrowAssetIsStable",
+        "tokenBasisProfitable", "tokenBasisReferenceProfitable", "chainSubmissionCandidate",
+        "chainSubmissionPolicy", "chainSubmissionMinProfitAmount", "chainSubmissionMinProfitSymbol",
+        "profitable", "executableCandidate", "trustedUsdReference", "tokenDecimalsTrusted",
+        "recommendation", "recommendationLevel", "recommendationAction", "warnings",
+        "priceEvidenceSource", "priceEvidenceMode", "priceEvidenceSourceLabel",
+    }
+    compact_paths = []
+    for path in payload.get("arbitragePaths") or []:
+        if not isinstance(path, dict):
+            continue
+        compact = {
+            key: path[key]
+            for key in (
+                "symbolPair",
+                "routeSymbols",
+                "routeAddresses",
+                "overviewRoute",
+                "overviewProfit",
+                "routeFrameworkSource",
+                "pathSource",
+                "marketObservationSourceStage",
+                "priceEvidenceSource",
+                "priceEvidenceSourceLabel",
+            )
+            if key in path
+        }
+        profit = path.get("overviewProfit")
+        if isinstance(profit, dict):
+            compact["overviewProfit"] = {key: profit[key] for key in profit_keys if key in profit}
+        compact["executionPools"] = [
+            {
+                key: pool[key]
+                for key in ("pool", "protocol", "dex", "fee", "routeText", "balances", "depthBand")
+                if key in pool
+            }
+            for pool in (path.get("executionPools") or path.get("preferredPools") or [])[:5]
+            if isinstance(pool, dict)
+        ]
+        compact_paths.append(compact)
+    response["arbitragePaths"] = compact_paths
+    observation = response.get("marketObservation")
+    if isinstance(observation, dict):
+        response["marketObservation"] = {
+            key: observation[key]
+            for key in ("summary", "chainSpecificObservationPairs")
+            if key in observation
+        }
+    return response
+
+
 def register_dex_surface_routes(app, panel) -> None:
     @app.get("/api/dex/strategy")
     def dex_strategy():
@@ -172,11 +235,11 @@ def register_dex_surface_routes(app, panel) -> None:
             fallback=lambda: dex_overview_payload(
                 chain_id=selected_chain_id,
                 protocols=protocols,
-                use_static_observation=False,
+                use_static_observation=True,
             ),
         )
         payload["chain_selection"] = chain_selection
-        return jsonify(_attach_dex_strategy(payload))
+        return jsonify(_attach_dex_strategy(_overview_response_payload(payload)))
 
     @app.get("/api/dex/market-observation")
     def dex_market_observation():
@@ -266,7 +329,7 @@ def register_dex_surface_routes(app, panel) -> None:
             fallback=lambda: dex_quote_routes_payload(
                 chain_id=selected_chain_id,
                 protocols=protocols,
-                use_static_observation=False,
+                use_static_observation=True,
             ),
         )
         payload["chain_selection"] = chain_selection
@@ -332,7 +395,7 @@ def register_dex_surface_routes(app, panel) -> None:
                 pair=pair,
                 venue=venue,
                 amount=amount,
-                use_static_observation=False,
+                use_static_observation=True,
             ),
             pair=pair,
             venue=venue,

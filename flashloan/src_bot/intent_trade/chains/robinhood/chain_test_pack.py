@@ -15,6 +15,7 @@ from market.binance_market.dex_surfaces import (
     DEFAULT_FLASH_LOAN_FEE_BPS,
     DEFAULT_GAS_RESERVE_USD,
 )
+from core.market_identity import canonical_market_id_from_legacy
 from intent_trade.chains.robinhood.chain_test_policy import (
     ROBINHOOD_CHAIN_ID,
     ROBINHOOD_NETWORK,
@@ -27,8 +28,10 @@ from strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 DEFAULT_ROBINHOOD_CHAIN_ID = ROBINHOOD_CHAIN_ID
 DEFAULT_ROBINHOOD_NETWORK = ROBINHOOD_NETWORK
-DEFAULT_ROBINHOOD_MARKET_ID = "robinhood-dex-shadow"
-DEFAULT_ROBINHOOD_TESTNET_MARKET_ID = "robinhood-testnet-dex-paused"
+LEGACY_ROBINHOOD_MARKET_ID = "robinhood-dex-shadow"
+DEFAULT_ROBINHOOD_MARKET_ID = "dex-arbitrage-4663-uniswap-v3"
+LEGACY_ROBINHOOD_TESTNET_MARKET_ID = "robinhood-testnet-dex-paused"
+DEFAULT_ROBINHOOD_TESTNET_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
 ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT = SRC_ROOT / "runtime" / "cache" / "dex_opportunity_snapshot.json"
 _TOKEN_DECIMALS_FALLBACK = {
     "ETH": 18,
@@ -42,6 +45,11 @@ _ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 def _text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _canonical_market_id(value: object) -> str:
+    text = _text(value).lower()
+    return canonical_market_id_from_legacy(text) or text
 
 
 def _is_zero_address(value: object) -> bool:
@@ -325,6 +333,11 @@ def _latest_snapshot_route_size_advice(
         or size_analysis.get("executionSizeProbeStatus")
         or quote_analysis.get("executionSizeProbeStatus")
     )
+    route_recommended_borrow_amount_raw = _int_or_none(
+        size_analysis.get("recommendedBorrowInputAmountRaw")
+        or quote_analysis.get("recommendedBorrowInputAmountRaw")
+        or execution_probe.get("recommendedBorrowInputAmountRaw")
+    )
     route_execution_size_probe_exceeded = bool(
         requested_borrow_amount_raw is not None
         and max_executable_raw is not None
@@ -342,6 +355,7 @@ def _latest_snapshot_route_size_advice(
         "routeExecutionSizeProbeStatus": route_execution_size_probe_status,
         "routeExecutableCandidate": None if route_executable_candidate is None else bool(route_executable_candidate),
         "routeChainSubmissionCandidate": None if route_chain_submission_candidate is None else bool(route_chain_submission_candidate),
+        "routeRecommendedBorrowAmountRaw": route_recommended_borrow_amount_raw,
         "routeRequestedBorrowAmountRaw": requested_borrow_amount_raw,
         "routeExecutionSizeProbeExceeded": route_execution_size_probe_exceeded,
         "routeExecutionSizeShortfallRaw": route_execution_size_shortfall_raw,
@@ -608,6 +622,18 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         if network == ROBINHOOD_TESTNET_NETWORK or chain_id == ROBINHOOD_TESTNET_CHAIN_ID
         else DEFAULT_ROBINHOOD_MARKET_ID
     )
+    default_legacy_market_id = (
+        LEGACY_ROBINHOOD_TESTNET_MARKET_ID
+        if network == ROBINHOOD_TESTNET_NETWORK or chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        else LEGACY_ROBINHOOD_MARKET_ID
+    )
+    requested_market_id = _text(attempt.get("market_id") or default_market_id)
+    canonical_plan_market_id = _canonical_market_id(requested_market_id)
+    legacy_plan_market_id = (
+        requested_market_id
+        if requested_market_id and requested_market_id != canonical_plan_market_id
+        else default_legacy_market_id
+    )
     route_path = _route_path(attempt)
     blockers = _unique(
         [
@@ -650,11 +676,13 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         "routeExecutionSizeProbeStatus": "",
         "routeExecutableCandidate": None,
         "routeChainSubmissionCandidate": None,
+        "routeRecommendedBorrowAmountRaw": None,
         "routeRequestedBorrowAmountRaw": None,
         "routeExecutionSizeProbeExceeded": False,
         "routeExecutionSizeShortfallRaw": None,
     }
     latest_snapshot_route_max_executable_raw = None
+    latest_snapshot_route_recommended_raw = None
     latest_snapshot_route_execution_probe = {}
     latest_snapshot_route_updated_at = _text(latest_snapshot.get("updated_at"))
     if hop_summaries:
@@ -666,10 +694,15 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         latest_snapshot_route_max_executable_raw = _int_or_none(
             latest_snapshot_route_size_advice.get("routeMaxExecutableAmountRaw")
         )
+        latest_snapshot_route_recommended_raw = _int_or_none(
+            latest_snapshot_route_size_advice.get("routeRecommendedBorrowAmountRaw")
+        )
         latest_snapshot_route_execution_probe = _as_dict(
             latest_snapshot_route_size_advice.get("routeExecutionSizeProbe")
         )
         latest_snapshot_route_updated_at = _text(latest_snapshot_route_size_advice.get("latestSnapshotUpdatedAt"))
+        if selected_borrow_amount_raw is None and latest_snapshot_route_recommended_raw is not None:
+            selected_borrow_amount_raw = latest_snapshot_route_recommended_raw
         if selected_borrow_amount_raw is None:
             selected_borrow_amount_raw = latest_snapshot_route_max_executable_raw
         if selected_borrow_amount_raw is None:
@@ -819,7 +852,8 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
         "generatedAt": _utc_now_iso(),
         "network": network,
         "chainId": chain_id,
-        "marketId": _text(attempt.get("market_id") or default_market_id),
+        "marketId": canonical_plan_market_id,
+        "legacyMarketId": legacy_plan_market_id or None,
         "chainTestScope": chain_scope,
         "attempt": {
             "state": _attempt_status(attempt),
@@ -861,6 +895,7 @@ def build_robinhood_chain_test_plan(attempt: dict[str, Any], *, contract_dir: Pa
             "minProfitUsd": cost_model.get("minProfitUsd"),
             "latestSnapshotUpdatedAt": latest_snapshot_route_updated_at or _text(latest_snapshot.get("updated_at")),
             "routeOriginalRequestedBorrowAmountRaw": original_requested_borrow_amount_raw,
+            "routeRecommendedBorrowAmountRaw": latest_snapshot_route_recommended_raw,
             "routeRequestedBorrowAmountRaw": repayment_borrow_amount_raw or requested_borrow_amount_raw,
             "routeSelectedBorrowAmountRaw": selected_borrow_amount_raw or repayment_borrow_amount_raw,
             "routeMaxExecutableAmountRaw": latest_snapshot_route_max_executable_raw,

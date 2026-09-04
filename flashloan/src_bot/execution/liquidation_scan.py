@@ -40,6 +40,7 @@ class LiquidationScanConfig:
     borrow_health_refresh_seconds: float = 1800.0
     high_frequency_refresh_seconds: float = 300.0
     core_opportunity_refresh_seconds: float = 1.0
+    scan_mode: str = "timer_driven"
     warning_health_factor: float = 1.05
     liquidation_health_factor: float = 1.0
     max_candidates: int = 5000

@@ -1041,7 +1041,50 @@ def liquidation_market_price_snapshot() -> dict[str, float]:
     return price_snapshot_from_extremes(latest_binance_extremes_file(), max_age_seconds=max(1.0, max_age))
 
 
-def liquidation_affected_accounts_for_market_assets(assets: list[str]) -> list[str]:
+LIQUIDATION_PRICE_TRIGGER_STATE: dict[str, object] = {
+    "last_snapshot": {},
+    "last_changed_assets": [],
+    "updated_at": 0.0,
+}
+
+
+def liquidation_price_triggered_assets() -> list[str]:
+    current = liquidation_market_price_snapshot()
+    if not current:
+        return []
+    previous = LIQUIDATION_PRICE_TRIGGER_STATE.get("last_snapshot")
+    previous_snapshot = previous if isinstance(previous, dict) else {}
+    threshold_bps, _ = parse_env_int("LIQUIDATION_PRICE_TRIGGER_BPS", 100, minimum=1)
+    changed_assets: list[str] = []
+    if not previous_snapshot:
+        changed_assets = list(current.keys())
+    else:
+        for asset, price in current.items():
+            prior = previous_snapshot.get(asset)
+            if prior is None:
+                continue
+            try:
+                prior_price = float(prior)
+                current_price = float(price)
+            except (TypeError, ValueError):
+                continue
+            if prior_price <= 0:
+                continue
+            change_bps = abs(current_price - prior_price) / prior_price * 10000.0
+            if change_bps >= float(threshold_bps):
+                changed_assets.append(asset)
+    LIQUIDATION_PRICE_TRIGGER_STATE["last_snapshot"] = current
+    LIQUIDATION_PRICE_TRIGGER_STATE["last_changed_assets"] = changed_assets
+    LIQUIDATION_PRICE_TRIGGER_STATE["updated_at"] = time.monotonic()
+    return changed_assets
+
+
+def liquidation_affected_accounts_for_market_assets(
+    assets: list[str],
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> list[str]:
     database_url = database_url_or_none()
     if not database_url:
         return []
@@ -1049,7 +1092,12 @@ def liquidation_affected_accounts_for_market_assets(assets: list[str]) -> list[s
     buffer_bps, _ = parse_env_int("LIQUIDATION_PRICE_TRIGGER_BUFFER_BPS", 25, minimum=0)
     variants = asset_variants_for_market_symbols(assets, reserve_cache_path=AAVE_RESERVE_CACHE_PATH)
     price_snapshot = liquidation_market_price_snapshot()
-    core_rows = db_load_liquidation_core_opportunity_pool(database_url, limit=limit)
+    core_rows = db_load_liquidation_core_opportunity_pool(
+        database_url,
+        limit=limit,
+        **({"market_id": market_id} if market_id is not None else {}),
+        **({"chain_id": chain_id} if chain_id is not None else {}),
+    )
     related_rows = [
         row
         for row in core_rows
@@ -1063,9 +1111,26 @@ def liquidation_affected_accounts_for_market_assets(assets: list[str]) -> list[s
     )
     if triggered:
         return triggered[:limit]
-    affected = db_load_liquidation_accounts_for_assets(database_url, variants, limit=limit)
+    affected = db_load_liquidation_accounts_for_assets(
+        database_url,
+        variants,
+        limit=limit,
+        **({"market_id": market_id} if market_id is not None else {}),
+        **({"chain_id": chain_id} if chain_id is not None else {}),
+    )
     executable = set(liquidation_engine_core_accounts())
     return [account for account in affected if account in executable][:limit]
+
+
+def liquidation_price_triggered_accounts(
+    *,
+    market_id: str | None = None,
+    chain_id: int | None = None,
+) -> list[str]:
+    assets = liquidation_price_triggered_assets()
+    if not assets:
+        return []
+    return liquidation_affected_accounts_for_market_assets(assets, market_id=market_id, chain_id=chain_id)
 
 
 def liquidation_engine_core_accounts() -> list[str]:

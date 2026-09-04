@@ -5,27 +5,52 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.market_identity import (
+    FEATURE_DEX_ARBITRAGE,
+    FEATURE_LIQUIDATION,
+    MarketKey,
+    canonical_market_id,
+    canonical_market_id_from_legacy,
+    legacy_market_aliases,
+    market_key_from_summary,
+    normalize_feature,
+    normalize_protocol_id,
+    resolve_market_key,
+    validate_market_identity_registry,
+)
 
-DEFAULT_AVALANCHE_MARKET_ID = "avalanche-aave-v3"
+
+LEGACY_AVALANCHE_MARKET_ID = "avalanche-aave-v3"
+DEFAULT_AVALANCHE_MARKET_ID = "liquidation-43114-aave-v3"
 DEFAULT_AVALANCHE_CHAIN_ID = 43114
 DEFAULT_AVALANCHE_ROUTER_ADDRESS = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4"
-DEFAULT_BNB_MARKET_ID = "bnb-venus-core"
+LEGACY_BNB_MARKET_ID = "bnb-venus-core"
+DEFAULT_BNB_MARKET_ID = "liquidation-56-venus-core"
 DEFAULT_BNB_CHAIN_ID = 56
 DEFAULT_BNB_PANCAKE_ROUTER_ADDRESS = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
 DEFAULT_ETHEREUM_UNISWAP_V2_ROUTER_ADDRESS = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
 DEFAULT_POLYGON_QUICKSWAP_V2_ROUTER_ADDRESS = "0xa5E0829CaCED8fFDD4De3c43696c57F7D7A678ff"
-DEFAULT_BNB_DEX_MARKET_ID = "bnb-dex-arbitrage"
-DEFAULT_ETHEREUM_DEX_MARKET_ID = "ethereum-dex-arbitrage"
-DEFAULT_POLYGON_DEX_MARKET_ID = "polygon-dex-arbitrage"
-DEFAULT_AVALANCHE_DEX_MARKET_ID = "avalanche-dex-arbitrage"
-DEFAULT_COW_DEX_MARKET_ID = "cow-dex-arbitrage"
+LEGACY_BNB_DEX_MARKET_ID = "bnb-dex-arbitrage"
+DEFAULT_BNB_DEX_MARKET_ID = "dex-arbitrage-56-pancakeswap-v3"
+LEGACY_ETHEREUM_DEX_MARKET_ID = "ethereum-dex-arbitrage"
+DEFAULT_ETHEREUM_DEX_MARKET_ID = "dex-arbitrage-1-uniswap-v3"
+LEGACY_POLYGON_DEX_MARKET_ID = "polygon-dex-arbitrage"
+DEFAULT_POLYGON_DEX_MARKET_ID = "dex-arbitrage-137-uniswap-v3"
+LEGACY_AVALANCHE_DEX_MARKET_ID = "avalanche-dex-arbitrage"
+DEFAULT_AVALANCHE_DEX_MARKET_ID = "dex-arbitrage-43114-uniswap-v3"
+LEGACY_COW_DEX_MARKET_ID = "cow-dex-arbitrage"
+DEFAULT_COW_DEX_MARKET_ID = "dex-arbitrage-0-cow-protocol"
 DEFAULT_ETHEREUM_CHAIN_ID = 1
 DEFAULT_POLYGON_CHAIN_ID = 137
 DEFAULT_COW_VIRTUAL_CHAIN_ID = 0
-DEFAULT_ROBINHOOD_BOT_MARKET_ID = "robinhood-liquidation-shadow"
-DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID = "robinhood-testnet-liquidation-shadow"
-DEFAULT_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
-DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID = "robinhood-testnet-dex-paused"
+LEGACY_ROBINHOOD_BOT_MARKET_ID = "robinhood-liquidation-shadow"
+DEFAULT_ROBINHOOD_BOT_MARKET_ID = "liquidation-4663-aave-v3"
+LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID = "robinhood-testnet-liquidation-shadow"
+DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID = "liquidation-46630-morpho-blue"
+LEGACY_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
+DEFAULT_ROBINHOOD_DEX_MARKET_ID = "dex-arbitrage-4663-uniswap-v3"
+LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID = "robinhood-testnet-dex-paused"
+DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
 DEFAULT_ROBINHOOD_CHAIN_ID = 4663
 DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID = 46630
 DEFAULT_ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
@@ -33,8 +58,10 @@ DEFAULT_ROBINHOOD_MULTICALL_ADDRESS = "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD
 DEFAULT_ROBINHOOD_EXPLORER_URL = "https://robinhoodchain.blockscout.com"
 DEFAULT_ROBINHOOD_TESTNET_EXPLORER_URL = "https://explorer.testnet.chain.robinhood.com"
 DEFAULT_ROBINHOOD_TESTNET_RPC_URL = "https://rpc.testnet.chain.robinhood.com"
-DEFAULT_ROBINHOOD_MORPHO_MARKET_ID = "robinhood-morpho-blue-flash"
-DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID = "robinhood-dex-morpho-blue-flash"
+LEGACY_ROBINHOOD_MORPHO_MARKET_ID = "robinhood-morpho-blue-flash"
+DEFAULT_ROBINHOOD_MORPHO_MARKET_ID = "liquidation-4663-morpho-blue"
+LEGACY_ROBINHOOD_DEX_MORPHO_MARKET_ID = "robinhood-dex-morpho-blue-flash"
+DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID = "dex-arbitrage-4663-morpho-blue"
 DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS = "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
 DEFAULT_ROBINHOOD_UNISWAP_V2_FACTORY_ADDRESS = "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
 
@@ -45,6 +72,7 @@ MARKET_TYPE_EXECUTION_RAIL = "execution_rail"
 
 KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
     DEFAULT_AVALANCHE_MARKET_ID: {
+        "legacy_market_id": LEGACY_AVALANCHE_MARKET_ID,
         "feature": "liquidation",
         "display_name": "Avalanche Aave V3 Liquidation",
         "network": "avalanche",
@@ -56,7 +84,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "migration_type": "config_and_new_executor_deployment",
     },
-    "bnb-aave-v3": {
+    "liquidation-56-aave-v3": {
+        "legacy_market_id": "bnb-aave-v3",
         "feature": "liquidation",
         "display_name": "BNB Aave V3 Liquidation",
         "network": "bnb",
@@ -69,6 +98,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "config_and_new_executor_deployment",
     },
     DEFAULT_BNB_MARKET_ID: {
+        "legacy_market_id": LEGACY_BNB_MARKET_ID,
         "feature": "liquidation",
         "display_name": "BNB Venus Core Liquidation",
         "network": "bnb",
@@ -81,7 +111,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "config_and_new_executor_deployment",
     },
-    "polygon-aave-v3-shadow": {
+    "liquidation-137-aave-v3": {
+        "legacy_market_id": "polygon-aave-v3-shadow",
         "feature": "liquidation",
         "display_name": "Polygon Aave V3 Liquidation Shadow",
         "network": "polygon",
@@ -95,7 +126,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "liquidation_protocol_placeholder",
     },
-    "ethereum-aave-v3-shadow": {
+    "liquidation-1-aave-v3": {
+        "legacy_market_id": "ethereum-aave-v3-shadow",
         "feature": "liquidation",
         "display_name": "Ethereum Aave V3 Liquidation Shadow",
         "network": "ethereum",
@@ -109,7 +141,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "liquidation_protocol_placeholder",
     },
-    "cow-liquidation-shadow": {
+    "liquidation-0-cow-protocol": {
+        "legacy_market_id": "cow-liquidation-shadow",
         "feature": "liquidation",
         "display_name": "CoW Liquidation Rail Shadow",
         "network": "cow",
@@ -124,6 +157,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "liquidation_execution_rail_placeholder",
     },
     DEFAULT_BNB_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_BNB_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "BNB PancakeSwap V3 Arbitrage",
         "network": "bnb",
@@ -136,7 +170,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "dex_executor_and_pool_verification",
     },
-    "bnb-pancakeswap-v2": {
+    "dex-arbitrage-56-pancakeswap-v2": {
+        "legacy_market_id": "bnb-pancakeswap-v2",
         "feature": "dex_arbitrage",
         "display_name": "BNB PancakeSwap V2 Arbitrage",
         "network": "bnb",
@@ -148,7 +183,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "migration_type": "dex_protocol_placeholder",
     },
-    "bnb-biswap-v2": {
+    "dex-arbitrage-56-biswap-v2": {
+        "legacy_market_id": "bnb-biswap-v2",
         "feature": "dex_arbitrage",
         "display_name": "BNB Biswap V2 Arbitrage",
         "network": "bnb",
@@ -161,6 +197,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_ETHEREUM_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_ETHEREUM_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Ethereum DEX Arbitrage",
         "network": "ethereum",
@@ -173,7 +210,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "dex_single_chain_market_registry",
     },
-    "ethereum-uniswap-v2": {
+    "dex-arbitrage-1-uniswap-v2": {
+        "legacy_market_id": "ethereum-uniswap-v2",
         "feature": "dex_arbitrage",
         "display_name": "Ethereum Uniswap V2 Arbitrage",
         "network": "ethereum",
@@ -185,7 +223,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "migration_type": "dex_protocol_placeholder",
     },
-    "ethereum-balancer-v2": {
+    "dex-arbitrage-1-balancer-v2": {
+        "legacy_market_id": "ethereum-balancer-v2",
         "feature": "dex_arbitrage",
         "display_name": "Ethereum Balancer V2 Arbitrage",
         "network": "ethereum",
@@ -198,6 +237,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_POLYGON_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_POLYGON_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Polygon DEX Arbitrage",
         "network": "polygon",
@@ -210,7 +250,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "dex_single_chain_market_registry",
     },
-    "polygon-quickswap-v2": {
+    "dex-arbitrage-137-quickswap-v2": {
+        "legacy_market_id": "polygon-quickswap-v2",
         "feature": "dex_arbitrage",
         "display_name": "Polygon QuickSwap V2 Arbitrage",
         "network": "polygon",
@@ -222,7 +263,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "migration_type": "dex_protocol_placeholder",
     },
-    "polygon-balancer-v2": {
+    "dex-arbitrage-137-balancer-v2": {
+        "legacy_market_id": "polygon-balancer-v2",
         "feature": "dex_arbitrage",
         "display_name": "Polygon Balancer V2 Arbitrage",
         "network": "polygon",
@@ -235,6 +277,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_AVALANCHE_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_AVALANCHE_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Avalanche DEX Arbitrage",
         "network": "avalanche",
@@ -248,7 +291,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "is_default": True,
         "migration_type": "dex_single_chain_market_registry",
     },
-    "avalanche-traderjoe-v2": {
+    "dex-arbitrage-43114-traderjoe-v2": {
+        "legacy_market_id": "avalanche-traderjoe-v2",
         "feature": "dex_arbitrage",
         "display_name": "Avalanche Trader Joe V2 Arbitrage",
         "network": "avalanche",
@@ -260,7 +304,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "migration_type": "dex_protocol_placeholder",
     },
-    "avalanche-curve": {
+    "dex-arbitrage-43114-curve": {
+        "legacy_market_id": "avalanche-curve",
         "feature": "dex_arbitrage",
         "display_name": "Avalanche Curve Arbitrage",
         "network": "avalanche",
@@ -273,6 +318,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "dex_protocol_placeholder",
     },
     DEFAULT_COW_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_COW_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "COW Cross-Chain Execution",
         "network": "cow",
@@ -285,6 +331,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "dex_cross_chain_execution_rail",
     },
     DEFAULT_ROBINHOOD_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Robinhood DEX Shadow",
         "network": "robinhood",
@@ -300,7 +347,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "dex_shadow_market_registry",
     },
-    "robinhood-dex-v4-shadow": {
+    "dex-arbitrage-4663-uniswap-v4": {
+        "legacy_market_id": "robinhood-dex-v4-shadow",
         "feature": "dex_arbitrage",
         "display_name": "Robinhood Uniswap V4 Shadow",
         "network": "robinhood",
@@ -317,6 +365,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "robinhood_mainnet_v4_ui_prepared_contract_deploy_deferred",
     },
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Robinhood Testnet Paused Executor",
         "network": "robinhood-testnet",
@@ -332,6 +381,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "robinhood_testnet_paused_deploy_readback",
     },
     DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID,
         "feature": "liquidation",
         "display_name": "Robinhood Testnet Liquidation Shadow",
         "network": "robinhood-testnet",
@@ -346,7 +396,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "chain_default": True,
         "migration_type": "robinhood_testnet_liquidation_shadow",
     },
-    "robinhood-dex-v2-shadow": {
+    "dex-arbitrage-4663-uniswap-v2": {
+        "legacy_market_id": "robinhood-dex-v2-shadow",
         "feature": "dex_arbitrage",
         "display_name": "Robinhood Uniswap V2 Flash Swap",
         "network": "robinhood",
@@ -364,6 +415,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "rh_flash_toolkit_uniswap_v2_flash_swap",
     },
     DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_DEX_MORPHO_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Robinhood Morpho Blue Flash Loan",
         "network": "robinhood",
@@ -381,6 +433,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "rh_flash_toolkit_morpho_blue_flash_loan",
     },
     DEFAULT_ROBINHOOD_MORPHO_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_MORPHO_MARKET_ID,
         "feature": "liquidation",
         "display_name": "Robinhood Morpho Blue Flash Loan",
         "network": "robinhood",
@@ -399,6 +452,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "migration_type": "rh_flash_toolkit_morpho_blue_flash_loan",
     },
     DEFAULT_ROBINHOOD_BOT_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_BOT_MARKET_ID,
         "feature": "liquidation",
         "display_name": "Robinhood Liquidation Shadow",
         "network": "robinhood",
@@ -414,7 +468,9 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_SHADOW_CHAIN,
         "migration_type": "liquidation_shadow_protocol_placeholder",
     },
-    "hyperliquid-dex-shadow": {
+    "dex-arbitrage-hyperliquid-hyperliquid-native": {
+        "legacy_market_id": "hyperliquid-dex-shadow",
+        "aliases": ("hyperliquid-native",),
         "feature": "dex_arbitrage",
         "display_name": "Hyperliquid DEX Shadow",
         "network": "hyperliquid",
@@ -430,45 +486,63 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
     },
 }
 
+def _builtin_market_summary(market_id: str, profile: dict[str, Any]) -> dict[str, Any]:
+    row = {"market_id": market_id, **dict(profile)}
+    key = market_key_from_summary(row)
+    summary = {
+        **dict(profile),
+        "market_id": key.market_id,
+        "canonical_market_id": key.market_id,
+        "legacy_market_id": key.legacy_market_id or market_id,
+        "feature": key.feature,
+        "protocol": key.protocol_id,
+        "protocol_id": key.protocol_id,
+    }
+    return summary
+
+
+BUILTIN_MARKET_SUMMARIES: dict[str, dict[str, Any]] = {
+    market_id: _builtin_market_summary(market_id, profile)
+    for market_id, profile in KNOWN_EVM_MARKETS.items()
+}
+
+
 KNOWN_CHAIN_ID_MARKETS: dict[int, str] = {}
-for _market_id, _profile in KNOWN_EVM_MARKETS.items():
-    if not isinstance(_profile.get("chain_id"), int):
+for _market_id, _summary in BUILTIN_MARKET_SUMMARIES.items():
+    if not isinstance(_summary.get("chain_id"), int):
         continue
-    _chain_id = int(_profile["chain_id"])
-    _feature = str(_profile.get("feature") or "")
+    _chain_id = int(_summary["chain_id"])
+    _feature = str(_summary.get("feature") or "")
     _existing_market_id = KNOWN_CHAIN_ID_MARKETS.get(_chain_id)
-    _existing_feature = (
-        str(KNOWN_EVM_MARKETS[_existing_market_id].get("feature") or "")
-        if _existing_market_id
-        else ""
-    )
+    _existing_summary = BUILTIN_MARKET_SUMMARIES.get(_existing_market_id or "", {})
+    _existing_feature = str(_existing_summary.get("feature") or "") if _existing_market_id else ""
     if (
         _existing_market_id is None
         or (
-            _feature == "liquidation"
+            _feature == FEATURE_LIQUIDATION
             and (
-                _existing_feature != "liquidation"
-                or not bool(KNOWN_EVM_MARKETS[_existing_market_id].get("is_default"))
+                _existing_feature != FEATURE_LIQUIDATION
+                or not bool(_existing_summary.get("is_default"))
             )
         )
         or (
-            _existing_feature != "liquidation"
-            and bool(_profile.get("is_default"))
+            _existing_feature != FEATURE_LIQUIDATION
+            and bool(_summary.get("is_default"))
         )
     ):
-        KNOWN_CHAIN_ID_MARKETS[_chain_id] = _market_id
+        KNOWN_CHAIN_ID_MARKETS[_chain_id] = _summary["market_id"]
 
 KNOWN_CHAIN_FEATURE_MARKETS: dict[tuple[int, str], str] = {}
-for _market_id, _profile in KNOWN_EVM_MARKETS.items():
-    if not isinstance(_profile.get("chain_id"), int):
+for _market_id, _summary in BUILTIN_MARKET_SUMMARIES.items():
+    if not isinstance(_summary.get("chain_id"), int):
         continue
-    _key = (int(_profile["chain_id"]), str(_profile.get("feature") or "liquidation"))
+    _key = (int(_summary["chain_id"]), str(_summary.get("feature") or FEATURE_LIQUIDATION))
     if (
         _key not in KNOWN_CHAIN_FEATURE_MARKETS
-        or bool(_profile.get("chain_default"))
-        or bool(_profile.get("is_default"))
+        or bool(_summary.get("chain_default"))
+        or bool(_summary.get("is_default"))
     ):
-        KNOWN_CHAIN_FEATURE_MARKETS[_key] = _market_id
+        KNOWN_CHAIN_FEATURE_MARKETS[_key] = _summary["market_id"]
 
 
 PROTOCOL_CAPABILITIES: dict[str, dict[str, Any]] = {
@@ -614,6 +688,7 @@ class ChainMarketConfig:
     observation_only: bool = False
     enabled: bool = True
     is_default: bool = False
+    legacy_market_id: str = ""
 
     @property
     def namespace(self) -> str:
@@ -622,12 +697,14 @@ class ChainMarketConfig:
     def as_dict(self) -> dict[str, Any]:
         return {
             "market_id": self.market_id,
+            "legacy_market_id": self.legacy_market_id or None,
             "namespace": self.namespace,
             "feature": self.feature,
             "display_name": self.display_name,
             "network": self.network,
             "market_type": self.market_type,
             "protocol": self.protocol,
+            "protocol_id": self.protocol,
             "chain_id": self.chain_id,
             "native_symbol": self.native_symbol,
             "wrapped_native_address": self.wrapped_native_address,
@@ -683,20 +760,55 @@ def market_namespace(market_id: str) -> str:
     return slug or DEFAULT_AVALANCHE_MARKET_ID
 
 
-def _known_profile(market_id: str) -> dict[str, Any]:
-    normalized = market_namespace(market_id)
-    if normalized in KNOWN_EVM_MARKETS:
-        return dict(KNOWN_EVM_MARKETS[normalized])
-    network = _env("LIQUIDATION_NETWORK") or normalized.split("-")[0] or "custom"
-    protocol = _env("LIQUIDATION_PROTOCOL") or ("aave_v3" if "aave" in normalized else "custom")
+def _profile_for_market_key(key: MarketKey) -> dict[str, Any]:
+    summary = next(
+        (dict(profile) for profile in BUILTIN_MARKET_SUMMARIES.values() if str(profile.get("market_id") or "") == key.market_id),
+        None,
+    )
+    if summary is not None:
+        summary["market_id"] = key.market_id
+        summary["canonical_market_id"] = key.market_id
+        summary["legacy_market_id"] = key.legacy_market_id or summary.get("legacy_market_id") or summary.get("market_id")
+        summary["feature"] = key.feature
+        summary["protocol"] = key.protocol_id
+        summary["protocol_id"] = key.protocol_id
+        return summary
+    network = _env("LIQUIDATION_NETWORK") or "custom"
     return {
+        "market_id": key.market_id,
+        "canonical_market_id": key.market_id,
+        "legacy_market_id": key.legacy_market_id,
+        "feature": key.feature,
+        "display_name": key.market_id,
         "network": network,
-        "chain_id": DEFAULT_AVALANCHE_CHAIN_ID,
+        "chain_id": key.chain_id,
         "native_symbol": _env("LIQUIDATION_NATIVE_SYMBOL") or "ETH",
-        "protocol": protocol,
+        "protocol": key.protocol_id,
+        "protocol_id": key.protocol_id,
         "market_type": MARKET_TYPE_NATIVE_CHAIN,
         "rpc_env_prefixes": (network.upper().replace("-", "_"),),
+        "observation_only": True,
+        "protocol_supported": False,
+        "enabled": True,
     }
+
+
+def _known_profile(
+    market_id: str,
+    *,
+    feature: str | None = None,
+    chain_id: int | None = None,
+    protocol_id: str | None = None,
+) -> dict[str, Any]:
+    resolved = resolve_market_key(
+        market_id=market_id,
+        feature=feature,
+        chain_id=chain_id,
+        protocol_id=protocol_id,
+        summaries=list(BUILTIN_MARKET_SUMMARIES.values()),
+        network=_env("LIQUIDATION_NETWORK") or None,
+    )
+    return _profile_for_market_key(resolved)
 
 
 def _configured_default_market_id(feature: str) -> str:
@@ -717,7 +829,7 @@ def market_id_for_chain_id(chain_id: int | None) -> str | None:
 def market_id_for_scope(chain_id: int | None = None, feature: str | None = None) -> str | None:
     if chain_id is None:
         return None
-    normalized_feature = str(feature or "").strip().lower()
+    normalized_feature = normalize_feature(feature) if feature else ""
     if normalized_feature:
         scoped = KNOWN_CHAIN_FEATURE_MARKETS.get((int(chain_id), normalized_feature))
         if scoped:
@@ -795,11 +907,39 @@ def _dex_router_for(profile: dict[str, Any]) -> str:
     return _first_env("DEX_ROUTER_ADDRESS") or DEFAULT_AVALANCHE_ROUTER_ADDRESS
 
 
-def liquidation_market_config() -> ChainMarketConfig:
+def liquidation_market_config(*, chain_id: int | None = None) -> ChainMarketConfig:
+    market_id = _env("LIQUIDATION_MARKET_ID") or None
+    protocol_id = _env("LIQUIDATION_PROTOCOL") or None
+    if chain_id is not None:
+        return liquidation_market_config_for(
+            market_id=market_id,
+            chain_id=chain_id,
+            protocol_id=protocol_id,
+        )
     raw_chain_id = _first_env("LIQUIDATION_CHAIN_ID", "CHAIN_ID")
+    if raw_chain_id:
+        return liquidation_market_config_for(
+            market_id=market_id,
+            chain_id=_parse_int(raw_chain_id, DEFAULT_AVALANCHE_CHAIN_ID),
+            protocol_id=protocol_id,
+        )
     return liquidation_market_config_for(
-        market_id=_env("LIQUIDATION_MARKET_ID") or _configured_default_market_id("liquidation") or DEFAULT_AVALANCHE_MARKET_ID,
-        chain_id=_parse_int(raw_chain_id, DEFAULT_AVALANCHE_CHAIN_ID) if raw_chain_id else None,
+        market_id=market_id or _configured_default_market_id("liquidation") or DEFAULT_AVALANCHE_MARKET_ID,
+        chain_id=None,
+        feature=FEATURE_LIQUIDATION if not market_id else None,
+        protocol_id=protocol_id,
+    )
+
+
+def liquidation_market_scope_is_explicit() -> bool:
+    return any(
+        _env(name)
+        for name in (
+            "LIQUIDATION_MARKET_ID",
+            "LIQUIDATION_CHAIN_ID",
+            "CHAIN_ID",
+            "LIQUIDATION_PROTOCOL",
+        )
     )
 
 
@@ -808,45 +948,51 @@ def liquidation_market_config_for(
     *,
     chain_id: int | None = None,
     feature: str | None = None,
+    protocol_id: str | None = None,
 ) -> ChainMarketConfig:
-    resolved_feature = str(feature or "liquidation").strip().lower()
-    explicit_market_id = market_id is not None and str(market_id).strip() != ""
-    if explicit_market_id:
-        resolved_market_id = market_namespace(str(market_id))
-        if resolved_market_id not in KNOWN_EVM_MARKETS and resolved_market_id != "hyperliquid-native":
-            raise ValueError(f"unknown market_id: {resolved_market_id}")
-    elif chain_id is not None:
-        resolved_market_id = KNOWN_CHAIN_FEATURE_MARKETS.get((int(chain_id), resolved_feature), "")
-        if not resolved_market_id:
-            raise ValueError(f"no {resolved_feature} market is registered for chain_id {int(chain_id)}")
-    else:
-        resolved_market_id = _configured_default_market_id(resolved_feature) or DEFAULT_AVALANCHE_MARKET_ID
-    profile = _known_profile(resolved_market_id)
+    resolved_feature = normalize_feature(feature) if feature is not None else None
+    if resolved_feature is None and market_id is None:
+        resolved_feature = FEATURE_LIQUIDATION
+    resolved_protocol_id = (
+        normalize_protocol_id(protocol_id)
+        if protocol_id is not None and str(protocol_id).strip()
+        else None
+    )
+    summary_rows = list(BUILTIN_MARKET_SUMMARIES.values())
+    resolved_key = resolve_market_key(
+        market_id=market_id,
+        feature=resolved_feature,
+        chain_id=chain_id,
+        protocol_id=resolved_protocol_id,
+        summaries=summary_rows,
+        network=_env("LIQUIDATION_NETWORK") or None,
+    )
+    profile = _profile_for_market_key(resolved_key)
     profile_chain_value = profile.get("chain_id")
     profile_chain_id = int(
         DEFAULT_AVALANCHE_CHAIN_ID
         if profile_chain_value is None
         else profile_chain_value
     )
-    profile_feature = str(profile.get("feature") or "liquidation").strip().lower()
+    profile_feature = str(profile.get("feature") or FEATURE_LIQUIDATION).strip().lower()
     if chain_id is not None and int(chain_id) != profile_chain_id:
         raise ValueError(
-            f"market_id {resolved_market_id} belongs to chain_id {profile_chain_id}, not {int(chain_id)}"
+            f"market_id {resolved_key.market_id} belongs to chain_id {profile_chain_id}, not {int(chain_id)}"
         )
-    if feature is not None and profile_feature != resolved_feature:
+    if resolved_feature is not None and profile_feature != resolved_feature:
         raise ValueError(
-            f"market_id {resolved_market_id} belongs to feature {profile_feature}, not {resolved_feature}"
+            f"market_id {resolved_key.market_id} belongs to feature {profile_feature}, not {resolved_feature}"
         )
-    protocol = (_env("LIQUIDATION_PROTOCOL") or str(profile.get("protocol") or "aave_v3")).strip().lower()
+    protocol = str(profile.get("protocol_id") or profile.get("protocol") or resolved_protocol_id or _env("LIQUIDATION_PROTOCOL") or "aave_v3").strip().lower()
     protocol_supported = bool(profile.get("protocol_supported", PROTOCOL_CAPABILITIES.get(protocol, {}).get("supported")))
     resolved_chain_id = profile_chain_id
     native_symbol = (_env("LIQUIDATION_NATIVE_SYMBOL") or str(profile.get("native_symbol") or "ETH")).upper()
     capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
-    configured_default_market_id = _configured_default_market_id(profile_feature)
+    configured_default_market_id = canonical_market_id_from_legacy(_configured_default_market_id(profile_feature)) or _configured_default_market_id(profile_feature)
     return ChainMarketConfig(
-        market_id=resolved_market_id,
-        feature=str(profile.get("feature") or resolved_feature or "liquidation"),
-        display_name=str(profile.get("display_name") or resolved_market_id),
+        market_id=str(profile.get("market_id") or resolved_key.market_id),
+        feature=str(profile.get("feature") or resolved_feature or FEATURE_LIQUIDATION),
+        display_name=str(profile.get("display_name") or resolved_key.market_id),
         network=(_env("LIQUIDATION_NETWORK") or str(profile.get("network") or "custom")).strip().lower(),
         market_type=str(profile.get("market_type") or MARKET_TYPE_NATIVE_CHAIN),
         protocol=protocol,
@@ -873,54 +1019,66 @@ def liquidation_market_config_for(
         explorer_url=str(profile.get("explorer_url") or ""),
         observation_only=bool(profile.get("observation_only")) or not protocol_supported,
         enabled=bool(profile.get("enabled", True)),
-        is_default=resolved_market_id == configured_default_market_id
+        is_default=resolved_key.market_id == configured_default_market_id
         or (not configured_default_market_id and bool(profile.get("is_default")))
-        or (not configured_default_market_id and resolved_market_id == DEFAULT_AVALANCHE_MARKET_ID),
+        or (not configured_default_market_id and resolved_key.market_id == DEFAULT_AVALANCHE_MARKET_ID),
+        legacy_market_id=str(profile.get("legacy_market_id") or resolved_key.legacy_market_id or profile.get("market_id") or ""),
     )
+
+
+def _normalize_supported_market_row(row: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(row, dict):
+        return {}
+    try:
+        key = market_key_from_summary(row)
+    except Exception:
+        return dict(row)
+    metadata = row.get("metadata_json") if isinstance(row.get("metadata_json"), dict) else {}
+    market_type = row.get("market_type") or metadata.get("market_type") or MARKET_TYPE_NATIVE_CHAIN
+    protocol = str(row.get("protocol_id") or row.get("protocol") or key.protocol_id).strip().lower()
+    summary = {
+        **dict(row),
+        "market_id": key.market_id,
+        "canonical_market_id": key.market_id,
+        "legacy_market_id": row.get("legacy_market_id") or key.legacy_market_id or row.get("market_id"),
+        "feature": key.feature,
+        "protocol": protocol,
+        "protocol_id": protocol,
+        "network": str(row.get("network") or "").strip().lower(),
+        "chain_id": key.chain_id,
+        "market_type": str(market_type or MARKET_TYPE_NATIVE_CHAIN),
+    }
+    return summary
 
 
 def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     default_market_ids: dict[str, str] = {}
-    for market_id, profile in KNOWN_EVM_MARKETS.items():
-        feature = str(profile.get("feature") or "liquidation")
+    for market_id, profile in BUILTIN_MARKET_SUMMARIES.items():
+        feature = str(profile.get("feature") or FEATURE_LIQUIDATION)
         if feature not in default_market_ids:
-            default_market_ids[feature] = _configured_default_market_id(feature)
-        protocol = str(profile["protocol"])
+            default_market_ids[feature] = canonical_market_id_from_legacy(_configured_default_market_id(feature)) or _configured_default_market_id(feature)
+        protocol = str(profile.get("protocol_id") or profile.get("protocol") or "")
         capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
-        summaries.append(
-            {
-                "market_id": market_id,
-                "feature": feature,
-                "display_name": profile.get("display_name") or market_id,
-                "network": profile["network"],
-                "market_type": profile.get("market_type") or MARKET_TYPE_NATIVE_CHAIN,
-                "chain_id": profile["chain_id"],
-                "native_symbol": profile["native_symbol"],
-                "protocol": protocol,
-                "protocol_supported": bool(profile.get("protocol_supported", capabilities.get("supported"))),
-                "observation_only": bool(profile.get("observation_only"))
-                or not bool(profile.get("protocol_supported", capabilities.get("supported"))),
-                "is_default": market_id == default_market_ids.get(feature)
-                or (not default_market_ids.get(feature) and bool(profile.get("is_default")))
-                or (not default_market_ids.get(feature) and market_id == DEFAULT_AVALANCHE_MARKET_ID),
-                "migration_type": profile.get("migration_type") or "config_and_new_executor_deployment",
-                "pool_address": profile.get("pool_address") or "",
-            }
-        )
-    summaries.append(
-        {
-            "market_id": "hyperliquid-native",
-            "feature": "liquidation",
-            "network": "hyperliquid",
-            "chain_id": None,
-            "native_symbol": "HYPE",
-            "protocol": "hyperliquid_native",
-            "market_type": MARKET_TYPE_NATIVE_CHAIN,
-            "protocol_supported": False,
-            "migration_type": "new_protocol_adapter_required",
+        summary = {
+            **dict(profile),
+            "market_id": str(profile.get("market_id") or market_id),
+            "canonical_market_id": str(profile.get("market_id") or market_id),
+            "legacy_market_id": str(profile.get("legacy_market_id") or market_id),
+            "feature": feature,
+            "protocol": protocol,
+            "protocol_id": protocol,
+            "protocol_supported": bool(profile.get("protocol_supported", capabilities.get("supported"))),
+            "observation_only": bool(profile.get("observation_only"))
+            or not bool(profile.get("protocol_supported", capabilities.get("supported"))),
+            "is_default": str(profile.get("market_id") or market_id) == default_market_ids.get(feature)
+            or (not default_market_ids.get(feature) and bool(profile.get("is_default")))
+            or (not default_market_ids.get(feature) and str(profile.get("market_id") or market_id) == DEFAULT_AVALANCHE_MARKET_ID),
+            "migration_type": profile.get("migration_type") or "config_and_new_executor_deployment",
+            "pool_address": profile.get("pool_address") or "",
         }
-    )
+        summaries.append(summary)
+    validate_market_identity_registry(summaries)
     return summaries
 
 
@@ -939,7 +1097,7 @@ def supported_market_summaries(database_url: str | None = None) -> list[dict[str
 
             rows = load_chain_market_summaries(database_url)
             if rows:
-                return rows
+                return [_normalize_supported_market_row(row) for row in rows]
         except Exception as exc:
             if is_database_unavailable_error(exc):
                 mark_database_unavailable(database_url, exc)

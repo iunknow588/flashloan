@@ -20,7 +20,7 @@ from intent_trade.flows.flash_loan_pools.presenter import (
     _dex_pool_row,
     _pool_view_capabilities,
 )
-ROBINHOOD_TESTNET_MARKET_ID = "robinhood-testnet-dex-paused"
+ROBINHOOD_TESTNET_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
 ROBINHOOD_TESTNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
 
 

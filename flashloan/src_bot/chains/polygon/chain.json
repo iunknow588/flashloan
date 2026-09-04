@@ -6,7 +6,8 @@
   "native_symbol": "POL",
   "features": {
     "dex_arbitrage": {
-      "default_market_id": "polygon-dex-arbitrage",
+      "default_market_id": "dex-arbitrage-137-uniswap-v3",
+      "legacy_default_market_id": "polygon-dex-arbitrage",
       "protocol": "uniswap_v3"
     }
   },

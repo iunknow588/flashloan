@@ -1,21 +1,21 @@
-﻿from pathlib import Path
+from pathlib import Path
 from urllib.parse import quote
 
 from web.control_panel import app
+from web.data_routes.dex_surfaces import _overview_response_payload
 
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "web" / "templates"
 STATIC_DIR = Path(__file__).resolve().parents[2] / "web" / "static"
 
 
-EXPECTED_UNIFIED_CHAIN_ORDER = [
+EXPECTED_LIQUIDATION_CHAIN_ORDER = [
     "AVALANCHE Chain",
     "BNB Chain",
     "POLYGON Chain",
     "ETHEREUM Chain",
     "Robinhood Chain",
     "Robinhood Testnet",
-    "HYPERLIQUID Chain",
     "CoW Rail",
 ]
 EXPECTED_DEX_CHAIN_ORDER = [
@@ -28,6 +28,19 @@ EXPECTED_DEX_CHAIN_ORDER = [
     "HYPERLIQUID Chain",
     "CoW Rail",
 ]
+CANONICAL_BNB_AAVE = "liquidation-56-aave-v3"
+CANONICAL_BNB_VENUS = "liquidation-56-venus-core"
+CANONICAL_BNB_DEX = "dex-arbitrage-56-pancakeswap-v3"
+CANONICAL_AVALANCHE_AAVE = "liquidation-43114-aave-v3"
+CANONICAL_ROBINHOOD_BOT = "liquidation-4663-aave-v3"
+CANONICAL_ROBINHOOD_MORPHO = "liquidation-4663-morpho-blue"
+CANONICAL_ROBINHOOD_TESTNET_BOT = "liquidation-46630-morpho-blue"
+CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v3"
+CANONICAL_ROBINHOOD_DEX_V2 = "dex-arbitrage-4663-uniswap-v2"
+CANONICAL_ROBINHOOD_DEX_V4 = "dex-arbitrage-4663-uniswap-v4"
+CANONICAL_ROBINHOOD_DEX_MORPHO = "dex-arbitrage-4663-morpho-blue"
+CANONICAL_ROBINHOOD_TESTNET_DEX = "dex-arbitrage-46630-uniswap-v4"
+CANONICAL_HYPERLIQUID_DEX = "dex-arbitrage-hyperliquid-hyperliquid-native"
 
 
 def test_control_panel_routes_are_assembled_by_app_factory():
@@ -146,7 +159,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'data-dex-strategy-selector="true"' in body
         assert 'data-chain-selector-select="true"' in body
         assert 'data-dex-strategy-select="true"' in body
-        assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
         assert 'class="app-shell-dex-strategy-control"' in body
         assert 'class="app-shell-control-line"' in body
         assert 'data-dex-strategy-meta' in body
@@ -160,7 +173,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "/static/dex-strategy-selector.js" in body
         assert "/static/dex-provenance.js" in body
         assert "window.__DEX_PROVENANCE__" in body
-        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
         assert "window.__DEX_STRATEGY_DEFAULT__" in body
         assert "Binance 速度策略" in body
         assert "闭环扫描策略" in body
@@ -169,6 +182,13 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "includeChainConfig: false" in body
         assert "当前 BOT 市场" not in body
         assert "当前 DEX 链路" not in body
+
+    scoped_body = client.get(
+        "/dex/candidates?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
+    ).get_data(as_text=True)
+    assert '/ops?chain_id=46630' in scoped_body
+    assert '/settings?chain_id=46630' in scoped_body
+    assert '/ops?market_id=robinhood-testnet-dex-paused' not in scoped_body
 
     quotes_body = client.get("/dex/quotes").get_data(as_text=True)
     assert "/api/dex/opportunity-scanner/start" in quotes_body
@@ -190,10 +210,25 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         body = client.get(path).get_data(as_text=True)
         assert "data-chain-selector" in body
         assert 'data-chain-selector-component="true"' in body
-        assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
-        assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"robinhood-testnet-dex-paused",chain_id:"46630"}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
+
+
+def test_system_pages_keep_feature_selection_and_scope():
+    client = app.test_client()
+
+    dex_ops = client.get("/ops?chain_id=46630&feature=dex_arbitrage").get_data(as_text=True)
+    bot_ops = client.get("/ops?chain_id=46630&feature=liquidation").get_data(as_text=True)
+    dex_body = client.get("/dex?chain_id=46630").get_data(as_text=True)
+
+    assert 'data-feature-selector-select="true"' in dex_ops
+    assert '<option value="dex_arbitrage" selected>DEX</option>' in dex_ops
+    assert 'option value="chain:46630" selected' in dex_ops
+    assert 'data-feature-selector-select="true"' in bot_ops
+    assert '<option value="liquidation" selected>BOT</option>' in bot_ops
+    assert '/ops?chain_id=46630&feature=dex_arbitrage' in dex_body
 
 
 def test_chain_selection_api_infers_feature_from_page_path():
@@ -207,7 +242,7 @@ def test_chain_selection_api_infers_feature_from_page_path():
     bot_payload = bot_response.get_json()
     assert bot_payload["selected"]["feature"] == "liquidation"
     assert {row["feature"] for row in bot_payload["available"]} == {"liquidation"}
-    assert [row["display_name"] for row in bot_payload["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert [row["display_name"] for row in bot_payload["chain_options"]] == EXPECTED_LIQUIDATION_CHAIN_ORDER
 
     assert dex_response.status_code == 200
     dex_payload = dex_response.get_json()
@@ -217,7 +252,7 @@ def test_chain_selection_api_infers_feature_from_page_path():
 
     assert unscoped_response.status_code == 200
     unscoped_payload = unscoped_response.get_json()
-    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 29
+    assert len({row["market_id"] for row in unscoped_payload["available"]}) == 28
     assert [row["display_name"] for row in unscoped_payload["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
 
 
@@ -349,13 +384,13 @@ def test_robinhood_mainnet_dex_surface_apis_use_chain_flows():
     client = app.test_client()
 
     overview = client.get(
-        "/api/dex/overview?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4"
+        f"/api/dex/overview?market_id={CANONICAL_ROBINHOOD_DEX_V4}&chain_id=4663&protocols=uniswap_v4"
     ).get_json()
     observation = client.get(
-        "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4"
+        f"/api/dex/market-observation?market_id={CANONICAL_ROBINHOOD_DEX_V4}&chain_id=4663&protocols=uniswap_v4"
     ).get_json()
     routes = client.get(
-        "/api/dex/quote-routes?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v4"
+        f"/api/dex/quote-routes?market_id={CANONICAL_ROBINHOOD_DEX_V4}&chain_id=4663&protocols=uniswap_v4"
     ).get_json()
 
     for payload, flow_name in (
@@ -430,13 +465,14 @@ def test_chain_selection_api_exposes_chain_level_options():
     bot_options = {row["chain_id"]: row for row in bot["chain_options"]}
     dex_options = {row["chain_id"]: row for row in dex["chain_options"]}
 
-    assert [row["display_name"] for row in bot["chain_options"]] == EXPECTED_UNIFIED_CHAIN_ORDER
+    assert [row["display_name"] for row in bot["chain_options"]] == EXPECTED_LIQUIDATION_CHAIN_ORDER
     assert [row["display_name"] for row in dex["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
     assert bot_options[56]["display_name"] == "BNB Chain"
     assert bot_options[56]["chain_key"] == "chain:56"
     assert bot_options[56]["global_chain_id"] == "chain:56"
-    assert bot_options[56]["chain_config"]["features"]["liquidation"]["default_market_id"] == "bnb-venus-core"
-    assert bot_options[56]["default_market_id"] in {"bnb-aave-v3", "bnb-venus-core"}
+    assert bot_options[56]["chain_config"]["features"]["liquidation"]["default_market_id"] == CANONICAL_BNB_VENUS
+    assert bot_options[56]["chain_config"]["features"]["liquidation"]["legacy_default_market_id"] == "bnb-venus-core"
+    assert bot_options[56]["default_market_id"] in {CANONICAL_BNB_AAVE, CANONICAL_BNB_VENUS}
     assert bot_options[56]["representative_market_id"] == bot_options[56]["default_market_id"]
     assert bot_options[56]["protocol_summary"] == "aave_v3, venus_core"
     assert bot_options[56]["market_count"] == 2
@@ -447,8 +483,12 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert bot_options[46630]["display_name"] == "Robinhood Testnet"
     assert bot_options[46630]["chain_key"] == "chain:46630"
     assert bot_options[46630]["global_chain_id"] == "chain:46630"
-    assert bot_options[46630]["default_market_id"] == "robinhood-testnet-liquidation-shadow"
-    assert bot_options[46630]["chain_config"]["features"]["liquidation"]["default_market_id"] == "robinhood-testnet-liquidation-shadow"
+    assert bot_options[46630]["default_market_id"] == CANONICAL_ROBINHOOD_TESTNET_BOT
+    assert bot_options[46630]["chain_config"]["features"]["liquidation"]["default_market_id"] == CANONICAL_ROBINHOOD_TESTNET_BOT
+    assert (
+        bot_options[46630]["chain_config"]["features"]["liquidation"]["legacy_default_market_id"]
+        == "robinhood-testnet-liquidation-shadow"
+    )
     assert bot_options[46630]["protocol_summary"] == "morpho_blue"
     assert bot_options[46630]["market_count"] == 1
     assert bot_options[137]["protocol_summary"] == "aave_v3"
@@ -456,8 +496,8 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert bot_options[0]["protocol_summary"] == "cow_protocol"
     assert dex_options[56]["display_name"] == "BNB Chain"
     assert dex_options[56]["chain_key"] == "chain:56"
-    assert dex_options[56]["default_market_id"] == "bnb-dex-arbitrage"
-    assert dex_options[56]["representative_market_id"] == "bnb-dex-arbitrage"
+    assert dex_options[56]["default_market_id"] == CANONICAL_BNB_DEX
+    assert dex_options[56]["representative_market_id"] == CANONICAL_BNB_DEX
     assert dex_options[56]["protocol_summary"] == "biswap_v2, pancakeswap_v2, pancakeswap_v3"
     assert dex_options[56]["market_count"] == 3
     assert dex_options[4663]["chain_key"] == "chain:4663"
@@ -469,7 +509,7 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert dex_options[46630]["chain_config"]["contracts"]["v4_pool_manager"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
     assert dex_options[46630]["chain_config"]["data_independence"]["isolation"]["forbidden_networks_complete"] is True
     assert dex_options[46630]["chain_config"]["processing_independence"]["all_flows_require_scope_match"] is True
-    assert dex_options[46630]["default_market_id"] == "robinhood-testnet-dex-paused"
+    assert dex_options[46630]["default_market_id"] == CANONICAL_ROBINHOOD_TESTNET_DEX
     assert dex_options[46630]["protocol_summary"] == "uniswap_v4"
     assert dex_options[46630]["market_count"] == 1
     hyperliquid = next(row for row in dex["chain_options"] if row["chain_key"] == "network:hyperliquid")
@@ -506,19 +546,25 @@ def test_chain_selection_api_defaults_protocol_filter_to_all_chain_protocols():
     assert payload["protocol_options"] == [
         {
             "protocol": "aave_v3",
+            "protocol_id": "aave_v3",
             "display_name": "Aave V3",
-            "market_ids": ["bnb-aave-v3"],
+            "market_ids": [CANONICAL_BNB_AAVE],
             "market_count": 1,
             "is_default": False,
-            "market_id": "bnb-aave-v3",
+            "market_id": CANONICAL_BNB_AAVE,
+            "canonical_market_id": CANONICAL_BNB_AAVE,
+            "legacy_market_id": "bnb-aave-v3",
         },
         {
             "protocol": "venus_core",
+            "protocol_id": "venus_core",
             "display_name": "Venus Core",
-            "market_ids": ["bnb-venus-core"],
+            "market_ids": [CANONICAL_BNB_VENUS],
             "market_count": 1,
             "is_default": False,
-            "market_id": "bnb-venus-core",
+            "market_id": CANONICAL_BNB_VENUS,
+            "canonical_market_id": CANONICAL_BNB_VENUS,
+            "legacy_market_id": "bnb-venus-core",
         },
     ]
     assert payload["selected_protocols"] == ["aave_v3", "venus_core"]
@@ -542,9 +588,9 @@ def test_chain_selection_api_exposes_multi_protocol_dex_chain_filters():
         "/api/chain-selection?feature=dex_arbitrage&page_path=/dex&chain_id=4663"
     ).get_json()
 
-    assert payload["selected"]["market_id"] == "bnb-dex-arbitrage"
+    assert payload["selected"]["market_id"] == CANONICAL_BNB_DEX
     assert payload["selected"]["chain_key"] == "chain:56"
-    assert payload["selected"]["default_market_id"] == "bnb-dex-arbitrage"
+    assert payload["selected"]["default_market_id"] == CANONICAL_BNB_DEX
     assert payload["selected"]["protocol"] == "pancakeswap_v3"
     assert [row["protocol"] for row in payload["protocol_options"]] == [
         "biswap_v2",
@@ -661,10 +707,12 @@ def test_chain_selector_invalidates_scope_bound_browser_state_before_navigation(
     assert 'requestQuery.set("page_path", window.location.pathname);' in source
     assert 'requestQuery.set("execution_mode", query.get("execution_mode"));' not in source
     assert "function pathFeature(pathname)" in source
-    assert "clearMarketScope(url);" in source
+    assert "function clearMarketScope(url)" in source
+    assert "function applyChainOnlyToUrl(url, selection)" in source
+    assert "applyChainOnlyToUrl(url, selection);" in source
     assert 'link.hasAttribute("data-flash-loan-protocol-link")' in source
     assert "function isFlashLoanPoolPath(pathname)" in source
-    assert 'data-chain-protocols-flashloan-disabled' in source
+    assert 'data-chain-selection-empty' in source
     assert 'data-chain-selector-select' in source
 
 
@@ -696,10 +744,12 @@ def test_chain_selection_api_keeps_same_chain_markets_distinct(monkeypatch):
     )
 
     assert aave.status_code == 200
-    assert aave.get_json()["selected"]["market_id"] == "bnb-aave-v3"
+    assert aave.get_json()["selected"]["market_id"] == CANONICAL_BNB_AAVE
+    assert aave.get_json()["selected"]["legacy_market_id"] == "bnb-aave-v3"
     assert aave.get_json()["selected"]["protocol"] == "aave_v3"
     assert venus.status_code == 200
-    assert venus.get_json()["selected"]["market_id"] == "bnb-venus-core"
+    assert venus.get_json()["selected"]["market_id"] == CANONICAL_BNB_VENUS
+    assert venus.get_json()["selected"]["legacy_market_id"] == "bnb-venus-core"
     assert venus.get_json()["selected"]["observation_only"] is True
     assert wrong_chain.status_code == 400
     assert wrong_chain.get_json()["code"] == "chain_mismatch"
@@ -719,26 +769,27 @@ def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
     dex_markets = dex.get_json()["available"]
     dex_market_ids = {row["market_id"] for row in dex_markets}
     assert len(dex_markets) == 19
-    assert "robinhood-dex-shadow" in dex_market_ids
-    assert "robinhood-dex-v2-shadow" in dex_market_ids
-    assert "robinhood-dex-v4-shadow" in dex_market_ids
-    assert "robinhood-dex-morpho-blue-flash" in dex_market_ids
-    assert "robinhood-testnet-dex-paused" in dex_market_ids
-    assert "hyperliquid-dex-shadow" in dex_market_ids
-    assert next(row for row in dex_markets if row["market_id"] == "robinhood-dex-shadow")["market_type"] == "shadow_chain"
-    assert next(row for row in dex_markets if row["market_id"] == "robinhood-dex-v4-shadow")["protocol"] == "uniswap_v4"
-    assert next(row for row in dex_markets if row["market_id"] == "robinhood-testnet-dex-paused")["chain_id"] == 46630
+    assert CANONICAL_ROBINHOOD_DEX in dex_market_ids
+    assert CANONICAL_ROBINHOOD_DEX_V2 in dex_market_ids
+    assert CANONICAL_ROBINHOOD_DEX_V4 in dex_market_ids
+    assert CANONICAL_ROBINHOOD_DEX_MORPHO in dex_market_ids
+    assert CANONICAL_ROBINHOOD_TESTNET_DEX in dex_market_ids
+    assert CANONICAL_HYPERLIQUID_DEX in dex_market_ids
+    assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX)["legacy_market_id"] == "robinhood-dex-shadow"
+    assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX)["market_type"] == "shadow_chain"
+    assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_DEX_V4)["protocol"] == "uniswap_v4"
+    assert next(row for row in dex_markets if row["market_id"] == CANONICAL_ROBINHOOD_TESTNET_DEX)["chain_id"] == 46630
 
     assert bot.status_code == 200
     bot_markets = bot.get_json()["available"]
     bot_market_ids = {row["market_id"] for row in bot_markets}
-    assert len(bot_markets) == 10
-    assert "robinhood-liquidation-shadow" in bot_market_ids
-    assert "robinhood-morpho-blue-flash" in bot_market_ids
-    assert "polygon-aave-v3-shadow" in bot_market_ids
-    assert "ethereum-aave-v3-shadow" in bot_market_ids
-    assert "cow-liquidation-shadow" in bot_market_ids
-    assert "robinhood-dex-shadow" not in bot_market_ids
+    assert len(bot_markets) == 9
+    assert CANONICAL_ROBINHOOD_BOT in bot_market_ids
+    assert CANONICAL_ROBINHOOD_MORPHO in bot_market_ids
+    assert "liquidation-137-aave-v3" in bot_market_ids
+    assert "liquidation-1-aave-v3" in bot_market_ids
+    assert "liquidation-0-cow-protocol" in bot_market_ids
+    assert CANONICAL_ROBINHOOD_DEX not in bot_market_ids
 
 
 def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(monkeypatch):
@@ -769,9 +820,9 @@ def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(
     )
 
     assert aave.status_code == 200
-    assert aave.get_json()["selected"]["market_id"] == "bnb-aave-v3"
+    assert aave.get_json()["selected"]["market_id"] == CANONICAL_BNB_AAVE
     assert venus.status_code == 200
-    assert venus.get_json()["selected"]["market_id"] == "bnb-venus-core"
+    assert venus.get_json()["selected"]["market_id"] == CANONICAL_BNB_VENUS
     assert wrong_chain.status_code == 400
     assert wrong_chain.get_json()["code"] == "chain_mismatch"
     assert len(calls) == 1
@@ -1116,71 +1167,126 @@ def test_left_navigation_preserves_selected_dex_market_scope():
     client = app.test_client()
     body = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1").get_data(as_text=True)
 
-    assert 'href="/dex?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
-    assert 'href="/dex/overview?market_id=ethereum-dex-arbitrage&chain_id=1"' in body
+    assert 'href="/dex?chain_id=1&market_id=dex-arbitrage-1-uniswap-v3"' in body
+    assert 'href="/dex/overview?chain_id=1&market_id=dex-arbitrage-1-uniswap-v3"' in body
     assert 'data-shell-link="/dex/robinhood-shadow"' not in body
-    assert 'href="/bot"' in body
+    assert 'data-shell-link="/bot"' not in body
+    assert 'data-shell-link="/bot/account-scan"' not in body
 
 
 def test_left_navigation_preserves_selected_dex_strategy_scope():
     client = app.test_client()
     body = client.get("/dex?market_id=ethereum-dex-arbitrage&chain_id=1&dex_strategy=closed_loop_routes").get_data(as_text=True)
 
-    assert 'href="/dex?market_id=ethereum-dex-arbitrage&chain_id=1&dex_strategy=closed_loop_routes"' in body
-    assert 'href="/dex/overview?market_id=ethereum-dex-arbitrage&chain_id=1&dex_strategy=closed_loop_routes"' in body
+    assert 'href="/dex?chain_id=1&market_id=dex-arbitrage-1-uniswap-v3&dex_strategy=closed_loop_routes"' in body
+    assert 'href="/dex/overview?chain_id=1&market_id=dex-arbitrage-1-uniswap-v3&dex_strategy=closed_loop_routes"' in body
 
 
 def test_left_navigation_preserves_selected_liquidation_market_scope():
     client = app.test_client()
     body = client.get("/bot?market_id=bnb-aave-v3&chain_id=56").get_data(as_text=True)
 
-    assert 'href="/bot?market_id=bnb-aave-v3&chain_id=56"' in body
-    assert 'href="/bot/account-scan?market_id=bnb-aave-v3&chain_id=56"' in body
-    assert 'href="/dex"' in body
+    assert f'href="/bot?chain_id=56&market_id={CANONICAL_BNB_AAVE}"' in body
+    assert f'href="/bot/account-scan?chain_id=56&market_id={CANONICAL_BNB_AAVE}"' in body
+    assert 'data-shell-link="/dex"' not in body
+    assert 'data-shell-link="/dex/overview"' not in body
     assert "liquidationMarketSelect" not in body
 
 
 def test_app_shell_owns_one_visible_global_chain_selector():
     client = app.test_client()
 
-    for path in ("/bot", "/bot/account-scan", "/dex", "/dex/candidates", "/flash-loan/pools"):
+    bot_paths = ("/bot", "/bot/account-scan", "/account-scan")
+    dex_paths = ("/dex", "/dex/candidates", "/flash-loan/pools")
+
+    for path in bot_paths:
+        body = client.get(path).get_data(as_text=True)
+        assert body.count('data-global-chain-selector="true"') == 1
+        assert body.count('data-chain-selector-component="true"') == 1
+        assert body.count('data-dex-strategy-component="true"') == 0
+        assert body.count('data-dex-strategy-meta') == 0
+        assert body.count('data-feature-selector="true"') == 1
+        assert body.count('data-feature-selector-select="true"') == 1
+        assert body.count('/static/chain-selector.js') == 1
+        assert body.count('/static/dex-strategy-selector.js') == 0
+        assert 'class="app-shell-branding"' not in body
+        assert 'class="app-shell-title"' not in body
+        assert 'data-shell-link="/bot"' in body
+        assert 'data-shell-link="/bot/account-scan"' in body
+        assert 'data-shell-link="/dex"' not in body
+        assert 'data-shell-link="/flash-loan/pools"' not in body
+        assert 'class="app-shell-dex-strategy-control"' not in body
+        assert 'class="app-shell-dex-strategy-meta"' not in body
+        assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
+        assert 'class="app-shell-protocol-control"' in body
+        assert 'class="app-shell-protocols-meta"' in body
+        assert 'class="app-shell-feature-control"' in body
+        assert 'class="app-shell-chain-control"' in body
+        assert 'class="app-shell-selector-meta"' in body
+        assert "grid-template-columns: minmax(0, 20fr) minmax(0, 25fr) minmax(0, 55fr);" in body
+        assert ".app-shell-feature-control { grid-column: 1; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-chain-control { grid-column: 2; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-protocol-control { grid-column: 3; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; overflow: hidden; }" in body
+        assert ".app-shell-protocols { display: flex; flex-wrap: nowrap; justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }" in body
+        assert ".app-shell-selector-meta { width: 100%; min-width: 0; min-height: 18px; display: flex; justify-content: flex-start; align-items: center; gap: 8px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in body
+        assert ".app-shell-chain-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box;" in body
+        assert ".app-shell-protocols-meta { width: 100%; min-width: 0; min-height: 18px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in body
+        assert ".app-shell-protocols .protocol-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; height: 24px; min-height: 24px;" in body
+        assert ".app-shell-protocols .protocol-chip input { flex: 0 0 auto; width: 13px; height: 13px; margin: 0;" in body
+        assert ".app-shell-protocols .cow-network-chip { gap: 3px; height: 20px; min-height: 20px; padding: 0 5px; font-size: 9px;" in body
+        assert ".app-shell-protocols .cow-network-chip input { width: 10px; height: 10px;" in body
+        assert "background: #263244; color: #eef4ff; font-size: 10px;" in body
+        assert 'data-shell-gate' in body
+
+    for path in dex_paths:
         body = client.get(path).get_data(as_text=True)
         assert body.count('data-global-chain-selector="true"') == 1
         assert body.count('data-chain-selector-component="true"') == 1
         assert body.count('data-dex-strategy-component="true"') == 1
         assert body.count('data-dex-strategy-meta') == 1
+        assert body.count('data-feature-selector="true"') == 1
+        assert body.count('data-feature-selector-select="true"') == 1
         assert body.count('/static/chain-selector.js') == 1
         assert body.count('/static/dex-strategy-selector.js') == 1
-        assert '<a class="app-shell-brand" href="/bot">FLASH LOAN</a>' in body
-        assert "BOT 清算" in body
-        assert "DEX 套利" in body
-        assert "闪电贷" in body
-        assert "系统与分析" in body
+        assert 'class="app-shell-branding"' not in body
+        assert 'class="app-shell-title"' not in body
+        assert 'data-shell-link="/bot"' not in body
+        assert 'data-shell-link="/bot/account-scan"' not in body
+        assert 'data-shell-link="/dex"' in body
+        assert 'data-shell-link="/flash-loan/pools"' in body
         assert 'class="app-shell-dex-strategy-control"' in body
         assert 'class="app-shell-dex-strategy-meta"' in body
-        assert 'class="app-shell-protocols" data-chain-protocols="true"' in body
+        assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
+        assert 'class="app-shell-protocol-control"' in body
+        assert 'class="app-shell-protocols-meta"' in body
+        assert 'class="app-shell-feature-control"' in body
         assert 'class="app-shell-chain-control"' in body
         assert 'class="app-shell-selector-meta"' in body
-        assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in body
-        assert ".app-shell-dex-strategy-control { grid-column: 2; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 100%; min-width: 0; }" in body
-        assert ".app-shell-chain-control { grid-column: 3; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 100%; min-width: 0; }" in body
-        assert ".app-shell-protocols { grid-column: 4; grid-row: 1; display: flex; flex-wrap: wrap; justify-content: flex-start;" in body
-        assert ".app-shell-selector-meta { grid-column: 2 / 5; grid-row: 2; display: flex; justify-content: flex-start;" in body
+        assert "grid-template-columns: minmax(0, 20fr) minmax(0, 25fr) minmax(0, 25fr) minmax(0, 30fr);" in body
+        assert ".app-shell-feature-control { grid-column: 1; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-dex-strategy-control { grid-column: 2; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-chain-control { grid-column: 3; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; }" in body
+        assert ".app-shell-protocol-control { grid-column: 4; grid-row: 1; align-self: start; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; width: 100%; min-width: 0; overflow: hidden; }" in body
+        assert ".app-shell-protocols { display: flex; flex-wrap: nowrap; justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }" in body
+        assert ".app-shell-selector-meta { width: 100%; min-width: 0; min-height: 18px; display: flex; justify-content: flex-start; align-items: center; gap: 8px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in body
         assert ".app-shell-dex-strategy-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box;" in body
         assert ".app-shell-chain-control select { min-height: 38px; flex: 1 1 auto; width: auto; min-width: 0; box-sizing: border-box;" in body
-        assert ".app-shell-dex-strategy-meta { width: 100%; min-width: 0; color: #f2f4f7; font-size: 12px; line-height: 1.4; }" in body
-        assert "justify-content: flex-start; align-items: center; align-content: flex-start; gap: 6px; width: 100%; min-width: 0; height: 42px; min-height: 42px; max-height: 42px; overflow: hidden;" in body
-        assert ".app-shell-protocols .protocol-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; min-height: 22px;" in body
+        assert ".app-shell-dex-strategy-meta { width: 100%; min-width: 0; min-height: 18px; display: flex; align-items: center; gap: 6px; color: #f2f4f7; font-size: 12px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in body
+        assert ".app-shell-dex-strategy-desc { flex: 1 1 auto; min-width: 0; display: block; color: #d0d5dd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in body
+        assert ".app-shell-protocols-meta { width: 100%; min-width: 0; min-height: 18px; color: #d0d5dd; font-size: 11px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" in body
+        assert ".app-shell-protocols .protocol-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; height: 24px; min-height: 24px;" in body
         assert ".app-shell-protocols .protocol-chip input { flex: 0 0 auto; width: 13px; height: 13px; margin: 0;" in body
-        assert ".app-shell-protocols .cow-network-chip { gap: 3px; min-height: 17px; padding: 1px 5px; font-size: 9px;" in body
+        assert ".app-shell-protocols .cow-network-chip { gap: 3px; height: 20px; min-height: 20px; padding: 0 5px; font-size: 9px;" in body
         assert ".app-shell-protocols .cow-network-chip input { width: 10px; height: 10px;" in body
         assert "background: #263244; color: #eef4ff; font-size: 10px;" in body
         assert 'data-shell-gate' in body
 
     settings = client.get("/settings").get_data(as_text=True)
     analytics = client.get("/analytics/opportunity-health").get_data(as_text=True)
-    assert 'data-global-chain-selector="true"' not in settings
-    assert 'data-global-chain-selector="true"' not in analytics
+    for body in (settings, analytics):
+        assert 'data-global-chain-selector="true"' in body
+        assert 'data-feature-selector-select="true"' in body
+        assert '<option value="liquidation" selected>BOT</option>' in body
 
 
 def test_flash_loan_pool_page_uses_full_width_content_area_and_sidebar_protocol_nav(monkeypatch):
@@ -1748,6 +1854,9 @@ def test_dex_page_variant_is_driven_by_market_selection():
     assert "cowNetworkChecks" not in bnb_body
     assert "复制本组" in bnb_body
     assert "data-copy-route" in bnb_body
+    assert "initialProbe=" in bnb_body
+    assert "hop ${step.hop" in bnb_body
+    assert "referenceNetReturnBps=" in bnb_body
     assert robinhood.status_code == 200
     assert 'data-dex-surface-template="quotes"' in robinhood.get_data(as_text=True)
 
@@ -1800,6 +1909,15 @@ def test_market_observation_page_exposes_observation_surface_controls():
     assert "chainselectionprotocolschanged" in body
 
 
+def test_dex_overview_page_uses_explicit_page_scope_for_api_request():
+    body = app.test_client().get(
+        "/dex/overview?market_id=dex-arbitrage-46630-uniswap-v4&chain_id=46630&protocols=uniswap_v4"
+    ).get_data(as_text=True)
+
+    assert 'path === "/api/dex/overview"' in body
+    assert 'pageUrl.searchParams.get(key)' in body
+
+
 def test_dex_surface_payload_apis_are_distinct():
     client = app.test_client()
 
@@ -1809,7 +1927,7 @@ def test_dex_surface_payload_apis_are_distinct():
         "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663"
     ).get_json()
     robinhood_observation_with_single_protocol = client.get(
-        "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v2"
+        f"/api/dex/market-observation?market_id={CANONICAL_ROBINHOOD_DEX_V2}&chain_id=4663&protocols=uniswap_v2"
     ).get_json()
     quotes = client.get("/api/dex/quote-routes?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
     submissions = client.get("/api/dex/submissions?limit=5").get_json()
@@ -1820,10 +1938,10 @@ def test_dex_surface_payload_apis_are_distinct():
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
     ).get_json()
     robinhood_candidates_with_lending_protocol = client.get(
-        "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=morpho_blue"
+        f"/api/dex-pools/candidates?market_id={CANONICAL_ROBINHOOD_DEX_MORPHO}&chain_id=4663&protocols=morpho_blue"
     ).get_json()
     robinhood_candidates_with_single_dex_protocol = client.get(
-        "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v2"
+        f"/api/dex-pools/candidates?market_id={CANONICAL_ROBINHOOD_DEX_V2}&chain_id=4663&protocols=uniswap_v2"
     ).get_json()
     robinhood_candidates_page = client.get(
         "/dex/candidates?market_id=robinhood-dex-shadow&chain_id=4663"
@@ -1858,6 +1976,8 @@ def test_dex_surface_payload_apis_are_distinct():
     assert quote_request["processing"]["network"] == "robinhood-testnet"
     assert quote_request["processing"]["handler"] == "intent_trade.chains.robinhood_testnet.dex_surfaces:dex_quote_request_flow"
     assert submissions["mode"] == "dex_submission_review"
+
+
     assert "routeFramework" in submissions
     assert robinhood_testnet_submissions["routeFramework"]["routeFrameworkSource"] in {"market_observation", "candidate_pool_fallback"}
     assert robinhood_testnet_submissions["routeFramework"]["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
@@ -1888,13 +2008,15 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_testnet_observation["summary"]["closedLoopRouteCount"] == len(robinhood_testnet_observation["closedLoopRoutes"])
     assert len(robinhood_testnet_observation["observationAnchorSymbols"]) > 1
     assert robinhood_testnet_observation["marketObservationSource"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot"}
-    assert robinhood_testnet_observation["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot"}
+    assert robinhood_testnet_observation["marketObservationSourceStage"] in {"generated_live_snapshot", "refreshed_live_snapshot", "cached_snapshot", "computed"}
     assert len(robinhood_testnet_observation["chainSpecificObservationPools"]) <= 80
     if robinhood_testnet_observation.get("marketObservationPreview"):
         assert robinhood_testnet_observation["marketObservationPreview"]["chainSpecificObservationPoolsTotal"] >= len(
             robinhood_testnet_observation["chainSpecificObservationPools"]
         )
     assert len(robinhood_testnet_observation["candidateObservationGroups"]) == robinhood_testnet_observation["summary"]["candidateObservationGroupCount"]
+
+
     first_candidate_group = robinhood_testnet_observation["candidateObservationGroups"][0]
     assert first_candidate_group["anchorSymbol"]
     assert int(first_candidate_group["ycTokenCount"]) >= 0
@@ -1929,6 +2051,34 @@ def test_dex_surface_payload_apis_are_distinct():
         or route["quoteAnalysis"].get("trustedUsdReference") is False
         for route in robinhood_testnet_quotes["routes"]
     )
+
+
+def test_dex_overview_response_contains_route_summary_only():
+    payload = {
+        "mode": "dex_overview",
+        "arbitragePaths": [{
+            "overviewRoute": {"pathText": "ETH -> USDC -> ETH"},
+            "overviewProfit": {"complete": True, "steps": [{"amountOutRaw": "1"}], "observedNetProfitUsd": 2},
+            "strictQualityPools": [{"pool": "full"}],
+            "executionPools": [{"pool": "pool-1", "protocol": "uniswap_v4", "balances": {"tvlUsd": 10}}],
+        }],
+        "marketObservation": {
+            "summary": {"observationSequenceCount": 1},
+            "chainSpecificObservationPairs": [{"symbolPair": "ETH:USDC"}],
+            "chainSpecificObservationPools": [{"pool": "full"}],
+        },
+    }
+
+    response = _overview_response_payload(payload)
+    path = response["arbitragePaths"][0]
+
+    assert "strictQualityPools" not in path
+    assert path["executionPools"] == [{"pool": "pool-1", "protocol": "uniswap_v4", "balances": {"tvlUsd": 10}}]
+    assert "steps" not in path["overviewProfit"]
+    assert response["marketObservation"] == {
+        "summary": {"observationSequenceCount": 1},
+        "chainSpecificObservationPairs": [{"symbolPair": "ETH:USDC"}],
+    }
 
 
 def test_dex_surface_payload_minimal_interfaces_are_consistent(monkeypatch):

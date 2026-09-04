@@ -151,7 +151,12 @@
     const current = normalizeStrategy(DEFAULT_BOOTSTRAP.currentStrategyKey || currentStrategyKey());
     if (current && normalized !== current) {
       const url = updateUrlForStrategy(normalized, definitions);
-      window.location.replace(url.pathname + (url.search ? url.search : ""));
+      const target = url.pathname + (url.search ? url.search : "");
+      if (window.AppShell && typeof window.AppShell.navigate === "function" && !window.AppShell.isEmbedded()) {
+        window.AppShell.navigate(target, { replace: true });
+      } else {
+        window.location.replace(target);
+      }
       return normalized;
     }
     const url = new URL(window.location.href);
@@ -236,7 +241,12 @@
       if (window.location.pathname === url.pathname && window.location.search === url.search) {
         return;
       }
-      window.location.assign(url.pathname + (url.search ? url.search : ""));
+      const target = url.pathname + (url.search ? url.search : "");
+      if (window.AppShell && typeof window.AppShell.navigate === "function" && !window.AppShell.isEmbedded()) {
+        window.AppShell.navigate(target);
+      } else {
+        window.location.assign(target);
+      }
     };
 
     window.DexStrategySelector = window.DexStrategySelector || {};

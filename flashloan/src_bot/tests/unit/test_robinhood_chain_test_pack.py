@@ -9,6 +9,10 @@ from intent_trade.chains.robinhood.chain_test_policy import robinhood_chain_test
 from tools.build_robinhood_chain_test_package import _assert_attempt_scope
 
 
+def _pool_id(char: str) -> str:
+    return "0x" + char * 64
+
+
 def _sample_attempt():
     return {
         "observed_at": "2026-08-25T06:29:42.838755+00:00",
@@ -173,7 +177,7 @@ def _testnet_size_cap_attempt():
                         "hop": 1,
                         "protocol": "uniswap_v4",
                         "quoteMethod": "v4_sdk_exact_input_single",
-                        "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+                        "pool": _pool_id("b"),
                         "fromSymbol": "ETH",
                         "toSymbol": "0X71178B",
                         "tokenIn": "0x0000000000000000000000000000000000000000",
@@ -190,7 +194,7 @@ def _testnet_size_cap_attempt():
                         "hop": 2,
                         "protocol": "uniswap_v4",
                         "quoteMethod": "v4_sdk_exact_input_single",
-                        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+                        "pool": _pool_id("7"),
                         "fromSymbol": "0X71178B",
                         "toSymbol": "0XC9F9C8",
                         "tokenIn": "0x71178bac73cbeb415514eb542a8995b82669778d",
@@ -207,7 +211,7 @@ def _testnet_size_cap_attempt():
                         "hop": 3,
                         "protocol": "uniswap_v4",
                         "quoteMethod": "v4_sdk_exact_input_single",
-                        "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+                        "pool": _pool_id("c"),
                         "fromSymbol": "0XC9F9C8",
                         "toSymbol": "ETH",
                         "tokenIn": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
@@ -319,6 +323,50 @@ def test_robinhood_chain_test_plan_records_latest_snapshot_size_gate_block(tmp_p
     assert plan["decision"]["readyForTransactionPreflight"] is True
     assert plan["preflightSpec"]["status"] == "ready_for_fork_staticcall"
     assert plan["decision"]["blockedReasons"] == []
+
+
+def test_robinhood_chain_test_plan_surfaces_latest_snapshot_recommended_borrow_amount(tmp_path, monkeypatch):
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-09-03T04:50:30.225613+00:00",
+                "snapshots": {
+                    "46630": {
+                        "payload": {
+                            "routes": [
+                                {
+                                    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+                                    "sizeAnalysis": {
+                                        "recommendedBorrowInputAmountRaw": "250000000000000000",
+                                        "maxExecutableAmountRaw": "498365714991916341",
+                                        "executionSizeProbe": {
+                                            "status": "liquidity_probe_complete",
+                                        },
+                                    },
+                                    "quoteAnalysis": {
+                                        "executableCandidate": True,
+                                        "chainSubmissionCandidate": True,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chain_test_pack, "ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT", snapshot_path)
+    attempt = _testnet_size_cap_attempt()
+    attempt["quote"]["live_onchain_evidence"].pop("selectedBorrowInputAmountRaw", None)
+
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    assert plan["evidence"]["routeRecommendedBorrowAmountRaw"] == 250000000000000000
+    assert plan["evidence"]["routeSelectedBorrowAmountRaw"] == 250000000000000000
+    assert plan["evidence"]["routeRequestedBorrowAmountRaw"] == 250000000000000000
 
 
 def test_robinhood_chain_test_audit_rejects_size_gate_inconsistency(tmp_path, monkeypatch):
@@ -655,7 +703,8 @@ def test_write_robinhood_testnet_chain_test_package_uses_testnet_scope(tmp_path)
 
     assert plan["network"] == "robinhood-testnet"
     assert plan["chainId"] == 46630
-    assert plan["marketId"] == "robinhood-testnet-dex-paused"
+    assert plan["marketId"] == "dex-arbitrage-46630-uniswap-v4"
+    assert plan["legacyMarketId"] == "robinhood-testnet-dex-paused"
     assert plan["chainTestScope"]["mode"] == "testnet_deploy_readback_only"
     assert '"scope": "robinhood_testnet_46630_only"' in contracts
     assert '"defaultV4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94"' in contracts

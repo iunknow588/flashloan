@@ -548,9 +548,7 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         if ZERO_ADDRESS.lower() not in edge:
             non_eth_pair_count += 1
 
-    associated_observation_pools: list[dict[str, Any]] = []
     associated_observation_edges: set[tuple[str, str]] = set()
-    associated_observation_tokens: dict[str, dict[str, Any]] = {}
     for edge, bridge_pools in sorted(pools_by_edge.items()):
         left_address, right_address = edge
         left_associations = _fund_associations(
@@ -568,47 +566,6 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         if not left_associations or not right_associations:
             continue
         associated_observation_edges.add(edge)
-        for address, associations in ((left_address, left_associations), (right_address, right_associations)):
-            token = token_by_address.get(address) or {"symbol": address[:8].upper(), "address": address}
-            associated_observation_tokens[address] = {
-                **token,
-                "associatedFunds": _association_summary(associations),
-                "associatedFundSymbols": [_symbol(row.get("symbol")) for row in associations],
-            }
-        for pool in sorted(bridge_pools, key=lambda row: str(_pool_id(row))):
-            token0_address = _address(pool.get("token0"))
-            token1_address = _address(pool.get("token1"))
-            token0_associations = _fund_associations(
-                token0_address,
-                fund_addresses=fund_addresses,
-                funds_by_address=funds_by_address,
-                neighbors_by_address=neighbors_by_address,
-            )
-            token1_associations = _fund_associations(
-                token1_address,
-                fund_addresses=fund_addresses,
-                funds_by_address=funds_by_address,
-                neighbors_by_address=neighbors_by_address,
-            )
-            associated_observation_pools.append(
-                {
-                    **pool,
-                    "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pool",
-                    "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
-                    "observationPool": True,
-                    "closedLoopReady": False,
-                    "token0AssociatedFunds": _association_summary(token0_associations),
-                    "token1AssociatedFunds": _association_summary(token1_associations),
-                    "associatedFundSymbols": sorted(
-                        {
-                            _symbol(row.get("symbol"))
-                            for row in token0_associations + token1_associations
-                            if _symbol(row.get("symbol"))
-                        }
-                    ),
-                    "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
-                }
-            )
 
     sequences: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str, str, str]] = set()
@@ -681,13 +638,57 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         if len(sequences) >= route_limit:
             break
 
-    for pool in associated_observation_pools:
-        edge = tuple(sorted((_address(pool.get("token0")), _address(pool.get("token1")))))
-        pool["closedLoopReady"] = edge in closed_loop_fund_anchor_edges
-    all_associated_observation_pairs = _associated_observation_pair_rows(associated_observation_pools)
-    associated_observation_pairs = _associated_observation_pair_rows(
-        [pool for pool in associated_observation_pools if pool.get("closedLoopReady")]
-    )
+    # The observation page only needs bridge pools that participate in a
+    # complete fund-anchor loop. Entry and exit pools remain in routePools.
+    associated_observation_pools: list[dict[str, Any]] = []
+    associated_observation_tokens: dict[str, dict[str, Any]] = {}
+    for edge in sorted(closed_loop_fund_anchor_edges):
+        for pool in sorted(pools_by_edge.get(edge) or [], key=lambda row: str(_pool_id(row))):
+            token0_address = _address(pool.get("token0"))
+            token1_address = _address(pool.get("token1"))
+            token0_associations = _fund_associations(
+                token0_address,
+                fund_addresses=fund_addresses,
+                funds_by_address=funds_by_address,
+                neighbors_by_address=neighbors_by_address,
+            )
+            token1_associations = _fund_associations(
+                token1_address,
+                fund_addresses=fund_addresses,
+                funds_by_address=funds_by_address,
+                neighbors_by_address=neighbors_by_address,
+            )
+            for address, associations in (
+                (token0_address, token0_associations),
+                (token1_address, token1_associations),
+            ):
+                token = token_by_address.get(address) or {"symbol": address[:8].upper(), "address": address}
+                associated_observation_tokens[address] = {
+                    **token,
+                    "associatedFunds": _association_summary(associations),
+                    "associatedFundSymbols": [_symbol(row.get("symbol")) for row in associations],
+                }
+            associated_observation_pools.append(
+                {
+                    **pool,
+                    "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pool",
+                    "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
+                    "observationPool": True,
+                    "closedLoopReady": True,
+                    "token0AssociatedFunds": _association_summary(token0_associations),
+                    "token1AssociatedFunds": _association_summary(token1_associations),
+                    "associatedFundSymbols": sorted(
+                        {
+                            _symbol(row.get("symbol"))
+                            for row in token0_associations + token1_associations
+                            if _symbol(row.get("symbol"))
+                        }
+                    ),
+                    "observationReason": "bridge_pool_participates_in_closed_fund_anchor_loop",
+                }
+            )
+
+    associated_observation_pairs = _associated_observation_pair_rows(associated_observation_pools)
     _attach_route_evidence_to_associated_pairs(associated_observation_pairs, sequences)
 
     return {
@@ -701,7 +702,7 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         "executorSupportedFundAssetCount": sum(1 for fund in funds if fund.get("executorSupported")),
         "fundAnchorCandidatePairCount": indexed_pair_count,
         "associatedFundAnchorPairCount": len(closed_loop_fund_anchor_edges),
-        "associatedObservationCandidatePairCount": len(all_associated_observation_pairs) or len(associated_observation_edges),
+        "associatedObservationCandidatePairCount": len(associated_observation_edges),
         "associatedObservationPairCount": len(associated_observation_pairs),
         "associatedObservationPoolCount": len(associated_observation_pools),
         "associatedObservationTokenCount": len(associated_observation_tokens),

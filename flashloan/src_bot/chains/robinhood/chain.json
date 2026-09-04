@@ -6,11 +6,13 @@
   "native_symbol": "ETH",
   "features": {
     "liquidation": {
-      "default_market_id": "robinhood-liquidation-shadow",
+      "default_market_id": "liquidation-4663-aave-v3",
+      "legacy_default_market_id": "robinhood-liquidation-shadow",
       "protocol": "aave_v3"
     },
     "dex_arbitrage": {
-      "default_market_id": "robinhood-dex-shadow",
+      "default_market_id": "dex-arbitrage-4663-uniswap-v3",
+      "legacy_default_market_id": "robinhood-dex-shadow",
       "protocol": "uniswap_v3"
     }
   },

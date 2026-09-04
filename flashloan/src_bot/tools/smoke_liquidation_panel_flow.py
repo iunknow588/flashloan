@@ -14,6 +14,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
+from core.market_config import DEFAULT_BNB_MARKET_ID, LEGACY_BNB_MARKET_ID
 from web.control_panel import app
 
 
@@ -52,7 +53,7 @@ def _first_account(accounts_payload: dict[str, Any]) -> str | None:
 
 def build_smoke_report(
     *,
-    market_id: str = "bnb-venus-core",
+    market_id: str = DEFAULT_BNB_MARKET_ID,
     chain_id: int = 56,
     account: str | None = None,
     page_size: int = 20,
@@ -114,7 +115,7 @@ def build_smoke_report(
         },
         "bnb_payload_observation_block": {
             "ok": (
-                str(market_id).lower() != "bnb-venus-core"
+                str(market_id).lower() not in {DEFAULT_BNB_MARKET_ID, LEGACY_BNB_MARKET_ID}
                 or (
                     int(payload.get("status_code") or 0) == 400
                     and "venus_core_observation_only" in (payload_json.get("blocked_reasons") or [])
@@ -168,7 +169,7 @@ def write_report(report: dict[str, Any], output_dir: Path) -> dict[str, str]:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a read-only liquidation panel flow smoke test.")
-    parser.add_argument("--market-id", default="bnb-venus-core")
+    parser.add_argument("--market-id", default=DEFAULT_BNB_MARKET_ID)
     parser.add_argument("--chain-id", type=int, default=56)
     parser.add_argument("--account", default="")
     parser.add_argument("--page-size", type=int, default=20)

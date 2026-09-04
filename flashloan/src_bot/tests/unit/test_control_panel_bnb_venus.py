@@ -4,6 +4,10 @@ from web import control_panel_bnb_venus as bnb
 from web.control_panel import app
 
 
+CANONICAL_BNB_VENUS = "liquidation-56-venus-core"
+LEGACY_BNB_VENUS = "bnb-venus-core"
+
+
 def _write_latest(tmp_path):
     payload = {
         "generated_at": "2026-08-16T11:05:43Z",
@@ -80,7 +84,8 @@ def test_bnb_venus_payload_exposes_health_and_separate_account_groups(monkeypatc
 
     payload = bnb.bnb_venus_borrow_pool_payload()
 
-    assert payload["summary"]["market_id"] == "bnb-venus-core"
+    assert payload["summary"]["market_id"] == CANONICAL_BNB_VENUS
+    assert payload["summary"]["legacy_market_id"] == LEGACY_BNB_VENUS
     assert payload["summary"]["chain_id"] == 56
     assert payload["summary"]["ordinary_account_count"] == 40
     assert payload["summary"]["high_frequency_account_count"] == 1
@@ -141,7 +146,8 @@ def test_liquidation_market_api_keeps_explicit_bnb_scope(monkeypatch):
     data = response.get_json()
 
     assert response.status_code == 200
-    assert data["active"]["market_id"] == "bnb-venus-core"
+    assert data["active"]["market_id"] == CANONICAL_BNB_VENUS
+    assert data["active"]["legacy_market_id"] == LEGACY_BNB_VENUS
     assert data["active"]["chain_id"] == 56
     assert data["active"]["protocol"] == "venus_core"
 
@@ -155,7 +161,8 @@ def test_liquidation_config_health_api_uses_request_market_scope(monkeypatch):
     data = response.get_json()
 
     assert response.status_code == 200
-    assert data["market"]["market_id"] == "bnb-venus-core"
+    assert data["market"]["market_id"] == CANONICAL_BNB_VENUS
+    assert data["market"]["legacy_market_id"] == LEGACY_BNB_VENUS
     assert data["expected_chain_id"] == 56
     assert data["chain_id"] == 56
     assert not any("chain id" in error for error in data["errors"])

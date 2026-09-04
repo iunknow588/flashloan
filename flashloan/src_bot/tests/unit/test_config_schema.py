@@ -86,6 +86,7 @@ def test_liquidation_config_health_accepts_matching_owner_key(monkeypatch):
 def test_liquidation_config_health_blocks_wrong_chain(monkeypatch):
     clear_liquidation_env(monkeypatch)
     monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("LIQUIDATION_MARKET_ID", "liquidation-43114-aave-v3")
 
     health = liquidation_config_health(chain_id=1)
 

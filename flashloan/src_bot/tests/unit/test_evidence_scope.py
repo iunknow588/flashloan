@@ -12,7 +12,7 @@ def test_infer_evidence_scope_reads_top_level_fields():
 
     assert scope.network == "robinhood-testnet"
     assert scope.chain_id == 46630
-    assert scope.market_id == "robinhood-testnet-dex-paused"
+    assert scope.market_id == "dex-arbitrage-46630-uniswap-v4"
 
 
 def test_infer_evidence_scope_reads_nested_live_onchain_evidence():
@@ -30,7 +30,7 @@ def test_infer_evidence_scope_reads_nested_live_onchain_evidence():
 
     assert scope.network == "robinhood"
     assert scope.chain_id == 4663
-    assert scope.market_id == "robinhood-dex-shadow"
+    assert scope.market_id == "dex-arbitrage-4663-uniswap-v3"
 
 
 def test_evidence_scope_rejects_same_network_wrong_chain_id():
@@ -53,6 +53,7 @@ def test_evidence_scope_rejects_wrong_market_id():
     }
 
     assert evidence_scope_matches(payload, market_ids=["robinhood-testnet-dex-paused"]) is True
+    assert evidence_scope_matches(payload, market_ids=["dex-arbitrage-46630-uniswap-v4"]) is True
     assert evidence_scope_matches(payload, market_ids=["robinhood-dex-shadow"]) is False
     assert evidence_scope_mismatch_reasons(
         payload,

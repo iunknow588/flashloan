@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from flask import jsonify
 
 from core.sensitive_data import redact_sensitive_text
-from db.storage_common import db_connection
 
 
 def control_error_message(error: object | None) -> str | None:
@@ -146,7 +145,8 @@ def register_control_routes(app, panel) -> None:
             return jsonify({"error": message, "blockers": blockers}), 400
         panel.set_control_status("initializing", "清空数据库", "正在清空行情与观察数据", 25)
         try:
-            with db_connection(panel.configured_database_url(), connect_timeout=8) as connection:
+            psycopg = panel.require_psycopg()
+            with psycopg.connect(panel.configured_database_url(), connect_timeout=8) as connection:
                 with connection.cursor() as cursor:
                     cursor.execute("SET LOCAL lock_timeout = '3s'")
                     cursor.execute("SET LOCAL statement_timeout = '10s'")

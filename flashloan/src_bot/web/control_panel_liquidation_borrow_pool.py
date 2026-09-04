@@ -5,6 +5,8 @@ from typing import Optional
 
 from web3 import Web3
 
+from core.market_identity import canonical_market_id_from_legacy
+
 
 def database_url_fingerprint(database_url: str | None) -> str | None:
     if not database_url:
@@ -36,7 +38,9 @@ def market_call_kwargs(market_id: str | None = None, chain_id: int | None = None
 
 
 def is_bnb_venus_scope(panel, market_id: str | None = None, chain_id: int | None = None) -> bool:
-    if str(market_id or "").strip().lower() == panel.BNB_MARKET_ID:
+    normalized_market_id = canonical_market_id_from_legacy(market_id) or str(market_id or "").strip().lower()
+    bnb_venus_market_id = canonical_market_id_from_legacy(panel.BNB_MARKET_ID) or panel.BNB_MARKET_ID
+    if normalized_market_id == bnb_venus_market_id:
         return True
     try:
         return market_id is None and int(chain_id) == panel.BNB_CHAIN_ID
@@ -133,6 +137,7 @@ def select_scan_accounts(
     force: bool = False,
     market_id: str | None = None,
     chain_id: int | None = None,
+    price_triggered_accounts: list[str] | None = None,
 ) -> dict:
     return panel._select_scan_accounts(
         database_url,
@@ -145,6 +150,7 @@ def select_scan_accounts(
         force=force,
         market_id=market_id,
         chain_id=chain_id,
+        price_triggered_accounts=price_triggered_accounts,
     )
 
 
@@ -204,6 +210,15 @@ def borrow_pool_summary(
 
 def borrow_pool_scan_cooldown_seconds(panel, config=None) -> float:
     current = config or panel.liquidation_scan_config()
+    if str(getattr(current, "scan_mode", "timer_driven") or "timer_driven").strip().lower() == "price_driven":
+        event_poll_seconds, _ = panel.parse_env_float("LIQUIDATION_EVENT_POLL_SECONDS", 5.0)
+        return max(
+            0.1,
+            min(
+                float(panel.liquidation_scan_interval_seconds()),
+                float(event_poll_seconds),
+            ),
+        )
     return max(
         0.1,
         min(

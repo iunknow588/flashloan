@@ -56,7 +56,7 @@ def _cached_surface_payload(
     )
     with _DEX_SURFACE_CACHE_LOCK:
         payload = _DEX_SURFACE_CACHE.get(key)
-    return deepcopy(payload) if payload is not None else None
+    return dict(payload) if payload is not None else None
 
 
 def _surface_payload_has_framework_data(surface: str, payload: dict[str, Any] | None) -> bool:

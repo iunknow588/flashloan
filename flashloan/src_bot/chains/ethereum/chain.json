@@ -6,7 +6,8 @@
   "native_symbol": "ETH",
   "features": {
     "dex_arbitrage": {
-      "default_market_id": "ethereum-dex-arbitrage",
+      "default_market_id": "dex-arbitrage-1-uniswap-v3",
+      "legacy_default_market_id": "ethereum-dex-arbitrage",
       "protocol": "uniswap_v3"
     }
   },

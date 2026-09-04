@@ -126,21 +126,24 @@ def test_ensure_database_schema_unlocks_after_success(monkeypatch):
     assert any("CREATE TABLE IF NOT EXISTS cow_execution_attempts" in query for query in queries)
     assert any("idx_cow_execution_attempts_network_time" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS chain_markets" in query for query in queries)
+    assert any("ADD COLUMN IF NOT EXISTS legacy_market_id" in query for query in queries)
+    assert any("ADD COLUMN IF NOT EXISTS protocol_id" in query for query in queries)
+    assert any("chain_markets_feature_chain_protocol_idx" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS market_scan_policies" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_candidates" in query for query in queries)
     assert any("CREATE TABLE IF NOT EXISTS dex_arbitrage_attempts" in query for query in queries)
     assert any(
         "WHERE feature = 'dex_arbitrage'" in query
         and "market_id <> %s" in query
-        and params == ("robinhood-testnet-dex-paused",)
+        and params == ("dex-arbitrage-46630-uniswap-v4",)
         for query, params in cursor.calls
     )
     assert any(
-        len(params) > 22 and params[0] == "avalanche-dex-arbitrage" and params[22] is False
+        len(params) > 24 and params[0] == "dex-arbitrage-43114-uniswap-v3" and params[24] is False
         for _query, params in cursor.calls
     )
     assert any(
-        len(params) > 22 and params[0] == "robinhood-testnet-dex-paused" and params[22] is True
+        len(params) > 24 and params[0] == "dex-arbitrage-46630-uniswap-v4" and params[24] is True
         for _query, params in cursor.calls
     )
     assert any("robinhood-dex-shadow" in str(params) for _query, params in cursor.calls)

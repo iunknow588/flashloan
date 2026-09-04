@@ -9,6 +9,7 @@ import db.storage_market as market_storage
 import db.storage_liquidation_pool as pool_storage
 from db import storage_common
 from db.storage_liquidation_pool import load_liquidation_accounts_for_assets
+from core.market_config import liquidation_market_config
 from tools.benchmark_db_pool import run_benchmark
 
 
@@ -664,4 +665,5 @@ def test_load_liquidation_accounts_for_assets_queries_core_pool(monkeypatch):
 
     assert accounts == ["0x1", "0x2"]
     assert "liquidation_core_opportunity_pool" in captured["sql"]
-    assert captured["params"] == ("avalanche-aave-v3", 43114, ["WAVAX", "USDC"], ["WAVAX", "USDC"], 10)
+    market = liquidation_market_config()
+    assert captured["params"] == (market.market_id, market.chain_id, ["WAVAX", "USDC"], ["WAVAX", "USDC"], 10)

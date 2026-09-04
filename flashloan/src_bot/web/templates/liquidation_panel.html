@@ -326,7 +326,7 @@
         $("message").textContent = `当前协议过滤：${label}`;
       }
     }
-    const isBnbVenusMarket = () => selectedMarket.market_id === "bnb-venus-core" || String(selectedMarket.chain_id) === "56" && selectedMarket.market_id === "bnb-venus-core";
+    const isBnbVenusMarket = () => selectedMarket.market_id === "liquidation-56-venus-core" || selectedMarket.market_id === "bnb-venus-core";
     const marketLabel = row => {
       const network = row && (row.network || row.market_id) ? (row.network || row.market_id) : "-";
       const chain = row && row.chain_id ? row.chain_id : "-";

@@ -56,7 +56,7 @@
       <div class="metric"><small>关联 Y-Z 交易对</small><strong id="watchCount">-</strong><span id="watchMeta">观察池来源</span></div>
       <div class="metric"><small>1000U 盈亏探针</small><strong id="profitCount">-</strong><span id="profitMeta">路由级总览</span></div>
       <div class="metric"><small>最佳参考净利</small><strong id="bestProfit">-</strong><span id="bestProfitMeta">扣除闪电贷费与 gas</span></div>
-      <div class="metric"><small>闪电贷协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
+      <div class="metric"><small>当前链资金来源协议</small><strong id="flashCount">-</strong><span id="flashNames">-</span></div>
       <div class="metric"><small>池子来源</small><strong id="sourceNetwork">-</strong><span id="sourceMeta">-</span></div>
     </section>
     <section class="panel" style="margin-bottom:14px">
@@ -86,12 +86,21 @@
       return Number.isFinite(parsed) ? `${parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits})} ${symbol || ""}`.trim() : "-";
     };
     const apiPath = path => {
+      if (path === "/api/dex/overview") {
+        const pageUrl = new URL(window.location.href);
+        const url = new URL(path, window.location.origin);
+        ["chain_id", "market_id", "protocols", "dex_strategy"].forEach(key => {
+          const value = pageUrl.searchParams.get(key);
+          if (value) url.searchParams.set(key, value);
+        });
+        return url.pathname + (url.search ? url.search : "");
+      }
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
       return url.pathname + (url.search ? url.search : "");
     };
-    async function fetchJson(path) {
-      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
+    async function fetchJson(path, signal) {
+      const response = await fetch(apiPath(path), {cache: "no-cache", signal, headers: {"Accept": "application/json"}});
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       return data;
@@ -164,10 +173,57 @@
       const funds = list(row?.associatedFundSymbols).join(", ");
       return `<span class="badge" title="${esc(row?.addressPair || "")}">${esc(label)}${funds ? ` / X=${esc(funds)}` : ""}</span>`;
     }
+    let refreshGeneration = 0;
+    let refreshController = null;
+    let renderedScopeSignature = "";
+    function requestedScope() {
+      const query = new URLSearchParams(window.location.search);
+      const protocols = (query.get("protocols") || "")
+        .split(",")
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+        .sort();
+      return {
+        chainId: query.get("chain_id") || "",
+        protocols,
+        signature: `${query.get("chain_id") || ""}|${protocols.join(",")}`,
+      };
+    }
+    function clearOverview() {
+      ["pathCount", "watchCount", "profitCount", "bestProfit", "flashCount", "sourceNetwork"].forEach(id => $(id).textContent = "-");
+      ["pathMeta", "watchMeta", "profitMeta", "bestProfitMeta", "flashNames", "sourceMeta"].forEach(id => $(id).textContent = "-");
+      $("watchList").innerHTML = "";
+      $("pathList").innerHTML = "";
+    }
+    function responseMatchesScope(data, scope) {
+      const responseChainId = data?.chain_id ?? data?.poolStaticTable?.chainId ?? data?.poolStaticTable?.chain_id ?? "";
+      if (scope.chainId && String(responseChainId) !== String(scope.chainId)) return false;
+      const staticChainId = data?.poolStaticTable?.chainId ?? data?.poolStaticTable?.chain_id;
+      const flashChainId = data?.flashLoanLiquidity?.chain_id;
+      if (staticChainId != null && responseChainId != null && String(staticChainId) !== String(responseChainId)) return false;
+      if (flashChainId != null && responseChainId != null && String(flashChainId) !== String(responseChainId)) return false;
+      if (scope.protocols.length) {
+        const responseProtocols = list(data?.selected_protocols).map(value => String(value).trim().toLowerCase()).filter(Boolean).sort();
+        if (responseProtocols.join(",") !== scope.protocols.join(",")) return false;
+      }
+      return true;
+    }
     async function refresh() {
+      const generation = ++refreshGeneration;
+      const scope = requestedScope();
+      if (renderedScopeSignature && renderedScopeSignature !== scope.signature) clearOverview();
+      renderedScopeSignature = scope.signature;
+      if (refreshController) refreshController.abort();
+      refreshController = new AbortController();
       $("message").textContent = "正在加载 DEX 总览...";
       try {
-        const data = await fetchJson("/api/dex/overview");
+        const data = await fetchJson("/api/dex/overview", refreshController.signal);
+        if (generation !== refreshGeneration) return;
+        if (!responseMatchesScope(data, scope)) {
+          clearOverview();
+          $("message").textContent = "接口返回的数据与当前链路不一致";
+          return;
+        }
         const flash = data.flashLoanLiquidity || {};
         const source = data.poolStaticTable || {};
         marketObservationSourceStage = data.marketObservationSourceStage || data.marketObservationSource || "computed";
@@ -188,6 +244,7 @@
         $("pathList").innerHTML = (data.arbitragePaths || []).map(pairHtml).join("") || '<div class="empty">当前选择下没有满足闪电贷衔接条件的套利路径。</div>';
         $("message").textContent = "已更新";
       } catch (error) {
+        if (generation !== refreshGeneration || error.name === "AbortError") return;
         $("message").textContent = error.message;
       }
     }

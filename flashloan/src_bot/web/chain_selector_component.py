@@ -68,22 +68,97 @@ def _render_chain_options(
     return "".join(rendered), "|".join(signature_parts)
 
 
+def _normalize_protocol(value: object) -> str:
+    return str(value or "").strip().lower()
+
+
+def _unique_protocols(values: list[str] | None) -> list[str]:
+    seen: set[str] = set()
+    items: list[str] = []
+    for value in values or []:
+        protocol = _normalize_protocol(value)
+        if not protocol or protocol in seen:
+            continue
+        seen.add(protocol)
+        items.append(protocol)
+    return items
+
+
+def _protocol_signature(protocols: list[str] | None) -> str:
+    return ",".join(sorted(_unique_protocols(protocols)))
+
+
+def _render_protocol_badges(
+    protocol_options: list[dict[str, Any]] | None,
+    selected_protocols: list[str] | None,
+) -> tuple[str, str, str]:
+    normalized_options: list[dict[str, str]] = []
+    for option in protocol_options or []:
+        if not isinstance(option, dict):
+            continue
+        protocol = _normalize_protocol(option.get("protocol"))
+        if not protocol:
+            continue
+        normalized_options.append(
+            {
+                "protocol": protocol,
+                "display_name": str(option.get("display_name") or protocol).strip(),
+            }
+        )
+    selected = set(_unique_protocols(selected_protocols))
+    option_signature = "|".join(
+        f'{item["protocol"]}:{item["display_name"]}' for item in normalized_options
+    )
+    selected_signature = _protocol_signature(selected_protocols)
+    rendered: list[str] = []
+    for item in normalized_options:
+        protocol = item["protocol"]
+        display_name = item["display_name"]
+        active = " active" if protocol in selected else ""
+        checked = " checked" if protocol in selected else ""
+        rendered.append(
+            f'<label class="protocol-chip{active}">'
+            f'<input type="checkbox" value="{escape(protocol, quote=True)}"{checked} '
+            f'aria-label="{escape(display_name, quote=True)}">'
+            f'{escape(display_name)}'
+            "</label>"
+        )
+    return "".join(rendered), option_signature, selected_signature
+
+
 def render_chain_selector_component(
     *,
     variant: str = "app_shell",
+    selected_feature: str | None = None,
     include_strategy_control: bool = False,
     selected_strategy_key: str | None = None,
     strategy_name: str | None = None,
     strategy_description: str | None = None,
     chain_options: list[dict[str, Any]] | None = None,
     selected_chain_key: str | None = None,
+    protocol_options: list[dict[str, Any]] | None = None,
+    selected_protocols: list[str] | None = None,
 ) -> str:
     normalized = str(variant or "app_shell").strip().lower()
     if normalized == "app_shell":
         options, signature = _render_chain_options(chain_options, selected_chain_key)
+        protocol_badges, protocol_signature, selected_protocol_signature = _render_protocol_badges(
+            protocol_options,
+            selected_protocols,
+        )
         signature_attr = (
             f' data-chain-selector-signature="{escape(signature, quote=True)}"'
             if signature
+            else ""
+        )
+        protocol_signature_attr = (
+            f' data-chain-protocol-signature="{escape(protocol_signature, quote=True)}"'
+            if protocol_signature
+            else ""
+        )
+        selected_protocol_attr = (
+            f' data-chain-protocol-selection-signature="{escape(selected_protocol_signature, quote=True)}"'
+            if selected_protocol_signature
             else ""
         )
         strategy_control = (
@@ -96,19 +171,45 @@ def render_chain_selector_component(
             if include_strategy_control
             else ""
         )
+        feature_value = str(selected_feature or "liquidation").strip().lower()
+        bot_selected = " selected" if feature_value == "liquidation" else ""
+        dex_selected = " selected" if feature_value == "dex_arbitrage" else ""
+        feature_control = (
+            '<div class="app-shell-feature-control" data-feature-selector="true">'
+            '<div class="app-shell-control-line">'
+            '<span class="app-shell-label">功能域</span>'
+            '<select data-feature-selector-select="true" aria-label="切换功能域">'
+            f'<option value="liquidation"{bot_selected}>BOT</option>'
+            f'<option value="dex_arbitrage"{dex_selected}>DEX</option>'
+            '</select>'
+            '</div>'
+            '<div class="app-shell-feature-meta" data-feature-selection-meta>'
+            f'当前功能域 {escape("DEX" if feature_value == "dex_arbitrage" else "BOT")}'
+            '</div>'
+            '</div>'
+        )
         return (
             '<div class="app-shell-selector" data-chain-selector="true" '
             'data-global-chain-selector="true" data-chain-selector-component="true">'
+            f"{feature_control}"
             f"{strategy_control}"
-            '<div class="app-shell-protocols" data-chain-protocols="true" aria-live="polite"></div>'
             '<div class="app-shell-chain-control">'
             '<div class="app-shell-control-line">'
-            '<span class="app-shell-label">Chain</span>'
+            '<span class="app-shell-label">链路</span>'
             f'<select data-chain-selector-select="true"{signature_attr} aria-label="Select chain">{options}</select>'
             '</div>'
             '<div class="app-shell-selector-meta">'
             '<span data-chain-selection-meta>Loading</span>'
             '<span class="app-shell-gate" data-shell-gate>Reading execution gate</span>'
+            "</div>"
+            "</div>"
+            '<div class="app-shell-protocol-control">'
+            '<div class="app-shell-protocol-line">'
+            '<div class="app-shell-protocol-label">资金协议</div>'
+            '<div class="app-shell-protocols" data-chain-selection-options="true" '
+            f'aria-live="polite"{protocol_signature_attr}{selected_protocol_attr}>{protocol_badges}</div>'
+            "</div>"
+            '<div class="app-shell-protocols-meta" data-chain-selection-options-meta>Loading</div>'
             "</div>"
             "</div>"
         )
@@ -117,7 +218,7 @@ def render_chain_selector_component(
         'data-chain-selector-component="true">'
         "<label>Chain</label>"
         "<span data-chain-selection-meta>Loading</span>"
-        '<div data-chain-protocols="true"></div>'
+        '<div data-chain-selection-options="true"></div>'
         "</div>"
     )
 

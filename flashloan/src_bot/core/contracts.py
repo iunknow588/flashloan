@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from core.chain_data_registry import global_chain_id
+from core.market_identity import canonical_market_id_from_legacy
 
 
 DATA_SOURCES = (
@@ -27,20 +28,29 @@ class MarketScope:
     scope_type: str
     global_chain_id: str = ""
     chain_key: str = ""
+    protocol_id: str = ""
+    legacy_market_id: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
+        canonical_market_id = canonical_market_id_from_legacy(self.market_id) or self.market_id
+        legacy_market_id = self.legacy_market_id or (
+            self.market_id if self.market_id != canonical_market_id else None
+        )
         gid = self.global_chain_id or global_chain_id(
             chain_id=self.chain_id,
             network=self.network,
-            market_id=self.market_id,
+            market_id=canonical_market_id,
         )
         return {
-            "market_id": self.market_id,
+            "market_id": canonical_market_id,
             "chain_id": self.chain_id,
             "global_chain_id": gid,
             "chain_key": self.chain_key or gid,
             "network": self.network,
             "feature": self.feature,
+            "protocol_id": self.protocol_id,
+            "protocol": self.protocol_id,
+            "legacy_market_id": legacy_market_id,
             "workflow": self.workflow,
             "execution_mode": self.execution_mode,
             "scope_type": self.scope_type,
@@ -62,6 +72,8 @@ class MarketScope:
             chain_key=str(getattr(selection, "global_chain_id", "") or ""),
             network=str(selection.network),
             feature=str(selection.feature),
+            protocol_id=str(getattr(selection, "protocol", "") or getattr(selection, "protocol_id", "") or ""),
+            legacy_market_id=getattr(selection, "legacy_market_id", None),
             workflow=str(workflow),
             execution_mode=execution_mode,
             scope_type=str(scope_type),

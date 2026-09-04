@@ -29,8 +29,8 @@ def test_chain_selector_renders_protocol_checkboxes_without_fetching_pool_data()
 
     assert "function renderProtocolBadgeList" in script
     assert 'checkbox.type = "checkbox"' in script
-    assert 'mount.setAttribute("data-chain-protocols-empty", "true");' in script
-    assert 'mount.removeAttribute("data-chain-protocols-empty");' in script
+    assert 'mount.setAttribute("data-chain-selection-empty", "true");' in script
+    assert 'mount.removeAttribute("data-chain-selection-empty");' in script
     assert "mount.hidden = true" not in script
     assert 'window.dispatchEvent(new CustomEvent(PROTOCOL_EVENT' in script
     assert 'window.dispatchEvent(new CustomEvent("chainselectionchanged"' in script
@@ -50,7 +50,7 @@ def test_chain_selector_renders_cow_network_checkboxes_for_cow_rail():
     assert 'url.searchParams.set("cow_networks", normalized.join(","));' in script
     assert 'url.searchParams.delete("protocols");' in script
     assert 'window.dispatchEvent(new CustomEvent(COW_NETWORK_EVENT' in script
-    assert 'protocolList = renderCowNetworkBadgeList(protocolMount, cowConfig, cowNetworks);' in script
+    assert 'renderCowNetworkBadgeList(selectionMount, cowConfig, cowNetworks);' in script
 
 
 def test_chain_selector_uses_chain_key_for_chain_options():
@@ -63,9 +63,23 @@ def test_chain_selector_uses_chain_key_for_chain_options():
     assert "return selectionKey(candidate) === option.value;" in script
     assert 'next.searchParams.set("market_id", String(selection && selection.market_id || ""));' not in script
     assert 'next.searchParams.delete("market_id");' in script
-    assert '["chain_id", "workflow", "execution_mode", "scope", "protocols"]' in script
+    assert '["chain_id", "workflow", "execution_mode", "scope", "protocols", "protocol_id"]' in script
     assert 'candidate.market_id + ":"' not in script
     assert 'item.market_id + ":"' not in script
+
+
+def test_chain_selector_keeps_chain_only_across_feature_links():
+    script = _read("web/static/chain_selector.js")
+    clear_block = _function_block(script, "clearMarketScope")
+    with_selection_block = _function_block(script, "withSelection")
+    preserve_block = _function_block(script, "preserveSelectionLinks")
+
+    assert '"chain_id"' not in clear_block
+    assert '"protocols"' in clear_block
+    assert '"protocol_id"' in clear_block
+    assert "function applyChainOnlyToUrl" in script
+    assert "applyChainOnlyToUrl(url, selection);" in preserve_block
+    assert 'selectedQuery.forEach(function (value, key) {' in preserve_block
 
 
 def test_chain_selector_dropdown_labels_are_chain_only():
@@ -88,6 +102,20 @@ def test_dex_pages_refresh_after_chain_selection_change():
     ]:
         body = _read(relative_path)
         assert "chainselectionchanged" in body
+
+
+def test_app_shell_navigation_sanitizes_cross_feature_market_scope():
+    script = _read("web/static/app_shell.js")
+
+    assert 'function sanitizeNavigationUrl(url)' in script
+    assert 'url.searchParams.delete("market_id");' in script
+    assert 'url.searchParams.delete("protocols");' in script
+    assert 'url.searchParams.delete("protocol_id");' in script
+    assert 'url.searchParams.delete("cow_networks");' in script
+    assert 'url.searchParams.delete("cow_network");' in script
+    assert 'url.searchParams.delete("scope");' in script
+    assert 'url.searchParams.delete("execution_mode");' in script
+    assert 'url.searchParams.delete("dex_strategy");' in script
 
 
 def test_dex_overview_refreshes_on_any_chain_selection_change():

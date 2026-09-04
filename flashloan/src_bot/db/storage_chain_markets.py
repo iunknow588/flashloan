@@ -5,6 +5,10 @@ from typing import Any
 
 from core.chain_data_registry import default_market_id_for_feature
 from core.market_scan_policy import builtin_market_scan_policies
+from core.market_identity import (
+    canonical_market_id_from_legacy,
+    market_key_from_summary,
+)
 from core.market_config import (
     KNOWN_EVM_MARKETS,
     PROTOCOL_CAPABILITIES,
@@ -26,22 +30,27 @@ def _builtin_chain_market_rows() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     default_market_ids: dict[str, str] = {}
     for market_id, profile in KNOWN_EVM_MARKETS.items():
-        feature = str(profile.get("feature") or "liquidation")
+        key = market_key_from_summary({"market_id": market_id, **dict(profile)})
+        feature = key.feature
         if feature not in default_market_ids:
             try:
-                default_market_ids[feature] = default_market_id_for_feature(feature)
+                configured = default_market_id_for_feature(feature)
+                default_market_ids[feature] = canonical_market_id_from_legacy(configured) or configured
             except Exception:
                 default_market_ids[feature] = ""
-        protocol = str(profile.get("protocol") or "")
+        protocol = key.protocol_id
         capabilities = PROTOCOL_CAPABILITIES.get(protocol, {})
         rows.append(
             {
-                "market_id": market_id,
-                "chain_id": profile.get("chain_id"),
+                "market_id": key.market_id,
+                "canonical_market_id": key.market_id,
+                "legacy_market_id": key.legacy_market_id or market_id,
+                "chain_id": key.chain_id,
                 "network": profile.get("network"),
                 "feature": feature,
                 "protocol": protocol,
-                "display_name": profile.get("display_name") or market_id,
+                "protocol_id": protocol,
+                "display_name": profile.get("display_name") or key.market_id,
                 "native_symbol": profile.get("native_symbol"),
                 "wrapped_native_address": profile.get("wrapped_native_address") or "",
                 "rpc_urls_json": [],
@@ -58,7 +67,8 @@ def _builtin_chain_market_rows() -> list[dict[str, Any]]:
                 "aa_policy_json": {},
                 "observation_only": bool(profile.get("observation_only")) or not bool(capabilities.get("supported")),
                 "enabled": bool(profile.get("enabled", True)),
-                "is_default": market_id == default_market_ids.get(feature),
+                "is_default": key.market_id == default_market_ids.get(feature),
+                "chain_default": bool(profile.get("chain_default", False)),
                 "metadata_json": {
                     "source": "builtin_fallback",
                     "migration_type": profile.get("migration_type"),
@@ -74,10 +84,12 @@ def ensure_chain_market_registry_schema(cursor) -> None:
         """
         CREATE TABLE IF NOT EXISTS chain_markets (
             market_id TEXT PRIMARY KEY,
-            chain_id BIGINT NOT NULL,
+            legacy_market_id TEXT,
+            chain_id BIGINT,
             network TEXT NOT NULL,
             feature TEXT NOT NULL,
             protocol TEXT NOT NULL,
+            protocol_id TEXT,
             display_name TEXT NOT NULL,
             native_symbol TEXT NOT NULL,
             wrapped_native_address TEXT,
@@ -102,6 +114,12 @@ def ensure_chain_market_registry_schema(cursor) -> None:
         )
         """
     )
+    cursor.execute("ALTER TABLE chain_markets ALTER COLUMN chain_id DROP NOT NULL")
+    cursor.execute("ALTER TABLE chain_markets ADD COLUMN IF NOT EXISTS legacy_market_id TEXT")
+    cursor.execute("ALTER TABLE chain_markets ADD COLUMN IF NOT EXISTS protocol_id TEXT")
+    cursor.execute("ALTER TABLE chain_markets ADD COLUMN IF NOT EXISTS chain_default BOOLEAN NOT NULL DEFAULT FALSE")
+    cursor.execute("UPDATE chain_markets SET protocol_id = protocol WHERE protocol_id IS NULL OR protocol_id = ''")
+    cursor.execute("UPDATE chain_markets SET legacy_market_id = market_id WHERE legacy_market_id IS NULL OR legacy_market_id = ''")
     cursor.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS chain_markets_default_feature_idx
@@ -113,6 +131,12 @@ def ensure_chain_market_registry_schema(cursor) -> None:
         """
         CREATE INDEX IF NOT EXISTS chain_markets_chain_feature_idx
         ON chain_markets(chain_id, feature)
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS chain_markets_feature_chain_protocol_idx
+        ON chain_markets(feature, COALESCE(chain_id, -1), protocol_id)
         """
     )
     cursor.execute(
@@ -188,7 +212,8 @@ def ensure_chain_market_registry_schema(cursor) -> None:
 
 
 def seed_builtin_chain_markets(cursor) -> None:
-    default_dex_market_id = default_market_id_for_feature("dex_arbitrage")
+    configured_default_dex = default_market_id_for_feature("dex_arbitrage")
+    default_dex_market_id = canonical_market_id_from_legacy(configured_default_dex) or configured_default_dex
     cursor.execute(
         """
         UPDATE chain_markets
@@ -203,28 +228,33 @@ def seed_builtin_chain_markets(cursor) -> None:
         cursor.execute(
             """
             INSERT INTO chain_markets (
-                market_id, chain_id, network, feature, protocol, display_name,
+                market_id, legacy_market_id, chain_id, network, feature, protocol,
+                protocol_id, display_name,
                 native_symbol, wrapped_native_address, rpc_urls_json, ws_urls_json,
                 explorer_url, multicall_address, protocol_addresses_json,
                 dex_addresses_json, flashloan_provider, executor_address,
                 protocol_adapter, execution_adapter, gas_policy_json,
-                aa_policy_json, observation_only, enabled, is_default, metadata_json,
-                updated_at
+                aa_policy_json, observation_only, enabled, is_default, chain_default,
+                metadata_json, updated_at
             )
             VALUES (
                 %s, %s, %s, %s, %s, %s,
+                %s, %s,
                 %s, %s, %s::jsonb, %s::jsonb,
                 %s, %s, %s::jsonb,
                 %s::jsonb, %s, %s,
                 %s, %s, %s::jsonb,
-                %s::jsonb, %s, %s, %s, %s::jsonb,
+                %s::jsonb, %s, %s, %s, %s,
+                %s::jsonb,
                 NOW()
             )
             ON CONFLICT (market_id) DO UPDATE SET
+                legacy_market_id = EXCLUDED.legacy_market_id,
                 chain_id = EXCLUDED.chain_id,
                 network = EXCLUDED.network,
                 feature = EXCLUDED.feature,
                 protocol = EXCLUDED.protocol,
+                protocol_id = EXCLUDED.protocol_id,
                 display_name = EXCLUDED.display_name,
                 native_symbol = EXCLUDED.native_symbol,
                 wrapped_native_address = EXCLUDED.wrapped_native_address,
@@ -235,15 +265,18 @@ def seed_builtin_chain_markets(cursor) -> None:
                 observation_only = EXCLUDED.observation_only,
                 enabled = EXCLUDED.enabled,
                 is_default = EXCLUDED.is_default,
+                chain_default = EXCLUDED.chain_default,
                 metadata_json = chain_markets.metadata_json || EXCLUDED.metadata_json,
                 updated_at = NOW()
             """,
             (
                 row["market_id"],
+                row["legacy_market_id"],
                 row["chain_id"],
                 row["network"],
                 row["feature"],
                 row["protocol"],
+                row["protocol_id"],
                 row["display_name"],
                 row["native_symbol"],
                 row["wrapped_native_address"],
@@ -262,11 +295,12 @@ def seed_builtin_chain_markets(cursor) -> None:
                 row["observation_only"],
                 row["enabled"],
                 row["is_default"],
+                row["chain_default"],
                 _json_text(row["metadata_json"]),
             ),
         )
-    for market_id, profile in KNOWN_EVM_MARKETS.items():
-        for policy in builtin_market_scan_policies(market_id, feature=str(profile.get("feature") or "")):
+    for row in _builtin_chain_market_rows():
+        for policy in builtin_market_scan_policies(row["market_id"], feature=str(row.get("feature") or "")):
             cursor.execute(
                 """
                 INSERT INTO market_scan_policies (
@@ -305,38 +339,45 @@ def load_chain_market_summaries(database_url: str) -> list[dict[str, Any]]:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT market_id, chain_id, network, feature, protocol, display_name,
+                SELECT market_id, legacy_market_id, chain_id, network, feature,
+                       COALESCE(protocol_id, protocol) AS protocol_id, protocol,
+                       display_name,
                        native_symbol, observation_only, enabled, is_default,
-                       protocol_adapter, execution_adapter, metadata_json
+                       chain_default, protocol_adapter, execution_adapter, metadata_json
                 FROM chain_markets
                 WHERE enabled = TRUE
-                ORDER BY is_default DESC, feature, network, protocol, market_id
+                ORDER BY is_default DESC, feature, network, protocol_id, market_id
                 """
             )
             rows = cursor.fetchall()
     summaries: list[dict[str, Any]] = []
     for row in rows:
-        metadata = row[12] if isinstance(row[12], dict) else {}
+        metadata = row[15] if isinstance(row[15], dict) else {}
+        legacy_market_id = str(row[1] or "").strip() or None
+        protocol_id = str(row[5] or row[6] or "").strip()
         summaries.append(
             {
                 "market_id": str(row[0]),
-                "chain_id": int(row[1]) if row[1] is not None else None,
-                "network": str(row[2]),
-                "feature": str(row[3]),
-                "protocol": str(row[4]),
-                "display_name": str(row[5]),
-                "native_symbol": str(row[6]),
-                "observation_only": bool(row[7]),
-                "enabled": bool(row[8]),
-                "is_default": bool(row[9]),
-                "protocol_adapter": str(row[10]),
-                "executor_adapter": str(row[11]),
+                "legacy_market_id": legacy_market_id,
+                "chain_id": int(row[2]) if row[2] is not None else None,
+                "network": str(row[3]),
+                "feature": str(row[4]),
+                "protocol": protocol_id,
+                "protocol_id": protocol_id,
+                "display_name": str(row[7]),
+                "native_symbol": str(row[8]),
+                "observation_only": bool(row[9]),
+                "enabled": bool(row[10]),
+                "is_default": bool(row[11]),
+                "chain_default": bool(row[12]),
+                "protocol_adapter": str(row[13]),
+                "executor_adapter": str(row[14]),
                 "migration_type": str(metadata.get("migration_type") or "database_market_registry"),
                 "market_type": str(metadata.get("market_type") or (
                     "execution_rail"
-                    if str(row[0]) == "cow-dex-arbitrage"
+                    if str(row[0]) == "dex-arbitrage-0-cow-protocol" or legacy_market_id == "cow-dex-arbitrage"
                     else "shadow_chain"
-                    if str(row[0]) == "robinhood-dex-shadow"
+                    if str(row[0]) == "dex-arbitrage-4663-uniswap-v3" or legacy_market_id == "robinhood-dex-shadow"
                     else "native_chain"
                 )),
             }

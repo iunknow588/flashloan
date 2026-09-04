@@ -9,6 +9,7 @@ from core.market_config import (
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
     liquidation_market_config_for,
 )
+from core.market_identity import canonical_market_id_from_legacy
 from core.contracts import source_metadata
 from intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
 from intent_trade.chains.robinhood.readiness import robinhood_deployment_status
@@ -244,8 +245,9 @@ def _robinhood_market(market_id: str, chain_id: int):
         chain_id=chain_id,
         feature="dex_arbitrage",
     )
-    if market.market_id != DEFAULT_ROBINHOOD_DEX_MARKET_ID or market.network != "robinhood":
-        raise ValueError("Robinhood DEX observation requires the robinhood-dex-shadow market scope")
+    robinhood_market_id = canonical_market_id_from_legacy(DEFAULT_ROBINHOOD_DEX_MARKET_ID) or DEFAULT_ROBINHOOD_DEX_MARKET_ID
+    if market.market_id != robinhood_market_id or market.network != "robinhood":
+        raise ValueError("Robinhood DEX observation requires the dex-arbitrage-4663-uniswap-v3 market scope")
     return market
 
 

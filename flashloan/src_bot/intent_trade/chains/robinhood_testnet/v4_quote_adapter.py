@@ -190,19 +190,36 @@ def _read_live_pool_state(
     pool_id: str,
     w3: Any | None = None,
     rpc_url: str | None = None,
+    block_number: int | None = None,
 ) -> dict[str, Any]:
     if w3 is None:
         w3, rpc_url = _connect_chain_rpc(network, chain_id)
-    return _read_live_pool_state_with_w3(w3=w3, rpc_url=rpc_url, pool_manager=pool_manager, pool_id=pool_id)
+    return _read_live_pool_state_with_w3(
+        w3=w3,
+        rpc_url=rpc_url,
+        pool_manager=pool_manager,
+        pool_id=pool_id,
+        block_number=block_number,
+    )
 
 
-def _read_live_pool_state_with_w3(*, w3: Any, rpc_url: str | None, pool_manager: str, pool_id: str) -> dict[str, Any]:
+def _read_live_pool_state_with_w3(
+    *,
+    w3: Any,
+    rpc_url: str | None,
+    pool_manager: str,
+    pool_id: str,
+    block_number: int | None = None,
+) -> dict[str, Any]:
     contract = w3.eth.contract(address=Web3.to_checksum_address(pool_manager), abi=_V4_POOL_MANAGER_EXTSLOAD_ABI)
     pool_id_bytes = bytes.fromhex(_normalize_pool_id(pool_id)[2:])
     state_slot = keccak(pool_id_bytes + _V4_POOLS_SLOT)
-    slot0_raw = contract.functions.extsload(state_slot).call()
+    call_kwargs: dict[str, Any] = {}
+    if block_number is not None:
+        call_kwargs["block_identifier"] = int(block_number)
+    slot0_raw = contract.functions.extsload(state_slot).call(**call_kwargs)
     liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
-    liquidity_raw = contract.functions.extsload(liquidity_slot).call()
+    liquidity_raw = contract.functions.extsload(liquidity_slot).call(**call_kwargs)
     slot0_value = int.from_bytes(bytes(slot0_raw), "big")
     sqrt_price_x96 = slot0_value & ((1 << 160) - 1)
     tick = (slot0_value >> 160) & ((1 << 24) - 1)
@@ -226,6 +243,7 @@ def _read_live_pool_state_with_w3(*, w3: Any, rpc_url: str | None, pool_manager:
         "lpFee": int(lp_fee),
         "liquidity": str(liquidity),
         "rpcUrl": rpc_url,
+        "blockNumber": int(block_number) if block_number is not None else None,
     }
 
 
@@ -307,6 +325,12 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
         chain_id = int(chain_id) if chain_id not in (None, "") else None
     except (TypeError, ValueError):
         chain_id = None
+    try:
+        block_number = int(request.get("blockNumber")) if request.get("blockNumber") not in (None, "") else None
+    except (TypeError, ValueError):
+        block_number = None
+    if block_number is not None and block_number <= 0:
+        block_number = None
 
     pool_manager = _pool_manager_address(network, chain_id, pool)
     if not pool_manager:
@@ -323,6 +347,7 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
         chain_id=chain_id,
         pool_manager=pool_manager,
         pool_id=pool_id,
+        block_number=block_number,
     )
     live_lp_fee = int(live_state["lpFee"])
     amount_in_raw = int(str(request.get("amountInRaw") or "0"))
@@ -350,6 +375,7 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
         "quoterAddress": quoter_address,
         "w3": w3,
         "rpcUrl": rpc_url,
+        "blockNumber": block_number,
         "liveState": live_state,
         "amountInRaw": amount_in_raw,
         "feeBps": fee_bps,
@@ -442,6 +468,7 @@ def _quote_v4_exact_input_single(
     amount_in_raw: int,
     hook_data: bytes,
     call_from: str | None = None,
+    block_number: int | None = None,
 ) -> tuple[int, int]:
     if w3 is None:
         w3, _ = _connect_chain_rpc(network, chain_id)
@@ -450,14 +477,18 @@ def _quote_v4_exact_input_single(
     if call_from:
         call_kwargs["from"] = Web3.to_checksum_address(call_from)
     try:
-        amount_out, gas_estimate = contract.functions.quoteExactInputSingle(
+        quote_call = contract.functions.quoteExactInputSingle(
             (
                 pool_key,
                 bool(zero_for_one),
                 int(amount_in_raw),
                 hook_data,
             )
-        ).call(call_kwargs)
+        )
+        if block_number is None:
+            amount_out, gas_estimate = quote_call.call(call_kwargs)
+        else:
+            amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier=int(block_number))
     except Exception as exc:
         data = _extract_revert_data(exc)
         summary = _summarize_v4_revert_data(data)
@@ -480,6 +511,7 @@ def quote_v4_exact_input_single_from_pool_index(request: dict[str, Any]) -> dict
             amount_in_raw=context["amountInRaw"],
             hook_data=context["hookData"],
             call_from=context["callFrom"],
+            block_number=context.get("blockNumber"),
         )
     except Exception as exc:
         raise RuntimeError(f"robinhood testnet v4 quoter exact-input call failed; {exc}") from exc
@@ -512,6 +544,7 @@ def quote_v4_exact_input_single_from_pool_index(request: dict[str, Any]) -> dict
             "lpFee": int(context["liveState"]["lpFee"]),
             "liquidity": str(context["liveState"]["liquidity"]),
             "source": context["liveState"]["source"],
+            "blockNumber": context["blockNumber"],
         },
         "feeBps": context["feeBps"],
     }
@@ -569,6 +602,7 @@ def probe_v4_executable_amount_from_pool_index(request: dict[str, Any]) -> dict[
             amount_in_raw=int(amount_raw),
             hook_data=context["hookData"],
             call_from=context["callFrom"],
+            block_number=context.get("blockNumber"),
         )
         if amount_out_raw <= 0:
             raise RuntimeError("robinhood testnet v4 quoter returned a non-positive amountOut")

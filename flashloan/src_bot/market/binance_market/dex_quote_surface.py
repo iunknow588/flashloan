@@ -78,7 +78,11 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_bps = None
     force_live_refresh = str(os.getenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
     size_probe_limit = max(0, int(os.getenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "3") or 3))
-    probe_all_testnet_routes = chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+    probe_all_testnet_routes = (
+        chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        and str(os.getenv("DEX_QUOTE_ROUTE_PROBE_ALL_TESTNET_ROUTES", "")).strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
 
     for route_index, path in enumerate(paths, start=1):
         route = dict(path)
@@ -160,6 +164,15 @@ def build_quote_routes_payload_from_overview(
         if should_probe_size:
             size_analysis = route_size_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
             size_analysis = dict(size_analysis)
+            recommended_analysis = size_analysis.get("recommendedQuoteAnalysis")
+            if isinstance(recommended_analysis, dict):
+                quote_analysis = build_quote_analysis_defaults(
+                    quote_analysis=recommended_analysis,
+                    route_symbols=route_symbols,
+                    price_evidence_source=recommended_analysis.get("priceEvidenceSource"),
+                    price_evidence_mode=recommended_analysis.get("priceEvidenceMode"),
+                    notional_usd=quote_probe_notional_usd,
+                )
         path_source = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
         route_payload = build_quote_route_payload(
             route=route,
