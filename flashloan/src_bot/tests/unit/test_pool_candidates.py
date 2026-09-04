@@ -2885,13 +2885,13 @@ def test_v4_reference_route_without_usd_anchor_does_not_create_fake_profit():
     assert analysis["requiresLiveQuoter"] is True
     assert analysis["adapterRequired"] is True
     assert analysis["trustedUsdReference"] is False
-    assert analysis["tokenDecimalsTrusted"] is True
+    assert analysis["tokenDecimalsTrusted"] is False
     assert analysis["profitable"] is False
     assert analysis["referenceFinalOutputUsd"] is None
     assert analysis["referenceNetProfitUsd"] is None
     assert analysis["referenceFinalOutputAmount"] is None
     assert analysis["referenceNetReturnBps"] is None
-    assert analysis["tokenBasisReferenceProfitable"] is True
+    assert analysis["tokenBasisReferenceProfitable"] is False
     assert analysis["tokenBasisProfitable"] is False
     assert analysis["chainSubmissionCandidate"] is False
     assert analysis["referenceReturnTrusted"] is False

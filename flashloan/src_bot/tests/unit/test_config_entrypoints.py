@@ -159,6 +159,7 @@ def test_liquidation_runtime_config_uses_safe_env_parsing(monkeypatch, tmp_path)
         "LIQUIDATION_BORROW_HEALTH_REFRESH_SECONDS": 1800,
         "LIQUIDATION_HIGH_FREQUENCY_REFRESH_SECONDS": 300,
         "LIQUIDATION_CORE_OPPORTUNITY_REFRESH_SECONDS": 1,
+        "LIQUIDATION_SCAN_MODE": "timer_driven",
     }
 
 

@@ -27,6 +27,7 @@ from intent_trade import bind_cow_intent_context, build_triangular_onchain_inten
 from cow_flashloan.routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
 from cow_flashloan.network_scope import supported_cow_networks
 from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
+from core.json_io import read_scoped_json, write_scoped_json
 from market.observer_state import PriceState
 from market.velocity_candidates import base_token_symbol, top_bottom_from_extremes
 from strategy.arbitrage import ArbitrageConfig, build_pair_strategy_analysis
@@ -950,7 +951,16 @@ def needs_binance_rest_snapshot(
     return False
 
 
-def read_binance_market_snapshot(path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH) -> dict[str, Any] | None:
+def read_binance_market_snapshot(
+    path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
+    *,
+    expected_scope: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if expected_scope is not None:
+        try:
+            return read_scoped_json(path, expected_scope)
+        except ValueError:
+            return None
     try:
         if not path.exists():
             return None
@@ -963,7 +973,12 @@ def read_binance_market_snapshot(path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PA
 def write_binance_market_snapshot(
     snapshot: dict[str, Any],
     path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
+    *,
+    expected_scope: dict[str, Any] | None = None,
 ) -> None:
+    if expected_scope is not None:
+        write_scoped_json(path, snapshot, expected_scope)
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     write_json_atomic(str(path), snapshot)
 

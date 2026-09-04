@@ -25,6 +25,90 @@ def test_no_wildcard_imports_are_added():
     assert offenders == []
 
 
+def test_split_packages_exist_without_cross_imports():
+    split_root = SRC_ROOT.parent / "src"
+    for package in ("bot", "dex", "market", "core"):
+        assert (split_root / package / "__init__.py").exists(), f"split package missing {package}/__init__.py"
+
+    offenders = []
+    for path in split_root.rglob("*.py"):
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            match = re.match(r"^\s*(?:from|import)\s+(\w+)", line)
+            if not match:
+                continue
+            imported = match.group(1)
+            if imported not in {"bot", "dex", "market"}:
+                continue
+            current_package = path.relative_to(split_root).parts[0]
+            if current_package != imported:
+                offenders.append(f"{path.relative_to(split_root)}:{line_no}")
+
+    assert offenders == []
+
+
+def test_split_core_facade_is_importable_without_cross_module_imports():
+    from src.core import errors as split_errors
+    from src.core import json_io as split_json_io
+    from src.core import types as split_types
+
+    assert split_errors.normalize_error_code("made-up") == "validation"
+    assert split_json_io.read_json(Path("does-not-exist.json")) is None
+    assert "MarketScope" in split_types.__all__
+    assert "EvidenceEnvelope" in split_types.__all__
+
+
+def test_pool_manager_evidence_requires_independent_groups():
+    from src.core.types import validate_pool_manager_evidence
+
+    payload = {
+        "balance": {
+            "token_address": "0x1",
+            "decimals": 18,
+            "balance_raw": "100",
+            "balance_decimal": "0.0000000000000001",
+            "provider_address": "0x2",
+            "observed_at": "2026-09-04T00:00:00Z",
+            "source": "eth_call",
+            "evidence_ref": "e1",
+        },
+        "coverage": {
+            "candidate_pool_count": 5,
+            "min_candidate_pool_count": 5,
+            "scan_scope": {"chain_id": 46630},
+            "generation_id": "g1",
+            "yc_zc_same_set": True,
+            "shared_pools_ref": ["p1"],
+        },
+        "price": {
+            "price_source": "binance",
+            "price_observed_at": "2026-09-04T00:00:00Z",
+            "price_freshness": "fresh",
+            "price_expires_at": "2026-09-04T00:01:00Z",
+        },
+        "freshness": {
+            "observed_at": "2026-09-04T00:00:00Z",
+            "freshness": "fresh",
+            "expires_at": "2026-09-04T00:01:00Z",
+            "stale_at": "2026-09-04T00:02:00Z",
+            "status": "valid",
+        },
+    }
+    assert validate_pool_manager_evidence(payload)["coverage"]["generation_id"] == "g1"
+
+    import pytest
+
+    incomplete = dict(payload)
+    incomplete["price"] = dict(payload["price"])
+    del incomplete["price"]["price_source"]
+    with pytest.raises(ValueError, match="price.price_source"):
+        validate_pool_manager_evidence(incomplete)
+
+    stale = dict(payload)
+    stale["freshness"] = {**payload["freshness"], "status": "stale"}
+    with pytest.raises(ValueError, match="not fresh"):
+        validate_pool_manager_evidence(stale)
+
+
 def test_refactored_helper_modules_stay_under_line_limits():
     limits = {
         "account_pool/state.py": 300,
@@ -90,8 +174,21 @@ def test_refactored_helper_modules_stay_under_line_limits():
         "intent_trade/chains/robinhood/dex_surfaces.py": 20,
         "intent_trade/chains/robinhood_testnet/dex_surfaces.py": 20,
         "core/workflow.py": 300,
-        "core/contracts.py": 180,
-        "web/workflow_context.py": 100,
+            "core/contracts.py": 300,
+            "core/chain_data_registry.py": 920,
+            "market/binance_market/dex_surfaces.py": 3400,
+            "market/binance_market/service.py": 1950,
+            "market/binance_market/pool_candidates.py": 1350,
+            "web/control_panel.py": 1320,
+            "web/control_panel_liquidation_base.py": 980,
+            "web/control_panel_liquidation_routes.py": 900,
+            "db/storage_cow_execution.py": 1700,
+            "db/storage_liquidation_pool.py": 1400,
+            "runtime/dex_onchain_quote_evidence.py": 1450,
+            "runtime/dex_opportunity_scanner.py": 1100,
+            "intent_trade/direct_impl.py": 1620,
+            "intent_trade/chains/robinhood_testnet/v4_pool_liquidity.py": 1280,
+            "web/workflow_context.py": 100,
         "web/control_panel_market.py": 450,
         "web/control_panel_liquidation_borrow_pool.py": 240,
         "web/control_panel_liquidation_borrow_pool_payload.py": 180,

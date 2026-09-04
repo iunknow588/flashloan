@@ -3,7 +3,9 @@ from uuid import uuid4
 
 from core.chain_selection import ChainSelectionError
 from web.chain_selection_routes import register_chain_selection_routes
-from web.chain_selection import resolve_request_chain_selection
+from web.chain_selection import resolve_request_chain_selection, validate_explicit_request_scope
+from web.api_scope_policy import api_requires_scope
+from web.api_scope_policy import validate_named_response_contract
 from core.workflow import HARD_WORKFLOW_BLOCKS, WorkflowContextError, resolve_workflow_context
 from web.control_panel_control_routes import register_control_routes
 from web.control_panel_data_routes import register_data_routes
@@ -67,23 +69,32 @@ def install_chain_selection_context(app: Flask, panel) -> None:
                     }
                 ), 400
 
-        if (
-            not request.path.startswith("/api/")
-            or request.path in {"/api/workflow-context", "/api/chain-selection", "/api/markets"}
-            or not any(request.args.get(name, "").strip() for name in ("market_id", "chain_id", "feature"))
-        ):
+        if not request.path.startswith("/api/") or not api_requires_scope(request.path):
             return None
         try:
+            if request.path.startswith("/api/"):
+                g.request_scope = validate_explicit_request_scope()
             g.chain_selection = resolve_request_chain_selection(
                 database_url=_panel_database_url(panel),
                 feature=None,
             )
         except ChainSelectionError as exc:
             return jsonify({"ok": False, "error": exc.message, "code": exc.code}), 400
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc), "code": "validation"}), 400
         return None
 
     @app.after_request
     def expose_chain_selection_context(response):
+        if request.path.startswith("/api/") and 200 <= response.status_code < 300:
+            required_keys = __import__("web.api_scope_policy", fromlist=["response_required_keys"]).response_required_keys(request.path)
+            if required_keys and response.is_json:
+                try:
+                    validate_named_response_contract(request.path, response.get_json(silent=True))
+                except ValueError as exc:
+                    invalid = jsonify({"ok": False, "error": str(exc), "code": "response_contract"})
+                    invalid.status_code = 500
+                    return invalid
         request_id = getattr(g, "request_id", None)
         if request_id:
             response.headers["X-Request-Id"] = str(request_id)

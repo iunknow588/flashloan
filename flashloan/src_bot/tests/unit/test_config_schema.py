@@ -47,6 +47,15 @@ def clear_liquidation_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
+def test_liquidation_execution_defaults_fail_closed(monkeypatch):
+    clear_liquidation_env(monkeypatch)
+
+    health = liquidation_config_health(chain_id=43114)
+
+    assert health["execution_enabled"] is False
+    assert health["auto_execute_requested"] is False
+    assert health["execution_blocked"] is False
+
 def test_liquidation_config_health_reports_missing_execution_config(monkeypatch):
     clear_liquidation_env(monkeypatch)
     monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")

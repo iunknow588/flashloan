@@ -12,6 +12,7 @@ from db.storage_liquidation_reports import (
     merge_account_report_sources,
 )
 from execution.liquidation_priority import liquidation_account_activity_tier
+from db.scoped_adapter import validate_scoped_rows
 
 
 def _preserve_existing_positions(existing_report: Any, incoming_report: dict[str, Any]) -> dict[str, Any]:
@@ -97,6 +98,7 @@ def _write_liquidation_account_scan(cursor, report: dict[str, Any]) -> bool:
             account=account,
             include_summary=needs_summary_recovery,
             include_positions=needs_positions_recovery,
+            expected_scope=scope,
         )
         recovery_sources = [existing_report]
         for scan_row in (latest_valid_scan, latest_positions_scan):
@@ -239,39 +241,50 @@ def load_latest_liquidation_account_reports(
         with connection.cursor() as cursor:
             cursor.execute(query, (scope["market_id"], scope["chain_id"], int(limit)))
             rows = cursor.fetchall()
+    column_names = (
+        "market_id", "chain_id", "network", "protocol",
+        "account", "source", "active", "scan_start_at", "scan_end_at", "last_scanned_at",
+        "last_health_factor", "last_status", "last_health_factor_band", "last_candidate_count",
+        "last_total_collateral_base", "last_total_debt_base", "activity_tier",
+        "last_summary_json", "last_report_json",
+    )
+    scoped_rows = validate_scoped_rows(
+        [dict(zip(column_names, row)) for row in rows],
+        scope,
+    )
     reports: list[dict[str, Any]] = []
-    for row in rows:
+    for row in scoped_rows:
         summary = {}
         report = {}
         try:
-            if row[17]:
-                summary = json.loads(row[17]) if isinstance(row[17], str) else {}
+            if row["last_summary_json"]:
+                summary = json.loads(row["last_summary_json"]) if isinstance(row["last_summary_json"], str) else {}
         except json.JSONDecodeError:
             summary = {}
         try:
-            if row[18]:
-                report = json.loads(row[18]) if isinstance(row[18], str) else {}
+            if row["last_report_json"]:
+                report = json.loads(row["last_report_json"]) if isinstance(row["last_report_json"], str) else {}
         except json.JSONDecodeError:
             report = {}
         reports.append(
             {
-                "market_id": str(row[0]),
-                "chain_id": int(row[1]) if row[1] is not None else None,
-                "network": str(row[2]) if row[2] else None,
-                "protocol": str(row[3]) if row[3] else None,
-                "account": str(row[4]),
-                "source": str(row[5]),
-                "active": bool(row[6]),
-                "scan_start_at": row[7].isoformat() if row[7] else None,
-                "scan_end_at": row[8].isoformat() if row[8] else None,
-                "last_scanned_at": row[9].isoformat() if row[9] else None,
-                "last_health_factor": float(row[10]) if row[10] is not None else None,
-                "last_status": str(row[11]) if row[11] else None,
-                "last_health_factor_band": str(row[12]) if row[12] else None,
-                "last_candidate_count": int(row[13]) if row[13] is not None else None,
-                "last_total_collateral_base": float(row[14]) if row[14] is not None else None,
-                "last_total_debt_base": float(row[15]) if row[15] is not None else None,
-                "activity_tier": str(row[16]) if row[16] else None,
+                "market_id": str(row["market_id"]),
+                "chain_id": int(row["chain_id"]) if row["chain_id"] is not None else None,
+                "network": str(row["network"]) if row["network"] else None,
+                "protocol": str(row["protocol"]) if row["protocol"] else None,
+                "account": str(row["account"]),
+                "source": str(row["source"]),
+                "active": bool(row["active"]),
+                "scan_start_at": row["scan_start_at"].isoformat() if row["scan_start_at"] else None,
+                "scan_end_at": row["scan_end_at"].isoformat() if row["scan_end_at"] else None,
+                "last_scanned_at": row["last_scanned_at"].isoformat() if row["last_scanned_at"] else None,
+                "last_health_factor": float(row["last_health_factor"]) if row["last_health_factor"] is not None else None,
+                "last_status": str(row["last_status"]) if row["last_status"] else None,
+                "last_health_factor_band": str(row["last_health_factor_band"]) if row["last_health_factor_band"] else None,
+                "last_candidate_count": int(row["last_candidate_count"]) if row["last_candidate_count"] is not None else None,
+                "last_total_collateral_base": float(row["last_total_collateral_base"]) if row["last_total_collateral_base"] is not None else None,
+                "last_total_debt_base": float(row["last_total_debt_base"]) if row["last_total_debt_base"] is not None else None,
+                "activity_tier": str(row["activity_tier"]) if row["activity_tier"] else None,
                 "summary": summary,
                 "report": report,
             }

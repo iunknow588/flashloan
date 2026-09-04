@@ -169,8 +169,8 @@ def liquidation_config_health(market_id: str | None = None, chain_id: int | None
         if effective_market_id is not None
         else liquidation_market_config(chain_id=chain_id)
     )
-    execution_enabled = _env_bool("LIQUIDATION_EXECUTION_ENABLED", bool(market.protocol_supported))
-    auto_execute_requested = _env_bool("LIQUIDATION_AUTO_EXECUTE", True)
+    execution_enabled = _env_bool("LIQUIDATION_EXECUTION_ENABLED", False)
+    auto_execute_requested = _env_bool("LIQUIDATION_AUTO_EXECUTE", False)
     manual_test_completed = _env_bool("LIQUIDATION_MANUAL_TEST_COMPLETED", True)
     checks = [
         ConfigCheck(

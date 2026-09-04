@@ -36,3 +36,24 @@ back/
 !/contract/contracts-dex/back/
 !/contract/contracts-dex/back/**
 .agents/
+
+# Local dev/preview runtime logs (do not commit)
+runtime_port*.log
+runtime_port*.out.log
+runtime_port*.err.log
+runtime_port*.err
+runtime_port*.out
+flashloan/runtime_port*.log
+flashloan/runtime_port*.err
+flashloan/runtime_port*.out
+flashloan_preview.log
+flashloan_preview.err.log
+flashloan_preview.out.log
+tmp/
+runtime/codex_preview_*
+runtime/codex_page_test/
+runtime/importtime_scan.log
+runtime/server*.log
+runtime/ui-*.log
+runtime/run-*.log
+data_info/**/*.log

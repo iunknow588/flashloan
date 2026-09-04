@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
+from db.scoped_adapter import validate_scoped_row
 from db.storage_common import db_connection, db_transaction, require_psycopg
 from db.storage_liquidation_failures import (
     load_liquidation_failure_samples_for_account,
@@ -105,24 +106,27 @@ def load_recent_liquidation_execution_attempts(
 def _execution_attempt_from_row(row: Any, scope: dict[str, Any]) -> dict[str, Any]:
     if len(row) == 13:
         row = (scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"], *row)
+    row = validate_scoped_row(
+        {
+            "market_id": row[0],
+            "chain_id": row[1],
+            "network": row[2],
+            "protocol": row[3],
+        },
+        scope,
+    ) | {"_raw": row}
+    raw = row["_raw"]
     return {
-        "market_id": str(row[0]),
-        "chain_id": int(row[1]) if row[1] is not None else None,
-        "network": str(row[2]) if row[2] else None,
-        "protocol": str(row[3]) if row[3] else None,
-        "id": int(row[4]),
-        "account": str(row[5]) if row[5] else None,
-        "mode": str(row[6]),
-        "state": str(row[7]),
-        "blocked_reasons": _json_or_default(row[8], []),
-        "request": _json_or_default(row[9], {}),
-        "quote": _json_or_default(row[10], {}),
-        "preflight": _json_or_default(row[11], {}),
-        "tx_hash": str(row[12]) if row[12] else None,
-        "receipt": _json_or_default(row[13], {}),
-        "error": str(row[14]) if row[14] else None,
-        "created_at": row[15].isoformat() if row[15] else None,
-        "updated_at": row[16].isoformat() if row[16] else None,
+        "market_id": row["market_id"], "chain_id": row["chain_id"],
+        "network": row["network"], "protocol": row["protocol"],
+        "id": int(raw[4]), "account": str(raw[5]) if raw[5] else None,
+        "mode": str(raw[6]), "state": str(raw[7]),
+        "blocked_reasons": _json_or_default(raw[8], []),
+        "request": _json_or_default(raw[9], {}), "quote": _json_or_default(raw[10], {}),
+        "preflight": _json_or_default(raw[11], {}), "tx_hash": str(raw[12]) if raw[12] else None,
+        "receipt": _json_or_default(raw[13], {}), "error": str(raw[14]) if raw[14] else None,
+        "created_at": raw[15].isoformat() if raw[15] else None,
+        "updated_at": raw[16].isoformat() if raw[16] else None,
     }
 
 

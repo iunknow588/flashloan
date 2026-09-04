@@ -1340,6 +1340,9 @@ def _route_quote_analysis(
             break
         if trust in {"reference_only", "sdk_adapter_required"}:
             warnings.append(f"hop_{index}_reference_quote_requires_live_quoter")
+        if chain_id is None and trust == "sdk_adapter_required" and quote.get("trustedUsdPrice") is False:
+            warnings.append(f"route_truncated_at_hop_{index}_requires_live_quoter")
+            break
         step_output_usd = quote.get("outputUsd")
         if step_output_usd is None:
             step_output_usd = quote.get("referenceOutputUsd")

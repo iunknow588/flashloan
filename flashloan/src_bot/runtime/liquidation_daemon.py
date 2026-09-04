@@ -10,6 +10,8 @@ from threading import Event, Thread
 
 from core.env_loader import load_env_files, resolve_env_path
 from core.sensitive_data import redact_sensitive_text
+from core.scoped_state import save_runtime_state
+from core.contracts import validate_scoped_payload
 
 # Keep deployment-level environment overrides intact; .env fills missing values.
 load_env_files(__file__, override=False)
@@ -27,7 +29,16 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
-def _write_status(payload: dict) -> bool:
+def _write_status(payload: dict, *, scope: dict | None = None) -> bool:
+    if scope is not None:
+        try:
+            if "scope" in payload:
+                validate_scoped_payload(payload, scope)
+            save_runtime_state(STATUS_PATH, {**payload, "scope": scope}, scope)
+            return True
+        except ValueError as exc:
+            LOG.error("refusing out-of-scope liquidation daemon state: %s", exc)
+            return False
     STATUS_PATH.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(payload, ensure_ascii=False, indent=2)
     for attempt in range(6):
@@ -47,12 +58,16 @@ def _write_status(payload: dict) -> bool:
     return False
 
 
-def read_daemon_status(path: Path | None = None) -> dict:
+def read_daemon_status(path: Path | None = None, *, expected_scope: dict | None = None) -> dict:
     target = path or STATUS_PATH
     try:
         payload = json.loads(target.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             return {}
+        if expected_scope is not None:
+            from core.contracts import validate_scoped_payload
+
+            validate_scoped_payload(payload, expected_scope)
         if path is not None:
             return payload
         return _normalize_daemon_status(payload)
@@ -182,6 +197,12 @@ def run(stop: Event | None = None) -> int:
     stop_event = stop or Event()
     daemon_pid = os.getpid()
     started_at = time.time()
+    scope = None
+    try:
+        configured = panel.liquidation_market_config().as_dict()
+        scope = {key: configured.get(key) for key in ("market_id", "chain_id", "network", "protocol")}
+    except (AttributeError, TypeError, ValueError):
+        LOG.warning("liquidation daemon status has no validated market scope")
     scan_interval = _env_float("LIQUIDATION_DAEMON_STATUS_SECONDS", 2.0)
     state = {
         "pid": daemon_pid,
@@ -192,7 +213,7 @@ def run(stop: Event | None = None) -> int:
         "account_scan": {"state": "not_started"},
         "last_error": None,
     }
-    _write_status(state)
+    _write_status(state, scope=scope)
 
     try:
         panel.configured_database_url()
@@ -201,7 +222,7 @@ def run(stop: Event | None = None) -> int:
         state["state"] = "running"
         state["observer"] = {"state": "starting", "stage": "market_environment"}
         state["account_scan"] = {"state": "running", "stage": "historical_account_and_core_pool"}
-        _write_status(state)
+        _write_status(state, scope=scope)
 
         market_result: dict[str, object] = {}
         market_started_at = time.time()
@@ -213,7 +234,7 @@ def run(stop: Event | None = None) -> int:
         market_thread = Thread(target=initialize_market, name="liquidation-market-start", daemon=True)
         market_thread.start()
         state["state"] = "running"
-        _write_status(state)
+        _write_status(state, scope=scope)
 
         scan_result: dict[str, str] = {}
 
@@ -296,10 +317,10 @@ def run(stop: Event | None = None) -> int:
                     "updated_at": time.time(),
                 }
             )
-            _write_status(state)
+            _write_status(state, scope=scope)
     except Exception as exc:
         state.update({"state": "error", "last_error": redact_sensitive_text(exc), "updated_at": time.time()})
-        _write_status(state)
+        _write_status(state, scope=scope)
         LOG.exception("liquidation daemon failed")
         return 1
     finally:
@@ -308,7 +329,7 @@ def run(stop: Event | None = None) -> int:
             engine.stop()
         _terminate_observer(panel)
         state.update({"state": "stopped", "updated_at": time.time()})
-        _write_status(state)
+        _write_status(state, scope=scope)
     return 0
 
 

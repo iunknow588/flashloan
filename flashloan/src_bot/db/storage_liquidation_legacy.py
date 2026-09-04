@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
+from db.scoped_adapter import validate_scoped_rows
 from db.storage_common import OBSERVER_ADVISORY_LOCK_ID, db_connection, db_transaction, dedicated_db_connection, require_psycopg
 
 
@@ -259,29 +260,34 @@ def load_liquidation_scan_config_library(
         with connection.cursor() as cursor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
+    column_names = (
+        "market_id", "chain_id", "network", "protocol", "config_key", "category",
+        "source_table", "source_key", "active", "payload_json", "updated_at",
+    )
+    normalized_rows = [
+        (scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"], *row)
+        if len(row) == 7 else row
+        for row in rows
+    ]
+    scoped_rows = validate_scoped_rows(
+        [dict(zip(column_names, row)) for row in normalized_rows],
+        scope,
+    )
     result: list[dict[str, Any]] = []
-    for row in rows:
-        if len(row) == 7:
-            row = (
-                scope["market_id"],
-                scope["chain_id"],
-                scope["network"],
-                scope["protocol"],
-                *row,
-            )
+    for row in scoped_rows:
         result.append(
             {
-                "market_id": str(row[0]),
-                "chain_id": int(row[1]) if row[1] is not None else None,
-                "network": str(row[2]) if row[2] else None,
-                "protocol": str(row[3]) if row[3] else None,
-                "config_key": str(row[4]),
-                "category": str(row[5]),
-                "source_table": str(row[6]),
-                "source_key": str(row[7]) if row[7] else None,
-                "active": bool(row[8]),
-                "payload": _json_or_default(row[9], {}),
-                "updated_at": row[10].isoformat() if row[10] else None,
+                "market_id": str(row["market_id"]),
+                "chain_id": int(row["chain_id"]) if row["chain_id"] is not None else None,
+                "network": str(row["network"]) if row["network"] else None,
+                "protocol": str(row["protocol"]) if row["protocol"] else None,
+                "config_key": str(row["config_key"]),
+                "category": str(row["category"]),
+                "source_table": str(row["source_table"]),
+                "source_key": str(row["source_key"]) if row["source_key"] else None,
+                "active": bool(row["active"]),
+                "payload": _json_or_default(row["payload_json"], {}),
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
             }
         )
     return result
@@ -625,26 +631,34 @@ def load_liquidation_accounts_page(
                 """,
                 [*params, safe_page_size, offset],
             )
+            column_names = (
+                "market_id", "chain_id", "network", "protocol", "account", "source", "active",
+                "last_scanned_at", "updated_at", "scan_start_at", "scan_end_at",
+                "last_health_factor", "last_status", "last_health_factor_band", "last_candidate_count",
+            )
+            scoped_rows = validate_scoped_rows(
+                [dict(zip(column_names, row)) for row in cursor.fetchall() if row and row[4]],
+                scope,
+            )
             accounts = [
                 {
-                    "market_id": str(row[0]),
-                    "chain_id": int(row[1]) if row[1] is not None else None,
-                    "network": str(row[2]) if row[2] else None,
-                    "protocol": str(row[3]) if row[3] else None,
-                    "account": str(row[4]),
-                    "source": str(row[5]),
-                    "active": bool(row[6]),
-                    "last_scanned_at": row[7].isoformat() if row[7] else None,
-                    "updated_at": row[8].isoformat() if row[8] else None,
-                    "scan_start_at": row[9].isoformat() if row[9] else None,
-                    "scan_end_at": row[10].isoformat() if row[10] else None,
-                    "last_health_factor": float(row[11]) if row[11] is not None else None,
-                    "last_status": str(row[12]) if row[12] else None,
-                    "last_health_factor_band": str(row[13]) if row[13] else None,
-                    "last_candidate_count": int(row[14]) if row[14] is not None else None,
+                    "market_id": str(row["market_id"]),
+                    "chain_id": int(row["chain_id"]) if row["chain_id"] is not None else None,
+                    "network": str(row["network"]) if row["network"] else None,
+                    "protocol": str(row["protocol"]) if row["protocol"] else None,
+                    "account": str(row["account"]),
+                    "source": str(row["source"]),
+                    "active": bool(row["active"]),
+                    "last_scanned_at": row["last_scanned_at"].isoformat() if row["last_scanned_at"] else None,
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "scan_start_at": row["scan_start_at"].isoformat() if row["scan_start_at"] else None,
+                    "scan_end_at": row["scan_end_at"].isoformat() if row["scan_end_at"] else None,
+                    "last_health_factor": float(row["last_health_factor"]) if row["last_health_factor"] is not None else None,
+                    "last_status": str(row["last_status"]) if row["last_status"] else None,
+                    "last_health_factor_band": str(row["last_health_factor_band"]) if row["last_health_factor_band"] else None,
+                    "last_candidate_count": int(row["last_candidate_count"]) if row["last_candidate_count"] is not None else None,
                 }
-                for row in cursor.fetchall()
-                if row and row[4]
+                for row in scoped_rows
             ]
     page_count = max(1, (total_count + safe_page_size - 1) // safe_page_size)
     return {

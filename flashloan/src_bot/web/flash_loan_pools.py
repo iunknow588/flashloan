@@ -7,7 +7,7 @@ from core.chain_data_registry import (
     chain_supported_protocols,
 )
 from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
-from core.flash_loan_pools import static_store_metadata, write_flash_loan_pool_static
+from core.flash_loan_pools import pool_evidence_from_view, static_store_metadata, write_flash_loan_pool_static
 from core.market_config import PROTOCOL_CAPABILITIES, supported_market_summaries
 from intent_trade.flows.flash_loan_pools.presenter import (
     _empty_protocol_view,
@@ -327,6 +327,8 @@ def flash_loan_pools_payload(
                 "generated_at": metadata.get("generated_at"),
                 "refresh_mode": metadata.get("refresh_mode"),
                 "section_counts": metadata.get("section_counts") or {},
+                "pool_evidence_schema_version": metadata.get("pool_evidence_schema_version"),
+                "pool_evidence": metadata.get("pool_evidence") or {},
             }
         else:
             metadata = static_store_metadata(
@@ -336,6 +338,7 @@ def flash_loan_pools_payload(
                 root=static_pool_store_root,
             )
         view["static_pool_store"] = metadata
+        view["pool_evidence"] = metadata.get("pool_evidence") or pool_evidence_from_view(view)
         static_pool_store.append(metadata)
     primary_view = protocol_views[0]
     scope = {

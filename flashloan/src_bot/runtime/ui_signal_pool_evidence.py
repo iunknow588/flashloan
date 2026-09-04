@@ -10,6 +10,7 @@ from typing import Any
 
 from core.sensitive_data import redact_sensitive_text
 from market.observer_common import write_json_atomic
+from core.contracts import validate_scoped_payload
 from tools import probe_signal_pool_quotes as pool_quotes
 
 
@@ -171,6 +172,7 @@ def build_ui_signal_pool_evidence(
     usdc_amount: int = 1_000_000_000,
     min_profit_usdc: int = 1,
     premium_bps: int = 5,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cache = json.loads(pool_cache_path.read_text(encoding="utf-8"))
     pairs = _candidate_pairs(market_state)
@@ -218,7 +220,7 @@ def build_ui_signal_pool_evidence(
             }
         )
 
-    return {
+    evidence = {
         "generatedAt": _utc_now_iso(),
         "mode": "ui_signal_pool_quote_evidence",
         "safety": {
@@ -261,6 +263,10 @@ def build_ui_signal_pool_evidence(
         "candidates": candidate_reports,
         "blockedReasons": [] if candidate_reports else ["no_ui_signal_candidate"],
     }
+    if expected_scope is not None:
+        validate_scoped_payload({"scope": expected_scope, **evidence}, expected_scope)
+        evidence["scope"] = dict(expected_scope)
+    return evidence
 
 
 def evidence_output_path(evidence_dir: Path, evidence: dict[str, Any]) -> Path:
@@ -278,7 +284,10 @@ def write_ui_signal_pool_evidence(
     *,
     evidence_dir: Path = DEFAULT_EVIDENCE_DIR,
     latest_output: Path = DEFAULT_LATEST_OUTPUT,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if expected_scope is not None:
+        validate_scoped_payload(evidence, expected_scope)
     evidence_dir.mkdir(parents=True, exist_ok=True)
     output = evidence_output_path(evidence_dir, evidence)
     write_json_atomic(output, evidence)

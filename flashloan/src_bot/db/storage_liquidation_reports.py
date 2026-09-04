@@ -1,6 +1,7 @@
 import json
 from typing import Any
 
+from core.contracts import validate_scoped_payload
 
 def json_or_default(value: Any, default: Any) -> Any:
     if not value:
@@ -33,7 +34,6 @@ def account_report_with_summary(report_value: Any, summary_value: Any) -> dict[s
         report = dict(report)
         report["summary"] = summary
     return report
-
 
 def merge_account_report_sources(sources: list[Any]) -> dict[str, Any]:
     report: dict[str, Any] = {}
@@ -80,6 +80,7 @@ def load_historical_account_report_sources(
     account: str,
     include_summary: bool = True,
     include_positions: bool = True,
+    expected_scope: dict[str, Any] | None = None,
 ) -> tuple[tuple[Any, ...] | None, tuple[Any, ...] | None]:
     latest_valid_scan = None
     latest_positions_scan = None
@@ -101,6 +102,8 @@ def load_historical_account_report_sources(
             params,
         )
         latest_valid_scan = cursor.fetchone()
+        if latest_valid_scan and expected_scope:
+            _validate_historical_row_scope(latest_valid_scan, expected_scope)
     if include_positions:
         cursor.execute(
             """
@@ -120,4 +123,14 @@ def load_historical_account_report_sources(
             params,
         )
         latest_positions_scan = cursor.fetchone()
+        if latest_positions_scan and expected_scope:
+            _validate_historical_row_scope(latest_positions_scan, expected_scope)
     return latest_valid_scan, latest_positions_scan
+
+
+def _validate_historical_row_scope(row: tuple[Any, ...], expected_scope: dict[str, Any]) -> None:
+    """Validate embedded scope when present, preserving legacy unscoped rows."""
+    for value in row[1:]:
+        payload = json_or_default(value, {})
+        if isinstance(payload, dict) and ("scope" in payload or "market_id" in payload):
+            validate_scoped_payload(payload, expected_scope)

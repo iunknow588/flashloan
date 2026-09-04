@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from execution.plan_quotes import from_units, to_units
 
@@ -12,11 +13,28 @@ class ProfitGuardConfig:
     gas_cost_usdc: float
     min_net_profit_usdc: float
     safety_margin_usdc: float = 0.0
+    max_quote_age_seconds: float | None = None
 
 
 def usdc_units(value: float) -> int:
     safe_value = max(0.0, value)
     return 0 if safe_value == 0 else to_units(safe_value, 6)
+
+
+def _quote_observed_at(best_quote: dict) -> datetime | None:
+    raw = (
+        best_quote.get("observed_at")
+        or best_quote.get("generated_at")
+        or best_quote.get("quote_time")
+        or best_quote.get("simulated_at")
+    )
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def evaluate_profit_guard(best_quote: dict | None, config: ProfitGuardConfig) -> dict:
@@ -25,6 +43,17 @@ def evaluate_profit_guard(best_quote: dict | None, config: ProfitGuardConfig) ->
             "net_profit_verified": False,
             "blocked_reasons": ["no_best_quote"],
         }
+
+    blocked_reasons = []
+    quote_age_seconds = None
+    if config.max_quote_age_seconds is not None:
+        observed_at = _quote_observed_at(best_quote)
+        if observed_at is None:
+            blocked_reasons.append("quote_missing_timestamp")
+        else:
+            quote_age_seconds = max(0.0, (datetime.now(timezone.utc) - observed_at).total_seconds())
+            if quote_age_seconds > max(0.0, float(config.max_quote_age_seconds)):
+                blocked_reasons.append("stale_quote")
 
     quoted_profit_units = int(best_quote.get("profit_usdc_units") or 0)
     slippage_reserve_usdc = config.notional_usd * max(0, config.slippage_bps) / 10000
@@ -37,7 +66,6 @@ def evaluate_profit_guard(best_quote: dict | None, config: ProfitGuardConfig) ->
     # outside the flash-loan repayment path, so it is reported separately and
     # not subtracted from net_profit_usdc.
     net_profit_units = quoted_profit_units - slippage_reserve_units - safety_margin_units
-    blocked_reasons = []
     if net_profit_units < min_net_profit_units:
         blocked_reasons.append("net_profit_below_minimum")
 
@@ -54,6 +82,8 @@ def evaluate_profit_guard(best_quote: dict | None, config: ProfitGuardConfig) ->
         "safety_margin_usdc_units": str(safety_margin_units),
         "min_net_profit_usdc_units": str(min_net_profit_units),
         "net_profit_usdc_units": str(net_profit_units),
+        "quote_age_seconds": quote_age_seconds,
+        "max_quote_age_seconds": config.max_quote_age_seconds,
         "net_profit_verified": not blocked_reasons,
         "blocked_reasons": blocked_reasons,
     }

@@ -789,7 +789,7 @@ def test_liquidation_payload_api_allows_manual_account_without_route_context(mon
     monkeypatch.setattr(
         control_panel,
         "liquidation_execution_payload_for_account",
-        lambda account, **kwargs: {"account": account, "state": "submission_ready"},
+        lambda account, **kwargs: {"account": account, "request": {}, "state": "submission_ready"},
     )
 
     response = app.test_client().get(f"/api/liquidation/account/payload?account={account}")

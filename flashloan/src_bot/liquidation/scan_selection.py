@@ -165,6 +165,20 @@ def select_accounts(
             "selected_account_count": len(selected),
             "core_account_count": len(core_accounts),
             "high_frequency_account_count": len(high_accounts),
+            "core_due": core_due,
+            "high_frequency_due": high_due,
+            "borrow_health_due": borrow_due,
+        }
+
+    return {
+        "selected_accounts": selected,
+        "strategy": strategy,
+        "scan_mode": scan_mode,
+        "included_tiers": included_tiers,
+        "account_count": len(source_accounts),
+        "selected_account_count": len(selected),
+        "core_account_count": len(core_accounts),
+        "high_frequency_account_count": len(high_accounts),
         "core_due": core_due,
         "high_frequency_due": high_due,
         "borrow_health_due": borrow_due,

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from core.chain_data_registry import global_chain_id
+from core.contracts import validate_scoped_payload
 
 
 APP_ROOT = Path(__file__).resolve().parents[3]
@@ -205,6 +206,7 @@ def load_candidate_pool_snapshot(
     network: str,
     chain_id: int,
     cache_root: Path | None = None,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     cache_paths = candidate_pool_cache_paths(network=network, chain_id=chain_id, cache_root=cache_root)
     snapshot_path = cache_paths["snapshot"]
@@ -215,6 +217,8 @@ def load_candidate_pool_snapshot(
     except OSError:
         return None
     snapshot = _load_snapshot_cached((str(snapshot_path), int(stat.st_mtime_ns), int(stat.st_size)))
+    if snapshot is not None and expected_scope is not None:
+        validate_scoped_payload(snapshot, expected_scope)
     return snapshot
 
 
@@ -225,6 +229,7 @@ def refresh_candidate_pool_cache(
     chain_id: int,
     cache_root: Path | None = None,
     force_full: bool = False,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cache_paths = candidate_pool_cache_paths(network=network, chain_id=chain_id, cache_root=cache_root)
     lock = _cache_lock(network, chain_id)
@@ -237,6 +242,9 @@ def refresh_candidate_pool_cache(
             refresh_mode="full" if force_full else "incremental",
             force_full=force_full,
         )
+        if expected_scope is not None:
+            validate_scoped_payload({"scope": expected_scope, **snapshot}, expected_scope)
+            snapshot["scope"] = dict(expected_scope)
         snapshot["candidatePoolCache"]["refreshedAt"] = snapshot.get("generatedAt") or snapshot.get("freshness")
         groups = _candidate_pool_groups(snapshot)
         shard_records: list[dict[str, Any]] = []

@@ -7,6 +7,7 @@ from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
 from core.config_schema import parse_env_float
+from db.scoped_adapter import validate_scoped_row
 from db.storage_common import db_connection, db_transaction, require_psycopg
 from db.storage_liquidation_accounts import write_liquidation_account_scan_reports
 from db.storage_liquidation_reports import (
@@ -925,6 +926,16 @@ def load_liquidation_account_pool_snapshot(
                 (scope["market_id"], scope["chain_id"], normalized),
             )
             registry = cursor.fetchone()
+            if registry:
+                registry = validate_scoped_row(
+                    {
+                        "market_id": registry[0],
+                        "chain_id": registry[1],
+                        "network": registry[2],
+                        "protocol": registry[3],
+                    },
+                    scope,
+                ) | {"_raw": registry}
             cursor.execute(
                 """
                 WITH ranked AS (
@@ -976,6 +987,7 @@ def load_liquidation_account_pool_snapshot(
                 market_id=scope["market_id"],
                 chain_id=scope["chain_id"],
                 account=normalized,
+                expected_scope=scope,
             )
 
     report_sources: list[dict[str, Any]] = []
@@ -996,7 +1008,8 @@ def load_liquidation_account_pool_snapshot(
         if isinstance(high_report, dict):
             report_sources.append(high_report)
     if registry:
-        registry_report = _json_or_default(registry[16], {})
+        registry_row = registry["_raw"]
+        registry_report = _json_or_default(registry_row[16], {})
         if isinstance(registry_report, dict):
             report_sources.append(registry_report)
     current_positions_present = any(
@@ -1027,7 +1040,7 @@ def load_liquidation_account_pool_snapshot(
             "total_debt_base": report.get("total_debt_base") or report.get("total_debt_in_base_currency"),
         }
     if registry:
-        summary = _merge_summary_with_registry(summary, registry)
+        summary = _merge_summary_with_registry(summary, registry["_raw"])
     positions = report.get("positions") or []
     if isinstance(positions, list):
         summary.setdefault("positions_count", len(positions))
@@ -1124,14 +1137,14 @@ def load_liquidation_account_pool_snapshot(
                 else None
             ),
             "registry": {
-                "active": bool(registry[6]) if registry else False,
-                "market_id": registry[0] if registry else scope["market_id"],
-                "chain_id": int(registry[1]) if registry and registry[1] is not None else scope["chain_id"],
-                "network": registry[2] if registry else None,
-                "protocol": registry[3] if registry else None,
-                "source": registry[5] if registry else None,
-                "activity_tier": registry[14] if registry else None,
-                "last_scanned_at": registry[7].isoformat() if registry and registry[7] else None,
+                "active": bool(registry["_raw"][6]) if registry else False,
+                "market_id": registry["market_id"] if registry else scope["market_id"],
+                "chain_id": int(registry["chain_id"]) if registry and registry["chain_id"] is not None else scope["chain_id"],
+                "network": registry["network"] if registry else None,
+                "protocol": registry["protocol"] if registry else None,
+                "source": registry["_raw"][5] if registry else None,
+                "activity_tier": registry["_raw"][14] if registry else None,
+                "last_scanned_at": registry["_raw"][7].isoformat() if registry and registry["_raw"][7] else None,
             },
             "borrow_pool": {
                 "active": bool(borrow),
@@ -1175,23 +1188,32 @@ def _load_pool_rows(
                 (scope["market_id"], scope["chain_id"], int(limit), max(0, int(offset))),
             )
             rows = cursor.fetchall()
+    column_names = (
+        "market_id", "chain_id", "network", "protocol", "account", "health_factor",
+        "status", "total_collateral_base", "total_debt_base", "candidate_count",
+        "priority_score", "last_scanned_at", "report_json",
+    )
+    scoped_rows = validate_scoped_rows(
+        [dict(zip(column_names, row)) for row in rows],
+        scope,
+    )
     return [
         {
-            "market_id": row[0],
-            "chain_id": row[1],
-            "network": row[2],
-            "protocol": row[3],
-            "account": row[4],
-            "health_factor": row[5],
-            "status": row[6],
-            "total_collateral_base": row[7],
-            "total_debt_base": row[8],
-            "candidate_count": row[9],
-            "priority_score": row[10],
-            "last_scanned_at": row[11].isoformat() if row[11] else None,
-            "report": _json_or_default(row[12], {}),
+            "market_id": row["market_id"],
+            "chain_id": row["chain_id"],
+            "network": row["network"],
+            "protocol": row["protocol"],
+            "account": row["account"],
+            "health_factor": row["health_factor"],
+            "status": row["status"],
+            "total_collateral_base": row["total_collateral_base"],
+            "total_debt_base": row["total_debt_base"],
+            "candidate_count": row["candidate_count"],
+            "priority_score": row["priority_score"],
+            "last_scanned_at": row["last_scanned_at"].isoformat() if row["last_scanned_at"] else None,
+            "report": _json_or_default(row["report_json"], {}),
         }
-        for row in rows
+        for row in scoped_rows
     ]
 
 
@@ -1331,8 +1353,19 @@ def load_liquidation_borrow_health_scan_batches(
                 (scope["market_id"], scope["chain_id"], max(1, int(limit))),
             )
             rows = cursor.fetchall()
+    column_names = (
+        "market_id", "chain_id", "network", "protocol", "id", "started_at", "finished_at",
+        "status", "account_count", "scanned_count", "risk_count", "error_count",
+        "entered_count", "exited_count", "rpc_url", "block_number", "watch_health_factor",
+        "error", "metadata_json",
+    )
+    scoped_rows = validate_scoped_rows(
+        [dict(zip(column_names, row)) for row in rows],
+        scope,
+    )
     result = []
-    for row in rows:
+    for named_row in scoped_rows:
+        row = tuple(named_row[name] for name in column_names)
         if len(row) == 15:
             row = (
                 scope["market_id"],

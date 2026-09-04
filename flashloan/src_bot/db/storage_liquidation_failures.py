@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
+from db.scoped_adapter import validate_scoped_rows
 from db.storage_common import db_connection, db_transaction, require_psycopg
 
 
@@ -118,7 +119,16 @@ def _load_failure_samples(
                 """,
                 tuple(params),
             )
-            return [_failure_row(row, scope) for row in cursor.fetchall()]
+            column_names = (
+                "market_id", "chain_id", "network", "protocol", "id", "account",
+                "block_number", "collateral_asset", "debt_asset", "failure_type",
+                "failure_reason", "payload_json", "source", "created_at",
+            )
+            rows = validate_scoped_rows(
+                [dict(zip(column_names, row)) for row in cursor.fetchall()],
+                scope,
+            )
+            return [_failure_row(tuple(row[name] for name in column_names), scope) for row in rows]
 
 
 def load_recent_liquidation_failure_samples(

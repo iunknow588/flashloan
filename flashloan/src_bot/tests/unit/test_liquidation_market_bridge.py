@@ -95,3 +95,15 @@ def test_binance_symbols_for_liquidation_assets_prefers_reserve_mapping():
     )
 
     assert symbols == ["AVAXUSDT", "SAVAXUSDT", "USDCUSDT"]
+
+
+def test_asset_variants_rejects_reserve_cache_from_wrong_scope(tmp_path):
+    cache = tmp_path / "reserve.json"
+    cache.write_text(
+        '{"scope": {"market_id": "m", "chain_id": 1, "network": "eth", "protocol": "aave"}, "assets": []}',
+        encoding="utf-8",
+    )
+    scope = {"market_id": "m", "chain_id": 56, "network": "bnb", "protocol": "venus"}
+    import pytest
+    with pytest.raises(ValueError, match="scope mismatch on chain_id"):
+        asset_variants_for_market_symbols(["AVAXUSDT"], reserve_cache_path=cache, expected_scope=scope)

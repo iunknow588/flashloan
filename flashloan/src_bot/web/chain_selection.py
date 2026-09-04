@@ -15,6 +15,7 @@ from core.chain_selection import (
     available_chain_selections,
     resolve_chain_selection,
 )
+from core.contracts import validate_scope_contract
 from core.contracts import MarketScope
 from web.chain_selector_component import (
     render_chain_selector_bootstrap,
@@ -40,6 +41,9 @@ def _request_bool(name: str, *, default: bool = True) -> bool:
 
 
 def _request_protocol_id() -> str | None:
+    direct = request.args.get("protocol", "").strip()
+    if direct:
+        return direct
     raw = request.args.get("protocol_id", "").strip()
     if raw:
         return raw
@@ -49,6 +53,32 @@ def _request_protocol_id() -> str | None:
         if protocol:
             return protocol
     return None
+
+
+def validate_explicit_request_scope() -> dict[str, object] | None:
+    """Validate scope data when an API caller explicitly supplies it."""
+    body = request.get_json(silent=True)
+    body_scope = body.get("scope") if isinstance(body, dict) and isinstance(body.get("scope"), dict) else body if isinstance(body, dict) else {}
+
+    def value(name: str) -> object:
+        query_value = request.args.get(name, "").strip()
+        body_value = body_scope.get(name) if isinstance(body_scope, dict) else None
+        if query_value and body_value not in (None, "", query_value):
+            raise ValueError(f"scope mismatch on {name}: query and body differ")
+        return query_value or body_value or ""
+
+    supplied = any(
+        value(name)
+        for name in ("market_id", "chain_id", "network", "protocol", "protocol_id", "protocols")
+    )
+    if not supplied:
+        return None
+    return validate_scope_contract(
+        market_id=value("market_id"),
+        chain_id=value("chain_id"),
+        network=value("network"),
+        protocol=value("protocol") or value("protocol_id") or value("protocols"),
+    )
 
 
 def resolve_request_chain_selection(

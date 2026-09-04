@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from web.control_panel_data import read_json
+from core.json_io import read_json, read_scoped_json
 
 
 def _parse_iso(value: Any) -> datetime | None:
@@ -105,7 +105,10 @@ def liquidation_asset_ids_from_pool_rows(rows: list[dict[str, Any]]) -> list[str
     return assets
 
 
-def asset_variants_for_market_symbols(symbols: list[str], *, reserve_cache_path: Path | None = None) -> list[str]:
+def asset_variants_for_market_symbols(
+    symbols: list[str], *, reserve_cache_path: Path | None = None,
+    expected_scope: dict[str, Any] | None = None,
+) -> list[str]:
     variants: list[str] = []
 
     def add(value: Any) -> None:
@@ -115,7 +118,7 @@ def asset_variants_for_market_symbols(symbols: list[str], *, reserve_cache_path:
 
     reserve_assets = []
     if reserve_cache_path is not None:
-        cache = read_json(reserve_cache_path)
+        cache = read_scoped_json(reserve_cache_path, expected_scope) if expected_scope is not None else read_json(reserve_cache_path)
         reserve_assets = list((cache or {}).get("assets") or [])
 
     lookup: dict[str, list[str]] = {}

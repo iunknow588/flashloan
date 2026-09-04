@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any
+from core.contracts import validate_scoped_payload
 
 from core.chain_data_registry import chain_data_by_chain_id
 
@@ -715,6 +716,7 @@ def write_market_observation_static(
     protocols: list[str] | None = None,
     refresh_mode: str = "incremental",
     root: Path | str | None = None,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     incoming = static_snapshot_from_observation(
         observation,
@@ -735,6 +737,9 @@ def write_market_observation_static(
         existing = _read_json(path)
         stored = merge_market_observation_static(existing, incoming) if existing else incoming
     stored = {**stored, "path": str(path), "exists": True}
+    if expected_scope is not None:
+        validate_scoped_payload({"scope": expected_scope, **stored}, expected_scope)
+        stored["scope"] = dict(expected_scope)
     _write_json(path, stored)
     overview_path = market_observation_overview_static_path(
         network=stored["network"],
@@ -757,10 +762,13 @@ def load_market_observation_static(
     chain_id: int | None = None,
     protocols: list[str] | None = None,
     root: Path | str | None = None,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     path = market_observation_static_path(network=network, chain_id=chain_id, protocols=protocols, root=root)
     payload = _read_json(path)
     if payload:
+        if expected_scope is not None:
+            validate_scoped_payload(payload, expected_scope)
         return {**payload, "path": str(path), "exists": True}
     return {
         "ok": False,

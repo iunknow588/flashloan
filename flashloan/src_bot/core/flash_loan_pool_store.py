@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
+from core.contracts import validate_scoped_payload
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -89,10 +90,13 @@ def load_flash_loan_pool_static(
     chain_id: int | None = None,
     protocol: str,
     root: Path | str | None = None,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     path = flash_loan_pool_static_path(network=network, chain_id=chain_id, protocol=protocol, root=root)
     payload = _read_json(path)
     if payload:
+        if expected_scope is not None:
+            validate_scoped_payload(payload, expected_scope)
         return {**payload, "path": str(path), "exists": True}
     return {
         "ok": False,
@@ -177,6 +181,93 @@ def _section_counts(sections: dict[str, list[dict[str, Any]]]) -> dict[str, int]
     return {section: len(rows) for section, rows in sections.items()}
 
 
+def _positive_number(value: object) -> bool:
+    if value is None or value == "":
+        return False
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return False
+    return parsed > 0 and parsed == parsed and parsed not in (float("inf"), float("-inf"))
+
+
+def _evidence_rows(view: dict[str, Any], sections: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for section_rows in sections.values():
+        rows.extend(section_rows)
+    for section in POOL_SECTIONS:
+        rows.extend(row for row in view.get(section) or [] if isinstance(row, dict))
+    return rows
+
+
+def pool_evidence_from_view(
+    view: dict[str, Any],
+    *,
+    sections: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
+    sections = sections if sections is not None else _sections_from_view(view)
+    rows = _evidence_rows(view, sections)
+    cache = view.get("cache") if isinstance(view.get("cache"), dict) else {}
+    summary = view.get("summary") if isinstance(view.get("summary"), dict) else {}
+    capabilities = cache.get("capabilities") if isinstance(cache.get("capabilities"), dict) else {}
+    liquidity_reasons: list[str] = []
+    if not rows:
+        liquidity_reasons.append("no_pool_rows")
+    elif not any(
+        _positive_number(row.get(key))
+        for row in rows
+        for key in (
+            "available_liquidity",
+            "reserve_data_liquidity",
+            "a_token_total_supply",
+            "liquidity",
+            "tvlUsd",
+            "depth_score_usd",
+            "pool_liquidity_units",
+            "pool_manager_balance0",
+            "pool_manager_balance1",
+        )
+    ):
+        liquidity_reasons.append("no_positive_liquidity_evidence")
+    liquidity_blocked = bool(liquidity_reasons)
+
+    marketability_reasons: list[str] = []
+    borrow_target_count = int(summary.get("borrow_target_count") or 0)
+    borrow_asset_count = int(summary.get("borrow_asset_count") or 0)
+    if not rows:
+        marketability_reasons.append("no_borrow_pools")
+    elif borrow_target_count <= 0 and borrow_asset_count <= 0:
+        marketability_reasons.append("no_borrow_targets")
+    marketability_blocked = bool(marketability_reasons)
+
+    profitability_reasons = [
+        "profitability_requires_live_quoter",
+    ]
+    executability_reasons: list[str]
+    if bool(capabilities.get("execution_enabled")):
+        executability_reasons = []
+    else:
+        executability_reasons = ["execution_enabled_false_or_missing"]
+
+    def _field(status: str, allowed: bool, reasons: list[str]) -> dict[str, Any]:
+        return {"status": status, "allowed": allowed, "blocked_reasons": sorted(reasons)}
+
+    return {
+        "liquidity": _field("blocked" if liquidity_blocked else "ready", not liquidity_blocked, liquidity_reasons),
+        "marketability": _field(
+            "blocked" if marketability_blocked else "ready",
+            not marketability_blocked,
+            marketability_reasons,
+        ),
+        "profitability": _field("requires_live_quoter", False, profitability_reasons),
+        "executability": _field(
+            "blocked" if executability_reasons else "ready",
+            not executability_reasons,
+            executability_reasons,
+        ),
+    }
+
+
 def static_snapshot_from_protocol_view(
     view: dict[str, Any],
     *,
@@ -192,6 +283,7 @@ def static_snapshot_from_protocol_view(
     return {
         "ok": "status" not in view,
         "schema_version": SCHEMA_VERSION,
+        "pool_evidence_schema_version": "flash-loan-pool-evidence-v1",
         "network": normalized_network,
         "chain_id": normalized_chain_id,
         "protocol": protocol,
@@ -205,6 +297,7 @@ def static_snapshot_from_protocol_view(
         "section_counts": _section_counts(sections),
         "borrow_target_universe": view.get("borrow_target_universe"),
         "chain_isolation": view.get("chainIsolation") if isinstance(view.get("chainIsolation"), dict) else {},
+        "pool_evidence": pool_evidence_from_view(view, sections=sections),
         "protocol_view": view,
     }
 
@@ -238,6 +331,7 @@ def write_flash_loan_pool_static(
     chain_id: int | None = None,
     refresh_mode: str = "incremental",
     root: Path | str | None = None,
+    expected_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     incoming = static_snapshot_from_protocol_view(
         view,
@@ -257,6 +351,9 @@ def write_flash_loan_pool_static(
         existing = _read_json(path)
         stored = merge_flash_loan_pool_static(existing, incoming) if existing else incoming
     stored = {**stored, "path": str(path), "exists": True}
+    if expected_scope is not None:
+        validate_scoped_payload({"scope": expected_scope, **stored}, expected_scope)
+        stored["scope"] = dict(expected_scope)
     _write_json(path, stored)
     return stored
 
@@ -278,6 +375,8 @@ def static_store_metadata(
         "generated_at": payload.get("generated_at"),
         "refresh_mode": payload.get("refresh_mode"),
         "section_counts": payload.get("section_counts") or {},
+        "pool_evidence_schema_version": payload.get("pool_evidence_schema_version"),
+        "pool_evidence": payload.get("pool_evidence") or {},
     }
 
 
@@ -289,6 +388,7 @@ __all__ = [
     "load_chain_flash_loan_pool_static",
     "load_flash_loan_pool_static",
     "merge_flash_loan_pool_static",
+    "pool_evidence_from_view",
     "static_snapshot_from_protocol_view",
     "static_store_metadata",
     "write_flash_loan_pool_static",
