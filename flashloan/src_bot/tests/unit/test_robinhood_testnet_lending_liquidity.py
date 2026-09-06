@@ -1,4 +1,4 @@
-﻿from intent_trade.chains.robinhood_testnet.lending_liquidity import (
+from dex.intent_trade.chains.robinhood_testnet.lending_liquidity import (
     MAINNET_MORPHO_BLUE_NOT_TESTNET,
     PERMIT2,
     POOL_MANAGER,

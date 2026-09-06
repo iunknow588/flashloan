@@ -1,7 +1,7 @@
 import pytest
 
 from core.env_loader import disable_database_alias_enabled, local_json_only_enabled
-from db import storage_common
+from core.db import storage_common
 
 
 def test_database_url_helpers_respect_local_json_only_and_alias(monkeypatch):

@@ -4,7 +4,7 @@ from flask import jsonify, request
 
 from core.chain_selection import ChainSelectionError
 from core.market_config import DEFAULT_ROBINHOOD_DEX_MARKET_ID
-from db.storage_cow_execution import (
+from core.db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
@@ -12,7 +12,7 @@ from db.storage_cow_execution import (
 )
 from web.chain_selection import resolve_request_chain_selection
 from web import control_panel_data_routes as shared
-from web.control_panel_robinhood_dex import (
+from dex.robinhood_dex_panel import (
     robinhood_dex_observation_payload,
     robinhood_dex_pool_observation_payload,
     robinhood_dex_readiness_payload,
@@ -72,7 +72,9 @@ def register_binance_market_admin_routes(app, panel) -> None:
         pause_guard = _cow_submission_pause_guard(database_url=None)
         if not pause_guard.get("paused") and cow_quote_daemon_enabled():
             ensure_cow_quote_daemon_running(database_url_provider=lambda: None)
-        return jsonify(cow_candidate_queue_snapshot(limit=limit, networks=networks))
+        payload = cow_candidate_queue_snapshot(limit=limit, networks=networks)
+        payload.setdefault("queue", payload.get("items") or [])
+        return jsonify(payload)
 
     @app.get("/api/binance-market/cow-submission-pause")
     def binance_market_cow_submission_pause():

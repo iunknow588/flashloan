@@ -1,4 +1,4 @@
-from execution.dynamic_quote import DynamicQuoteConfig, quote_dynamic_candidate, route_symbols
+from bot.execution.dynamic_quote import DynamicQuoteConfig, quote_dynamic_candidate, route_symbols
 
 
 class FakeCall:

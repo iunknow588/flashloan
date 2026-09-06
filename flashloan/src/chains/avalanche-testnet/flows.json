@@ -1,0 +1,32 @@
+{
+  "schema_version": "chain-flow-v1",
+  "network": "avalanche-testnet",
+  "chain_id": 43113,
+  "isolation": {
+    "scope_fields": ["network", "chain_id", "market_id"],
+    "forbid_cross_chain_fallback": true,
+    "forbidden_source_networks": ["ethereum", "bnb", "polygon", "avalanche", "robinhood", "robinhood-testnet"],
+    "forbidden_source_chain_ids": [1, 56, 137, 43114, 4663, 46630]
+  },
+  "flows": {
+    "flash_loan_pools": {
+      "handler": "intent_trade.chains.avalanche_testnet.flash_loan_pools:flash_loan_pool_protocol_view",
+      "allowed_protocols": ["uniswap_v3"],
+      "data_file_keys": ["pool_discovery"],
+      "requires_scope_match": true
+    },
+    "dex_pool_candidates": {
+      "handler": "intent_trade.chains.avalanche_testnet.dex_pool_candidates:dex_pool_candidates_payload",
+      "allowed_protocols": ["uniswap_v3", "traderjoe_v2"],
+      "data_file_keys": ["pool_discovery"],
+      "requires_scope_match": true,
+      "missing_evidence_policy": "close_gate"
+    },
+    "pool_discovery": {
+      "handler": "chain_specific_placeholder",
+      "allowed_protocols": ["uniswap_v3", "traderjoe_v2"],
+      "data_file_keys": ["pool_discovery"],
+      "requires_scope_match": true
+    }
+  }
+}

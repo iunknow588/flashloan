@@ -1,7 +1,7 @@
 import pytest
 
-from execution.liquidation_amounts import build_liquidation_amounts, token_amount
-from execution.liquidation_payload import (
+from bot.execution.liquidation_amounts import build_liquidation_amounts, token_amount
+from bot.execution.liquidation_payload import (
     BNB_USDC,
     BNB_USDT,
     WBNB,
@@ -11,7 +11,7 @@ from execution.liquidation_payload import (
     profit_base_to_debt_units,
     validate_min_profit_consistency,
 )
-from liquidation.execution_target import normalize_execution_target, select_execution_candidate
+from bot.liquidation.execution_target import normalize_execution_target, select_execution_candidate
 
 
 def test_token_amount_handles_units_and_decimals():
@@ -358,7 +358,7 @@ def test_liquidation_payload_requires_swap_path_when_min_out_is_precomputed():
 
 
 def test_liquidation_payload_uses_bnb_intermediate_assets_from_report_context(monkeypatch):
-    from execution import liquidation_payload
+    from bot.execution import liquidation_payload
 
     captured = {}
 

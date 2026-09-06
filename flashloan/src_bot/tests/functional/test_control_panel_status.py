@@ -12,7 +12,7 @@ from web.control_panel import (
     opportunity_health_summary,
     restrict_extremes_to_symbols,
 )
-from execution.liquidation_scan import LiquidationScanConfig
+from bot.execution.liquidation_scan import LiquidationScanConfig
 from datetime import datetime
 import time
 from web3 import Web3
@@ -629,12 +629,15 @@ def test_liquidation_borrow_pool_scan_suppresses_duplicate_within_interval(monke
     scan_payload = context._scan_liquidation_borrow_pool_scan_payload
 
     database_url = "postgresql://example"
+    scope = scan._scan_market_scope()
     cached_payload = {
         "rows": [{"account": "0x1", "health_factor": 1.02}],
         "summary": {
             "scanned": True,
             "display_limit": 100,
             "database_url_fingerprint": scan._database_url_fingerprint(database_url),
+            "market_id": scope["market_id"],
+            "chain_id": scope["chain_id"],
         },
         "debt_pool_decision": {"route_intent": "sync_core_then_rejudge"},
     }
@@ -644,6 +647,7 @@ def test_liquidation_borrow_pool_scan_suppresses_duplicate_within_interval(monke
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "stage", "idle")
     monkeypatch.setattr(scan, "database_url_or_none", lambda: database_url, raising=False)
     monkeypatch.setattr(scan, "liquidation_scan_interval_seconds", lambda: 300.0)
+    monkeypatch.setattr(scan, "liquidation_borrow_pool_scan_cooldown_seconds", lambda config=None: 300.0)
 
     payload = scan_payload(force=False)
 

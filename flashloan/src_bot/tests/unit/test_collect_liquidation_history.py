@@ -1,6 +1,6 @@
 from web3 import Web3
 
-from tools import collect_liquidation_history as history
+from bot.tools import collect_liquidation_history as history
 
 
 def _topic_address(address: str) -> str:

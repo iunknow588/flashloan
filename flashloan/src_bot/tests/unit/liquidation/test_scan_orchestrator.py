@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from liquidation.scan_orchestrator import build_account_health_reports, run_borrow_health_scan, scan_progress
+from bot.liquidation.scan_orchestrator import build_account_health_reports, run_borrow_health_scan, scan_progress
 
 
 def _config():

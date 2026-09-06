@@ -1,5 +1,5 @@
-from execution.execution_payload import PayloadConfig, build_execution_payload
-from execution.dex_costs import USDC
+from bot.execution.execution_payload import PayloadConfig, build_execution_payload
+from bot.execution.dex_costs import USDC
 
 
 def test_build_payload_marks_plan_as_aave_compatible_when_it_returns_to_borrowed_asset():

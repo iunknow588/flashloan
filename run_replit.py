@@ -12,11 +12,14 @@ from types import ModuleType
 
 
 REPO_ROOT = Path(__file__).resolve().parent
+SRC_ROOT = REPO_ROOT / "flashloan" / "src"
 SRC_BOT_DIR = REPO_ROOT / "flashloan" / "src_bot"
 SRC_BOT_RUN = SRC_BOT_DIR / "run.py"
 REQUIREMENTS = SRC_BOT_DIR / "requirements.txt"
 VENV_DIR = REPO_ROOT / ".venv"
-COW_NODE_ADAPTER_DIR = SRC_BOT_DIR / "cow_flashloan" / "node_adapter"
+COW_NODE_ADAPTER_DIR = SRC_ROOT / "dex" / "cow_flashloan" / "node_adapter"
+if not COW_NODE_ADAPTER_DIR.exists():
+    COW_NODE_ADAPTER_DIR = SRC_BOT_DIR / "cow_flashloan" / "node_adapter"
 COW_NODE_PACKAGE_LOCK = COW_NODE_ADAPTER_DIR / "package-lock.json"
 COW_NODE_MODULES = COW_NODE_ADAPTER_DIR / "node_modules"
 REQUIRED_PYTHON_IMPORTS = ("flask", "psycopg", "psycopg_pool", "web3", "websockets", "dotenv")
@@ -167,8 +170,11 @@ def reexec_inside_project_venv() -> None:
 def load_src_bot_run_module() -> ModuleType:
     if not SRC_BOT_RUN.exists():
         raise RuntimeError(f"active runtime entrypoint missing: {SRC_BOT_RUN}")
-    if str(SRC_BOT_DIR) not in sys.path:
-        sys.path.insert(0, str(SRC_BOT_DIR))
+    # The split packages are authoritative; the legacy Web entrypoint remains
+    # a compatibility boundary until the Web migration is complete.
+    for path in (SRC_BOT_DIR, SRC_ROOT):
+        if str(path) not in sys.path:
+            sys.path.insert(0, str(path))
     spec = importlib.util.spec_from_file_location("flashloan_src_bot_run", SRC_BOT_RUN)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"unable to load active runtime entrypoint: {SRC_BOT_RUN}")

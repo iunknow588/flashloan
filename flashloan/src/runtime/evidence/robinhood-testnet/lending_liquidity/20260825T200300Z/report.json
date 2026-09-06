@@ -1,0 +1,64 @@
+{
+  "blockingReasons": [
+    "no_aave_or_morpho_lending_liquidity_verified_on_testnet",
+    "no_robinhood_testnet_borrow_token_addresses_configured_for_lending_liquidity_check"
+  ],
+  "broadcastEnabled": false,
+  "chainId": 46630,
+  "checkedAt": "2026-08-25T20:03:00.267135+00:00",
+  "checks": [
+    {
+      "name": "eth_chainId",
+      "ok": true,
+      "value": 46630
+    }
+  ],
+  "expectedChainId": 46630,
+  "hasVerifiedBorrowableLiquidity": false,
+  "hasVerifiedLendingPool": false,
+  "mainnetMorphoBlueAddressNegativeControl": {
+    "address": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
+    "codeBytes": 0,
+    "expected": "no_code_on_robinhood_testnet",
+    "hasCode": false
+  },
+  "network": "robinhood-testnet",
+  "protocols": {
+    "aave_v3": {
+      "codePresentCount": 0,
+      "configuredAddressCount": 0,
+      "contracts": [],
+      "protocol": "aave_v3",
+      "status": "no_candidate_address_configured",
+      "tokenBalances": [],
+      "tokenLiquidityCheckCount": 0,
+      "verifiedBorrowableAssetCount": 0,
+      "verifiedNonzeroTokenBalance": false
+    },
+    "morpho_blue": {
+      "codePresentCount": 0,
+      "configuredAddressCount": 0,
+      "contracts": [],
+      "protocol": "morpho_blue",
+      "status": "no_candidate_address_configured",
+      "tokenBalances": [],
+      "tokenLiquidityCheckCount": 0,
+      "verifiedBorrowableAssetCount": 0,
+      "verifiedNonzeroTokenBalance": false
+    }
+  },
+  "reportPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\lending_liquidity\\20260825T200300Z\\report.json",
+  "rpcOk": true,
+  "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
+  "schemaVersion": "robinhood-testnet-lending-liquidity-v1",
+  "supportsAaveOrMorphoFlashLoans": false,
+  "supportsV4FlashAccountingTests": true,
+  "testnetV4PoolManager": {
+    "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "codeBytes": 24009,
+    "hasCode": true,
+    "nativeBalanceWei": "394609875715629796617"
+  },
+  "tokenAddressCount": 0,
+  "tokenAddresses": []
+}

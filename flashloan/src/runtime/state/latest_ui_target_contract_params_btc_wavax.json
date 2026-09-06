@@ -1,0 +1,395 @@
+{
+  "abiRuntimeTrades": [
+    {
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x2E587b9E7aA638d7EB7DB5fe7447513bC4D0D28B"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xD1356d360F37932059E5b89b7992692aA234EDA6"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ],
+      "tokenX": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "tokenY": "0x152b9d0FdC40C096757F570A51E494bd4b943E50",
+      "tradeIndex": 0
+    },
+    {
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0x1951BD56E82cC1eDFEc8546c3202eCBcC5B74A29"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xfAe3f424a0a47706811521E3ee268f00cFb5c45E"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0x0E663593657B064e1baE76d28625Df5D0eBd4421"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xd18384F4398BF5415902aD5d87eAA96549Fd4f1E"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ],
+      "tokenX": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+      "tokenY": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "tradeIndex": 1
+    },
+    {
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0xFC1e7bc60adFC151565c033521ee6CCBDe027F54"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xC0808a4D70b0c1d6811c3526cA358570516214Fd"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ],
+      "tokenX": "0x152b9d0FdC40C096757F570A51E494bd4b943E50",
+      "tokenY": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "tradeIndex": 2
+    },
+    {
+      "pools": [
+        {
+          "adapterKind": 1,
+          "pool": "0xFC1e7bc60adFC151565c033521ee6CCBDe027F54"
+        },
+        {
+          "adapterKind": 1,
+          "pool": "0xC0808a4D70b0c1d6811c3526cA358570516214Fd"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        },
+        {
+          "adapterKind": 0,
+          "pool": "0x0000000000000000000000000000000000000000"
+        }
+      ],
+      "tokenX": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+      "tokenY": "0x152b9d0FdC40C096757F570A51E494bd4b943E50",
+      "tradeIndex": 3
+    }
+  ],
+  "abiRuntimeTradesError": "",
+  "assemblyOk": false,
+  "blockedReasons": [
+    "not_all_trades_have_5_effective_pools"
+  ],
+  "configStatus": {
+    "broadcastEnabled": "false",
+    "chainId": "43114",
+    "executorAddress": "",
+    "executorAddressConfigured": false,
+    "network": "avalanche",
+    "rpcConfigured": true
+  },
+  "contractCallShape": {
+    "effectivePoolSlots": "10",
+    "expectedRuntimeTradeSpecs": "4",
+    "function": "previewOrderedRuntimeAutoExecution",
+    "poolSlots": "20",
+    "poolsPerTrade": "5",
+    "runtimeTradeSpecs": "4"
+  },
+  "crossPoolExecutionParams": {
+    "amount": 100000000,
+    "deadline": 1786642211,
+    "minFinalToken": 100000000,
+    "minProfitToken": 1
+  },
+  "directStaticTableAssembly": {
+    "missingPairs": [],
+    "ok": true,
+    "preparedRouteGroupCount": "1",
+    "rejectedRouteGroups": []
+  },
+  "executionParams": {
+    "amount": 100000000,
+    "amountOutMinUsdc": 100000000,
+    "deadline": 1786642211,
+    "minProfitUsdc": 1000000
+  },
+  "executionParamsError": "",
+  "generatedAt": "2026-08-13T17:25:11.736438+00:00",
+  "intentReady": false,
+  "intentRouteMatch": {
+    "matchScore": "0",
+    "matched": false,
+    "routeKey": "",
+    "routeKind": "",
+    "routePath": [
+      "USDC",
+      "BTC.B",
+      "WAVAX",
+      "USDC"
+    ]
+  },
+  "mode": "ui_target_contract_param_assembly",
+  "poolStaticTable": {
+    "exists": true,
+    "path": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json"
+  },
+  "preparedRouteGroupCount": "0",
+  "rejectedRouteGroups": [],
+  "routeGroupCount": "0",
+  "runtimeTradeCount": "4",
+  "runtimeTrades": [
+    {
+      "effectivePoolCount": "2",
+      "hasFiveEffectivePools": false,
+      "hasFivePoolSlots": true,
+      "poolSlotCount": "5",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0x2e587b9e7aa638d7eb7db5fe7447513bc4d0d28b",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xd1356d360f37932059e5b89b7992692aa234eda6",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "4"
+        }
+      ],
+      "routeKey": "btc.b:wavax",
+      "routeSymbols": [
+        "USDC",
+        "BTC.B",
+        "USDC"
+      ],
+      "strategyStage": "status1_usdc_to_x_cross_pool",
+      "strategyStatus": "1",
+      "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+      "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+      "tradeIndex": "0"
+    },
+    {
+      "effectivePoolCount": "4",
+      "hasFiveEffectivePools": false,
+      "hasFivePoolSlots": true,
+      "poolSlotCount": "5",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0x1951bd56e82cc1edfec8546c3202ecbcc5b74a29",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xfae3f424a0a47706811521e3ee268f00cfb5c45e",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0x0e663593657b064e1bae76d28625df5d0ebd4421",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xd18384f4398bf5415902ad5d87eaa96549fd4f1e",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "4"
+        }
+      ],
+      "routeKey": "btc.b:wavax",
+      "routeSymbols": [
+        "USDC",
+        "WAVAX",
+        "USDC"
+      ],
+      "strategyStage": "status2_usdc_to_y_cross_pool",
+      "strategyStatus": "2",
+      "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+      "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+      "tradeIndex": "1"
+    },
+    {
+      "effectivePoolCount": "2",
+      "hasFiveEffectivePools": false,
+      "hasFivePoolSlots": true,
+      "poolSlotCount": "5",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xfc1e7bc60adfc151565c033521ee6ccbde027f54",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xc0808a4d70b0c1d6811c3526ca358570516214fd",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "4"
+        }
+      ],
+      "routeKey": "btc.b:wavax",
+      "routeSymbols": [
+        "USDC",
+        "BTC.B",
+        "WAVAX",
+        "USDC"
+      ],
+      "strategyStage": "status3_xy_cross_pool_or_triangular",
+      "strategyStatus": "3",
+      "tokenX": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+      "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+      "tradeIndex": "2"
+    },
+    {
+      "effectivePoolCount": "2",
+      "hasFiveEffectivePools": false,
+      "hasFivePoolSlots": true,
+      "poolSlotCount": "5",
+      "pools": [
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xfc1e7bc60adfc151565c033521ee6ccbde027f54",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "1",
+          "effective": true,
+          "pool": "0xc0808a4d70b0c1d6811c3526ca358570516214fd",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "effective": false,
+          "pool": "",
+          "slotIndex": "4"
+        }
+      ],
+      "routeKey": "btc.b:wavax",
+      "routeSymbols": [
+        "USDC",
+        "WAVAX",
+        "BTC.B",
+        "USDC"
+      ],
+      "strategyStage": "status5_reverse_triangular_fallback",
+      "strategyStatus": "5",
+      "tokenX": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+      "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+      "tradeIndex": "3"
+    }
+  ],
+  "safety": {
+    "broadcastsTransaction": false,
+    "callsContract": false,
+    "deploysContract": false,
+    "loadsSigner": false,
+    "usesRpc": false
+  },
+  "selectedRouteKey": "BTC.B:WAVAX",
+  "target": {
+    "expectedProfitInput": "0",
+    "linkName": "USDC->BTC.B->WAVAX->USDC",
+    "routePath": [
+      "USDC",
+      "BTC.B",
+      "WAVAX",
+      "USDC"
+    ],
+    "xSymbol": "BTC.B",
+    "ySymbol": "WAVAX"
+  }
+}

@@ -2,11 +2,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from liquidation.execution_target import normalize_execution_target, select_execution_candidate
-from liquidation.target_reassessment import reassess_execution_target
-from validation.cow_settlement import summarize_cow_attempts
-from validation.liquidation_profit import LiquidationProfitInput, calculate_liquidation_profit, gas_stress_table
-from validation.scan_windows import summarize_opportunity_windows
+from bot.liquidation.execution_target import normalize_execution_target, select_execution_candidate
+from bot.liquidation.target_reassessment import reassess_execution_target
+from core.validation.cow_settlement import summarize_cow_attempts
+from core.validation.liquidation_profit import LiquidationProfitInput, calculate_liquidation_profit, gas_stress_table
+from core.validation.scan_windows import summarize_opportunity_windows
 
 
 def test_liquidation_profit_includes_gas_slippage_premium_and_mev():

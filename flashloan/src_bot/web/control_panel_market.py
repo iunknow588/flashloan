@@ -5,21 +5,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from execution.dex_costs import estimate_symbol_cost
-from execution.execution_payload import PayloadConfig, build_execution_payload
-from execution.liquidation_scan import health_factor_band
-from execution.plan_quotes import quote_execution_plan
+from bot.execution.dex_costs import estimate_symbol_cost
+from bot.execution.execution_payload import PayloadConfig, build_execution_payload
+from bot.execution.liquidation_scan import health_factor_band
+from bot.execution.plan_quotes import quote_execution_plan
 from core.config_schema import parse_env_float
 from core.env_loader import load_env_files, resolve_env_path
-from strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
-from strategy.limits import resolve_min_paper_profit_usd
+from market.strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
 from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES
-from web.control_panel_config import (
+from market.binance_market.control_panel_config import (
     STRATEGY_DEFAULTS,
     strategy_config as read_strategy_config,
     write_strategy_config as save_strategy_config,
 )
-from web.parameter_config import STRATEGY_CONFIG_PATH
+from core.parameter_config import STRATEGY_CONFIG_PATH
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
     borrow_target_universe as read_borrow_target_universe,
@@ -41,9 +40,19 @@ from web.control_panel_data import (
     recent_velocity_timepoints as read_recent_velocity_timepoints,
     velocity_timepoint_snapshot as read_velocity_timepoint_snapshot,
 )
-from web.control_panel_opportunity_health import (
+from market.binance_market.opportunity_health import (
     opportunity_health_rows,
     opportunity_health_summary,
+)
+from market.binance_market.strategy_runtime import (
+    arbitrage_config_from_strategy as build_arbitrage_config,
+    assert_fresh_execution_plan as build_assert_fresh_execution_plan,
+    configured_fee_slippage_percent as read_configured_fee_slippage_percent,
+    read_execution_plan_max_age_seconds as read_market_execution_plan_max_age_seconds,
+    read_require_binance_ws_for_execution as read_market_require_binance_ws_for_execution,
+    read_slippage_bps as read_market_slippage_bps,
+    strategy_float,
+    strategy_int,
 )
 from web.control_panel_liquidation_base import database_url_or_none
 
@@ -112,11 +121,12 @@ def latest_arbitrage_simulation_file() -> Optional[dict]:
     return read_latest_arbitrage_simulation_file(LATEST_ARBITRAGE_PATH)
 
 
-def liquidation_sample_manifest() -> Optional[dict]:
+def liquidation_sample_manifest(library_path: Optional[Path] | None = None) -> Optional[dict]:
+    path = library_path if library_path is not None else LIQUIDATION_SAMPLE_LIBRARY_PATH
     try:
-        if not LIQUIDATION_SAMPLE_LIBRARY_PATH.exists():
+        if path is None or not Path(path).exists():
             return None
-        data = json.loads(LIQUIDATION_SAMPLE_LIBRARY_PATH.read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else None
     except Exception:
         return None
@@ -183,9 +193,7 @@ def available_candidate_symbols(limit: int = 500) -> list[str]:
 
 
 def configured_fee_slippage_percent() -> float:
-    fallback = parse_env_float("ALERT_DIFF_PERCENT", 0.30, minimum=0)[0]
-    value, error = parse_env_float("FEE_SLIPPAGE_PERCENT", fallback, minimum=0)
-    return fallback if error else value
+    return read_configured_fee_slippage_percent()
 
 
 def latest_reference_price(symbol: str) -> float:
@@ -202,17 +210,7 @@ def _strategy_float(
     minimum: float | None = None,
     maximum: float | None = None,
 ) -> float:
-    default = float(STRATEGY_DEFAULTS[key])
-    raw = (config or strategy_config()).get(key, default)
-    try:
-        value = float(raw)
-    except (TypeError, ValueError):
-        value = default
-    if minimum is not None:
-        value = max(minimum, value)
-    if maximum is not None:
-        value = min(maximum, value)
-    return value
+    return strategy_float(key, config or strategy_config(), minimum=minimum, maximum=maximum)
 
 
 def _strategy_int(
@@ -222,46 +220,19 @@ def _strategy_int(
     minimum: int | None = None,
     maximum: int | None = None,
 ) -> int:
-    value = int(_strategy_float(key, config))
-    if minimum is not None:
-        value = max(minimum, value)
-    if maximum is not None:
-        value = min(maximum, value)
-    return value
+    return strategy_int(key, config or strategy_config(), minimum=minimum, maximum=maximum)
 
 
 def read_slippage_bps() -> int:
-    return _strategy_int("EXECUTION_SLIPPAGE_BPS", minimum=0, maximum=5000)
+    return read_market_slippage_bps(strategy_config())
 
 
 def read_execution_plan_max_age_seconds() -> float:
-    return float(_strategy_int("EXECUTION_PLAN_MAX_AGE_SECONDS", minimum=1))
+    return read_market_execution_plan_max_age_seconds(strategy_config())
 
 
 def arbitrage_config_from_strategy() -> ArbitrageConfig:
-    config = strategy_config()
-    notional_usd = _strategy_float("ARBITRAGE_NOTIONAL_USD", config, minimum=0.0)
-    target_profit_percent = _strategy_float(
-        "ARBITRAGE_TARGET_PROFIT_PERCENT",
-        config,
-        minimum=0.0,
-    )
-    configured_min_paper_profit_usd = _strategy_float("ARBITRAGE_MIN_PAPER_PROFIT_USD", config, minimum=0.0)
-    return ArbitrageConfig(
-        notional_usd=notional_usd,
-        trade_fee_percent=_strategy_float("ARBITRAGE_TRADE_FEE_PERCENT", config, minimum=0.0),
-        flashloan_fee_percent=_strategy_float("ARBITRAGE_FLASHLOAN_FEE_PERCENT", config, minimum=0.0),
-        min_window_spread_percent=_strategy_float("ARBITRAGE_MIN_WINDOW_SPREAD_PERCENT", config, minimum=0.0),
-        min_paper_profit_usd=resolve_min_paper_profit_usd(
-            configured_min_paper_profit_usd,
-            notional_usd=notional_usd,
-            target_profit_percent=target_profit_percent,
-        ),
-        fee_reserve_percent=_strategy_float("ARBITRAGE_FEE_RESERVE_PERCENT", config, minimum=0.0),
-        basket_size=_strategy_int("ARBITRAGE_BASKET_SIZE", config, minimum=1, maximum=10),
-        min_up_change_percent=_strategy_float("TRIGGER_MIN_UP_CHANGE_PERCENT", config, minimum=0.0),
-        min_down_change_percent=_strategy_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", config, minimum=0.0),
-    )
+    return build_arbitrage_config(strategy_config())
 
 
 def build_velocity_summary(snapshot: dict, side_limit: int = SUMMARY_SIDE_LIMIT) -> dict:
@@ -379,34 +350,9 @@ def build_velocity_summary(snapshot: dict, side_limit: int = SUMMARY_SIDE_LIMIT)
 
 
 def read_require_binance_ws_for_execution() -> bool:
-    return os.getenv("ARBITRAGE_REQUIRE_BINANCE_WS", "true").strip().lower() not in {
-        "0",
-        "false",
-        "no",
-        "off",
-    }
+    return read_market_require_binance_ws_for_execution()
 
 
 def assert_fresh_execution_plan(simulation: dict) -> None:
-    if not simulation.get("signal"):
-        reasons = ", ".join(simulation.get("blocked_reasons") or ["signal is false"])
-        raise RuntimeError(f"execution plan is blocked: {reasons}")
-
-    if read_require_binance_ws_for_execution() and simulation.get("price_source") != "ws":
-        raise RuntimeError("execution plan is blocked: Binance WebSocket price source is required")
-
-    observed_at = str(simulation.get("observed_at", "")).replace("Z", "+00:00")
-    try:
-        observed = datetime.fromisoformat(observed_at)
-        if observed.tzinfo is None:
-            observed = observed.replace(tzinfo=timezone.utc)
-    except ValueError as exc:
-        raise RuntimeError("execution plan is blocked: invalid observed_at") from exc
-
-    age_seconds = (datetime.now(timezone.utc) - observed.astimezone(timezone.utc)).total_seconds()
-    max_age = read_execution_plan_max_age_seconds()
-    if age_seconds > max_age:
-        raise RuntimeError(
-            f"execution plan is blocked: stale plan age={age_seconds:.1f}s max={max_age:.1f}s"
-        )
+    build_assert_fresh_execution_plan(simulation, strategy_config())
 

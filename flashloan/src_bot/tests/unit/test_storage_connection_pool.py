@@ -1,16 +1,16 @@
 from contextlib import contextmanager
 
-import db.storage_cow_execution as cow_storage
-import db.storage_chain_markets as chain_market_storage
-import db.storage_liquidation_accounts as liquidation_accounts_storage
-import db.storage_liquidation_attempts as liquidation_attempts_storage
-import db.storage_liquidation_legacy as liquidation_legacy_storage
-import db.storage_market as market_storage
-import db.storage_liquidation_pool as pool_storage
-from db import storage_common
-from db.storage_liquidation_pool import load_liquidation_accounts_for_assets
+import core.db.storage_cow_execution as cow_storage
+import core.db.storage_chain_markets as chain_market_storage
+import core.db.storage_liquidation_accounts as liquidation_accounts_storage
+import core.db.storage_liquidation_attempts as liquidation_attempts_storage
+import core.db.storage_liquidation_legacy as liquidation_legacy_storage
+import core.db.storage_market as market_storage
+import core.db.storage_liquidation_pool as pool_storage
+from core.db import storage_common
+from core.db.storage_liquidation_pool import load_liquidation_accounts_for_assets
 from core.market_config import liquidation_market_config
-from tools.benchmark_db_pool import run_benchmark
+from core.tools.benchmark_db_pool import run_benchmark
 
 
 class FakeConnection:
@@ -657,7 +657,7 @@ def test_load_liquidation_accounts_for_assets_queries_core_pool(monkeypatch):
             return CursorContext()
 
     monkeypatch.setattr(storage_common, "db_connection", lambda *args, **kwargs: FakeConnection())
-    import db.storage_liquidation_pool as pool_storage
+    import core.db.storage_liquidation_pool as pool_storage
 
     monkeypatch.setattr(pool_storage, "db_connection", lambda *args, **kwargs: FakeConnection())
 

@@ -1,5 +1,5 @@
-from execution.bnb_exit_quote import build_bnb_exit_paths, quote_bnb_exit_paths, quote_pancake_v3_path
-from intent_trade.chains.bnb import config as bnb
+from bot.execution.bnb_exit_quote import build_bnb_exit_paths, quote_bnb_exit_paths, quote_pancake_v3_path
+from dex.intent_trade.chains.bnb import config as bnb
 
 
 class FakeCall:

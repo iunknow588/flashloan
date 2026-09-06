@@ -1,6 +1,6 @@
-from db.storage import EXPECTED_SCHEMA_MIGRATION_IDS, record_schema_migrations
-from db.storage_schema import ensure_database_schema
-import db.storage_schema as storage_schema
+from core.db.storage import EXPECTED_SCHEMA_MIGRATION_IDS, record_schema_migrations
+from core.db.storage_schema import ensure_database_schema
+import core.db.storage_schema as storage_schema
 from web import control_panel_data
 
 

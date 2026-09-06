@@ -1,6 +1,6 @@
 import pytest
 
-import db.storage_liquidation_accounts as storage
+import core.db.storage_liquidation_accounts as storage
 
 
 class _Cursor:

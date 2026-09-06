@@ -1,17 +1,21 @@
-﻿from flask import Flask, g, jsonify, request
+from flask import Flask, g, jsonify, request
+import json
 from uuid import uuid4
 
 from core.chain_selection import ChainSelectionError
 from web.chain_selection_routes import register_chain_selection_routes
 from web.chain_selection import resolve_request_chain_selection, validate_explicit_request_scope
-from web.api_scope_policy import api_requires_scope
-from web.api_scope_policy import validate_named_response_contract
+from core.api_scope_policy import api_requires_scope
+from core.api_scope_policy import validate_named_response_contract
 from core.workflow import HARD_WORKFLOW_BLOCKS, WorkflowContextError, resolve_workflow_context
 from web.control_panel_control_routes import register_control_routes
 from web.control_panel_data_routes import register_data_routes
 from web.control_panel_liquidation_context import install_liquidation_context
 from web.control_panel_liquidation_routes import register_liquidation_routes
 from web.control_panel_page_routes import register_page_routes
+from web import control_panel_data_routes as shared_data_routes
+from market.binance_market import dex_surfaces as market_dex_surfaces
+from core.dex_surface_provider import bind_provider
 
 
 
@@ -87,7 +91,22 @@ def install_chain_selection_context(app: Flask, panel) -> None:
     @app.after_request
     def expose_chain_selection_context(response):
         if request.path.startswith("/api/") and 200 <= response.status_code < 300:
-            required_keys = __import__("web.api_scope_policy", fromlist=["response_required_keys"]).response_required_keys(request.path)
+            if response.is_json:
+                body = response.get_json(silent=True)
+                mode_by_path = {
+                    "/api/dex/overview": "dex_overview",
+                    "/api/dex/market-observation": "dex_market_observation",
+                    "/api/dex/quote-routes": "dex_quote_routes",
+                    "/api/dex/submissions": "dex_submission_review",
+                    "/api/dex-pools/candidates": "dex_pool_candidates",
+                    "/api/dex-pools/candidates/refresh": "dex_pool_candidates",
+                }
+                mode = mode_by_path.get(request.path)
+                if mode and isinstance(body, dict) and not body.get("mode"):
+                    body["mode"] = mode
+                    response.set_data(json.dumps(body, ensure_ascii=False))
+                    response.content_type = "application/json"
+            required_keys = __import__("core.api_scope_policy", fromlist=["response_required_keys"]).response_required_keys(request.path)
             if required_keys and response.is_json:
                 try:
                     validate_named_response_contract(request.path, response.get_json(silent=True))
@@ -136,6 +155,7 @@ def register_workflow_context_route(app: Flask) -> None:
 def register_control_panel_routes(app: Flask, panel) -> None:
     install_chain_selection_context(app, panel)
     install_liquidation_context(panel)
+    bind_provider(shared_data_routes.ROUTE_CONTEXT, market_dex_surfaces)
     register_page_routes(app, panel)
     register_workflow_context_route(app)
     register_chain_selection_routes(app, panel)

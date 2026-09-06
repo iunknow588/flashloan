@@ -1,6 +1,6 @@
 import pytest
 
-from execution import bnb_runtime
+from bot.execution import bnb_runtime
 
 
 class FakeEth:

@@ -1,4 +1,4 @@
-from cow_flashloan.capabilities import (
+from dex.cow_flashloan.capabilities import (
     assess_cow_atomic_settlement_evidence,
     assess_cow_flashloan_sdk_plan,
 )

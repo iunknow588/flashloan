@@ -1,0 +1,384 @@
+{
+  "contractAssemblyImplication": {
+    "note": "A route can be assembled with fewer than five effective pools because empty slots are padded, but every missing pool reduces price-spread evidence.",
+    "requiredPoolSlotsPerTarget": "20",
+    "requiredPoolSlotsPerTrade": "5",
+    "requiredTradeSpecsPerTriangularTarget": "4"
+  },
+  "generatedAt": "2026-08-13T23:17:41.948113+00:00",
+  "mode": "avalanche_pool_static_table_audit",
+  "pairs": [
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "500",
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDC:DAI.E",
+      "pools": [
+        "0x6E3b566454BCF07CcbcF6Bc0B6A77f172142868e",
+        "0xA7141C79d3d4a9ad67bA95D2b97Fe7EeD9fB92B3"
+      ],
+      "tokenXSymbol": "USDC",
+      "tokenYSymbol": "DAI.E"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "WBTC.E:USDC",
+      "pools": [
+        "0x40857Abd8B284205A81fe6e0DFceBE261f47D854"
+      ],
+      "tokenXSymbol": "WBTC.E",
+      "tokenYSymbol": "USDC"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "500"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "WETH.E:USDC",
+      "pools": [
+        "0x43fb9c3fd6715e872272B0CAAB968A97692726EB"
+      ],
+      "tokenXSymbol": "WETH.E",
+      "tokenYSymbol": "USDC"
+    },
+    {
+      "effectivePoolCount": "3",
+      "fees": [
+        "100",
+        "500",
+        "10000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDT:USDC",
+      "pools": [
+        "0x804226cA4EDb38e7eF56D16d16E92dc3223347A0",
+        "0x9a68f0BbcED6d6F1f63f0a61215742377AC9D325",
+        "0x6294D8fe4660905AffA21355D947E424fa94B23E"
+      ],
+      "tokenXSymbol": "USDT",
+      "tokenYSymbol": "USDC"
+    },
+    {
+      "effectivePoolCount": "4",
+      "fees": [
+        "100",
+        "500",
+        "3000",
+        "10000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "WAVAX:USDC",
+      "pools": [
+        "0x1951BD56E82cC1eDFEc8546c3202eCBcC5B74A29",
+        "0xfAe3f424a0a47706811521E3ee268f00cFb5c45E",
+        "0x0E663593657B064e1baE76d28625Df5D0eBd4421",
+        "0xd18384F4398BF5415902aD5d87eAA96549Fd4f1E"
+      ],
+      "tokenXSymbol": "WAVAX",
+      "tokenYSymbol": "USDC"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "100",
+        "500"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDC:FRAX",
+      "pools": [
+        "0xF060634eAC73a4989B1ab68699303815D050e9C7",
+        "0x01eD0722f62A5Dd3212b04aed2A2065623A705Bb"
+      ],
+      "tokenXSymbol": "USDC",
+      "tokenYSymbol": "FRAX"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "500",
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "BTC.B:USDC",
+      "pools": [
+        "0x2E587b9E7aA638d7EB7DB5fe7447513bC4D0D28B",
+        "0xD1356d360F37932059E5b89b7992692aA234EDA6"
+      ],
+      "tokenXSymbol": "BTC.B",
+      "tokenYSymbol": "USDC"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "100"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDC:EURC",
+      "pools": [
+        "0x975d4286bdB7b2989C8129f0B7C1299b166A11b3"
+      ],
+      "tokenXSymbol": "USDC",
+      "tokenYSymbol": "EURC"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "500"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDE:USDC",
+      "pools": [
+        "0x833E0fF43A8691F623Cb8730DDB3e3180c7dE08B"
+      ],
+      "tokenXSymbol": "USDE",
+      "tokenYSymbol": "USDC"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDT:DAI.E",
+      "pools": [
+        "0x9110B2200EDbf1D088D66fAb96a09C3a8A66F993"
+      ],
+      "tokenXSymbol": "USDT",
+      "tokenYSymbol": "DAI.E"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "WAVAX:DAI.E",
+      "pools": [
+        "0xD399718256C5206D9586e866169dBdf131193e02"
+      ],
+      "tokenXSymbol": "WAVAX",
+      "tokenYSymbol": "DAI.E"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "10000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "LINK.E:WAVAX",
+      "pools": [
+        "0xEB7e0191f4054868D97F33CA7a4176b226cCBd2F"
+      ],
+      "tokenXSymbol": "LINK.E",
+      "tokenYSymbol": "WAVAX"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "WETH.E:WBTC.E",
+      "pools": [
+        "0xFc3cafFEa1d3Ba502a2341433A6e85f147C8Be0C"
+      ],
+      "tokenXSymbol": "WETH.E",
+      "tokenYSymbol": "WBTC.E"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "WBTC.E:WAVAX",
+      "pools": [
+        "0x7Fd0055020a6d9C43C31C8eA755c5038EBd39722"
+      ],
+      "tokenXSymbol": "WBTC.E",
+      "tokenYSymbol": "WAVAX"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "100",
+        "500"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "BTC.B:WBTC.E",
+      "pools": [
+        "0x4D8FBe532F765f9E6C10051E917CAf85Dd2Acaac",
+        "0x749712c45985842B0dD16f175e6Cc24D570E0819"
+      ],
+      "tokenXSymbol": "BTC.B",
+      "tokenYSymbol": "WBTC.E"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "3000",
+        "10000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "WETH.E:USDT",
+      "pools": [
+        "0x118BC22A76A71fF3187577422aF2d57210277bAB",
+        "0x7967fa8F8aC4694735857319DebCCA173a99b360"
+      ],
+      "tokenXSymbol": "WETH.E",
+      "tokenYSymbol": "USDT"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "500",
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "WETH.E:WAVAX",
+      "pools": [
+        "0x7b602f98D71715916E7c963f51bfEbC754aDE2d0",
+        "0x724f6a02ED2eB82D8d45034B280903cf663731Ab"
+      ],
+      "tokenXSymbol": "WETH.E",
+      "tokenYSymbol": "WAVAX"
+    },
+    {
+      "effectivePoolCount": "4",
+      "fees": [
+        "100",
+        "500",
+        "3000",
+        "10000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_nonstable",
+      "pair": "USDT:WAVAX",
+      "pools": [
+        "0x0B948Bc646C6b64E5471E9c67b9961b1D4e6dC0E",
+        "0x78b58A7E21b08f1FCeB8d6AE9a235ABB900b5716",
+        "0x27b571f3e7f7827b13d927d2D59244e3e58A7D1A",
+        "0x2Ff3895a82f30dA6094ADACcEeB62891A65eAB61"
+      ],
+      "tokenXSymbol": "USDT",
+      "tokenYSymbol": "WAVAX"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "100"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "USDE:USDT",
+      "pools": [
+        "0xE04b2344211942751334E848f717a27a10eb8c45"
+      ],
+      "tokenXSymbol": "USDE",
+      "tokenYSymbol": "USDT"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "100"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "stable_stable",
+      "pair": "SUSDE:USDT",
+      "pools": [
+        "0xAfe235b62D5D7Fe6335428d52DF1a6204DE002b8"
+      ],
+      "tokenXSymbol": "SUSDE",
+      "tokenYSymbol": "USDT"
+    },
+    {
+      "effectivePoolCount": "1",
+      "fees": [
+        "10000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "AAVE.E:WAVAX",
+      "pools": [
+        "0x64877edE2fadc6CD65883fCeFbc083eaBde10f04"
+      ],
+      "tokenXSymbol": "AAVE.E",
+      "tokenYSymbol": "WAVAX"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "100",
+        "500"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "SAVAX:WAVAX",
+      "pools": [
+        "0xD3249cfBB4C00Dd81F377eF5113848C5cc848780",
+        "0xcEA3C61705B68fEfd8Da1048ca69db1344180fcB"
+      ],
+      "tokenXSymbol": "SAVAX",
+      "tokenYSymbol": "WAVAX"
+    },
+    {
+      "effectivePoolCount": "2",
+      "fees": [
+        "500",
+        "3000"
+      ],
+      "hasFiveEffectivePools": false,
+      "kind": "nonstable_nonstable",
+      "pair": "BTC.B:WAVAX",
+      "pools": [
+        "0xFC1e7bc60adFC151565c033521ee6CCBDe027F54",
+        "0xC0808a4D70b0c1d6811c3526cA358570516214Fd"
+      ],
+      "tokenXSymbol": "BTC.B",
+      "tokenYSymbol": "WAVAX"
+    }
+  ],
+  "poolStaticTable": {
+    "cacheBlockNumber": "92615445",
+    "chainId": "43114",
+    "exists": true,
+    "factory": "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+    "fetchedAt": "2026-08-12T06:08:55.323Z",
+    "network": "avalanche",
+    "path": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+    "quoter": "0xbe0F5544EC67e9B3b2D979aaA43f18Fd87E6257F",
+    "router": "0xbb00FF08d01D300023C629E8fFfFcb65A5a578cE"
+  },
+  "summary": {
+    "maxPoolsPerPair": "4",
+    "nonstableNonstablePairCount": "8",
+    "pairCount": "23",
+    "pairsWithFiveEffectivePools": "0",
+    "stableNonstablePairCount": "7"
+  }
+}

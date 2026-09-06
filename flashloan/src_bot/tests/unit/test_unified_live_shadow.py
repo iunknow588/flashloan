@@ -1,4 +1,4 @@
-from tools import run_unified_live_shadow as shadow
+from dex.tools import run_unified_live_shadow as shadow
 
 
 def test_window_report_counts_invalid_samples_and_positive_signals(tmp_path):

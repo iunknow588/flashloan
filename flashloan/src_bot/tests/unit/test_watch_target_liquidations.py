@@ -1,4 +1,4 @@
-from tools import watch_target_liquidations as watcher
+from bot.tools import watch_target_liquidations as watcher
 
 
 def test_target_liquidation_watcher_defaults_to_two_requested_accounts():

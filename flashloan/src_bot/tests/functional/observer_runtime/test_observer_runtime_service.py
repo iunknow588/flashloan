@@ -1,4 +1,4 @@
-from observer_runtime import ObserverRuntimeService
+from market.observer_runtime_pkg import ObserverRuntimeService
 
 
 def test_runtime_service_tracks_start_progress_and_control_status():

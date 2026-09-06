@@ -3,9 +3,8 @@ from __future__ import annotations
 from flask import jsonify, request
 
 from core.chain_data_registry import chain_data_by_chain_id
-from core.chain_flow_dispatcher import ChainFlowDispatchError, chain_flow_request, dispatch_chain_flow
 from core.chain_selection import ChainSelectionError
-from db.storage_cow_execution import (
+from core.db.storage_cow_execution import (
     clear_cow_execution_attempts_jsonl,
     load_recent_cow_execution_attempts_jsonl,
 )
@@ -19,13 +18,13 @@ from market.binance_market.dex_surfaces import (
     dex_submission_review_payload,
 )
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
-from runtime.dex_opportunity_scanner import (
+from dex.runtime.dex_opportunity_scanner import (
     dex_opportunity_snapshot,
     ensure_dex_opportunity_scanner_running,
     run_dex_opportunity_scan_now,
 )
 from web import control_panel_data_routes as shared
-from web.dex_strategy_config import dex_strategy_state, write_dex_strategy_config
+from market.binance_market.dex_strategy_config import dex_strategy_state, write_dex_strategy_config
 from web.data_routes import dex_surface_orchestration as dex_surface_orchestration
 from web.data_routes.dex_surface_orchestration import (
     _attach_chain_flow_processing,
@@ -37,50 +36,18 @@ from web.data_routes.dex_surface_orchestration import (
     _submission_review_framework_payload,
 )
 from web.data_routes.dex_surface_response import (
+    attach_dex_strategy as _attach_dex_strategy,
     candidate_pagination_args,
+    chain_flow_protocol as _chain_flow_protocol,
+    dex_surface_payload_for_chain as _dex_surface_payload_for_chain,
+    overview_response_payload as _overview_response_payload,
     paginate_candidate_payload,
     request_dex_strategy_arg,
     request_dex_protocols_arg,
     selected_chain_id_from_request,
     submission_networks_from_request,
 )
-from web.dex_provenance import framework_label
-
-
-def _chain_flow_protocol(protocols: list[str]) -> str:
-    return protocols[0] if len(protocols) == 1 else ""
-
-
-def _dex_surface_payload_for_chain(
-    *,
-    flow_name: str,
-    mode: str,
-    chain_id: int | None,
-    protocols: list[str],
-    fallback,
-    **kwargs,
-) -> dict:
-    if chain_id is None:
-        return fallback()
-    try:
-        return dispatch_chain_flow(
-            chain_id=chain_id,
-            flow_name=flow_name,
-            protocol=_chain_flow_protocol(protocols),
-            protocols=protocols,
-            **kwargs,
-        )
-    except ChainFlowDispatchError as exc:
-        if exc.code == "chain_flow_missing":
-            return fallback()
-        return {
-            "ok": False,
-            "mode": mode,
-            "chain_id": chain_id,
-            "selected_protocols": protocols,
-            "code": exc.code,
-            "error": exc.message,
-        }
+from core.dex_provenance import framework_label
 
 
 def _bootstrap_dex_surface_dependencies(
@@ -107,74 +74,6 @@ def _submission_review_framework_payload(*, chain_id: int | None, protocols: lis
         overview_payload=dex_overview_payload,
         framework_label_fn=framework_label,
     )
-
-
-def _attach_dex_strategy(payload: dict) -> dict:
-    payload["dex_strategy"] = request_dex_strategy_arg()
-    return payload
-
-
-def _overview_response_payload(payload: dict) -> dict:
-    """Keep the overview response at route-summary granularity."""
-    if not isinstance(payload, dict):
-        return payload
-    response = dict(payload)
-    profit_keys = {
-        "method", "notionalUsd", "complete", "requiresLiveQuoter", "adapterRequired",
-        "observedGrossProfitUsd", "flashLoanFeeUsd", "gasReserveUsd", "offchainMinProfitUsd",
-        "submissionMinProfitUsd", "submissionNetProfitUsd", "observedNetProfitUsd",
-        "referenceNetProfitUsd", "observedNetProfitBps", "referenceInputAmount",
-        "referenceInputSymbol", "referenceFinalOutputAmount", "referenceFinalOutputSymbol",
-        "referenceNetProfitAmount", "referenceNetReturnBps", "referenceReturnBasis",
-        "referenceReturnTrusted", "borrowAssetClass", "borrowAssetIsStable",
-        "tokenBasisProfitable", "tokenBasisReferenceProfitable", "chainSubmissionCandidate",
-        "chainSubmissionPolicy", "chainSubmissionMinProfitAmount", "chainSubmissionMinProfitSymbol",
-        "profitable", "executableCandidate", "trustedUsdReference", "tokenDecimalsTrusted",
-        "recommendation", "recommendationLevel", "recommendationAction", "warnings",
-        "priceEvidenceSource", "priceEvidenceMode", "priceEvidenceSourceLabel",
-    }
-    compact_paths = []
-    for path in payload.get("arbitragePaths") or []:
-        if not isinstance(path, dict):
-            continue
-        compact = {
-            key: path[key]
-            for key in (
-                "symbolPair",
-                "routeSymbols",
-                "routeAddresses",
-                "overviewRoute",
-                "overviewProfit",
-                "routeFrameworkSource",
-                "pathSource",
-                "marketObservationSourceStage",
-                "priceEvidenceSource",
-                "priceEvidenceSourceLabel",
-            )
-            if key in path
-        }
-        profit = path.get("overviewProfit")
-        if isinstance(profit, dict):
-            compact["overviewProfit"] = {key: profit[key] for key in profit_keys if key in profit}
-        compact["executionPools"] = [
-            {
-                key: pool[key]
-                for key in ("pool", "protocol", "dex", "fee", "routeText", "balances", "depthBand")
-                if key in pool
-            }
-            for pool in (path.get("executionPools") or path.get("preferredPools") or [])[:5]
-            if isinstance(pool, dict)
-        ]
-        compact_paths.append(compact)
-    response["arbitragePaths"] = compact_paths
-    observation = response.get("marketObservation")
-    if isinstance(observation, dict):
-        response["marketObservation"] = {
-            key: observation[key]
-            for key in ("summary", "chainSpecificObservationPairs")
-            if key in observation
-        }
-    return response
 
 
 def register_dex_surface_routes(app, panel) -> None:
@@ -204,7 +103,7 @@ def register_dex_surface_routes(app, panel) -> None:
             }
             return jsonify(payload)
         except Exception as exc:
-            return jsonify({"ok": False, "error": shared.data_error_message(exc) or str(exc)}), 400
+            return jsonify(error_response("dex_strategy_error", shared.data_error_message(exc) or str(exc))), 400
 
     @app.post("/api/dex/strategy")
     def post_dex_strategy():
@@ -213,7 +112,7 @@ def register_dex_surface_routes(app, panel) -> None:
             state = dex_strategy_state()
             return jsonify({"ok": True, **state, "config": payload})
         except Exception as exc:
-            return jsonify({"ok": False, "error": shared.data_error_message(exc) or str(exc)}), 400
+            return jsonify(error_response("dex_strategy_error", shared.data_error_message(exc) or str(exc))), 400
 
     @app.get("/api/dex/overview")
     def dex_overview():
@@ -239,7 +138,9 @@ def register_dex_surface_routes(app, panel) -> None:
             ),
         )
         payload["chain_selection"] = chain_selection
-        return jsonify(_attach_dex_strategy(_overview_response_payload(payload)))
+        payload = _overview_response_payload(payload)
+        payload.setdefault("mode", "dex_overview")
+        return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/market-observation")
     def dex_market_observation():
@@ -270,6 +171,7 @@ def register_dex_surface_routes(app, panel) -> None:
         )
         payload = _market_observation_page_payload(payload)
         payload["chain_selection"] = chain_selection
+        payload.setdefault("mode", "dex_market_observation")
         return jsonify(_attach_dex_strategy(payload))
 
     @app.post("/api/dex/market-observation/refresh")
@@ -307,6 +209,7 @@ def register_dex_surface_routes(app, panel) -> None:
             "associatedPairCount": (payload.get("marketObservationStaticTable") or {}).get("summary", {}).get("fundAnchorPairObservationAssociatedPairCount"),
         }
         payload = _market_observation_page_payload(payload)
+        payload.setdefault("mode", "dex_market_observation")
         return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/quote-routes")
@@ -333,6 +236,8 @@ def register_dex_surface_routes(app, panel) -> None:
             ),
         )
         payload["chain_selection"] = chain_selection
+        payload.setdefault("routes", [])
+        payload.setdefault("mode", "dex_quote_routes")
         return jsonify(_attach_dex_strategy(payload))
 
     @app.get("/api/dex/opportunity-scanner/start")
@@ -419,6 +324,7 @@ def register_dex_surface_routes(app, panel) -> None:
         page, page_size, query, quality = candidate_pagination_args()
         payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
         payload["chain_selection"] = chain_selection
+        payload.setdefault("candidates", payload.get("pairs") or [])
         return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
 
     @app.get("/api/dex-pools/candidates/refresh")
@@ -454,6 +360,7 @@ def register_dex_surface_routes(app, panel) -> None:
         )
         payload["chain_selection"] = chain_selection
         payload["refresh_state"] = _refresh_state_summary(payload, {**refresh_state, "running": False})
+        payload.setdefault("candidates", payload.get("pairs") or [])
         page, page_size, query, quality = candidate_pagination_args()
         return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
 
@@ -481,8 +388,8 @@ def register_dex_surface_routes(app, panel) -> None:
             limit=limit,
             networks=networks,
         )
-        return jsonify(
-            {
+        response_payload = {
+                "mode": "dex_submission_review",
                 **dex_submission_review_payload(
                     attempts=shared._flatten_cow_execution_groups(groups, limit),
                     groups=groups,
@@ -492,7 +399,9 @@ def register_dex_surface_routes(app, panel) -> None:
                 "chain_selection": chain_selection,
                 "dex_strategy": request_dex_strategy_arg(),
             }
-        )
+        response_payload.setdefault("attempts", [])
+        response_payload.setdefault("summary", {})
+        return jsonify(response_payload)
 
     @app.post("/api/dex/submissions/clear")
     def dex_submission_clear():

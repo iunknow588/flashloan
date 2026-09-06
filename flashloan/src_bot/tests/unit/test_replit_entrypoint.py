@@ -32,7 +32,7 @@ def test_replit_config_runs_active_src_bot_entrypoint():
     assert launcher.SRC_BOT_RUN == SRC_ROOT / "run.py"
     assert launcher.VENV_DIR == REPO_ROOT / ".venv"
     assert launcher.REQUIREMENTS == SRC_ROOT / "requirements.txt"
-    assert launcher.COW_NODE_ADAPTER_DIR == SRC_ROOT / "cow_flashloan" / "node_adapter"
+    assert launcher.COW_NODE_ADAPTER_DIR == REPO_ROOT / "flashloan" / "src" / "dex" / "cow_flashloan" / "node_adapter"
     assert launcher.COW_NODE_PACKAGE_LOCK == launcher.COW_NODE_ADAPTER_DIR / "package-lock.json"
 
 

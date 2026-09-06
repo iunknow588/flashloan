@@ -1,0 +1,482 @@
+{
+  "candidates": [
+    {
+      "chain_id": 4663,
+      "estimated_cost_usd": null,
+      "evidence": {
+        "broadcastEnabled": false,
+        "candidateStatus": "observed",
+        "executionEnabled": false,
+        "pools": [
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "954779485640042392",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          },
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "273309265230321863",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          }
+        ],
+        "quoteStatus": "not_started",
+        "routeKind": "two_pool_same_pair"
+      },
+      "gross_profit_usd": null,
+      "market_id": "robinhood-dex-shadow",
+      "net_profit_usd": null,
+      "network": "robinhood",
+      "observed_block": 43023307,
+      "pool_addresses": [
+        "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+      ],
+      "route_key": "USDG:WETH:100->500",
+      "route_kind": "two_pool_same_pair",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "USDG"
+      ],
+      "status": "observed"
+    },
+    {
+      "chain_id": 4663,
+      "estimated_cost_usd": null,
+      "evidence": {
+        "broadcastEnabled": false,
+        "candidateStatus": "observed",
+        "executionEnabled": false,
+        "pools": [
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "954779485640042392",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          },
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "41739543585345737",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          }
+        ],
+        "quoteStatus": "not_started",
+        "routeKind": "two_pool_same_pair"
+      },
+      "gross_profit_usd": null,
+      "market_id": "robinhood-dex-shadow",
+      "net_profit_usd": null,
+      "network": "robinhood",
+      "observed_block": 43023307,
+      "pool_addresses": [
+        "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+      ],
+      "route_key": "USDG:WETH:100->3000",
+      "route_kind": "two_pool_same_pair",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "USDG"
+      ],
+      "status": "observed"
+    },
+    {
+      "chain_id": 4663,
+      "estimated_cost_usd": null,
+      "evidence": {
+        "broadcastEnabled": false,
+        "candidateStatus": "observed",
+        "executionEnabled": false,
+        "pools": [
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "954779485640042392",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          },
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "1594066154817",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          }
+        ],
+        "quoteStatus": "not_started",
+        "routeKind": "two_pool_same_pair"
+      },
+      "gross_profit_usd": null,
+      "market_id": "robinhood-dex-shadow",
+      "net_profit_usd": null,
+      "network": "robinhood",
+      "observed_block": 43023307,
+      "pool_addresses": [
+        "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+      ],
+      "route_key": "USDG:WETH:100->10000",
+      "route_kind": "two_pool_same_pair",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "USDG"
+      ],
+      "status": "observed"
+    },
+    {
+      "chain_id": 4663,
+      "estimated_cost_usd": null,
+      "evidence": {
+        "broadcastEnabled": false,
+        "candidateStatus": "observed",
+        "executionEnabled": false,
+        "pools": [
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "273309265230321863",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          },
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "41739543585345737",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          }
+        ],
+        "quoteStatus": "not_started",
+        "routeKind": "two_pool_same_pair"
+      },
+      "gross_profit_usd": null,
+      "market_id": "robinhood-dex-shadow",
+      "net_profit_usd": null,
+      "network": "robinhood",
+      "observed_block": 43023307,
+      "pool_addresses": [
+        "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a",
+        "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+      ],
+      "route_key": "USDG:WETH:500->3000",
+      "route_kind": "two_pool_same_pair",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "USDG"
+      ],
+      "status": "observed"
+    },
+    {
+      "chain_id": 4663,
+      "estimated_cost_usd": null,
+      "evidence": {
+        "broadcastEnabled": false,
+        "candidateStatus": "observed",
+        "executionEnabled": false,
+        "pools": [
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "273309265230321863",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          },
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "1594066154817",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          }
+        ],
+        "quoteStatus": "not_started",
+        "routeKind": "two_pool_same_pair"
+      },
+      "gross_profit_usd": null,
+      "market_id": "robinhood-dex-shadow",
+      "net_profit_usd": null,
+      "network": "robinhood",
+      "observed_block": 43023307,
+      "pool_addresses": [
+        "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a",
+        "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+      ],
+      "route_key": "USDG:WETH:500->10000",
+      "route_kind": "two_pool_same_pair",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "USDG"
+      ],
+      "status": "observed"
+    },
+    {
+      "chain_id": 4663,
+      "estimated_cost_usd": null,
+      "evidence": {
+        "broadcastEnabled": false,
+        "candidateStatus": "observed",
+        "executionEnabled": false,
+        "pools": [
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "41739543585345737",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          },
+          {
+            "blockNumber": 43023307,
+            "discoveryMethod": "factory_getPool_readonly",
+            "eventVerified": false,
+            "factoryCodeVerified": true,
+            "factoryQueryVerified": true,
+            "liquidity": "1594066154817",
+            "logIndex": null,
+            "poolCodeVerified": true,
+            "poolStateVerified": true,
+            "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+            "transactionHash": null
+          }
+        ],
+        "quoteStatus": "not_started",
+        "routeKind": "two_pool_same_pair"
+      },
+      "gross_profit_usd": null,
+      "market_id": "robinhood-dex-shadow",
+      "net_profit_usd": null,
+      "network": "robinhood",
+      "observed_block": 43023307,
+      "pool_addresses": [
+        "0xa9188730Fe85Be88ad499D7d52B099e800fB0334",
+        "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+      ],
+      "route_key": "USDG:WETH:3000->10000",
+      "route_kind": "two_pool_same_pair",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "USDG"
+      ],
+      "status": "observed"
+    }
+  ],
+  "chainId": 4663,
+  "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+  "generatedAt": "2026-08-22T09:07:49.170475+00:00",
+  "network": "robinhood",
+  "pools": [
+    {
+      "chainId": 4663,
+      "dex": "unverified_robinhood_dex",
+      "evidence": {
+        "blockNumber": 43023307,
+        "discoveryMethod": "factory_getPool_readonly",
+        "eventVerified": false,
+        "factoryCodeVerified": true,
+        "factoryQueryVerified": true,
+        "liquidity": "954779485640042392",
+        "logIndex": null,
+        "poolCodeVerified": true,
+        "poolStateVerified": true,
+        "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+        "transactionHash": null
+      },
+      "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "factorySourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+      "fee": "100",
+      "liquidity": null,
+      "network": "robinhood",
+      "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+      "protocol": "uniswap_v3",
+      "rejectReasons": [],
+      "slot0": null,
+      "status": "observable",
+      "symbolPair": "WETH:USDG",
+      "tickSpacing": 1,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token0Symbol": "WETH",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "token1Symbol": "USDG",
+      "tvlUsd": null
+    },
+    {
+      "chainId": 4663,
+      "dex": "unverified_robinhood_dex",
+      "evidence": {
+        "blockNumber": 43023307,
+        "discoveryMethod": "factory_getPool_readonly",
+        "eventVerified": false,
+        "factoryCodeVerified": true,
+        "factoryQueryVerified": true,
+        "liquidity": "273309265230321863",
+        "logIndex": null,
+        "poolCodeVerified": true,
+        "poolStateVerified": true,
+        "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+        "transactionHash": null
+      },
+      "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "factorySourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+      "fee": "500",
+      "liquidity": null,
+      "network": "robinhood",
+      "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a",
+      "protocol": "uniswap_v3",
+      "rejectReasons": [],
+      "slot0": null,
+      "status": "observable",
+      "symbolPair": "WETH:USDG",
+      "tickSpacing": 10,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token0Symbol": "WETH",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "token1Symbol": "USDG",
+      "tvlUsd": null
+    },
+    {
+      "chainId": 4663,
+      "dex": "unverified_robinhood_dex",
+      "evidence": {
+        "blockNumber": 43023307,
+        "discoveryMethod": "factory_getPool_readonly",
+        "eventVerified": false,
+        "factoryCodeVerified": true,
+        "factoryQueryVerified": true,
+        "liquidity": "41739543585345737",
+        "logIndex": null,
+        "poolCodeVerified": true,
+        "poolStateVerified": true,
+        "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+        "transactionHash": null
+      },
+      "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "factorySourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+      "fee": "3000",
+      "liquidity": null,
+      "network": "robinhood",
+      "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334",
+      "protocol": "uniswap_v3",
+      "rejectReasons": [],
+      "slot0": null,
+      "status": "observable",
+      "symbolPair": "WETH:USDG",
+      "tickSpacing": 60,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token0Symbol": "WETH",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "token1Symbol": "USDG",
+      "tvlUsd": null
+    },
+    {
+      "chainId": 4663,
+      "dex": "unverified_robinhood_dex",
+      "evidence": {
+        "blockNumber": 43023307,
+        "discoveryMethod": "factory_getPool_readonly",
+        "eventVerified": false,
+        "factoryCodeVerified": true,
+        "factoryQueryVerified": true,
+        "liquidity": "1594066154817",
+        "logIndex": null,
+        "poolCodeVerified": true,
+        "poolStateVerified": true,
+        "sourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+        "transactionHash": null
+      },
+      "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "factorySourceUrl": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-robinhood-chain-deployments",
+      "fee": "10000",
+      "liquidity": null,
+      "network": "robinhood",
+      "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D",
+      "protocol": "uniswap_v3",
+      "rejectReasons": [],
+      "slot0": null,
+      "status": "observable",
+      "symbolPair": "WETH:USDG",
+      "tickSpacing": 200,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token0Symbol": "WETH",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "token1Symbol": "USDG",
+      "tvlUsd": null
+    }
+  ]
+}

@@ -1,4 +1,6 @@
-from db.storage import (
+import logging
+
+from core.db.storage import (
     ensure_database_schema,
     liquidation_execution_attempt_stats as db_liquidation_execution_attempt_stats,
     load_recent_liquidation_execution_attempts as db_load_recent_liquidation_execution_attempts,
@@ -11,14 +13,16 @@ from db.storage import (
 from core.config_schema import parse_env_int
 from core.sensitive_data import redact_sensitive_text
 from web.control_panel_liquidation_base import database_url_or_none
-from web.control_panel_liquidation_pause import (
+from bot.liquidation.pause_guard import (
     clear_pause_guard,
     load_pause_guard_state,
     record_pause_guard_event,
 )
-from web.parameter_config import LIQUIDATION_PAUSE_GUARD_PATH
-from page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
-from execution.liquidation_preflight import SOFT_BLOCK_REASONS
+from core.parameter_config import LIQUIDATION_PAUSE_GUARD_PATH
+from bot.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from bot.execution.liquidation_preflight import SOFT_BLOCK_REASONS
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_error_message(error: object | None) -> str | None:
@@ -338,4 +342,5 @@ def _record_pause_guard_if_configured(state: str, blocked_reasons: list[str] | N
             database_url=database_url,
         )
     except Exception:
+        logger.warning("failed to record liquidation pause guard event", exc_info=True)
         pass

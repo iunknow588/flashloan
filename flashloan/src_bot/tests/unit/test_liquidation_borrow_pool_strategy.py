@@ -1,4 +1,4 @@
-from execution.liquidation_scan import LiquidationScanConfig
+from bot.execution.liquidation_scan import LiquidationScanConfig
 
 
 def _reset_scan_cache(scan):
@@ -19,7 +19,7 @@ def _rows(*accounts):
 
 
 def test_scan_selection_package_is_independent_from_web_module(monkeypatch):
-    from liquidation import scan_selection
+    from bot.liquidation import scan_selection
 
     class Config:
         core_opportunity_refresh_seconds = 1

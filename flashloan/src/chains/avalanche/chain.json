@@ -1,0 +1,34 @@
+{
+  "schema_version": "chain-data-v1",
+  "network": "avalanche",
+  "chain_id": 43114,
+  "display_name": "Avalanche Chain",
+  "native_symbol": "AVAX",
+  "features": {
+    "liquidation": {
+      "default_market_id": "liquidation-43114-aave-v3",
+      "legacy_default_market_id": "avalanche-aave-v3",
+      "protocol": "aave_v3"
+    },
+    "dex_arbitrage": {
+      "default_market_id": "dex-arbitrage-43114-uniswap-v3",
+      "legacy_default_market_id": "avalanche-dex-arbitrage",
+      "protocol": "uniswap_v3"
+    }
+  },
+  "flash_loan": {
+    "default_protocols": ["aave_v3", "uniswap_v3", "traderjoe_v2"],
+    "candidate_protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "traderjoe_v2", "curve"],
+    "supported_protocol_count": 5
+  },
+  "data_files": {
+    "aave_reserves": "runtime/cache/aave_reserve_assets.json",
+    "uniswap_v3_pools": "runtime/cache/avalanche_l1_pool_static_table.json",
+    "v2_pool_discovery": "runtime/cache/avalanche_multi_dex_v2_pool_discovery.json"
+  },
+  "processing_handlers": {
+    "flash_loan_pools": "intent_trade.chains.avalanche.flash_loan_pools:flash_loan_pool_protocol_view",
+    "dex_pool_candidates": "intent_trade.chains.avalanche.dex_pool_candidates:dex_pool_candidates_payload",
+    "pool_discovery": "intent_trade.chains.avalanche.pool_discovery:pool_discovery_flow"
+  }
+}

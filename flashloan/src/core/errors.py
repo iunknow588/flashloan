@@ -8,6 +8,7 @@ from typing import Any
 ERROR_CODES = (
     "validation",
     "unsupported",
+    "scope_mismatch",
     "stale_data",
     "rpc",
     "quote",
@@ -20,6 +21,7 @@ ERROR_CODES = (
 RETRY_POLICIES: dict[str, dict[str, Any]] = {
     "validation": {"retryable": False, "max_attempts": 1, "backoff_seconds": 0.0, "manual_review": False},
     "unsupported": {"retryable": False, "max_attempts": 1, "backoff_seconds": 0.0, "manual_review": False},
+    "scope_mismatch": {"retryable": False, "max_attempts": 1, "backoff_seconds": 0.0, "manual_review": False},
     "stale_data": {"retryable": True, "max_attempts": 3, "backoff_seconds": 1.0, "manual_review": False},
     "rpc": {"retryable": True, "max_attempts": 3, "backoff_seconds": 0.5, "manual_review": False},
     "quote": {"retryable": True, "max_attempts": 2, "backoff_seconds": 1.0, "manual_review": False},

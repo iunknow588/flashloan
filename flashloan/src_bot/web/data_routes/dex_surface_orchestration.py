@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import logging
+
 from flask import request
 
 from core.chain_flow_dispatcher import ChainFlowDispatchError, chain_flow_request
 from core.market_observation_store import market_observation_static_table, write_market_observation_static
-from intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
-from intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
+from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
+from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_surfaces import (
     dex_market_observation_surface_payload,
     dex_overview_payload,
     dex_quote_routes_payload,
 )
-from web.dex_provenance import build_route_framework_payload, framework_label
+from core.dex_provenance import build_route_framework_payload, framework_label
+
+logger = logging.getLogger(__name__)
 
 
 def _bootstrap_dex_surface_dependencies(
@@ -55,6 +59,7 @@ def _bootstrap_dex_surface_dependencies(
         try:
             warm()
         except Exception:
+            logger.warning("failed to warm DEX surface dependency", extra={"flow_name": flow_name}, exc_info=True)
             continue
 
 

@@ -1,4 +1,4 @@
-from web.api_scope_policy import (
+from core.api_scope_policy import (
     api_requires_scope,
     api_scope_contract,
     validate_api_response_contract,
@@ -44,6 +44,16 @@ def test_registered_business_api_routes_are_covered_by_scope_policy():
         if rule.rule.startswith("/api/")
     }
     assert validate_api_scope_policy(paths) == []
+
+
+def test_registered_api_route_inventory_and_schema_coverage_are_complete():
+    paths = {
+        rule.rule for rule in app.url_map.iter_rules()
+        if rule.rule.startswith("/api/")
+    }
+    assert len(paths) >= 100
+    assert missing_response_schema_paths(paths) == []
+    assert validate_response_schema_registry(paths) == []
 
 
 def test_scope_required_request_without_scope_returns_validation_400():

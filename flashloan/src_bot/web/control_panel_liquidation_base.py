@@ -1,4 +1,5 @@
 import os
+import logging
 import subprocess
 import threading
 import time
@@ -8,8 +9,8 @@ from typing import Optional
 
 from flask import Flask
 from web3 import Web3
-from db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
-from web.parameter_config import (
+from core.db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
+from core.parameter_config import (
     LIQUIDATION_CONFIG_PAGE,
     LEGACY_LIQUIDATION_CONFIG_PATHS,
     LIQUIDATION_CONFIG_PATH,
@@ -23,6 +24,7 @@ from web.parameter_config import (
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = SRC_ROOT
+logger = logging.getLogger(__name__)
 from core.config_schema import (
     liquidation_config_health as build_liquidation_config_health,
     parse_env_float,
@@ -32,10 +34,10 @@ from core.env_loader import load_env_files, local_json_only_enabled, resolve_env
 from core.market_config import liquidation_market_config, liquidation_market_config_for, supported_market_summaries
 from core.market_scan_policy import market_scan_refresh_profile as resolve_market_scan_refresh_profile
 from core.sensitive_data import redact_sensitive_text
-from execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
+from bot.execution.liquidation_scan import LiquidationScanConfig, load_account_addresses
 from market.observer import env_urls
-from web.control_panel_liquidation_pause import pause_guard_controls
-from db.storage import (
+from bot.liquidation.pause_guard import pause_guard_controls
+from core.db.storage import (
     EXPECTED_SCHEMA_MIGRATION_IDS,
     ensure_database_schema,
     load_schema_migrations,
@@ -166,6 +168,7 @@ def read_liquidation_runtime_config_parameters() -> dict:
                 try:
                     sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, stored)
                 except Exception:
+                    logger.warning("failed to sync liquidation config file from database", exc_info=True)
                     pass
                 return stored
             if file_values:
@@ -173,6 +176,7 @@ def read_liquidation_runtime_config_parameters() -> dict:
                 try:
                     sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, file_values)
                 except Exception:
+                    logger.warning("failed to sync liquidation config file after database migration", exc_info=True)
                     pass
                 return file_values
         except Exception as exc:
@@ -190,6 +194,7 @@ def save_liquidation_runtime_config_parameters(values: dict) -> bool:
         try:
             sync_page_parameter_file(LIQUIDATION_CONFIG_PAGE, values)
         except Exception:
+            logger.warning("failed to sync liquidation config file after database save", exc_info=True)
             pass
         return True
     except Exception as exc:
@@ -268,8 +273,11 @@ def liquidation_market_payload(market_id: str | None = None, chain_id: int | Non
         else liquidation_market_config()
     )
     database_url = database_url_or_none()
+    active = market.as_dict()
     return {
-        "active": market.as_dict(),
+        "market_id": active.get("market_id"),
+        "chain_id": active.get("chain_id"),
+        "active": active,
         "supported_markets": supported_market_summaries(database_url or None),
     }
 
@@ -627,6 +635,7 @@ def load_liquidation_account_registry(force: bool = False) -> tuple[list[str], s
             accounts = db_load_liquidation_accounts(database_url)
             source = "database"
         except Exception:
+            logger.warning("failed to load liquidation accounts from database", exc_info=True)
             accounts = []
             source = "database-error"
     if not accounts:
@@ -661,11 +670,14 @@ def liquidation_account_registry_window(market_id: str | None = None, chain_id: 
                 retained_days=liquidation_retention_days(),
             )
     except Exception:
+        logger.warning("failed to load liquidation account registry window", exc_info=True)
         return {"total_count": 0, "active_count": 0, "earliest_scan_start_at": None, "latest_scan_end_at": None, "retained_days": liquidation_retention_days()}
 
 
 def schema_status_payload() -> dict:
-    database_url = database_url_or_none()
+    # Resolve from storage at the boundary so facade context injection cannot
+    # leak a stale request/test resolver into schema inspection.
+    database_url = storage_database_url_or_none()
     if not database_url:
         return {"configured": False, "up_to_date": False, "expected_migrations": list(EXPECTED_SCHEMA_MIGRATION_IDS), "applied_migrations": []}
     try:
@@ -710,6 +722,7 @@ def liquidation_discovery_progress(
             chain_id=chain_id,
         )
     except Exception:
+        logger.warning("failed to load liquidation discovery progress", exc_info=True)
         return {
             "latest_recent_scan_end_at": None,
             "earliest_backfill_scan_start_at": None,
@@ -799,6 +812,7 @@ def record_liquidation_discovery_window(
             chain_id=chain_id,
         )
     except Exception:
+        logger.warning("failed to record liquidation discovery scan", exc_info=True)
         pass
 
 

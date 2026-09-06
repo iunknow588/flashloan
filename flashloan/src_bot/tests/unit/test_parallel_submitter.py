@@ -1,4 +1,4 @@
-from execution.parallel_submitter import SubmissionAttempt, run_parallel_submissions
+from bot.execution.parallel_submitter import SubmissionAttempt, run_parallel_submissions
 
 
 def test_run_parallel_submissions_returns_first_success_with_attempt_summary():

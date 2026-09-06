@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tools.run_binance_market_snapshot_daemon import write_snapshot
+from market.tools.run_binance_market_snapshot_daemon import write_snapshot
 
 
 def test_binance_market_snapshot_daemon_writes_snapshot_file(tmp_path, monkeypatch):

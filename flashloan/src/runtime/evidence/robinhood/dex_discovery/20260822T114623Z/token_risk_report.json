@@ -1,0 +1,278 @@
+{
+  "allowlist": [
+    "0x053d2064937d4e8838b8dc08757b7696e5bc69bc",
+    "0x081cb1720f5b27f649c186b9cf58b808c472e416",
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "0x1498a4e537cf4e7efdfd47177f0f415d3878503d",
+    "0x186104bc96138fda769764c445872927908c4b07",
+    "0x288d68ed4b3339425860fc6c14fa445415865b07",
+    "0x2b8c4fc5d28536e4ab628c19ee03cafde44d8b07",
+    "0x33f500177a05e3cc20318ea968f1deb4ede58dc5",
+    "0x3436aababc8e6e979056e45c07cf22ec36fc1b07",
+    "0x3b86771b81ffb23407582b47f18a7e5d9e836b07",
+    "0x3da7bb6599b7e324355af46ea3d192e90d6794b7",
+    "0x4dd3ac4917da65fb137aaba3977a14bc5e620b07",
+    "0x50c0aede15f1a8af0e702ead04828a3dfb648b07",
+    "0x511304440f1e328f7ae4e5d868bac6e449e9630d",
+    "0x585621bd3364ee602a0516b55b09d49156c04b07",
+    "0x5940decb85533e734267ab9678b061273ce24b07",
+    "0x5c2b63aec959498503b867b126f4893d20069693",
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+    "0x60671e5ba9d4ec1a53bb793c8c311a0b93a09b07",
+    "0x6b4a0579d4d9c3c21e967a60c8f15611e989bb07",
+    "0x6d11b5b7f03a647deceec559a289462f89871b07",
+    "0x7284f9dc8f5f1b32fb6d6644ab06a007ab29fb07",
+    "0x75cdca9c9902257205f75f8f110414d6dfc6bd42",
+    "0x7ccae249bdd5b6617257a75d7157367c0db34b50",
+    "0x8291480a6cc81a8d61a53fc4f62b6320a1559dbf",
+    "0x92ee06c786bd5659c178709bedb4d25a26140b07",
+    "0x9a726e8c70d57236378399d2b58f670de5f66e38",
+    "0x9cf242656a2a97d268070d98fcd09f9ad66c4b07",
+    "0x9ff4697cd1f8e19a39869030644379765c698b07",
+    "0xa030ca093812c71aeb50edda131aafa343be805c",
+    "0xa05b82670dcb91afae0e47dad1c568c0fbae0b07",
+    "0xa289555f32fd672c24a8c444dab75bf0cda3c94b",
+    "0xa311209366e455e072d9577e8e3d2070a91d4b07",
+    "0xaa472261427c2d65b775cb7ab026c0878ffc7849",
+    "0xad964dee59bea28a6863a56d2e0269d6bf0d1b07",
+    "0xc1a04913509d15cb757849ae476cd2b179cb0f04",
+    "0xc3c5c5e718f1f176868de720326e76dcd6d1fb07",
+    "0xc8a29ea02b05ddc102c8077e6b0c8803782b5b07",
+    "0xd803758c92f52df9f743d4c9ff4563187230c594",
+    "0xdc8bb683dc06fafb3ad762b89edc8143f235fb87",
+    "0xdf04a1a38c50bf63b42ebb32bcdaf027c3fbcb07",
+    "0xe2705c0e85d1c777f709c2109644a200f5129b07",
+    "0xe3712e588ed8abd16de447537bef9f10104241b9",
+    "0xedf668a0cea1b24497b43c9555f0e7d451e15b07",
+    "0xf4f656039badfb2a7ed320153b71e9454f0b8b07"
+  ],
+  "blacklist": [],
+  "manualReviewRequired": false,
+  "registry": {
+    "0x053d2064937d4e8838b8dc08757b7696e5bc69bc": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "ALIEN"
+    },
+    "0x081cb1720f5b27f649c186b9cf58b808c472e416": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "ALIEN"
+    },
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "WETH"
+    },
+    "0x1498a4e537cf4e7efdfd47177f0f415d3878503d": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "PEPPER"
+    },
+    "0x186104bc96138fda769764c445872927908c4b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "CASSAI"
+    },
+    "0x288d68ed4b3339425860fc6c14fa445415865b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "MIRAGE"
+    },
+    "0x2b8c4fc5d28536e4ab628c19ee03cafde44d8b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "PEPPER"
+    },
+    "0x33f500177a05e3cc20318ea968f1deb4ede58dc5": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "TRUTH"
+    },
+    "0x3436aababc8e6e979056e45c07cf22ec36fc1b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "DOGEBOX"
+    },
+    "0x3b86771b81ffb23407582b47f18a7e5d9e836b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "WAK"
+    },
+    "0x3da7bb6599b7e324355af46ea3d192e90d6794b7": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "PEPPER"
+    },
+    "0x4dd3ac4917da65fb137aaba3977a14bc5e620b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "MINE"
+    },
+    "0x50c0aede15f1a8af0e702ead04828a3dfb648b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "WIZARDCOOK"
+    },
+    "0x511304440f1e328f7ae4e5d868bac6e449e9630d": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "TFAMILY"
+    },
+    "0x585621bd3364ee602a0516b55b09d49156c04b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "DAUGHTER"
+    },
+    "0x5940decb85533e734267ab9678b061273ce24b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "ROME"
+    },
+    "0x5c2b63aec959498503b867b126f4893d20069693": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "WWW"
+    },
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+      "decimals": 6,
+      "source": "robinhood_chain_observation",
+      "symbol": "USDG"
+    },
+    "0x60671e5ba9d4ec1a53bb793c8c311a0b93a09b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "LENA"
+    },
+    "0x6b4a0579d4d9c3c21e967a60c8f15611e989bb07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "SPICY"
+    },
+    "0x6d11b5b7f03a647deceec559a289462f89871b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "DOGE3"
+    },
+    "0x7284f9dc8f5f1b32fb6d6644ab06a007ab29fb07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "黑猫"
+    },
+    "0x75cdca9c9902257205f75f8f110414d6dfc6bd42": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "PEPPER"
+    },
+    "0x7ccae249bdd5b6617257a75d7157367c0db34b50": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "TRUMP"
+    },
+    "0x8291480a6cc81a8d61a53fc4f62b6320a1559dbf": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "BARRON"
+    },
+    "0x92ee06c786bd5659c178709bedb4d25a26140b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "DOGE2"
+    },
+    "0x9a726e8c70d57236378399d2b58f670de5f66e38": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "MIGGLES"
+    },
+    "0x9cf242656a2a97d268070d98fcd09f9ad66c4b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "SON"
+    },
+    "0x9ff4697cd1f8e19a39869030644379765c698b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "UPCAT"
+    },
+    "0xa030ca093812c71aeb50edda131aafa343be805c": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "ROME"
+    },
+    "0xa05b82670dcb91afae0e47dad1c568c0fbae0b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "HALLVARD"
+    },
+    "0xa289555f32fd672c24a8c444dab75bf0cda3c94b": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "BAAO"
+    },
+    "0xa311209366e455e072d9577e8e3d2070a91d4b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "PEPPER"
+    },
+    "0xaa472261427c2d65b775cb7ab026c0878ffc7849": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "PEPPER"
+    },
+    "0xad964dee59bea28a6863a56d2e0269d6bf0d1b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "HOT"
+    },
+    "0xc1a04913509d15cb757849ae476cd2b179cb0f04": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "FHENIX"
+    },
+    "0xc3c5c5e718f1f176868de720326e76dcd6d1fb07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "WINNIE"
+    },
+    "0xc8a29ea02b05ddc102c8077e6b0c8803782b5b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "TP"
+    },
+    "0xd803758c92f52df9f743d4c9ff4563187230c594": {
+      "decimals": 9,
+      "source": "robinhood_chain_observation",
+      "symbol": "HLDR"
+    },
+    "0xdc8bb683dc06fafb3ad762b89edc8143f235fb87": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "HLDR"
+    },
+    "0xdf04a1a38c50bf63b42ebb32bcdaf027c3fbcb07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "RAT"
+    },
+    "0xe2705c0e85d1c777f709c2109644a200f5129b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "GUNDAVLI"
+    },
+    "0xe3712e588ed8abd16de447537bef9f10104241b9": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "ARCHER"
+    },
+    "0xedf668a0cea1b24497b43c9555f0e7d451e15b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "WAK"
+    },
+    "0xf4f656039badfb2a7ed320153b71e9454f0b8b07": {
+      "decimals": 18,
+      "source": "robinhood_chain_observation",
+      "symbol": "STEVEN"
+    }
+  }
+}

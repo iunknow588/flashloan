@@ -9,20 +9,17 @@ The historical DEX-only Python tree is archived locally under
 implementation of this runtime. The related local design archive is under
 `back/legacy-docs/back-dex`.
 
-This directory keeps the active single-console bot runtime and source code in functional packages.
+This directory is the Web/runtime adapter layer for the active Python runtime. The split implementation lives under `flashloan/src/{core,bot,dex,market}`; `src_bot` keeps Flask/Web adapters, tests, chain data, and runtime evidence.
 
 ## Packages
 
-- `core/`: environment loading and shared helpers.
-- `db/`: database schema and persistence.
-- `market/`: market observers and Aave reserve cache.
-- `strategy/`: signal generation and opportunity filtering.
-- `execution/`: quote, cost, payload, and liquidation helpers.
-- `cow_flashloan/`: CoW route evaluation, flashloan capability checks, and order submission helpers.
+- `src/`: active split implementation under `core`, `bot`, `dex`, and `market`.
 - `web/`: Flask control panel and templates.
-- `tools/`: command-line analysis and plotting tools.
 - `tests/`: Python unit tests.
 - `tests/README.md`: test taxonomy, run order, and regression checklist.
+- `chains/`: chain-owned JSON registry and flow data.
+- `runtime/`: runtime evidence, state, logs, and cache data.
+- Top-level imports now resolve directly to `flashloan/src` split packages; no compatibility shims remain in `src_bot`.
 
 ## Shared Chain Selection
 
@@ -67,7 +64,7 @@ Each chain owns one directory under `chains/<network>/`:
 - `flows.json`: chain-owned processing-flow rules, handler names, allowed
   protocols, data-file keys, and cross-chain fallback policy.
 
-Runtime code should read these files through `core/chain_data_registry.py`
+Runtime code should read these files through `flashloan/src/core/chain_data_registry.py`
 instead of copying addresses, cache paths, or flow rules into page handlers and
 tools.
 
@@ -95,15 +92,15 @@ close the gate rather than falling back to Robinhood mainnet or Avalanche data.
 Run the registry audit after chain-data or flow-spec edits:
 
 ```powershell
-python flashloan/src_bot/tools/audit_chain_data_registry.py
+python flashloan/src/market/tools/audit_chain_data_registry.py
 ```
 
 ## Common Commands
 
 ```powershell
 python flashloan/src_bot/run.py
-python flashloan/src_bot/strategy/build_executable_signal.py --since-minutes 60 --limit 200
-python flashloan/src_bot/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
+python flashloan/src/market/strategy/build_executable_signal.py --since-minutes 60 --limit 200
+python flashloan/src/market/tools/analyze_thresholds.py --hours 2 --window-seconds 0.2
 python -m pytest flashloan/src_bot/tests
 ```
 
@@ -118,4 +115,4 @@ Environment precedence is process environment first, then the nearest `.env`, th
 - `runtime/cache/`: Aave reserve cache and other low-frequency chain metadata.
 - `runtime/config/`: mutable local strategy config.
 
-Only `.env`, `.env.example`, `requirements.txt`, `run.py`, this README, and source packages should live at the `src_bot/` root.
+Only `.env`, `.env.example`, `requirements.txt`, `run.py`, `run_local_preview.py`, this README, and operational directories should live at the `src_bot/` root.

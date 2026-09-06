@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from liquidation import build_discovery_window_result
+from bot.liquidation import build_discovery_window_result
 
 
 def test_discovery_window_result_marks_historical_backfill_complete():

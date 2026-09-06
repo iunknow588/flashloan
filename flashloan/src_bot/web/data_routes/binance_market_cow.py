@@ -12,6 +12,10 @@ from market.binance_market.service import (
     refresh_cow_supported_token_cache,
     select_binance_market_extremes,
 )
+from market.binance_market.route_services.cow_support import (
+    build_cow_support_market_state,
+    build_cow_support_payload,
+)
 from web.data_routes import binance_market as market_routes
 
 panel_call = market_routes.panel_call
@@ -77,34 +81,25 @@ def register_binance_market_cow_routes(app, panel) -> None:
         cow_network = _request_cow_network_arg()
         database_url = None
         token_cache = load_cow_supported_token_registry(cow_network=cow_network, database_url=database_url)
-        extremes = select_binance_market_extremes(extremes, side_limit=side_limit)
-        market_state = build_binance_market_state(
+        market_state = build_cow_support_market_state(
             extremes,
-            aave_symbols=list(ASSETS.keys()),
+            assets=list(ASSETS.keys()),
             arbitrage_config=arbitrage_config,
-            top_limit=side_limit,
-            bottom_limit=side_limit,
-            pair_side_limit=pair_side_limit,
-            cow_display_limit=DEFAULT_BINANCE_RAW_SIDE_LIMIT,
             slippage_bps=slippage_bps,
+            thresholds=thresholds,
             cow_network=token_cache["network"],
-            min_spread_percent=min_spread_percent,
-            min_side_change_percent=min_side_change_percent,
-            min_token_price_usd=min_token_price_usd,
-            threshold_detail=thresholds,
-            registry=token_cache["registry"],
+            token_cache=token_cache,
+            side_limit=side_limit,
+            pair_side_limit=pair_side_limit,
         )
-        market_state["cow_filter"]["token_cache_source"] = token_cache["source"]
-        market_state["cow_filter"]["token_cache_count"] = token_cache["token_count"]
-        market_state["cow_filter"]["cow_display_limit"] = DEFAULT_BINANCE_RAW_SIDE_LIMIT
         try:
-            payload = build_cow_route_precheck(
+            payload = build_cow_support_payload(
                 market_state,
                 amount=amount,
                 quote_limit=quote_limit,
                 cow_network=token_cache["network"],
-                registry=token_cache["registry"],
+                token_cache=token_cache,
             )
         except Exception as exc:
             return jsonify({"error": data_error_message(exc), "market_state": market_state, "routes": []}), 400
-        return jsonify({"market_state": market_state, **payload})
+        return jsonify(payload)

@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from liquidation.borrow_pool_scan_service import (
+from bot.liquidation.borrow_pool_scan_service import (
     BorrowPoolScanRuntime,
     run_borrow_pool_scan_payload,
 )
@@ -66,7 +66,7 @@ def test_scan_service_returns_matching_cached_payload_with_suppression(monkeypat
             },
         },
     }
-    monkeypatch.setattr("liquidation.borrow_pool_scan_service.time.monotonic", lambda: 120.0)
+    monkeypatch.setattr("bot.liquidation.borrow_pool_scan_service.time.monotonic", lambda: 120.0)
 
     payload = run_borrow_pool_scan_payload(_runtime(scan_cache=cache))
 

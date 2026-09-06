@@ -1,0 +1,252 @@
+{
+  "allTradesHaveFiveEffectivePools": false,
+  "contractCallShape": {
+    "poolSlotsPerCall": "20",
+    "poolsPerTrade": "5",
+    "runtimeTradeSpecs": "4"
+  },
+  "contractPathProfit": {
+    "missingTrades": [
+      "ux_usdc_to_x",
+      "uy_usdc_to_y",
+      "xy_x_to_y",
+      "yx_y_to_x_fallback"
+    ],
+    "reason": "signal_pair_pools_not_found",
+    "status": "blocked"
+  },
+  "effectivePoolSlots": "0",
+  "generatedAt": "2026-08-13T17:08:06.257078+00:00",
+  "mode": "latest_signal_pool_quote_matrix",
+  "poolSource": {
+    "cacheBlockNumber": "92615445",
+    "cacheFetchedAt": "2026-08-12T06:08:55.323Z",
+    "cachePath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+    "chainId": "43114",
+    "factory": "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+    "network": "avalanche",
+    "quoter": "0xbe0F5544EC67e9B3b2D979aaA43f18Fd87E6257F",
+    "router": "0xbb00FF08d01D300023C629E8fFfFcb65A5a578cE",
+    "sourceMethod": "factory.getPool(tokenA,tokenB,feeTier) discovery cache; current quotes use pool.slot0/liquidity and Quoter quoteExactInput"
+  },
+  "quoteContext": {
+    "blockNumber": "",
+    "minProfitUsdc": "1",
+    "premiumBps": "5",
+    "rpcError": "not_required_no_candidate_pools",
+    "rpcUrl": "",
+    "usdcAmount": "1000000000"
+  },
+  "safety": {
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "deploysContract": false,
+    "loadsSigner": false
+  },
+  "signal": {
+    "inputObservedAt": "2026-08-13T13:57:32.233+00:00",
+    "paperSignalProfitUsdc": 6.04722387,
+    "routePath": [
+      "USDC",
+      "GIGGLE",
+      "SNXXB",
+      "USDC"
+    ],
+    "xSymbol": "GIGGLE",
+    "ySymbol": "SNXXB"
+  },
+  "trades": [
+    {
+      "effectivePoolCount": "0",
+      "hasFiveEffectivePools": false,
+      "label": "ux_usdc_to_x",
+      "pairFoundInCache": false,
+      "requiredPoolSlots": "5",
+      "slots": [
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "4"
+        }
+      ],
+      "tokenX": "",
+      "tokenXSymbol": "USDC",
+      "tokenY": "",
+      "tokenYSymbol": "GIGGLE"
+    },
+    {
+      "effectivePoolCount": "0",
+      "hasFiveEffectivePools": false,
+      "label": "uy_usdc_to_y",
+      "pairFoundInCache": false,
+      "requiredPoolSlots": "5",
+      "slots": [
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "4"
+        }
+      ],
+      "tokenX": "",
+      "tokenXSymbol": "USDC",
+      "tokenY": "",
+      "tokenYSymbol": "SNXXB"
+    },
+    {
+      "effectivePoolCount": "0",
+      "hasFiveEffectivePools": false,
+      "label": "xy_x_to_y",
+      "pairFoundInCache": false,
+      "requiredPoolSlots": "5",
+      "slots": [
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "4"
+        }
+      ],
+      "tokenX": "",
+      "tokenXSymbol": "GIGGLE",
+      "tokenY": "",
+      "tokenYSymbol": "SNXXB"
+    },
+    {
+      "effectivePoolCount": "0",
+      "hasFiveEffectivePools": false,
+      "label": "yx_y_to_x_fallback",
+      "pairFoundInCache": false,
+      "requiredPoolSlots": "5",
+      "slots": [
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "0"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "1"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "2"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "3"
+        },
+        {
+          "adapterKind": "0",
+          "pool": "",
+          "quoteStatus": "empty_slot",
+          "reason": "pair_not_in_cache",
+          "slotIndex": "4"
+        }
+      ],
+      "tokenX": "",
+      "tokenXSymbol": "SNXXB",
+      "tokenY": "",
+      "tokenYSymbol": "GIGGLE"
+    }
+  ]
+}

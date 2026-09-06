@@ -1,6 +1,6 @@
 import json
 
-from tools import watch_bnb_venus_liquidations as watcher
+from bot.tools import watch_bnb_venus_liquidations as watcher
 
 
 def test_watch_bnb_venus_liquidations_no_accounts_writes_empty_registry(tmp_path):

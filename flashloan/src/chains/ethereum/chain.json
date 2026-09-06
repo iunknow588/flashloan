@@ -1,0 +1,27 @@
+{
+  "schema_version": "chain-data-v1",
+  "network": "ethereum",
+  "chain_id": 1,
+  "display_name": "Ethereum Chain",
+  "native_symbol": "ETH",
+  "features": {
+    "dex_arbitrage": {
+      "default_market_id": "dex-arbitrage-1-uniswap-v3",
+      "legacy_default_market_id": "ethereum-dex-arbitrage",
+      "protocol": "uniswap_v3"
+    }
+  },
+  "flash_loan": {
+    "default_protocols": ["aave_v3", "uniswap_v3", "uniswap_v2"],
+    "candidate_protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "uniswap_v2", "balancer_v2"],
+    "supported_protocol_count": 5
+  },
+  "data_files": {
+    "pool_discovery": "runtime/evidence/ethereum/pool_discovery/latest.json"
+  },
+  "processing_handlers": {
+    "flash_loan_pools": "intent_trade.chains.ethereum.flash_loan_pools:flash_loan_pool_protocol_view",
+    "dex_pool_candidates": "intent_trade.chains.ethereum.dex_pool_candidates:dex_pool_candidates_payload",
+    "pool_discovery": "chain_specific_placeholder"
+  }
+}

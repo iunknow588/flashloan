@@ -1,0 +1,231 @@
+{
+  "borrowableSymbols": [
+    "DAI.E",
+    "EURC",
+    "FRAX",
+    "SUSDE",
+    "USDC",
+    "USDE",
+    "USDT"
+  ],
+  "candidateObservationGroups": [
+    {
+      "anchorSymbol": "DAI.E",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "EURC",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "FRAX",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "SUSDE",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "USDC",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "USDE",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "USDT",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    }
+  ],
+  "chainSpecificObservationPairs": [],
+  "chain_id": 43114,
+  "chain_key": "avalanche:43114:curve+traderjoe_v2+uniswap_v3",
+  "dexSettlement": {
+    "arbitrage_integration": {
+      "can_combine_with_flashloan": true,
+      "required_atomic_flow": [
+        "borrow from flash loan source",
+        "fill UniswapX order or execute AMM swap leg",
+        "complete hedge/exit leg on available DEX pools",
+        "repay principal plus fee in the same transaction"
+      ]
+    },
+    "rails": [
+      {
+        "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+        "chain_id": 43114,
+        "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+        "name": "UniswapX",
+        "pool_model": "intent_order_flow_not_amm_pool",
+        "reactor_family": "Dutch V3 Reactor",
+        "settlement_model": "dutch_auction_reactor",
+        "supported": true
+      }
+    ],
+    "uniswapx": {
+      "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+      "chain_id": 43114,
+      "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+      "name": "UniswapX",
+      "pool_model": "intent_order_flow_not_amm_pool",
+      "reactor_family": "Dutch V3 Reactor",
+      "settlement_model": "dutch_auction_reactor",
+      "supported": true
+    }
+  },
+  "exists": true,
+  "first_generated_at": "2026-09-02T08:46:54.502721Z",
+  "flow_name": "dex_market_observation",
+  "generated_at": "2026-09-02T08:46:54.502721Z",
+  "handler": null,
+  "list_counts": {
+    "borrowableSymbols": 7,
+    "candidateObservationGroups": 7,
+    "chainSpecificObservationPairs": 0,
+    "observationAnchorSymbols": 7,
+    "observationSequences": 0
+  },
+  "marketObservationSourceStage": "dex_market_observation_payload",
+  "mode": "dex_market_observation",
+  "network": "avalanche",
+  "observationAnchorSymbols": [
+    "DAI.E",
+    "EURC",
+    "FRAX",
+    "SUSDE",
+    "USDC",
+    "USDE",
+    "USDT"
+  ],
+  "observationSequences": [],
+  "ok": true,
+  "path": "runtime\\market_observation\\avalanche\\43114\\curve+traderjoe_v2+uniswap_v3\\observation.json",
+  "poolStaticTable": {
+    "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\candidate_pools\\avalanche\\chain-43114\\snapshot.json",
+    "chainId": 43114,
+    "exists": true,
+    "factory": "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+    "generatedAt": "2026-08-14T13:47:10.062674+00:00",
+    "generatedBlockNumber": "92797057",
+    "mode": "avalanche_l1_full_pool_static_table_with_quality_annotations",
+    "network": "avalanche",
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\candidate_pools\\avalanche\\chain-43114\\snapshot.json",
+    "quoter": "0xbe0F5544EC67e9B3b2D979aaA43f18Fd87E6257F",
+    "router": "0xbb00FF08d01D300023C629E8fFfFcb65A5a578cE",
+    "sourceDiscoveryBlockNumber": "92615445",
+    "sourceDiscoveryFetchedAt": "2026-08-12T06:08:55.323Z",
+    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_l1_pool_static_table.json"
+  },
+  "protocol_key": "curve+traderjoe_v2+uniswap_v3",
+  "protocols": [
+    "curve",
+    "traderjoe_v2",
+    "uniswap_v3"
+  ],
+  "refresh_mode": "full",
+  "schema_version": "market-observation-static-store-v3",
+  "scope_key": "avalanche:43114:curve+traderjoe_v2+uniswap_v3",
+  "selected_protocols": [
+    "curve",
+    "traderjoe_v2",
+    "uniswap_v3"
+  ],
+  "source": "dex_market_observation_payload",
+  "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\market_observation",
+  "summary": {
+    "borrowableTokenCount": 7,
+    "bridgePoolIndexMatchedPairCount": 0,
+    "bridgePoolIndexMatchedPoolCount": 0,
+    "candidateObservationBridgeCount": 0,
+    "candidateObservationDirectCount": 0,
+    "candidateObservationGroupCount": 0,
+    "candidateObservationPoolCount": 0,
+    "candidateObservationSequenceCount": 0,
+    "chainSpecificObservationSequenceCount": 0,
+    "closedLoopRouteCount": 0,
+    "directClosedLoopCount": 0,
+    "directPairCount": 4,
+    "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
+    "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
+    "fundAnchorPairObservationAssociatedPairCount": 0,
+    "fundAnchorPairObservationPoolCount": 0,
+    "fundAnchorPairObservationRouteCount": 0,
+    "indirectRouteCount": 0,
+    "nonEthPairFirstAssociatedObservationPoolCount": 0,
+    "nonEthPairFirstAssociatedObservationTokenCount": 0,
+    "nonEthPairFirstAssociatedPairCount": 0,
+    "nonEthPairFirstPoolCount": 0,
+    "nonEthPairFirstRouteCount": 0,
+    "observableTokenCount": 7,
+    "observationAnchorCount": 7,
+    "observationSequenceAnchorCount": 0,
+    "observationSequenceCount": 0,
+    "observationSequencePoolCount": 0,
+    "unmatchedPairCount": 2
+  },
+  "surface": "dex_market_observation"
+}

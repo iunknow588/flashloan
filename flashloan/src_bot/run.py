@@ -4,6 +4,12 @@ import os
 import sys
 import threading
 from contextlib import contextmanager
+from pathlib import Path
+
+
+_SPLIT_SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(_SPLIT_SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SPLIT_SRC_ROOT))
 
 from core.env_loader import load_env_files
 from core.sensitive_data import redact_sensitive_text
@@ -94,7 +100,7 @@ def main() -> int:
             port = read_port()
 
             from web.control_panel import app, initialize_cow_arbitrage_runtime, initialize_liquidation_runtime
-            from web.control_panel_cow_pause import disable_cow_submission_for_startup
+            from dex.runtime.cow_submission_pause import disable_cow_submission_for_startup
 
             disable_cow_submission_for_startup()
         except Exception as exc:

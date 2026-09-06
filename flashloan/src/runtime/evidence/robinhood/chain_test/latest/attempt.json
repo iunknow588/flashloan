@@ -1,0 +1,2137 @@
+{
+  "auto_execute_requested": false,
+  "blocked_reasons": [
+    "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+  ],
+  "can_submit_order": false,
+  "chain_id": 4663,
+  "checks_passed": false,
+  "created_at": "2026-08-25T09:24:25.158497+00:00",
+  "error": null,
+  "execution_phase": "market_candidate",
+  "final_delta_amount": null,
+  "final_symbol": "USDG",
+  "market_state": {
+    "cow_filter": {
+      "chain_id": 4663,
+      "network": "robinhood",
+      "probe_notional_usd": 1000.0,
+      "quote_status": "requires_live_quoter",
+      "source": "dex_opportunity_scanner"
+    },
+    "fallback_reason": null,
+    "market_state_source": "dex_opportunity_scanner",
+    "observed_at": "2026-08-25T09:24:14.424164+00:00",
+    "onchain_block_number": 45618391,
+    "onchain_evidence_status": "live_verified",
+    "onchain_observed_at": "2026-08-25T09:24:14.424164+00:00",
+    "price_source": "dex_live_onchain_quote",
+    "trigger_block_number": 45618391,
+    "trigger_context": {
+      "available": true,
+      "blockNumber": 45618391,
+      "blockTimestamp": 1787649889,
+      "chainId": 4663,
+      "error": null,
+      "network": "robinhood",
+      "observedAt": "2026-08-25T09:24:14.424164+00:00",
+      "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+      "source": "scan_trigger_chain_head",
+      "triggerBlockNumber": 45618391
+    },
+    "trigger_observed_at": "2026-08-25T09:24:14.424164+00:00",
+    "window_seconds": null
+  },
+  "network": "robinhood",
+  "observed_at": "2026-08-25T09:24:14.424164+00:00",
+  "order_submission_enabled": false,
+  "owner_address": null,
+  "pair": "USDG -> WETH -> CATS -> WETH -> USDG",
+  "pair_rank": 5,
+  "precheck": {
+    "auto_execute_requested": false,
+    "can_submit_order": false,
+    "checks_passed": false,
+    "estimation_available": true,
+    "final_delta_amount": null,
+    "final_symbol": "USDG",
+    "live_onchain_evidence_status": "live_verified",
+    "live_profit_percent": 0.0612327,
+    "order_submission_enabled": false,
+    "profit_amount": null,
+    "pure_profit_amount": null,
+    "quote_required": true,
+    "ready_for_transaction_preflight": false,
+    "reasons": [
+      "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+    ],
+    "reference_profit_amount": -13.446107918999815,
+    "reference_pure_profit_amount": -13.446107918999815,
+    "requires_live_quoter": true,
+    "status": "live_verified",
+    "transaction_development": {
+      "blockers": [
+        "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+      ],
+      "executionEnabled": false,
+      "status": "blocked_before_transaction_development"
+    }
+  },
+  "priority_reason": "live_verified",
+  "quote": {
+    "candidate_basis": "dex_opportunity_scanner",
+    "candidate_pools": [
+      {
+        "balances": {
+          "token0": 711.944,
+          "token0Usd": null,
+          "token1": 3312379,
+          "token1Usd": null,
+          "tvlUsd": 5064616.1
+        },
+        "depthBand": {
+          "label": "深度充足",
+          "level": "deep"
+        },
+        "dex": "uniswap",
+        "evidence": {
+          "liquidityUsd": 5064616.1,
+          "marketApi": "dexscreener",
+          "sourceUrl": "https://dexscreener.com/robinhood/0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+          "volumeH24Usd": 126321553.89
+        },
+        "fee": "v3",
+        "liquidity": "",
+        "market": {
+          "pairCreatedAt": 1783025468000,
+          "priceNative": "2461.1994",
+          "priceUsd": "2461.19",
+          "source": "dexscreener",
+          "txns": {
+            "h1": {
+              "buys": 3668,
+              "sells": 3930
+            },
+            "h24": {
+              "buys": 141273,
+              "sells": 138367
+            },
+            "h6": {
+              "buys": 25469,
+              "sells": 26577
+            },
+            "m5": {
+              "buys": 205,
+              "sells": 211
+            }
+          },
+          "volumeH24Usd": 126321553.89
+        },
+        "nonStableSymbols": [
+          "WETH"
+        ],
+        "pairClass": "stable_to_non_stable_pair",
+        "pairClassLabel": "稳定币-非稳定币池",
+        "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "protocol": "uniswap_v3",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          },
+          "token1ToToken0": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          }
+        },
+        "rejectReasons": [],
+        "routeRole": "flashloan_entry_or_exit_leg",
+        "sqrtPriceX96": "",
+        "stableSymbols": [
+          "USDG"
+        ],
+        "tick": "",
+        "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "token0IsStable": false,
+        "token0Symbol": "WETH",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1IsStable": true,
+        "token1Symbol": "USDG"
+      },
+      {
+        "balances": {
+          "token0": 304.1796,
+          "token0Usd": null,
+          "token1": 1936588,
+          "token1Usd": null,
+          "tvlUsd": 2685468.74
+        },
+        "depthBand": {
+          "label": "深度充足",
+          "level": "deep"
+        },
+        "dex": "uniswap",
+        "evidence": {
+          "liquidityUsd": 2685468.74,
+          "marketApi": "dexscreener",
+          "sourceUrl": "https://dexscreener.com/robinhood/0x69bfaf19c9f377bb306a89aed9f6b07e2c1a8d9a",
+          "volumeH24Usd": 8887814.54
+        },
+        "fee": "v3",
+        "liquidity": "",
+        "market": {
+          "pairCreatedAt": 1782320219000,
+          "priceNative": "2461.9656",
+          "priceUsd": "2461.96",
+          "source": "dexscreener",
+          "txns": {
+            "h1": {
+              "buys": 313,
+              "sells": 233
+            },
+            "h24": {
+              "buys": 11817,
+              "sells": 10963
+            },
+            "h6": {
+              "buys": 2343,
+              "sells": 2125
+            },
+            "m5": {
+              "buys": 36,
+              "sells": 7
+            }
+          },
+          "volumeH24Usd": 8887814.54
+        },
+        "nonStableSymbols": [
+          "WETH"
+        ],
+        "pairClass": "stable_to_non_stable_pair",
+        "pairClassLabel": "稳定币-非稳定币池",
+        "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a",
+        "protocol": "uniswap_v3",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          },
+          "token1ToToken0": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          }
+        },
+        "rejectReasons": [],
+        "routeRole": "flashloan_entry_or_exit_leg",
+        "sqrtPriceX96": "",
+        "stableSymbols": [
+          "USDG"
+        ],
+        "tick": "",
+        "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "token0IsStable": false,
+        "token0Symbol": "WETH",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1IsStable": true,
+        "token1Symbol": "USDG"
+      },
+      {
+        "balances": {
+          "token0": 66.1894,
+          "token0Usd": null,
+          "token1": 1602651,
+          "token1Usd": null,
+          "tvlUsd": 1765261.05
+        },
+        "depthBand": {
+          "label": "深度充足",
+          "level": "deep"
+        },
+        "dex": "uniswap",
+        "evidence": {
+          "liquidityUsd": 1765261.05,
+          "marketApi": "dexscreener",
+          "sourceUrl": "https://dexscreener.com/robinhood/0xa9188730fe85be88ad499d7d52b099e800fb0334",
+          "volumeH24Usd": 328973.31
+        },
+        "fee": "v3",
+        "liquidity": "",
+        "market": {
+          "pairCreatedAt": 1781199780000,
+          "priceNative": "2456.7359",
+          "priceUsd": "2456.73",
+          "source": "dexscreener",
+          "txns": {
+            "h1": {
+              "buys": 62,
+              "sells": 1
+            },
+            "h24": {
+              "buys": 849,
+              "sells": 704
+            },
+            "h6": {
+              "buys": 210,
+              "sells": 173
+            },
+            "m5": {
+              "buys": 0,
+              "sells": 0
+            }
+          },
+          "volumeH24Usd": 328973.31
+        },
+        "nonStableSymbols": [
+          "WETH"
+        ],
+        "pairClass": "stable_to_non_stable_pair",
+        "pairClassLabel": "稳定币-非稳定币池",
+        "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334",
+        "protocol": "uniswap_v3",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          },
+          "token1ToToken0": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          }
+        },
+        "rejectReasons": [],
+        "routeRole": "flashloan_entry_or_exit_leg",
+        "sqrtPriceX96": "",
+        "stableSymbols": [
+          "USDG"
+        ],
+        "tick": "",
+        "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "token0IsStable": false,
+        "token0Symbol": "WETH",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1IsStable": true,
+        "token1Symbol": "USDG"
+      },
+      {
+        "balances": {
+          "token0": 115.7235,
+          "token0Usd": null,
+          "token1": 594117,
+          "token1Usd": null,
+          "tvlUsd": 879044.43
+        },
+        "depthBand": {
+          "label": "中等深度",
+          "level": "medium"
+        },
+        "dex": "sushiswap",
+        "evidence": {
+          "liquidityUsd": 879044.43,
+          "marketApi": "dexscreener",
+          "sourceUrl": "https://dexscreener.com/robinhood/0x9b050cb1f265094b0977160a2bd7da8c9e529c3c",
+          "volumeH24Usd": 2033336.01
+        },
+        "fee": "v3",
+        "liquidity": "",
+        "market": {
+          "pairCreatedAt": 1786171938000,
+          "priceNative": "2462.1325",
+          "priceUsd": "2462.13",
+          "source": "dexscreener",
+          "txns": {
+            "h1": {
+              "buys": 96,
+              "sells": 59
+            },
+            "h24": {
+              "buys": 4011,
+              "sells": 3604
+            },
+            "h6": {
+              "buys": 780,
+              "sells": 738
+            },
+            "m5": {
+              "buys": 4,
+              "sells": 0
+            }
+          },
+          "volumeH24Usd": 2033336.01
+        },
+        "nonStableSymbols": [
+          "WETH"
+        ],
+        "pairClass": "stable_to_non_stable_pair",
+        "pairClassLabel": "稳定币-非稳定币池",
+        "pool": "0x9B050cb1F265094b0977160a2BD7dA8C9E529c3C",
+        "protocol": "uniswap_v3",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          },
+          "token1ToToken0": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          }
+        },
+        "rejectReasons": [],
+        "routeRole": "flashloan_entry_or_exit_leg",
+        "sqrtPriceX96": "",
+        "stableSymbols": [
+          "USDG"
+        ],
+        "tick": "",
+        "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "token0IsStable": false,
+        "token0Symbol": "WETH",
+        "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token1IsStable": true,
+        "token1Symbol": "USDG"
+      },
+      {
+        "balances": {
+          "token0": 227957,
+          "token0Usd": null,
+          "token1": 33.6039,
+          "token1Usd": null,
+          "tvlUsd": 310739.7
+        },
+        "depthBand": {
+          "label": "中等深度",
+          "level": "medium"
+        },
+        "dex": "uniswap",
+        "evidence": {
+          "liquidityUsd": 310739.7,
+          "marketApi": "dexscreener",
+          "sourceUrl": "https://dexscreener.com/robinhood/0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "volumeH24Usd": 3134191.31
+        },
+        "fee": "v4",
+        "liquidity": "",
+        "market": {
+          "pairCreatedAt": 1784212668000,
+          "priceNative": "0.0004062",
+          "priceUsd": "1.00017",
+          "source": "dexscreener",
+          "txns": {
+            "h1": {
+              "buys": 213,
+              "sells": 237
+            },
+            "h24": {
+              "buys": 8291,
+              "sells": 8405
+            },
+            "h6": {
+              "buys": 1720,
+              "sells": 1682
+            },
+            "m5": {
+              "buys": 8,
+              "sells": 13
+            }
+          },
+          "volumeH24Usd": 3134191.31
+        },
+        "nonStableSymbols": [
+          "WETH"
+        ],
+        "pairClass": "stable_to_non_stable_pair",
+        "pairClassLabel": "稳定币-非稳定币池",
+        "pool": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {
+          "probeUsd": null,
+          "token0ToToken1": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          },
+          "token1ToToken0": {
+            "amountIn": null,
+            "amountInUsd": null,
+            "amountOut": null,
+            "amountOutUsd": null,
+            "deviationPct": null,
+            "dexRateOutPerIn": null,
+            "gas": null,
+            "ok": false,
+            "outputLossPct": null,
+            "reason": null,
+            "referenceRateOutPerIn": null
+          }
+        },
+        "rejectReasons": [],
+        "routeRole": "flashloan_entry_or_exit_leg",
+        "sqrtPriceX96": "",
+        "stableSymbols": [
+          "USDG"
+        ],
+        "tick": "",
+        "token0": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "token0IsStable": true,
+        "token0Symbol": "USDG",
+        "token1": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "token1IsStable": false,
+        "token1Symbol": "WETH"
+      }
+    ],
+    "final_amount": null,
+    "final_delta_amount": null,
+    "final_symbol": "USDG",
+    "hops": [
+      {
+        "depthBand": {
+          "label": "深度充足",
+          "level": "deep"
+        },
+        "dex": "uniswap",
+        "effectiveRate": null,
+        "executionTrust": "reference_only",
+        "fee": "v3",
+        "feeBps": 30.0,
+        "fromSymbol": "USDG",
+        "hop": 1,
+        "inputAmount": 1000.0,
+        "inputUsd": 1000.0,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v3",
+        "quoteSource": "reference_price_requires_live_quoter",
+        "referenceEffectiveRate": 0.00040508704820909676,
+        "referenceOutputAmount": 0.4050870482090968,
+        "referenceOutputUsd": 997.0005430222993,
+        "reserveInUsd": 3312379.0,
+        "reserveOutUsd": 1752237.0999999999,
+        "status": "quoted",
+        "toSymbol": "WETH",
+        "tokenIn": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "tokenOut": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "warning": "concentrated_liquidity_pool_requires_quoter"
+      },
+      {
+        "adapterRequired": true,
+        "depthBand": {
+          "label": "浅池",
+          "level": "shallow"
+        },
+        "dex": "uniswap",
+        "effectiveRate": null,
+        "executionTrust": "sdk_adapter_required",
+        "fee": "v4",
+        "feeBps": 30.0,
+        "fromSymbol": "WETH",
+        "hop": 2,
+        "inputAmount": 0.4050870482090968,
+        "inputUsd": 997.0005430222993,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v4",
+        "quoteMode": "uniswap_v4_sdk_exact_input_single",
+        "quoteSource": "uniswap_v4_sdk_adapter_required",
+        "referenceEffectiveRate": 20255993.498577815,
+        "referenceOutputAmount": 8205440.614881543,
+        "referenceOutputUsd": 995.0359970431207,
+        "reserveInUsd": 15920.523110047981,
+        "reserveOutUsd": 15934.666889952017,
+        "status": "quoted",
+        "toSymbol": "CATS",
+        "tokenIn": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "tokenOut": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "warning": "uniswap_v4_sdk_adapter_required"
+      },
+      {
+        "adapterRequired": true,
+        "depthBand": {
+          "label": "浅池",
+          "level": "shallow"
+        },
+        "dex": "uniswap",
+        "effectiveRate": null,
+        "executionTrust": "sdk_adapter_required",
+        "fee": "v4",
+        "feeBps": 30.0,
+        "fromSymbol": "CATS",
+        "hop": 3,
+        "inputAmount": 8205440.614881543,
+        "inputUsd": 995.0359970431207,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v4",
+        "quoteMode": "uniswap_v4_sdk_exact_input_single",
+        "quoteSource": "uniswap_v4_sdk_adapter_required",
+        "referenceEffectiveRate": 4.907234e-08,
+        "referenceOutputAmount": 0.40266017170327617,
+        "referenceOutputUsd": 991.0275127690529,
+        "reserveInUsd": 15934.666889952017,
+        "reserveOutUsd": 15920.523110047981,
+        "status": "quoted",
+        "toSymbol": "WETH",
+        "tokenIn": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "tokenOut": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "warning": "uniswap_v4_sdk_adapter_required"
+      },
+      {
+        "depthBand": {
+          "label": "深度充足",
+          "level": "deep"
+        },
+        "dex": "uniswap",
+        "effectiveRate": null,
+        "executionTrust": "reference_only",
+        "fee": "v3",
+        "feeBps": 30.0,
+        "fromSymbol": "WETH",
+        "hop": 4,
+        "inputAmount": 0.40266017170327617,
+        "inputUsd": 991.0275127690529,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v3",
+        "quoteSource": "reference_price_requires_live_quoter",
+        "referenceEffectiveRate": 2453.8158018,
+        "referenceOutputAmount": 988.0538920810002,
+        "referenceOutputUsd": 988.0538920810002,
+        "reserveInUsd": 1752237.0999999999,
+        "reserveOutUsd": 3312379.0,
+        "status": "quoted",
+        "toSymbol": "USDG",
+        "tokenIn": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "tokenOut": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "warning": "concentrated_liquidity_pool_requires_quoter"
+      }
+    ],
+    "input_amount": 1000.0,
+    "input_symbol": "USDG",
+    "live_onchain_evidence": {
+      "blockNumber": 45618391,
+      "blockTimestamp": 1787649889,
+      "blockers": [
+        "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+      ],
+      "chainId": 4663,
+      "costModel": {
+        "finalOutputUsd": 1002.112327,
+        "flashLoanFeeBps": 5.0,
+        "flashLoanFeeUsd": 0.5,
+        "gasReserveUsd": 1.0,
+        "grossProfitUsd": 2.112327,
+        "minProfitUsd": 2.0,
+        "netProfitBps": 6.12327,
+        "netProfitUsd": 0.612327,
+        "notionalUsd": 1000.0
+      },
+      "evidenceVersion": 1,
+      "executionTrust": "live_quoter_verified_readonly",
+      "hops": [
+        {
+          "amountIn": "1000",
+          "amountInRaw": "1000000000",
+          "amountOut": "0.40171543858115609",
+          "amountOutRaw": "401715438581156090",
+          "fee": 100,
+          "fromSymbol": "USDG",
+          "hop": 1,
+          "initializedTicksCrossed": 1,
+          "inputDecimals": 6,
+          "outputDecimals": 18,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "poolState": {
+            "blockNumber": 45618391,
+            "fee": 100,
+            "liquidity": "1032237086978074496",
+            "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+            "protocol": "uniswap_v3",
+            "sqrtPriceX96": "3952704885052324393021500",
+            "tick": -198124,
+            "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+          },
+          "protocol": "uniswap_v3",
+          "quoteMethod": "v3_quoter_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 91558,
+          "sqrtPriceX96After": "3952781631219166677394438",
+          "staticQuote": {
+            "executionTrust": "reference_only",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "reference_price_requires_live_quoter"
+          },
+          "status": "live_verified",
+          "toSymbol": "WETH",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountIn": "0.40171543858115609",
+          "amountInRaw": "401715438581156090",
+          "amountOut": "8205440.614881543",
+          "amountOutRaw": "8205440614881543000000000",
+          "fee": "v4",
+          "fromSymbol": "WETH",
+          "hop": 2,
+          "inputDecimals": 18,
+          "outputDecimals": 18,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "poolState": {
+            "blockNumber": 45618391,
+            "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+            "protocol": "uniswap_v4"
+          },
+          "protocol": "uniswap_v4",
+          "quoteMethod": "uniswap_v4_reference_quote",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoterGasEstimate": 0,
+          "sdkAdapter": "reference_quote_adapter",
+          "staticQuote": {
+            "executionTrust": "sdk_adapter_required",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "uniswap_v4_sdk_adapter_required"
+          },
+          "status": "live_verified",
+          "toSymbol": "CATS",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x7195e2088f3DFCca56e6A71D129051963Ed9657A"
+        },
+        {
+          "amountIn": "8205440.614881543",
+          "amountInRaw": "8205440614881543000000000",
+          "amountOut": "0.40266017170327617",
+          "amountOutRaw": "402660171703276170",
+          "fee": "v4",
+          "fromSymbol": "CATS",
+          "hop": 3,
+          "inputDecimals": 18,
+          "outputDecimals": 18,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "poolState": {
+            "blockNumber": 45618391,
+            "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+            "protocol": "uniswap_v4"
+          },
+          "protocol": "uniswap_v4",
+          "quoteMethod": "uniswap_v4_reference_quote",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoterGasEstimate": 0,
+          "sdkAdapter": "reference_quote_adapter",
+          "staticQuote": {
+            "executionTrust": "sdk_adapter_required",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "uniswap_v4_sdk_adapter_required"
+          },
+          "status": "live_verified",
+          "toSymbol": "WETH",
+          "tokenIn": "0x7195e2088f3DFCca56e6A71D129051963Ed9657A",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountIn": "0.40266017170327617",
+          "amountInRaw": "402660171703276170",
+          "amountOut": "1002.112327",
+          "amountOutRaw": "1002112327",
+          "fee": 100,
+          "fromSymbol": "WETH",
+          "hop": 4,
+          "initializedTicksCrossed": 1,
+          "inputDecimals": 18,
+          "outputDecimals": 6,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "poolState": {
+            "blockNumber": 45618391,
+            "fee": 100,
+            "liquidity": "1032237086978074496",
+            "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+            "protocol": "uniswap_v3",
+            "sqrtPriceX96": "3952704885052324393021500",
+            "tick": -198124,
+            "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+          },
+          "protocol": "uniswap_v3",
+          "quoteMethod": "v3_quoter_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 139280,
+          "sqrtPriceX96After": "3952627959011809130181522",
+          "staticQuote": {
+            "executionTrust": "reference_only",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "reference_price_requires_live_quoter"
+          },
+          "status": "live_verified",
+          "toSymbol": "USDG",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "network": "robinhood",
+      "observedAt": "2026-08-25T09:24:14.424164+00:00",
+      "quoteBlockSource": "trigger_block",
+      "quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+      "readyForTransactionPreflight": false,
+      "routeAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "routeSymbols": [
+        "USDG",
+        "WETH",
+        "CATS",
+        "WETH",
+        "USDG"
+      ],
+      "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+      "status": "live_verified",
+      "transactionDevelopment": {
+        "blockers": [
+          "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+        ],
+        "executionEnabled": false,
+        "status": "blocked_before_transaction_development"
+      },
+      "triggerBlockNumber": 45618391,
+      "triggerContext": {
+        "available": true,
+        "blockNumber": 45618391,
+        "blockTimestamp": 1787649889,
+        "chainId": 4663,
+        "error": null,
+        "network": "robinhood",
+        "observedAt": "2026-08-25T09:24:14.424164+00:00",
+        "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+        "source": "scan_trigger_chain_head",
+        "triggerBlockNumber": 45618391
+      },
+      "trustedForExecution": false,
+      "validation": {
+        "allHopsQuoted": true,
+        "finalOutputDecimals": 6,
+        "finalOutputSymbol": "USDG",
+        "profitableAfterCosts": false,
+        "routeClosed": true,
+        "tokenContinuity": true,
+        "tokenContinuityIssues": []
+      }
+    },
+    "live_profit_bps": 6.12327,
+    "live_profit_percent": 0.0612327,
+    "pair": "USDG -> WETH -> CATS -> WETH -> USDG",
+    "pair_rank": 5,
+    "path": [
+      "USDG",
+      "WETH",
+      "CATS",
+      "WETH",
+      "USDG"
+    ],
+    "priority_reason": "requires_live_quote",
+    "quote_analysis": {
+      "adapterRequired": true,
+      "complete": true,
+      "executableCandidate": false,
+      "finalOutputUsd": null,
+      "flashLoanFeeBps": 5.0,
+      "flashLoanFeeUsd": 0.5,
+      "gasReserveUsd": 1.0,
+      "grossProfitUsd": null,
+      "inputSymbol": "USDG",
+      "method": "static_amm_depth_probe",
+      "minProfitUsd": 2.0,
+      "netProfitBps": null,
+      "netProfitUsd": null,
+      "notionalUsd": 1000.0,
+      "outputSymbol": "USDG",
+      "profitable": false,
+      "recommendation": {
+        "action": "等待链上 Quoter 复核",
+        "level": "requires_live_quote",
+        "reasons": [
+          "路径包含 V3/V4 或参考价报价跳，静态余额不能作为自动交易依据",
+          "必须用链上 Quoter 或协议 SDK 复核每一跳输出后才能进入预检"
+        ]
+      },
+      "referenceFinalOutputUsd": 988.0538920810002,
+      "referenceGrossProfitUsd": -11.946107918999815,
+      "referenceNetProfitBps": -134.46107918999815,
+      "referenceNetProfitUsd": -13.446107918999815,
+      "requiresLiveQuoter": true,
+      "sdkAdapterRequiredStepCount": 2,
+      "stepCount": 4,
+      "steps": [
+        {
+          "depthBand": {
+            "label": "深度充足",
+            "level": "deep"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "reference_only",
+          "fee": "v3",
+          "feeBps": 30.0,
+          "fromSymbol": "USDG",
+          "hop": 1,
+          "inputAmount": 1000.0,
+          "inputUsd": 1000.0,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v3",
+          "quoteSource": "reference_price_requires_live_quoter",
+          "referenceEffectiveRate": 0.00040508704820909676,
+          "referenceOutputAmount": 0.4050870482090968,
+          "referenceOutputUsd": 997.0005430222993,
+          "reserveInUsd": 3312379.0,
+          "reserveOutUsd": 1752237.0999999999,
+          "status": "quoted",
+          "toSymbol": "WETH",
+          "tokenIn": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "warning": "concentrated_liquidity_pool_requires_quoter"
+        },
+        {
+          "adapterRequired": true,
+          "depthBand": {
+            "label": "浅池",
+            "level": "shallow"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "sdk_adapter_required",
+          "fee": "v4",
+          "feeBps": 30.0,
+          "fromSymbol": "WETH",
+          "hop": 2,
+          "inputAmount": 0.4050870482090968,
+          "inputUsd": 997.0005430222993,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v4",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoteSource": "uniswap_v4_sdk_adapter_required",
+          "referenceEffectiveRate": 20255993.498577815,
+          "referenceOutputAmount": 8205440.614881543,
+          "referenceOutputUsd": 995.0359970431207,
+          "reserveInUsd": 15920.523110047981,
+          "reserveOutUsd": 15934.666889952017,
+          "status": "quoted",
+          "toSymbol": "CATS",
+          "tokenIn": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "tokenOut": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "warning": "uniswap_v4_sdk_adapter_required"
+        },
+        {
+          "adapterRequired": true,
+          "depthBand": {
+            "label": "浅池",
+            "level": "shallow"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "sdk_adapter_required",
+          "fee": "v4",
+          "feeBps": 30.0,
+          "fromSymbol": "CATS",
+          "hop": 3,
+          "inputAmount": 8205440.614881543,
+          "inputUsd": 995.0359970431207,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v4",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoteSource": "uniswap_v4_sdk_adapter_required",
+          "referenceEffectiveRate": 4.907234e-08,
+          "referenceOutputAmount": 0.40266017170327617,
+          "referenceOutputUsd": 991.0275127690529,
+          "reserveInUsd": 15934.666889952017,
+          "reserveOutUsd": 15920.523110047981,
+          "status": "quoted",
+          "toSymbol": "WETH",
+          "tokenIn": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "tokenOut": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "warning": "uniswap_v4_sdk_adapter_required"
+        },
+        {
+          "depthBand": {
+            "label": "深度充足",
+            "level": "deep"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "reference_only",
+          "fee": "v3",
+          "feeBps": 30.0,
+          "fromSymbol": "WETH",
+          "hop": 4,
+          "inputAmount": 0.40266017170327617,
+          "inputUsd": 991.0275127690529,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v3",
+          "quoteSource": "reference_price_requires_live_quoter",
+          "referenceEffectiveRate": 2453.8158018,
+          "referenceOutputAmount": 988.0538920810002,
+          "referenceOutputUsd": 988.0538920810002,
+          "reserveInUsd": 1752237.0999999999,
+          "reserveOutUsd": 3312379.0,
+          "status": "quoted",
+          "toSymbol": "USDG",
+          "tokenIn": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "tokenOut": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "warning": "concentrated_liquidity_pool_requires_quoter"
+        }
+      ],
+      "warnings": [
+        "reference_price_step_requires_live_quoter"
+      ]
+    },
+    "quote_requests": [
+      {
+        "fee": "v3",
+        "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+        "protocol": "uniswap",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=amm_pool",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "fee": "v3",
+        "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a",
+        "protocol": "uniswap",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=amm_pool",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "fee": "v3",
+        "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334",
+        "protocol": "uniswap",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=amm_pool",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "fee": "v3",
+        "pool": "0x9B050cb1F265094b0977160a2BD7dA8C9E529c3C",
+        "protocol": "sushiswap",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=amm_pool",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "fee": "v4",
+        "pool": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+        "protocol": "uniswap",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=amm_pool",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "adapterHints": [
+          "pool_manager_state_required",
+          "hook_aware_quote_required",
+          "sdk_or_adapter_must_return_amount_out_raw"
+        ],
+        "chainId": 4663,
+        "pools": [
+          "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+          "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018"
+        ],
+        "quoteMode": "uniswap_v4_sdk_exact_input_single",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=uniswap_v4",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "sdk_adapter_required",
+        "venue": "uniswap_v4"
+      },
+      {
+        "chainId": 4663,
+        "quoteMode": "intent_exact_input",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=USDG%20-%3E%20WETH%20-%3E%20CATS%20-%3E%20WETH%20-%3E%20USDG&venue=uniswapx",
+        "reactorFamily": "Dutch V3 Reactor",
+        "requires": [
+          "sellToken",
+          "buyToken",
+          "amount",
+          "userAddress"
+        ],
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "routeSymbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+            "symbol": "CATS"
+          },
+          {
+            "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+            "symbol": "WETH"
+          },
+          {
+            "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+            "symbol": "USDG"
+          }
+        ],
+        "status": "quoteable_after_static_probe",
+        "venue": "uniswapx"
+      }
+    ],
+    "quote_required": true,
+    "quote_verified": true,
+    "readonly_viable": false,
+    "reference_final_amount": 988.0538920810002,
+    "reference_final_delta_amount": -13.446107918999815,
+    "route": {
+      "analysisStage": "overview_candidate_only",
+      "anchorBorrowSymbol": "USDG",
+      "bridgeSymbols": [
+        "WETH"
+      ],
+      "candidatePairAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73:0x7195e2088f3dfcca56e6a71d129051963ed9657a"
+      ],
+      "candidatePairSymbols": [
+        "WETH:USDG",
+        "CATS:WETH"
+      ],
+      "kind": "bridge_pair",
+      "nextStep": "quotes_and_route_analysis",
+      "pathAddressText": "0x5fc5360d0400a0fd4f2af552add042d716f1d168 -> 0x0bd7d308f8e1639fab988df18a8011f41eacad73 -> 0x7195e2088f3dfcca56e6a71d129051963ed9657a -> 0x0bd7d308f8e1639fab988df18a8011f41eacad73 -> 0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "pathAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "WETH",
+        "CATS",
+        "WETH",
+        "USDG"
+      ],
+      "pathText": "USDG -> WETH -> CATS -> WETH -> USDG",
+      "pathTokens": [
+        {
+          "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "symbol": "USDG"
+        },
+        {
+          "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "symbol": "WETH"
+        },
+        {
+          "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "symbol": "CATS"
+        },
+        {
+          "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "symbol": "WETH"
+        },
+        {
+          "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "symbol": "USDG"
+        }
+      ],
+      "targetSymbol": "CATS"
+    },
+    "routeAddresses": [
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+      "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    ],
+    "routeTokenPath": [
+      {
+        "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "symbol": "USDG"
+      },
+      {
+        "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "symbol": "WETH"
+      },
+      {
+        "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "symbol": "CATS"
+      },
+      {
+        "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "symbol": "WETH"
+      },
+      {
+        "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "symbol": "USDG"
+      }
+    ],
+    "route_addresses": [
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+      "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+    ],
+    "route_token_path": [
+      {
+        "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "symbol": "USDG"
+      },
+      {
+        "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "symbol": "WETH"
+      },
+      {
+        "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "symbol": "CATS"
+      },
+      {
+        "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "symbol": "WETH"
+      },
+      {
+        "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "symbol": "USDG"
+      }
+    ],
+    "transaction_development": {
+      "blockers": [
+        "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+      ],
+      "executionEnabled": false,
+      "status": "blocked_before_transaction_development"
+    },
+    "trigger_context": {
+      "available": true,
+      "blockNumber": 45618391,
+      "blockTimestamp": 1787649889,
+      "chainId": 4663,
+      "error": null,
+      "network": "robinhood",
+      "observedAt": "2026-08-25T09:24:14.424164+00:00",
+      "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+      "source": "scan_trigger_chain_head",
+      "triggerBlockNumber": 45618391
+    },
+    "trigger_source": "dex_quote_routes_scan",
+    "viable": false
+  },
+  "review_analysis_days": 1,
+  "review_category": "not_executable",
+  "review_category_label": "not executable",
+  "review_retention_days": 2,
+  "review_retention_policy": {
+    "active_bucket_days": 1,
+    "description": "current and previous local-day buckets",
+    "storage_buckets": 2,
+    "storage_days": 2,
+    "timezone": "Asia/Shanghai",
+    "unit": "day"
+  },
+  "review_summary": {
+    "candidate_basis": "dex_opportunity_scanner",
+    "control_mode": null,
+    "costs": {
+      "approval_gas_status": null,
+      "cow_fee_amounts": [],
+      "native_balance_source": null,
+      "quote_api_gas_used": null,
+      "settlement_gas_payer": null,
+      "user_order_submission_gas_used": null
+    },
+    "cow_quote": {
+      "error": null,
+      "error_raw": null,
+      "error_type": null,
+      "final_amount": null,
+      "final_delta_amount": null,
+      "final_symbol": "USDG",
+      "hops": [
+        {
+          "depthBand": {
+            "label": "深度充足",
+            "level": "deep"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "reference_only",
+          "fee": "v3",
+          "feeBps": 30.0,
+          "fromSymbol": "USDG",
+          "hop": 1,
+          "inputAmount": 1000.0,
+          "inputUsd": 1000.0,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v3",
+          "quoteSource": "reference_price_requires_live_quoter",
+          "referenceEffectiveRate": 0.00040508704820909676,
+          "referenceOutputAmount": 0.4050870482090968,
+          "referenceOutputUsd": 997.0005430222993,
+          "reserveInUsd": 3312379.0,
+          "reserveOutUsd": 1752237.0999999999,
+          "status": "quoted",
+          "toSymbol": "WETH",
+          "tokenIn": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "tokenOut": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "warning": "concentrated_liquidity_pool_requires_quoter"
+        },
+        {
+          "adapterRequired": true,
+          "depthBand": {
+            "label": "浅池",
+            "level": "shallow"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "sdk_adapter_required",
+          "fee": "v4",
+          "feeBps": 30.0,
+          "fromSymbol": "WETH",
+          "hop": 2,
+          "inputAmount": 0.4050870482090968,
+          "inputUsd": 997.0005430222993,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v4",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoteSource": "uniswap_v4_sdk_adapter_required",
+          "referenceEffectiveRate": 20255993.498577815,
+          "referenceOutputAmount": 8205440.614881543,
+          "referenceOutputUsd": 995.0359970431207,
+          "reserveInUsd": 15920.523110047981,
+          "reserveOutUsd": 15934.666889952017,
+          "status": "quoted",
+          "toSymbol": "CATS",
+          "tokenIn": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "tokenOut": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "warning": "uniswap_v4_sdk_adapter_required"
+        },
+        {
+          "adapterRequired": true,
+          "depthBand": {
+            "label": "浅池",
+            "level": "shallow"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "sdk_adapter_required",
+          "fee": "v4",
+          "feeBps": 30.0,
+          "fromSymbol": "CATS",
+          "hop": 3,
+          "inputAmount": 8205440.614881543,
+          "inputUsd": 995.0359970431207,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v4",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoteSource": "uniswap_v4_sdk_adapter_required",
+          "referenceEffectiveRate": 4.907234e-08,
+          "referenceOutputAmount": 0.40266017170327617,
+          "referenceOutputUsd": 991.0275127690529,
+          "reserveInUsd": 15934.666889952017,
+          "reserveOutUsd": 15920.523110047981,
+          "status": "quoted",
+          "toSymbol": "WETH",
+          "tokenIn": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "tokenOut": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "warning": "uniswap_v4_sdk_adapter_required"
+        },
+        {
+          "depthBand": {
+            "label": "深度充足",
+            "level": "deep"
+          },
+          "dex": "uniswap",
+          "effectiveRate": null,
+          "executionTrust": "reference_only",
+          "fee": "v3",
+          "feeBps": 30.0,
+          "fromSymbol": "WETH",
+          "hop": 4,
+          "inputAmount": 0.40266017170327617,
+          "inputUsd": 991.0275127690529,
+          "outputAmount": null,
+          "outputUsd": null,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "priceImpactBps": null,
+          "protocol": "uniswap_v3",
+          "quoteSource": "reference_price_requires_live_quoter",
+          "referenceEffectiveRate": 2453.8158018,
+          "referenceOutputAmount": 988.0538920810002,
+          "referenceOutputUsd": 988.0538920810002,
+          "reserveInUsd": 1752237.0999999999,
+          "reserveOutUsd": 3312379.0,
+          "status": "quoted",
+          "toSymbol": "USDG",
+          "tokenIn": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "tokenOut": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "warning": "concentrated_liquidity_pool_requires_quoter"
+        }
+      ],
+      "input_amount": 1000.0,
+      "input_symbol": "USDG",
+      "quote_verified": true,
+      "viable": false
+    },
+    "cow_sdk": {
+      "intent": {},
+      "result": {}
+    },
+    "edge_hint_percent": null,
+    "market_prices": [],
+    "onchain_evidence": {
+      "all_hops_quoted": true,
+      "available": true,
+      "blockNumber": 45618391,
+      "blockTimestamp": 1787649889,
+      "block_number": 45618391,
+      "block_timestamp": 1787649889,
+      "blockers": [
+        "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+      ],
+      "chainId": 4663,
+      "chain_id": 4663,
+      "executionTrust": "live_quoter_verified_readonly",
+      "execution_trust": "live_quoter_verified_readonly",
+      "final_output_usd": 1002.112327,
+      "hop_count": 4,
+      "hops": [
+        {
+          "amountIn": "1000",
+          "amountInRaw": "1000000000",
+          "amountOut": "0.40171543858115609",
+          "amountOutRaw": "401715438581156090",
+          "fee": 100,
+          "fromSymbol": "USDG",
+          "hop": 1,
+          "initializedTicksCrossed": 1,
+          "inputDecimals": 6,
+          "outputDecimals": 18,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "poolState": {
+            "blockNumber": 45618391,
+            "fee": 100,
+            "liquidity": "1032237086978074496",
+            "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+            "protocol": "uniswap_v3",
+            "sqrtPriceX96": "3952704885052324393021500",
+            "tick": -198124,
+            "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+          },
+          "protocol": "uniswap_v3",
+          "quoteMethod": "v3_quoter_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 91558,
+          "sqrtPriceX96After": "3952781631219166677394438",
+          "staticQuote": {
+            "executionTrust": "reference_only",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "reference_price_requires_live_quoter"
+          },
+          "status": "live_verified",
+          "toSymbol": "WETH",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountIn": "0.40171543858115609",
+          "amountInRaw": "401715438581156090",
+          "amountOut": "8205440.614881543",
+          "amountOutRaw": "8205440614881543000000000",
+          "fee": "v4",
+          "fromSymbol": "WETH",
+          "hop": 2,
+          "inputDecimals": 18,
+          "outputDecimals": 18,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "poolState": {
+            "blockNumber": 45618391,
+            "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+            "protocol": "uniswap_v4"
+          },
+          "protocol": "uniswap_v4",
+          "quoteMethod": "uniswap_v4_reference_quote",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoterGasEstimate": 0,
+          "sdkAdapter": "reference_quote_adapter",
+          "staticQuote": {
+            "executionTrust": "sdk_adapter_required",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "uniswap_v4_sdk_adapter_required"
+          },
+          "status": "live_verified",
+          "toSymbol": "CATS",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x7195e2088f3DFCca56e6A71D129051963Ed9657A"
+        },
+        {
+          "amountIn": "8205440.614881543",
+          "amountInRaw": "8205440614881543000000000",
+          "amountOut": "0.40266017170327617",
+          "amountOutRaw": "402660171703276170",
+          "fee": "v4",
+          "fromSymbol": "CATS",
+          "hop": 3,
+          "inputDecimals": 18,
+          "outputDecimals": 18,
+          "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+          "poolState": {
+            "blockNumber": 45618391,
+            "pool": "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+            "protocol": "uniswap_v4"
+          },
+          "protocol": "uniswap_v4",
+          "quoteMethod": "uniswap_v4_reference_quote",
+          "quoteMode": "uniswap_v4_sdk_exact_input_single",
+          "quoterGasEstimate": 0,
+          "sdkAdapter": "reference_quote_adapter",
+          "staticQuote": {
+            "executionTrust": "sdk_adapter_required",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "uniswap_v4_sdk_adapter_required"
+          },
+          "status": "live_verified",
+          "toSymbol": "WETH",
+          "tokenIn": "0x7195e2088f3DFCca56e6A71D129051963Ed9657A",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountIn": "0.40266017170327617",
+          "amountInRaw": "402660171703276170",
+          "amountOut": "1002.112327",
+          "amountOutRaw": "1002112327",
+          "fee": 100,
+          "fromSymbol": "WETH",
+          "hop": 4,
+          "initializedTicksCrossed": 1,
+          "inputDecimals": 18,
+          "outputDecimals": 6,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+          "poolState": {
+            "blockNumber": 45618391,
+            "fee": 100,
+            "liquidity": "1032237086978074496",
+            "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+            "protocol": "uniswap_v3",
+            "sqrtPriceX96": "3952704885052324393021500",
+            "tick": -198124,
+            "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+          },
+          "protocol": "uniswap_v3",
+          "quoteMethod": "v3_quoter_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 139280,
+          "sqrtPriceX96After": "3952627959011809130181522",
+          "staticQuote": {
+            "executionTrust": "reference_only",
+            "outputAmount": null,
+            "outputUsd": null,
+            "quoteSource": "reference_price_requires_live_quoter"
+          },
+          "status": "live_verified",
+          "toSymbol": "USDG",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "meetsMinProfitThreshold": false,
+      "meets_min_profit_threshold": false,
+      "netPositiveAfterCosts": true,
+      "netProfitBps": 6.12327,
+      "net_positive_after_costs": true,
+      "net_profit_bps": 6.12327,
+      "net_profit_usd": 0.612327,
+      "network": "robinhood",
+      "observedAt": "2026-08-25T09:24:14.424164+00:00",
+      "observed_at": "2026-08-25T09:24:14.424164+00:00",
+      "profitable_after_costs": false,
+      "quoteBlockSource": "trigger_block",
+      "quote_block_source": "trigger_block",
+      "readyForTransactionPreflight": false,
+      "ready_for_transaction_preflight": false,
+      "routeAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "routeIdentity": {
+        "address_source": "row.route_addresses",
+        "hop_count": 4,
+        "identity_mode": "address",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "route_addresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "route_symbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "status": "ok",
+        "tokenContinuity": true,
+        "tokenContinuityIssues": [],
+        "token_continuity": true,
+        "token_continuity_issues": []
+      },
+      "routeIdentityMode": "address",
+      "routeIdentityStatus": "ok",
+      "routeSymbols": [
+        "USDG",
+        "WETH",
+        "CATS",
+        "WETH",
+        "USDG"
+      ],
+      "route_addresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "route_identity": {
+        "address_source": "row.route_addresses",
+        "hop_count": 4,
+        "identity_mode": "address",
+        "routeAddresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "route_addresses": [
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+          "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+          "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+        ],
+        "route_symbols": [
+          "USDG",
+          "WETH",
+          "CATS",
+          "WETH",
+          "USDG"
+        ],
+        "status": "ok",
+        "tokenContinuity": true,
+        "tokenContinuityIssues": [],
+        "token_continuity": true,
+        "token_continuity_issues": []
+      },
+      "route_identity_mode": "address",
+      "route_identity_status": "ok",
+      "route_symbols": [
+        "USDG",
+        "WETH",
+        "CATS",
+        "WETH",
+        "USDG"
+      ],
+      "status": "live_verified",
+      "tokenContinuity": true,
+      "tokenContinuityIssues": [],
+      "token_continuity": true,
+      "token_continuity_issues": [],
+      "transactionDevelopment": {
+        "blockers": [
+          "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+        ],
+        "executionEnabled": false,
+        "status": "blocked_before_transaction_development"
+      },
+      "transaction_development": {
+        "blockers": [
+          "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+        ],
+        "executionEnabled": false,
+        "status": "blocked_before_transaction_development"
+      },
+      "triggerBlockNumber": 45618391,
+      "triggerContext": {
+        "available": true,
+        "blockNumber": 45618391,
+        "blockTimestamp": 1787649889,
+        "chainId": 4663,
+        "error": null,
+        "network": "robinhood",
+        "observedAt": "2026-08-25T09:24:14.424164+00:00",
+        "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+        "source": "scan_trigger_chain_head",
+        "triggerBlockNumber": 45618391
+      },
+      "trigger_block_number": 45618391,
+      "trigger_context": {
+        "available": true,
+        "blockNumber": 45618391,
+        "blockTimestamp": 1787649889,
+        "chainId": 4663,
+        "error": null,
+        "network": "robinhood",
+        "observedAt": "2026-08-25T09:24:14.424164+00:00",
+        "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+        "source": "scan_trigger_chain_head",
+        "triggerBlockNumber": 45618391
+      },
+      "trustedForExecution": false,
+      "trusted_for_execution": false
+    },
+    "phase": "market_candidate",
+    "plan": {
+      "available": null,
+      "final_symbol": "USDG",
+      "final_target_amount": null,
+      "initial_amount": 1000.0,
+      "initial_symbol": "USDG",
+      "profit_amount": null,
+      "profit_percent": null,
+      "slippage_bps": null,
+      "steps": []
+    },
+    "price_source": "dex_live_onchain_quote",
+    "profit_guard": {
+      "auto_execute_min_profit_percent": null,
+      "auto_execute_min_profit_usd": null,
+      "blocking_cause_counts": {},
+      "can_submit_order": false,
+      "checks_passed": false,
+      "drawdown_amount": null,
+      "drawdown_percent": null,
+      "final_symbol": "USDG",
+      "hop_checks": [],
+      "local_profit_diagnostic_reasons": [],
+      "local_profit_gate_enforced": null,
+      "price_guards_passed": null,
+      "profit_above_auto_threshold": null,
+      "pure_profit_amount": null,
+      "quote_error_display": null,
+      "quote_error_type": null,
+      "reasons": [
+        "链上复核后未覆盖闪电贷费用、gas 储备和最小利润阈值。"
+      ],
+      "status": "live_verified"
+    },
+    "route_hop_constraints_enforced": false,
+    "threshold": {},
+    "timing": {
+      "binance_window": {},
+      "quote": {},
+      "signal": {},
+      "three_hop_window_analysis": []
+    },
+    "trigger_source": "dex_quote_routes_scan",
+    "window_seconds": null,
+    "window_spread_percent": null
+  },
+  "route_addresses": [
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+    "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+    "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+  ],
+  "route_path": [
+    "USDG",
+    "WETH",
+    "CATS",
+    "WETH",
+    "USDG"
+  ],
+  "route_token_path": [
+    {
+      "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "symbol": "USDG"
+    },
+    {
+      "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "symbol": "WETH"
+    },
+    {
+      "address": "0x7195e2088f3dfcca56e6a71d129051963ed9657a",
+      "symbol": "CATS"
+    },
+    {
+      "address": "0x0bd7d308f8e1639fab988df18a8011f41eacad73",
+      "symbol": "WETH"
+    },
+    {
+      "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "symbol": "USDG"
+    }
+  ],
+  "state": "quote_required"
+}

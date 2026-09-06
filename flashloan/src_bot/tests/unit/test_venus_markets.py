@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from execution import venus_markets
+from bot.execution import venus_markets
 
 
 VTOKEN = "0x0000000000000000000000000000000000000011"

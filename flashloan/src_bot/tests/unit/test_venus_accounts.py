@@ -1,6 +1,6 @@
 from web3 import Web3
 
-from execution.venus_accounts import (
+from bot.execution.venus_accounts import (
     build_venus_borrower_registry_from_events,
     dedupe_venus_events,
     discover_venus_borrower_accounts,
@@ -12,7 +12,7 @@ from execution.venus_accounts import (
     validate_venus_borrower_registry,
     write_venus_event_journal,
 )
-from execution.venus_abis import VENUS_EVENT_SPECS
+from bot.execution.venus_abis import VENUS_EVENT_SPECS
 
 
 def test_extract_venus_event_account_decodes_borrow_data():

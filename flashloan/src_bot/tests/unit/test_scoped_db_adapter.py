@@ -1,6 +1,6 @@
 import pytest
 
-from db.scoped_adapter import validate_scoped_row, validate_scoped_rows
+from core.db.scoped_adapter import validate_scoped_row, validate_scoped_rows
 
 
 def test_db_row_scope_is_validated_before_domain_use():

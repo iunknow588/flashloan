@@ -1,4 +1,4 @@
-from strategy.arbitrage import (
+from market.strategy.arbitrage import (
     ArbitrageConfig,
     build_pair_strategy_analysis,
     choose_signed_strategy,
@@ -237,7 +237,7 @@ def test_build_pair_strategy_analysis_exposes_ratio_and_hop_breakdown():
 
 
 def test_build_pair_strategy_analysis_reuses_precomputed_routes(monkeypatch):
-    import strategy.arbitrage as arbitrage
+    import market.strategy.arbitrage as arbitrage
 
     config = ArbitrageConfig(
         notional_usd=100,

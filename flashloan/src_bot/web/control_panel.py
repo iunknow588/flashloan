@@ -18,11 +18,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.config_schema import parse_env_float, parse_env_int
-from execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
+from bot.execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
 from core.env_loader import load_env_files, local_json_only_enabled, resolve_env_path
 from core.sensitive_data import redact_sensitive_text
-from execution.execution_payload import PayloadConfig, build_execution_payload
-from execution.liquidation_scan import (
+from bot.execution.execution_payload import PayloadConfig, build_execution_payload
+from bot.execution.liquidation_scan import (
     LiquidationScanConfig,
     build_user_liquidation_report,
     discover_borrower_addresses,
@@ -32,17 +32,17 @@ from execution.liquidation_scan import (
     scan_account_health,
     watched_health_rows,
 )
-from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
+from bot.execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
 from market.aave_reserve_cache import load_aave_reserve_assets
 from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES, env_urls, resolve_aave_binance_overlap_symbols
-from execution.plan_quotes import quote_execution_plan
-from strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
-from web.control_panel_config import (
+from bot.execution.plan_quotes import quote_execution_plan
+from market.strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
+from market.binance_market.control_panel_config import (
     strategy_config as read_strategy_config,
     unified_sampling_profile,
     write_strategy_config as save_strategy_config,
 )
-from web.parameter_config import LIQUIDATION_CONFIG_PATH, STRATEGY_CONFIG_PATH
+from core.parameter_config import LIQUIDATION_CONFIG_PATH, STRATEGY_CONFIG_PATH
 from web.control_panel_data import (
     aave_reserve_cache as read_aave_reserve_cache,
     borrow_target_universe as read_borrow_target_universe,
@@ -64,15 +64,15 @@ from web.control_panel_data import (
     recent_velocity_timepoints as read_recent_velocity_timepoints,
     velocity_timepoint_snapshot as read_velocity_timepoint_snapshot,
 )
-from web.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
+from core.control_panel_stats import testnet_trade_stats as read_testnet_trade_stats, trade_stats as read_trade_stats
 import web.control_panel_liquidation_base as liquidation_base
 import web.control_panel_liquidation_audit as liquidation_audit
 import web.control_panel_liquidation_scan as liquidation_scan_module
 import web.control_panel_liquidation_execute as liquidation_execute
 import web.control_panel_market as market_panel
 from web.control_panel_app import create_control_panel_app
-from web.control_panel_cow_pause import disable_cow_submission_for_startup
-from observer_runtime import ObserverRuntimeService
+from dex.runtime.cow_submission_pause import disable_cow_submission_for_startup
+from market.observer_runtime_pkg import ObserverRuntimeService
 
 for _module in (
     liquidation_base,
@@ -82,8 +82,8 @@ for _module in (
     market_panel,
 ):
     globals().update({name: value for name, value in vars(_module).items() if not name.startswith("_")})
-from db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
-from db.storage_liquidation import (
+from core.db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
+from core.db.storage_liquidation import (
     load_liquidation_accounts as db_load_liquidation_accounts,
     load_liquidation_accounts_page as db_load_liquidation_accounts_page,
     load_latest_liquidation_account_reports as db_load_latest_liquidation_account_reports,
@@ -95,7 +95,7 @@ from db.storage_liquidation import (
     record_liquidation_discovery_scan as db_record_liquidation_discovery_scan,
     upsert_liquidation_accounts as db_upsert_liquidation_accounts,
 )
-from db.storage_liquidation_pool import (
+from core.db.storage_liquidation_pool import (
     load_liquidation_accounts_for_assets as db_load_liquidation_accounts_for_assets,
     load_liquidation_borrow_health_scan_batches as db_load_liquidation_borrow_health_scan_batches,
     load_liquidation_borrow_health_pool as db_load_liquidation_borrow_health_pool,
@@ -104,17 +104,17 @@ from db.storage_liquidation_pool import (
     record_liquidation_borrow_health_scan_batch as db_record_liquidation_borrow_health_scan_batch,
     sync_liquidation_borrow_health_pool as db_sync_liquidation_borrow_health_pool,
 )
-from db.storage_schema import ensure_database_schema, load_schema_migrations
-from runtime.cow_arbitrage_daemon import cow_quote_daemon_enabled, ensure_cow_quote_daemon_running
-from runtime.liquidation_daemon import market_status_payload, read_daemon_status
-from runtime.liquidation_engine import LiquidationEngine, LiquidationEngineConfig, LiquidationEngineDependencies
-from runtime.liquidation_market_bridge import (
+from core.db.storage_schema import ensure_database_schema, load_schema_migrations
+from dex.runtime.cow_arbitrage_daemon import cow_quote_daemon_enabled, ensure_cow_quote_daemon_running
+from bot.runtime.liquidation_daemon import market_status_payload, read_daemon_status
+from bot.runtime.liquidation_engine import LiquidationEngine, LiquidationEngineConfig, LiquidationEngineDependencies
+from bot.runtime.liquidation_market_bridge import (
     asset_variants_for_market_symbols,
     binance_symbols_for_liquidation_assets,
     liquidation_asset_ids_from_pool_rows,
     price_snapshot_from_extremes,
 )
-from runtime.liquidation_price_trigger import accounts_triggered_by_prices
+from bot.runtime.liquidation_price_trigger import accounts_triggered_by_prices
 
 _BASE_ENSURE_DATABASE_SCHEMA = ensure_database_schema
 
@@ -1206,7 +1206,7 @@ def start_bnb_venus_watcher_runtime() -> dict:
 
         def runner() -> None:
             try:
-                from tools.watch_bnb_venus_liquidations import main as watch_bnb_venus_liquidations
+                from bot.tools.watch_bnb_venus_liquidations import main as watch_bnb_venus_liquidations
 
                 watch_bnb_venus_liquidations(
                     [

@@ -1,4 +1,4 @@
-from tools.aave_hit_stats import summarize_aave_hits
+from market.tools.aave_hit_stats import summarize_aave_hits
 
 
 def test_summarize_aave_hits_counts_unique_candidate_symbols():

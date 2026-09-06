@@ -1,4 +1,4 @@
-﻿from intent_trade.chains.robinhood.readiness import robinhood_deployment_status
+from dex.intent_trade.chains.robinhood.readiness import robinhood_deployment_status
 
 
 def _market(**overrides):

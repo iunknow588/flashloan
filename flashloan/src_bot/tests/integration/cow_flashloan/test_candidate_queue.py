@@ -1,6 +1,6 @@
-﻿from cow_flashloan.routes import CowToken
-from cow_flashloan.order_submission import cow_order_submission_network_supported
-from cow_flashloan.order_submission import submit_cow_flashloan_order
+from dex.cow_flashloan.routes import CowToken
+from dex.cow_flashloan.order_submission import cow_order_submission_network_supported
+from dex.cow_flashloan.order_submission import submit_cow_flashloan_order
 from runtime.cow_arbitrage_daemon import CowQuoteDaemon, default_quote_candidate
 from runtime.cow_candidate_queue import CowCandidateQueue
 import pytest
@@ -311,6 +311,22 @@ def test_cow_quote_daemon_retries_transient_quote_failures():
     assert queue.stats()["failed"] == 1
 
 
+def test_cow_quote_daemon_fails_candidate_when_deadline_exceeded():
+    queue = CowCandidateQueue(max_size=10)
+    queue.enqueue_many([_candidate()], source="test")
+
+    daemon = CowQuoteDaemon(
+        queue,
+        quote_candidate=lambda candidate, database_url: {"attempts": [], "result": {}},
+        poll_interval_seconds=0.2,
+        deadline_seconds=-1,
+    )
+
+    assert daemon.process_once() is True
+    assert queue.stats()["failed"] == 1
+    assert queue.snapshot(limit=1)[0]["last_error"] == "candidate_deadline_exceeded"
+
+
 def test_cow_quote_daemon_records_failed_attempt_when_quote_candidate_raises():
     queue = CowCandidateQueue(max_size=10)
     queue.enqueue_many([_candidate()], source="test")
@@ -374,7 +390,7 @@ def test_default_quote_candidate_rebuilds_execution_plan_and_support(monkeypatch
             }
         }
 
-    monkeypatch.setattr("cow_flashloan.routes.post_cow_quote", fake_quote)
+    monkeypatch.setattr("dex.cow_flashloan.routes.post_cow_quote", fake_quote)
     queue = CowCandidateQueue(max_size=10)
     queue.enqueue_many([_candidate()], source="test")
     candidate = queue.claim_next()
@@ -420,7 +436,7 @@ def test_default_quote_candidate_submits_when_precheck_enters_live_submit_state(
         lambda **kwargs: {"network": "bnb", "chain_id": 56, "registry": registry},
     )
     monkeypatch.setattr(
-        "cow_flashloan.routes.post_cow_quote",
+        "dex.cow_flashloan.routes.post_cow_quote",
         lambda **kwargs: {
             "quote": {
                 "buyAmount": "1010000000",
@@ -482,7 +498,7 @@ def test_default_quote_candidate_respects_submission_pause_guard(monkeypatch):
         lambda **kwargs: {"network": "bnb", "chain_id": 56, "registry": registry},
     )
     monkeypatch.setattr(
-        "cow_flashloan.routes.post_cow_quote",
+        "dex.cow_flashloan.routes.post_cow_quote",
         lambda **kwargs: {
             "quote": {
                 "buyAmount": "1010000000",
@@ -527,7 +543,7 @@ def test_default_quote_candidate_respects_submission_pause_guard(monkeypatch):
 
 def test_cow_order_submission_has_a_final_pause_guard(monkeypatch):
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+        "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "paused": True,
@@ -535,7 +551,7 @@ def test_cow_order_submission_has_a_final_pause_guard(monkeypatch):
         },
     )
     monkeypatch.setattr(
-        "cow_flashloan.order_submission.submission_script_ready",
+        "dex.cow_flashloan.order_submission.submission_script_ready",
         lambda: {"enabled": True, "requested": True},
     )
 

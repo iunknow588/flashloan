@@ -1,4 +1,4 @@
-from strategy.build_executable_signal import build_candidate, build_verified_signal
+from market.strategy.build_executable_signal import build_candidate, build_verified_signal
 
 
 def sample_candidate():

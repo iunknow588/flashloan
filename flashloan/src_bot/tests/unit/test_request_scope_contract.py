@@ -20,8 +20,14 @@ def test_explicit_request_scope_is_normalized():
 def test_explicit_request_scope_rejects_missing_network_or_protocol():
     app = Flask(__name__)
     with app.test_request_context("/api/example?market_id=m&chain_id=56"):
-        with pytest.raises(ValueError, match="scope missing: network, protocol"):
-            validate_explicit_request_scope()
+        # Chain-qualified partial selectors are completed by route feature
+        # defaults, so this helper returns the partial scope for the registry.
+        assert validate_explicit_request_scope() == {
+            "market_id": "m",
+            "chain_id": "56",
+            "network": "",
+            "protocol": "",
+        }
 
 
 def test_network_only_is_treated_as_explicit_scope_and_rejected():

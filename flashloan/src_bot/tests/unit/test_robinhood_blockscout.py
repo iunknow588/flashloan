@@ -1,4 +1,4 @@
-﻿from intent_trade.chains.robinhood.blockscout import (
+from dex.intent_trade.chains.robinhood.blockscout import (
     probe_robinhood_blockscout_contract,
     probe_robinhood_official_contracts,
 )

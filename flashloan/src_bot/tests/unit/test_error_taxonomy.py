@@ -23,3 +23,11 @@ def test_error_payload_carries_policy_and_trace():
     assert blocked["error_code"] == "risk_blocked"
     assert blocked["retryable"] is False
     assert blocked["manual_review"] is True
+
+
+def test_scope_mismatch_error_is_distinct_and_non_retryable():
+    payload = error_payload("scope_mismatch", "scope does not match")
+
+    assert payload["error_code"] == "scope_mismatch"
+    assert payload["retryable"] is False
+    assert payload["max_attempts"] == 1

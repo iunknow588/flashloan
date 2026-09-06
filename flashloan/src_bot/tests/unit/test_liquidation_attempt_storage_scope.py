@@ -1,6 +1,6 @@
 import pytest
 
-from db.storage_liquidation_attempts import _execution_attempt_from_row
+from core.db.storage_liquidation_attempts import _execution_attempt_from_row
 
 
 def test_execution_attempt_row_rejects_wrong_network():

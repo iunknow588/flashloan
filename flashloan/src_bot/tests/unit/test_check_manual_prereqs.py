@@ -1,4 +1,4 @@
-from tools.check_manual_prereqs import check_item, summarize_checks
+from core.tools.check_manual_prereqs import check_item, summarize_checks
 
 
 def test_summarize_checks_separates_required_and_manual_items():

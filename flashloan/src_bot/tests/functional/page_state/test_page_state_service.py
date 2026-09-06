@@ -1,12 +1,12 @@
 from web import control_panel
-from page_state import ExecutionStatus, PAGE_STATE_STORE, PageName, PageStateStore, execution_state_payload, store_page_state
+from bot.page_state import ExecutionStatus, PAGE_STATE_STORE, PageName, PageStateStore, execution_state_payload, store_page_state
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
 
 def test_debt_pool_state_emits_market_alert_once(monkeypatch, tmp_path):
     from web import control_panel
-    from market_events import store as market_volatility_event_store
+    from market.market_events import store as market_volatility_event_store
 
     PAGE_STATE_STORE._states.clear()
     observed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -67,7 +67,7 @@ def test_execution_state_payload_reflects_recorded_state():
 
 
 def test_page_state_store_syncs_to_database_parameter_map(monkeypatch):
-    from page_state import store as state_store
+    from bot.page_state import store as state_store
 
     database_url = "postgresql://example"
     stored = {}

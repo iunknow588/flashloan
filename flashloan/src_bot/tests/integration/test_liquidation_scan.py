@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from execution.liquidation_scan import (
+from bot.execution.liquidation_scan import (
     LiquidationScanConfig,
     build_liquidation_execution_plan,
     build_liquidation_candidates,
@@ -16,8 +16,8 @@ from execution.liquidation_scan import (
     watched_health_rows,
     split_candidate_accounts,
 )
-from execution.liquidation_payload import build_liquidation_execution_payload
-from tools.benchmark_liquidation_scan import run_synthetic_benchmark
+from bot.execution.liquidation_payload import build_liquidation_execution_payload
+from bot.tools.benchmark_liquidation_scan import run_synthetic_benchmark
 
 
 def test_load_account_addresses_deduplicates_and_skips_invalid(tmp_path: Path):
@@ -72,7 +72,7 @@ def test_estimate_liquidation_profit_subtracts_flashloan_slippage_and_gas():
 
 
 def test_build_liquidation_candidates_uses_amount_to_pass_for_profit(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     class FakeProvider:
         class functions:
@@ -132,7 +132,7 @@ def test_build_liquidation_candidates_uses_amount_to_pass_for_profit(monkeypatch
 
 
 def test_build_liquidation_candidates_uses_realtime_flashloan_premium(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     class FakeProvider:
         class functions:
@@ -196,7 +196,7 @@ def test_build_liquidation_candidates_uses_realtime_flashloan_premium(monkeypatc
 
 
 def test_build_liquidation_candidates_allows_same_asset_collateral_and_debt(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     calls = []
 
@@ -300,7 +300,7 @@ def test_watched_health_rows_filters_above_threshold():
 
 
 def test_scan_account_health_uses_fetcher(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     def fake_fetch(pool_address, account, rpc_url):
         return {
@@ -327,7 +327,7 @@ def test_scan_account_health_uses_fetcher(monkeypatch):
 
 
 def test_scan_account_health_uses_parallel_workers(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     calls = []
 
@@ -361,7 +361,7 @@ def test_scan_account_health_uses_parallel_workers(monkeypatch):
 
 
 def test_scan_account_health_uses_multicall_batch(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     accounts = [
         "0x0000000000000000000000000000000000000001",
@@ -417,7 +417,7 @@ def test_scan_account_health_uses_multicall_batch(monkeypatch):
 
 
 def test_scan_account_health_falls_back_when_multicall_fails(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     calls = []
 
@@ -469,7 +469,7 @@ def test_scan_account_health_5000_account_benchmark_stays_under_30_seconds():
 
 
 def test_scan_account_health_keeps_one_account_failure_isolated(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     def fake_fetch(pool_address, account, rpc_url):
         if account.endswith("2"):
@@ -501,7 +501,7 @@ def test_scan_account_health_keeps_one_account_failure_isolated(monkeypatch):
 
 
 def test_scan_account_health_redacts_fetch_errors(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     rpc_url = "https://rpc.example/path?token=abc123"
     private_key = "0x" + "4" * 64
@@ -548,7 +548,7 @@ def test_incremental_scan_keeps_watch_accounts_and_full_scan_fallback():
 
 
 def test_discover_borrower_addresses_scans_full_window_after_result_limit(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     calls = []
 
@@ -600,7 +600,7 @@ def test_discover_borrower_addresses_scans_full_window_after_result_limit(monkey
 
 
 def test_discover_borrower_addresses_allows_unlimited_results(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     def topic(address: str) -> str:
         return "0x" + "0" * 24 + address.removeprefix("0x").lower()
@@ -646,7 +646,7 @@ def test_discover_borrower_addresses_allows_unlimited_results(monkeypatch):
 
 
 def test_discover_borrower_addresses_can_stop_between_chunks(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
     import threading
 
     calls = []
@@ -743,7 +743,7 @@ def test_build_liquidation_execution_plan_requires_profit_above_one_usd():
 
 
 def test_near_threshold_healthy_account_is_not_liquidatable(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     account = "0xa845Cbe370B99AdDaB67AfE442F2cF5784d4dC29"
 
@@ -781,7 +781,7 @@ def test_near_threshold_healthy_account_is_not_liquidatable(monkeypatch):
 
 
 def test_aave_base_currency_values_are_normalized(monkeypatch):
-    from execution import liquidation_scan
+    from bot.execution import liquidation_scan
 
     monkeypatch.setenv("AAVE_BASE_CURRENCY_UNIT", "100000000")
 
@@ -905,7 +905,7 @@ def test_build_liquidation_execution_payload_requires_min_swap_output():
 
 
 def test_build_liquidation_execution_payload_quotes_min_swap_output(monkeypatch):
-    from execution import liquidation_payload
+    from bot.execution import liquidation_payload
     from web3 import Web3 as RealWeb3
 
     class FakeRouterFunctions:

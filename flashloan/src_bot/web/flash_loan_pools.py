@@ -9,7 +9,7 @@ from core.chain_data_registry import (
 from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
 from core.flash_loan_pools import pool_evidence_from_view, static_store_metadata, write_flash_loan_pool_static
 from core.market_config import PROTOCOL_CAPABILITIES, supported_market_summaries
-from intent_trade.flows.flash_loan_pools.presenter import (
+from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _empty_protocol_view,
     _is_route_only_protocol,
     _is_stable_symbol,

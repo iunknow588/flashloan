@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from intent_trade.chains.robinhood import config as robinhood
-from intent_trade.chains.robinhood.intent import build_robinhood_intent_draft, normalize_network
+from dex.intent_trade.chains.robinhood import config as robinhood
+from dex.intent_trade.chains.robinhood.intent import build_robinhood_intent_draft, normalize_network
 
 
 def _pool(pair: str, pool: str) -> dict:

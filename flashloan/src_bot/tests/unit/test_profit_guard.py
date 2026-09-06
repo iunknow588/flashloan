@@ -1,4 +1,4 @@
-from execution.profit_guard import ProfitGuardConfig, evaluate_profit_guard
+from bot.execution.profit_guard import ProfitGuardConfig, evaluate_profit_guard
 from datetime import datetime, timedelta, timezone
 
 

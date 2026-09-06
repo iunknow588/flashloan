@@ -8,15 +8,15 @@ from eth_account import Account
 from web3 import Web3
 
 from core.sensitive_data import redact_sensitive_text
-from execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
-from execution.liquidation_preflight import attach_liquidation_preflight_state
-from execution.nonce_manager import NonceManager
-from execution.private_tx import send_raw_transaction_private_first
-from execution.static_call import LIQUIDATION_EXECUTOR_ABI, simulate_request_liquidation_static_call
-from liquidation.execution_state import (
+from bot.execution.liquidation_payload import LiquidationExecutionPayloadConfig, build_liquidation_execution_payload
+from bot.execution.liquidation_preflight import attach_liquidation_preflight_state
+from bot.execution.nonce_manager import NonceManager
+from bot.execution.private_tx import send_raw_transaction_private_first
+from bot.execution.static_call import LIQUIDATION_EXECUTOR_ABI, simulate_request_liquidation_static_call
+from bot.liquidation.execution_state import (
     record_execution_state as _record_execution_state,
 )
-from liquidation.execution_orchestrator import (
+from bot.liquidation.execution_orchestrator import (
     LiquidationExecutionRuntime,
     execute_flashloan_liquidation,
     execute_self_funded_liquidation,
@@ -25,13 +25,13 @@ from liquidation.execution_orchestrator import (
 import web.control_panel_liquidation_base as liquidation_base
 from web.control_panel_liquidation_scan import liquidation_account_payload, scan_context_assets
 from web.control_panel_liquidation_support import run_liquidation_fork_simulation as _run_liquidation_fork_simulation_support
-from liquidation import (
+from bot.liquidation import (
     archive_submission_failure,
     apply_submission_gate,
     apply_static_call_result,
     submission_gate_transition,
 )
-from page_state import ExecutionStatus
+from bot.page_state import ExecutionStatus
 
 globals().update({name: value for name, value in vars(liquidation_base).items() if not name.startswith("_")})
 

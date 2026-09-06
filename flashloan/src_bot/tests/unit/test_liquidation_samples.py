@@ -2,7 +2,7 @@ import json
 import sys
 from pathlib import Path
 
-from execution.liquidation_samples import (
+from bot.execution.liquidation_samples import (
     build_liquidation_sample_manifest,
     build_liquidation_sample_record,
     classify_liquidation_sample_label,
@@ -125,7 +125,7 @@ def test_sample_manifest_ready_failure_includes_replay_metadata():
 
 
 def test_sample_record_includes_replayable_fields_without_payload_build(monkeypatch):
-    from execution import liquidation_samples
+    from bot.execution import liquidation_samples
 
     monkeypatch.setattr(
         liquidation_samples,
@@ -203,7 +203,7 @@ def test_serialize_liquidation_failure_samples_records_four_failure_classes():
 
 
 def test_liquidation_sample_payload_error_is_redacted(monkeypatch):
-    from execution import liquidation_samples
+    from bot.execution import liquidation_samples
 
     database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
     private_key = "0x" + "b" * 64
@@ -229,7 +229,7 @@ def test_liquidation_sample_payload_error_is_redacted(monkeypatch):
 
 
 def test_export_liquidation_samples_prints_replay_summary(monkeypatch, tmp_path: Path, capsys):
-    from tools import export_liquidation_samples as exporter
+    from bot.tools import export_liquidation_samples as exporter
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example")
     monkeypatch.setattr(exporter, "ensure_database_schema", lambda database_url: None)

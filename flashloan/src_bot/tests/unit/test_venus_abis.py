@@ -1,4 +1,4 @@
-from execution.venus_abis import COMPTROLLER_ABI, VENUS_CORE_COMPTROLLER_ADDRESS, VENUS_EVENT_SPECS, VTOKEN_ABI
+from bot.execution.venus_abis import COMPTROLLER_ABI, VENUS_CORE_COMPTROLLER_ADDRESS, VENUS_EVENT_SPECS, VTOKEN_ABI
 
 
 def _names(abi):

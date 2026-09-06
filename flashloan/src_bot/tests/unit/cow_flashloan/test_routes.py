@@ -1,9 +1,9 @@
-﻿import json
+import json
 from decimal import Decimal
 
 import pytest
 
-from cow_flashloan.routes import (
+from dex.cow_flashloan.routes import (
     CowToken,
     SUPPORTED_COW_NETWORKS,
     build_token_registry,
@@ -156,7 +156,7 @@ def test_load_cow_token_list_filters_selected_chain(monkeypatch):
                 }
             ).encode("utf-8")
 
-    monkeypatch.setattr("cow_flashloan.routes.urllib.request.urlopen", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr("dex.cow_flashloan.routes.urllib.request.urlopen", lambda *args, **kwargs: FakeResponse())
 
     tokens = load_cow_token_list("https://example.invalid/tokens.json", network="sepolia")
 
@@ -165,7 +165,7 @@ def test_load_cow_token_list_filters_selected_chain(monkeypatch):
 
 def test_load_cow_token_list_uses_builtin_sepolia_tokens(monkeypatch):
     monkeypatch.setattr(
-        "cow_flashloan.routes.urllib.request.urlopen",
+        "dex.cow_flashloan.routes.urllib.request.urlopen",
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unexpected network fetch")),
     )
 
@@ -211,7 +211,7 @@ def test_evaluate_cow_route_ranks_by_final_amount(monkeypatch):
             buy_amount = "1100000000"
         return {"quote": {"buyAmount": buy_amount, "sellAmount": kwargs["sell_amount_units"], "feeAmount": "0"}}
 
-    monkeypatch.setattr("cow_flashloan.routes.post_cow_quote", fake_quote)
+    monkeypatch.setattr("dex.cow_flashloan.routes.post_cow_quote", fake_quote)
     result = evaluate_cow_route(
         {"name": "r1", "path": ["USDC", "AAVE", "USDC"]},
         registry=registry,

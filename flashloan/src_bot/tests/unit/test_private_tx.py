@@ -1,4 +1,4 @@
-from execution.private_tx import (
+from bot.execution.private_tx import (
     configured_private_relays,
     private_relay_research_summary,
     send_raw_transaction_private_first,
@@ -76,7 +76,7 @@ def test_private_broadcast_public_fallback_requires_explicit_opt_in():
 
 
 def test_private_broadcast_redacts_relay_errors(monkeypatch):
-    from execution import private_tx
+    from bot.execution import private_tx
 
     relay_url = "https://relay.example/rpc?token=abc123"
     private_key = "0x" + "3" * 64

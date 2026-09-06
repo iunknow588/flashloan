@@ -1,0 +1,826 @@
+{
+  "addressEvidence": {
+    "executionConfigWriteAllowed": false,
+    "sourceUrls": [
+      "https://docs.uniswap.org/contracts/v3/reference/deployments",
+      "https://robinhoodchain.blockscout.com"
+    ],
+    "status": "readonly_chain_observation"
+  },
+  "amount": {
+    "decimals": 6,
+    "human": "1000",
+    "raw": "1000000000",
+    "symbol": "USDG"
+  },
+  "arbitrageAssessment": {
+    "blockedReasons": [
+      "robinhood_flashloan_provider_unverified",
+      "robinhood_executor_unverified",
+      "robinhood_fork_simulation_unverified",
+      "broadcast_disabled_by_design"
+    ],
+    "executionEligible": false,
+    "flashloanStatus": "unverified",
+    "grossProfitableRouteFound": false,
+    "netProfitVerified": false
+  },
+  "bestRoute": {
+    "amountIn": "1000",
+    "amountInRaw": "1000000000",
+    "amountOut": "999.667027",
+    "amountOutRaw": "999667027",
+    "grossProfit": "-0.332973",
+    "grossProfitRaw": "-332973",
+    "hops": [
+      {
+        "amountInRaw": "1000000000",
+        "amountOutRaw": "413041014588272083",
+        "fee": 500,
+        "initializedTicksCrossed": 1,
+        "ok": true,
+        "quoteBlock": 43024062,
+        "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 100156,
+        "sqrtPriceX96After": "3897539619802096514627151",
+        "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+      },
+      {
+        "amountInRaw": "413041014588272083",
+        "amountOutRaw": "999667027",
+        "fee": 100,
+        "initializedTicksCrossed": 0,
+        "ok": true,
+        "quoteBlock": 43024062,
+        "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 109236,
+        "sqrtPriceX96After": "3897873871292507019586810",
+        "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+      }
+    ],
+    "profitableBeforeCosts": false,
+    "quoterGasEstimate": 209392,
+    "route": [
+      {
+        "direction": "USDG->WETH",
+        "fee": 500,
+        "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+      },
+      {
+        "direction": "WETH->USDG",
+        "fee": 100,
+        "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+      }
+    ],
+    "usdgDecimals": 6,
+    "wethDecimals": 18
+  },
+  "blockNumber": 43024062,
+  "chainId": 4663,
+  "contracts": {
+    "factory": {
+      "address": "0x1f7d7550b1b028f7571e69a784071F0205FD2EfA",
+      "codePresent": true
+    },
+    "quoter": {
+      "address": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+      "codePresent": true
+    },
+    "router": {
+      "address": "0xCaf681a66D020601342297493863E78C959E5cb2",
+      "codePresent": true
+    },
+    "usdg": {
+      "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "codePresent": true
+    },
+    "weth": {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "codePresent": true
+    }
+  },
+  "costModel": {
+    "flashloanFeeUsdgRaw": 500000,
+    "gasCostUsdgRaw": 12109,
+    "grossProfitUsdgRaw": -332973,
+    "inputs": {
+      "flashloanFeeBps": 5,
+      "gasPriceWei": 20012000,
+      "gasUnits": 250000,
+      "wethUsdgRawPerWeth": 2420260922
+    },
+    "mevBufferUsdgRaw": 0,
+    "netProfitModelStatus": "complete",
+    "netProfitUsdgRaw": -845082
+  },
+  "gas": {
+    "gasPriceGwei": 0.020012,
+    "gasPriceWei": 20012000,
+    "ok": true,
+    "source": "eth_gasPrice"
+  },
+  "generatedAt": "2026-08-22T09:09:18.771253+00:00",
+  "mode": "readonly_market_snapshot",
+  "network": "robinhood",
+  "poolCount": 4,
+  "pools": [
+    {
+      "address": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca",
+      "blockNumber": 43024062,
+      "codePresent": true,
+      "fee": 100,
+      "liquidity": "956651604467298000",
+      "name": "uniswap-v3-0.01%",
+      "sqrtPriceX96": "3897956661914894819784586",
+      "tick": -198403,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    },
+    {
+      "address": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a",
+      "blockNumber": 43024062,
+      "codePresent": true,
+      "fee": 500,
+      "liquidity": "273276360921434745",
+      "name": "uniswap-v3-0.05%",
+      "sqrtPriceX96": "3897249845201154088359845",
+      "tick": -198407,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    },
+    {
+      "address": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334",
+      "blockNumber": 43024062,
+      "codePresent": true,
+      "fee": 3000,
+      "liquidity": "41739543585345737",
+      "name": "uniswap-v3-0.30%",
+      "sqrtPriceX96": "3897223878063242452851043",
+      "tick": -198407,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    },
+    {
+      "address": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D",
+      "blockNumber": 43024062,
+      "codePresent": true,
+      "fee": 10000,
+      "liquidity": "1594066154817",
+      "name": "uniswap-v3-1.00%",
+      "sqrtPriceX96": "3915190716438091531444069",
+      "tick": -198315,
+      "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    }
+  ],
+  "routes": [
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "998.942177",
+      "amountOutRaw": "998942177",
+      "grossProfit": "-1.057823",
+      "grossProfitRaw": "-1057823",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "413078410399146435",
+          "fee": 100,
+          "initializedTicksCrossed": 0,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 91478,
+          "sqrtPriceX96After": "3898039471831616932971672",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "413078410399146435",
+          "amountOutRaw": "998942177",
+          "fee": 500,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 109270,
+          "sqrtPriceX96After": "3896960232323793294500615",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 200748,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 100,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 500,
+          "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "996.020927",
+      "amountOutRaw": "996020927",
+      "grossProfit": "-3.979073",
+      "grossProfitRaw": "-3979073",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "413078410399146435",
+          "fee": 100,
+          "initializedTicksCrossed": 0,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 91478,
+          "sqrtPriceX96After": "3898039471831616932971672",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "413078410399146435",
+          "amountOutRaw": "996020927",
+          "fee": 3000,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 109203,
+          "sqrtPriceX96After": "3895333275025374710190669",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 200681,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 100,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 3000,
+          "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "18.963311",
+      "amountOutRaw": "18963311",
+      "grossProfit": "-981.036689",
+      "grossProfitRaw": "-981036689",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "413078410399146435",
+          "fee": 100,
+          "initializedTicksCrossed": 0,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 91478,
+          "sqrtPriceX96After": "3898039471831616932971672",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "413078410399146435",
+          "amountOutRaw": "18963311",
+          "fee": 10000,
+          "initializedTicksCrossed": 4,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 308175,
+          "sqrtPriceX96After": "4295128740",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 399653,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 100,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 10000,
+          "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "999.667027",
+      "amountOutRaw": "999667027",
+      "grossProfit": "-0.332973",
+      "grossProfitRaw": "-332973",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "413041014588272083",
+          "fee": 500,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100156,
+          "sqrtPriceX96After": "3897539619802096514627151",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "413041014588272083",
+          "amountOutRaw": "999667027",
+          "fee": 100,
+          "initializedTicksCrossed": 0,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 109236,
+          "sqrtPriceX96After": "3897873871292507019586810",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 209392,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 500,
+          "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 100,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "995.930801",
+      "amountOutRaw": "995930801",
+      "grossProfit": "-4.069199",
+      "grossProfitRaw": "-4069199",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "413041014588272083",
+          "fee": 500,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100156,
+          "sqrtPriceX96After": "3897539619802096514627151",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "413041014588272083",
+          "amountOutRaw": "995930801",
+          "fee": 3000,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 109203,
+          "sqrtPriceX96After": "3895333446097832156527795",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 209359,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 500,
+          "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 3000,
+          "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "18.963311",
+      "amountOutRaw": "18963311",
+      "grossProfit": "-981.036689",
+      "grossProfitRaw": "-981036689",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "413041014588272083",
+          "fee": 500,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100156,
+          "sqrtPriceX96After": "3897539619802096514627151",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "413041014588272083",
+          "amountOutRaw": "18963311",
+          "fee": 10000,
+          "initializedTicksCrossed": 4,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 308175,
+          "sqrtPriceX96After": "4295128740",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 408331,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 500,
+          "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 10000,
+          "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "996.770079",
+      "amountOutRaw": "996770079",
+      "grossProfit": "-3.229921",
+      "grossProfitRaw": "-3229921",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "411844032352476477",
+          "fee": 3000,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100250,
+          "sqrtPriceX96After": "3899116339533627437431591",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "411844032352476477",
+          "amountOutRaw": "996770079",
+          "fee": 100,
+          "initializedTicksCrossed": 0,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 109236,
+          "sqrtPriceX96After": "3897874111212519991023939",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 209486,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 3000,
+          "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 100,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "995.957318",
+      "amountOutRaw": "995957318",
+      "grossProfit": "-4.042682",
+      "grossProfitRaw": "-4042682",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "411844032352476477",
+          "fee": 3000,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100250,
+          "sqrtPriceX96After": "3899116339533627437431591",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "411844032352476477",
+          "amountOutRaw": "995957318",
+          "fee": 500,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 109270,
+          "sqrtPriceX96After": "3896961097692890922575949",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 209520,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 3000,
+          "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 500,
+          "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "18.963311",
+      "amountOutRaw": "18963311",
+      "grossProfit": "-981.036689",
+      "grossProfitRaw": "-981036689",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "411844032352476477",
+          "fee": 3000,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100250,
+          "sqrtPriceX96After": "3899116339533627437431591",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "411844032352476477",
+          "amountOutRaw": "18963311",
+          "fee": 10000,
+          "initializedTicksCrossed": 4,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 308175,
+          "sqrtPriceX96After": "4295128740",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 408425,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 3000,
+          "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 10000,
+          "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "18.805556",
+      "amountOutRaw": "18805556",
+      "grossProfit": "-981.194444",
+      "grossProfitRaw": "-981194444",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "7769891581139606",
+          "fee": 10000,
+          "initializedTicksCrossed": 2,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 370424,
+          "sqrtPriceX96After": "1461446703485210103287273052203988822378723970341",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "7769891581139606",
+          "amountOutRaw": "18805556",
+          "fee": 100,
+          "initializedTicksCrossed": 0,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100555,
+          "sqrtPriceX96After": "3897955104472550725524084",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 470979,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 10000,
+          "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 100,
+          "pool": "0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "18.791198",
+      "amountOutRaw": "18791198",
+      "grossProfit": "-981.208802",
+      "grossProfitRaw": "-981208802",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "7769891581139606",
+          "fee": 10000,
+          "initializedTicksCrossed": 2,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 370424,
+          "sqrtPriceX96After": "1461446703485210103287273052203988822378723970341",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "7769891581139606",
+          "amountOutRaw": "18791198",
+          "fee": 500,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100623,
+          "sqrtPriceX96After": "3897244397265146926520588",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 471047,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 10000,
+          "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 500,
+          "pool": "0x69BfaF19C9f377BB306a89aEd9F6B07e2c1a8d9a"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    },
+    {
+      "amountIn": "1000",
+      "amountInRaw": "1000000000",
+      "amountOut": "18.743802",
+      "amountOutRaw": "18743802",
+      "grossProfit": "-981.256198",
+      "grossProfitRaw": "-981256198",
+      "hops": [
+        {
+          "amountInRaw": "1000000000",
+          "amountOutRaw": "7769891581139606",
+          "fee": 10000,
+          "initializedTicksCrossed": 2,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 370424,
+          "sqrtPriceX96After": "1461446703485210103287273052203988822378723970341",
+          "tokenIn": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+          "tokenOut": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+        },
+        {
+          "amountInRaw": "7769891581139606",
+          "amountOutRaw": "18743802",
+          "fee": 3000,
+          "initializedTicksCrossed": 1,
+          "ok": true,
+          "quoteBlock": 43024062,
+          "quoteMethod": "quoter_v2_quoteExactInputSingle_eth_call",
+          "quoterGasEstimate": 100520,
+          "sqrtPriceX96After": "3897188299403641313050281",
+          "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+        }
+      ],
+      "profitableBeforeCosts": false,
+      "quoterGasEstimate": 470944,
+      "route": [
+        {
+          "direction": "USDG->WETH",
+          "fee": 10000,
+          "pool": "0x5f009E071F07e92B6C624e83F52F17bBDa34680D"
+        },
+        {
+          "direction": "WETH->USDG",
+          "fee": 3000,
+          "pool": "0xa9188730Fe85Be88ad499D7d52B099e800fB0334"
+        }
+      ],
+      "usdgDecimals": 6,
+      "wethDecimals": 18
+    }
+  ],
+  "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+  "safety": {
+    "broadcastEnabled": false,
+    "broadcastsTransaction": false,
+    "buildsTransaction": false,
+    "executionEnabled": false,
+    "loadsSigner": false
+  },
+  "schemaVersion": "robinhood-market-snapshot-v1",
+  "tokens": {
+    "USDG": {
+      "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "decimals": 6,
+      "sourceStatus": "chain_observed_pending_registry_verification"
+    },
+    "WETH": {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "decimals": 18,
+      "sourceStatus": "chain_observed_pending_independent_source_verification"
+    }
+  },
+  "validPoolCount": 4
+}

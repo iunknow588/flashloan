@@ -4,7 +4,7 @@ import sys
 from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
 
-from intent_trade import (
+from dex.intent_trade import (
     bind_cow_intent_context,
     build_cow_intent_trade,
     build_triangular_onchain_intent_trade,
@@ -12,10 +12,10 @@ from intent_trade import (
     set_usdc_pair_memory_table,
     submit_cow_intent_trade,
 )
-from intent_trade import direct
-from intent_trade import direct_utils
-from intent_trade import live_evidence
-from intent_trade.unified_live_signal_schema import (
+from dex.intent_trade import direct
+from dex.intent_trade import direct_utils
+from dex.intent_trade import live_evidence
+from dex.intent_trade.unified_live_signal_schema import (
     UNIFIED_LIVE_SIGNAL_REQUIRED_FIELDS,
     UNIFIED_LIVE_SIGNAL_SCHEMA_CONSTANT_VERSION,
     UNIFIED_LIVE_SIGNAL_SCHEMA_VERSION,
@@ -759,6 +759,19 @@ def test_submit_direct_onchain_trade_accepts_opportunity_runtime_trades_before_n
 
 def test_submit_direct_onchain_trade_runs_unified_preview_and_static_call_before_broadcast(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
+    artifact = tmp_path / "UnifiedFlashLoanMevExecutor.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "abi": [
+                    {"type": "function", "name": "previewOrderedRuntimeAutoExecution", "inputs": [], "outputs": []},
+                    {"type": "function", "name": "runOrderedRuntimeTradesAndExecuteAuto", "inputs": [], "outputs": []},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ARTIFACT", str(artifact))
     usdc = _addr(500)
     token_x = _addr(501)
     token_y = _addr(502)
@@ -2093,7 +2106,7 @@ def test_runtime_cache_validation_rejects_stale_or_wrong_chain_cache():
 
 
 def test_private_tx_can_disable_public_fallback(monkeypatch):
-    from execution import private_tx
+    from bot.execution import private_tx
 
     class FakeEth:
         def send_raw_transaction(self, _raw):
@@ -2195,7 +2208,7 @@ def test_submit_cow_intent_trade_reports_incomplete_direct_protocol_without_cow_
     def fail_cow_submit(**_kwargs):
         raise AssertionError("direct-onchain intent must not fall back to cow order submission")
 
-    monkeypatch.setattr("intent_trade.submission.order_submission.submit_cow_flashloan_order", fail_cow_submit)
+    monkeypatch.setattr("dex.intent_trade.submission.order_submission.submit_cow_flashloan_order", fail_cow_submit)
 
     result = submit_cow_intent_trade(
         quote_payload={
@@ -2246,8 +2259,23 @@ def test_unified_executor_route_plan_rejects_mixed_xy_slots():
     assert direct._unified_executor_route_order_check(normalized, usdc_address=usdc)["ok"] is False
 
 
-def test_unified_executor_abi_is_loaded_from_the_current_contract_artifact(monkeypatch):
+def test_unified_executor_abi_is_loaded_from_the_current_contract_artifact(monkeypatch, tmp_path):
     _clear_direct_pair_env(monkeypatch)
+
+    artifact = tmp_path / "UnifiedFlashLoanMevExecutor.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "abi": [
+                    {"type": "function", "name": "previewOrderedRuntimeAutoExecution", "inputs": [], "outputs": []},
+                    {"type": "function", "name": "runOrderedRuntimeTradesAndExecuteAuto", "inputs": [], "outputs": []},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("UNIFIED_EXECUTOR_ARTIFACT", str(artifact))
+    monkeypatch.setattr(direct, "_UNIFIED_EXECUTOR_ABI_CACHE", None)
 
     abi = direct._load_unified_executor_abi()
     names = {entry.get("name") for entry in abi if entry.get("type") == "function"}

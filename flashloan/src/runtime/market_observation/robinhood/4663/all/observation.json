@@ -1,0 +1,191 @@
+{
+  "borrowableSymbols": [
+    "USDG",
+    "WETH",
+    "WETH:USDG"
+  ],
+  "candidateObservationGroups": [
+    {
+      "anchorSymbol": "USDG",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    },
+    {
+      "anchorSymbol": "WETH",
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "status": "no_observation_sequence"
+      }
+    }
+  ],
+  "chainSpecificObservationPairs": [],
+  "chain_id": 4663,
+  "chain_key": "robinhood:4663:all",
+  "dexSettlement": {
+    "arbitrage_integration": {
+      "can_combine_with_flashloan": true,
+      "required_atomic_flow": [
+        "borrow from flash loan source",
+        "fill UniswapX order or execute AMM swap leg",
+        "complete hedge/exit leg on available DEX pools",
+        "repay principal plus fee in the same transaction"
+      ]
+    },
+    "rails": [
+      {
+        "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+        "chain_id": 4663,
+        "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+        "name": "UniswapX",
+        "pool_model": "intent_order_flow_not_amm_pool",
+        "reactor_family": "Dutch V3 Reactor",
+        "settlement_model": "dutch_auction_reactor",
+        "supported": true
+      }
+    ],
+    "uniswapx": {
+      "arbitrage_note": "可作为订单填充/结算层，不能当作可借出的 AMM 池；需要外部 AMM/借贷资金源完成买卖和还款。",
+      "chain_id": 4663,
+      "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+      "name": "UniswapX",
+      "pool_model": "intent_order_flow_not_amm_pool",
+      "reactor_family": "Dutch V3 Reactor",
+      "settlement_model": "dutch_auction_reactor",
+      "supported": true
+    }
+  },
+  "exists": true,
+  "flashLoanLiquidity": {
+    "available_protocols": [
+      "morpho_blue",
+      "uniswap_v2"
+    ],
+    "chain_id": 4663,
+    "flash_swap_protocols": [
+      "uniswap_v2"
+    ],
+    "has_flashloan_liquidity": true,
+    "native_flashloan_protocols": [
+      "morpho_blue"
+    ],
+    "removed_protocols": [
+      {
+        "display_name": "Aave V3",
+        "protocol": "aave_v3",
+        "removed_reason": "protocol_pool_cache_not_available"
+      },
+      {
+        "display_name": "Uniswap V3",
+        "protocol": "uniswap_v3",
+        "removed_reason": "protocol_pool_cache_not_available"
+      },
+      {
+        "display_name": "Uniswap V4",
+        "protocol": "uniswap_v4",
+        "removed_reason": "protocol_pool_cache_not_available"
+      }
+    ],
+    "source": "flash_loan_pool_discovery_snapshot"
+  },
+  "flow_name": "market_observation",
+  "generated_at": "2026-09-06T09:46:00.675461Z",
+  "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
+  "list_counts": {
+    "borrowableSymbols": 3,
+    "candidateObservationGroups": 2,
+    "chainSpecificObservationPairs": 0,
+    "observationAnchorSymbols": 2,
+    "observationSequences": 0
+  },
+  "marketObservationSourceStage": "computed",
+  "mode": "dex_market_observation",
+  "network": "robinhood",
+  "observationAnchorSymbols": [
+    "USDG",
+    "WETH"
+  ],
+  "observationSequences": [],
+  "ok": true,
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\all\\observation.json",
+  "poolStaticTable": {
+    "chainId": 4663,
+    "exists": false,
+    "network": "robinhood",
+    "path": null
+  },
+  "processing": {
+    "allowed_protocols": [
+      "uniswap_v2",
+      "uniswap_v3",
+      "uniswap_v4"
+    ],
+    "chain_id": 4663,
+    "chain_key": "chain:4663",
+    "data_file_keys": [
+      "dex_candidates",
+      "dex_market_pools",
+      "dex_discovery",
+      "market_observation"
+    ],
+    "flow_name": "market_observation",
+    "global_chain_id": "chain:4663",
+    "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
+    "network": "robinhood",
+    "protocol": "",
+    "requires_scope_match": true
+  },
+  "protocol_key": "all",
+  "protocols": [],
+  "refresh_mode": "full",
+  "schema_version": "market-observation-static-store-v3",
+  "scope_key": "robinhood:4663:all",
+  "selected_protocols": [],
+  "source": "dex_market_observation_payload",
+  "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
+  "summary": {
+    "borrowableTokenCount": 3,
+    "bridgePoolIndexMatchedPairCount": 0,
+    "bridgePoolIndexMatchedPoolCount": 0,
+    "candidateObservationBridgeCount": 0,
+    "candidateObservationDirectCount": 0,
+    "candidateObservationGroupCount": 0,
+    "candidateObservationPoolCount": 0,
+    "candidateObservationSequenceCount": 0,
+    "chainSpecificObservationSequenceCount": 0,
+    "closedLoopRouteCount": 0,
+    "directClosedLoopCount": 0,
+    "directPairCount": 0,
+    "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
+    "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
+    "fundAnchorPairObservationAssociatedPairCount": 0,
+    "fundAnchorPairObservationPoolCount": 0,
+    "fundAnchorPairObservationRouteCount": 0,
+    "indirectRouteCount": 0,
+    "nonEthPairFirstAssociatedObservationPoolCount": 0,
+    "nonEthPairFirstAssociatedObservationTokenCount": 0,
+    "nonEthPairFirstAssociatedPairCount": 0,
+    "nonEthPairFirstPoolCount": 0,
+    "nonEthPairFirstRouteCount": 0,
+    "observableTokenCount": 0,
+    "observationAnchorCount": 2,
+    "observationSequenceAnchorCount": 0,
+    "observationSequenceCount": 0,
+    "observationSequencePoolCount": 0,
+    "unmatchedPairCount": 0
+  },
+  "surface": "dex_market_observation"
+}

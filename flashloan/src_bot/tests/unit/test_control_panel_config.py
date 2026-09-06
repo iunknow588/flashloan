@@ -1,7 +1,7 @@
 import pytest
 
-from strategy.limits import strategy_defaults
-from web.control_panel_config import STRATEGY_DEFAULTS, sanitize_strategy_config, unified_sampling_profile
+from market.strategy.limits import strategy_defaults
+from market.binance_market.control_panel_config import STRATEGY_DEFAULTS, sanitize_strategy_config, unified_sampling_profile
 
 
 def test_strategy_defaults_come_from_single_strategy_library():
@@ -56,8 +56,8 @@ def test_market_strategy_numeric_readers_fall_back_for_invalid_config(monkeypatc
 
 
 def test_strategy_config_database_failure_is_cached_for_fast_ui_fallback(monkeypatch, tmp_path):
-    from db import storage_common
-    from web import control_panel_config
+    from core.db import storage_common
+    from market.binance_market import control_panel_config
 
     database_url = "postgresql://control-panel-endpoint-disabled"
     storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()

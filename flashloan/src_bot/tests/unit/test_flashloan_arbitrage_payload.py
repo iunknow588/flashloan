@@ -1,8 +1,8 @@
-﻿import pytest
+import pytest
 
-from cow_flashloan.routes import CowToken
-from execution.execution_payload import USE_FULL_BALANCE
-from execution.flashloan_arbitrage_payload import (
+from dex.cow_flashloan.routes import CowToken
+from bot.execution.execution_payload import USE_FULL_BALANCE
+from bot.execution.flashloan_arbitrage_payload import (
     AtomicFlashLoanPayloadConfig,
     build_atomic_flashloan_payload_from_limit_plan,
 )

@@ -1,4 +1,4 @@
-from web.control_panel_robinhood_dex import (
+from dex.robinhood_dex_panel import (
     load_latest_robinhood_evidence,
     robinhood_dex_observation_payload,
     robinhood_dex_pool_observation_payload,
@@ -24,7 +24,7 @@ def test_robinhood_observation_payload_uses_cache_without_database(tmp_path, mon
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.probe_robinhood_rpc",
+        "dex.robinhood_dex_panel.probe_robinhood_rpc",
         lambda *_args, **_kwargs: {"ok": True, "checks": [{"name": "eth_blockNumber", "value": 99}]},
     )
 
@@ -99,7 +99,7 @@ def test_readiness_payload_keeps_execution_disabled_with_verified_discovery(tmp_
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.probe_robinhood_rpc",
+        "dex.robinhood_dex_panel.probe_robinhood_rpc",
         lambda *_args, **_kwargs: {"ok": True, "checks": []},
     )
 
@@ -114,11 +114,11 @@ def test_readiness_payload_keeps_execution_disabled_with_verified_discovery(tmp_
 
 def test_observation_payload_explains_missing_candidates_and_evidence(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.ROBINHOOD_MARKET_SNAPSHOT_PATH",
+        "dex.robinhood_dex_panel.ROBINHOOD_MARKET_SNAPSHOT_PATH",
         tmp_path / "missing-market-snapshot.json",
     )
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.probe_robinhood_rpc",
+        "dex.robinhood_dex_panel.probe_robinhood_rpc",
         lambda *_args, **_kwargs: {"ok": True, "checks": []},
     )
 
@@ -142,9 +142,9 @@ def test_observation_payload_suppresses_pnl_without_verified_candidate_pool(tmp_
         '{"network":"robinhood","chainId":4663,"blockNumber":123,"bestRoute":{"grossProfit":"-0.2"}}',
         encoding="utf-8",
     )
-    monkeypatch.setattr("web.control_panel_robinhood_dex.ROBINHOOD_MARKET_SNAPSHOT_PATH", snapshot)
+    monkeypatch.setattr("dex.robinhood_dex_panel.ROBINHOOD_MARKET_SNAPSHOT_PATH", snapshot)
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.probe_robinhood_rpc",
+        "dex.robinhood_dex_panel.probe_robinhood_rpc",
         lambda *_args, **_kwargs: {"ok": True, "checks": []},
     )
 
@@ -177,9 +177,9 @@ def test_observation_payload_publishes_pnl_only_after_verified_candidate_pool(tm
         '"schemaVersion":"robinhood-market-snapshot-v1","bestRoute":{"grossProfit":"-0.2"}}',
         encoding="utf-8",
     )
-    monkeypatch.setattr("web.control_panel_robinhood_dex.ROBINHOOD_MARKET_SNAPSHOT_PATH", snapshot)
+    monkeypatch.setattr("dex.robinhood_dex_panel.ROBINHOOD_MARKET_SNAPSHOT_PATH", snapshot)
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.probe_robinhood_rpc",
+        "dex.robinhood_dex_panel.probe_robinhood_rpc",
         lambda *_args, **_kwargs: {"ok": True, "checks": [{"name": "eth_blockNumber", "value": 123}]},
     )
 
@@ -211,7 +211,7 @@ def test_pool_observation_payload_exposes_only_pool_surface(tmp_path, monkeypatc
         encoding="utf-8",
     )
     monkeypatch.setattr(
-        "web.control_panel_robinhood_dex.probe_robinhood_rpc",
+        "dex.robinhood_dex_panel.probe_robinhood_rpc",
         lambda *_args, **_kwargs: {"ok": True, "checks": []},
     )
 

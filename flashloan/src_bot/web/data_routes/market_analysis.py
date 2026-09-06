@@ -4,13 +4,14 @@ from flask import jsonify, request
 
 from core.chain_selection import ChainSelectionError
 from core.dex_routing import dex_quote_rpc_urls_for, dex_router_context_for, dex_router_name_for
-from execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
-from execution.execution_payload import PayloadConfig, build_execution_payload
-from execution.plan_quotes import quote_execution_plan
+from bot.execution.dex_costs import estimate_symbol_cost, parse_trade_usd_amounts
+from bot.execution.execution_payload import PayloadConfig, build_execution_payload
+from bot.execution.plan_quotes import quote_execution_plan
 from market.velocity_candidates import build_velocity_candidate_pairs
 from market.observer import ASSETS
 from market.binance_market.service import DEFAULT_BINANCE_RAW_SIDE_LIMIT
-from strategy.arbitrage import build_pair_strategy_analysis, simulate_four_route_cycles
+from market.binance_market.opportunity_health import opportunity_health_rows, opportunity_health_summary
+from market.strategy.arbitrage import build_pair_strategy_analysis, simulate_four_route_cycles
 from web import control_panel_data_routes as shared
 from web.control_panel_liquidation_base import aave_rpc_urls, database_url_or_none
 from web.control_panel_market import (
@@ -27,8 +28,6 @@ from web.control_panel_market import (
     latest_executable_signal,
     latest_reference_price,
     observation_count,
-    opportunity_health_rows,
-    opportunity_health_summary,
     read_slippage_bps,
     recent_aave_pair_prices,
     recent_binance_pair_prices,
@@ -40,7 +39,18 @@ from web.control_panel_market import (
     write_strategy_config,
     velocity_timepoint_snapshot,
 )
-from web.control_panel_config import unified_sampling_profile
+from market.binance_market.control_panel_config import unified_sampling_profile
+from web.data_routes.market_analysis_services import (
+    dex_costs_payload,
+    execution_plan_payload_payload,
+    execution_plan_quote_payload,
+    observations_payload,
+    opportunity_health_payload,
+    pair_route_profits_payload,
+    strategy_config_payload,
+    testnet_trade_stats_payload,
+    trade_stats_payload,
+)
 
 ROUTE_CONTEXT = shared.ROUTE_CONTEXT
 panel_call = shared.panel_call
@@ -56,6 +66,7 @@ _chain_selection_error_response = shared._chain_selection_error_response
 
 def register_market_analysis_routes(app, panel) -> None:
     ROUTE_CONTEXT.bind(panel, globals())
+    ROUTE_CONTEXT.bind_panel_provider(panel)
 
     @app.get("/api/opportunity-health")
     def opportunity_health_api():
@@ -63,20 +74,7 @@ def register_market_analysis_routes(app, panel) -> None:
             chain_selection = _optional_request_chain_selection()
         except ChainSelectionError as exc:
             return _chain_selection_error_response(exc)
-        running = quick_observer_running()
-        symbols = displayed_symbols(running or observer_starting)
-        binance_extremes = restrict_extremes_to_symbols(safe_latest(latest_binance_extremes_file), symbols)
-        config = strategy_config()
-        rows = opportunity_health_rows(binance_extremes, config)
-        return jsonify(
-            {
-                "rows": rows,
-                "summary": opportunity_health_summary(rows, config),
-                "sampling_profile": unified_sampling_profile(config),
-                "binance_extremes": binance_extremes,
-                "chain_selection": chain_selection,
-            }
-        )
+        return jsonify(opportunity_health_payload(chain_selection))
 
     from web.data_routes.liquidation_data import register_liquidation_data_routes
 
@@ -124,8 +122,7 @@ def register_market_analysis_routes(app, panel) -> None:
     
     @app.get("/api/strategy-config")
     def get_strategy_config():
-        config = strategy_config()
-        return jsonify({"config": config, "sampling_profile": unified_sampling_profile(config), "running": is_observer_running()})
+        return jsonify(strategy_config_payload())
     
     
     @app.post("/api/strategy-config")
@@ -139,12 +136,12 @@ def register_market_analysis_routes(app, panel) -> None:
     
     @app.get("/api/trade-stats")
     def get_trade_stats():
-        return jsonify({"stats": safe_latest(lambda: read_trade_stats(database_url_or_none()))})
+        return jsonify(trade_stats_payload())
     
     
     @app.get("/api/testnet-trade-stats")
     def get_testnet_trade_stats():
-        return jsonify({"stats": safe_latest(lambda: read_testnet_trade_stats(REPO_ROOT))})
+        return jsonify(testnet_trade_stats_payload())
     
     
     @app.get("/api/observations")
@@ -152,23 +149,14 @@ def register_market_analysis_routes(app, panel) -> None:
         symbol = request.args.get("symbol", "AVAXUSDT").strip().upper()
         try:
             limit = request_int_arg("limit", 120, minimum=2, maximum=1000)
-            rows = recent_observations(symbol, limit) if symbol in ASSETS else []
-            mode = "aave_observations" if rows else "binance_price_history"
-            if not rows:
-                rows = shared.recent_binance_price_history(symbol, limit)
+            payload = observations_payload(
+                symbol,
+                limit,
+                recent_binance_price_history=shared.recent_binance_price_history,
+            )
         except Exception as exc:
             return jsonify({"error": data_error_message(exc)}), 400
-        return jsonify(
-            {
-                "symbol": symbol,
-                "limit": limit,
-                "mode": mode,
-                "supports_aave": symbol in ASSETS and mode == "aave_observations",
-                "supports_dex_costs": symbol in ASSETS and mode == "aave_observations",
-                "fee_slippage_percent": shared.configured_fee_slippage_percent(),
-                "rows": rows,
-            }
-        )
+        return jsonify(payload)
     
     
     @app.get("/api/aave-pair-prices")
@@ -213,53 +201,22 @@ def register_market_analysis_routes(app, panel) -> None:
             return jsonify({"error": "select two different symbols", "routes": []}), 400
         try:
             initial_amount = request_float_arg("initial", 100, minimum=0.000001)
-            rows = latest_candidate_price_rows([x_symbol, y_symbol])
-            if x_symbol not in rows or y_symbol not in rows:
-                return jsonify(
-                    {
-                        "x_symbol": x_symbol,
-                        "y_symbol": y_symbol,
-                        "initial_amount": initial_amount,
-                        "routes": [],
-                        "error": "route profit needs both symbols in binance_candidate_price_history",
-                    }
-                )
             chain_selection = None
             try:
                 chain_selection = _optional_request_chain_selection(feature="dex_arbitrage")
             except ChainSelectionError as exc:
                 return _chain_selection_error_response(exc)
-            router_context = dex_router_context_for(chain_selection)
-            config = arbitrage_config_from_strategy()
-            routes = simulate_four_route_cycles(
-                rows[x_symbol],
-                rows[y_symbol],
-                config,
+            payload = pair_route_profits_payload(
+                x_symbol,
+                y_symbol,
                 initial_amount,
-            )
-            analysis = build_pair_strategy_analysis(
-                rows[x_symbol],
-                rows[y_symbol],
-                config,
-                initial_amount=initial_amount,
-                routes=routes,
+                chain_selection=chain_selection,
             )
         except Exception as exc:
             if "does not exist" in str(exc):
                 return jsonify({"x_symbol": x_symbol, "y_symbol": y_symbol, "initial_amount": 100, "routes": []})
             return jsonify({"error": data_error_message(exc), "routes": []}), 400
-        return jsonify(
-            {
-                "x_symbol": x_symbol,
-                "y_symbol": y_symbol,
-                "initial_amount": initial_amount,
-                "prices": {"x": rows[x_symbol], "y": rows[y_symbol]},
-                "routes": routes,
-                "analysis": analysis,
-                "chain_selection": chain_selection,
-                "router_context": router_context,
-            }
-        )
+        return jsonify(payload)
     
     
     @app.get("/api/chart-symbols")
@@ -314,30 +271,12 @@ def register_market_analysis_routes(app, panel) -> None:
                 chain_selection = _optional_request_chain_selection(feature="dex_arbitrage")
             except ChainSelectionError as exc:
                 return _chain_selection_error_response(exc)
-            simulation = latest_arbitrage_simulation()
-            if not simulation or not simulation.get("execution_plan"):
-                return jsonify({"error": "latest arbitrage result has no execution_plan"}), 404
-            assert_fresh_execution_plan(simulation)
-            router_context = dex_router_context_for(chain_selection)
-            router = router_context.get("router_address")
-            last_error = None
-            quote = None
-            for rpc_url in dex_quote_rpc_urls_for(router_context, aave_rpc_urls()):
-                try:
-                    quote = quote_execution_plan(
-                        simulation["execution_plan"],
-                        rpc_url=rpc_url,
-                        router_address=router,
-                        slippage_bps=read_slippage_bps(),
-                    )
-                    break
-                except Exception as exc:
-                    last_error = exc
-            if quote is None:
-                raise last_error or RuntimeError("all AAVE RPC candidates failed")
+            payload = execution_plan_quote_payload(chain_selection)
         except Exception as exc:
+            if isinstance(exc, LookupError):
+                return jsonify({"error": str(exc)}), 404
             return jsonify({"error": data_error_message(exc)}), 400
-        return jsonify({"quote": quote, "chain_selection": chain_selection, "router_context": router_context})
+        return jsonify(payload)
     
     
     @app.get("/api/execution-plan/payload")
@@ -347,38 +286,16 @@ def register_market_analysis_routes(app, panel) -> None:
                 chain_selection = _optional_request_chain_selection(feature="dex_arbitrage")
             except ChainSelectionError as exc:
                 return _chain_selection_error_response(exc)
-            simulation = latest_arbitrage_simulation()
-            if not simulation or not simulation.get("execution_plan"):
-                return jsonify({"error": "latest arbitrage result has no execution_plan"}), 404
-            assert_fresh_execution_plan(simulation)
-            router_context = dex_router_context_for(chain_selection)
-            router = router_context.get("router_address")
-            last_error = None
-            quote = None
-            for rpc_url in dex_quote_rpc_urls_for(router_context, aave_rpc_urls()):
-                try:
-                    quote = quote_execution_plan(
-                        simulation["execution_plan"],
-                        rpc_url=rpc_url,
-                        router_address=router,
-                        slippage_bps=read_slippage_bps(),
-                    )
-                    break
-                except Exception as exc:
-                    last_error = exc
-            if quote is None:
-                raise last_error or RuntimeError("all AAVE RPC candidates failed")
-            payload = build_execution_payload(
-                simulation["execution_plan"],
-                quote,
-                PayloadConfig(
-                    min_profit_usdc=request_float_arg("min_profit_usdc", 0, minimum=0),
-                    deadline_seconds=request_int_arg("deadline_seconds", 600, minimum=1),
-                ),
+            payload = execution_plan_payload_payload(
+                chain_selection,
+                min_profit_usdc=request_float_arg("min_profit_usdc", 0, minimum=0),
+                deadline_seconds=request_int_arg("deadline_seconds", 600, minimum=1),
             )
         except Exception as exc:
+            if isinstance(exc, LookupError):
+                return jsonify({"error": str(exc)}), 404
             return jsonify({"error": data_error_message(exc)}), 400
-        return jsonify({"payload": payload, "chain_selection": chain_selection, "router_context": router_context})
+        return jsonify(payload)
     
     
     @app.get("/api/dex-costs")
@@ -387,37 +304,11 @@ def register_market_analysis_routes(app, panel) -> None:
         if symbol not in ASSETS:
             return jsonify({"error": f"unsupported symbol: {symbol}"}), 400
         try:
-            amounts = parse_trade_usd_amounts(os.getenv("DEX_COST_USD_AMOUNTS"))
-            reference_price = latest_reference_price(symbol)
             try:
                 chain_selection = _optional_request_chain_selection(feature="dex_arbitrage")
             except ChainSelectionError as exc:
                 return _chain_selection_error_response(exc)
-            router_context = dex_router_context_for(chain_selection)
-            router = router_context.get("router_address")
-            last_error = None
-            costs = None
-            for rpc_url in dex_quote_rpc_urls_for(router_context, aave_rpc_urls()):
-                try:
-                    costs = [estimate_symbol_cost(rpc_url, symbol, amount, reference_price, router) for amount in amounts]
-                    break
-                except Exception as exc:
-                    last_error = exc
-            if costs is None:
-                raise last_error or RuntimeError("all AAVE RPC candidates failed")
-            payload = [
-                {
-                    "amount_usd": quote.amount_usd,
-                    "buy_cost_percent": quote.buy_cost_percent,
-                    "sell_cost_percent": quote.sell_cost_percent,
-                    "roundtrip_cost_percent": quote.roundtrip_cost_percent,
-                    "buy_price_usd": quote.buy_price_usd,
-                    "sell_price_usd": quote.sell_price_usd,
-                    "token_amount": quote.token_amount,
-                }
-                for quote in costs
-                if quote is not None
-            ]
+            payload = dex_costs_payload(symbol, chain_selection=chain_selection)
         except Exception as exc:
             return jsonify({"error": data_error_message(exc)}), 400
-        return jsonify({"symbol": symbol, "dex_name": dex_router_name_for(router_context), "reference_price_usd": reference_price, "costs": payload, "chain_selection": chain_selection, "router_context": router_context})
+        return jsonify(payload)

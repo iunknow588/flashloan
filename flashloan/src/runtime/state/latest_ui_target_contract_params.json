@@ -1,0 +1,98 @@
+{
+  "abiRuntimeTrades": [],
+  "abiRuntimeTradesError": "",
+  "assemblyOk": false,
+  "blockedReasons": [
+    "target_route_not_matched_to_pool_cache",
+    "runtime_trade_count_not_4",
+    "target_pair_pools_missing"
+  ],
+  "configStatus": {
+    "broadcastEnabled": "false",
+    "chainId": "43114",
+    "executorAddress": "",
+    "executorAddressConfigured": false,
+    "network": "avalanche",
+    "rpcConfigured": true
+  },
+  "contractCallShape": {
+    "effectivePoolSlots": "0",
+    "expectedRuntimeTradeSpecs": "4",
+    "function": "previewOrderedRuntimeAutoExecution",
+    "poolSlots": "0",
+    "poolsPerTrade": "5",
+    "runtimeTradeSpecs": "0"
+  },
+  "crossPoolExecutionParams": {
+    "amount": 100000000,
+    "deadline": 1786679158,
+    "minFinalToken": 100000000,
+    "minProfitToken": 1
+  },
+  "directStaticTableAssembly": {
+    "missingPairs": [
+      {
+        "pair": "BTC.B:WAVAX",
+        "reason": "pair_not_found_in_static_table"
+      },
+      {
+        "pair": "WAVAX:BTC.B",
+        "reason": "pair_not_found_in_static_table"
+      }
+    ],
+    "ok": false,
+    "preparedRouteGroupCount": "0",
+    "rejectedRouteGroups": []
+  },
+  "executionParams": {
+    "amount": 100000000,
+    "amountOutMinUsdc": 100000000,
+    "deadline": 1786679158,
+    "minProfitUsdc": 1000000
+  },
+  "executionParamsError": "",
+  "generatedAt": "2026-08-14T03:40:58.705305+00:00",
+  "intentReady": false,
+  "intentRouteMatch": {
+    "matchScore": "0",
+    "matched": false,
+    "routeKey": "",
+    "routeKind": "",
+    "routePath": [
+      "USDC",
+      "BTC.B",
+      "WAVAX",
+      "USDC"
+    ]
+  },
+  "mode": "ui_target_contract_param_assembly",
+  "poolStaticTable": {
+    "exists": true,
+    "path": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_l1_pool_static_table.json"
+  },
+  "preparedRouteGroupCount": "0",
+  "rejectedRouteGroups": [],
+  "routeGroupCount": "0",
+  "runtimeTradeCount": "0",
+  "runtimeTrades": [],
+  "safety": {
+    "broadcastsTransaction": false,
+    "callsContract": false,
+    "deploysContract": false,
+    "loadsSigner": false,
+    "usesRpc": false
+  },
+  "selectedRouteKey": "",
+  "target": {
+    "expectedProfitInput": "0",
+    "linkName": "USDC->BTC.B->WAVAX->USDC",
+    "routePath": [
+      "USDC",
+      "BTC.B",
+      "WAVAX",
+      "USDC"
+    ],
+    "xSymbol": "BTC.B",
+    "ySymbol": "WAVAX"
+  }
+}

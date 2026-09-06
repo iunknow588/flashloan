@@ -4,9 +4,9 @@ from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
-from intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
-from intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
-from strategy.arbitrage import ArbitrageConfig
+from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
+from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
+from market.strategy.arbitrage import ArbitrageConfig
 
 
 def _write_json(path, payload):
@@ -794,7 +794,7 @@ def test_dex_opportunity_scanner_uses_registry_network_for_testnet(tmp_path):
 
 
 def test_dex_opportunity_scanner_records_discovered_opportunities(tmp_path):
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+    from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
     from runtime.dex_opportunity_scanner import DexOpportunityScanner
 
     log_path = tmp_path / "cow_execution_attempts.jsonl"
@@ -1245,7 +1245,7 @@ def test_dex_submission_review_counts_recorded_opportunities_as_blocked():
 
 
 def test_clear_cow_execution_attempts_jsonl_filters_by_network(tmp_path):
-    from db.storage_cow_execution import (
+    from core.db.storage_cow_execution import (
         append_cow_execution_attempts_jsonl,
         clear_cow_execution_attempts_jsonl,
         load_recent_cow_execution_attempts_jsonl,
@@ -2014,7 +2014,7 @@ def test_submission_review_framework_payload_exposes_static_framework_label(monk
 
 
 def test_dex_provenance_framework_label_helper_shares_static_mapping():
-    from web.dex_provenance import build_price_evidence_payload, framework_label, price_evidence_label, price_evidence_mode_label
+    from core.dex_provenance import build_price_evidence_payload, framework_label, price_evidence_label, price_evidence_mode_label
 
     assert framework_label("market_observation") == "静态框架"
     assert framework_label("cached_snapshot") == "静态框架"
@@ -2074,7 +2074,7 @@ def test_v4_pool_token_metadata_uses_live_decimals_fallback(monkeypatch):
 
 
 def test_market_observation_source_stage_labels_are_distinct_from_framework_labels():
-    from web.dex_provenance import market_observation_source_stage_label
+    from core.dex_provenance import market_observation_source_stage_label
 
     assert market_observation_source_stage_label("cached_snapshot") == "缓存静态快照"
     assert market_observation_source_stage_label("generated_live_snapshot") == "实时生成快照"
@@ -2083,7 +2083,7 @@ def test_market_observation_source_stage_labels_are_distinct_from_framework_labe
 
 
 def test_static_framework_labels_stay_separate_from_live_price_evidence_labels():
-    from web.dex_provenance import build_price_evidence_payload, build_route_framework_payload
+    from core.dex_provenance import build_price_evidence_payload, build_route_framework_payload
 
     route_framework = build_route_framework_payload(
         route_framework_source="market_observation",
@@ -2101,7 +2101,7 @@ def test_static_framework_labels_stay_separate_from_live_price_evidence_labels()
 
 def test_robinhood_chain_market_observation_flow_prefers_static_snapshot(monkeypatch):
     from core.chain_flow_dispatcher import ChainFlowRequest
-    from intent_trade.chains.robinhood import dex_surfaces as robinhood_dex_surfaces
+    from dex.intent_trade.chains.robinhood import dex_surfaces as robinhood_dex_surfaces
 
     calls = {"surface": 0, "overview": 0, "quotes": 0, "request": 0}
 

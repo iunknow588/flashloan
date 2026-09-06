@@ -1,6 +1,6 @@
 import json
 
-from tools.watch_bnb_venus_account_scan_status import build_scan_status, write_scan_status
+from market.tools.watch_bnb_venus_account_scan_status import build_scan_status, write_scan_status
 
 
 def test_bnb_venus_account_scan_status_detects_rpc_blocked(tmp_path):

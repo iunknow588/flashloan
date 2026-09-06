@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from market_events import (
+from market.market_events import (
     build_market_volatility_event,
     consume_market_volatility_event,
     latest_market_volatility_event,

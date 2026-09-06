@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from db.storage_cow_execution import append_cow_execution_attempts_jsonl, clear_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, clear_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+from dex.runtime import cow_attempt_log
 from web import control_panel_data_routes as shared
 
 
@@ -24,7 +25,7 @@ def _attempt(*, network: str, chain_id: int, pair: str, observed_at: str) -> dic
 
 
 def test_cow_execution_attempt_log_path_uses_chain_scoped_directory(tmp_path, monkeypatch):
-    monkeypatch.setattr(shared, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
+    monkeypatch.setattr(cow_attempt_log, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
 
     path = shared.cow_execution_attempt_log_path(network="robinhood-testnet", chain_id=46630)
     fallback_path = shared.cow_execution_attempt_log_path(
@@ -36,8 +37,8 @@ def test_cow_execution_attempt_log_path_uses_chain_scoped_directory(tmp_path, mo
 
 
 def test_record_cow_attempt_list_safely_groups_attempts_by_scope(tmp_path, monkeypatch):
-    monkeypatch.setattr(shared, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
-    monkeypatch.setattr(shared, "_cow_submission_pause_guard", lambda database_url=None: {"paused": False})
+    monkeypatch.setattr(cow_attempt_log, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
+    monkeypatch.setattr(cow_attempt_log, "_cow_submission_pause_guard", lambda database_url=None: {"paused": False})
 
     attempts = [
         _attempt(
@@ -66,8 +67,8 @@ def test_record_cow_attempt_list_safely_groups_attempts_by_scope(tmp_path, monke
 
 
 def test_record_cow_attempt_list_safely_can_disable_market_candidate_dedupe(tmp_path, monkeypatch):
-    monkeypatch.setattr(shared, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
-    monkeypatch.setattr(shared, "_cow_submission_pause_guard", lambda database_url=None: {"paused": False})
+    monkeypatch.setattr(cow_attempt_log, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path / "cow_execution_attempts")
+    monkeypatch.setattr(cow_attempt_log, "_cow_submission_pause_guard", lambda database_url=None: {"paused": False})
 
     calls = []
 
@@ -82,7 +83,7 @@ def test_record_cow_attempt_list_safely_can_disable_market_candidate_dedupe(tmp_
         )
         return len(attempts)
 
-    monkeypatch.setattr(shared, "append_cow_execution_attempts_jsonl", fake_append)
+    monkeypatch.setattr(cow_attempt_log, "append_cow_execution_attempts_jsonl", fake_append)
 
     result = shared.record_cow_attempt_list_safely(
         [

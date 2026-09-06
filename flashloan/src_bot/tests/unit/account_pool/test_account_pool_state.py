@@ -1,4 +1,4 @@
-from account_pool import account_pool_state_payload, evaluate_account_pool_state
+from bot.account_pool import account_pool_state_payload, evaluate_account_pool_state
 
 
 def test_account_pool_state_missing_without_database_or_fallback():

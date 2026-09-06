@@ -1,13 +1,13 @@
 import json
 from copy import deepcopy
 
-from intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan
-import intent_trade.chains.robinhood_testnet.live_testing_readiness as live_readiness
-from intent_trade.chains.robinhood_testnet.live_testing_readiness import (
+from dex.intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan
+import dex.intent_trade.chains.robinhood_testnet.live_testing_readiness as live_readiness
+from dex.intent_trade.chains.robinhood_testnet.live_testing_readiness import (
     summarize_robinhood_testnet_live_testing_readiness,
 )
 from tests.unit.test_robinhood_chain_test_pack import _sample_attempt
-from tools.check_robinhood_live_testing_readiness import main as live_testing_readiness_main
+from dex.tools.check_robinhood_live_testing_readiness import main as live_testing_readiness_main
 
 
 def _write_json(path, payload):
@@ -55,6 +55,10 @@ def _base_contracts_metadata():
         "broadcastEnabled": True,
         "readyForLatestPausedExecutor": True,
         "matchesLocalArtifact": True,
+        "normalTestnetProbe": {
+            "address": "0x1111111111111111111111111111111111111111",
+            "deploymentFile": "contract/contracts-dex/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+        },
     }
 
 

@@ -1,6 +1,6 @@
 import json
 
-from tools import smoke_liquidation_panel_flow as smoke
+from bot.tools import smoke_liquidation_panel_flow as smoke
 
 
 class FakeResponse:

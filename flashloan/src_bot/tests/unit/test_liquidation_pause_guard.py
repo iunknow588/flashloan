@@ -1,4 +1,4 @@
-from web.control_panel_liquidation_pause import (
+from bot.liquidation.pause_guard import (
     load_pause_guard_state,
     pause_guard_controls,
     record_pause_guard_event,
@@ -58,7 +58,7 @@ def test_pause_guard_success_resets_failure_count(monkeypatch, tmp_path):
 
 
 def test_pause_guard_syncs_to_database_parameter_map(monkeypatch, tmp_path):
-    from web import control_panel_liquidation_pause as pause
+    from bot.liquidation import pause_guard as pause
 
     database_url = "postgresql://example"
     stored = {}

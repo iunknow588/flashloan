@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from market.observer import PriceState, should_compute_conversion_profits
-from market import observer_runtime
+from market import observer_runtime_daemon as observer_runtime
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,9 @@ import math
 
 from flask import request
 
+from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
+from core.dex_candidate_response import compact_candidate_payload
+from core.dex_response import compact_dex_overview_response
 from market.binance_market.dex_strategy_registry import resolve_dex_strategy_key
 from web import control_panel_data_routes as shared
 
@@ -83,7 +86,7 @@ def _pair_in_keys(pair: dict, keys: set[str]) -> bool:
     return any(str(pair.get(name) or "").strip() in keys for name in ("symbolPair", "addressPair"))
 
 
-def paginate_candidate_payload(payload: dict, *, page: int, page_size: int, query: str, quality: str) -> dict:
+def _legacy_paginate_candidate_payload(payload: dict, *, page: int, page_size: int, query: str, quality: str) -> dict:
     groups = [group for group in payload.get("anchorGroups") or [] if isinstance(group, dict)]
     pairs = [pair for pair in payload.get("pairs") or [] if isinstance(pair, dict)]
     use_groups = bool(groups)
@@ -139,6 +142,11 @@ def paginate_candidate_payload(payload: dict, *, page: int, page_size: int, quer
     return paged_payload
 
 
+def paginate_candidate_payload(payload: dict, *, page: int, page_size: int, query: str, quality: str) -> dict:
+    """Compatibility wrapper around the core-owned candidate paginator."""
+    return compact_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)
+
+
 def candidate_pagination_args() -> tuple[int, int, str, str]:
     page = shared.request_int_arg("page", 1, minimum=1)
     page_size = shared.request_int_arg("page_size", 1, minimum=1, maximum=20)
@@ -182,9 +190,73 @@ def submission_networks_from_request(chain_selection: dict | None) -> list[str]:
     return networks
 
 
+def chain_flow_protocol(protocols: list[str]) -> str:
+    return protocols[0] if len(protocols) == 1 else ""
+
+
+def dex_surface_payload_for_chain(
+    *,
+    flow_name: str,
+    mode: str,
+    chain_id: int | None,
+    protocols: list[str],
+    fallback,
+    **kwargs,
+) -> dict:
+    if chain_id is None:
+        payload = fallback()
+        payload.setdefault("mode", mode)
+        return payload
+    try:
+        return dispatch_chain_flow(
+            chain_id=chain_id,
+            flow_name=flow_name,
+            protocol=chain_flow_protocol(protocols),
+            protocols=protocols,
+            **kwargs,
+        )
+    except ChainFlowDispatchError as exc:
+        if exc.code == "chain_flow_missing":
+            payload = fallback()
+            payload.setdefault("mode", mode)
+            return payload
+        return {
+            "ok": False,
+            "mode": mode,
+            "chain_id": chain_id,
+            "selected_protocols": protocols,
+            "code": exc.code,
+            "error": exc.message,
+        }
+
+
+def attach_dex_strategy(payload: dict) -> dict:
+    mode_by_path = {
+        "/api/dex/overview": "dex_overview",
+        "/api/dex/market-observation": "dex_market_observation",
+        "/api/dex/market-observation/refresh": "dex_market_observation",
+        "/api/dex/quote-routes": "dex_quote_routes",
+        "/api/dex/quote-request": "dex_quote_request",
+        "/api/dex/submissions": "dex_submission_review",
+        "/api/dex-pools/candidates": "dex_pool_candidates",
+        "/api/dex-pools/candidates/refresh": "dex_pool_candidates",
+    }
+    payload.setdefault("mode", mode_by_path.get(request.path, ""))
+    payload["dex_strategy"] = request_dex_strategy_arg()
+    return payload
+
+
+def overview_response_payload(payload: dict) -> dict:
+    return compact_dex_overview_response(payload)
+
+
 __all__ = [
     "DEX_QUOTE_PROTOCOLS",
     "candidate_pagination_args",
+    "attach_dex_strategy",
+    "chain_flow_protocol",
+    "dex_surface_payload_for_chain",
+    "overview_response_payload",
     "paginate_candidate_payload",
     "request_dex_protocols_arg",
     "request_dex_strategy_arg",

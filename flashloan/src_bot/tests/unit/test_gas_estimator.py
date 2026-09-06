@@ -1,6 +1,6 @@
 from web3 import Web3
 
-from execution.gas_estimator import (
+from bot.execution.gas_estimator import (
     build_gas_params,
     compare_gas_strategy_costs,
     estimate_gas_price,

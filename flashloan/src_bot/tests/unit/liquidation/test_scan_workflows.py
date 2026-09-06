@@ -1,10 +1,10 @@
 from types import SimpleNamespace
 
-from liquidation.account_payload_service import (
+from bot.liquidation.account_payload_service import (
     LiquidationAccountPayloadRuntime,
     liquidation_account_payload,
 )
-from liquidation.health_scan_workflow import (
+from bot.liquidation.health_scan_workflow import (
     LiquidationHealthRuntime,
     liquidation_health_payload,
 )

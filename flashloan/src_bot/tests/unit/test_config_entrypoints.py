@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 
-from db import storage_common
-from market import aave_reserve_cache, dex_target_loaders
+from core.db import storage_common
+from core import aave_reserve_cache
+from market import dex_target_loaders
 from market.observer_common import env_float, env_int
-from strategy import build_executable_signal
-from tools.quote_dynamic_candidates import dynamic_quote_cli_defaults
+from market.strategy import build_executable_signal
+from dex.tools.quote_dynamic_candidates import dynamic_quote_cli_defaults
 from web import control_panel_liquidation_base
 
 

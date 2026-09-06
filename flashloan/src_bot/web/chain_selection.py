@@ -17,7 +17,7 @@ from core.chain_selection import (
 )
 from core.contracts import validate_scope_contract
 from core.contracts import MarketScope
-from web.chain_selector_component import (
+from market.binance_market.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
 )
@@ -73,11 +73,24 @@ def validate_explicit_request_scope() -> dict[str, object] | None:
     )
     if not supplied:
         return None
+    # A route may receive a partial selector (for example only chain_id) and
+    # complete it from its feature defaults. Full contract validation happens
+    # after resolution, so do not reject that request at app assembly time.
+    values = {
+        "market_id": value("market_id"),
+        "chain_id": value("chain_id"),
+        "network": value("network"),
+        "protocol": value("protocol") or value("protocol_id") or value("protocols"),
+    }
+    # Without a chain selector there is no safe feature default to resolve
+    # against. Keep the API boundary fail-closed for unknown/partial scopes;
+    # chain-qualified requests may still be completed by the route registry.
+    if not values["chain_id"]:
+        return validate_scope_contract(**values)
+    if not all(values.values()):
+        return values
     return validate_scope_contract(
-        market_id=value("market_id"),
-        chain_id=value("chain_id"),
-        network=value("network"),
-        protocol=value("protocol") or value("protocol_id") or value("protocols"),
+        **values,
     )
 
 

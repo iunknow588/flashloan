@@ -1,0 +1,79 @@
+{
+  "blockingReasons": [],
+  "broadcastEnabled": true,
+  "chainId": 46630,
+  "chainKey": "chain:46630",
+  "chainTestReady": true,
+  "evidence": {
+    "candidatePoolSupply": null,
+    "chainTestPlan": "flashloan/src_bot/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+    "lendingLiquidity": "flashloan/src_bot/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "normalTestnetProbe": "contract/contracts-dex/deployments/evidence/20260829T032042328Z-7704_robinhoodTestnet-robinhood-v4-flash-normal-probe-deploy/report.json",
+    "pausedRedeployPlan": "contract/contracts-dex/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
+    "predeployReadiness": "flashloan/src_bot/runtime/evidence/robinhood-testnet/predeploy_readiness/20260829T044537Z/report.json"
+  },
+  "gates": {
+    "broadcastEnabled": true,
+    "candidatePoolSupplyEvidenceUnset": true,
+    "chainBroadcastEnabled": false,
+    "chainTestPlanEvidenceScoped": true,
+    "chainTestReady": true,
+    "contractBroadcastEnabled": false,
+    "lendingLiquidityEvidenceScoped": true,
+    "normalTestnetProbeMeasurementReady": true,
+    "normalTestnetProbeReady": true,
+    "predeployReadinessEvidenceScoped": true,
+    "stageFreezeApproved": true
+  },
+  "marketId": "robinhood-testnet-dex-paused",
+  "nextRequiredActions": [
+    "run_small_notional_testnet_transaction"
+  ],
+  "normalTestnetProbe": {
+    "amount": {
+      "amount": "715255737304",
+      "decimals": 18,
+      "human": "0.000000715255737304",
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"
+    },
+    "blockingReasons": [],
+    "borrowableLiquidity": {
+      "human": "444.351117774066097351",
+      "raw": "444351117774066097351",
+      "ready": true,
+      "source": "decoded_pool_key_metadata"
+    },
+    "chainId": 46630,
+    "measurementReady": true,
+    "network": "robinhood-testnet",
+    "poolManager": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+    "probe": {
+      "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "deploymentFile": "contract/contracts-dex/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+      "source": "contracts_metadata.normalTestnetProbe.address"
+    },
+    "readyForNormalBroadcast": true,
+    "route": {
+      "closed": true,
+      "hopCount": 3,
+      "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH"
+    },
+    "schemaVersion": "robinhood-normal-test-probe-config-v1",
+    "sourceFiles": {
+      "chainTestPlan": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+      "probeDeployment": "contract/contracts-dex/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+      "v4PoolLiquidity": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\v4_pool_liquidity\\latest.json"
+    },
+    "token": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "decimals": 18,
+      "poolManagerBalance": "444.351117774066097351",
+      "poolManagerBalanceRaw": "444351117774066097351",
+      "poolManagerSource": "decoded_pool_key_metadata",
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint",
+      "symbol": "ETH"
+    }
+  },
+  "readyForLiveTest": true,
+  "schemaVersion": "robinhood-testnet-live-testing-readiness-v1"
+}

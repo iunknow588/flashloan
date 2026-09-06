@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from intent_trade.direct_submission_preflight import prepare_submission_inputs
+from dex.intent_trade.direct_submission_preflight import prepare_submission_inputs
 
 
 class FakeDeps:

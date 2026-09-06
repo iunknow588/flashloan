@@ -1,4 +1,4 @@
-from db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
 
 
 def _attempt_with_route_addresses(route_addresses):
@@ -136,3 +136,13 @@ def test_jsonl_attempt_loading_requires_network_and_chain_scope(tmp_path):
     assert rows[0]["network"] == "robinhood-testnet"
     assert rows[0]["chain_id"] == 46630
     assert mismatched == []
+
+
+def test_jsonl_append_rejects_contradictory_nested_scope(tmp_path):
+    attempt = _attempt_with_route_addresses(["0x1", "0x2", "0x3", "0x2", "0x1"])
+    attempt["quote"]["live_onchain_evidence"]["network"] = "robinhood-testnet"
+    attempt["quote"]["live_onchain_evidence"]["chainId"] = 46630
+
+    path = tmp_path / "cow_execution_attempts.jsonl"
+    assert append_cow_execution_attempts_jsonl(path, [attempt]) == 0
+    assert load_recent_cow_execution_attempts_jsonl(path, limit=10) == []

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from market_events import (
+from market.market_events import (
     build_market_volatility_event,
     market_volatility_event_is_fresh,
     market_volatility_route_intent,

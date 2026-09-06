@@ -1,4 +1,4 @@
-from tools.import_bnb_venus_borrowers_from_dune import (
+from bot.tools.import_bnb_venus_borrowers_from_dune import (
     build_dune_borrow_logs_sql,
     build_dune_borrower_accounts_sql,
     dune_account_rows_to_registry,

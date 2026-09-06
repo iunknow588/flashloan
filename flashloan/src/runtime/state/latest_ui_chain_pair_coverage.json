@@ -1,0 +1,37 @@
+{
+  "cowFilter": {
+    "chain_id": 43114,
+    "cow_display_limit": 10,
+    "enabled": true,
+    "market_eligible_symbol_count": 8,
+    "market_excluded_symbol_count": 663,
+    "min_side_change_percent": 0.3,
+    "min_spread_percent": 0.0,
+    "min_token_price_usd": 0.01,
+    "network": "avalanche",
+    "pool_filter": {
+      "cache_block_number": "92615445",
+      "enabled": true,
+      "error": null,
+      "fetched_at": "2026-08-12T06:08:55.323Z",
+      "loaded": true,
+      "pair_count": 23,
+      "rejected_pair_count": 0,
+      "rejected_pairs": [],
+      "source": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+      "symbol_supported_count": 0,
+      "symbol_unsupported_count": 0
+    },
+    "supported_symbol_count": 0,
+    "threshold_detail": {},
+    "unsupported_symbol_count": 8
+  },
+  "liveQuoteSampleCount": "0",
+  "liveQuoteSamples": [],
+  "marketStatePath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\state\\latest_extremes.json",
+  "mode": "ui_chain_pair_coverage_audit",
+  "paramAssembledCount": "0",
+  "results": [],
+  "runtimeTradeShapeCount": "0",
+  "uiPairCountAudited": "0"
+}

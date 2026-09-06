@@ -1,7 +1,7 @@
 import pytest
 
-from strategy.limits import calculate_min_paper_profit_usd, resolve_min_paper_profit_usd
-from strategy.movement_thresholds import (
+from market.strategy.limits import calculate_min_paper_profit_usd, resolve_min_paper_profit_usd
+from market.strategy.movement_thresholds import (
     MovementThresholdConfig,
     calculate_movement_thresholds,
     effective_route_trade_fee_percent,

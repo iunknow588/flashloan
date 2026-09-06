@@ -1,6 +1,6 @@
 import pytest
 
-import db.storage_liquidation_failures as storage
+import core.db.storage_liquidation_failures as storage
 
 
 class Cursor:

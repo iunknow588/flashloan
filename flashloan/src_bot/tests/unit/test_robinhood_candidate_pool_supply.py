@@ -1,4 +1,4 @@
-﻿from intent_trade.chains.robinhood.candidate_pool_supply import summarize_robinhood_candidate_pool_supply
+from dex.intent_trade.chains.robinhood.candidate_pool_supply import summarize_robinhood_candidate_pool_supply
 
 
 def _pool(symbol0, symbol1, *, protocol="uniswap_v3", tvl=10_000, volume=100, pool=None):

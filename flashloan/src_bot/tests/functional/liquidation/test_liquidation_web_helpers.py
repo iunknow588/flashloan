@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 
-from execution.receipt_formatter import format_tx_receipt
-from execution.static_call import liquidation_request_tuple, simulate_request_liquidation_static_call
-from liquidation import AccountBackfillService, account_tier_summary, display_health_rows
+from bot.execution.receipt_formatter import format_tx_receipt
+from bot.execution.static_call import liquidation_request_tuple, simulate_request_liquidation_static_call
+from bot.liquidation import AccountBackfillService, account_tier_summary, display_health_rows
 
 
 def test_account_backfill_service_tracks_progress_and_stop():

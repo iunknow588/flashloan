@@ -1,13 +1,17 @@
 from pathlib import Path
 
-from execution.health_checker import classify_health_factor, estimate_liquidation_profit, health_factor_band
-from execution.prioritizer import incremental_scan_account_groups, split_candidate_accounts, watched_health_rows
-from execution.scanner import normalize_accounts
+from bot.execution.health_checker import classify_health_factor, estimate_liquidation_profit, health_factor_band
+from bot.execution.prioritizer import incremental_scan_account_groups, split_candidate_accounts, watched_health_rows
+from bot.execution.scanner import normalize_accounts
 
 
 def _module_line_count(relative_path: str) -> int:
-    root = Path(__file__).resolve().parents[2]
-    return len((root / relative_path).read_text(encoding="utf-8").splitlines())
+    src_bot = Path(__file__).resolve().parents[2]
+    split_src = src_bot.parent / "src"
+    candidate = split_src / "bot" / relative_path
+    if not candidate.exists():
+        candidate = src_bot / relative_path
+    return len(candidate.read_text(encoding="utf-8").splitlines())
 
 
 def test_liquidation_scan_split_modules_stay_small():

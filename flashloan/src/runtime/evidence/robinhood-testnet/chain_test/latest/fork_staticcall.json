@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "robinhood-chain-test-fork-staticcall-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "status": "fork_staticcall_passed",
+  "passed": true,
+  "contract": "RobinhoodV4FlashNormalProbe",
+  "capturedAt": "2026-08-29T03:24:34.800Z",
+  "sourceReport": "contract/contracts-dex/deployments/evidence/20260829T032445094Z-27168_robinhoodTestnet-robinhood-v4-flash-normal-probe/report.json",
+  "staticCallOk": true,
+  "estimateGasOk": true,
+  "broadcastOk": true,
+  "broadcastHash": "0x00144975ae2d33961fd4414e2171dcb7cdbc4f0ce1c0b16770ad185c8a0268d2"
+}

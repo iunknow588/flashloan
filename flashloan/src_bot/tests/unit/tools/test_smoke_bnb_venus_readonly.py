@@ -1,6 +1,6 @@
 import json
 
-from tools import smoke_bnb_venus_readonly as smoke
+from bot.tools import smoke_bnb_venus_readonly as smoke
 
 
 class FakeEth:

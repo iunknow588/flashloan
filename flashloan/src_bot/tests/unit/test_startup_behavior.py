@@ -344,6 +344,7 @@ def test_initialize_liquidation_runtime_allows_observer_autostart_opt_out(monkey
     monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "true")
     monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "true")
     monkeypatch.setenv("LIQUIDATION_OBSERVER_AUTOSTART", "false")
+    monkeypatch.setenv("BNB_VENUS_WATCHER_ENABLED", "false")
     monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: None)
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: None)
     monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)

@@ -124,7 +124,7 @@ def test_bnb_venus_api_uses_file_observation_scope(monkeypatch, tmp_path):
     monkeypatch.setattr(bnb, "bnb_venus_output_dir", lambda: tmp_path)
 
     response = app.test_client().get(
-        "/api/liquidation/borrow-pool?market_id=bnb-venus-core&chain_id=56&page_size=20"
+        "/api/liquidation/borrow-pool?market_id=bnb-venus-core&chain_id=56&network=bnb&protocol=venus_core&page_size=20"
     )
     data = response.get_json()
 
@@ -142,7 +142,7 @@ def test_liquidation_market_api_keeps_explicit_bnb_scope(monkeypatch):
     monkeypatch.delenv("LIQUIDATION_CHAIN_ID", raising=False)
     monkeypatch.delenv("CHAIN_ID", raising=False)
 
-    response = app.test_client().get("/api/liquidation/market?market_id=bnb-venus-core&chain_id=56")
+    response = app.test_client().get("/api/liquidation/market?market_id=bnb-venus-core&chain_id=56&network=bnb&protocol=venus_core")
     data = response.get_json()
 
     assert response.status_code == 200
@@ -157,7 +157,7 @@ def test_liquidation_config_health_api_uses_request_market_scope(monkeypatch):
     monkeypatch.delenv("LIQUIDATION_CHAIN_ID", raising=False)
     monkeypatch.delenv("CHAIN_ID", raising=False)
 
-    response = app.test_client().get("/api/liquidation/config-health?market_id=bnb-venus-core&chain_id=56")
+    response = app.test_client().get("/api/liquidation/config-health?market_id=bnb-venus-core&chain_id=56&network=bnb&protocol=venus_core")
     data = response.get_json()
 
     assert response.status_code == 200
@@ -173,7 +173,7 @@ def test_bnb_venus_accounts_api_exposes_current_pool_scan_progress(monkeypatch, 
     monkeypatch.setattr(bnb, "bnb_venus_output_dir", lambda: tmp_path)
 
     response = app.test_client().get(
-        "/api/liquidation/accounts?market_id=bnb-venus-core&chain_id=56&page_size=20"
+        "/api/liquidation/accounts?market_id=bnb-venus-core&chain_id=56&network=bnb&protocol=venus_core&page_size=20"
     )
     data = response.get_json()
 
@@ -194,7 +194,7 @@ def test_bnb_venus_payload_generation_is_blocked_as_observation_only(monkeypatch
     response = app.test_client().get(
         "/api/liquidation/account/payload"
         "?account=0x0000000000000000000000000000000000000002"
-        "&market_id=bnb-venus-core&chain_id=56"
+        "&market_id=bnb-venus-core&chain_id=56&network=bnb&protocol=venus_core"
     )
     data = response.get_json()
 

@@ -1,0 +1,1929 @@
+﻿from __future__ import annotations
+
+import asyncio
+from copy import deepcopy
+from datetime import datetime, timezone
+from decimal import Decimal
+import json
+import os
+from pathlib import Path
+import time
+from typing import Any
+
+from core.db.storage_cow_tokens import load_cow_supported_tokens, replace_cow_supported_tokens
+from dex.cow_flashloan.capabilities import assess_cow_flashloan_sdk_plan
+from dex.cow_flashloan.order_submission import (
+    cow_order_submission_adapter_available,
+    cow_order_submission_enabled,
+    cow_order_submission_network_supported,
+    cow_order_submission_requested,
+    cow_order_submission_sdk_install_hint,
+    cow_order_submission_sdk_ready,
+    cow_order_submission_sdk_status,
+    cow_order_submission_signer_ready,
+    cow_order_submission_signer_status,
+)
+from dex.intent_trade import bind_cow_intent_context, build_triangular_onchain_intent_trade
+from dex.cow_flashloan.routes import SUPPORTED_COW_NETWORKS, CowToken, build_token_registry, cow_account_config, cow_network_config, evaluate_cow_route, load_cow_token_list, rank_cow_routes, resolve_token
+from dex.cow_flashloan.network_scope import supported_cow_networks
+from market.observer_common import DEFAULT_BINANCE_REST_BASES, env_urls, fetch_json, write_json_atomic
+from core.json_io import read_scoped_json, write_scoped_json
+from market.observer_state import PriceState
+from market.velocity_candidates import base_token_symbol, top_bottom_from_extremes
+from market.strategy.arbitrage import ArbitrageConfig, build_pair_strategy_analysis
+from market.strategy.limits import (
+    DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT,
+    DEFAULT_COW_NETWORK_DISPLAY_LIMIT,
+    DEFAULT_COW_TRADE_FEE_SIDE_COUNT,
+    DEFAULT_EXECUTION_SLIPPAGE_BPS,
+    DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
+    DEFAULT_MIN_COW_SPREAD_PERCENT,
+    DEFAULT_MIN_SIDE_CHANGE_PERCENT,
+    DEFAULT_MIN_TOKEN_PRICE_USD,
+    DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+)
+from market.binance_market.cow_tokens import (
+    DEFAULT_COW_TEST_NETWORK,
+    DEFAULT_COW_TOKEN_CACHE_PATH,
+    _bnb_static_market_registry,
+    _market_registry_for_network,
+    _resolve_cow_market_symbol,
+    load_cow_supported_token_registry,
+    refresh_cow_supported_token_cache,
+)
+from market.binance_market.pool_support import (
+    DEFAULT_AVALANCHE_V3_POOL_CACHE_PATH,
+    DEFAULT_BNB_POOL_CACHE_PATH,
+    WRAPPED_SYMBOL_ALIASES,
+    _effective_pool_count,
+    _filter_pairs_by_avalanche_pool_route_support,
+    _filter_pairs_by_pool_route_support,
+    _filter_rows_by_avalanche_pool_symbol_support,
+    _filter_rows_by_pool_symbol_support,
+    _pool_address_text,
+    _pool_pair_info,
+    _pool_route_support,
+    _pool_symbol,
+    _symbol_alias_set,
+)
+from market.binance_market import pool_support as pool_support_module
+from market.binance_market.cow_math import (
+    _amount_from_price_rule,
+    _decimal_percent_delta,
+    _decimal_rank_analysis,
+    _decimal_or_none,
+    _decimal_text,
+    _decimal_value,
+    _exchange_rate_candidates,
+    _market_price_candidates,
+    _query_guard_analysis,
+    _query_window_timing,
+    _select_decimal_candidate,
+    _selected_decimal_text,
+    _selected_source,
+    _serialize_decimal_candidates,
+    cost_adjusted_cow_thresholds,
+)
+from market.binance_market.state_service import select_market_state
+from market.binance_market.submission_readiness import build_submission_readiness
+from market.binance_market.candidate_service import build_pair_candidates
+
+SRC_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_AAVE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "aave_reserve_assets.json"
+DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "state" / "binance_market_snapshot.json"
+DEFAULT_COW_FLASHLOAN_CONTROL_MODE = "intent"
+DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS = 120.0
+COW_NETWORK_LABELS = {
+    "ethereum": "Ethereum",
+    "gnosis": "Gnosis",
+    "arbitrum_one": "Arbitrum One",
+    "base": "Base",
+    "polygon": "Polygon",
+    "avalanche": "Avalanche",
+    "bnb": "BNB Chain",
+    "linea": "Linea",
+    "plasma": "Plasma",
+    "ink": "Ink",
+    "sepolia": "Sepolia",
+}
+
+
+STABLE_ROUTE_CANDIDATES = (
+    (
+        "stable_usdc_to_y_to_x_to_usdc",
+        ("USDC", "y", "x", "USDC"),
+        "buy_loser_then_gainer",
+    ),
+    (
+        "stable_usdc_to_x_to_y_to_usdc",
+        ("USDC", "x", "y", "USDC"),
+        "reverse_check",
+    ),
+)
+
+
+def _rows_by_symbol(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        str(row.get("symbol") or "").upper(): row
+        for row in rows
+        if isinstance(row, dict) and row.get("symbol")
+    }
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _cow_flashloan_control_mode() -> str:
+    # Only intent mode is implemented right now.
+    return "intent"
+
+
+def _load_avalanche_v3_pool_filter(cache_path: Path = DEFAULT_AVALANCHE_V3_POOL_CACHE_PATH) -> dict[str, Any]:
+    return pool_support_module._load_avalanche_v3_pool_filter(cache_path)
+
+
+def _load_bnb_pool_filter(cache_path: Path = DEFAULT_BNB_POOL_CACHE_PATH) -> dict[str, Any]:
+    return pool_support_module._load_bnb_pool_filter(cache_path)
+
+
+def _pool_filter_for_network(network: str | None) -> dict[str, Any] | None:
+    selected = str(network or "").strip().lower()
+    if selected == "avalanche":
+        return _load_avalanche_v3_pool_filter()
+    if selected == "bnb":
+        return _load_bnb_pool_filter()
+    return None
+
+
+def _stable_symbol(symbol: str) -> bool:
+    return str(symbol or "").upper() in {"USDC", "USDT"}
+
+
+def _basket_rows_from_extremes(extremes: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(extremes, dict):
+        return []
+    basket = extremes.get("basket")
+    if isinstance(basket, list) and basket:
+        source_rows = [_market_row_from_item(item) for item in basket if isinstance(item, dict)]
+        rows = []
+        seen: set[str] = set()
+        for row in source_rows:
+            if not row:
+                continue
+            symbol = str(row.get("symbol") or "")
+            if not symbol or symbol in seen:
+                continue
+            rows.append(row)
+            seen.add(symbol)
+        return rows
+    else:
+        top_rows, bottom_rows = top_bottom_from_extremes(extremes, side_limit=1000)
+    rows = []
+    seen: set[str] = set()
+    for row in [*top_rows, *bottom_rows]:
+        symbol = str(row.get("symbol") or "")
+        if not symbol or symbol in seen:
+            continue
+        rows.append(row)
+        seen.add(symbol)
+    return rows
+
+
+def _market_row_from_item(item: dict[str, Any]) -> dict[str, Any] | None:
+    symbol = str(item.get("symbol") or "").strip().upper()
+    if not symbol:
+        return None
+    current_price = item.get("current_price") if item.get("current_price") is not None else item.get("end_price")
+    return {
+        "rank": item.get("rank") or 0,
+        "side": item.get("side") or "basket",
+        "symbol": symbol,
+        "base_symbol": str(item.get("base_symbol") or base_token_symbol(symbol)).strip().upper(),
+        "change_percent": _safe_float(item.get("change_percent")),
+        "start_price": _safe_float(item.get("start_price")),
+        "end_price": _safe_float(item.get("end_price") if item.get("end_price") is not None else current_price),
+        "current_price": _safe_float(current_price),
+        "price_source": item.get("price_source"),
+        "window_ready": bool(item.get("window_ready", True)),
+    }
+
+
+def _market_row_price_ok(row: dict[str, Any], min_token_price_usd: float) -> bool:
+    threshold = max(0.0, float(min_token_price_usd))
+    prices = [
+        _safe_float(row.get("start_price")),
+        _safe_float(row.get("current_price") if row.get("current_price") is not None else row.get("end_price")),
+    ]
+    observed_prices = [price for price in prices if price is not None]
+    return bool(observed_prices) and min(observed_prices) >= threshold
+
+
+def _market_row_change_ok(row: dict[str, Any], min_side_change_percent: float, side: str | None = None) -> bool:
+    change = _safe_float(row.get("change_percent"))
+    if change is None:
+        return False
+    threshold = max(0.0, float(min_side_change_percent))
+    if side == "top":
+        return change > threshold
+    if side == "bottom":
+        return change < -threshold
+    return change > threshold or change < -threshold
+
+
+def _eligible_market_rows(
+    rows: list[dict[str, Any]],
+    *,
+    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
+    min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
+    side: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    eligible = []
+    excluded = []
+    for row in rows:
+        copied = dict(row)
+        reasons = []
+        if not _market_row_change_ok(copied, min_side_change_percent, side=side):
+            reasons.append("side_change_below_threshold")
+        if not _market_row_price_ok(copied, min_token_price_usd):
+            reasons.append("price_below_threshold")
+        if reasons:
+            copied["market_filter_reasons"] = reasons
+            excluded.append(copied)
+        else:
+            eligible.append(copied)
+    return eligible, excluded
+
+
+def _market_filter_reason_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        for reason in row.get("market_filter_reasons") or []:
+            key = str(reason or "").strip() or "unknown"
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _price_filtered_market_rows(
+    rows: list[dict[str, Any]],
+    *,
+    min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
+) -> list[dict[str, Any]]:
+    return [
+        dict(row)
+        for row in rows
+        if _market_row_price_ok(row, min_token_price_usd)
+    ]
+
+
+def _cow_supported_market_rows(
+    rows: list[dict[str, Any]],
+    registry: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    supported = []
+    unsupported = []
+    for row in rows:
+        token = _resolve_cow_market_symbol(str(row.get("base_symbol") or ""), registry)
+        copied = dict(row)
+        if token is None:
+            copied["cow_supported"] = False
+            unsupported.append(copied)
+            continue
+        copied["cow_supported"] = True
+        copied["cow_base_symbol"] = token["symbol"]
+        copied["cow_token_address"] = token["address"]
+        copied["cow_token_source"] = token["source"]
+        copied["binance_base_symbol"] = copied.get("base_symbol")
+        copied["base_symbol"] = token["symbol"]
+        supported.append(copied)
+    return supported, unsupported
+
+
+def _cow_supported_union_market_rows(
+    rows: list[dict[str, Any]],
+    network_token_caches: dict[str, dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    supported: dict[str, dict[str, Any]] = {}
+    unsupported: list[dict[str, Any]] = []
+    eligible_symbols: set[str] = set()
+    for row in rows:
+        symbol = str(row.get("symbol") or "").upper()
+        base_symbol = str(row.get("base_symbol") or "").upper()
+        if not symbol or not base_symbol:
+            continue
+        eligible_symbols.add(symbol)
+        support_networks = []
+        cow_symbols = []
+        for network, token_cache in network_token_caches.items():
+            config = cow_network_config(network=network)
+            if config.testnet:
+                continue
+            registry = _market_registry_for_network(
+                config.network,
+                token_cache.get("registry") if isinstance(token_cache, dict) else {},
+            )
+            token = _resolve_cow_market_symbol(base_symbol, registry or {})
+            if token is None:
+                continue
+            support_networks.append(config.network)
+            cow_symbols.append(token["symbol"])
+        if not support_networks:
+            unsupported.append(dict(row))
+            continue
+        copied = dict(row)
+        copied["cow_supported"] = True
+        copied["cow_networks"] = support_networks
+        copied["cow_network_count"] = len(support_networks)
+        copied["cow_base_symbols"] = list(dict.fromkeys(cow_symbols))
+        supported[symbol] = copied
+    return list(supported.values()), unsupported, eligible_symbols
+
+
+def _rank_supported_extremes(
+    rows: list[dict[str, Any]],
+    limit: int,
+    *,
+    min_side_change_percent: float = DEFAULT_MIN_COW_SIDE_CHANGE_PERCENT,
+    min_token_price_usd: float = DEFAULT_MIN_TOKEN_PRICE_USD,
+    enforce_side_move: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if enforce_side_move:
+        eligible_rows, _ = _eligible_market_rows(
+            rows,
+            min_side_change_percent=min_side_change_percent,
+            min_token_price_usd=min_token_price_usd,
+        )
+    else:
+        eligible_rows = _price_filtered_market_rows(rows, min_token_price_usd=min_token_price_usd)
+    top = sorted(
+        (row for row in eligible_rows if _safe_float(row.get("change_percent")) is not None and float(row.get("change_percent") or 0) > 0),
+        key=lambda row: float(row.get("change_percent") or 0),
+        reverse=True,
+    )[: max(1, int(limit))]
+    bottom = sorted(
+        (row for row in eligible_rows if _safe_float(row.get("change_percent")) is not None and float(row.get("change_percent") or 0) < 0),
+        key=lambda row: float(row.get("change_percent") or 0),
+    )[: max(1, int(limit))]
+    for index, row in enumerate(top, start=1):
+        row["rank"] = index
+        row["side"] = "top"
+    for index, row in enumerate(bottom, start=1):
+        row["rank"] = index
+        row["side"] = "bottom"
+    return top, bottom
+
+
+def _route_price(row: dict[str, Any] | None, phase: str) -> Decimal | None:
+    if row is None:
+        return None
+    key = "start_price" if phase == "start" else "current_price"
+    return _decimal_value(row.get(key))
+
+
+def _binance_execution_plan(
+    symbols: list[str],
+    x: dict[str, Any],
+    y: dict[str, Any],
+    amount: str | int | float | Decimal,
+    *,
+    slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
+) -> dict[str, Any]:
+    initial_amount = _decimal_value(amount)
+    slippage = max(0, min(int(slippage_bps), 5000))
+    slippage_factor = Decimal(10000 - slippage) / Decimal(10000)
+    rows = {
+        str(x.get("base_symbol") or "").upper(): x,
+        str(y.get("base_symbol") or "").upper(): y,
+    }
+    if initial_amount is None or initial_amount <= 0 or len(symbols) < 2:
+        return {"available": False, "reason": "invalid_initial_amount", "slippage_bps": slippage}
+
+    current_amount = initial_amount
+    steps = []
+    for index, (from_symbol, to_symbol) in enumerate(zip(symbols, symbols[1:]), start=1):
+        from_key = str(from_symbol or "").upper()
+        to_key = str(to_symbol or "").upper()
+        target_price_candidate = None
+        acceptable_price_candidate = None
+        target_rate_candidate = None
+        acceptable_rate_candidate = None
+        price_candidates: list[dict[str, Any]] = []
+        rate_candidates: list[dict[str, Any]] = []
+        if _stable_symbol(from_key) and not _stable_symbol(to_key):
+            phase = "current"
+            price_basis = "current_binance_buy_low"
+            rule = "buy target token at the lowest of previous, current, and query prices"
+            target_role = "buy_price_ceiling"
+            target_price_usd = None
+            selection_rule = "买入：前期窗口价、当前窗口价、CoW 查询价三者取最低价作为目标价，中间价作为可接受滑点价"
+        elif not _stable_symbol(from_key) and not _stable_symbol(to_key):
+            phase = "start"
+            price_basis = "pre_change_binance_cross"
+            rule = "cross tokens at the best output ratio among previous, current, and query ratios"
+            target_role = "network_optimized_reference"
+            target_price_usd = None
+            selection_rule = "中间兑换：前期窗口兑换比例、当前窗口兑换比例、CoW 查询比例三者取最高比例，力争换到最多目标代币"
+        elif not _stable_symbol(from_key) and _stable_symbol(to_key):
+            phase = "current"
+            price_basis = "current_binance_sell_high"
+            rule = "sell target token at the highest of previous, current, and query prices"
+            target_role = "sell_price_floor"
+            target_price_usd = None
+            selection_rule = "卖出：前期窗口价、当前窗口价、CoW 查询价三者取最高价作为目标价，中间价作为可接受滑点价"
+        else:
+            phase = "current"
+            price_basis = "stable_reference"
+            rule = "stable reference conversion"
+            target_role = "stable_reference"
+            target_price_usd = None
+            selection_rule = "稳定币参考：按 1:1 参考"
+
+        from_price = Decimal("1") if _stable_symbol(from_key) else _route_price(rows.get(from_key), phase)
+        to_price = Decimal("1") if _stable_symbol(to_key) else _route_price(rows.get(to_key), phase)
+        if from_price is None or to_price is None or from_price <= 0 or to_price <= 0:
+            return {
+                "available": False,
+                "reason": f"missing_{price_basis}_price",
+                "route": symbols,
+                "initial_amount": _decimal_text(initial_amount),
+                "initial_symbol": symbols[0],
+                "slippage_bps": slippage,
+                "steps": steps,
+            }
+
+        if target_role == "buy_price_ceiling":
+            price_candidates = _market_price_candidates(to_key, rows, query_price=None)
+            target_price_candidate = _select_decimal_candidate(price_candidates, "price", "min")
+            acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
+            target_price_usd = target_price_candidate.get("price") if target_price_candidate else to_price
+            acceptable_price_usd = acceptable_price_candidate.get("price") if acceptable_price_candidate else target_price_usd / slippage_factor
+            target_output = current_amount / target_price_usd
+            min_output = current_amount / acceptable_price_usd
+            target_exchange_rate = target_output / current_amount if current_amount > 0 else None
+            min_exchange_rate = min_output / current_amount if current_amount > 0 else None
+            cow_parameter_rule = "sellAmountBeforeFee 固定输入；buyAmountAfterFee/minBuyAmountAfterFee 用可接受滑点价换算"
+            price_compare_rule = "买入使用三价最低作为目标，三价中间值作为可接受滑点"
+        elif target_role == "sell_price_floor":
+            price_candidates = _market_price_candidates(from_key, rows, query_price=None)
+            target_price_candidate = _select_decimal_candidate(price_candidates, "price", "max")
+            acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
+            target_price_usd = target_price_candidate.get("price") if target_price_candidate else from_price
+            acceptable_price_usd = acceptable_price_candidate.get("price") if acceptable_price_candidate else target_price_usd * slippage_factor
+            target_output = current_amount * target_price_usd
+            min_output = current_amount * acceptable_price_usd
+            target_exchange_rate = target_output / current_amount if current_amount > 0 else None
+            min_exchange_rate = min_output / current_amount if current_amount > 0 else None
+            cow_parameter_rule = "sellAmountBeforeFee 固定输入；buyAmountAfterFee/minBuyAmountAfterFee 用可接受滑点价换算"
+            price_compare_rule = "卖出使用三价最高作为目标，三价中间值作为可接受滑点"
+        elif target_role == "network_optimized_reference":
+            rate_candidates = _exchange_rate_candidates(from_key, to_key, rows, query_rate=None)
+            target_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "max")
+            acceptable_rate_candidate = target_rate_candidate
+            target_exchange_rate = target_rate_candidate.get("rate") if target_rate_candidate else from_price / to_price
+            min_exchange_rate = acceptable_rate_candidate.get("rate") if acceptable_rate_candidate else target_exchange_rate * slippage_factor
+            target_output = current_amount * target_exchange_rate
+            min_output = current_amount * min_exchange_rate
+            target_price_usd = None
+            acceptable_price_usd = None
+            cow_parameter_rule = "sellAmountBeforeFee 固定输入；中间 hop 用最高兑换比例做目标，用中间兑换比例做可接受滑点"
+            price_compare_rule = "中间兑换使用三种兑换比例中的最高值，实际路由交给 CoW/network 优化"
+        else:
+            target_output = current_amount * from_price / to_price
+            min_output = target_output * slippage_factor
+            target_exchange_rate = target_output / current_amount if current_amount > 0 else None
+            min_exchange_rate = min_output / current_amount if current_amount > 0 else None
+            target_price_usd = None
+            acceptable_price_usd = None
+            cow_parameter_rule = "stable reference"
+            price_compare_rule = "stable reference"
+        cow_sdk_parameters = {
+            "quote_kind": "sell",
+            "sell_token_symbol": from_key,
+            "buy_token_symbol": to_key,
+            "sell_amount_before_fee": _decimal_text(current_amount),
+            "target_buy_amount_after_fee": _decimal_text(target_output),
+            "min_buy_amount_after_fee": _decimal_text(min_output) if target_role in {"buy_price_ceiling", "sell_price_floor", "network_optimized_reference"} else None,
+            "target_exchange_rate": _decimal_text(target_exchange_rate),
+            "min_exchange_rate": _decimal_text(min_exchange_rate) if target_role in {"buy_price_ceiling", "sell_price_floor", "network_optimized_reference"} else None,
+            "target_price_usd_per_token": _decimal_text(target_price_usd),
+            "acceptable_price_usd_per_token": _decimal_text(acceptable_price_usd),
+            "selected_target_source": _selected_source(target_price_candidate or target_rate_candidate),
+            "selected_acceptable_source": _selected_source(acceptable_price_candidate or acceptable_rate_candidate),
+            "limit_enabled": target_role in {"buy_price_ceiling", "sell_price_floor", "network_optimized_reference"},
+        }
+        steps.append(
+            {
+                "step": index,
+                "from_symbol": from_key,
+                "to_symbol": to_key,
+                "input_amount": _decimal_text(current_amount),
+                "target_output_amount": _decimal_text(target_output),
+                "min_output_amount": _decimal_text(min_output),
+                "target_exchange_rate": _decimal_text(target_exchange_rate),
+                "min_exchange_rate": _decimal_text(min_exchange_rate),
+                "input_price_usd": _decimal_text(from_price),
+                "output_price_usd": _decimal_text(to_price),
+                "price_basis": price_basis,
+                "price_phase": phase,
+                "rule": rule,
+                "target_role": target_role,
+                "target_price_usd_per_token": _decimal_text(target_price_usd),
+                "acceptable_price_usd_per_token": _decimal_text(acceptable_price_usd),
+                "price_candidates": _serialize_decimal_candidates(price_candidates, "price"),
+                "rate_candidates": _serialize_decimal_candidates(rate_candidates, "rate"),
+                "selected_target_source": _selected_source(target_price_candidate or target_rate_candidate),
+                "selected_target_price_usd_per_token": _selected_decimal_text(target_price_candidate, "price"),
+                "selected_target_exchange_rate": _selected_decimal_text(target_rate_candidate, "rate") or _decimal_text(target_exchange_rate),
+                "selected_acceptable_source": _selected_source(acceptable_price_candidate or acceptable_rate_candidate),
+                "acceptable_slippage_price_usd_per_token": _selected_decimal_text(acceptable_price_candidate, "price"),
+                "acceptable_slippage_exchange_rate": _selected_decimal_text(acceptable_rate_candidate, "rate") or _decimal_text(min_exchange_rate),
+                "cow_parameter_rule": cow_parameter_rule,
+                "price_compare_rule": price_compare_rule,
+                "selection_rule": selection_rule,
+                "cow_sdk_parameters": cow_sdk_parameters,
+                "cow_limit_enabled": target_role in {"buy_price_ceiling", "sell_price_floor", "network_optimized_reference"},
+                "slippage_bps": slippage,
+                "slippage_percent": _decimal_text(Decimal(slippage) / Decimal(100)),
+            }
+        )
+        current_amount = min_output
+
+    profit_amount = current_amount - initial_amount if _stable_symbol(symbols[0]) and _stable_symbol(symbols[-1]) else None
+    profit_percent = profit_amount / initial_amount * Decimal(100) if profit_amount is not None and initial_amount > 0 else None
+    return {
+        "available": True,
+        "route": symbols,
+        "initial_amount": _decimal_text(initial_amount),
+        "initial_symbol": symbols[0],
+        "final_target_amount": _decimal_text(current_amount),
+        "final_symbol": symbols[-1],
+        "profit_amount": _decimal_text(profit_amount),
+        "profit_percent": _decimal_text(profit_percent),
+        "slippage_bps": slippage,
+        "slippage_factor": _decimal_text(slippage_factor),
+        "slippage_percent": _decimal_text(Decimal(slippage) / Decimal(100)),
+        "market_prices": [
+            {
+                "symbol": symbol,
+                "start_price": _decimal_text(_decimal_value(row.get("start_price"))),
+                "current_price": _decimal_text(_decimal_value(row.get("current_price"))),
+                "change_percent": row.get("change_percent"),
+                "price_source": row.get("price_source"),
+            }
+            for symbol, row in rows.items()
+        ],
+        "pricing_rules": [
+            "USDC -> token uses current Binance price with slippage",
+            "token -> token uses pre-change Binance prices with slippage",
+            "token -> USDC uses current Binance price with slippage",
+        ],
+        "steps": steps,
+    }
+
+
+def _route_text(route: dict[str, Any] | None, fallback: list[str]) -> str:
+    symbols = None
+    if isinstance(route, dict):
+        symbols = route.get("route_symbols") or route.get("route")
+    if not isinstance(symbols, list) or not symbols:
+        symbols = fallback
+    return " -> ".join(str(symbol) for symbol in symbols if symbol)
+
+
+def _candidate_route_symbols(route: tuple[str, ...], x: dict[str, Any], y: dict[str, Any]) -> list[str]:
+    rows = {"x": x, "y": y}
+    symbols = []
+    for item in route:
+        symbols.append(item if item in {"USDC", "USDT"} else rows[item]["base_symbol"])
+    return symbols
+
+
+def _route_candidate(
+    strategy: str,
+    route: tuple[str, ...],
+    priority_reason: str,
+    x: dict[str, Any],
+    y: dict[str, Any],
+    route_no: int,
+    initial_amount: str | int | float | Decimal,
+    slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
+) -> dict[str, Any]:
+    symbols = _candidate_route_symbols(route, x, y)
+    edge_hint_percent = _min_abs_change_percent(x, y)
+    execution_plan = _binance_execution_plan(symbols, x, y, initial_amount, slippage_bps=slippage_bps)
+    return {
+        "route_no": route_no,
+        "strategy": strategy,
+        "route": symbols,
+        "route_text": _route_text({"route": symbols}, []),
+        "hop_count": max(0, len(symbols) - 1),
+        "route_depth_label": f"{max(0, len(symbols) - 1)} hop",
+        "steps": [],
+        "initial_symbol": symbols[0] if symbols else None,
+        "initial_amount": str(initial_amount),
+        "remaining_amount": None,
+        "profit_amount": None,
+        "profit_percent": None,
+        "owed_amount_with_premium": None,
+        "net_after_flashloan_amount": None,
+        "net_after_flashloan_percent": None,
+        "net_after_flashloan_usd": None,
+        "profitable": False,
+        "quote_required": True,
+        "estimation_available": False,
+        "candidate_basis": "stablecoin_closed_route_requires_cow_or_dex_quote",
+        "edge_hint_percent": edge_hint_percent,
+        "priority_reason": priority_reason,
+        "binance_execution_plan": execution_plan,
+    }
+
+
+def _min_abs_change_percent(x: dict[str, Any], y: dict[str, Any]) -> float | None:
+    x_change = _safe_float(x.get("change_percent"))
+    y_change = _safe_float(y.get("change_percent"))
+    if x_change is None or y_change is None:
+        return None
+    return min(abs(x_change), abs(y_change))
+
+
+def _pair_quote_candidates(
+    x: dict[str, Any],
+    y: dict[str, Any],
+    config: ArbitrageConfig,
+    slippage_bps: int = DEFAULT_EXECUTION_SLIPPAGE_BPS,
+) -> dict[str, Any]:
+    fallback_route = ["USDC", y["base_symbol"], x["base_symbol"], "USDC"]
+    row = {
+        "rank": 0,
+        "pair": f"{x['symbol']} / {y['symbol']}",
+        "x_symbol": x["symbol"],
+        "y_symbol": y["symbol"],
+        "x_base_symbol": x["base_symbol"],
+        "y_base_symbol": y["base_symbol"],
+        "x_change_percent": x["change_percent"],
+        "y_change_percent": y["change_percent"],
+        "x_start_price": x.get("start_price"),
+        "x_current_price": x.get("current_price"),
+        "y_start_price": y.get("start_price"),
+        "y_current_price": y.get("current_price"),
+        "window_spread_percent": (
+            float(x["change_percent"]) - float(y["change_percent"])
+            if x["change_percent"] is not None and y["change_percent"] is not None
+            else None
+        ),
+        "edge_hint_percent": _min_abs_change_percent(x, y),
+        "candidate_basis": "binance_token_names_only",
+        "trigger_source": "binance_realtime_symbols",
+        "route": fallback_route,
+        "route_text": _route_text(None, fallback_route),
+        "route_results": [],
+        "route_results_full": [],
+        "route_count": 0,
+        "full_route_count": 0,
+        "quote_verified": False,
+        "quote_required": True,
+        "estimation_available": False,
+        "profit_usd": None,
+        "profit_percent": None,
+        "best_route": None,
+        "best_route_no": None,
+        "best_strategy": None,
+        "profitable": False,
+        "blocked_reasons": ["requires_cow_or_dex_quote"],
+    }
+    route_results = [
+        _route_candidate(strategy, route, priority_reason, x, y, index, config.notional_usd, slippage_bps=slippage_bps)
+        for index, (strategy, route, priority_reason) in enumerate(STABLE_ROUTE_CANDIDATES, start=1)
+    ]
+    row.update(
+        {
+            "strategy": None,
+            "route_results": route_results,
+            "route_results_full": route_results,
+            "route_count": len(route_results),
+            "full_route_count": len(route_results),
+            "strategy_analysis": build_pair_strategy_analysis(
+                x,
+                y,
+                config,
+                initial_amount=config.notional_usd,
+            ),
+            "borrow_symbol": None,
+            "swap_symbol": None,
+        }
+    )
+    return row
+
+
+def _cow_quote_error_info(error: Any) -> dict[str, Any]:
+    text = str(error or "").strip()
+    lowered = text.lower()
+    if not text:
+        return {"type": None, "display": None, "retryable": False, "raw": None}
+    if "403 error" in lowered and ("cloudfront" in lowered or "request blocked" in lowered):
+        return {
+            "type": "quote_api_http_403_cloudfront_request_blocked",
+            "display": "CoW quote API HTTP 403: CloudFront request blocked",
+            "retryable": True,
+            "raw": text,
+        }
+    if "timed out" in lowered or "timeout" in lowered:
+        return {
+            "type": "quote_api_timeout",
+            "display": "CoW quote API timeout",
+            "retryable": True,
+            "raw": text,
+        }
+    if "ssl" in lowered:
+        return {
+            "type": "quote_api_ssl_error",
+            "display": "CoW quote API SSL error",
+            "retryable": True,
+            "raw": text,
+        }
+    if "http" in lowered or "<html" in lowered or "<!doctype" in lowered:
+        return {
+            "type": "quote_api_http_error",
+            "display": "CoW quote API HTTP error",
+            "retryable": True,
+            "raw": text,
+        }
+    return {
+        "type": "quote_api_error",
+        "display": text[:240],
+        "retryable": True,
+        "raw": text,
+    }
+
+
+def cow_network_options() -> dict[str, Any]:
+    networks = []
+    for name in supported_cow_networks(include_testnet=True):
+        config = SUPPORTED_COW_NETWORKS[name]
+        if not config.network:
+            continue
+        account = cow_account_config(config.network)
+        networks.append(
+            {
+                "network": name,
+                "label": COW_NETWORK_LABELS.get(name, name),
+                "chain_id": config.chain_id,
+                "testnet": config.testnet,
+                "submission_supported": cow_order_submission_network_supported(config.network),
+                "quote_api": config.quote_api,
+                "owner": account.owner,
+                "owner_source": account.owner_source,
+            }
+        )
+    return {
+        "default_network": DEFAULT_COW_TEST_NETWORK,
+        "networks": networks,
+    }
+
+
+def _binance_price_row(item: dict[str, Any]) -> dict[str, Any] | None:
+    symbol = str(item.get("symbol") or "").strip().upper()
+    if not symbol.endswith("USDT") or symbol == "USDCUSDT":
+        return None
+    try:
+        current_price = float(item.get("price") or item.get("lastPrice") or 0)
+    except (TypeError, ValueError):
+        return None
+    if current_price <= 0:
+        return None
+    return {
+        "symbol": symbol,
+        "current_price": current_price,
+        "price_source": "rest_interval",
+    }
+
+
+def fetch_binance_current_price_rows(rest_bases: list[str] | None = None) -> list[dict[str, Any]]:
+    bases = rest_bases or env_urls("BINANCE_REST_BASES", DEFAULT_BINANCE_REST_BASES, "https://")
+    payload: object = []
+    for base in bases:
+        try:
+            payload = fetch_json(f"{base}/api/v3/ticker/price")
+            break
+        except Exception:
+            payload = []
+    if not isinstance(payload, list):
+        return []
+    return [
+        row
+        for item in payload
+        if isinstance(item, dict)
+        for row in [_binance_price_row(item)]
+        if row is not None
+    ]
+
+
+def _iso_to_event_ms(value: Any) -> int | None:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return int(parsed.timestamp() * 1000)
+
+
+def _snapshot_event_ms(snapshot: dict[str, Any] | None) -> int | None:
+    if not isinstance(snapshot, dict):
+        return None
+    return _iso_to_event_ms(snapshot.get("observed_at"))
+
+
+def _current_event_ms() -> int:
+    return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
+async def _build_window_extremes_from_rows(
+    *,
+    previous_snapshot: dict[str, Any] | None,
+    current_rows: list[dict[str, Any]],
+    side_limit: int,
+) -> dict[str, Any]:
+    state = PriceState()
+    previous_ms = _snapshot_event_ms(previous_snapshot)
+    current_ms = _current_event_ms()
+    previous_by_symbol = {}
+    earliest_previous_ms = previous_ms
+    if isinstance(previous_snapshot, dict):
+        for item in previous_snapshot.get("basket") or []:
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol") or "").upper()
+            price = _safe_float(item.get("current_price") if item.get("current_price") is not None else item.get("end_price"))
+            event_ms = int(item.get("end_ms") or previous_ms or max(0, current_ms - 1))
+            if symbol and price and price > 0:
+                previous_by_symbol[symbol] = (event_ms, price)
+                earliest_previous_ms = event_ms if earliest_previous_ms is None else min(earliest_previous_ms, event_ms)
+    symbols = []
+    for item in current_rows:
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").upper()
+        price = _safe_float(item.get("current_price"))
+        if not symbol or price is None or price <= 0:
+            continue
+        symbols.append(symbol)
+        if symbol in previous_by_symbol:
+            event_ms, previous_price = previous_by_symbol[symbol]
+            await state.update_binance(symbol, previous_price, event_ms, "rest_interval")
+        await state.update_binance(symbol, price, current_ms, "rest_interval")
+    actual_window_seconds = max(0.001, (current_ms - (earliest_previous_ms or current_ms)) / 1000)
+    snapshot = await state.window_extremes(
+        symbols,
+        window_seconds=actual_window_seconds + 5.0,
+        limit=side_limit,
+        source="rest_interval",
+    )
+    snapshot["window_seconds"] = actual_window_seconds
+    return snapshot
+
+
+def build_binance_rest_market_snapshot(
+    *,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+    previous_snapshot: dict[str, Any] | None = None,
+    current_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    limit = max(1, int(side_limit))
+    rows = current_rows or fetch_binance_current_price_rows()
+    snapshot = asyncio.run(
+        _build_window_extremes_from_rows(
+            previous_snapshot=previous_snapshot,
+            current_rows=rows,
+            side_limit=limit,
+        )
+    )
+    snapshot.update(
+        {
+        "price_source": "rest_interval",
+        "market_state_source": "rest_fallback",
+        "fallback_reason": "latest_extremes_insufficient",
+        }
+    )
+    return snapshot
+
+
+def _market_basket_symbol_count(extremes: dict[str, Any] | None) -> int:
+    if not isinstance(extremes, dict):
+        return 0
+    seen: set[str] = set()
+    basket = extremes.get("basket")
+    if not isinstance(basket, list):
+        return 0
+    for item in basket:
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if symbol:
+            seen.add(symbol)
+    return len(seen)
+
+
+def needs_binance_rest_snapshot(
+    extremes: dict[str, Any] | None,
+    *,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+) -> bool:
+    if not isinstance(extremes, dict):
+        return True
+    if extremes.get("price_source") == "binance_rest_24h":
+        return True
+    top, bottom = top_bottom_from_extremes(extremes, side_limit=side_limit)
+    if len(top) < side_limit or len(bottom) < side_limit:
+        return True
+    basket_symbol_count = _market_basket_symbol_count(extremes)
+    try:
+        observation_universe_size = int(extremes.get("observation_universe_size") or 0)
+    except (TypeError, ValueError):
+        observation_universe_size = 0
+    if basket_symbol_count < side_limit * 2:
+        return True
+    if observation_universe_size > 0 and basket_symbol_count < observation_universe_size:
+        return True
+    return False
+
+
+def read_binance_market_snapshot(
+    path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
+    *,
+    expected_scope: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    if expected_scope is not None:
+        try:
+            return read_scoped_json(path, expected_scope)
+        except ValueError:
+            return None
+    try:
+        if not path.exists():
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def write_binance_market_snapshot(
+    snapshot: dict[str, Any],
+    path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
+    *,
+    expected_scope: dict[str, Any] | None = None,
+) -> None:
+    if expected_scope is not None:
+        write_scoped_json(path, snapshot, expected_scope)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(str(path), snapshot)
+
+
+def _snapshot_age_seconds(snapshot: dict[str, Any] | None) -> float | None:
+    event_ms = _snapshot_event_ms(snapshot)
+    if event_ms is None:
+        return None
+    return max(0.0, time.time() - (event_ms / 1000))
+
+
+def _previous_window_snapshot(
+    snapshot: dict[str, Any] | None,
+    *,
+    max_age_seconds: float | None = DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS,
+) -> dict[str, Any] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    if snapshot.get("price_source") != "rest_interval":
+        return None
+    if max_age_seconds is None:
+        return snapshot
+    age = _snapshot_age_seconds(snapshot)
+    if age is None or age > max(0.0, float(max_age_seconds)):
+        return None
+    return snapshot
+
+
+def select_binance_market_extremes(
+    realtime_extremes: dict[str, Any] | None,
+    *,
+    side_limit: int = DEFAULT_BINANCE_RAW_SIDE_LIMIT,
+    snapshot_path: Path = DEFAULT_BINANCE_MARKET_SNAPSHOT_PATH,
+    current_rows: list[dict[str, Any]] | None = None,
+    persist_snapshot: bool = True,
+    max_previous_age_seconds: float | None = DEFAULT_BINANCE_MARKET_PREVIOUS_MAX_AGE_SECONDS,
+) -> dict[str, Any] | None:
+    return select_market_state(
+        realtime_extremes,
+        side_limit=side_limit,
+        snapshot_path=snapshot_path,
+        max_previous_age_seconds=max_previous_age_seconds,
+        needs_refresh=lambda state, limit: needs_binance_rest_snapshot(state, side_limit=limit),
+        read_snapshot=read_binance_market_snapshot,
+        previous_snapshot=lambda snapshot, max_age: _previous_window_snapshot(
+            snapshot,
+            max_age_seconds=max_age,
+        ),
+        build_snapshot=lambda previous, limit: build_binance_rest_market_snapshot(
+            side_limit=limit,
+            previous_snapshot=previous,
+            current_rows=current_rows,
+        ),
+        persist_snapshot=(
+            write_binance_market_snapshot
+            if persist_snapshot
+            else lambda _selected, _path: None
+        ),
+    )
+
+
+def __legacy_cow_route_specs(pair: dict[str, Any], amount: str | int | float | Decimal) -> list[dict[str, Any]]:
+    x = str(pair.get("x_base_symbol") or "").upper()
+    y = str(pair.get("y_base_symbol") or "").upper()
+    if not x or not y or x == y:
+        return []
+    existing_plans = {
+        str(route.get("priority_reason") or ""): route.get("binance_execution_plan")
+        for route in pair.get("route_results") or []
+        if isinstance(route, dict)
+    }
+    slippage_bps = DEFAULT_EXECUTION_SLIPPAGE_BPS
+    for plan in existing_plans.values():
+        if isinstance(plan, dict) and plan.get("slippage_bps") is not None:
+            try:
+                slippage_bps = int(plan["slippage_bps"])
+                break
+            except (TypeError, ValueError):
+                slippage_bps = DEFAULT_EXECUTION_SLIPPAGE_BPS
+    x_row = {
+        "base_symbol": x,
+        "start_price": pair.get("x_start_price"),
+        "current_price": pair.get("x_current_price"),
+    }
+    y_row = {
+        "base_symbol": y,
+        "start_price": pair.get("y_start_price"),
+        "current_price": pair.get("y_current_price"),
+    }
+    specs = []
+    for strategy, route_template, priority_reason in STABLE_ROUTE_CANDIDATES:
+        path = _candidate_route_symbols(route_template, x_row, y_row)
+        if not path:
+            continue
+        specs.append(
+            {
+                "name": f"{pair.get('rank', 0)}_{strategy}_{'_'.join(path)}",
+                "path": path,
+                "amount": amount,
+                "pair_rank": pair.get("rank"),
+                "pair": pair.get("pair"),
+                "priority_reason": priority_reason,
+                "edge_hint_percent": pair.get("edge_hint_percent"),
+                "binance_execution_plan": _binance_execution_plan(path, x_row, y_row, amount, slippage_bps=slippage_bps),
+            }
+        )
+    return specs
+
+
+def _candidate_pair_count(top_rows: list[dict[str, Any]], bottom_rows: list[dict[str, Any]], min_spread_percent: float) -> int:
+    count = 0
+    min_spread = max(0.0, float(min_spread_percent))
+    for x in top_rows:
+        for y in bottom_rows:
+            if x.get("symbol") == y.get("symbol"):
+                continue
+            spread = (
+                float(x["change_percent"]) - float(y["change_percent"])
+                if x.get("change_percent") is not None and y.get("change_percent") is not None
+                else None
+            )
+            if spread is not None and spread > min_spread:
+                count += 1
+    return count
+
+
+def __legacy_cow_cost_summary(result: dict[str, Any], *, final_delta_amount: str | None) -> dict[str, Any]:
+    fee_amounts = [
+        {
+            "hop": hop.get("hop"),
+            "sell_symbol": hop.get("sell_symbol"),
+            "fee_amount": hop.get("fee_amount"),
+            "fee_amount_units": hop.get("fee_amount_units"),
+        }
+        for hop in result.get("hops") or []
+        if isinstance(hop, dict)
+    ]
+    return {
+        "native_balance_before": None,
+        "native_balance_after": None,
+        "native_balance_source": "not_checked_in_quote_stage",
+        "quote_api_gas_used": 0,
+        "user_order_submission_gas_used": 0,
+        "settlement_gas_payer": "solver",
+        "approval_gas_status": "requires_allowance_check_before_execution",
+        "execution_gas_used": None,
+        "execution_gas_source": "available_after_onchain_receipt",
+        "cow_fee_amounts": fee_amounts,
+        "profit_amount": None,
+        "profit_symbol": None,
+        "profit_prediction_disabled": True,
+        "profit_source": "sdk_settlement_receipt_only",
+        "quoted_final_amount": result.get("final_amount"),
+        "quoted_final_symbol": result.get("final_symbol"),
+    }
+
+
+def __legacy_cow_min_profit_usd_for_amount(amount: Any) -> Decimal:
+    notional = _decimal_value(amount)
+    if notional is None or notional <= 0:
+        notional = Decimal("1000")
+    return notional * DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT / Decimal("100")
+
+
+def __legacy_cow_pure_profit_intent(
+    *,
+    amount: Any,
+    input_symbol: Any,
+    final_symbol: Any,
+    path: Any,
+    owner: str | None,
+    cow_network: str,
+    cow_chain_id: int,
+    threshold_detail: dict[str, Any] | None,
+    market_state: dict[str, Any] | None,
+    link_name: Any | None = None,
+) -> dict[str, Any]:
+    threshold_detail = threshold_detail or {}
+    expected_profit = _decimal_value(threshold_detail.get("min_pure_profit_amount"))
+    if expected_profit is None:
+        expected_profit = _decimal_value(threshold_detail.get("min_profit_usd"))
+    if expected_profit is None:
+        configured_min_profit_percent = _decimal_value(threshold_detail.get("min_profit_percent")) or DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT
+        notional = _decimal_value(amount)
+        if notional is None or notional <= 0:
+            notional = Decimal("1000")
+        expected_profit = notional * configured_min_profit_percent / Decimal("100")
+    route_label = str(link_name or "").strip() or "->".join(
+        str(part or "").strip().upper() for part in (path or []) if str(part or "").strip()
+    )
+    state = market_state if isinstance(market_state, dict) else {}
+    result = build_triangular_onchain_intent_trade(
+        route_label,
+        expected_profit,
+        state.get("cow_top") or state.get("top") or [],
+        state.get("cow_bottom") or state.get("bottom") or [],
+    )
+    return bind_cow_intent_context(
+        result,
+        requested_amount=amount,
+        input_symbol=input_symbol,
+        final_symbol=final_symbol,
+        owner=owner,
+        cow_network=cow_network,
+        cow_chain_id=cow_chain_id,
+    )
+
+
+def __legacy_cow_own_limit_order_intent(plan: dict[str, Any] | None, *, min_profit_usd: Decimal) -> dict[str, Any]:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        return {
+            "ready": False,
+            "reason": "plan_unavailable",
+            "expected_profit_amount": None,
+            "expected_profit_percent": None,
+            "steps": [],
+        }
+    profit_amount = _decimal_value(plan.get("profit_amount"))
+    profit_percent = _decimal_value(plan.get("profit_percent"))
+    steps = []
+    missing = []
+    for step in plan.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        sdk = step.get("cow_sdk_parameters") if isinstance(step.get("cow_sdk_parameters"), dict) else {}
+        sell_amount = _decimal_value(sdk.get("sell_amount_before_fee"))
+        min_buy = _decimal_value(sdk.get("min_buy_amount_after_fee") or step.get("min_output_amount"))
+        target_buy = _decimal_value(sdk.get("target_buy_amount_after_fee") or step.get("target_output_amount"))
+        role = str(step.get("target_role") or "")
+        step_ready = sell_amount is not None and sell_amount > 0 and min_buy is not None and min_buy > 0
+        if role in {"buy_price_ceiling", "sell_price_floor", "network_optimized_reference"} and not step_ready:
+            missing.append(str(step.get("step") or len(steps) + 1))
+        steps.append(
+            {
+                "step": step.get("step"),
+                "from_symbol": step.get("from_symbol"),
+                "to_symbol": step.get("to_symbol"),
+                "target_role": role,
+                "sell_amount_before_fee": _decimal_text(sell_amount),
+                "target_buy_amount_after_fee": _decimal_text(target_buy),
+                "min_buy_amount_after_fee": _decimal_text(min_buy),
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_acceptable_source": step.get("selected_acceptable_source"),
+                "target_price_usd_per_token": step.get("selected_target_price_usd_per_token") or step.get("target_price_usd_per_token"),
+                "acceptable_price_usd_per_token": step.get("acceptable_slippage_price_usd_per_token") or step.get("acceptable_price_usd_per_token"),
+                "target_exchange_rate": step.get("selected_target_exchange_rate") or step.get("target_exchange_rate"),
+                "min_exchange_rate": step.get("acceptable_slippage_exchange_rate") or step.get("min_exchange_rate"),
+                "ready": step_ready,
+                "rule": step.get("price_compare_rule") or step.get("selection_rule"),
+            }
+        )
+    stable_final = _stable_symbol(str(plan.get("final_symbol") or ""))
+    ready = bool(steps) and not missing and stable_final
+    reason = "ready" if ready else (
+        "missing_limit_parameters" if missing else "non_stable_final_symbol"
+    )
+    return {
+        "ready": ready,
+        "reason": reason,
+        "missing_steps": missing,
+        "expected_profit_amount": _decimal_text(profit_amount),
+        "expected_profit_percent": _decimal_text(profit_percent),
+        "min_profit_usd": _decimal_text(min_profit_usd),
+        "final_symbol": plan.get("final_symbol"),
+        "order_mode": "own_window_price_limit_intent",
+        "quote_dependency": "quote_is_analysis_only; own_limit_params_remain_authoritative",
+        "cow_sdk_boundary": "official CoW Flash Loans SDK order hooks are required before any submission",
+        "steps": steps,
+    }
+
+
+def __legacy_cow_sdk_result_snapshot(result: dict[str, Any], precheck: dict[str, Any]) -> dict[str, Any]:
+    submission = result.get("cow_submission_result") if isinstance(result.get("cow_submission_result"), dict) else {}
+    return {
+        "status": str(precheck.get("status") or "quote_precheck"),
+        "controller": "cow_sdk",
+        "control_mode": _cow_flashloan_control_mode(),
+        "route_hop_constraints_enforced": bool(precheck.get("route_hop_constraints_enforced")),
+        "route_hop_constraints_passed": bool(precheck.get("route_hop_constraints_passed")),
+        "ready": bool(precheck.get("checks_passed")),
+        "intent_ready": bool(precheck.get("intent_mode_ready")),
+        "quote_available": bool(precheck.get("quote_available")),
+        "route_supported": bool(precheck.get("route_supported")),
+        "quote_error_type": precheck.get("quote_error_type"),
+        "quote_error_display": precheck.get("quote_error_display"),
+        "quote_error_raw": precheck.get("quote_error_raw"),
+        "reason_count": len(precheck.get("reasons") or []),
+        "submission_attempted": bool(precheck.get("submission_attempted") or submission.get("submitted") or submission.get("order_id")),
+        "submission_status": submission.get("status") or precheck.get("submission_status"),
+        "submission_order_id": submission.get("order_id") or precheck.get("submission_order_id"),
+        "submission_tx_hash": submission.get("tx_hash") or precheck.get("submission_tx_hash"),
+        "submission_error": submission.get("error"),
+        "submission_blocked_reason": submission.get("blocked_reason"),
+    }
+
+
+def __legacy_cow_order_submission_requested() -> bool:
+    return cow_order_submission_requested()
+
+
+def __legacy_cow_order_submission_adapter_available() -> bool:
+    return cow_order_submission_adapter_available()
+
+
+def __legacy_cow_order_submission_sdk_ready() -> bool:
+    return cow_order_submission_sdk_ready()
+
+
+def __legacy_cow_order_submission_sdk_status() -> dict[str, Any]:
+    return cow_order_submission_sdk_status()
+
+
+def __legacy_cow_order_submission_enabled() -> bool:
+    return cow_order_submission_enabled()
+
+
+def __legacy_attach_cow_flashloan_sdk_plan(
+    result: dict[str, Any],
+    plan: dict[str, Any] | None,
+    registry: dict[str, CowToken],
+) -> None:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        result["cow_flashloan_sdk_plan"] = None
+        result["cow_flashloan_sdk_error"] = "available CoW SDK limit plan is required"
+        return
+    try:
+        route = [str(item or "").upper() for item in plan.get("route") or []]
+        tokens = []
+        for symbol in route:
+            token = resolve_token(symbol, registry)
+            tokens.append(
+                {
+                    "symbol": token.symbol,
+                    "address": token.address,
+                    "decimals": token.decimals,
+                    "source": token.source,
+                }
+            )
+        steps = [
+            {
+                "step": step.get("step") or index + 1,
+                "from_symbol": step.get("from_symbol"),
+                "to_symbol": step.get("to_symbol"),
+                "sell_amount_before_fee": (step.get("cow_sdk_parameters") or {}).get("sell_amount_before_fee")
+                or step.get("query_sell_amount_before_fee")
+                or step.get("input_amount"),
+                "target_buy_amount_after_fee": (step.get("cow_sdk_parameters") or {}).get("target_buy_amount_after_fee")
+                or step.get("target_output_amount"),
+                "min_buy_amount_after_fee": (step.get("cow_sdk_parameters") or {}).get("min_buy_amount_after_fee")
+                or step.get("min_output_amount"),
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_acceptable_source": step.get("selected_acceptable_source"),
+                "rule": step.get("selection_rule") or step.get("price_compare_rule"),
+            }
+            for index, step in enumerate(plan.get("steps") or [])
+            if isinstance(step, dict)
+        ]
+        result["cow_flashloan_sdk_plan"] = {
+            "sdk": "@cowprotocol/sdk-flash-loans",
+            "flow": "AaveCollateralSwapSdk",
+            "route": route,
+            "tokens": tokens,
+            "steps": steps,
+            "single_solver_order_count": 1 if len(steps) >= 3 and route and route[0] == route[-1] else 0,
+            "diagnostic_hop_count": len(steps),
+            "single_step_order_count": len(steps),
+            "submission_status": "not_submitted",
+            "flashloan_capability": assess_cow_flashloan_sdk_plan(
+                route=route,
+                steps=steps,
+                tokens=tokens,
+                hops=result.get("hops") or [],
+            ),
+            "required_probe_methods": [
+                "getSwapQuoteParams",
+                "TradingSdk.getQuoteOnly",
+                "getOrderPostingSettings",
+            ],
+            "required_submission_method": (
+                "TradingSdk.getQuote + AaveCollateralSwapSdk.getOrderPostingSettings + quoteAndPost.postSwapOrderFromQuote"
+                if len(steps) >= 3 and route and route[0] == route[-1]
+                else "blocked: flashloan arbitrage requires a closed three-hop solver path"
+            ),
+            "settlement_boundary": "official CoW solver settlement; no self-deployed contract required for current intent mode",
+        }
+        result["cow_flashloan_sdk_error"] = None
+    except Exception as exc:
+        result["cow_flashloan_sdk_plan"] = None
+        result["cow_flashloan_sdk_error"] = str(exc)
+
+
+def __legacy_execution_plan_rows(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(item.get("symbol") or "").upper(): item
+        for item in plan.get("market_prices") or []
+        if isinstance(item, dict) and item.get("symbol")
+    }
+
+
+def __legacy_cow_query_price_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -> Decimal | None:
+    if not hop:
+        return None
+    sell_amount = _decimal_value(hop.get("sell_amount"))
+    buy_amount = _decimal_value(hop.get("buy_amount"))
+    if sell_amount is None or buy_amount is None or sell_amount <= 0 or buy_amount <= 0:
+        return None
+    from_symbol = str(step.get("from_symbol") or "").upper()
+    to_symbol = str(step.get("to_symbol") or "").upper()
+    if _stable_symbol(from_symbol) and not _stable_symbol(to_symbol):
+        return sell_amount / buy_amount
+    if not _stable_symbol(from_symbol) and _stable_symbol(to_symbol):
+        return buy_amount / sell_amount
+    return None
+
+
+def __legacy_cow_query_rate_for_step(step: dict[str, Any], hop: dict[str, Any] | None) -> Decimal | None:
+    if not hop:
+        return None
+    rate = _decimal_value(hop.get("exchange_rate"))
+    if rate is not None and rate > 0:
+        return rate
+    sell_amount = _decimal_value(hop.get("sell_amount"))
+    buy_amount = _decimal_value(hop.get("buy_amount"))
+    if sell_amount is None or buy_amount is None or sell_amount <= 0 or buy_amount <= 0:
+        return None
+    return buy_amount / sell_amount
+
+
+def __legacy_cow_quote_step_context(
+    step: dict[str, Any],
+    rows: dict[str, dict[str, Any]],
+    hop: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    role = str(step.get("target_role") or "")
+    from_symbol = str(step.get("from_symbol") or "").upper()
+    to_symbol = str(step.get("to_symbol") or "").upper()
+    sell_amount = _decimal_value(hop.get("sell_amount") if hop else None) or _decimal_value(step.get("input_amount"))
+    if sell_amount is None or sell_amount <= 0:
+        return None
+    query_price = _cow_query_price_for_step(step, hop)
+    query_rate = _cow_query_rate_for_step(step, hop)
+    price_candidates: list[dict[str, Any]] = []
+    rate_candidates: list[dict[str, Any]] = []
+    target_price_candidate = None
+    acceptable_price_candidate = None
+    target_rate_candidate = None
+    acceptable_rate_candidate = None
+    target_value = None
+    acceptable_value = None
+    target_amount = None
+    min_amount = None
+    query_field = None
+    quote_fields: dict[str, Any] = {}
+    selection_rule = ""
+
+    if role == "buy_price_ceiling":
+        price_candidates = _market_price_candidates(to_symbol, rows, query_price=query_price)
+        target_price_candidate = _select_decimal_candidate(price_candidates, "price", "min")
+        acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
+        target_value = target_price_candidate.get("price") if target_price_candidate else None
+        acceptable_value = acceptable_price_candidate.get("price") if acceptable_price_candidate else None
+        target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
+        min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
+        query_field = "query_price_usd_per_token"
+        selection_rule = "买入：三价取最低价作为目标价，中间价作为可接受滑点价"
+        quote_fields = {
+            "query_price_usd_per_token": _decimal_text(query_price),
+            "target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_slippage_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_exchange_rate": _decimal_text((target_amount / sell_amount) if target_amount is not None else None),
+            "acceptable_slippage_exchange_rate": _decimal_text((min_amount / sell_amount) if min_amount is not None else None),
+            "target_output_amount": _decimal_text(target_amount),
+            "min_output_amount": _decimal_text(min_amount),
+            "selection_rule": selection_rule,
+        }
+    elif role == "sell_price_floor":
+        price_candidates = _market_price_candidates(from_symbol, rows, query_price=query_price)
+        target_price_candidate = _select_decimal_candidate(price_candidates, "price", "max")
+        acceptable_price_candidate = _select_decimal_candidate(price_candidates, "price", "median") or target_price_candidate
+        target_value = target_price_candidate.get("price") if target_price_candidate else None
+        acceptable_value = acceptable_price_candidate.get("price") if acceptable_price_candidate else None
+        target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
+        min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
+        query_field = "query_price_usd_per_token"
+        selection_rule = "卖出：三价取最高价作为目标价，中间价作为可接受滑点价"
+        quote_fields = {
+            "query_price_usd_per_token": _decimal_text(query_price),
+            "target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_price_usd_per_token": _decimal_text(target_value),
+            "acceptable_slippage_price_usd_per_token": _decimal_text(acceptable_value),
+            "selected_target_exchange_rate": _decimal_text((target_amount / sell_amount) if target_amount is not None else None),
+            "acceptable_slippage_exchange_rate": _decimal_text((min_amount / sell_amount) if min_amount is not None else None),
+            "target_output_amount": _decimal_text(target_amount),
+            "min_output_amount": _decimal_text(min_amount),
+            "selection_rule": selection_rule,
+        }
+    elif role == "network_optimized_reference":
+        rate_candidates = _exchange_rate_candidates(from_symbol, to_symbol, rows, query_rate=query_rate)
+        target_rate_candidate = _select_decimal_candidate(rate_candidates, "rate", "max")
+        acceptable_rate_candidate = target_rate_candidate
+        target_value = target_rate_candidate.get("rate") if target_rate_candidate else None
+        acceptable_value = acceptable_rate_candidate.get("rate") if acceptable_rate_candidate else None
+        target_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=target_value)
+        min_amount = _amount_from_price_rule(role=role, sell_amount=sell_amount, price_or_rate=acceptable_value)
+        query_field = "query_exchange_rate"
+        selection_rule = "中间兑换：三种兑换比例取最高比例作为目标，中间比例作为可接受滑点"
+        quote_fields = {
+            "query_exchange_rate": _decimal_text(query_rate),
+            "target_exchange_rate": _decimal_text(target_value),
+            "min_exchange_rate": _decimal_text(acceptable_value),
+            "selected_target_exchange_rate": _decimal_text(target_value),
+            "acceptable_slippage_exchange_rate": _decimal_text(acceptable_value),
+            "target_output_amount": _decimal_text(target_amount),
+            "min_output_amount": _decimal_text(min_amount),
+            "selection_rule": selection_rule,
+        }
+    else:
+        target_amount = _decimal_value(step.get("target_output_amount"))
+        min_amount = _decimal_value(step.get("min_output_amount"))
+
+    return {
+        "role": role,
+        "from_symbol": from_symbol,
+        "to_symbol": to_symbol,
+        "sell_amount": sell_amount,
+        "query_price": query_price,
+        "query_rate": query_rate,
+        "query_field": query_field,
+        "quote_fields": quote_fields,
+        "price_candidates": _serialize_decimal_candidates(price_candidates, "price"),
+        "rate_candidates": _serialize_decimal_candidates(rate_candidates, "rate"),
+        "selected_target_source": _selected_source(target_price_candidate or target_rate_candidate),
+        "selected_acceptable_source": _selected_source(acceptable_price_candidate or acceptable_rate_candidate),
+        "target_value": target_value,
+        "acceptable_value": acceptable_value,
+        "target_amount": target_amount,
+        "min_amount": min_amount,
+        "selection_rule": selection_rule,
+    }
+
+
+def __legacy_apply_cow_quote_targets(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        return plan
+    enriched = deepcopy(plan)
+    rows = _execution_plan_rows(enriched)
+    hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
+    for index, step in enumerate(enriched.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        hop = hops[index] if index < len(hops) else None
+        context = __legacy_cow_quote_step_context(step, rows, hop)
+        if context is None:
+            continue
+        step.update(context["quote_fields"])
+        step["price_candidates"] = context["price_candidates"]
+        step["rate_candidates"] = context["rate_candidates"]
+        step["selected_target_source"] = context["selected_target_source"]
+        step["selected_acceptable_source"] = context["selected_acceptable_source"]
+        step["query_sell_amount_before_fee"] = _decimal_text(context["sell_amount"])
+        step["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
+        sdk_parameters = dict(step.get("cow_sdk_parameters") or {})
+        sdk_parameters.update(
+            {
+                "quote_kind": "sell",
+                "sell_token_symbol": context["from_symbol"],
+                "buy_token_symbol": context["to_symbol"],
+                "sell_amount_before_fee": _decimal_text(context["sell_amount"]),
+                "target_buy_amount_after_fee": context["quote_fields"].get("target_output_amount")
+                or _decimal_text(context["target_amount"]),
+                "min_buy_amount_after_fee": context["quote_fields"].get("min_output_amount")
+                or _decimal_text(context["min_amount"]),
+                "query_buy_amount_after_fee": hop.get("buy_amount") if hop else None,
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_acceptable_source": step.get("selected_acceptable_source"),
+                "target_price_usd_per_token": step.get("target_price_usd_per_token"),
+                "acceptable_price_usd_per_token": step.get("acceptable_price_usd_per_token"),
+                "target_exchange_rate": step.get("target_exchange_rate"),
+                "min_exchange_rate": step.get("min_exchange_rate"),
+                "limit_enabled": True,
+            }
+        )
+        step["cow_sdk_parameters"] = sdk_parameters
+        step["cow_limit_enabled"] = True
+    enriched["quote_parameter_selection"] = "CoW 查询价已加入前期窗口价、当前窗口价一起比较"
+    return enriched
+
+
+def __legacy_apply_cow_quote_analysis(plan: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(plan, dict) or not plan.get("available"):
+        return plan
+    enriched = deepcopy(plan)
+    rows = _execution_plan_rows(enriched)
+    hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
+    for index, step in enumerate(enriched.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        hop = hops[index] if index < len(hops) else None
+        context = __legacy_cow_quote_step_context(step, rows, hop)
+        if context is None:
+            continue
+        role = context["role"]
+        if context["query_field"] == "query_price_usd_per_token":
+            price_candidates = _market_price_candidates(context["to_symbol"] if role == "buy_price_ceiling" else context["from_symbol"], rows, query_price=context["query_price"])
+            target_value = _decimal_value(step.get("selected_target_price_usd_per_token") or step.get("target_price_usd_per_token"))
+            acceptable_value = _decimal_value(step.get("acceptable_slippage_price_usd_per_token") or step.get("acceptable_price_usd_per_token"))
+            step["query_price_usd_per_token"] = _decimal_text(context["query_price"])
+            step["query_price_position"] = _decimal_rank_analysis(price_candidates, "price")
+            step["query_window_timing"] = _query_window_timing(price_candidates, "price", query_value=context["query_price"])
+            step["query_guard_analysis"] = _query_guard_analysis(
+                role=role,
+                query_value=context["query_price"],
+                target_value=target_value,
+                acceptable_value=acceptable_value,
+            )
+        elif context["query_field"] == "query_exchange_rate":
+            rate_candidates = _exchange_rate_candidates(context["from_symbol"], context["to_symbol"], rows, query_rate=context["query_rate"])
+            target_value = _decimal_value(step.get("selected_target_exchange_rate") or step.get("target_exchange_rate"))
+            acceptable_value = _decimal_value(step.get("acceptable_slippage_exchange_rate") or step.get("min_exchange_rate"))
+            step["query_exchange_rate"] = _decimal_text(context["query_rate"])
+            step["query_rate_position"] = _decimal_rank_analysis(rate_candidates, "rate")
+            step["query_window_timing"] = _query_window_timing(rate_candidates, "rate", query_value=context["query_rate"])
+            step["query_guard_analysis"] = _query_guard_analysis(
+                role=role,
+                query_value=context["query_rate"],
+                target_value=target_value,
+                acceptable_value=acceptable_value,
+            )
+        step["price_candidates"] = context["price_candidates"]
+        step["rate_candidates"] = context["rate_candidates"]
+        step["query_sell_amount_before_fee"] = _decimal_text(context["sell_amount"])
+        step["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
+        sdk_parameters = dict(step.get("cow_sdk_parameters") or {})
+        sdk_parameters["query_buy_amount_after_fee"] = hop.get("buy_amount") if hop else None
+        step["cow_sdk_parameters"] = sdk_parameters
+        step["cow_limit_enabled"] = True
+    enriched["quote_parameter_selection"] = "own_window_prices_guard_order_parameters; query_quote_only_for_position_analysis"
+    return enriched
+
+
+def __legacy_cow_execution_precheck(result: dict[str, Any]) -> dict[str, Any]:
+    plan = result.get("binance_execution_plan") if isinstance(result, dict) else None
+    steps = plan.get("steps") if isinstance(plan, dict) else []
+    hops = [hop for hop in result.get("hops") or [] if isinstance(hop, dict)]
+    control_mode = _cow_flashloan_control_mode()
+    quote_error = _cow_quote_error_info(result.get("error"))
+    quote_error_type = quote_error.get("type")
+    pure_intent = result.get("cow_flashloan_intent") if isinstance(result.get("cow_flashloan_intent"), dict) else {}
+    hop_checks = []
+    for index, step in enumerate(steps or []):
+        if not isinstance(step, dict):
+            continue
+        hop = hops[index] if index < len(hops) else None
+        sdk = step.get("cow_sdk_parameters") or {}
+        actual_buy = _decimal_value(step.get("query_buy_amount_after_fee") or (hop or {}).get("buy_amount"))
+        min_buy = _decimal_value(sdk.get("min_buy_amount_after_fee") or step.get("min_output_amount"))
+        target_buy = _decimal_value(sdk.get("target_buy_amount_after_fee") or step.get("target_output_amount"))
+        sell_amount = _decimal_value(sdk.get("sell_amount_before_fee") or step.get("query_sell_amount_before_fee") or step.get("input_amount"))
+        price_guard_passed = actual_buy is not None and min_buy is not None and actual_buy >= min_buy
+        target_met = actual_buy is not None and target_buy is not None and actual_buy >= target_buy
+        query_guard = step.get("query_guard_analysis") if isinstance(step.get("query_guard_analysis"), dict) else {}
+        failure_cause = None
+        if not price_guard_passed:
+            if actual_buy is None and quote_error_type:
+                failure_cause = quote_error_type
+            elif actual_buy is None:
+                failure_cause = "missing_query_output"
+            else:
+                failure_cause = (
+                    "query_worse_than_own_guard"
+                    if query_guard.get("status") == "worse_than_guard"
+                    else "actual_output_below_own_minimum"
+                )
+        hop_checks.append(
+            {
+                "hop": step.get("step") or index + 1,
+                "path": f"{step.get('from_symbol') or '-'} -> {step.get('to_symbol') or '-'}",
+                "sell_symbol": step.get("from_symbol"),
+                "buy_symbol": step.get("to_symbol"),
+                "sell_amount_before_fee": _decimal_text(sell_amount),
+                "query_buy_amount_after_fee": _decimal_text(actual_buy),
+                "target_buy_amount_after_fee": _decimal_text(target_buy),
+                "min_buy_amount_after_fee": _decimal_text(min_buy),
+                "price_guard_passed": price_guard_passed,
+                "target_met": target_met,
+                "query_guard_status": query_guard.get("status"),
+                "query_guard_reason": query_guard.get("reason"),
+                "query_position": step.get("query_price_position") or step.get("query_rate_position"),
+                "failure_cause": failure_cause,
+                "selected_target_source": step.get("selected_target_source"),
+                "selected_acceptable_source": step.get("selected_acceptable_source"),
+                "rule": step.get("selection_rule") or step.get("price_compare_rule"),
+                "status": "pass" if price_guard_passed else ("not_checked" if actual_buy is None else "fail"),
+            }
+        )
+    route_supported = bool((result.get("cow_support") or {}).get("supported"))
+    quote_available = bool(result.get("viable")) and bool(hops)
+    min_profit_usd = _decimal_value(pure_intent.get("min_pure_profit_amount")) or _cow_min_profit_usd_for_amount(result.get("input_amount"))
+    min_final_amount = _decimal_value(pure_intent.get("min_final_amount"))
+    own_limit_order_intent = _cow_own_limit_order_intent(plan, min_profit_usd=min_profit_usd)
+    cow_sdk_plan = result.get("cow_flashloan_sdk_plan") if isinstance(result.get("cow_flashloan_sdk_plan"), dict) else None
+    cow_sdk_error = result.get("cow_flashloan_sdk_error")
+    route_hop_constraints_enforced = False
+    quote_delta_amount = None
+    quote_delta_positive = None
+    quote_delta_offset_amount = None
+    quote_delta_offset_percent = None
+    quote_delta_above_diagnostic_floor = None
+    pure_intent_ready = bool(pure_intent.get("enabled", True)) and bool(pure_intent.get("ready"))
+    route_hop_constraints_passed = False
+    price_guards_passed = False
+    blocking_cause_counts: dict[str, int] = {}
+    for item in hop_checks:
+        cause = item.get("failure_cause")
+        if cause:
+            blocking_cause_counts[cause] = blocking_cause_counts.get(cause, 0) + 1
+    reasons = []
+    if not route_supported:
+        reasons.append("CoW 不支持该路径中的一个或多个代币")
+    quote_probe_notes = ["upper_profit_prediction_disabled_intent_only"]
+    normalized_reasons = []
+    if not route_supported:
+        normalized_reasons.append("cow_route_has_unsupported_token")
+    if normalized_reasons:
+        reasons = normalized_reasons
+    limit_intent_ready = bool(own_limit_order_intent.get("ready"))
+    flashloan_capability = (
+        cow_sdk_plan.get("flashloan_capability")
+        if isinstance(cow_sdk_plan, dict) and isinstance(cow_sdk_plan.get("flashloan_capability"), dict)
+        else {}
+    )
+    flashloan_submission_safe = bool(flashloan_capability.get("submission_safe"))
+    cow_sdk_flashloan_ready = (
+        route_supported
+        and pure_intent_ready
+        and cow_sdk_plan is not None
+        and not cow_sdk_error
+        and bool(flashloan_capability)
+        and flashloan_submission_safe
+    )
+    if route_supported and pure_intent_ready:
+        reasons.append("cow_intent_ready")
+    if cow_sdk_flashloan_ready:
+        reasons.append("cow_flashloan_sdk_intent_ready")
+    elif route_supported and pure_intent_ready:
+        capability_blockers = flashloan_capability.get("blockers") or []
+        if capability_blockers:
+            reasons.append(f"diagnostic_cow_sdk_intent_route_required:{','.join(capability_blockers)}")
+        else:
+            reasons.append(f"diagnostic_cow_flashloan_sdk_plan_required:{cow_sdk_error or 'missing_sdk_plan'}")
+    intent_mode_ready = route_supported and pure_intent_ready
+    checks_passed = intent_mode_ready
+    order_submission_requested = _cow_order_submission_requested()
+    order_submission_adapter_available = _cow_order_submission_adapter_available()
+    order_submission_sdk_status = _cow_order_submission_sdk_status()
+    order_submission_sdk_ready = bool(order_submission_sdk_status.get("ready"))
+    order_submission_network_supported = cow_order_submission_network_supported(
+        result.get("cow_network") or result.get("network") or DEFAULT_COW_TEST_NETWORK
+    )
+    order_submission_signer_ready = cow_order_submission_signer_ready()
+    order_submission_signer_status = cow_order_submission_signer_status()
+    quote_verified = bool(result.get("quote_verified"))
+    order_submission_enabled = (
+        order_submission_requested
+        and order_submission_adapter_available
+        and order_submission_sdk_ready
+        and order_submission_network_supported
+        and order_submission_signer_ready
+    )
+    quote_submission_blocked = bool(quote_error_type and not quote_available)
+    submission_gate = build_submission_readiness(
+        checks_passed=checks_passed,
+        route_supported=route_supported,
+        quote_available=quote_available,
+        quote_verified=quote_verified,
+        submission_requested=order_submission_requested,
+        adapter_available=order_submission_adapter_available,
+        sdk_ready=order_submission_sdk_ready,
+        network_supported=order_submission_network_supported,
+        signer_ready=order_submission_signer_ready,
+        quote_submission_blocked=quote_submission_blocked,
+        quote_error_type=quote_error_type,
+        existing_reasons=reasons,
+    )
+    if not route_supported:
+        status = "unsupported"
+    elif not pure_intent_ready:
+        status = "intent_not_ready"
+    elif checks_passed and not order_submission_sdk_ready:
+        status = "cow_flashloan_sdk_install_required"
+        if "cow_flashloan_sdk_install_required" not in reasons:
+            reasons.append("cow_flashloan_sdk_install_required")
+        reasons.append(cow_order_submission_sdk_install_hint(order_submission_sdk_status))
+    else:
+        status = "blocked"
+    if checks_passed:
+        if not quote_verified:
+            status = "quote_not_verified"
+        elif order_submission_enabled:
+            status = "limit_order_ready_to_submit"
+        if not order_submission_enabled:
+            disabled_reasons = {
+                "quote_not_verified": not quote_verified,
+                "order_submission_switch_off": not order_submission_requested,
+                "order_submission_adapter_unavailable": not order_submission_adapter_available,
+                "cow_flashloan_sdk_install_required": not order_submission_sdk_ready,
+                "order_submission_network_unsupported": not order_submission_network_supported,
+                "order_submission_signer_not_ready": not order_submission_signer_ready,
+            }
+            for reason, active in disabled_reasons.items():
+                if active and reason not in reasons:
+                    reasons.append(reason)
+            for reason, active in disabled_reasons.items():
+                if active:
+                    status = reason
+                    break
+    submission_ready = bool(submission_gate.get("ready"))
+    return {
+        "control_mode": control_mode,
+        "control_mode_default": DEFAULT_COW_FLASHLOAN_CONTROL_MODE,
+        "status": status,
+        "checks_passed": checks_passed,
+        "quote_verified": quote_verified,
+        "quote_rule_verified": quote_verified,
+        "submission_rule_verified": submission_ready,
+        "can_submit_order": submission_ready,
+        "order_submission_requested": order_submission_requested,
+        "order_submission_enabled": order_submission_enabled,
+        "order_submission_adapter_available": order_submission_adapter_available,
+        "order_submission_sdk_ready": order_submission_sdk_ready,
+        "order_submission_sdk_status": order_submission_sdk_status,
+        "order_submission_network_supported": order_submission_network_supported,
+        "order_submission_signer_ready": order_submission_signer_ready,
+        "order_submission_signer_status": order_submission_signer_status,
+        "auto_execute_requested": checks_passed,
+        "auto_execute_min_profit_usd": _decimal_text(min_profit_usd),
+        "auto_execute_min_profit_percent": _decimal_text(DEFAULT_COW_AUTO_EXECUTE_MIN_PROFIT_PERCENT),
+        "min_final_amount": _decimal_text(min_final_amount),
+        "auto_execute_blocked": checks_passed and not submission_ready,
+        "route_supported": route_supported,
+        "quote_available": quote_available,
+        "quote_submission_blocked": quote_submission_blocked,
+        "profit_prediction_disabled": True,
+        "profit_prediction_mode": "disabled_intent_only_sdk_settlement",
+        "pure_intent_ready": pure_intent_ready,
+        "intent_mode_ready": intent_mode_ready,
+        "route_hop_constraints_enforced": route_hop_constraints_enforced,
+        "route_hop_constraints_passed": route_hop_constraints_passed,
+        "cow_flashloan_intent": pure_intent,
+        "own_limit_order_ready": limit_intent_ready,
+        "own_limit_order_intent": own_limit_order_intent,
+        "cow_sdk_flashloan_ready": cow_sdk_flashloan_ready,
+        "flashloan_sdk_gate_enforced": False,
+        "runtime_sdk_gate_enforced": True,
+        "cow_flashloan_sdk_plan": cow_sdk_plan,
+        "cow_flashloan_sdk_error": cow_sdk_error,
+        "flashloan_capability": flashloan_capability,
+        "quote_price_guards_passed": price_guards_passed,
+        "price_guards_passed": price_guards_passed,
+        "quote_delta_amount": _decimal_text(quote_delta_amount),
+        "quote_delta_positive": quote_delta_positive,
+        "quote_delta_above_diagnostic_floor": quote_delta_above_diagnostic_floor,
+        "quote_result_gate_enforced": False,
+        "quote_probe_notes": quote_probe_notes,
+        "quote_delta_offset_amount": _decimal_text(quote_delta_offset_amount),
+        "quote_delta_offset_percent": _decimal_text(quote_delta_offset_percent),
+        "profit_positive": quote_delta_positive,
+        "profit_above_auto_threshold": quote_delta_above_diagnostic_floor,
+        "local_profit_gate_enforced": False,
+        "local_profit_diagnostic_reasons": quote_probe_notes,
+        "drawdown_amount": _decimal_text(quote_delta_offset_amount),
+        "drawdown_percent": _decimal_text(quote_delta_offset_percent),
+        "intent_final_amount_met": None,
+        "pure_profit_amount": None,
+        "final_delta_amount": None,
+        "final_symbol": result.get("final_symbol"),
+        "hop_checks": hop_checks,
+        "blocking_cause_counts": blocking_cause_counts,
+        "quote_error_type": quote_error_type,
+        "quote_error_display": quote_error.get("display"),
+        "quote_error_retryable": quote_error.get("retryable"),
+        "quote_error_raw": quote_error.get("raw"),
+        "reasons": reasons,
+        "submission_gate": submission_gate,
+    }
+
+
+def _cow_route_support(spec: dict[str, Any], registry: dict[str, Any], *, cow_network: str) -> dict[str, Any]:
+    path = [str(item or "").upper() for item in spec.get("path") or []]
+    unsupported = []
+    tokens = []
+    for symbol in path:
+        try:
+            token = resolve_token(symbol, registry)
+            tokens.append(
+                {
+                    "symbol": token.symbol,
+                    "address": token.address,
+                    "decimals": token.decimals,
+                    "source": token.source,
+                }
+            )
+        except Exception:
+            unsupported.append(symbol)
+    unsupported = list(dict.fromkeys(unsupported))
+    supported = not unsupported and bool(path)
+    return {
+        "pair": spec.get("pair"),
+        "pair_rank": spec.get("pair_rank"),
+        "priority_reason": spec.get("priority_reason"),
+        "path": path,
+        "cow_network": cow_network,
+        "supported": supported,
+        "status": "supported" if supported else "unsupported_tokens",
+        "unsupported_tokens": unsupported,
+        "tokens": tokens,
+        "error": None if supported else f"unsupported CoW tokens on {cow_network}: {', '.join(unsupported)}",
+    }
+
+
+from market.binance_market.cow_surface import (
+    _apply_cow_quote_analysis,
+    _apply_cow_quote_targets,
+    _attach_cow_flashloan_sdk_plan,
+    _cow_cost_summary,
+    _cow_execution_precheck,
+    _cow_min_profit_usd_for_amount,
+    _cow_order_submission_adapter_available,
+    _cow_order_submission_enabled,
+    _cow_order_submission_requested,
+    _cow_order_submission_sdk_ready,
+    _cow_order_submission_sdk_status,
+    _cow_own_limit_order_intent,
+    _cow_pure_profit_intent,
+    _cow_query_price_for_step,
+    _cow_query_rate_for_step,
+    _cow_route_specs,
+    _cow_sdk_result_snapshot,
+    build_cow_network_market_claims,
+    build_cow_route_precheck,
+    build_cow_supported_market_overview,
+    _execution_plan_rows,
+)
+from market.binance_market.quote_service import build_binance_market_state, build_cow_quote_verification
+

@@ -1,8 +1,13 @@
 from pathlib import Path
-import re
 
 from flask import Response, jsonify, request, send_file
 
+from core.html_utils import (
+    add_body_attribute as _add_body_attribute,
+    add_body_class as _add_body_class,
+    inject_before_head_close as _inject_before_head_close,
+    prepare_embedded_html as _prepare_embedded_html,
+)
 from core.chain_selection import ChainSelectionError
 from core.build_info import build_info_payload
 from core.flash_loan_pool_discovery import (
@@ -18,8 +23,8 @@ from core.market_config import (
     supported_market_summaries,
 )
 from core.market_identity import canonical_market_id_from_legacy
-from account_pool import account_pool_state_payload
-from page_state import (
+from bot.account_pool import account_pool_state_payload
+from bot.page_state import (
     account_scan_state_payload,
     debt_pool_state_payload,
     execution_state_payload,
@@ -27,81 +32,15 @@ from page_state import (
 )
 from web.chain_selection import inject_chain_selector_markup
 from web.app_shell import inject_app_shell_markup
-from web.dex_provenance import inject_dex_provenance_markup
+from core.dex_provenance import inject_dex_provenance_markup
 from web.flash_loan_pools import flash_loan_pools_payload
-from web.market_page_registry import resolve_market_page_variant
-from web.workflow_context import inject_workflow_context_markup
+from core.market_page_registry import resolve_market_page_variant
+from core.workflow_context import inject_workflow_context_markup
 
 
 CHAIN_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "chain_selector.js"
 DEX_STRATEGY_SELECTOR_SCRIPT = Path(__file__).resolve().parent / "static" / "dex_strategy_selector.js"
 APP_SHELL_SCRIPT = Path(__file__).resolve().parent / "static" / "app_shell.js"
-
-
-def _add_body_attribute(html: str, name: str, value: str) -> str:
-    pattern = re.compile(r"<body([^>]*)>", re.IGNORECASE)
-
-    def replace(match: re.Match) -> str:
-        attrs = match.group(1) or ""
-        if re.search(rf"\s{name}=", attrs, re.IGNORECASE):
-            return match.group(0)
-        return f'<body{attrs} {name}="{value}">'
-
-    return pattern.sub(replace, html, count=1)
-
-
-def _add_body_class(html: str, class_name: str) -> str:
-    pattern = re.compile(r"<body([^>]*)>", re.IGNORECASE)
-
-    def replace(match: re.Match) -> str:
-        attrs = match.group(1) or ""
-        class_match = re.search(r'\sclass=(["\'])(.*?)\1', attrs, re.IGNORECASE)
-        if not class_match:
-            return f'<body{attrs} class="{class_name}">'
-        classes = class_match.group(2).split()
-        if class_name in classes:
-            return match.group(0)
-        next_value = " ".join([*classes, class_name])
-        start, end = class_match.span(2)
-        return f"<body{attrs[:start]}{next_value}{attrs[end:]}>"
-
-    return pattern.sub(replace, html, count=1)
-
-
-def _inject_before_head_close(html: str, markup: str) -> str:
-    if "</head>" in html.lower():
-        return re.sub(r"</head>", markup + "</head>", html, count=1, flags=re.IGNORECASE)
-    return markup + html
-
-
-def _prepare_embedded_html(html: str) -> str:
-    html = _add_body_class(html, "embedded")
-    return _inject_before_head_close(
-        html,
-        """
-<style id="flashloan-embedded-style">
-  body.embedded { padding: 0 !important; }
-  body.embedded > header { display: none !important; }
-  body.embedded .chain-selector-shell { display: none !important; }
-  body.embedded main { margin-top: 0 !important; }
-</style>
-<script>
-(function(){
-  if (window.parent === window) return;
-  document.addEventListener("click", function(event) {
-    var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
-    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (link.target && link.target !== "_self") return;
-    if (link.hasAttribute("download")) return;
-    var url = new URL(link.getAttribute("href"), window.location.origin);
-    if (url.origin !== window.location.origin || url.pathname.indexOf("/api/") === 0 || url.pathname.indexOf("/static/") === 0) return;
-    event.preventDefault();
-    window.parent.postMessage({type: "flashloan:navigate", href: url.pathname + url.search + url.hash}, window.location.origin);
-  });
-})();
-</script>
-""",
-    )
 
 
 def _request_scope_defaults(
@@ -302,7 +241,7 @@ def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[st
     if refresh_v4:
         if full:
             try:
-                from intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
+                from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
 
                 result = write_v4_pool_index_from_initialize_logs()
                 steps.append(
@@ -318,7 +257,7 @@ def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[st
                 errors.append(f"robinhood_testnet_v4_pool_index: {exc}")
                 steps.append({"source": "robinhood_testnet_v4_pool_index", "ok": False, "error": str(exc)})
         try:
-            from intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
+            from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
 
             result = write_v4_pool_liquidity_from_contract_evidence(
                 token_balance_scan_scope="active_plus_known",

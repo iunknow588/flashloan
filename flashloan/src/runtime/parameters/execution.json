@@ -1,0 +1,11 @@
+{
+  "circuit_breaker_level": 0,
+  "consecutive_failure_count": 0,
+  "cooldown_multiplier": 1.0,
+  "last_failure_at": null,
+  "last_level_change_at": null,
+  "last_success_at": null,
+  "pause_reason": null,
+  "paused": false,
+  "updated_at": null
+}

@@ -1,0 +1,51 @@
+[
+  {
+    "detail": "閿佸畾 ETH -> 0X71178B -> 0XC9F9C8 -> ETH / 瑙﹀彂鍖哄潡 109454378",
+    "done": true,
+    "id": "freeze_snapshot",
+    "status": "done",
+    "title": "鍐荤粨閾句笂澶嶆牳蹇収"
+  },
+  {
+    "detail": "鍦?contract/robinhood 涓嬩繚鐣欓摼鍒俊鎭笌鍚庣画閮ㄧ讲鍗犱綅",
+    "done": true,
+    "id": "build_contract_dir",
+    "status": "done",
+    "title": "鍑嗗閾惧埆鍚堢害淇℃伅鐩綍"
+  },
+  {
+    "detail": "鎸夐摼涓婂鏍歌矾寰勭敓鎴?flashloan / AMM 浜ゆ崲鍙傛暟",
+    "done": false,
+    "id": "calldata_builder",
+    "status": "pending",
+    "title": "鐢熸垚浜ゆ槗 calldata"
+  },
+  {
+    "detail": "Add minOut, slippage guard, repayment balance, and minimum-profit threshold",
+    "done": false,
+    "id": "risk_guard",
+    "status": "pending",
+    "title": "Add slippage and repayment constraints"
+  },
+  {
+    "detail": "鍙 Quoter 宸插鏍稿悗浠嶉渶鏈湴浠跨湡",
+    "done": false,
+    "id": "fork_staticcall",
+    "status": "pending",
+    "title": "鎵ц fork/static-call 浠跨湡"
+  },
+  {
+    "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
+    "done": false,
+    "id": "broadcast_gate",
+    "status": "blocked",
+    "title": "淇濇寔骞挎挱闂搁棬鍏抽棴"
+  },
+  {
+    "detail": "瀹屾垚鍚庢妸鏂规銆佹竻鍗曘€佹祴璇曞寘褰掓。鍒?back",
+    "done": false,
+    "id": "archive_outputs",
+    "status": "pending",
+    "title": "褰掓。瀹炴柦鏂囨。涓庢祴璇曞寘"
+  }
+]

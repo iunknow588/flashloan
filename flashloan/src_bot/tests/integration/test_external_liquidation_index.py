@@ -1,4 +1,4 @@
-from execution.external_liquidation_index import (
+from bot.execution.external_liquidation_index import (
     ExternalIndexConfig,
     external_index_config_from_env,
     fetch_external_borrower_accounts,

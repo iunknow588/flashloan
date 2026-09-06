@@ -1,4 +1,4 @@
-from web.market_page_registry import resolve_market_page_variant
+from core.market_page_registry import resolve_market_page_variant
 
 
 CANONICAL_ROBINHOOD_BOT = "liquidation-46630-morpho-blue"

@@ -1,0 +1,391 @@
+{
+  "borrowableSymbols": [
+    "AI",
+    "AKATSUKI",
+    "APE",
+    "BAND",
+    "BCLC",
+    "BGUA",
+    "CCOX",
+    "EGLD",
+    "ETH",
+    "FLOW",
+    "FM",
+    "FORGE",
+    "FRAX",
+    "GRT",
+    "KAN",
+    "KNC",
+    "OVAF",
+    "QUANT3",
+    "SEA",
+    "SFAN",
+    "TIA",
+    "TSRCT",
+    "UP",
+    "VIBE",
+    "WH",
+    "ZMAP"
+  ],
+  "chainSpecificObservationPairs": [
+    {
+      "addressPair": "0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "associatedFundSymbols": [
+        "ETH"
+      ],
+      "closedLoopReady": true,
+      "closedLoopRoutePreviews": [
+        "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+        "ETH -> 0XC9F9C8 -> 0X71178B -> ETH"
+      ],
+      "directSwapPoolCount": 2,
+      "directSwapRequired": true,
+      "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pair",
+      "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+      "poolCount": 2,
+      "routeSemantics": "x_y_entry_y_z_direct_z_x_exit",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "symbolPair": "0X71178B:0XC9F9C8",
+      "token0": {
+        "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0X71178B"
+      },
+      "token1": {
+        "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0XC9F9C8"
+      }
+    },
+    {
+      "addressPair": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8:0x9374549896abb5654ad483735ef5f3ce97b51f25",
+      "associatedFundSymbols": [
+        "ETH"
+      ],
+      "closedLoopReady": true,
+      "closedLoopRoutePreviews": [
+        "ETH -> 0X862554 -> 0X937454 -> ETH",
+        "ETH -> 0X937454 -> 0X862554 -> ETH"
+      ],
+      "directSwapPoolCount": 1,
+      "directSwapRequired": true,
+      "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pair",
+      "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+      "poolCount": 1,
+      "routeSemantics": "x_y_entry_y_z_direct_z_x_exit",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "symbolPair": "0X862554:0X937454",
+      "token0": {
+        "address": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0X862554"
+      },
+      "token1": {
+        "address": "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0X937454"
+      }
+    }
+  ],
+  "chain_id": 46630,
+  "chain_key": "robinhood-testnet:46630:all",
+  "closedLoopRouteSummaries": [
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0X71178B",
+      "counterSymbol": "0XC9F9C8",
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH:0X71178B",
+        "0X71178B:0XC9F9C8",
+        "ETH:0XC9F9C8"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "0X71178B",
+        "0XC9F9C8",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+      "poolIds": [
+        "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+        "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069"
+      ],
+      "routeKey": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH|0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8|0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f|0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0XC9F9C8",
+      "counterSymbol": "0X71178B",
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH:0XC9F9C8",
+        "0X71178B:0XC9F9C8",
+        "ETH:0X71178B"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "0XC9F9C8",
+        "0X71178B",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+      "poolIds": [
+        "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+        "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8"
+      ],
+      "routeKey": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH|0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069|0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f|0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0X862554",
+      "counterSymbol": "0X937454",
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH:0X862554",
+        "0X862554:0X937454",
+        "ETH:0X937454"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "0X862554",
+        "0X937454",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0X862554 -> 0X937454 -> ETH",
+      "poolIds": [
+        "0xf8d40f5843b94d446eb91afa42700700cfa6a1bd348b11892af5c7ad5c948928",
+        "0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a",
+        "0xc99582599ea437560207baeb6dd18fd35e75e1d9be7c16105e0b48784ba32823"
+      ],
+      "routeKey": "ETH -> 0X862554 -> 0X937454 -> ETH|0xf8d40f5843b94d446eb91afa42700700cfa6a1bd348b11892af5c7ad5c948928|0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a|0xc99582599ea437560207baeb6dd18fd35e75e1d9be7c16105e0b48784ba32823",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0X937454",
+      "counterSymbol": "0X862554",
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH:0X937454",
+        "0X862554:0X937454",
+        "ETH:0X862554"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "0X937454",
+        "0X862554",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0X937454 -> 0X862554 -> ETH",
+      "poolIds": [
+        "0xc99582599ea437560207baeb6dd18fd35e75e1d9be7c16105e0b48784ba32823",
+        "0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a",
+        "0xf8d40f5843b94d446eb91afa42700700cfa6a1bd348b11892af5c7ad5c948928"
+      ],
+      "routeKey": "ETH -> 0X937454 -> 0X862554 -> ETH|0xc99582599ea437560207baeb6dd18fd35e75e1d9be7c16105e0b48784ba32823|0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a|0xf8d40f5843b94d446eb91afa42700700cfa6a1bd348b11892af5c7ad5c948928",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    }
+  ],
+  "dexSettlement": {
+    "arbitrage_integration": {
+      "can_combine_with_flashloan": false,
+      "required_atomic_flow": [
+        "borrow from flash loan source",
+        "fill UniswapX order or execute AMM swap leg",
+        "complete hedge/exit leg on available DEX pools",
+        "repay principal plus fee in the same transaction"
+      ]
+    },
+    "rails": [
+      {
+        "arbitrage_note": "当前链未配置为 UniswapX Dutch V3 结算链。",
+        "chain_id": 46630,
+        "flashloan_role": null,
+        "name": "UniswapX",
+        "pool_model": "intent_order_flow_not_amm_pool",
+        "reactor_family": null,
+        "settlement_model": "dutch_auction_reactor",
+        "supported": false
+      }
+    ],
+    "uniswapx": {
+      "arbitrage_note": "当前链未配置为 UniswapX Dutch V3 结算链。",
+      "chain_id": 46630,
+      "flashloan_role": null,
+      "name": "UniswapX",
+      "pool_model": "intent_order_flow_not_amm_pool",
+      "reactor_family": null,
+      "settlement_model": "dutch_auction_reactor",
+      "supported": false
+    }
+  },
+  "exists": true,
+  "first_generated_at": "2026-09-01T00:07:03.562704Z",
+  "flow_name": "market_observation",
+  "generated_at": "2026-09-01T00:07:03.562704Z",
+  "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+  "list_counts": {
+    "borrowableSymbols": 26,
+    "chainSpecificObservationPairs": 2,
+    "closedLoopRouteSummaries": 4,
+    "observationAnchorSymbols": 26
+  },
+  "mode": "dex_market_observation",
+  "network": "robinhood-testnet",
+  "observationAnchorSymbols": [
+    "AI",
+    "AKATSUKI",
+    "APE",
+    "BAND",
+    "BCLC",
+    "BGUA",
+    "CCOX",
+    "EGLD",
+    "ETH",
+    "FLOW",
+    "FM",
+    "FORGE",
+    "FRAX",
+    "GRT",
+    "KAN",
+    "KNC",
+    "OVAF",
+    "QUANT3",
+    "SEA",
+    "SFAN",
+    "TIA",
+    "TSRCT",
+    "UP",
+    "VIBE",
+    "WH",
+    "ZMAP"
+  ],
+  "observationSnapshotPath": "runtime\\market_observation\\robinhood-testnet\\46630\\all\\observation.json",
+  "ok": true,
+  "path": "runtime\\market_observation\\robinhood-testnet\\46630\\all\\overview.json",
+  "poolStaticTable": {
+    "chainId": 46630,
+    "exists": true,
+    "factory": null,
+    "generatedAt": "2026-08-27T01:44:03.439Z",
+    "generatedBlockNumber": 107982013,
+    "mode": "robinhood_testnet_v4_pool_liquidity",
+    "network": "robinhood-testnet",
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "quoter": null,
+    "router": null
+  },
+  "processing": {
+    "allowed_protocols": [
+      "uniswap_v4"
+    ],
+    "chain_id": 46630,
+    "chain_key": "chain:46630",
+    "data_file_keys": [
+      "market_observation",
+      "v4_pool_index",
+      "v4_pool_liquidity"
+    ],
+    "flow_name": "market_observation",
+    "global_chain_id": "chain:46630",
+    "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+    "network": "robinhood-testnet",
+    "protocol": "",
+    "requires_scope_match": true
+  },
+  "protocol_key": "all",
+  "protocols": [],
+  "refresh_mode": "full",
+  "schema_version": "market-observation-static-store-v3",
+  "scope_key": "robinhood-testnet:46630:all",
+  "selected_protocols": [],
+  "snapshot_kind": "dex_overview_compact",
+  "source": "dex_market_observation_payload",
+  "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\market_observation",
+  "summary": {
+    "borrowableTokenCount": 26,
+    "bridgePoolIndexMatchedPairCount": 0,
+    "bridgePoolIndexMatchedPoolCount": 0,
+    "candidateObservationBridgeCount": 4,
+    "candidateObservationDirectCount": 0,
+    "candidateObservationGroupCount": 26,
+    "candidateObservationPoolCount": 6,
+    "candidateObservationSequenceCount": 4,
+    "chainSpecificObservationSequenceCount": 4,
+    "closedLoopRouteCount": 4,
+    "directClosedLoopCount": 0,
+    "directPairCount": 25,
+    "fundAnchorPairObservationAssociatedObservationPoolCount": 19165,
+    "fundAnchorPairObservationAssociatedObservationTokenCount": 19118,
+    "fundAnchorPairObservationAssociatedPairCount": 2,
+    "fundAnchorPairObservationPoolCount": 20445,
+    "fundAnchorPairObservationRouteCount": 4,
+    "indirectRouteCount": 4,
+    "nonEthPairFirstAssociatedObservationPoolCount": 19165,
+    "nonEthPairFirstAssociatedObservationTokenCount": 19118,
+    "nonEthPairFirstAssociatedPairCount": 2,
+    "nonEthPairFirstPoolCount": 1283,
+    "nonEthPairFirstRouteCount": 4,
+    "observableTokenCount": 26,
+    "observationAnchorCount": 26,
+    "observationSequenceAnchorCount": 1,
+    "observationSequenceCount": 4,
+    "observationSequencePoolCount": 6,
+    "unmatchedPairCount": 0
+  },
+  "surface": "dex_market_observation"
+}

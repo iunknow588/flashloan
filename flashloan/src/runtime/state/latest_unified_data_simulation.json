@@ -1,0 +1,1961 @@
+{
+  "blockedReasons": [
+    "local_data_simulation_only",
+    "current_dex_quotes_not_verified",
+    "contract_profit_not_verified",
+    "runtime_trade_specs_not_exported",
+    "fork_static_call_not_verified",
+    "mainnet_contract_not_deployed",
+    "broadcast_forbidden",
+    "contract_preview_not_run",
+    "runtime_static_call_not_run",
+    "fresh_onchain_dex_quotes_required",
+    "fresh_avax_usdc_gas_price_required",
+    "signal_tokens_not_matched_to_avalanche_runtime_route"
+  ],
+  "broadcastEligible": false,
+  "contractFlowProfitReview": {
+    "blockedReasons": [
+      "contract_preview_not_run",
+      "runtime_static_call_not_run",
+      "fresh_onchain_dex_quotes_required",
+      "fresh_avax_usdc_gas_price_required",
+      "broadcast_forbidden",
+      "signal_tokens_not_matched_to_avalanche_runtime_route"
+    ],
+    "calculation": "netProfit = expectedProfit - gasCost - deliveryCost - cacheRiskPenalty - publicMempoolRiskPenalty - slippageRiskPenalty - routeCorrelationPenalty",
+    "contractFlowVerified": false,
+    "eligible": false,
+    "profitAsset": "USDC",
+    "profitBasis": {
+      "cacheRiskPenaltyUsdc": null,
+      "deliveryCostUsdc": null,
+      "expectedProfitUsdc": null,
+      "gasCostUsdc": null,
+      "netProfitUsdc": null,
+      "premiumUsdc": null,
+      "protectedMinFinalUsdc": null,
+      "publicMempoolRiskPenaltyUsdc": null,
+      "quotedFinalUsdc": null,
+      "requiredFinalUsdc": null,
+      "routeCorrelationPenaltyUsdc": null,
+      "slippageRiskPenaltyUsdc": null
+    },
+    "requiredFlow": [
+      "match_signal_tokens_to_avalanche_runtime_route",
+      "previewOrderedRuntimeAutoExecution.call",
+      "runOrderedRuntimeTradesAndExecuteAuto.static_call",
+      "estimateGas_without_broadcast",
+      "fresh_AVAX_USDC_price_for_gas_conversion",
+      "net_profit_after_gas_delivery_cache_mempool_slippage_correlation_penalties"
+    ],
+    "routeMatch": {
+      "fallback": "first_triangular_group",
+      "matchScore": "0",
+      "matched": false,
+      "routeKey": "BTC.B:WAVAX",
+      "routeKind": "usdc_triangular",
+      "routePath": [
+        "USDC",
+        "GIGGLE",
+        "SNXXB",
+        "USDC"
+      ]
+    },
+    "status": "blocked",
+    "usesCurrentTokenPrices": false
+  },
+  "deploymentEligible": false,
+  "generatedAt": "2026-08-13T16:46:46.578466+00:00",
+  "inputObservedAt": "2026-08-13T13:57:32.233+00:00",
+  "inputSummary": {
+    "bottomCount": 2,
+    "priceSource": "mixed",
+    "sampleCount": 316,
+    "topCount": 2,
+    "windowSeconds": 1.0
+  },
+  "intentTradeDraft": {
+    "baseline_percent": "100",
+    "borrow_token_amount": "1000",
+    "borrow_token_name": "USDC",
+    "control_mode": "intent",
+    "control_surface": {
+      "current_mode": "intent",
+      "custom_mode_available": false,
+      "default_mode": "intent",
+      "intent_mode": "intent"
+    },
+    "controller": "upper_layer_intent_only",
+    "cost_model": {
+      "chain_id": 43114,
+      "fee_reserve_percent": "0.1",
+      "flashloan_fee_percent": "0.05",
+      "gas_reserve_usdc": "0",
+      "network": "avalanche",
+      "other_known_costs_usdc": "0",
+      "testnet": false,
+      "trade_fee_percent": "0.1"
+    },
+    "cow_app_data_schema": {
+      "base_metadata": {
+        "orderClass": {
+          "orderClass": "limit"
+        },
+        "quote": {
+          "slippageBips": null
+        }
+      },
+      "custom_metadata_allowed": false,
+      "exchange_token_scope_appdata_supported": false,
+      "exchange_token_scope_source": "local_intent_payload_only",
+      "flashloan_metadata_keys": [
+        "flashloan",
+        "hooks"
+      ],
+      "flashloan_metadata_source": "AaveCollateralSwapSdk.getOrderPostingSettings",
+      "schema_package": "@cowprotocol/sdk-app-data",
+      "version": "latest"
+    },
+    "cow_chain_id": 43114,
+    "cow_network": "avalanche",
+    "cow_sdk_order_intent": {
+      "buy_symbol": "USDC",
+      "minimum_final_buy_amount_after_all_costs": "1003.5",
+      "sell_amount_before_fee": "1000",
+      "sell_symbol": "USDC"
+    },
+    "direct_onchain_protocol": {
+      "borrow_symbol": "USDC",
+      "candidate_strategy": "expanded",
+      "chain_id": 43114,
+      "enabled": true,
+      "execution_mode": "ordered_auto",
+      "executor_address": "",
+      "expected_profit_usdc": "0",
+      "intent_route_match": {
+        "fallback": "first_triangular_group",
+        "matchScore": "0",
+        "matched": false,
+        "routeKey": "BTC.B:WAVAX",
+        "routeKind": "usdc_triangular",
+        "routePath": [
+          "USDC",
+          "GIGGLE",
+          "SNXXB",
+          "USDC"
+        ]
+      },
+      "kind": "unified_flashloan_mev_executor_runtime_v1",
+      "network": "avalanche",
+      "owner_address": "",
+      "paper_signal_profit_usdc": "6.04722387",
+      "profit_basis": "contract_preview_required; paper signal is not used as minProfit",
+      "route_direction": "buy_loser_then_gainer",
+      "route_path": [
+        "USDC",
+        "GIGGLE",
+        "SNXXB",
+        "USDC"
+      ],
+      "runtime_candidate_limit": 25,
+      "runtime_route_group_limit": 25,
+      "runtime_route_groups": [
+        {
+          "exerciseTargetPolicy": "non-stable-pair",
+          "routeKey": "BTC.B:WAVAX",
+          "routeKind": "usdc_triangular",
+          "score": 0.0,
+          "tokenRiskRegistry": {
+            "available": false,
+            "reason": "token_registry_chain_mismatch_or_unavailable",
+            "registryPath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\config\\unified_token_registry.json",
+            "source": "registry"
+          },
+          "trades": [
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x2e587b9e7aa638d7eb7db5fe7447513bc4d0d28b"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xd1356d360f37932059e5b89b7992692aa234eda6"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WAVAX",
+              "routeSymbols": [
+                "USDC",
+                "BTC.B",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WAVAX",
+              "route_symbols": [
+                "USDC",
+                "BTC.B",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status1_usdc_to_x_cross_pool",
+              "strategyStatus": 1,
+              "strategy_stage": "status1_usdc_to_x_cross_pool",
+              "strategy_status": 1,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+              "tradeIndex": 0
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x1951bd56e82cc1edfec8546c3202ecbcc5b74a29"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfae3f424a0a47706811521e3ee268f00cfb5c45e"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x0e663593657b064e1bae76d28625df5d0ebd4421"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xd18384f4398bf5415902ad5d87eaa96549fd4f1e"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WAVAX",
+              "routeSymbols": [
+                "USDC",
+                "WAVAX",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WAVAX",
+              "route_symbols": [
+                "USDC",
+                "WAVAX",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status2_usdc_to_y_cross_pool",
+              "strategyStatus": 2,
+              "strategy_stage": "status2_usdc_to_y_cross_pool",
+              "strategy_status": 2,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tradeIndex": 1
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfc1e7bc60adfc151565c033521ee6ccbde027f54"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xc0808a4d70b0c1d6811c3526ca358570516214fd"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WAVAX",
+              "routeSymbols": [
+                "USDC",
+                "BTC.B",
+                "WAVAX",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WAVAX",
+              "route_symbols": [
+                "USDC",
+                "BTC.B",
+                "WAVAX",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status3_xy_cross_pool_or_triangular",
+              "strategyStatus": 3,
+              "strategy_stage": "status3_xy_cross_pool_or_triangular",
+              "strategy_status": 3,
+              "tokenX": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+              "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tradeIndex": 2
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfc1e7bc60adfc151565c033521ee6ccbde027f54"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xc0808a4d70b0c1d6811c3526ca358570516214fd"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WAVAX",
+              "routeSymbols": [
+                "USDC",
+                "WAVAX",
+                "BTC.B",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WAVAX",
+              "route_symbols": [
+                "USDC",
+                "WAVAX",
+                "BTC.B",
+                "USDC"
+              ],
+              "spreadScore": -0.0,
+              "strategyStage": "status5_reverse_triangular_fallback",
+              "strategyStatus": 5,
+              "strategy_stage": "status5_reverse_triangular_fallback",
+              "strategy_status": 5,
+              "tokenX": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+              "tradeIndex": 3
+            }
+          ]
+        },
+        {
+          "exerciseTargetPolicy": "non-stable-pair",
+          "routeKey": "BTC.B:WBTC.E",
+          "routeKind": "usdc_triangular",
+          "score": 0.0,
+          "tokenRiskRegistry": {
+            "available": false,
+            "reason": "token_registry_chain_mismatch_or_unavailable",
+            "registryPath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\config\\unified_token_registry.json",
+            "source": "registry"
+          },
+          "trades": [
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x2e587b9e7aa638d7eb7db5fe7447513bc4d0d28b"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xd1356d360f37932059e5b89b7992692aa234eda6"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "BTC.B",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "BTC.B",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status1_usdc_to_x_cross_pool",
+              "strategyStatus": 1,
+              "strategy_stage": "status1_usdc_to_x_cross_pool",
+              "strategy_status": 1,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+              "tradeIndex": 0
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x40857abd8b284205a81fe6e0dfcebe261f47d854"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "WBTC.E",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "WBTC.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status2_usdc_to_y_cross_pool",
+              "strategyStatus": 2,
+              "strategy_stage": "status2_usdc_to_y_cross_pool",
+              "strategy_status": 2,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tradeIndex": 1
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x4d8fbe532f765f9e6c10051e917caf85dd2acaac"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x749712c45985842b0dd16f175e6cc24d570e0819"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "BTC.B",
+                "WBTC.E",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "BTC.B",
+                "WBTC.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status3_xy_cross_pool_or_triangular",
+              "strategyStatus": 3,
+              "strategy_stage": "status3_xy_cross_pool_or_triangular",
+              "strategy_status": 3,
+              "tokenX": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+              "tokenY": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tradeIndex": 2
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x4d8fbe532f765f9e6c10051e917caf85dd2acaac"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x749712c45985842b0dd16f175e6cc24d570e0819"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "BTC.B:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "WBTC.E",
+                "BTC.B",
+                "USDC"
+              ],
+              "route_key": "BTC.B:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "WBTC.E",
+                "BTC.B",
+                "USDC"
+              ],
+              "spreadScore": -0.0,
+              "strategyStage": "status5_reverse_triangular_fallback",
+              "strategyStatus": 5,
+              "strategy_stage": "status5_reverse_triangular_fallback",
+              "strategy_status": 5,
+              "tokenX": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+              "tradeIndex": 3
+            }
+          ]
+        },
+        {
+          "exerciseTargetPolicy": "non-stable-pair",
+          "routeKey": "WAVAX:WBTC.E",
+          "routeKind": "usdc_triangular",
+          "score": 0.0,
+          "tokenRiskRegistry": {
+            "available": false,
+            "reason": "token_registry_chain_mismatch_or_unavailable",
+            "registryPath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\config\\unified_token_registry.json",
+            "source": "registry"
+          },
+          "trades": [
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x1951bd56e82cc1edfec8546c3202ecbcc5b74a29"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfae3f424a0a47706811521e3ee268f00cfb5c45e"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x0e663593657b064e1bae76d28625df5d0ebd4421"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xd18384f4398bf5415902ad5d87eaa96549fd4f1e"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "WAVAX",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "WAVAX",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status1_usdc_to_x_cross_pool",
+              "strategyStatus": 1,
+              "strategy_stage": "status1_usdc_to_x_cross_pool",
+              "strategy_status": 1,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tradeIndex": 0
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x40857abd8b284205a81fe6e0dfcebe261f47d854"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "WBTC.E",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "WBTC.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status2_usdc_to_y_cross_pool",
+              "strategyStatus": 2,
+              "strategy_stage": "status2_usdc_to_y_cross_pool",
+              "strategy_status": 2,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tradeIndex": 1
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x7fd0055020a6d9c43c31c8ea755c5038ebd39722"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "WAVAX",
+                "WBTC.E",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "WAVAX",
+                "WBTC.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status3_xy_cross_pool_or_triangular",
+              "strategyStatus": 3,
+              "strategy_stage": "status3_xy_cross_pool_or_triangular",
+              "strategy_status": 3,
+              "tokenX": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tokenY": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tradeIndex": 2
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x7fd0055020a6d9c43c31c8ea755c5038ebd39722"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WBTC.E",
+              "routeSymbols": [
+                "USDC",
+                "WBTC.E",
+                "WAVAX",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WBTC.E",
+              "route_symbols": [
+                "USDC",
+                "WBTC.E",
+                "WAVAX",
+                "USDC"
+              ],
+              "spreadScore": -0.0,
+              "strategyStage": "status5_reverse_triangular_fallback",
+              "strategyStatus": 5,
+              "strategy_stage": "status5_reverse_triangular_fallback",
+              "strategy_status": 5,
+              "tokenX": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tradeIndex": 3
+            }
+          ]
+        },
+        {
+          "exerciseTargetPolicy": "non-stable-pair",
+          "routeKey": "WAVAX:WETH.E",
+          "routeKind": "usdc_triangular",
+          "score": 0.0,
+          "tokenRiskRegistry": {
+            "available": false,
+            "reason": "token_registry_chain_mismatch_or_unavailable",
+            "registryPath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\config\\unified_token_registry.json",
+            "source": "registry"
+          },
+          "trades": [
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x1951bd56e82cc1edfec8546c3202ecbcc5b74a29"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfae3f424a0a47706811521e3ee268f00cfb5c45e"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x0e663593657b064e1bae76d28625df5d0ebd4421"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0xd18384f4398bf5415902ad5d87eaa96549fd4f1e"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WAVAX",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WAVAX",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status1_usdc_to_x_cross_pool",
+              "strategyStatus": 1,
+              "strategy_stage": "status1_usdc_to_x_cross_pool",
+              "strategy_status": 1,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tradeIndex": 0
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x43fb9c3fd6715e872272b0caab968a97692726eb"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WETH.E",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WETH.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status2_usdc_to_y_cross_pool",
+              "strategyStatus": 2,
+              "strategy_stage": "status2_usdc_to_y_cross_pool",
+              "strategy_status": 2,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab",
+              "tradeIndex": 1
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x7b602f98d71715916e7c963f51bfebc754ade2d0"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x724f6a02ed2eb82d8d45034b280903cf663731ab"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WAVAX",
+                "WETH.E",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WAVAX",
+                "WETH.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status3_xy_cross_pool_or_triangular",
+              "strategyStatus": 3,
+              "strategy_stage": "status3_xy_cross_pool_or_triangular",
+              "strategy_status": 3,
+              "tokenX": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tokenY": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab",
+              "tradeIndex": 2
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x7b602f98d71715916e7c963f51bfebc754ade2d0"
+                },
+                {
+                  "adapterKind": 1,
+                  "pool": "0x724f6a02ed2eb82d8d45034b280903cf663731ab"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WAVAX:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WETH.E",
+                "WAVAX",
+                "USDC"
+              ],
+              "route_key": "WAVAX:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WETH.E",
+                "WAVAX",
+                "USDC"
+              ],
+              "spreadScore": -0.0,
+              "strategyStage": "status5_reverse_triangular_fallback",
+              "strategyStatus": 5,
+              "strategy_stage": "status5_reverse_triangular_fallback",
+              "strategy_status": 5,
+              "tokenX": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab",
+              "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+              "tradeIndex": 3
+            }
+          ]
+        },
+        {
+          "exerciseTargetPolicy": "non-stable-pair",
+          "routeKey": "WBTC.E:WETH.E",
+          "routeKind": "usdc_triangular",
+          "score": 0.0,
+          "tokenRiskRegistry": {
+            "available": false,
+            "reason": "token_registry_chain_mismatch_or_unavailable",
+            "registryPath": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\config\\unified_token_registry.json",
+            "source": "registry"
+          },
+          "trades": [
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x40857abd8b284205a81fe6e0dfcebe261f47d854"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WBTC.E:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WBTC.E",
+                "USDC"
+              ],
+              "route_key": "WBTC.E:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WBTC.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status1_usdc_to_x_cross_pool",
+              "strategyStatus": 1,
+              "strategy_stage": "status1_usdc_to_x_cross_pool",
+              "strategy_status": 1,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tradeIndex": 0
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0x43fb9c3fd6715e872272b0caab968a97692726eb"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WBTC.E:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WETH.E",
+                "USDC"
+              ],
+              "route_key": "WBTC.E:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WETH.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status2_usdc_to_y_cross_pool",
+              "strategyStatus": 2,
+              "strategy_stage": "status2_usdc_to_y_cross_pool",
+              "strategy_status": 2,
+              "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+              "tokenY": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab",
+              "tradeIndex": 1
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfc3caffea1d3ba502a2341433a6e85f147c8be0c"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WBTC.E:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WBTC.E",
+                "WETH.E",
+                "USDC"
+              ],
+              "route_key": "WBTC.E:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WBTC.E",
+                "WETH.E",
+                "USDC"
+              ],
+              "spreadScore": 0.0,
+              "strategyStage": "status3_xy_cross_pool_or_triangular",
+              "strategyStatus": 3,
+              "strategy_stage": "status3_xy_cross_pool_or_triangular",
+              "strategy_status": 3,
+              "tokenX": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tokenY": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab",
+              "tradeIndex": 2
+            },
+            {
+              "pools": [
+                {
+                  "adapterKind": 1,
+                  "pool": "0xfc3caffea1d3ba502a2341433a6e85f147c8be0c"
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                },
+                {
+                  "adapterKind": 0,
+                  "pool": ""
+                }
+              ],
+              "routeKey": "WBTC.E:WETH.E",
+              "routeSymbols": [
+                "USDC",
+                "WETH.E",
+                "WBTC.E",
+                "USDC"
+              ],
+              "route_key": "WBTC.E:WETH.E",
+              "route_symbols": [
+                "USDC",
+                "WETH.E",
+                "WBTC.E",
+                "USDC"
+              ],
+              "spreadScore": -0.0,
+              "strategyStage": "status5_reverse_triangular_fallback",
+              "strategyStatus": 5,
+              "strategy_stage": "status5_reverse_triangular_fallback",
+              "strategy_status": 5,
+              "tokenX": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab",
+              "tokenY": "0x50b7545627a5162f82a992c33b87adc75187b218",
+              "tradeIndex": 3
+            }
+          ]
+        }
+      ],
+      "runtime_trade_limit": 5,
+      "runtime_trades": [
+        {
+          "pools": [
+            {
+              "adapterKind": 1,
+              "pool": "0x2e587b9e7aa638d7eb7db5fe7447513bc4d0d28b"
+            },
+            {
+              "adapterKind": 1,
+              "pool": "0xd1356d360f37932059e5b89b7992692aa234eda6"
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            }
+          ],
+          "routeKey": "BTC.B:WAVAX",
+          "routeSymbols": [
+            "USDC",
+            "BTC.B",
+            "USDC"
+          ],
+          "route_key": "BTC.B:WAVAX",
+          "route_symbols": [
+            "USDC",
+            "BTC.B",
+            "USDC"
+          ],
+          "spreadScore": 0.0,
+          "strategyStage": "status1_usdc_to_x_cross_pool",
+          "strategyStatus": 1,
+          "strategy_stage": "status1_usdc_to_x_cross_pool",
+          "strategy_status": 1,
+          "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+          "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+          "tradeIndex": 0
+        },
+        {
+          "pools": [
+            {
+              "adapterKind": 1,
+              "pool": "0x1951bd56e82cc1edfec8546c3202ecbcc5b74a29"
+            },
+            {
+              "adapterKind": 1,
+              "pool": "0xfae3f424a0a47706811521e3ee268f00cfb5c45e"
+            },
+            {
+              "adapterKind": 1,
+              "pool": "0x0e663593657b064e1bae76d28625df5d0ebd4421"
+            },
+            {
+              "adapterKind": 1,
+              "pool": "0xd18384f4398bf5415902ad5d87eaa96549fd4f1e"
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            }
+          ],
+          "routeKey": "BTC.B:WAVAX",
+          "routeSymbols": [
+            "USDC",
+            "WAVAX",
+            "USDC"
+          ],
+          "route_key": "BTC.B:WAVAX",
+          "route_symbols": [
+            "USDC",
+            "WAVAX",
+            "USDC"
+          ],
+          "spreadScore": 0.0,
+          "strategyStage": "status2_usdc_to_y_cross_pool",
+          "strategyStatus": 2,
+          "strategy_stage": "status2_usdc_to_y_cross_pool",
+          "strategy_status": 2,
+          "tokenX": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+          "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+          "tradeIndex": 1
+        },
+        {
+          "pools": [
+            {
+              "adapterKind": 1,
+              "pool": "0xfc1e7bc60adfc151565c033521ee6ccbde027f54"
+            },
+            {
+              "adapterKind": 1,
+              "pool": "0xc0808a4d70b0c1d6811c3526ca358570516214fd"
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            }
+          ],
+          "routeKey": "BTC.B:WAVAX",
+          "routeSymbols": [
+            "USDC",
+            "BTC.B",
+            "WAVAX",
+            "USDC"
+          ],
+          "route_key": "BTC.B:WAVAX",
+          "route_symbols": [
+            "USDC",
+            "BTC.B",
+            "WAVAX",
+            "USDC"
+          ],
+          "spreadScore": 0.0,
+          "strategyStage": "status3_xy_cross_pool_or_triangular",
+          "strategyStatus": 3,
+          "strategy_stage": "status3_xy_cross_pool_or_triangular",
+          "strategy_status": 3,
+          "tokenX": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+          "tokenY": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+          "tradeIndex": 2
+        },
+        {
+          "pools": [
+            {
+              "adapterKind": 1,
+              "pool": "0xfc1e7bc60adfc151565c033521ee6ccbde027f54"
+            },
+            {
+              "adapterKind": 1,
+              "pool": "0xc0808a4d70b0c1d6811c3526ca358570516214fd"
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            },
+            {
+              "adapterKind": 0,
+              "pool": ""
+            }
+          ],
+          "routeKey": "BTC.B:WAVAX",
+          "routeSymbols": [
+            "USDC",
+            "WAVAX",
+            "BTC.B",
+            "USDC"
+          ],
+          "route_key": "BTC.B:WAVAX",
+          "route_symbols": [
+            "USDC",
+            "WAVAX",
+            "BTC.B",
+            "USDC"
+          ],
+          "spreadScore": -0.0,
+          "strategyStage": "status5_reverse_triangular_fallback",
+          "strategyStatus": 5,
+          "strategy_stage": "status5_reverse_triangular_fallback",
+          "strategy_status": 5,
+          "tokenX": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+          "tokenY": "0x152b9d0fdc40c096757f570a51e494bd4b943e50",
+          "tradeIndex": 3
+        }
+      ],
+      "selection_strategy": "all_usdc_route_groups_preview_then_best",
+      "testnet": false,
+      "unified_executor_address": ""
+    },
+    "direct_onchain_ready": false,
+    "enabled": true,
+    "expected_profit_amount": "0",
+    "fee_components": {
+      "expected_profit_usdc": "0",
+      "fee_reserve_percent": "0.1",
+      "fee_reserve_usdc": "1",
+      "flashloan_fee_percent": "0.05",
+      "flashloan_fee_usdc": "0.5",
+      "gas_reserve_usdc": "0",
+      "other_known_costs_usdc": "0",
+      "required_gap_usdc": "3.5",
+      "route_trade_fee_percent": "0.2",
+      "route_trade_fee_usdc": "2",
+      "total_cost_usdc": "3.5",
+      "trade_fee_percent_per_side": "0.1",
+      "trade_fee_side_count": 2
+    },
+    "final_symbol": "USDC",
+    "formula": "solver_owned_token_scope_only",
+    "initial_amount": "1000",
+    "initial_symbol": "USDC",
+    "intent_protocol": "direct_onchain",
+    "link_name": "SNXXBUSDT->GIGGLEUSDT",
+    "min_final_amount": "1003.5",
+    "min_pure_profit_amount": "0",
+    "mode": "pure_profit_final_amount_intent",
+    "owner": "0x0000000000000000000000000000000000000001",
+    "principal_source": "fixed_1000u_intent_principal",
+    "ready": true,
+    "requested_quote_amount": "1000",
+    "route_direction": "buy_loser_then_gainer",
+    "route_hop_count": 3,
+    "route_path": [
+      "USDC",
+      "GIGGLE",
+      "SNXXB",
+      "USDC"
+    ],
+    "submission_boundary": "caller_provides_token_scope_and_min_final_amount_including_costs; intent_only_submission",
+    "submission_mode": "direct_onchain",
+    "submission_protocol": "direct_onchain",
+    "success_controller": "cow_sdk",
+    "swap_flow_controller": "cow_sdk_solver",
+    "target_token_amount": "1003.5",
+    "target_token_name": "USDC",
+    "token_scope": {
+      "falling_tokens": [
+        "GIGGLE",
+        "GIGGLEUSDT",
+        "AXTIB",
+        "AXTIBUSDT"
+      ],
+      "input_symbol": "USDC",
+      "output_symbol": "USDC",
+      "rising_tokens": [
+        "SNXXB",
+        "SNXXBUSDT",
+        "SOXLB",
+        "SOXLBUSDT"
+      ],
+      "route_path": [
+        "USDC",
+        "GIGGLE",
+        "SNXXB",
+        "USDC"
+      ],
+      "scope_role": "solver_owned_token_universe_only",
+      "token_count": 9,
+      "tokens": [
+        "SNXXB",
+        "SNXXBUSDT",
+        "SOXLB",
+        "SOXLBUSDT",
+        "GIGGLE",
+        "GIGGLEUSDT",
+        "AXTIB",
+        "AXTIBUSDT",
+        "USDC"
+      ]
+    },
+    "total_required_percent": "100",
+    "version": 3,
+    "x_amount": "3.5",
+    "x_definition": "borrow_amount + fee_budget + expected_profit_floor",
+    "x_percent": "0.35",
+    "x_ratio": "0.0035"
+  },
+  "mode": "local_data_simulation",
+  "nextRequiredStage": "match_signal_tokens_then_run_avalanche_contract_preview_static_call",
+  "paperSimulation": {
+    "a_bought": 14.704150721224611,
+    "a_change_percent": 0.5804311774461052,
+    "a_symbol": "SNXXBUSDT",
+    "b_change_percent": -0.4979496192150021,
+    "b_rebought": 503.90414640134856,
+    "b_symbol": "GIGGLEUSDT",
+    "b_to_repay": 500.25,
+    "basket_size": 2,
+    "best_strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+    "blocked_reasons": [],
+    "borrow_rebought": 503.90414640134856,
+    "borrow_symbol": "USDC",
+    "borrow_to_repay": 500.25,
+    "borrowed_amount": 500.0,
+    "borrowed_b": 500.0,
+    "candidate_pair_count": 4,
+    "candidate_score_percent": 0.7047223870346273,
+    "candidate_score_usd": 7.047223870346272,
+    "evaluated_strategy_count": 4,
+    "execution_plan": {
+      "assumption_model": "static_pool_state_at_transaction_start",
+      "borrow_symbols": [
+        "USDC"
+      ],
+      "buy_steps": [
+        {
+          "action": "swap_borrow_to_target",
+          "from_symbol": "USDC",
+          "input_amount": 500.0,
+          "input_price_usd": 1.0,
+          "notional_usd": 500.0,
+          "output_amount": 14.704150721224611,
+          "output_price_usd": 33.97,
+          "rank": 1,
+          "route_symbols": [
+            "USDC",
+            "GIGGLEUSDT",
+            "SNXXBUSDT",
+            "USDC"
+          ],
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+          "to_symbol": "GIGGLEUSDT"
+        },
+        {
+          "action": "swap_borrow_to_target",
+          "from_symbol": "USDC",
+          "input_amount": 500.0,
+          "input_price_usd": 1.0,
+          "notional_usd": 500.0,
+          "output_amount": 6.398923904688701,
+          "output_price_usd": 78.06,
+          "rank": 2,
+          "route_symbols": [
+            "USDC",
+            "AXTIBUSDT",
+            "SNXXBUSDT",
+            "USDC"
+          ],
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+          "to_symbol": "AXTIBUSDT"
+        }
+      ],
+      "description": "borrow an Aave asset, swap through selected target/intermediate tokens, and end in the same borrowed asset for in-contract repayment",
+      "executable_symbols": [],
+      "execution_trigger": "pre_existing_dex_quote_edge_or_backrun_after_prior_transaction",
+      "forbidden_assumptions": [
+        "external users can modify involved pools during this transaction",
+        "profit depends on pool prices changing while this transaction is executing"
+      ],
+      "mode": "paper_sequential",
+      "repay_steps": [
+        {
+          "action": "buy_repay_asset",
+          "flashloan_fee_percent": 0.05,
+          "from_symbol": "SNXXBUSDT",
+          "input_amount": 41.58355770455934,
+          "input_price_usd": 12.13,
+          "output_amount": 500.25,
+          "output_price_usd": 1.0,
+          "rank": 1,
+          "route_symbols": [
+            "USDC",
+            "GIGGLEUSDT",
+            "SNXXBUSDT",
+            "USDC"
+          ],
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+          "to_symbol": "USDC"
+        },
+        {
+          "action": "buy_repay_asset",
+          "flashloan_fee_percent": 0.05,
+          "from_symbol": "SNXXBUSDT",
+          "input_amount": 41.56201357738593,
+          "input_price_usd": 12.13,
+          "output_amount": 500.25,
+          "output_price_usd": 1.0,
+          "rank": 2,
+          "route_symbols": [
+            "USDC",
+            "AXTIBUSDT",
+            "SNXXBUSDT",
+            "USDC"
+          ],
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+          "to_symbol": "USDC"
+        }
+      ],
+      "repay_symbols": [
+        "USDC"
+      ],
+      "requires_contract": true,
+      "requires_live_dex_quotes": true,
+      "requires_static_dex_edge": true,
+      "route_invariant": "first route symbol must equal final route symbol; repay step must output the borrowed asset",
+      "sell_steps": [
+        {
+          "action": "swap_mid_leg",
+          "from_symbol": "GIGGLEUSDT",
+          "input_amount": 14.704150721224611,
+          "input_price_usd": 34.14,
+          "output_amount": 41.58355770455934,
+          "output_price_usd": 12.06,
+          "rank": 1,
+          "route_symbols": [
+            "USDC",
+            "GIGGLEUSDT",
+            "SNXXBUSDT",
+            "USDC"
+          ],
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+          "to_symbol": "SNXXBUSDT"
+        },
+        {
+          "action": "swap_mid_leg",
+          "from_symbol": "AXTIBUSDT",
+          "input_amount": 6.398923904688701,
+          "input_price_usd": 78.41,
+          "output_amount": 41.56201357738593,
+          "output_price_usd": 12.06,
+          "rank": 2,
+          "route_symbols": [
+            "USDC",
+            "AXTIBUSDT",
+            "SNXXBUSDT",
+            "USDC"
+          ],
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+          "to_symbol": "SNXXBUSDT"
+        }
+      ],
+      "strategy_model": "m_by_n_grid_usdc_flashloan_stable_borrow_cycle",
+      "version": 1
+    },
+    "fee_reserve_percent": 0.1,
+    "fee_reserve_usd": 1.0,
+    "flashloan_fee_percent": 0.05,
+    "gainer_count": 65,
+    "gross_relative_edge_percent": 0.7308292802697111,
+    "loser_count": 53,
+    "m1_profit_usd": 3.654146401348555,
+    "m2_profit_usd": 0.0,
+    "market_divergence_index": 5.134128166915052,
+    "min_down_change_percent": 0.0,
+    "min_paper_profit_usd": 0,
+    "min_up_change_percent": 0.0,
+    "min_window_spread_percent": 0.3,
+    "net_signal_profit_usd": 6.047223870346272,
+    "notional_usd": 1000.0,
+    "observation_universe_size": 671,
+    "observed_at": "2026-08-13T13:57:32.233+00:00",
+    "onchain_decision_required": true,
+    "pairs": [
+      {
+        "a_bought": 14.704150721224611,
+        "a_change_percent": 0.5804311774461052,
+        "a_end_price": 12.13,
+        "a_start_price": 12.06,
+        "a_symbol": "SNXXBUSDT",
+        "alternate_strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+        "b_change_percent": -0.4979496192150021,
+        "b_end_price": 33.97,
+        "b_rebought": 503.90414640134856,
+        "b_start_price": 34.14,
+        "b_symbol": "GIGGLEUSDT",
+        "b_to_repay": 500.25,
+        "base_strategy": "strategy_3",
+        "best_strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+        "borrow_change_percent": 0.0,
+        "borrow_end_price": 1.0,
+        "borrow_rebought": 503.90414640134856,
+        "borrow_start_price": 1.0,
+        "borrow_symbol": "USDC",
+        "borrow_to_repay": 500.25,
+        "borrowed_amount": 500.0,
+        "borrowed_b": 500.0,
+        "candidate_strategies": [
+          {
+            "base_strategy": "strategy_3",
+            "borrow_change_percent": 0.0,
+            "borrow_end_price": 1.0,
+            "borrow_rebought": 503.90414640134856,
+            "borrow_start_price": 1.0,
+            "borrow_symbol": "USDC",
+            "borrow_to_repay": 500.25,
+            "borrowed_amount": 500.0,
+            "counter_symbol": "SNXXBUSDT",
+            "direction": "stable_forward",
+            "gross_relative_edge_percent": 0.7308292802697111,
+            "notional_usd": 500.0,
+            "profit_borrow": 3.654146401348555,
+            "profit_percent": 0.7308292802697111,
+            "profit_usd": 3.654146401348555,
+            "profitable": true,
+            "route_steps": [
+              {
+                "from_symbol": "USDC",
+                "input_amount": 500.0,
+                "input_price_usd": 1.0,
+                "output_amount": 14.704150721224611,
+                "output_price_usd": 33.97,
+                "price_phase": "end",
+                "to_symbol": "GIGGLEUSDT"
+              },
+              {
+                "from_symbol": "GIGGLEUSDT",
+                "input_amount": 14.704150721224611,
+                "input_price_usd": 34.14,
+                "output_amount": 41.58355770455934,
+                "output_price_usd": 12.06,
+                "price_phase": "start",
+                "to_symbol": "SNXXBUSDT"
+              },
+              {
+                "from_symbol": "SNXXBUSDT",
+                "input_amount": 41.58355770455934,
+                "input_price_usd": 12.13,
+                "output_amount": 503.90414640134856,
+                "output_price_usd": 1.0,
+                "price_phase": "end",
+                "to_symbol": "USDC"
+              }
+            ],
+            "route_symbols": [
+              "USDC",
+              "GIGGLEUSDT",
+              "SNXXBUSDT",
+              "USDC"
+            ],
+            "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+            "swap_bought": 14.704150721224611,
+            "swap_change_percent": -0.4979496192150021,
+            "swap_end_price": 33.97,
+            "swap_start_price": 34.14,
+            "swap_symbol": "GIGGLEUSDT",
+            "usdc_after_selling_swap": 503.90414640134856,
+            "usdt_after_selling_swap": 503.90414640134856
+          }
+        ],
+        "counter_symbol": "SNXXBUSDT",
+        "direction": "stable_forward",
+        "gross_relative_edge_percent": 0.7308292802697111,
+        "m1_profit_usd": 3.654146401348555,
+        "m2_profit_usd": 0.0,
+        "notional_usd": 500.0,
+        "profit_b": 3.654146401348555,
+        "profit_borrow": 3.654146401348555,
+        "profit_percent": 0.7308292802697111,
+        "profit_usd": 3.654146401348555,
+        "profitable": true,
+        "rank": 1,
+        "route_steps": [
+          {
+            "from_symbol": "USDC",
+            "input_amount": 500.0,
+            "input_price_usd": 1.0,
+            "output_amount": 14.704150721224611,
+            "output_price_usd": 33.97,
+            "price_phase": "end",
+            "to_symbol": "GIGGLEUSDT"
+          },
+          {
+            "from_symbol": "GIGGLEUSDT",
+            "input_amount": 14.704150721224611,
+            "input_price_usd": 34.14,
+            "output_amount": 41.58355770455934,
+            "output_price_usd": 12.06,
+            "price_phase": "start",
+            "to_symbol": "SNXXBUSDT"
+          },
+          {
+            "from_symbol": "SNXXBUSDT",
+            "input_amount": 41.58355770455934,
+            "input_price_usd": 12.13,
+            "output_amount": 503.90414640134856,
+            "output_price_usd": 1.0,
+            "price_phase": "end",
+            "to_symbol": "USDC"
+          }
+        ],
+        "route_symbols": [
+          "USDC",
+          "GIGGLEUSDT",
+          "SNXXBUSDT",
+          "USDC"
+        ],
+        "selected_direction_score_usd": 3.654146401348555,
+        "selected_expected_profit_usd": 3.654146401348555,
+        "selected_signed_profit_usd": 3.654146401348555,
+        "signed_strategy_decision": {
+          "base_strategy": "strategy_3",
+          "direction": "stable_forward",
+          "selection_score_usd": 3.654146401348555,
+          "should_execute": true,
+          "signed_profit_usd": 3.654146401348555,
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc"
+        },
+        "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+        "swap_bought": 14.704150721224611,
+        "swap_change_percent": -0.4979496192150021,
+        "swap_end_price": 33.97,
+        "swap_start_price": 34.14,
+        "swap_symbol": "GIGGLEUSDT",
+        "usdc_after_selling_a": 503.90414640134856,
+        "usdc_after_selling_swap": 503.90414640134856,
+        "usdt_after_selling_a": 503.90414640134856,
+        "usdt_after_selling_swap": 503.90414640134856,
+        "x_symbol": "SNXXBUSDT",
+        "y_symbol": "GIGGLEUSDT"
+      },
+      {
+        "a_bought": 6.398923904688701,
+        "a_change_percent": 0.5804311774461052,
+        "a_end_price": 12.13,
+        "a_start_price": 12.06,
+        "a_symbol": "SNXXBUSDT",
+        "alternate_strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+        "b_change_percent": -0.4463716362708766,
+        "b_end_price": 78.06,
+        "b_rebought": 503.6430774689977,
+        "b_start_price": 78.41,
+        "b_symbol": "AXTIBUSDT",
+        "b_to_repay": 500.25,
+        "base_strategy": "strategy_3",
+        "best_strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+        "borrow_change_percent": 0.0,
+        "borrow_end_price": 1.0,
+        "borrow_rebought": 503.6430774689977,
+        "borrow_start_price": 1.0,
+        "borrow_symbol": "USDC",
+        "borrow_to_repay": 500.25,
+        "borrowed_amount": 500.0,
+        "borrowed_b": 500.0,
+        "candidate_strategies": [
+          {
+            "base_strategy": "strategy_3",
+            "borrow_change_percent": 0.0,
+            "borrow_end_price": 1.0,
+            "borrow_rebought": 503.6430774689977,
+            "borrow_start_price": 1.0,
+            "borrow_symbol": "USDC",
+            "borrow_to_repay": 500.25,
+            "borrowed_amount": 500.0,
+            "counter_symbol": "SNXXBUSDT",
+            "direction": "stable_forward",
+            "gross_relative_edge_percent": 0.6786154937995434,
+            "notional_usd": 500.0,
+            "profit_borrow": 3.393077468997717,
+            "profit_percent": 0.6786154937995434,
+            "profit_usd": 3.393077468997717,
+            "profitable": true,
+            "route_steps": [
+              {
+                "from_symbol": "USDC",
+                "input_amount": 500.0,
+                "input_price_usd": 1.0,
+                "output_amount": 6.398923904688701,
+                "output_price_usd": 78.06,
+                "price_phase": "end",
+                "to_symbol": "AXTIBUSDT"
+              },
+              {
+                "from_symbol": "AXTIBUSDT",
+                "input_amount": 6.398923904688701,
+                "input_price_usd": 78.41,
+                "output_amount": 41.56201357738593,
+                "output_price_usd": 12.06,
+                "price_phase": "start",
+                "to_symbol": "SNXXBUSDT"
+              },
+              {
+                "from_symbol": "SNXXBUSDT",
+                "input_amount": 41.56201357738593,
+                "input_price_usd": 12.13,
+                "output_amount": 503.6430774689977,
+                "output_price_usd": 1.0,
+                "price_phase": "end",
+                "to_symbol": "USDC"
+              }
+            ],
+            "route_symbols": [
+              "USDC",
+              "AXTIBUSDT",
+              "SNXXBUSDT",
+              "USDC"
+            ],
+            "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+            "swap_bought": 6.398923904688701,
+            "swap_change_percent": -0.4463716362708766,
+            "swap_end_price": 78.06,
+            "swap_start_price": 78.41,
+            "swap_symbol": "AXTIBUSDT",
+            "usdc_after_selling_swap": 503.6430774689977,
+            "usdt_after_selling_swap": 503.6430774689977
+          }
+        ],
+        "counter_symbol": "SNXXBUSDT",
+        "direction": "stable_forward",
+        "gross_relative_edge_percent": 0.6786154937995434,
+        "m1_profit_usd": 3.393077468997717,
+        "m2_profit_usd": 0.0,
+        "notional_usd": 500.0,
+        "profit_b": 3.393077468997717,
+        "profit_borrow": 3.393077468997717,
+        "profit_percent": 0.6786154937995434,
+        "profit_usd": 3.393077468997717,
+        "profitable": true,
+        "rank": 2,
+        "route_steps": [
+          {
+            "from_symbol": "USDC",
+            "input_amount": 500.0,
+            "input_price_usd": 1.0,
+            "output_amount": 6.398923904688701,
+            "output_price_usd": 78.06,
+            "price_phase": "end",
+            "to_symbol": "AXTIBUSDT"
+          },
+          {
+            "from_symbol": "AXTIBUSDT",
+            "input_amount": 6.398923904688701,
+            "input_price_usd": 78.41,
+            "output_amount": 41.56201357738593,
+            "output_price_usd": 12.06,
+            "price_phase": "start",
+            "to_symbol": "SNXXBUSDT"
+          },
+          {
+            "from_symbol": "SNXXBUSDT",
+            "input_amount": 41.56201357738593,
+            "input_price_usd": 12.13,
+            "output_amount": 503.6430774689977,
+            "output_price_usd": 1.0,
+            "price_phase": "end",
+            "to_symbol": "USDC"
+          }
+        ],
+        "route_symbols": [
+          "USDC",
+          "AXTIBUSDT",
+          "SNXXBUSDT",
+          "USDC"
+        ],
+        "selected_direction_score_usd": 3.393077468997717,
+        "selected_expected_profit_usd": 3.393077468997717,
+        "selected_signed_profit_usd": 3.393077468997717,
+        "signed_strategy_decision": {
+          "base_strategy": "strategy_3",
+          "direction": "stable_forward",
+          "selection_score_usd": 3.393077468997717,
+          "should_execute": true,
+          "signed_profit_usd": 3.393077468997717,
+          "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc"
+        },
+        "strategy": "strategy_3_stable_usdc_to_y_to_x_to_usdc",
+        "swap_bought": 6.398923904688701,
+        "swap_change_percent": -0.4463716362708766,
+        "swap_end_price": 78.06,
+        "swap_start_price": 78.41,
+        "swap_symbol": "AXTIBUSDT",
+        "usdc_after_selling_a": 503.6430774689977,
+        "usdc_after_selling_swap": 503.6430774689977,
+        "usdt_after_selling_a": 503.6430774689977,
+        "usdt_after_selling_swap": 503.6430774689977,
+        "x_symbol": "SNXXBUSDT",
+        "y_symbol": "AXTIBUSDT"
+      }
+    ],
+    "paper_route_profit_usd": 7.047223870346272,
+    "per_leg_notional_usd": 500.0,
+    "price_source": "mixed",
+    "profit_b": 3.654146401348555,
+    "profit_percent": 0.7047223870346273,
+    "profit_usd": 7.047223870346272,
+    "profitable": true,
+    "remaining_usd": 7.047223870346272,
+    "route_symbols": [
+      "USDC",
+      "GIGGLEUSDT",
+      "SNXXBUSDT",
+      "USDC"
+    ],
+    "sample_count": 316,
+    "selected_direction_score_usd": 3.654146401348555,
+    "selected_expected_profit_usd": 3.654146401348555,
+    "selected_signed_profit_usd": 3.654146401348555,
+    "signal": true,
+    "strategy": "cross_grid_best_closed_cycle",
+    "swap_bought": 14.704150721224611,
+    "swap_symbol": "GIGGLEUSDT",
+    "total_buyback_usd": 1007.5472238703462,
+    "total_repay_usd": 1000.5,
+    "trade_fee_percent": 0.1,
+    "trigger_signal": true,
+    "usdc_after_selling_a": 503.90414640134856,
+    "usdt_after_selling_a": 503.90414640134856,
+    "window_seconds": 1.0,
+    "window_spread_percent": 1.0783807966611072,
+    "x_change_percent": 0.5804311774461052,
+    "x_symbol": "SNXXBUSDT",
+    "y_change_percent": -0.4979496192150021,
+    "y_symbol": "GIGGLEUSDT"
+  },
+  "profitEstimate": {
+    "actionableProfit": false,
+    "contractFlowVerified": false,
+    "deprecatedFields": {
+      "estimatedNetProfitUsdc": "removed; use contractFlowProfitReview.netProfitUsdc after preview/static-call",
+      "profitableOnPaper": "always false; paper/window data is only a signal and cannot prove executable profit"
+    },
+    "gasReserveUsdc": 0.0,
+    "otherKnownCostsUsdc": 0.0,
+    "paperSignalProfitUsdc": 6.04722387,
+    "profitableOnPaper": false,
+    "publicMempoolRiskPenaltyUsdc": 0.0,
+    "semantics": "binance_window_signal_only_not_current_avalanche_dex_quote_or_contract_profit",
+    "signalNetAfterConfiguredDeductionsUsdc": 6.04722387,
+    "signalOnly": true,
+    "slippageRiskPenaltyUsdc": 0.0
+  },
+  "simulationConfig": {
+    "basketSize": 2,
+    "feeReservePercent": 0.1,
+    "flashloanFeePercent": 0.05,
+    "minWindowSpreadPercent": 0.3,
+    "notionalUsd": 1000.0,
+    "tradeFeePercent": 0.1
+  }
+}

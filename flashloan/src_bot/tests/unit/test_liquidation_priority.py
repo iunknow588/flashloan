@@ -1,4 +1,4 @@
-from execution.liquidation_priority import (
+from bot.execution.liquidation_priority import (
     liquidation_account_activity_tier,
     liquidation_pool_tier,
     liquidation_priority_score,

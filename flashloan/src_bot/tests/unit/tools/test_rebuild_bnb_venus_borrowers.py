@@ -1,5 +1,5 @@
-from tools import rebuild_bnb_venus_borrowers as rebuild
-from tools.rebuild_bnb_venus_borrowers import _filter_log_capable_rpc_pool, _incremental_start_block, _merge_registries
+from bot.tools import rebuild_bnb_venus_borrowers as rebuild
+from bot.tools.rebuild_bnb_venus_borrowers import _filter_log_capable_rpc_pool, _incremental_start_block, _merge_registries
 
 
 def test_rebuild_bnb_venus_borrowers_merges_incremental_registry_rows():

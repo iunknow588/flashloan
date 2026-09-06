@@ -2,9 +2,9 @@ import json
 import inspect
 
 from core import flash_loan_pool_discovery as discovery
-from intent_trade.chains.avalanche.pool_discovery import avalanche_flash_pool_discovery_contribution
-from intent_trade.chains.bnb.pool_discovery import bnb_flash_pool_discovery_contribution
-from intent_trade.chains.robinhood.flash_liquidity import (
+from dex.intent_trade.chains.avalanche.pool_discovery import avalanche_flash_pool_discovery_contribution
+from dex.intent_trade.chains.bnb.pool_discovery import bnb_flash_pool_discovery_contribution
+from dex.intent_trade.chains.robinhood.flash_liquidity import (
     cached_robinhood_flash_liquidity_snapshot,
     robinhood_flash_liquidity_discovery_contribution,
 )

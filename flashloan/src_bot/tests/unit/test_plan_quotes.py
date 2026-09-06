@@ -1,5 +1,5 @@
-from execution.dex_costs import USDC
-from execution.plan_quotes import quote_execution_plan, quote_token, step_error
+from bot.execution.dex_costs import USDC
+from bot.execution.plan_quotes import quote_execution_plan, quote_token, step_error
 
 
 class FakeCall:
@@ -84,7 +84,7 @@ def test_quote_execution_plan_values_non_usdc_profit_asset(monkeypatch):
         (aave.token_address.lower(), USDC.lower()): 3.0,
     }
     FakeWeb3.next_router = FakeRouter(rates, decimals)
-    monkeypatch.setattr("execution.plan_quotes.Web3", FakeWeb3)
+    monkeypatch.setattr("bot.execution.plan_quotes.Web3", FakeWeb3)
 
     plan = {
         "buy_steps": [

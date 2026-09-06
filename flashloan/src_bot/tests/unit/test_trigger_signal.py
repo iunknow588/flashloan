@@ -1,4 +1,4 @@
-from strategy.trigger_signal import TriggerConfig, build_trigger_signal
+from market.strategy.trigger_signal import TriggerConfig, build_trigger_signal
 
 
 def extremes(up_change=1.2, down_change=-1.3):

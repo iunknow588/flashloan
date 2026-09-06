@@ -1,4 +1,4 @@
-from intent_trade.chains.robinhood_testnet.normal_flash_probe import resolve_robinhood_testnet_normal_flash_probe
+from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import resolve_robinhood_testnet_normal_flash_probe
 
 
 def _liquidity_payload(*, balance_raw: str = "2000000000000000000000"):
@@ -50,7 +50,12 @@ def test_robinhood_testnet_normal_flash_probe_resolves_token_and_amount_from_pla
 
     report = resolve_robinhood_testnet_normal_flash_probe(
         chain_metadata={},
-        contracts_metadata={},
+        contracts_metadata={
+            "normalTestnetProbe": {
+                "address": "0x1111111111111111111111111111111111111111",
+                "deploymentFile": "contract/contracts-dex/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+            }
+        },
         chain_test_plan=plan,
         v4_pool_liquidity=_liquidity_payload(),
     )

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from tools import run_unified_live_shadow_bridge as bridge
+from dex.tools import run_unified_live_shadow_bridge as bridge
 
 
 def test_build_shadow_input_from_extremes_marks_live_signal():

@@ -1,6 +1,6 @@
 import threading
 
-from execution.nonce_manager import NonceManager
+from bot.execution.nonce_manager import NonceManager
 
 
 class FakeEth:

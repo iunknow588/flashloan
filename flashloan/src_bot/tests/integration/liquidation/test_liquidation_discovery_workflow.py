@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import threading
 
-from liquidation import discovery_workflow as workflow
+from bot.liquidation import discovery_workflow as workflow
 from web3 import Web3
 
 

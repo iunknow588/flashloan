@@ -7,7 +7,7 @@ from web3 import Web3
 
 from core.market_config import liquidation_market_config, liquidation_market_config_for
 from core.sensitive_data import redact_sensitive_text
-from execution.liquidation_scan import (
+from bot.execution.liquidation_scan import (
     build_user_liquidation_report,
     discover_borrower_addresses,
     health_factor_band,
@@ -16,7 +16,7 @@ from execution.liquidation_scan import (
     scan_account_health,
     watched_health_rows,
 )
-from db.storage_liquidation_pool import (
+from core.db.storage_liquidation_pool import (
     load_liquidation_borrow_health_scan_batches as db_load_liquidation_borrow_health_scan_batches,
     load_liquidation_borrow_health_pool as db_load_liquidation_borrow_health_pool,
     load_liquidation_core_opportunity_pool as db_load_liquidation_core_opportunity_pool,
@@ -26,29 +26,29 @@ from db.storage_liquidation_pool import (
     record_liquidation_borrow_health_scan_batch as db_record_liquidation_borrow_health_scan_batch,
     sync_liquidation_borrow_health_pool as db_sync_liquidation_borrow_health_pool,
 )
-from db.storage_liquidation_attempts import (
+from core.db.storage_liquidation_attempts import (
     load_latest_liquidation_execution_attempts_for_accounts as db_load_latest_liquidation_execution_attempts_for_accounts,
     load_recent_liquidation_execution_attempts as db_load_recent_liquidation_execution_attempts,
 )
-from db.storage_liquidation import (
+from core.db.storage_liquidation import (
     load_liquidation_scan_config_library as db_load_liquidation_scan_config_library,
     record_liquidation_account_scan,
 )
 import web.control_panel_liquidation_base as liquidation_base
 import web.control_panel_liquidation_borrow_pool as borrow_pool_panel
-import web.control_panel_liquidation_borrow_pool_payload as borrow_pool_payload_panel
-import web.control_panel_liquidation_scan_support as scan_support_panel
-from debt_pool import decision_from_borrow_pool_payload
-from liquidation import (
+from bot.liquidation import panel_borrow_pool_payload as borrow_pool_payload_panel
+from bot.liquidation import panel_scan_support as scan_support_panel
+from bot.debt_pool import decision_from_borrow_pool_payload
+from bot.liquidation import (
     AccountBackfillService,
     build_discovery_window_result,
     build_liquidation_account_summary,
     build_liquidation_health_summary,
 )
-from liquidation.discovery_workflow import (
+from bot.liquidation.discovery_workflow import (
     discover_and_sync_liquidation_accounts as run_liquidation_discovery_workflow,
 )
-from liquidation.scan_presenter import (
+from bot.liquidation.scan_presenter import (
     account_tier_summary as build_account_tier_summary,
     attach_scan_state,
     build_borrow_pool_summary,
@@ -56,23 +56,23 @@ from liquidation.scan_presenter import (
     build_health_summary,
     display_health_rows,
 )
-from liquidation.scan_selection import (
+from bot.liquidation.scan_selection import (
     mark_selection_finished as _mark_scan_selection_finished,
     select_accounts as _select_scan_accounts,
     tier_accounts as _select_tier_accounts,
     unique_accounts as _select_unique_accounts,
 )
-from liquidation.scan_orchestrator import build_account_health_reports, run_borrow_health_scan
-from liquidation.health_scan_workflow import (
+from bot.liquidation.scan_orchestrator import build_account_health_reports, run_borrow_health_scan
+from bot.liquidation.health_scan_workflow import (
     LiquidationHealthRuntime,
     liquidation_health_payload as build_liquidation_health_payload,
 )
-from liquidation.account_payload_service import (
+from bot.liquidation.account_payload_service import (
     LiquidationAccountPayloadRuntime,
     liquidation_account_cached_payload as build_liquidation_account_cached_payload,
     liquidation_account_payload as build_liquidation_account_payload,
 )
-from liquidation.scan_payload_service import (
+from bot.liquidation.scan_payload_service import (
     attach_core_execution_summaries as build_core_execution_summaries,
     build_borrow_pool_blocked_payload,
     build_borrow_pool_display_payload,
@@ -83,15 +83,15 @@ from liquidation.scan_payload_service import (
     page_value,
     pagination,
 )
-from liquidation.borrow_pool_scan_service import (
+from bot.liquidation.borrow_pool_scan_service import (
     BorrowPoolScanRuntime,
     run_borrow_pool_scan_payload,
 )
-from liquidation.account_backfill_workflow import (
+from bot.liquidation.account_backfill_workflow import (
     AccountBackfillRuntime,
     run_account_backfill_once as run_account_backfill_workflow,
 )
-from liquidation.refresh_service import (
+from bot.liquidation.refresh_service import (
     LiquidationRefreshRuntime,
     start_liquidation_refresh_loop as start_liquidation_refresh_workflow,
 )

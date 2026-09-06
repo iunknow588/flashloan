@@ -1,0 +1,356 @@
+{
+  "attempt": {
+    "blockNumber": 109454378,
+    "createdAt": "2026-08-30T20:48:29.079269+00:00",
+    "observedAt": "2026-08-30T20:48:29.079269+00:00",
+    "pair": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+    "reviewBlockNumber": 109454378,
+    "routePath": [
+      "ETH",
+      "0X71178B",
+      "0XC9F9C8",
+      "ETH"
+    ],
+    "state": "live_verified",
+    "status": "live_verified",
+    "triggerBlockNumber": 109454378
+  },
+  "chainId": 46630,
+  "chainTestScope": {
+    "canBroadcast": false,
+    "canCaptureLiveOpportunity": false,
+    "canDeployTestnet": true,
+    "canRunForkStaticcall": true,
+    "chainId": 46630,
+    "disabledReason": null,
+    "enabled": true,
+    "mode": "testnet_deploy_readback_only",
+    "network": "robinhood-testnet"
+  },
+  "checklist": [
+    {
+      "detail": "閿佸畾 ETH -> 0X71178B -> 0XC9F9C8 -> ETH / 瑙﹀彂鍖哄潡 109454378",
+      "done": true,
+      "id": "freeze_snapshot",
+      "status": "done",
+      "title": "鍐荤粨閾句笂澶嶆牳蹇収"
+    },
+    {
+      "detail": "鍦?contract/robinhood 涓嬩繚鐣欓摼鍒俊鎭笌鍚庣画閮ㄧ讲鍗犱綅",
+      "done": true,
+      "id": "build_contract_dir",
+      "status": "done",
+      "title": "鍑嗗閾惧埆鍚堢害淇℃伅鐩綍"
+    },
+    {
+      "detail": "鎸夐摼涓婂鏍歌矾寰勭敓鎴?flashloan / AMM 浜ゆ崲鍙傛暟",
+      "done": false,
+      "id": "calldata_builder",
+      "status": "pending",
+      "title": "鐢熸垚浜ゆ槗 calldata"
+    },
+    {
+      "detail": "Add minOut, slippage guard, repayment balance, and minimum-profit threshold",
+      "done": false,
+      "id": "risk_guard",
+      "status": "pending",
+      "title": "Add slippage and repayment constraints"
+    },
+    {
+      "detail": "鍙 Quoter 宸插鏍稿悗浠嶉渶鏈湴浠跨湡",
+      "done": false,
+      "id": "fork_staticcall",
+      "status": "pending",
+      "title": "鎵ц fork/static-call 浠跨湡"
+    },
+    {
+      "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
+      "done": false,
+      "id": "broadcast_gate",
+      "status": "blocked",
+      "title": "淇濇寔骞挎挱闂搁棬鍏抽棴"
+    },
+    {
+      "detail": "瀹屾垚鍚庢妸鏂规銆佹竻鍗曘€佹祴璇曞寘褰掓。鍒?back",
+      "done": false,
+      "id": "archive_outputs",
+      "status": "pending",
+      "title": "褰掓。瀹炴柦鏂囨。涓庢祴璇曞寘"
+    }
+  ],
+  "contractHandoff": {
+    "contractDir": "E:\\2026OPC大赛\\flashLoan\\contract\\robinhood\\testnet\\chain-test-package",
+    "executionModel": {
+      "allV4Hops": true,
+      "mixedProtocolRoute": false,
+      "nestedUnlockAvoidance": true,
+      "requiresDirectPoolManagerFlow": true,
+      "requiresNativeValueForwarding": false,
+      "requiresUniversalRouter": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "status": "planned",
+      "usesNativeBorrow": true
+    },
+    "expectedFiles": [
+      "README.md",
+      "contracts.json"
+    ]
+  },
+  "decision": {
+    "blockedReasons": [],
+    "canBroadcast": false,
+    "canDeployTestnet": true,
+    "canRunForkPreflight": true,
+    "canSubmitOrder": false,
+    "needsLiveQuoter": false,
+    "readyForTransactionPreflight": true,
+    "requiresTransactionDevelopment": true,
+    "trustedForExecution": false
+  },
+  "evidence": {
+    "allHopsQuoted": true,
+    "blockNumber": 109454378,
+    "blockers": [],
+    "borrowInputAmount": 7.15255737304e-07,
+    "borrowInputSymbol": "ETH",
+    "executionTrust": "live_quoter_verified_readonly",
+    "finalOutputAmount": 9.76463234856e-07,
+    "finalOutputSymbol": "ETH",
+    "finalOutputUsd": 9.76463234856e-07,
+    "grossProfitAmount": 2.61207497552e-07,
+    "grossProfitUsd": null,
+    "latestSnapshotUpdatedAt": "2026-08-31T04:50:30.225613+00:00",
+    "liveProfitPercent": 926.9516432174373,
+    "meetsMinProfitThreshold": true,
+    "meetsOffchainProfitThreshold": false,
+    "meetsSubmissionProfitThreshold": true,
+    "minProfitUsd": 6.0,
+    "netPositiveAfterCosts": true,
+    "netProfitAmount": 2.60849869683348e-07,
+    "netProfitAmountBps": 3646.945506044656,
+    "netProfitAmountSymbol": "ETH",
+    "netProfitBps": 3646.945506044656,
+    "netProfitUsd": null,
+    "profitBasis": "borrow_token",
+    "profitableAfterCosts": true,
+    "readyForTransactionPreflight": true,
+    "readyForTransactionPreflightRaw": true,
+    "referenceNetProfitUsd": null,
+    "routeChainSubmissionCandidate": false,
+    "routeClosed": true,
+    "routeExecutableCandidate": true,
+    "routeExecutionSizeProbe": {
+      "firstFailureAmountRaw": "498367069633091111",
+      "maxExecutableAmountRaw": "498365714991916341",
+      "probeAttempts": 38,
+      "searchStatus": "bounded",
+      "status": "liquidity_probe_complete",
+      "stepProbes": [
+        {
+          "amountInRaw": "1000000000000000000",
+          "firstFailureAmountRaw": null,
+          "maxExecutableAmountRaw": "64000000000000000000",
+          "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+          "probeAttempts": 7,
+          "quoterAddress": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+          "searchStatus": "lower_bound_verified",
+          "status": "liquidity_probe_complete",
+          "step": 1,
+          "tokenIn": "0x0000000000000000000000000000000000000000",
+          "tokenOut": "0x71178bac73cbeb415514eb542a8995b82669778d"
+        },
+        {
+          "amountInRaw": "11363553795802904000",
+          "firstFailureAmountRaw": "498367069633091111",
+          "maxExecutableAmountRaw": "498365714991916341",
+          "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+          "probeAttempts": 24,
+          "quoterAddress": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+          "searchStatus": "bounded",
+          "status": "liquidity_probe_complete",
+          "step": 2,
+          "tokenIn": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "tokenOut": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
+        },
+        {
+          "amountInRaw": "22658926268830992000",
+          "firstFailureAmountRaw": null,
+          "maxExecutableAmountRaw": "1450171281205183488000",
+          "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+          "probeAttempts": 7,
+          "quoterAddress": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+          "searchStatus": "lower_bound_verified",
+          "status": "liquidity_probe_complete",
+          "step": 3,
+          "tokenIn": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "tokenOut": "0x0000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    "routeExecutionSizeProbeExceeded": false,
+    "routeExecutionSizeProbeStatus": "liquidity_probe_complete",
+    "routeExecutionSizeShortfallRaw": null,
+    "routeMaxExecutableAmountRaw": 498365714991916341,
+    "routeOriginalExecutionSizeProbeExceeded": true,
+    "routeOriginalExecutionSizeShortfallRaw": 501634285008083659,
+    "routeOriginalRequestedBorrowAmountRaw": 1000000000000000000,
+    "routeRequestedBorrowAmountRaw": 715255737304,
+    "routeSelectedBorrowAmountRaw": 715255737304,
+    "status": "live_verified",
+    "submissionNetProfitAmount": 2.60849869683348e-07,
+    "tokenContinuity": true,
+    "tokenContinuityIssues": [],
+    "triggerBlockNumber": 109454378,
+    "trustedForExecution": false
+  },
+  "generatedAt": "2026-08-31T08:08:32.710541+00:00",
+  "marketId": "robinhood-testnet-dex-paused",
+  "network": "robinhood-testnet",
+  "preflightSpec": {
+    "broadcastEnabled": false,
+    "executionModel": {
+      "allV4Hops": true,
+      "mixedProtocolRoute": false,
+      "nestedUnlockAvoidance": true,
+      "requiresDirectPoolManagerFlow": true,
+      "requiresNativeValueForwarding": false,
+      "requiresUniversalRouter": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "status": "planned",
+      "usesNativeBorrow": true
+    },
+    "executionRequest": {
+      "amount": "715255737304",
+      "borrowTokenIsNative": true,
+      "calldataStatus": "pending",
+      "executorContract": "RobinhoodPausedFlashLoanExecutor",
+      "finalToken": "0x0000000000000000000000000000000000000000",
+      "function": "requestV4FlashLoan",
+      "gasReserve": "0",
+      "minProfit": "1",
+      "nativeValueForwardingPolicy": "forward_amountInRaw_on_hops_where_tokenIn_is_zero_address",
+      "requiresNativeValueForwarding": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModel": {
+        "allV4Hops": true,
+        "mixedProtocolRoute": false,
+        "nestedUnlockAvoidance": true,
+        "requiresDirectPoolManagerFlow": true,
+        "requiresNativeValueForwarding": false,
+        "requiresUniversalRouter": false,
+        "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+        "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+        "status": "planned",
+        "usesNativeBorrow": true
+      },
+      "struct": "V4FlashAccountingRequest",
+      "swapValues": [
+        "0",
+        "0",
+        "0"
+      ],
+      "token": "0x0000000000000000000000000000000000000000",
+      "transactionValueRaw": "0"
+    },
+    "repaymentConstraint": {
+      "borrowAmountRaw": "715255737304",
+      "borrowSymbol": "ETH",
+      "borrowToken": "0x0000000000000000000000000000000000000000",
+      "finalAmountRaw": "976463234856",
+      "finalSymbol": "ETH",
+      "finalToken": "0x0000000000000000000000000000000000000000",
+      "flashLoanFeeBps": 5.0,
+      "gasReserveRaw": "0",
+      "minProfitRaw": "1",
+      "minProfitRule": "positive_x_profit_min_raw_unit",
+      "profitBasis": "borrow_token",
+      "repayAmountRaw": "715613365172"
+    },
+    "requiredChecks": [
+      "calldata_matches_verified_hops",
+      "each_hop_min_amount_out_enforced",
+      "flashloan_repay_amount_enforced",
+      "final_token_balance_covers_repay_and_min_profit",
+      "fork_staticcall_or_fork_transaction_simulation_passed",
+      "broadcast_gate_remains_disabled_until_trusted_for_execution"
+    ],
+    "routeHops": [
+      {
+        "amountIn": "0.000000715255737304",
+        "amountInRaw": "715255737304",
+        "amountOut": "0.439520842718236707",
+        "amountOutRaw": "439520842718236707",
+        "fee": 10000,
+        "fromSymbol": "ETH",
+        "hop": 1,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "437323238504645523",
+        "outputDecimals": 18,
+        "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 36951,
+        "toSymbol": "0X71178B",
+        "tokenIn": "0x0000000000000000000000000000000000000000",
+        "tokenOut": "0x71178BAc73cBeb415514eB542a8995b82669778d"
+      },
+      {
+        "amountIn": "0.439520842718236707",
+        "amountInRaw": "439520842718236707",
+        "amountOut": "0.865694577926234571",
+        "amountOutRaw": "865694577926234571",
+        "fee": 3000,
+        "fromSymbol": "0X71178B",
+        "hop": 2,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "861366105036603398",
+        "outputDecimals": 18,
+        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 37353,
+        "toSymbol": "0XC9F9C8",
+        "tokenIn": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        "tokenOut": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E"
+      },
+      {
+        "amountIn": "0.865694577926234571",
+        "amountInRaw": "865694577926234571",
+        "amountOut": "0.000000976463234856",
+        "amountOutRaw": "976463234856",
+        "fee": 500,
+        "fromSymbol": "0XC9F9C8",
+        "hop": 3,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "971580918681",
+        "outputDecimals": 18,
+        "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 128799,
+        "toSymbol": "ETH",
+        "tokenIn": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "tokenOut": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "slippageBps": 50,
+    "status": "ready_for_fork_staticcall"
+  },
+  "route": {
+    "analysisStage": "",
+    "closed": true,
+    "hopCount": 3,
+    "path": [
+      "ETH",
+      "0X71178B",
+      "0XC9F9C8",
+      "ETH"
+    ],
+    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+    "tokenContinuous": true
+  }
+}

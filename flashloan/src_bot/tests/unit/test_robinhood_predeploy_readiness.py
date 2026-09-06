@@ -1,11 +1,11 @@
-﻿import json
+import json
 from copy import deepcopy
 
-from intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan
-from intent_trade.chains.robinhood_testnet.predeploy_readiness import summarize_robinhood_predeploy_readiness
+from dex.intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan
+from dex.intent_trade.chains.robinhood_testnet.predeploy_readiness import summarize_robinhood_predeploy_readiness
 from tests.unit.test_robinhood_chain_test_pack import _sample_attempt
-from tools.check_robinhood_predeploy_readiness import main as predeploy_readiness_main
-import tools.check_robinhood_predeploy_readiness as predeploy_checker
+from dex.tools.check_robinhood_predeploy_readiness import main as predeploy_readiness_main
+import dex.tools.check_robinhood_predeploy_readiness as predeploy_checker
 
 
 def _write_json(path, payload):

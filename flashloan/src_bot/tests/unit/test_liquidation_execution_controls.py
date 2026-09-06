@@ -1,6 +1,6 @@
 from eth_account import Account
 
-from execution.liquidation_preflight import evaluate_liquidation_submission
+from bot.execution.liquidation_preflight import evaluate_liquidation_submission
 from web import control_panel_liquidation_base as base
 
 

@@ -2,9 +2,9 @@ import pytest
 
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
-from execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
-from intent_trade.chains.robinhood_testnet import v4_quote_adapter
-from intent_trade.chains.robinhood_testnet import trigger_context
+from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
+from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
+from dex.intent_trade.chains.robinhood_testnet import trigger_context
 
 
 def test_robinhood_testnet_trigger_context_uses_confirmed_live_head(monkeypatch):

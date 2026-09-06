@@ -1,4 +1,4 @@
-from liquidation.refresh_service import LiquidationRefreshRuntime, start_liquidation_refresh_loop
+from bot.liquidation.refresh_service import LiquidationRefreshRuntime, start_liquidation_refresh_loop
 
 
 def test_refresh_service_runs_incremental_scan_without_forcing_backfill(monkeypatch):
@@ -46,7 +46,7 @@ def test_refresh_service_runs_incremental_scan_without_forcing_backfill(monkeypa
         cooldown_seconds=lambda: 1.0,
     )
 
-    monkeypatch.setattr("liquidation.refresh_service.time.monotonic", lambda: 1000.0)
+    monkeypatch.setattr("bot.liquidation.refresh_service.time.monotonic", lambda: 1000.0)
 
     start_liquidation_refresh_loop(runtime)
 

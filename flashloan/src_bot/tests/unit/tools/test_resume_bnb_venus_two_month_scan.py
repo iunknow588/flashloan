@@ -1,5 +1,5 @@
-from tools import resume_bnb_venus_two_month_scan as resume
-from tools.resume_bnb_venus_two_month_scan import _batch_markets
+from bot.tools import resume_bnb_venus_two_month_scan as resume
+from bot.tools.resume_bnb_venus_two_month_scan import _batch_markets
 
 
 def test_resume_bnb_venus_two_month_scan_batches_market_emitters():

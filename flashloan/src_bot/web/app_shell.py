@@ -10,13 +10,13 @@ from core.chain_data_registry import chain_default_protocol_preferences
 from core.chain_route_selector import chain_scope_options, feature_from_page_path
 from core.chain_selection import available_chain_selections, resolve_chain_selection
 from core.flash_loan_pool_discovery import protocol_options_for_chain
-from web.chain_selector_component import (
+from market.binance_market.chain_selector_component import (
     render_chain_selector_bootstrap,
     render_chain_selector_component,
 )
-from web.dex_strategy_selector_component import render_dex_strategy_bootstrap
+from market.binance_market.dex_strategy_selector_component import render_dex_strategy_bootstrap
 from market.binance_market.dex_strategy_registry import dex_strategy_key_for_path, dex_strategy_keys, dex_strategy_path_for_key
-from web.dex_provenance import render_dex_provenance_bootstrap
+from core.dex_provenance import render_dex_provenance_bootstrap
 
 
 _BOT_LINKS = (

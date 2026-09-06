@@ -1,0 +1,237 @@
+{
+  "mode": "static_table_triangular_coverage",
+  "poolCache": {
+    "pairCount": "23",
+    "path": "E:\\2026OPC\u5927\u8d5b\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\avalanche_v3_pools.json",
+    "usdcConnectedSymbolCount": "9"
+  },
+  "routes": [
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "10",
+      "minPairPoolCount": "2",
+      "pairPoolCounts": {
+        "usdcX": "2",
+        "usdcY": "4",
+        "xy": "2"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "BTC.B",
+        "WAVAX",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "7",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "2",
+        "usdcY": "1",
+        "xy": "2"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "BTC.B",
+        "WBTC.E",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "10",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "2",
+        "usdcY": "3",
+        "xy": "1"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "DAI.E",
+        "USDT",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "10",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "2",
+        "usdcY": "4",
+        "xy": "1"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "DAI.E",
+        "WAVAX",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "10",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "1",
+        "usdcY": "3",
+        "xy": "1"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "USDE",
+        "USDT",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "10",
+      "minPairPoolCount": "3",
+      "pairPoolCounts": {
+        "usdcX": "3",
+        "usdcY": "4",
+        "xy": "4"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "USDT",
+        "WAVAX",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "9",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "3",
+        "usdcY": "1",
+        "xy": "2"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "USDT",
+        "WETH.E",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "7",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "4",
+        "usdcY": "1",
+        "xy": "1"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "WAVAX",
+        "WBTC.E",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "9",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "4",
+        "usdcY": "1",
+        "xy": "2"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "WAVAX",
+        "WETH.E",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    },
+    {
+      "blockedReasons": [
+        "not_all_trades_have_5_effective_pools",
+        "execution_params_failed"
+      ],
+      "effectivePoolSlots": "4",
+      "minPairPoolCount": "1",
+      "pairPoolCounts": {
+        "usdcX": "1",
+        "usdcY": "1",
+        "xy": "1"
+      },
+      "paramAssemblyOk": false,
+      "poolSlots": "20",
+      "routePath": [
+        "USDC",
+        "WBTC.E",
+        "WETH.E",
+        "USDC"
+      ],
+      "runtimeTradeSpecs": "4"
+    }
+  ],
+  "summary": {
+    "assemblyOkCount": "0",
+    "routesWithAllPairsAtLeastFivePools": "0",
+    "routesWithAllPairsAtLeastTwoPools": "2",
+    "runtimeTradeShapeCount": "10",
+    "triangularRouteCount": "10"
+  }
+}

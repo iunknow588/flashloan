@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from intent_trade.chains.bnb import config as bnb
-from intent_trade.chains.bnb.intent import build_bnb_intent_draft, normalize_network
+from dex.intent_trade.chains.bnb import config as bnb
+from dex.intent_trade.chains.bnb.intent import build_bnb_intent_draft, normalize_network
 
 
 def _pool(pair: str, pool: str) -> dict:

@@ -1,20 +1,20 @@
 from pathlib import Path
 from typing import Optional
 
-from web.control_panel_data_cache import (
+from core.control_panel_data_cache import (
     aave_reserve_cache as read_aave_reserve_cache,
     borrow_target_universe as read_borrow_target_universe,
     read_json,
     stable_target_cache as read_stable_target_cache,
 )
-from web.control_panel_data_compact import (
+from core.control_panel_data_compact import (
     compact_extremes_payload,
     fetch_one,
     latest_arbitrage_from_db,
     latest_extremes_from_db,
 )
-from web import control_panel_data_db as data_db
-from web.control_panel_data_db import (
+from core import control_panel_data_db as data_db
+from core.control_panel_data_db import (
     available_candidate_symbols as read_available_candidate_symbols,
     available_chart_symbols as read_available_chart_symbols,
     database_table_counts as read_database_table_counts,

@@ -1,6 +1,6 @@
 import pytest
 
-from tools.analyze_trade_results import summarize_trades
+from market.tools.analyze_trade_results import summarize_trades
 
 
 def test_summarize_trades_reports_success_rate_and_external_net_after_gas():

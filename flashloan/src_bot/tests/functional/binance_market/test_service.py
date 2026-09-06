@@ -1,9 +1,9 @@
-﻿import json
+import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from cow_flashloan.routes import CowToken
-from strategy.arbitrage import ArbitrageConfig
+from dex.cow_flashloan.routes import CowToken
+from market.strategy.arbitrage import ArbitrageConfig
 from market.binance_market.service import (
     build_binance_market_state,
     build_cow_network_market_claims,
@@ -22,7 +22,7 @@ from market.binance_market.service import (
     _cow_execution_precheck,
     _query_window_timing,
 )
-from db.storage_cow_execution import (
+from core.db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
     COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
     COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
@@ -551,7 +551,7 @@ def test_cow_execution_precheck_can_enter_submit_ready_state(monkeypatch):
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_ready_status)
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+         "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "database_configured": True,
@@ -577,7 +577,7 @@ def test_cow_execution_precheck_blocks_submission_when_runtime_sdk_missing(monke
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_missing_status)
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+         "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "database_configured": True,
@@ -603,7 +603,7 @@ def test_cow_execution_precheck_records_drawdown_when_quote_loses_money(monkeypa
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_ready_status)
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+         "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "database_configured": True,
@@ -761,7 +761,7 @@ def test_cow_execution_precheck_does_not_block_when_official_sdk_plan_missing(mo
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_adapter_available", lambda: True)
     monkeypatch.setattr("market.binance_market.service._cow_order_submission_sdk_status", _sdk_ready_status)
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+         "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "database_configured": True,
@@ -1528,7 +1528,7 @@ def test_cow_quote_verification_selects_target_and_slippage_from_three_prices(mo
 def test_cow_order_submission_enabled_when_page_switch_is_on(monkeypatch):
     monkeypatch.delenv("COW_ORDER_SUBMISSION_ENABLED", raising=False)
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+         "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "database_configured": True,
@@ -1546,7 +1546,7 @@ def test_cow_order_submission_can_be_explicitly_disabled(monkeypatch):
     monkeypatch.delenv("COW_ORDER_SUBMISSION_ENABLED", raising=False)
     monkeypatch.setenv("COW_ORDER_SUBMISSION_ADAPTER_ENABLED", "false")
     monkeypatch.setattr(
-        "web.control_panel_cow_pause.cow_submission_pause_guard_status",
+         "dex.runtime.cow_submission_pause.cow_submission_pause_guard_status",
         lambda: {
             "configured": True,
             "database_configured": True,

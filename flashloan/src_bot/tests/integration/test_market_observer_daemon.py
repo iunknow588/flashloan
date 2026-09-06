@@ -1,4 +1,4 @@
-from tools.run_market_observer_daemon import configure_market_observer_env
+from market.tools.run_market_observer_daemon import configure_market_observer_env
 
 
 def test_market_observer_daemon_uses_full_binance_velocity_mode(monkeypatch):

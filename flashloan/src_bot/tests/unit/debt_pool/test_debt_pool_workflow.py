@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from debt_pool import decide_debt_pool_layers, decision_from_borrow_pool_payload, validate_liquidatable_context
+from bot.debt_pool import decide_debt_pool_layers, decision_from_borrow_pool_payload, validate_liquidatable_context
 
 
 def test_debt_pool_decision_routes_only_core_liquidatable_to_execution():

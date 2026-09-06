@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from config import intent_costs
+from core.config.intent_trade import intent_costs
 
 
 def test_intent_costs_prefers_link_specific_configuration(monkeypatch):

@@ -1,0 +1,2208 @@
+{
+  "borrowableSymbols": [
+    "AI",
+    "AKATSUKI",
+    "APE",
+    "BAND",
+    "BCLC",
+    "BGUA",
+    "CCOX",
+    "EGLD",
+    "ETH",
+    "FLOW",
+    "FM",
+    "FORGE",
+    "FRAX",
+    "GRT",
+    "KAN",
+    "KNC",
+    "OVAF",
+    "QUANT3",
+    "SEA",
+    "SFAN",
+    "TIA",
+    "TSRCT",
+    "UP",
+    "VIBE",
+    "WH",
+    "ZMAP"
+  ],
+  "candidateObservationGroups": [
+    {
+      "anchorAddresses": [
+        "0x97eeb6defd3a778a8382a81d5663b3207ccd7fb8"
+      ],
+      "anchorSymbol": "AI",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xb937b264b46c0fbf7c83afa2a4cd2f8be1901f6d"
+      ],
+      "anchorSymbol": "AKATSUKI",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x1b1aed30aa75eb3485ff7df88b06bca168311f9c"
+      ],
+      "anchorSymbol": "APE",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xca66a4c598a0a2ba1e0e38ae4b356358f5c8710b"
+      ],
+      "anchorSymbol": "BAND",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x30220c273dee726e2adb75d28ad10298b62af352"
+      ],
+      "anchorSymbol": "BCLC",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x6058bc4b65741ae847a1f348aa2d13d8d17e9a89"
+      ],
+      "anchorSymbol": "BGUA",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xcbfa82f1f36c9d80fc4c8c46975a93a13e3a1147"
+      ],
+      "anchorSymbol": "CCOX",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x7b133975a67715167127080d156d4bddd1534d67"
+      ],
+      "anchorSymbol": "EGLD",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeClosedLoopCount": 4,
+      "candidatePoolCount": "25",
+      "candidateQueueCount": "50",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 4,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 4,
+      "observationCombinationPreview": [
+        "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+        "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+        "ETH -> 0X862554 -> 0X937454 -> ETH",
+        "ETH -> 0X937454 -> 0X862554 -> ETH"
+      ],
+      "observationReachable": true,
+      "observationSequenceCount": 4,
+      "observationSequencePreview": [
+        "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+        "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+        "ETH -> 0X862554 -> 0X937454 -> ETH",
+        "ETH -> 0X937454 -> 0X862554 -> ETH"
+      ],
+      "observationState": {
+        "groupCount": 4,
+        "reachable": true,
+        "reason": null,
+        "status": "reachable",
+        "ycTokenCount": 25,
+        "zcTokenCount": 25
+      },
+      "sharedPoolCount": "25",
+      "sharedTokenCount": "25",
+      "sharedTokens": [
+        {
+          "address": "0x97eeb6defd3a778a8382a81d5663b3207ccd7fb8",
+          "poolCount": "1",
+          "symbol": "AI"
+        },
+        {
+          "address": "0xb937b264b46c0fbf7c83afa2a4cd2f8be1901f6d",
+          "poolCount": "1",
+          "symbol": "AKATSUKI"
+        },
+        {
+          "address": "0x1b1aed30aa75eb3485ff7df88b06bca168311f9c",
+          "poolCount": "1",
+          "symbol": "APE"
+        },
+        {
+          "address": "0xca66a4c598a0a2ba1e0e38ae4b356358f5c8710b",
+          "poolCount": "1",
+          "symbol": "BAND"
+        },
+        {
+          "address": "0x30220c273dee726e2adb75d28ad10298b62af352",
+          "poolCount": "1",
+          "symbol": "BCLC"
+        },
+        {
+          "address": "0x6058bc4b65741ae847a1f348aa2d13d8d17e9a89",
+          "poolCount": "1",
+          "symbol": "BGUA"
+        },
+        {
+          "address": "0xcbfa82f1f36c9d80fc4c8c46975a93a13e3a1147",
+          "poolCount": "1",
+          "symbol": "CCOX"
+        },
+        {
+          "address": "0x7b133975a67715167127080d156d4bddd1534d67",
+          "poolCount": "1",
+          "symbol": "EGLD"
+        },
+        {
+          "address": "0xa033ee605543e63e2ca1f1eb900993937f785b4b",
+          "poolCount": "1",
+          "symbol": "FLOW"
+        },
+        {
+          "address": "0xbaff8856afdb8a5f0bb3c32a66c4a50dd2d7b789",
+          "poolCount": "1",
+          "symbol": "FM"
+        },
+        {
+          "address": "0xdfd3e07e530f91a02ec11f8cbb0299a3d54de846",
+          "poolCount": "1",
+          "symbol": "FORGE"
+        },
+        {
+          "address": "0x3bfadb358fdbfa63a3fad9c267759a462af2ce0f",
+          "poolCount": "1",
+          "symbol": "FRAX"
+        },
+        {
+          "address": "0x92ec2f85d34e06c78bba812087811cc013c9ef22",
+          "poolCount": "1",
+          "symbol": "GRT"
+        },
+        {
+          "address": "0xf8c431b6db5bb344f75fdb3bff1a505fd308cf99",
+          "poolCount": "1",
+          "symbol": "KAN"
+        },
+        {
+          "address": "0xdb7307c6ecff097a06cc32c41bcaadabe66b44a8",
+          "poolCount": "1",
+          "symbol": "KNC"
+        },
+        {
+          "address": "0x7df7c951b9c569dc410431c830a6da92999cfb0c",
+          "poolCount": "1",
+          "symbol": "OVAF"
+        },
+        {
+          "address": "0xa6effafbfc619cc2f36294ec44d8d5b9d889450b",
+          "poolCount": "1",
+          "symbol": "QUANT3"
+        },
+        {
+          "address": "0x91dd7f01506e04c87ef661810f76d8e2354c1422",
+          "poolCount": "1",
+          "symbol": "SEA"
+        },
+        {
+          "address": "0xc0642c43708f17f5c24af0b5abe04f3f609fb548",
+          "poolCount": "1",
+          "symbol": "SFAN"
+        },
+        {
+          "address": "0xb7d4e702c648995ca98562cff288f22be30f7f2c",
+          "poolCount": "1",
+          "symbol": "TIA"
+        },
+        {
+          "address": "0xc3dbac766101ef15a971ebecd9902feddceba7b6",
+          "poolCount": "1",
+          "symbol": "TSRCT"
+        },
+        {
+          "address": "0xf03a8214346e4eb6c4541bafef782de6c1fcb51c",
+          "poolCount": "1",
+          "symbol": "UP"
+        },
+        {
+          "address": "0x2b3dd8dfb4aae8e0d5e3628fcd47a64b5f05ea8e",
+          "poolCount": "1",
+          "symbol": "VIBE"
+        },
+        {
+          "address": "0x737fef3f861ec823eda3fe5ebc3b5623840a0a80",
+          "poolCount": "1",
+          "symbol": "WH"
+        },
+        {
+          "address": "0x396f11308d881b1b8bf6927835b65c46bef87c02",
+          "poolCount": "1",
+          "symbol": "ZMAP"
+        }
+      ],
+      "ycPoolCount": "25",
+      "ycTokenCount": "25",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "25",
+      "zcTokenCount": "25",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xa033ee605543e63e2ca1f1eb900993937f785b4b"
+      ],
+      "anchorSymbol": "FLOW",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xbaff8856afdb8a5f0bb3c32a66c4a50dd2d7b789"
+      ],
+      "anchorSymbol": "FM",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xdfd3e07e530f91a02ec11f8cbb0299a3d54de846"
+      ],
+      "anchorSymbol": "FORGE",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x3bfadb358fdbfa63a3fad9c267759a462af2ce0f"
+      ],
+      "anchorSymbol": "FRAX",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x92ec2f85d34e06c78bba812087811cc013c9ef22"
+      ],
+      "anchorSymbol": "GRT",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xf8c431b6db5bb344f75fdb3bff1a505fd308cf99"
+      ],
+      "anchorSymbol": "KAN",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xdb7307c6ecff097a06cc32c41bcaadabe66b44a8"
+      ],
+      "anchorSymbol": "KNC",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x7df7c951b9c569dc410431c830a6da92999cfb0c"
+      ],
+      "anchorSymbol": "OVAF",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xa6effafbfc619cc2f36294ec44d8d5b9d889450b"
+      ],
+      "anchorSymbol": "QUANT3",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x91dd7f01506e04c87ef661810f76d8e2354c1422"
+      ],
+      "anchorSymbol": "SEA",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xc0642c43708f17f5c24af0b5abe04f3f609fb548"
+      ],
+      "anchorSymbol": "SFAN",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xb7d4e702c648995ca98562cff288f22be30f7f2c"
+      ],
+      "anchorSymbol": "TIA",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xc3dbac766101ef15a971ebecd9902feddceba7b6"
+      ],
+      "anchorSymbol": "TSRCT",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0xf03a8214346e4eb6c4541bafef782de6c1fcb51c"
+      ],
+      "anchorSymbol": "UP",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x2b3dd8dfb4aae8e0d5e3628fcd47a64b5f05ea8e"
+      ],
+      "anchorSymbol": "VIBE",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x737fef3f861ec823eda3fe5ebc3b5623840a0a80"
+      ],
+      "anchorSymbol": "WH",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    },
+    {
+      "anchorAddresses": [
+        "0x396f11308d881b1b8bf6927835b65c46bef87c02"
+      ],
+      "anchorSymbol": "ZMAP",
+      "bridgeClosedLoopCount": 0,
+      "candidatePoolCount": "1",
+      "candidateQueueCount": "2",
+      "candidateSetMode": "bidirectional_same_pool_key_set",
+      "closedLoopRouteCount": 0,
+      "directClosedLoopCount": 0,
+      "observationCombinationCount": 0,
+      "observationCombinationPreview": [],
+      "observationEmptyReason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+      "observationReachable": false,
+      "observationSequenceCount": 0,
+      "observationSequencePreview": [],
+      "observationState": {
+        "groupCount": 0,
+        "reachable": false,
+        "reason": "YC and ZC candidates exist, but no Y-Z trading pair pool is available",
+        "status": "no_observation_sequence",
+        "ycTokenCount": 1,
+        "zcTokenCount": 1
+      },
+      "sharedPoolCount": "1",
+      "sharedTokenCount": "1",
+      "sharedTokens": [
+        {
+          "address": "0x0000000000000000000000000000000000000000",
+          "poolCount": "1",
+          "symbol": "ETH"
+        }
+      ],
+      "ycPoolCount": "1",
+      "ycTokenCount": "1",
+      "ycTokensRef": "sharedTokens",
+      "ycZcSameSet": true,
+      "ycZcSharedPoolSet": true,
+      "zcPoolCount": "1",
+      "zcTokenCount": "1",
+      "zcTokensRef": "sharedTokens"
+    }
+  ],
+  "chainSpecificObservationPairs": [
+    {
+      "addressPair": "0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+      "associatedFundSymbols": [
+        "ETH"
+      ],
+      "closedLoopReady": true,
+      "closedLoopRoutePreviews": [
+        "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+        "ETH -> 0XC9F9C8 -> 0X71178B -> ETH"
+      ],
+      "directSwapPoolCount": 2,
+      "directSwapRequired": true,
+      "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pair",
+      "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+      "poolCount": 2,
+      "routeSemantics": "x_y_entry_y_z_direct_z_x_exit",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "symbolPair": "0X71178B:0XC9F9C8",
+      "token0": {
+        "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0X71178B"
+      },
+      "token1": {
+        "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0XC9F9C8"
+      }
+    },
+    {
+      "addressPair": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8:0x9374549896abb5654ad483735ef5f3ce97b51f25",
+      "associatedFundSymbols": [
+        "ETH"
+      ],
+      "closedLoopReady": true,
+      "closedLoopRoutePreviews": [
+        "ETH -> 0X862554 -> 0X937454 -> ETH",
+        "ETH -> 0X937454 -> 0X862554 -> ETH"
+      ],
+      "directSwapPoolCount": 1,
+      "directSwapRequired": true,
+      "kind": "robinhood_testnet_v4_associated_fund_anchor_observation_pair",
+      "observationReason": "pair_tokens_are_associated_with_flash_fund_assets",
+      "poolCount": 1,
+      "routeSemantics": "x_y_entry_y_z_direct_z_x_exit",
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "symbolPair": "0X862554:0X937454",
+      "token0": {
+        "address": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0X862554"
+      },
+      "token1": {
+        "address": "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+        "associatedFunds": [
+          {
+            "address": "0x0000000000000000000000000000000000000000",
+            "executorSupported": false,
+            "poolManagerBalance": 444.3511177740661,
+            "poolManagerBalanceRaw": "444351117774066097351",
+            "symbol": "ETH"
+          }
+        ],
+        "symbol": "0X937454"
+      }
+    }
+  ],
+  "chain_id": 46630,
+  "chain_key": "robinhood-testnet:46630:all",
+  "dexSettlement": {
+    "arbitrage_integration": {
+      "can_combine_with_flashloan": false,
+      "required_atomic_flow": [
+        "borrow from flash loan source",
+        "fill UniswapX order or execute AMM swap leg",
+        "complete hedge/exit leg on available DEX pools",
+        "repay principal plus fee in the same transaction"
+      ]
+    },
+    "rails": [
+      {
+        "arbitrage_note": "当前链未配置为 UniswapX Dutch V3 结算链。",
+        "chain_id": 46630,
+        "flashloan_role": null,
+        "name": "UniswapX",
+        "pool_model": "intent_order_flow_not_amm_pool",
+        "reactor_family": null,
+        "settlement_model": "dutch_auction_reactor",
+        "supported": false
+      }
+    ],
+    "uniswapx": {
+      "arbitrage_note": "当前链未配置为 UniswapX Dutch V3 结算链。",
+      "chain_id": 46630,
+      "flashloan_role": null,
+      "name": "UniswapX",
+      "pool_model": "intent_order_flow_not_amm_pool",
+      "reactor_family": null,
+      "settlement_model": "dutch_auction_reactor",
+      "supported": false
+    }
+  },
+  "exists": true,
+  "first_generated_at": "2026-09-01T00:07:03.562704Z",
+  "flow_name": "market_observation",
+  "generated_at": "2026-09-01T00:07:03.562704Z",
+  "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+  "list_counts": {
+    "borrowableSymbols": 26,
+    "candidateObservationGroups": 26,
+    "chainSpecificObservationPairs": 2,
+    "observationAnchorSymbols": 26,
+    "observationSequences": 4
+  },
+  "marketObservationSourceStage": "computed",
+  "mode": "dex_market_observation",
+  "network": "robinhood-testnet",
+  "observationAnchorSymbols": [
+    "AI",
+    "AKATSUKI",
+    "APE",
+    "BAND",
+    "BCLC",
+    "BGUA",
+    "CCOX",
+    "EGLD",
+    "ETH",
+    "FLOW",
+    "FM",
+    "FORGE",
+    "FRAX",
+    "GRT",
+    "KAN",
+    "KNC",
+    "OVAF",
+    "QUANT3",
+    "SEA",
+    "SFAN",
+    "TIA",
+    "TSRCT",
+    "UP",
+    "VIBE",
+    "WH",
+    "ZMAP"
+  ],
+  "observationSequences": [
+    {
+      "anchorAddress": "0x0000000000000000000000000000000000000000",
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0X71178B",
+      "candidatePoolCount": "3",
+      "counterSymbol": "0XC9F9C8",
+      "counterTokenCount": "2",
+      "executorSupported": false,
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "matchedPoolCount": "3",
+      "pathSymbols": [
+        "ETH",
+        "0X71178B",
+        "0XC9F9C8",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+      "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+      "poolManagerBalance": 444.3511177740661,
+      "poolManagerBalanceRaw": "444351117774066097351",
+      "routePools": [
+        {
+          "anchorAddress": "0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "ETH",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "counterSymbol": "0X71178B",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "yc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 91000224,
+            "initializeTransactionHash": "0x69dde5d3f1b4f5912b8571318dd8275dd5c8f55393c390df0586794a7cc8843d",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 10000,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "pairSymbol": "ETH:0X71178B",
+          "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x0000000000000000000000000000000000000000",
+            "0x71178bac73cbeb415514eb542a8995b82669778d"
+          ],
+          "routeSymbols": [
+            "ETH",
+            "0X71178B"
+          ],
+          "routeText": "ETH -> 0X71178B",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "5602277097478613991873193822745",
+          "tick": 85176,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+          "token1Symbol": "0X71178B"
+        },
+        {
+          "anchorAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "anchorSymbol": "0X71178B",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "counterSymbol": "0XC9F9C8",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "bridge",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 107785129,
+            "initializeTransactionHash": "0xf3422295fc314196bf3627c16d66ed7696aca990c1bc2636c162e2bd28472640",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "pairSymbol": "0X71178B:0XC9F9C8",
+          "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x71178bac73cbeb415514eb542a8995b82669778d",
+            "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
+          ],
+          "routeSymbols": [
+            "0X71178B",
+            "0XC9F9C8"
+          ],
+          "routeText": "0X71178B -> 0XC9F9C8",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "112045541949572279837463876454",
+          "tick": 6931,
+          "token0": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+          "token0Symbol": "0X71178B",
+          "token1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+          "token1Symbol": "0XC9F9C8"
+        },
+        {
+          "anchorAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "anchorSymbol": "0XC9F9C8",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x0000000000000000000000000000000000000000",
+          "counterSymbol": "ETH",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "zc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 91563588,
+            "initializeTransactionHash": "0x50472b64ce5678d633aed2f2b7edda87ca5012c995be86d96f01ccd0ebc94fc0",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 500,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "pairSymbol": "ETH:0XC9F9C8",
+          "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "0x0000000000000000000000000000000000000000"
+          ],
+          "routeSymbols": [
+            "0XC9F9C8",
+            "ETH"
+          ],
+          "routeText": "0XC9F9C8 -> ETH",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+          "token1Symbol": "0XC9F9C8"
+        }
+      ],
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    },
+    {
+      "anchorAddress": "0x0000000000000000000000000000000000000000",
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0XC9F9C8",
+      "candidatePoolCount": "3",
+      "counterSymbol": "0X71178B",
+      "counterTokenCount": "2",
+      "executorSupported": false,
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "matchedPoolCount": "3",
+      "pathSymbols": [
+        "ETH",
+        "0XC9F9C8",
+        "0X71178B",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+      "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+      "poolManagerBalance": 444.3511177740661,
+      "poolManagerBalanceRaw": "444351117774066097351",
+      "routePools": [
+        {
+          "anchorAddress": "0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "ETH",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "counterSymbol": "0XC9F9C8",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "yc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 91563588,
+            "initializeTransactionHash": "0x50472b64ce5678d633aed2f2b7edda87ca5012c995be86d96f01ccd0ebc94fc0",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 500,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "pairSymbol": "ETH:0XC9F9C8",
+          "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x0000000000000000000000000000000000000000",
+            "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
+          ],
+          "routeSymbols": [
+            "ETH",
+            "0XC9F9C8"
+          ],
+          "routeText": "ETH -> 0XC9F9C8",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+          "token1Symbol": "0XC9F9C8"
+        },
+        {
+          "anchorAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "anchorSymbol": "0XC9F9C8",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "counterSymbol": "0X71178B",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "bridge",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 107785129,
+            "initializeTransactionHash": "0xf3422295fc314196bf3627c16d66ed7696aca990c1bc2636c162e2bd28472640",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+          "pairSymbol": "0X71178B:0XC9F9C8",
+          "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "0x71178bac73cbeb415514eb542a8995b82669778d"
+          ],
+          "routeSymbols": [
+            "0XC9F9C8",
+            "0X71178B"
+          ],
+          "routeText": "0XC9F9C8 -> 0X71178B",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "112045541949572279837463876454",
+          "tick": 6931,
+          "token0": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+          "token0Symbol": "0X71178B",
+          "token1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+          "token1Symbol": "0XC9F9C8"
+        },
+        {
+          "anchorAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
+          "anchorSymbol": "0X71178B",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x0000000000000000000000000000000000000000",
+          "counterSymbol": "ETH",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "zc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 91000224,
+            "initializeTransactionHash": "0x69dde5d3f1b4f5912b8571318dd8275dd5c8f55393c390df0586794a7cc8843d",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 10000,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d",
+          "pairSymbol": "ETH:0X71178B",
+          "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x71178bac73cbeb415514eb542a8995b82669778d",
+            "0x0000000000000000000000000000000000000000"
+          ],
+          "routeSymbols": [
+            "0X71178B",
+            "ETH"
+          ],
+          "routeText": "0X71178B -> ETH",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "5602277097478613991873193822745",
+          "tick": 85176,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+          "token1Symbol": "0X71178B"
+        }
+      ],
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    },
+    {
+      "anchorAddress": "0x0000000000000000000000000000000000000000",
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0X862554",
+      "candidatePoolCount": "3",
+      "counterSymbol": "0X937454",
+      "counterTokenCount": "2",
+      "executorSupported": false,
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "matchedPoolCount": "3",
+      "pathSymbols": [
+        "ETH",
+        "0X862554",
+        "0X937454",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0X862554 -> 0X937454 -> ETH",
+      "pool": "0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a",
+      "poolManagerBalance": 444.3511177740661,
+      "poolManagerBalanceRaw": "444351117774066097351",
+      "routePools": [
+        {
+          "anchorAddress": "0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "ETH",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+          "counterSymbol": "0X862554",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "yc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 92995272,
+            "initializeTransactionHash": "0x8a08b64efa39341152e166e795bdeae1060677576e8730520e2f1a4ef48ac78d",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+          "pairSymbol": "ETH:0X862554",
+          "pool": "0xf8d40f5843b94d446eb91afa42700700cfa6a1bd348b11892af5c7ad5c948928",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x0000000000000000000000000000000000000000",
+            "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8"
+          ],
+          "routeSymbols": [
+            "ETH",
+            "0X862554"
+          ],
+          "routeText": "ETH -> 0X862554",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0x8625541408D7bEb81eD90Aa10D2c220d4D32f7d8",
+          "token1Symbol": "0X862554"
+        },
+        {
+          "anchorAddress": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+          "anchorSymbol": "0X862554",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "counterSymbol": "0X937454",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "bridge",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 93002891,
+            "initializeTransactionHash": "0x7c0c51994ce5a51453308308363955189e18d5c924b0a35c19713c2b1c7424b5",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8:0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "pairSymbol": "0X862554:0X937454",
+          "pool": "0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+            "0x9374549896abb5654ad483735ef5f3ce97b51f25"
+          ],
+          "routeSymbols": [
+            "0X862554",
+            "0X937454"
+          ],
+          "routeText": "0X862554 -> 0X937454",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x8625541408D7bEb81eD90Aa10D2c220d4D32f7d8",
+          "token0Symbol": "0X862554",
+          "token1": "0x9374549896abB5654Ad483735eF5F3ce97b51f25",
+          "token1Symbol": "0X937454"
+        },
+        {
+          "anchorAddress": "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "anchorSymbol": "0X937454",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x0000000000000000000000000000000000000000",
+          "counterSymbol": "ETH",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "zc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 92995290,
+            "initializeTransactionHash": "0xbad11dbfab7185e1d81d073dc8ca8097f2e64af0d1b0157730756aa4b9a418c9",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "pairSymbol": "ETH:0X937454",
+          "pool": "0xc99582599ea437560207baeb6dd18fd35e75e1d9be7c16105e0b48784ba32823",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+            "0x0000000000000000000000000000000000000000"
+          ],
+          "routeSymbols": [
+            "0X937454",
+            "ETH"
+          ],
+          "routeText": "0X937454 -> ETH",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0x9374549896abB5654Ad483735eF5F3ce97b51f25",
+          "token1Symbol": "0X937454"
+        }
+      ],
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    },
+    {
+      "anchorAddress": "0x0000000000000000000000000000000000000000",
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "0X937454",
+      "candidatePoolCount": "3",
+      "counterSymbol": "0X862554",
+      "counterTokenCount": "2",
+      "executorSupported": false,
+      "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+      "matchedPoolCount": "3",
+      "pathSymbols": [
+        "ETH",
+        "0X937454",
+        "0X862554",
+        "ETH"
+      ],
+      "pathText": "ETH -> 0X937454 -> 0X862554 -> ETH",
+      "pool": "0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a",
+      "poolManagerBalance": 444.3511177740661,
+      "poolManagerBalanceRaw": "444351117774066097351",
+      "routePools": [
+        {
+          "anchorAddress": "0x0000000000000000000000000000000000000000",
+          "anchorSymbol": "ETH",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "counterSymbol": "0X937454",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "yc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 92995290,
+            "initializeTransactionHash": "0xbad11dbfab7185e1d81d073dc8ca8097f2e64af0d1b0157730756aa4b9a418c9",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "pairSymbol": "ETH:0X937454",
+          "pool": "0xc99582599ea437560207baeb6dd18fd35e75e1d9be7c16105e0b48784ba32823",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x0000000000000000000000000000000000000000",
+            "0x9374549896abb5654ad483735ef5f3ce97b51f25"
+          ],
+          "routeSymbols": [
+            "ETH",
+            "0X937454"
+          ],
+          "routeText": "ETH -> 0X937454",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0x9374549896abB5654Ad483735eF5F3ce97b51f25",
+          "token1Symbol": "0X937454"
+        },
+        {
+          "anchorAddress": "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "anchorSymbol": "0X937454",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+          "counterSymbol": "0X862554",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "bridge",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 93002891,
+            "initializeTransactionHash": "0x7c0c51994ce5a51453308308363955189e18d5c924b0a35c19713c2b1c7424b5",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8:0x9374549896abb5654ad483735ef5f3ce97b51f25",
+          "pairSymbol": "0X862554:0X937454",
+          "pool": "0x8c0c1526fbc59c21fe8d82de3d8ef7a558decaa83e1935d9cd97c03bffb5f00a",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x9374549896abb5654ad483735ef5f3ce97b51f25",
+            "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8"
+          ],
+          "routeSymbols": [
+            "0X937454",
+            "0X862554"
+          ],
+          "routeText": "0X937454 -> 0X862554",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x8625541408D7bEb81eD90Aa10D2c220d4D32f7d8",
+          "token0Symbol": "0X862554",
+          "token1": "0x9374549896abB5654Ad483735eF5F3ce97b51f25",
+          "token1Symbol": "0X937454"
+        },
+        {
+          "anchorAddress": "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+          "anchorSymbol": "0X862554",
+          "balances": {
+            "tvlUsd": 0
+          },
+          "classification": {},
+          "counterAddress": "0x0000000000000000000000000000000000000000",
+          "counterSymbol": "ETH",
+          "depthBand": {
+            "label": "indexed V4 PoolKey",
+            "level": "indexed"
+          },
+          "dex": "uniswap_v4",
+          "direction": "zc",
+          "evidence": {
+            "bridgeOnly": true,
+            "initializeBlockNumber": 92995272,
+            "initializeTransactionHash": "0x8a08b64efa39341152e166e795bdeae1060677576e8730520e2f1a4ef48ac78d",
+            "poolKeyDecoded": true,
+            "source": "v4_pool_index"
+          },
+          "fee": 3000,
+          "liquidity": "",
+          "pairAddress": "0x0000000000000000000000000000000000000000:0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+          "pairSymbol": "ETH:0X862554",
+          "pool": "0xf8d40f5843b94d446eb91afa42700700cfa6a1bd348b11892af5c7ad5c948928",
+          "poolIdentityMode": "v4_pool_id",
+          "protocol": "uniswap_v4",
+          "quality": null,
+          "quoteSummary": {},
+          "routeAddresses": [
+            "0x8625541408d7beb81ed90aa10d2c220d4d32f7d8",
+            "0x0000000000000000000000000000000000000000"
+          ],
+          "routeSymbols": [
+            "0X862554",
+            "ETH"
+          ],
+          "routeText": "0X862554 -> ETH",
+          "source": "v4_pool_index_fund_anchor_pair_observation",
+          "sqrtPriceX96": "79228162514264337593543950336",
+          "tick": 0,
+          "token0": "0x0000000000000000000000000000000000000000",
+          "token0Symbol": "ETH",
+          "token1": "0x8625541408D7bEb81eD90Aa10D2c220d4D32f7d8",
+          "token1Symbol": "0X862554"
+        }
+      ],
+      "source": "robinhood_testnet_v4_fund_anchor_pair_observation"
+    }
+  ],
+  "ok": true,
+  "path": "runtime\\market_observation\\robinhood-testnet\\46630\\all\\observation.json",
+  "poolStaticTable": {
+    "chainId": 46630,
+    "exists": true,
+    "factory": null,
+    "generatedAt": "2026-08-27T01:44:03.439Z",
+    "generatedBlockNumber": 107982013,
+    "mode": "robinhood_testnet_v4_pool_liquidity",
+    "network": "robinhood-testnet",
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "quoter": null,
+    "router": null
+  },
+  "processing": {
+    "allowed_protocols": [
+      "uniswap_v4"
+    ],
+    "chain_id": 46630,
+    "chain_key": "chain:46630",
+    "data_file_keys": [
+      "market_observation",
+      "v4_pool_index",
+      "v4_pool_liquidity"
+    ],
+    "flow_name": "market_observation",
+    "global_chain_id": "chain:46630",
+    "handler": "intent_trade.chains.robinhood_testnet.dex_surfaces:market_observation_flow",
+    "network": "robinhood-testnet",
+    "protocol": "",
+    "requires_scope_match": true
+  },
+  "protocol_key": "all",
+  "protocols": [],
+  "refresh_mode": "full",
+  "schema_version": "market-observation-static-store-v3",
+  "scope_key": "robinhood-testnet:46630:all",
+  "selected_protocols": [],
+  "source": "dex_market_observation_payload",
+  "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\market_observation",
+  "summary": {
+    "borrowableTokenCount": 26,
+    "bridgePoolIndexMatchedPairCount": 0,
+    "bridgePoolIndexMatchedPoolCount": 0,
+    "candidateObservationBridgeCount": 4,
+    "candidateObservationDirectCount": 0,
+    "candidateObservationGroupCount": 26,
+    "candidateObservationPoolCount": 6,
+    "candidateObservationSequenceCount": 4,
+    "chainSpecificObservationSequenceCount": 4,
+    "closedLoopRouteCount": 4,
+    "directClosedLoopCount": 0,
+    "directPairCount": 25,
+    "fundAnchorPairObservationAssociatedObservationPoolCount": 19165,
+    "fundAnchorPairObservationAssociatedObservationTokenCount": 19118,
+    "fundAnchorPairObservationAssociatedPairCount": 2,
+    "fundAnchorPairObservationPoolCount": 20445,
+    "fundAnchorPairObservationRouteCount": 4,
+    "indirectRouteCount": 4,
+    "nonEthPairFirstAssociatedObservationPoolCount": 19165,
+    "nonEthPairFirstAssociatedObservationTokenCount": 19118,
+    "nonEthPairFirstAssociatedPairCount": 2,
+    "nonEthPairFirstPoolCount": 1283,
+    "nonEthPairFirstRouteCount": 4,
+    "observableTokenCount": 26,
+    "observationAnchorCount": 26,
+    "observationSequenceAnchorCount": 1,
+    "observationSequenceCount": 4,
+    "observationSequencePoolCount": 6,
+    "unmatchedPairCount": 0
+  },
+  "surface": "dex_market_observation"
+}

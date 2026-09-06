@@ -793,8 +793,8 @@ def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
 
 
 def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(monkeypatch):
-    from db import storage_chain_markets
-    from db import storage_common
+    from core.db import storage_chain_markets
+    from core.db import storage_common
     from web import control_panel
 
     database_url = "postgresql://live-chain-selection-endpoint-disabled"
@@ -2202,7 +2202,7 @@ def test_dex_pool_candidates_full_refresh_reports_refresh_state(monkeypatch):
 
 
 def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkeypatch):
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl
     from web import control_panel
     from web.data_routes import dex_surfaces as dex_surface_routes
 
@@ -2237,7 +2237,7 @@ def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkey
 
 
 def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_path, monkeypatch):
-    from db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl
     from web import control_panel
     from web.data_routes import dex_surfaces as dex_surface_routes
 

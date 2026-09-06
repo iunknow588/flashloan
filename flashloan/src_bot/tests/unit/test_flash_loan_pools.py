@@ -1451,7 +1451,7 @@ def test_robinhood_testnet_v4_borrow_pools_use_scanned_poolmanager_balances_not_
 
 
 def test_robinhood_testnet_v4_pool_liquidity_builds_from_local_contract_evidence(tmp_path):
-    from intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
+    from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
         build_v4_pool_liquidity_from_contract_evidence,
     )
 

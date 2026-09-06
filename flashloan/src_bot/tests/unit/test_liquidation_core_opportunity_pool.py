@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from core.market_config import liquidation_market_config
-from db.storage_liquidation_pool import (
+from core.db.storage_liquidation_pool import (
     _core_opportunity_viable,
     _core_profit_assessment,
     sync_liquidation_borrow_health_pool,
@@ -13,7 +13,7 @@ from db.storage_liquidation_pool import (
 
 @pytest.fixture(autouse=True)
 def clear_liquidation_pool_caches():
-    import db.storage_liquidation_pool as pool_storage
+    import core.db.storage_liquidation_pool as pool_storage
 
     pool_storage._POOL_READ_CACHE.clear()
     pool_storage._POOL_WRITE_CACHE.clear()
@@ -81,7 +81,7 @@ def test_core_profit_assessment_blocks_non_liquidatable_without_candidate():
 
 
 def test_sync_core_pool_keeps_low_profit_manual_test_items(monkeypatch):
-    import db.storage_liquidation_pool as pool_storage
+    import core.db.storage_liquidation_pool as pool_storage
 
     captured_core_params = []
 
@@ -154,7 +154,7 @@ def test_sync_core_pool_keeps_low_profit_manual_test_items(monkeypatch):
 
 
 def test_load_core_pool_exposes_profit_assessment(monkeypatch):
-    import db.storage_liquidation_pool as pool_storage
+    import core.db.storage_liquidation_pool as pool_storage
 
     metadata = {
         "profit_assessment": {
@@ -226,7 +226,7 @@ def test_load_core_pool_exposes_profit_assessment(monkeypatch):
 
 
 def test_load_borrow_health_pool_uses_deepcopy_cache(monkeypatch):
-    import db.storage_liquidation_pool as pool_storage
+    import core.db.storage_liquidation_pool as pool_storage
 
     execute_calls = []
     report = {"nested": {"value": 1}}
@@ -281,7 +281,7 @@ def test_load_borrow_health_pool_uses_deepcopy_cache(monkeypatch):
 
 
 def test_sync_borrow_health_pool_skips_unchanged_account_writes(monkeypatch):
-    import db.storage_liquidation_pool as pool_storage
+    import core.db.storage_liquidation_pool as pool_storage
 
     execute_calls = []
 

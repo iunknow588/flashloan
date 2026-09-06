@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from core.sensitive_data import redact_sensitive_text
-from execution.dex_costs import USDC
+from bot.execution.dex_costs import USDC
 from web.control_panel_liquidation_base import (
     aave_pool_address,
     aave_rpc_urls,

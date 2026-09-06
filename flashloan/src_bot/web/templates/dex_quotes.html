@@ -189,6 +189,7 @@
       <div class="muted">Pools: ${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div><div class="badges">${requests.map(item => `<span class="badge">${esc(label(item.venue))} / ${esc(label(item.quoteMode))} / ${esc(label(item.status))}</span>`).join("")}</div></article>`;
     }
     const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
+    const scanIntervalMs = 3000;
     const defaultRefreshIntervalSeconds = 180;
     let refreshTimer = null;
     let refreshInFlight = false;

@@ -1,4 +1,4 @@
-from liquidation.scan_payload_service import (
+from bot.liquidation.scan_payload_service import (
     build_borrow_pool_blocked_payload,
     build_borrow_pool_display_payload,
     core_execution_summary,

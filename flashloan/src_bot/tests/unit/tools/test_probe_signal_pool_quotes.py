@@ -1,4 +1,4 @@
-from tools import probe_signal_pool_quotes as quotes
+from dex.tools import probe_signal_pool_quotes as quotes
 
 
 USDC = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"

@@ -1,4 +1,4 @@
-from execution.liquidation_realtime_params import read_aave_flashloan_premium
+from bot.execution.liquidation_realtime_params import read_aave_flashloan_premium
 
 
 def test_read_aave_flashloan_premium_reads_pool_value():

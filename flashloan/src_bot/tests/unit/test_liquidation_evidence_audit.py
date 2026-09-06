@@ -2,7 +2,7 @@ import json
 import sys
 from pathlib import Path
 
-from execution.liquidation_evidence_audit import audit_attempt_failure_sample_pair, audit_sample_manifest
+from bot.execution.liquidation_evidence_audit import audit_attempt_failure_sample_pair, audit_sample_manifest
 
 
 def _attempt() -> dict:
@@ -116,7 +116,7 @@ def test_sample_manifest_audit_can_allow_pending_failure_samples():
 
 
 def test_audit_liquidation_evidence_cli_writes_report(tmp_path: Path, monkeypatch, capsys):
-    from tools import audit_liquidation_evidence as cli
+    from bot.tools import audit_liquidation_evidence as cli
 
     attempt_path = tmp_path / "attempt.json"
     sample_path = tmp_path / "sample.json"

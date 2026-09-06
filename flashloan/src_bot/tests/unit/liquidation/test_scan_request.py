@@ -1,9 +1,9 @@
-from liquidation.scan_request import (
+from bot.liquidation.scan_request import (
     parse_bool,
     parse_market_request,
     parse_scan_request,
 )
-from liquidation.scan_presenter import build_borrow_pool_scan_summary
+from bot.liquidation.scan_presenter import build_borrow_pool_scan_summary
 
 
 def test_parse_scan_request_normalizes_pagination_scope_and_force():

@@ -1,4 +1,4 @@
-from execution.venus_liquidation_scan import (
+from bot.execution.venus_liquidation_scan import (
     build_venus_liquidation_candidates,
     classify_venus_risk,
     close_factor_repay_amount,

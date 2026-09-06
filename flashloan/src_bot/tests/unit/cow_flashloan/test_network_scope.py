@@ -1,6 +1,6 @@
 import pytest
 
-from cow_flashloan.network_scope import (
+from dex.cow_flashloan.network_scope import (
     CowNetworkScopeError,
     normalize_cow_network,
     normalize_cow_networks,

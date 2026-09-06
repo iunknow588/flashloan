@@ -1,4 +1,4 @@
-﻿from intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
+from dex.intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
 
 
 def test_probe_robinhood_rpc_accepts_expected_chain_and_contract_code():

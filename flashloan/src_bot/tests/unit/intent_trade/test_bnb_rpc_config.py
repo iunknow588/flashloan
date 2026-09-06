@@ -1,4 +1,4 @@
-from intent_trade.chains.bnb import config
+from dex.intent_trade.chains.bnb import config
 
 
 def test_bnb_rpc_config_separates_read_and_log_rpc_env(monkeypatch):

@@ -299,7 +299,7 @@ def test_supported_market_summaries_prefers_database_rows_when_available(monkeyp
         }
     ]
 
-    import db.storage_chain_markets as storage_chain_markets
+    import core.db.storage_chain_markets as storage_chain_markets
 
     monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", lambda database_url: db_rows)
 
@@ -311,7 +311,7 @@ def test_supported_market_summaries_prefers_database_rows_when_available(monkeyp
 
 
 def test_supported_market_summaries_falls_back_when_database_unavailable(monkeypatch):
-    import db.storage_chain_markets as storage_chain_markets
+    import core.db.storage_chain_markets as storage_chain_markets
 
     def fail(_database_url):
         raise RuntimeError("database unavailable")
@@ -327,8 +327,8 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
 
 
 def test_supported_market_summaries_short_circuits_repeated_database_failures(monkeypatch):
-    import db.storage_chain_markets as storage_chain_markets
-    import db.storage_common as storage_common
+    import core.db.storage_chain_markets as storage_chain_markets
+    import core.db.storage_common as storage_common
 
     database_url = "postgresql://chain-market-endpoint-disabled"
     storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()
@@ -407,7 +407,7 @@ def test_robinhood_testnet_liquidation_shadow_is_available_to_bot(monkeypatch):
 
 
 def test_market_scan_policy_prefers_database_rows(monkeypatch):
-    import db.storage_chain_markets as storage_chain_markets
+    import core.db.storage_chain_markets as storage_chain_markets
     from core.market_scan_policy import market_scan_refresh_profile
 
     monkeypatch.setattr(

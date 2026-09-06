@@ -1,12 +1,12 @@
-﻿import json
+import json
 from pathlib import Path
 
 from copy import deepcopy
-import intent_trade.chains.robinhood.chain_test_pack as chain_test_pack
-from intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
-from intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
-from intent_trade.chains.robinhood.chain_test_policy import robinhood_chain_test_scope
-from tools.build_robinhood_chain_test_package import _assert_attempt_scope
+import dex.intent_trade.chains.robinhood.chain_test_pack as chain_test_pack
+from dex.intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
+from dex.intent_trade.chains.robinhood.chain_test_pack import build_robinhood_chain_test_plan, write_robinhood_chain_test_package
+from dex.intent_trade.chains.robinhood.chain_test_policy import robinhood_chain_test_scope
+from dex.tools.build_robinhood_chain_test_package import _assert_attempt_scope
 
 
 def _pool_id(char: str) -> str:
