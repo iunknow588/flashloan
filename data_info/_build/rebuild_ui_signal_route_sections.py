@@ -1,4 +1,4 @@
-"""Rebuild the UI signal route sections in `data_info/数据.md`.
+"""Rebuild the UI signal route sections in `data_info/鏁版嵁.md`.
 
 This keeps the existing static-table block intact, but rewrites the signal
 sections into three-hop tables per route so the comparison is easier to scan.
@@ -16,9 +16,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "数据.md"
-POOL_CACHE_PATH = REPO_ROOT / "flashloan" / "src_bot" / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
-EVIDENCE_ROOT = REPO_ROOT / "flashloan" / "src_bot" / "runtime" / "evidence" / "ui_signal_pool_quotes"
+DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "鏁版嵁.md"
+POOL_CACHE_PATH = REPO_ROOT / "flashloan" / "app_runtime" / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
+EVIDENCE_ROOT = REPO_ROOT / "flashloan" / "app_runtime" / "runtime" / "evidence" / "ui_signal_pool_quotes"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -203,10 +203,10 @@ def _slot_quote_for_direction(slot: dict[str, Any], token_in: str, token_out: st
 def _quality_tag(row: dict[str, Any]) -> str:
     quality = str(row.get("quality") or "").lower()
     if quality == "pass":
-        return '<span style="color:#15803d;font-weight:700">高</span>'
+        return '<span style="color:#15803d;font-weight:700">楂?/span>'
     if quality == "reject":
-        return '<span style="color:#a16207;font-weight:700">低</span>'
-    return '<span class="muted">未知</span>'
+        return '<span style="color:#a16207;font-weight:700">浣?/span>'
+    return '<span class="muted">鏈煡</span>'
 
 
 def _slot_is_selected(slot_pool: str, selected_pool: str) -> bool:
@@ -299,25 +299,25 @@ def _render_hop_table(
     benchmark_best_row_ids = absolute_best_row_ids
 
     is_final_hop = isinstance(final_threshold, dict)
-    threshold_header = "<th>最终回款比较</th>" if is_final_hop else ""
+    threshold_header = "<th>鏈€缁堝洖娆炬瘮杈?/th>" if is_final_hop else ""
     threshold_empty = "<td></td>" if is_final_hop else ""
     lines = [
         f"#### {title}",
         "",
         "<table>",
         "<thead>",
-        f"<tr><th>行</th><th>池子</th><th>质量</th><th>兑换结果</th><th>gas</th><th>TVL</th><th>tick</th>{threshold_header}<th>结论</th></tr>",
+        f"<tr><th>琛?/th><th>姹犲瓙</th><th>璐ㄩ噺</th><th>鍏戞崲缁撴灉</th><th>gas</th><th>TVL</th><th>tick</th>{threshold_header}<th>缁撹</th></tr>",
         "</thead>",
         "<tbody>",
     ]
     if show_benchmark:
         lines.append(
             "<tr>"
-            f"<td>币安价格</td>"
+            f"<td>甯佸畨浠锋牸</td>"
             f"<td></td>"
             f"<td></td>"
             f"<td>{_safe_html(_fmt_num(benchmark_out, 8))}</td>"
-            f"<td></td><td></td><td></td>{threshold_empty}<td>基准</td>"
+            f"<td></td><td></td><td></td>{threshold_empty}<td>鍩哄噯</td>"
             "</tr>"
         )
     for info in row_infos:
@@ -333,7 +333,7 @@ def _render_hop_table(
         if not isinstance(row, dict) or str(row.get("quoteStatus") or "") != "quoted" or not isinstance(quote, dict):
             lines.append(
                 "<tr>"
-                f"<td>池子 {index}</td>"
+                f"<td>姹犲瓙 {index}</td>"
                 f"<td>{pool_text}</td>"
                 f"<td></td>"
                 f"<td></td>"
@@ -353,7 +353,7 @@ def _render_hop_table(
             threshold_known = bool(final_threshold.get("known"))
             threshold_cell = _final_comparison_text(amount_out, final_threshold)
 
-        verdict = "拒绝"
+        verdict = "鎷掔粷"
         if is_final_hop:
             if (
                 threshold_known
@@ -362,36 +362,36 @@ def _render_hop_table(
                 and amount_out > threshold_value
                 and index in absolute_best_row_ids
             ):
-                verdict = "推荐"
+                verdict = "鎺ㄨ崘"
         elif index in benchmark_best_row_ids:
-            verdict = "推荐"
+            verdict = "鎺ㄨ崘"
         if is_final_hop:
-            if verdict == "推荐":
-                verdict_reason = f"{threshold_cell}；大于指定阈值，推荐"
+            if verdict == "鎺ㄨ崘":
+                verdict_reason = f"{threshold_cell}锛涘ぇ浜庢寚瀹氶槇鍊硷紝鎺ㄨ崘"
             else:
-                verdict_reason = f"{threshold_cell}；小于指定阈值，拒绝"
-        elif verdict == "推荐":
-            verdict_reason = "本跳最大输出"
+                verdict_reason = f"{threshold_cell}锛涘皬浜庢寚瀹氶槇鍊硷紝鎷掔粷"
+        elif verdict == "鎺ㄨ崘":
+            verdict_reason = "鏈烦鏈€澶ц緭鍑?
             if isinstance(benchmark_out, Decimal) and isinstance(amount_out, Decimal) and amount_out < benchmark_out:
-                verdict_reason += f"；低于 Binance 基准 {_fmt_num(benchmark_out, 8)}"
+                verdict_reason += f"锛涗綆浜?Binance 鍩哄噯 {_fmt_num(benchmark_out, 8)}"
         else:
             verdict_reason = (
-                f"低于本跳最大输出 {_fmt_num(best_amount_out, 8)}"
+                f"浣庝簬鏈烦鏈€澶ц緭鍑?{_fmt_num(best_amount_out, 8)}"
                 if isinstance(best_amount_out, Decimal)
-                else "无可用最大输出"
+                else "鏃犲彲鐢ㄦ渶澶ц緭鍑?
             )
-        row_style = ' style="background:rgba(179,36,24,0.06);"' if verdict == "推荐" else ""
+        row_style = ' style="background:rgba(179,36,24,0.06);"' if verdict == "鎺ㄨ崘" else ""
         threshold_td = f"<td>{_safe_html(threshold_cell)}</td>" if is_final_hop else ""
         conclusion_html = (
-            f'<span style="color:#15803d;font-weight:700">推荐</span><br>'
+            f'<span style="color:#15803d;font-weight:700">鎺ㄨ崘</span><br>'
             f'<span class="muted">{_safe_html(verdict_reason)}</span>'
-            if verdict == "推荐"
-            else f'<span style="color:#b42318;font-weight:700">拒绝</span><br>'
+            if verdict == "鎺ㄨ崘"
+            else f'<span style="color:#b42318;font-weight:700">鎷掔粷</span><br>'
             f'<span class="muted">{_safe_html(verdict_reason)}</span>'
         )
         lines.append(
             f"<tr{row_style}>"
-            f"<td>池子 {index}</td>"
+            f"<td>姹犲瓙 {index}</td>"
             f"<td>{pool_text}</td>"
             f"<td>{quality}</td>"
             f"<td>{_safe_html(_fmt_num(amount_out, 8))}</td>"
@@ -406,7 +406,7 @@ def _render_hop_table(
         for index in range(len(rows) + 1, 6):
             lines.append(
                 "<tr>"
-                f"<td>池子 {index}</td>"
+                f"<td>姹犲瓙 {index}</td>"
                 f"<td></td><td></td><td></td><td></td><td></td><td></td>{threshold_empty}<td></td>"
                 "</tr>"
             )
@@ -452,7 +452,7 @@ def _final_hop_threshold(contract: dict[str, Any]) -> dict[str, Any]:
     gas_value = _amount_to_units(gas_raw, 6) if gas_raw is not None else None
 
     if gas_value is None:
-        text = f"{_fmt_exact_num(required_value, 6)} + gas（未记录）"
+        text = f"{_fmt_exact_num(required_value, 6)} + gas锛堟湭璁板綍锛?
     else:
         text = f"{_fmt_exact_num(threshold_value, 6)}"
 
@@ -488,11 +488,11 @@ def _render_route_section(
     routes = candidate.get("routes") if isinstance(candidate, dict) else []
     routes = routes if isinstance(routes, list) else []
     lines: list[str] = [
-        f"## 信号 {sample.get('index')}: {signal.get('pair') or '-'}",
+        f"## 淇″彿 {sample.get('index')}: {signal.get('pair') or '-'}",
         "",
-        f"- 触发时间 UTC：`{sample.get('uiObservedAt') or ''}`",
-        f"- Binance 价格：`{_safe_md((signal.get('x') or {}).get('symbol') or '-')}` {_fmt_num((signal.get('x') or {}).get('currentPrice'))}；`{_safe_md((signal.get('y') or {}).get('symbol') or '-')}` {_fmt_num((signal.get('y') or {}).get('currentPrice'))}",
-        f"- 证据文件：`{Path(str(sample.get('evidencePath') or '')).name}`",
+        f"- 瑙﹀彂鏃堕棿 UTC锛歚{sample.get('uiObservedAt') or ''}`",
+        f"- Binance 浠锋牸锛歚{_safe_md((signal.get('x') or {}).get('symbol') or '-')}` {_fmt_num((signal.get('x') or {}).get('currentPrice'))}锛沗{_safe_md((signal.get('y') or {}).get('symbol') or '-')}` {_fmt_num((signal.get('y') or {}).get('currentPrice'))}",
+        f"- 璇佹嵁鏂囦欢锛歚{Path(str(sample.get('evidencePath') or '')).name}`",
         "",
     ]
     for route in routes:
@@ -525,8 +525,8 @@ def _render_route_section(
             x_symbol = str(route_path[1] if len(route_path) > 1 else "-")
             y_symbol = str(route_path[2] if len(route_path) > 2 else "-")
             chained_lines = [
-                f"- 串联复核：U-X 输出 `{_fmt_chain_amount(ux_chain.get('recommendedAmountOut'), x_symbol, ux_pool, pool_index)} {x_symbol}`；该值作为 X-Y 输入，X-Y 输出 `{_fmt_chain_amount(xy_chain.get('recommendedAmountOut'), y_symbol, xy_pool, pool_index)} {y_symbol}`；该值作为 Y-C 输入，Y-C 最终输出 `{_fmt_chain_amount(yc_chain.get('recommendedAmountOut'), 'USDC', yc_pool, pool_index)} USDC`",
-                f"- 串联推荐池：U-X `{_short_address(ux_pool)}`；X-Y `{_short_address(xy_pool)}`；Y-C `{_short_address(yc_pool)}`",
+                f"- 涓茶仈澶嶆牳锛歎-X 杈撳嚭 `{_fmt_chain_amount(ux_chain.get('recommendedAmountOut'), x_symbol, ux_pool, pool_index)} {x_symbol}`锛涜鍊间綔涓?X-Y 杈撳叆锛孹-Y 杈撳嚭 `{_fmt_chain_amount(xy_chain.get('recommendedAmountOut'), y_symbol, xy_pool, pool_index)} {y_symbol}`锛涜鍊间綔涓?Y-C 杈撳叆锛孻-C 鏈€缁堣緭鍑?`{_fmt_chain_amount(yc_chain.get('recommendedAmountOut'), 'USDC', yc_pool, pool_index)} USDC`",
+                f"- 涓茶仈鎺ㄨ崘姹狅細U-X `{_short_address(ux_pool)}`锛沊-Y `{_short_address(xy_pool)}`锛沋-C `{_short_address(yc_pool)}`",
             ]
             final_threshold = _final_hop_threshold(contract)
             final_value = _amount_to_units(yc_chain.get("recommendedAmountOut"), 6)
@@ -536,18 +536,18 @@ def _render_route_section(
                 and isinstance(final_threshold.get("value"), Decimal)
                 and final_value > final_threshold["value"]
             ):
-                route_verdict = "推荐"
-                route_reason = f"Y-C 最终回款比较：{_final_comparison_text(final_value, final_threshold)}；大于指定阈值，推荐"
+                route_verdict = "鎺ㄨ崘"
+                route_reason = f"Y-C 鏈€缁堝洖娆炬瘮杈冿細{_final_comparison_text(final_value, final_threshold)}锛涘ぇ浜庢寚瀹氶槇鍊硷紝鎺ㄨ崘"
             else:
-                route_verdict = "拒绝"
-                route_reason = f"Y-C 最终回款比较：{_final_comparison_text(final_value, final_threshold)}；小于指定阈值，拒绝"
-            chained_lines.append(f"- 路由结论：**{route_verdict}**；{route_reason}")
+                route_verdict = "鎷掔粷"
+                route_reason = f"Y-C 鏈€缁堝洖娆炬瘮杈冿細{_final_comparison_text(final_value, final_threshold)}锛涘皬浜庢寚瀹氶槇鍊硷紝鎷掔粷"
+            chained_lines.append(f"- 璺敱缁撹锛?*{route_verdict}**锛泏route_reason}")
         lines.extend(
             [
-                f"### 路由 {route_no}: {route_path_text}",
+                f"### 璺敱 {route_no}: {route_path_text}",
                 "",
-                f"- 合约试算：投入 `{_fmt_usdc_raw(contract.get('amountUsdc') or 1000000000)} USDC`，闪电贷费用 `{_fmt_usdc_raw(contract.get('premiumUsdc') or 500000)} USDC`，要求最终至少 `{_fmt_usdc_raw(contract.get('requiredFinalUsdc'))} USDC`，实际 Quoter 估算最终 `{_fmt_usdc_raw(contract.get('quotedFinalUsdc'))} USDC`，预期结果 `{_fmt_usdc_raw(contract.get('expectedProfitUsdc'))} USDC`（raw `{contract.get('expectedProfitUsdc') or '-'}`），profitableBeforeGas：`{str(contract.get('profitableBeforeGas')).lower()}`",
-                f"- 合约选中池：USDC->`{_safe_md(route_path[1] if len(route_path) > 1 else '-')}`：`{_short_address(selected_pools.get('usdcToX'))}`；`{_safe_md(route_path[1] if len(route_path) > 1 else '-')}`->`{_safe_md(route_path[2] if len(route_path) > 2 else '-')}`：`{_short_address(selected_pools.get('xToY'))}`；`{_safe_md(route_path[2] if len(route_path) > 2 else '-')}`->USDC：`{_short_address(selected_pools.get('yToUsdc'))}`",
+                f"- 鍚堢害璇曠畻锛氭姇鍏?`{_fmt_usdc_raw(contract.get('amountUsdc') or 1000000000)} USDC`锛岄棯鐢佃捶璐圭敤 `{_fmt_usdc_raw(contract.get('premiumUsdc') or 500000)} USDC`锛岃姹傛渶缁堣嚦灏?`{_fmt_usdc_raw(contract.get('requiredFinalUsdc'))} USDC`锛屽疄闄?Quoter 浼扮畻鏈€缁?`{_fmt_usdc_raw(contract.get('quotedFinalUsdc'))} USDC`锛岄鏈熺粨鏋?`{_fmt_usdc_raw(contract.get('expectedProfitUsdc'))} USDC`锛坮aw `{contract.get('expectedProfitUsdc') or '-'}`锛夛紝profitableBeforeGas锛歚{str(contract.get('profitableBeforeGas')).lower()}`",
+                f"- 鍚堢害閫変腑姹狅細USDC->`{_safe_md(route_path[1] if len(route_path) > 1 else '-')}`锛歚{_short_address(selected_pools.get('usdcToX'))}`锛沗{_safe_md(route_path[1] if len(route_path) > 1 else '-')}`->`{_safe_md(route_path[2] if len(route_path) > 2 else '-')}`锛歚{_short_address(selected_pools.get('xToY'))}`锛沗{_safe_md(route_path[2] if len(route_path) > 2 else '-')}`->USDC锛歚{_short_address(selected_pools.get('yToUsdc'))}`",
                 *chained_lines,
                 "",
             ]
@@ -555,7 +555,7 @@ def _render_route_section(
         if isinstance(ux_trade, dict):
             lines.extend(
                 _render_hop_table(
-                    title=f"U-X（USDC->{_safe_md(route_path[1] if len(route_path) > 1 else '-') }）",
+                    title=f"U-X锛圲SDC->{_safe_md(route_path[1] if len(route_path) > 1 else '-') }锛?,
                     token_in="USDC",
                     token_out=str(route_path[1] or ""),
                     base_rate=hop1,
@@ -567,7 +567,7 @@ def _render_route_section(
         if isinstance(xy_trade, dict):
             lines.extend(
                 _render_hop_table(
-                    title=f"X-Y（{_safe_md(route_path[1] if len(route_path) > 1 else '-') }->{_safe_md(route_path[2] if len(route_path) > 2 else '-') }）",
+                    title=f"X-Y锛坽_safe_md(route_path[1] if len(route_path) > 1 else '-') }->{_safe_md(route_path[2] if len(route_path) > 2 else '-') }锛?,
                     token_in=str(route_path[1] or ""),
                     token_out=str(route_path[2] or ""),
                     base_rate=hop2,
@@ -579,7 +579,7 @@ def _render_route_section(
         if isinstance(uy_trade, dict):
             lines.extend(
                 _render_hop_table(
-                    title=f"Y-C（{_safe_md(route_path[2] if len(route_path) > 2 else '-') }->USDC）",
+                    title=f"Y-C锛坽_safe_md(route_path[2] if len(route_path) > 2 else '-') }->USDC锛?,
                     token_in=str(route_path[2] or ""),
                     token_out="USDC",
                     base_rate=hop3,
@@ -603,22 +603,22 @@ def _latest_collection_index() -> Path:
 
 def _update_intro(text: str) -> str:
     pattern = re.compile(
-        r"^说明：.*$",
+        r"^璇存槑锛?*$",
         re.MULTILINE,
     )
     replacement = (
-        "说明：按每次 UI/Binance 触发信号分组展示。每个触发信号下面按合约候选路由拆成三张表（U-X / X-Y / Y-C）；Binance 行仅作为同方向价格对照。U-X 与 X-Y 推荐该跳可执行池中的最大输出，并把推荐输出作为下一跳输入；Y-C 只有在最终回收 USDC 高于初始本金、闪电贷费用与 gas 费用合计阈值时才推荐。"
+        "璇存槑锛氭寜姣忔 UI/Binance 瑙﹀彂淇″彿鍒嗙粍灞曠ず銆傛瘡涓Е鍙戜俊鍙蜂笅闈㈡寜鍚堢害鍊欓€夎矾鐢辨媶鎴愪笁寮犺〃锛圲-X / X-Y / Y-C锛夛紱Binance 琛屼粎浣滀负鍚屾柟鍚戜环鏍煎鐓с€俇-X 涓?X-Y 鎺ㄨ崘璇ヨ烦鍙墽琛屾睜涓殑鏈€澶ц緭鍑猴紝骞舵妸鎺ㄨ崘杈撳嚭浣滀负涓嬩竴璺宠緭鍏ワ紱Y-C 鍙湁鍦ㄦ渶缁堝洖鏀?USDC 楂樹簬鍒濆鏈噾銆侀棯鐢佃捶璐圭敤涓?gas 璐圭敤鍚堣闃堝€兼椂鎵嶆帹鑽愩€?
     )
     return pattern.sub(replacement, text, count=1)
 
 
 def _render_document(doc: str, collection: dict[str, Any], pool_index: dict[str, dict[str, Any]]) -> str:
     intro_updated = _update_intro(doc)
-    signal_anchor = re.search(r"\n## 信号\s+1\b", intro_updated)
+    signal_anchor = re.search(r"\n## 淇″彿\s+1\b", intro_updated)
     if not signal_anchor:
         signal_anchor = re.search(r"\n## .*?1\b", intro_updated)
     if not signal_anchor:
-        raise RuntimeError("cannot locate first signal section in 数据.md")
+        raise RuntimeError("cannot locate first signal section in 鏁版嵁.md")
     prefix = intro_updated[: signal_anchor.start() + 1]
     sections = []
     for sample in collection.get("samples") or []:

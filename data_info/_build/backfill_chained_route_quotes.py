@@ -13,7 +13,7 @@ from web3 import Web3
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SRC_ROOT = REPO_ROOT / "flashloan" / "src_bot"
+SRC_ROOT = REPO_ROOT / "flashloan" / "app_runtime"
 DEFAULT_EVIDENCE_ROOT = SRC_ROOT / "runtime" / "evidence" / "ui_signal_pool_quotes"
 DEFAULT_POOL_CACHE = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 

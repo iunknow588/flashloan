@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "robinhood-testnet-preflight-v1",
+  "runAt": "2026-09-08T10:11:35.635Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "routeRequirements": {
+    "requireV3Adapter": false,
+    "requireV4Adapter": true,
+    "flashSourceKind": 4
+  },
+  "onchainTestPolicy": {
+    "mode": "normal_only",
+    "normalFunctionFirst": true,
+    "abnormalOnchainTestsEnabled": false,
+    "abnormalOnchainTestsDeferred": true,
+    "tokenConservation": true
+  },
+  "rpc": {
+    "configured": true,
+    "source": "default_public_rpc",
+    "envName": "",
+    "host": "rpc.testnet.chain.robinhood.com",
+    "chainId": 46630,
+    "blockNumber": 115500633,
+    "ok": true,
+    "error": null
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultFlashSource",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "codeHash": null,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4UniversalRouter",
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "hasCode": true,
+      "codeBytes": 24546,
+      "codeHash": "0xfdd90802f39ce5fc8bac4c2f1b3ac7bac530fd17ff46b0630f1bd00f1e14082f",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4PoolManager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "codeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626",
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultPermit2",
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "hasCode": true,
+      "codeBytes": 9152,
+      "codeHash": "0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259",
+      "ok": true,
+      "error": null
+    }
+  ],
+  "deployer": {
+    "configured": false,
+    "address": null,
+    "balanceWei": null,
+    "minBalanceWei": "1",
+    "balanceOk": false,
+    "error": null
+  },
+  "flashAccountingLiquidity": {
+    "attempted": true,
+    "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "lookbackBlocks": 20000,
+    "minUsablePools": 1,
+    "fromBlock": 115480646,
+    "toBlock": 115500646,
+    "swapLogCount": 1134,
+    "activePoolIds": [
+      "0x0124fd5badad4d0b48485ff220f87db0b0776e6ca7a66f45eb29fd7f8f8b8736",
+      "0x01bbdb5faeb4e1a1f747e65225f3c953f58b73061dd161f00f8de8b09b9870db",
+      "0x029a9d3b94f4c46891cadbaaeb11d58c6ab832920da7850fe953a98e9e8e7c59",
+      "0x029c01c61dea7b54ab2c1684394b954b9a1973d8f01b9ef4ec317d14152c4499",
+      "0x0567ab7e38e013bfd2da53269c797f15a101c02e5b7e434b6252393cfe4515b5",
+      "0x089442f37ceab269321bd6135be20437419b544c63b4ab0bccdde85205ceb564",
+      "0x0974a6973650deb5bb5648a2d7a2d38d839e227cdade812dcc7b118cad075592",
+      "0x09a6227249e89ab6a057f120b693a5bec304071bcf7940271b5dd21a1689e7e8",
+      "0x0a70df43d4a165ec108ed7c3ca6cbce8ba19f71c6f03c7a7a987e5a51c48116b",
+      "0x0b532d11d972ba101d6389e33521a75cc3563d21301b4c9f3e2e19a894b32fbb",
+      "0x0b68e6adec8914a5345f61e73dad248b30400874e31218bca7092055571fda7a",
+      "0x0f268edcd41892c09209a8d18b5e8630b1ed60e8c8c5f1f390d15e573004c6ba",
+      "0x1031e0965d9a4542f3301deb41f38b9267eef89fff6c7110e9727ef2f62cc76d",
+      "0x1864b162f056e363f9b166684cc61a1c5021c4e9ef57af5c0beadd5a9b381031",
+      "0x18ae3dfefd058193a25870d65c6a59af0dd3919d10e5f7a0794eb051446f4c82",
+      "0x1d0f071a56e78a174a4764bcd3a27192d6e8db8a9e89a5709d3be9692eaedb2e",
+      "0x21375957a9b0bdb463794449118cbd06b5392f5ee63a28861f901ef16aae1790",
+      "0x272ec159c89597a7a9e4a12c98131857f62a5ba7194807977e619cfe9118d449",
+      "0x2a0a595b864934899df552e06c62a2b0d05da06da72d91db4e85e4181324f719",
+      "0x2cad2f36920b23e4e650fe3031fcc3852efc50f163c817ae4725922f113c1aab",
+      "0x2dc27db13a4aff29f5def692d466a8817af69eabe82eaa5689c73a61a6e54ef8",
+      "0x2e3fd11db04c22eeed5cb15dc7fab87bb880187e11f2300ec4a38a26d5a726d5",
+      "0x2f1e8eab7996768866e620bcf385987f2033c24d09f220aa783e8a26ac14c988",
+      "0x30266b56bf484800f9377b8b5e8bc6d48e5355a0d4733f642cbce0e10fa9d3c0",
+      "0x3082a671b1685a79b9f54fe7451a8ed7d6f95880de89dd46bf5bde3d4e2e20a5"
+    ],
+    "usableFlashAccountingPoolCount": 154,
+    "nativeBalanceWei": "822676896409185882639",
+    "ok": true,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": false,
+  "readyForBroadcast": false,
+  "blockingReasons": [
+    "deployer_key_missing_or_unavailable"
+  ]
+}

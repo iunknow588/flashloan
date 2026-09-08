@@ -1,8 +1,6 @@
 {
   "borrowableSymbols": [
-    "USDG",
-    "WETH",
-    "WETH:USDG"
+    "USDG"
   ],
   "chainSpecificObservationPairs": [],
   "chain_id": 4663,
@@ -44,13 +42,10 @@
   "exists": true,
   "flashLoanLiquidity": {
     "available_protocols": [
-      "morpho_blue",
-      "uniswap_v2"
+      "morpho_blue"
     ],
     "chain_id": 4663,
-    "flash_swap_protocols": [
-      "uniswap_v2"
-    ],
+    "flash_swap_protocols": [],
     "has_flashloan_liquidity": true,
     "native_flashloan_protocols": [
       "morpho_blue"
@@ -59,6 +54,11 @@
       {
         "display_name": "Aave V3",
         "protocol": "aave_v3",
+        "removed_reason": "protocol_pool_cache_not_available"
+      },
+      {
+        "display_name": "Uniswap V2",
+        "protocol": "uniswap_v2",
         "removed_reason": "protocol_pool_cache_not_available"
       },
       {
@@ -75,19 +75,18 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-06T09:46:01.000539Z",
+  "generated_at": "2026-09-08T10:17:43.620503Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "borrowableSymbols": 3,
+    "borrowableSymbols": 1,
     "chainSpecificObservationPairs": 0,
     "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 2
+    "observationAnchorSymbols": 1
   },
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [
-    "USDG",
-    "WETH"
+    "USDG"
   ],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\observation.json",
   "ok": true,
@@ -133,7 +132,7 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 3,
+    "borrowableTokenCount": 1,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
@@ -157,7 +156,7 @@
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
     "observableTokenCount": 0,
-    "observationAnchorCount": 2,
+    "observationAnchorCount": 1,
     "observationSequenceAnchorCount": 0,
     "observationSequenceCount": 0,
     "observationSequencePoolCount": 0,

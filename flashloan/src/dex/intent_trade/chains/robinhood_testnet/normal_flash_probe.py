@@ -14,7 +14,7 @@ from dex.intent_trade.chains.robinhood_testnet.v4_flash_accounting_sources impor
     v4_flash_accounting_source_rows,
 )
 DEFAULT_PROBE_DEPLOYMENT_FILE = (
-    Path("contract") / "contracts-dex" / "deployments" / "robinhood-v4-flash-normal-probe-robinhoodTestnet.json"
+    Path("contract") / "robinhood-testnet" / "DEX" / "deployments" / "robinhood-v4-flash-normal-probe-robinhoodTestnet.json"
 )
 
 

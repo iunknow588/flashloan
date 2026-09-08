@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from dex.intent_trade.direct_unified_reserve import aave_reserve_assets
+from core.contract_project import resolve_contract_project
 
 _UNIFIED_EXECUTOR_ABI_CACHE: list[dict[str, Any]] | None = None
 
@@ -30,9 +31,7 @@ def unified_executor_artifact_path() -> Path:
         path = Path(configured)
         return path if path.is_absolute() else impl.SRC_ROOT / path
     return (
-        impl.SRC_ROOT.parents[1]
-        / "contract"
-        / "contracts-dex"
+        resolve_contract_project(43114, "DEX", root=impl.SRC_ROOT.parents[1])
         / "artifacts"
         / "src"
         / "UnifiedFlashLoanMevExecutor.sol"

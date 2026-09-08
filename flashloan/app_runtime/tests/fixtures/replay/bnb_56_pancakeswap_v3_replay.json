@@ -1,0 +1,323 @@
+{
+  "generation_id": "replay-bnb-56-pancakeswap-v3-v1",
+  "replay": {
+    "gate_allowed": false,
+    "reasons": [
+      "requires_live_quoter"
+    ],
+    "target_hash": "sha256:fbe3533648d94081bab185ae746edd640b01674e52bdd4c7145f8c4c90efe4d4"
+  },
+  "schema_version": "1",
+  "scope": {
+    "chain_id": 56,
+    "market_id": "dex-arbitrage-56-pancakeswap-v3",
+    "network": "bnb",
+    "protocol": "pancakeswap_v3"
+  },
+  "stages": {
+    "observation": {
+      "borrowableSymbols": [],
+      "candidateObservationGroups": [],
+      "chainSpecificObservationPairs": [],
+      "chain_id": 56,
+      "chain_key": "bnb:56:pancakeswap_v3",
+      "dexSettlement": {
+        "arbitrage_integration": {
+          "can_combine_with_flashloan": true,
+          "required_atomic_flow": [
+            "borrow from flash loan source",
+            "fill UniswapX order or execute AMM swap leg",
+            "complete hedge/exit leg on available DEX pools",
+            "repay principal plus fee in the same transaction"
+          ]
+        },
+        "rails": [
+          {
+            "arbitrage_note": "\u53ef\u4f5c\u4e3a\u8ba2\u5355\u586b\u5145/\u7ed3\u7b97\u5c42\uff0c\u4e0d\u80fd\u5f53\u4f5c\u53ef\u501f\u51fa\u7684 AMM \u6c60\uff1b\u9700\u8981\u5916\u90e8 AMM/\u501f\u8d37\u8d44\u91d1\u6e90\u5b8c\u6210\u4e70\u5356\u548c\u8fd8\u6b3e\u3002",
+            "chain_id": 56,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "uniswapx": {
+          "arbitrage_note": "\u53ef\u4f5c\u4e3a\u8ba2\u5355\u586b\u5145/\u7ed3\u7b97\u5c42\uff0c\u4e0d\u80fd\u5f53\u4f5c\u53ef\u501f\u51fa\u7684 AMM \u6c60\uff1b\u9700\u8981\u5916\u90e8 AMM/\u501f\u8d37\u8d44\u91d1\u6e90\u5b8c\u6210\u4e70\u5356\u548c\u8fd8\u6b3e\u3002",
+          "chain_id": 56,
+          "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+          "name": "UniswapX",
+          "pool_model": "intent_order_flow_not_amm_pool",
+          "reactor_family": "Dutch V3 Reactor",
+          "settlement_model": "dutch_auction_reactor",
+          "supported": true
+        }
+      },
+      "exists": true,
+      "flashLoanLiquidity": {
+        "available_protocols": [
+          "venus_core",
+          "pancakeswap_v3",
+          "pancakeswap_v2"
+        ],
+        "chain_id": 56,
+        "flash_swap_protocols": [
+          "pancakeswap_v3",
+          "pancakeswap_v2"
+        ],
+        "has_flashloan_liquidity": true,
+        "native_flashloan_protocols": [
+          "venus_core"
+        ],
+        "removed_protocols": [
+          {
+            "display_name": "Aave V3",
+            "protocol": "aave_v3",
+            "removed_reason": "protocol_pool_cache_not_available"
+          },
+          {
+            "display_name": "Uniswap V4",
+            "protocol": "uniswap_v4",
+            "removed_reason": "protocol_pool_cache_not_available"
+          },
+          {
+            "display_name": "Biswap V2",
+            "protocol": "biswap_v2",
+            "removed_reason": "protocol_pool_cache_not_available"
+          }
+        ],
+        "source": "flash_loan_pool_discovery_snapshot"
+      },
+      "flow_name": "dex_market_observation",
+      "generated_at": "2026-09-07T22:28:27.735028Z",
+      "generation_id": "replay-bnb-56-pancakeswap-v3-v1",
+      "handler": null,
+      "list_counts": {
+        "borrowableSymbols": 0,
+        "candidateObservationGroups": 0,
+        "chainSpecificObservationPairs": 0,
+        "observationAnchorSymbols": 0,
+        "observationSequences": 0
+      },
+      "marketObservationSourceStage": "dex_market_observation_payload",
+      "mode": "dex_market_observation",
+      "network": "bnb",
+      "observationAnchorSymbols": [],
+      "observationSequences": [],
+      "ok": true,
+      "poolStaticTable": {
+        "chainId": 56,
+        "exists": false,
+        "network": "bnb"
+      },
+      "protocol_key": "pancakeswap_v3",
+      "protocols": [
+        "pancakeswap_v3"
+      ],
+      "refresh_mode": "full",
+      "schema_version": "market-observation-static-store-v3",
+      "scope": {
+        "chain_id": 56,
+        "market_id": "dex-arbitrage-56-pancakeswap-v3",
+        "network": "bnb",
+        "protocol": "pancakeswap_v3"
+      },
+      "scope_key": "bnb:56:pancakeswap_v3",
+      "selected_protocols": [
+        "pancakeswap_v3"
+      ],
+      "source": "dex_market_observation_payload",
+      "summary": {
+        "borrowableTokenCount": 0,
+        "bridgePoolIndexMatchedPairCount": 0,
+        "bridgePoolIndexMatchedPoolCount": 0,
+        "candidateObservationBridgeCount": 0,
+        "candidateObservationDirectCount": 0,
+        "candidateObservationGroupCount": 0,
+        "candidateObservationPoolCount": 0,
+        "candidateObservationSequenceCount": 0,
+        "chainSpecificObservationSequenceCount": 0,
+        "closedLoopRouteCount": 0,
+        "directClosedLoopCount": 0,
+        "directPairCount": 0,
+        "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
+        "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
+        "fundAnchorPairObservationAssociatedPairCount": 0,
+        "fundAnchorPairObservationPoolCount": 0,
+        "fundAnchorPairObservationRouteCount": 0,
+        "indirectRouteCount": 0,
+        "nonEthPairFirstAssociatedObservationPoolCount": 0,
+        "nonEthPairFirstAssociatedObservationTokenCount": 0,
+        "nonEthPairFirstAssociatedPairCount": 0,
+        "nonEthPairFirstPoolCount": 0,
+        "nonEthPairFirstRouteCount": 0,
+        "observableTokenCount": 0,
+        "observationAnchorCount": 0,
+        "observationSequenceAnchorCount": 0,
+        "observationSequenceCount": 0,
+        "observationSequencePoolCount": 0,
+        "unmatchedPairCount": 0
+      },
+      "surface": "dex_market_observation"
+    },
+    "overview": {
+      "borrowableSymbols": [],
+      "chainSpecificObservationPairs": [],
+      "chain_id": 56,
+      "chain_key": "bnb:56:pancakeswap_v3",
+      "closedLoopRouteSummaries": [],
+      "dexSettlement": {
+        "arbitrage_integration": {
+          "can_combine_with_flashloan": true,
+          "required_atomic_flow": [
+            "borrow from flash loan source",
+            "fill UniswapX order or execute AMM swap leg",
+            "complete hedge/exit leg on available DEX pools",
+            "repay principal plus fee in the same transaction"
+          ]
+        },
+        "rails": [
+          {
+            "arbitrage_note": "\u53ef\u4f5c\u4e3a\u8ba2\u5355\u586b\u5145/\u7ed3\u7b97\u5c42\uff0c\u4e0d\u80fd\u5f53\u4f5c\u53ef\u501f\u51fa\u7684 AMM \u6c60\uff1b\u9700\u8981\u5916\u90e8 AMM/\u501f\u8d37\u8d44\u91d1\u6e90\u5b8c\u6210\u4e70\u5356\u548c\u8fd8\u6b3e\u3002",
+            "chain_id": 56,
+            "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+            "name": "UniswapX",
+            "pool_model": "intent_order_flow_not_amm_pool",
+            "reactor_family": "Dutch V3 Reactor",
+            "settlement_model": "dutch_auction_reactor",
+            "supported": true
+          }
+        ],
+        "uniswapx": {
+          "arbitrage_note": "\u53ef\u4f5c\u4e3a\u8ba2\u5355\u586b\u5145/\u7ed3\u7b97\u5c42\uff0c\u4e0d\u80fd\u5f53\u4f5c\u53ef\u501f\u51fa\u7684 AMM \u6c60\uff1b\u9700\u8981\u5916\u90e8 AMM/\u501f\u8d37\u8d44\u91d1\u6e90\u5b8c\u6210\u4e70\u5356\u548c\u8fd8\u6b3e\u3002",
+          "chain_id": 56,
+          "flashloan_role": "solver_prefunds_or_uses_flash_liquidity_then_settles_and_repays",
+          "name": "UniswapX",
+          "pool_model": "intent_order_flow_not_amm_pool",
+          "reactor_family": "Dutch V3 Reactor",
+          "settlement_model": "dutch_auction_reactor",
+          "supported": true
+        }
+      },
+      "exists": true,
+      "flashLoanLiquidity": {
+        "available_protocols": [
+          "venus_core",
+          "pancakeswap_v3",
+          "pancakeswap_v2"
+        ],
+        "chain_id": 56,
+        "flash_swap_protocols": [
+          "pancakeswap_v3",
+          "pancakeswap_v2"
+        ],
+        "has_flashloan_liquidity": true,
+        "native_flashloan_protocols": [
+          "venus_core"
+        ],
+        "removed_protocols": [
+          {
+            "display_name": "Aave V3",
+            "protocol": "aave_v3",
+            "removed_reason": "protocol_pool_cache_not_available"
+          },
+          {
+            "display_name": "Uniswap V4",
+            "protocol": "uniswap_v4",
+            "removed_reason": "protocol_pool_cache_not_available"
+          },
+          {
+            "display_name": "Biswap V2",
+            "protocol": "biswap_v2",
+            "removed_reason": "protocol_pool_cache_not_available"
+          }
+        ],
+        "source": "flash_loan_pool_discovery_snapshot"
+      },
+      "flow_name": "dex_market_observation",
+      "generated_at": "2026-09-07T22:28:27.735028Z",
+      "generation_id": "replay-bnb-56-pancakeswap-v3-v1",
+      "handler": null,
+      "list_counts": {
+        "borrowableSymbols": 0,
+        "chainSpecificObservationPairs": 0,
+        "closedLoopRouteSummaries": 0,
+        "observationAnchorSymbols": 0
+      },
+      "mode": "dex_market_observation",
+      "network": "bnb",
+      "observationAnchorSymbols": [],
+      "ok": true,
+      "poolStaticTable": {
+        "chainId": 56,
+        "exists": false,
+        "network": "bnb"
+      },
+      "protocol_key": "pancakeswap_v3",
+      "protocols": [
+        "pancakeswap_v3"
+      ],
+      "refresh_mode": "full",
+      "schema_version": "market-observation-static-store-v3",
+      "scope": {
+        "chain_id": 56,
+        "market_id": "dex-arbitrage-56-pancakeswap-v3",
+        "network": "bnb",
+        "protocol": "pancakeswap_v3"
+      },
+      "scope_key": "bnb:56:pancakeswap_v3",
+      "selected_protocols": [
+        "pancakeswap_v3"
+      ],
+      "snapshot_kind": "dex_overview_compact",
+      "source": "dex_market_observation_payload",
+      "summary": {
+        "borrowableTokenCount": 0,
+        "bridgePoolIndexMatchedPairCount": 0,
+        "bridgePoolIndexMatchedPoolCount": 0,
+        "candidateObservationBridgeCount": 0,
+        "candidateObservationDirectCount": 0,
+        "candidateObservationGroupCount": 0,
+        "candidateObservationPoolCount": 0,
+        "candidateObservationSequenceCount": 0,
+        "chainSpecificObservationSequenceCount": 0,
+        "closedLoopRouteCount": 0,
+        "directClosedLoopCount": 0,
+        "directPairCount": 0,
+        "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
+        "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
+        "fundAnchorPairObservationAssociatedPairCount": 0,
+        "fundAnchorPairObservationPoolCount": 0,
+        "fundAnchorPairObservationRouteCount": 0,
+        "indirectRouteCount": 0,
+        "nonEthPairFirstAssociatedObservationPoolCount": 0,
+        "nonEthPairFirstAssociatedObservationTokenCount": 0,
+        "nonEthPairFirstAssociatedPairCount": 0,
+        "nonEthPairFirstPoolCount": 0,
+        "nonEthPairFirstRouteCount": 0,
+        "observableTokenCount": 0,
+        "observationAnchorCount": 0,
+        "observationSequenceAnchorCount": 0,
+        "observationSequenceCount": 0,
+        "observationSequencePoolCount": 0,
+        "unmatchedPairCount": 0
+      },
+      "surface": "dex_market_observation"
+    },
+    "quote": {
+      "generation_id": "replay-bnb-56-pancakeswap-v3-v1",
+      "quote_summary": {
+        "closed_loop_route_count": 0,
+        "observation_anchor_count": 0,
+        "requires_live_quoter": true
+      },
+      "scope": {
+        "chain_id": 56,
+        "market_id": "dex-arbitrage-56-pancakeswap-v3",
+        "network": "bnb",
+        "protocol": "pancakeswap_v3"
+      }
+    }
+  }
+}

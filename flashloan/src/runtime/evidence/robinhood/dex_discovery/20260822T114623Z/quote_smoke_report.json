@@ -1,6 +1,0 @@
-{
-  "broadcastEnabled": false,
-  "executionEnabled": false,
-  "reason": "live quote is not enabled before verified router/quoter addresses",
-  "status": "not_started"
-}

@@ -13,6 +13,8 @@ SCOPE_FREE_API_PATHS = frozenset(
         "/api/workflow-context",
         "/api/chain-selection",
         "/api/markets",
+        "/api/metrics/summary",
+        "/api/metrics/deliver-alert",
     }
 )
 
@@ -59,18 +61,18 @@ API_RESPONSE_REQUIRED_KEYS = {
     "/api/opportunity-health": ("rows",),
     "/api/velocity-summary": ("points",),
     "/api/binance-market/state": ("market_state",),
+    "/api/metrics/deliver-alert": ("ok", "alert", "delivery"),
     "/api/binance-market/states": ("states",),
     "/api/liquidation/market": ("market_id", "chain_id"),
     "/api/liquidation/config-health": ("market_id", "chain_id"),
     "/api/execution-plan/quote": ("quote",),
     "/api/execution-plan/payload": ("execution_plan",),
-    "/api/binance-market/cow-config": ("config",),
     "/api/binance-market/cow-tokens": ("tokens",),
-    "/api/binance-market/cow-support": ("supported",),
+    "/api/binance-market/cow-support": ("cow_network", "market_state", "routes", "supported_route_count"),
     "/api/binance-market/cow-quotes": ("quotes",),
     "/api/robinhood-dex/observation": ("summary",),
     "/api/robinhood-dex/pools": ("pools",),
-    "/api/robinhood-dex/readiness": ("readiness",),
+    "/api/robinhood-dex/readiness": ("market", "chainStatus", "evidence", "deploymentStatus", "executionEnabled", "broadcastEnabled"),
     "/api/liquidation/execution-attempts": ("attempts",),
     "/api/liquidation/failure-samples": ("samples",),
     "/api/liquidation/pause-guard": ("paused",),
@@ -119,7 +121,7 @@ API_RESPONSE_REQUIRED_KEYS = {
     "/api/binance-market/cow-submission-pause/clear": ("paused",),
     "/api/binance-market/cow-tokens": ("tokens",),
     "/api/binance-market/cow-tokens/refresh": ("tokens",),
-    "/api/binance-market/cow-config": ("network",),
+    "/api/binance-market/cow-config": ("default_network", "networks"),
     "/api/liquidation/control-summary": ("configured",),
     "/api/liquidation/borrow-pool": ("rows",),
     "/api/liquidation/borrow-pool/batches": ("configured", "batches"),
@@ -146,6 +148,7 @@ API_RESPONSE_REQUIRED_KEYS = {
     "/api/liquidation-settings": ("refresh_profile", "retention_days", "scan_interval_seconds", "discovery_interval_seconds", "raw"),
     "/api/liquidation/pause-guard/clear": ("paused",),
     "/api/liquidation/account/execute": ("account", "error", "state", "execution_phase", "blocked_reasons"),
+    "/api/metrics/summary": ("ok", "event_count", "latency_percentiles"),
 }
 
 

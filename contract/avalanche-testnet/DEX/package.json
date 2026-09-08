@@ -1,0 +1,31 @@
+{
+  "name": "flashloan-avalanche-testnet-dex",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:unified": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
+    "preflight:unified:fuji": "hardhat run scripts/preflight-unified-flashloan.js --network fuji",
+    "discover:unified:fuji": "hardhat run scripts/discover-avalanche-v3-pools.js --network fuji",
+    "test:ab": "hardhat test test/UnifiedFlashLoanMevExecutor.test.js",
+    "readback:unified:fuji": "hardhat run scripts/readback-unified-flashloan.js --network fuji",
+    "deploy:unified:fuji": "hardhat run scripts/deploy-unified-flashloan.js --network fuji",
+    "inspect:fuji": "hardhat run scripts/inspect-fuji-capabilities.js --network fuji",
+    "export:unified:fork-candidate": "node scripts/export-unified-fork-candidate.js",
+    "scan:unified:fork-candidates": "hardhat run scripts/scan-unified-fork-candidates.js --network hardhat",
+    "fork:unified:fuji": "hardhat run scripts/fork-unified-flashloan.js --network hardhat"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "hardhat": "^2.26.1"
+  },
+  "dependencies": {
+    "@cowprotocol/sdk-config": "^2.4.0",
+    "@cowprotocol/sdk-flash-loans": "^3.3.3",
+    "@cowprotocol/sdk-trading": "^2.2.6",
+    "@cowprotocol/sdk-viem-adapter": "^0.3.26",
+    "dotenv": "^17.2.1",
+    "viem": "^2.55.11"
+  }
+}

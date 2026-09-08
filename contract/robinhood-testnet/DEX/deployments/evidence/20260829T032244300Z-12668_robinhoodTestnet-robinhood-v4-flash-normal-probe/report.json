@@ -1,0 +1,112 @@
+﻿{
+  "schemaVersion": "robinhood-v4-flash-normal-probe-v1",
+  "runAt": "2026-08-29T03:22:43.960Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "expectedChainId": 46630,
+  "policy": {
+    "mode": "normal_only",
+    "tokenConservation": true,
+    "abnormalOnchainTestsEnabled": false,
+    "broadcastRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_NORMAL_FLASH_BROADCAST=true",
+    "broadcastEnabled": true
+  },
+  "defaults": {
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+  },
+  "signer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "resolvedInputs": {
+    "schemaVersion": "robinhood-normal-test-probe-config-v1",
+    "network": "robinhood-testnet",
+    "chainId": 46630,
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "probe": {
+      "address": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+      "source": "contracts_metadata.normalTestnetProbe.address",
+      "deploymentFile": "E:\\2026OPC澶ц禌\\flashLoan\\contract\\robinhood-testnet\\DEX\\deployments\\robinhood-v4-flash-normal-probe-robinhoodTestnet.json"
+    },
+    "token": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "symbol": "ETH",
+      "decimals": 18,
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint",
+      "poolManagerBalanceRaw": "",
+      "poolManagerBalance": ""
+    },
+    "amount": {
+      "amount": "1000000000000000000",
+      "human": "1",
+      "decimals": 18,
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"
+    },
+    "route": {
+      "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+      "closed": true,
+      "hopCount": 3
+    },
+    "measurementReady": true,
+    "readyForNormalBroadcast": true,
+    "blockingReasons": [],
+    "sourceFiles": {
+      "chainTestPlan": "E:\\2026OPC澶ц禌\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+      "v4PoolLiquidity": "E:\\2026OPC澶ц禌\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\v4_pool_liquidity\\latest.json",
+      "normalProbeEvidence": "E:\\2026OPC澶ц禌\\flashLoan\\flashloan\\src_bot\\runtime\\evidence\\robinhood-testnet\\normal_testnet_probe\\latest.json",
+      "probeDeployment": "E:\\2026OPC澶ц禌\\flashLoan\\contract\\robinhood-testnet\\DEX\\deployments\\robinhood-v4-flash-normal-probe-robinhoodTestnet.json"
+    }
+  },
+  "probe": {
+    "address": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+    "source": "contracts_metadata.normalTestnetProbe.address",
+    "deploymentFile": "E:\\2026OPC澶ц禌\\flashLoan\\contract\\robinhood-testnet\\DEX\\deployments\\robinhood-v4-flash-normal-probe-robinhoodTestnet.json"
+  },
+  "token": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "symbol": "ETH",
+    "decimals": 18,
+    "source": "chain_test_plan.preflightSpec.repaymentConstraint",
+    "poolManagerBalanceRaw": "",
+    "poolManagerBalance": ""
+  },
+  "amount": {
+    "amount": "1000000000000000000",
+    "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw",
+    "envName": ""
+  },
+  "staticCall": {
+    "attempted": false,
+    "ok": false,
+    "result": null,
+    "error": null
+  },
+  "estimateGas": {
+    "attempted": false,
+    "ok": false,
+    "gas": null,
+    "error": null
+  },
+  "broadcast": {
+    "attempted": false,
+    "ok": false,
+    "hash": null,
+    "error": null
+  },
+  "probeCode": {
+    "contract": "RobinhoodV4FlashNormalProbe",
+    "address": "0xd1B532EA8DbdA84e6937fedaBb2FD5c33a049830",
+    "hasCode": true,
+    "codeBytes": 1965,
+    "codeHash": "0x70f2e8c5eb9554120cea52e2d0397c041954ec97dad42270279cab9fbd1199e1",
+    "localArtifact": {
+      "contract": "RobinhoodV4FlashNormalProbe",
+      "available": true,
+      "codeBytes": 2019,
+      "codeHash": "0xf89843fc09de023a078b491c926dd4e3f2ba21efa0adffa5f8564f08e15814d2"
+    },
+    "matchesLocalCodeSize": false
+  },
+  "readyForNormalBroadcast": false,
+  "blockingReasons": [
+    "probe_runtime_size_mismatch"
+  ]
+}
+

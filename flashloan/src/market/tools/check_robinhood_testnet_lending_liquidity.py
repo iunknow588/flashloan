@@ -6,11 +6,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from dex.intent_trade.chains.robinhood_testnet.lending_liquidity import summarize_robinhood_testnet_lending_liquidity
+from core.env_loader import load_chain_env_files
 
 
 def _stamp() -> str:
@@ -40,6 +41,12 @@ def main() -> int:
         help="Return exit code 2 unless Aave/Morpho lending liquidity is verified on chain 46630.",
     )
     args = parser.parse_args()
+    repo_root = SRC_ROOT.parents[1]
+    load_chain_env_files(
+        __file__,
+        [repo_root / "contract" / "robinhood" / "testnet" / ".env"],
+        override=False,
+    )
 
     try:
         report = summarize_robinhood_testnet_lending_liquidity(

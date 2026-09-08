@@ -15,12 +15,12 @@ const {
 } = require("@cowprotocol/sdk-flash-loans");
 
 const NODE_ADAPTER_ROOT = path.resolve(__dirname, "..");
-const SRC_BOT_ROOT = path.resolve(NODE_ADAPTER_ROOT, "../..");
+const APP_RUNTIME_ROOT = path.resolve(NODE_ADAPTER_ROOT, "../..");
 const DEFAULT_INPUT_PATH = process.env.COW_SUBMISSION_INPUT_PATH || "";
 const TEN = 10n;
 
 dotenv.config({ path: path.resolve(NODE_ADAPTER_ROOT, ".env") });
-dotenv.config({ path: path.resolve(SRC_BOT_ROOT, ".env"), override: false });
+dotenv.config({ path: path.resolve(APP_RUNTIME_ROOT, ".env"), override: false });
 
 const NETWORKS = {
   ethereum: {
@@ -128,8 +128,8 @@ function registerToken(registry, token) {
 }
 
 function loadTokenRegistry(network) {
-  const aavePath = path.resolve(SRC_BOT_ROOT, "runtime/cache/aave_reserve_assets.json");
-  const cowPath = path.resolve(SRC_BOT_ROOT, "runtime/cache/cow_supported_tokens.json");
+  const aavePath = path.resolve(APP_RUNTIME_ROOT, "runtime/cache/aave_reserve_assets.json");
+  const cowPath = path.resolve(APP_RUNTIME_ROOT, "runtime/cache/cow_supported_tokens.json");
   const aave = fs.existsSync(aavePath) ? loadJson(aavePath).assets || [] : [];
   const cow = (((fs.existsSync(cowPath) ? loadJson(cowPath) : {}).networks || {})[network] || {}).tokens || [];
   const registry = new Map();

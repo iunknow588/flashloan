@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -68,6 +69,92 @@ def read_metric_events(path: str | Path) -> list[dict[str, Any]]:
     return events
 
 
+def latency_percentiles(events: list[Mapping[str, Any]], percentiles: tuple[float, ...] = (50, 95, 99)) -> dict[str, Any]:
+    """Return nearest-rank latency percentiles for events with valid durations."""
+    durations = []
+    for event in events:
+        raw = event.get("duration_seconds")
+        if raw is None:
+            continue
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if value >= 0 and math.isfinite(value):
+            durations.append(value)
+    durations.sort()
+    result: dict[str, Any] = {}
+    for percentile in percentiles:
+        key = str(int(percentile))
+        if not durations:
+            result[key] = None
+            continue
+        index = min(len(durations) - 1, max(0, math.ceil(percentile / 100 * len(durations)) - 1))
+        result[key] = durations[index]
+    result["sample_count"] = len(durations)
+    return result
+
+
+def summarize_metric_events(events: list[Mapping[str, Any]], percentiles: tuple[float, ...] = (50, 95, 99)) -> dict[str, Any]:
+    """Summarize validated metric events with counts and latency percentiles."""
+    counts = Counter(str(event["kind"]) for event in events)
+    names = Counter(str(event["name"]) for event in events)
+    return {
+        "event_count": len(events),
+        "by_kind": dict(sorted(counts.items())),
+        "by_name": dict(sorted(names.items())),
+        "latency_percentiles": latency_percentiles(events, percentiles=percentiles),
+    }
+
+
+def read_metric_summary(path: str | Path, percentiles: tuple[float, ...] = (50, 95, 99)) -> dict[str, Any]:
+    """Read a JSONL metrics sink and summarize its validated events."""
+    return summarize_metric_events(read_metric_events(path), percentiles=percentiles)
+
+
+@dataclass(frozen=True)
+class MetricAlertThresholds:
+    """Latency threshold limits in seconds for live metrics alerting."""
+
+    p50_seconds: float | None = None
+    p95_seconds: float | None = None
+    p99_seconds: float | None = None
+    sample_count_min: int = 0
+
+
+def evaluate_metric_alert_thresholds(
+    summary: Mapping[str, Any],
+    thresholds: MetricAlertThresholds,
+) -> dict[str, Any]:
+    """Compare a metric summary to alert thresholds and return violation rows."""
+    latency = summary.get("latency_percentiles") or {}
+    sample_count = int(latency.get("sample_count") or 0)
+    checks = (
+        (50, thresholds.p50_seconds),
+        (95, thresholds.p95_seconds),
+        (99, thresholds.p99_seconds),
+    )
+    violations: list[dict[str, Any]] = []
+    for metric, threshold in checks:
+        if threshold is None:
+            continue
+        value = latency.get(str(metric))
+        if value is not None and float(value) > float(threshold):
+            violations.append({"metric": f"p{metric}", "threshold": float(threshold), "value": float(value)})
+    if sample_count < thresholds.sample_count_min:
+        violations.append(
+            {
+                "metric": "sample_count",
+                "threshold": thresholds.sample_count_min,
+                "value": sample_count,
+            }
+        )
+    return {
+        "ok": not violations,
+        "violations": violations,
+    }
+
+
 @dataclass
 class MetricsRegistry:
     """Small deterministic registry suitable for tests and adapters."""
@@ -91,12 +178,20 @@ class MetricsRegistry:
             "by_name": dict(sorted(names.items())),
         }
 
+    def latency_summary(self, percentiles: tuple[float, ...] = (50, 95, 99)) -> dict[str, Any]:
+        return latency_percentiles(self.events, percentiles=percentiles)
+
 
 __all__ = [
     "METRIC_KINDS",
+    "MetricAlertThresholds",
     "JsonlMetricsSink",
     "MetricsRegistry",
     "REQUIRED_FIELDS",
+    "evaluate_metric_alert_thresholds",
+    "latency_percentiles",
+    "read_metric_summary",
     "read_metric_events",
+    "summarize_metric_events",
     "validate_metric_event",
 ]

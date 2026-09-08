@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = SRC_ROOT.parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
@@ -15,6 +15,7 @@ from dex.intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_c
 from dex.intent_trade.chains.robinhood_testnet.live_testing_readiness import (
     summarize_robinhood_testnet_live_testing_readiness,
 )
+from core.env_loader import load_chain_env_files
 from dex.tools.check_robinhood_predeploy_readiness import (
     _build_chain_test_plan_from_local_attempts,
     _missing_chain_test_plan,
@@ -36,12 +37,12 @@ def main() -> int:
     parser.add_argument(
         "--chain-json",
         type=Path,
-        default=REPO_ROOT / "contract" / "robinhood" / "testnet" / "chain.json",
+        default=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain.json",
     )
     parser.add_argument(
         "--contracts-json",
         type=Path,
-        default=REPO_ROOT / "contract" / "robinhood" / "testnet" / "contracts.json",
+        default=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "contracts.json",
     )
     parser.add_argument(
         "--plan-json",
@@ -66,6 +67,11 @@ def main() -> int:
         help="Return exit code 2 unless Robinhood Testnet is ready for a live on-chain test transaction.",
     )
     args = parser.parse_args()
+    load_chain_env_files(
+        __file__,
+        [REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / ".env"],
+        override=False,
+    )
 
     try:
         chain_metadata = _read_json(args.chain_json)

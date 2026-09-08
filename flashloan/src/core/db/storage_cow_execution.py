@@ -118,203 +118,67 @@ _EXECUTION_PHASES = {
 }
 
 
-def _json_text(value: Any) -> str:
-    return json.dumps(value if value is not None else {}, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
-def _json_loads(value: Any, fallback: Any) -> Any:
-    try:
-        return json.loads(value or "")
-    except (TypeError, json.JSONDecodeError):
-        return fallback
 
 
-def _cow_intent_from_attempt(item: dict[str, Any]) -> dict[str, Any]:
-    quote = item.get("quote") if isinstance(item.get("quote"), dict) else {}
-    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
-    for value in (
-        item.get("cow_flashloan_intent"),
-        quote.get("cow_flashloan_intent"),
-        precheck.get("cow_flashloan_intent"),
-    ):
-        if isinstance(value, dict):
-            return value
-    return {}
 
 
-def _cow_sdk_result_from_attempt(item: dict[str, Any]) -> dict[str, Any]:
-    quote = item.get("quote") if isinstance(item.get("quote"), dict) else {}
-    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
-    for value in (
-        item.get("cow_sdk_result"),
-        quote.get("cow_sdk_result"),
-        precheck.get("cow_sdk_result"),
-    ):
-        if isinstance(value, dict):
-            return value
-    return {}
 
 
-def _cow_sdk_status_from_attempt(item: dict[str, Any]) -> str:
-    sdk = _cow_sdk_result_from_attempt(item)
-    for value in (sdk.get("submission_status"), sdk.get("status")):
-        text = str(value or "").strip().lower()
-        if text:
-            return text
-    return ""
 
 
-def _cow_control_mode_from_attempt(item: dict[str, Any]) -> str | None:
-    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
-    intent = _cow_intent_from_attempt(item)
-    for value in (item.get("control_mode"), precheck.get("control_mode"), intent.get("control_mode")):
-        text = str(value or "").strip()
-        if text:
-            return text
-    return None
 
 
-def _route_hop_constraints_enforced_from_attempt(item: dict[str, Any]) -> bool:
-    precheck = item.get("precheck") if isinstance(item.get("precheck"), dict) else {}
-    value = item.get("route_hop_constraints_enforced")
-    if value is None:
-        value = precheck.get("route_hop_constraints_enforced")
-    return bool(value)
 
 
-def _parse_datetime(value: Any) -> datetime | None:
-    if not value:
-        return None
-    if isinstance(value, datetime):
-        parsed = value
-    else:
-        text = str(value).strip()
-        if text.endswith("Z"):
-            text = f"{text[:-1]}+00:00"
-        try:
-            parsed = datetime.fromisoformat(text)
-        except ValueError:
-            return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
-def cow_execution_attempt_category(row: dict[str, Any]) -> str:
-    state = str(row.get("state") or "").strip().lower()
-    phase = str(row.get("execution_phase") or "").strip().lower()
-    checks_passed = bool(row.get("checks_passed"))
-    can_submit_order = bool(row.get("can_submit_order"))
-    sdk = _cow_sdk_result_from_attempt(row)
-    sdk_status = _cow_sdk_status_from_attempt(row)
-    submission_attempted = bool(
-        sdk.get("submission_attempted")
-        or sdk.get("submission_order_id")
-        or sdk.get("submission_tx_hash")
-    )
-
-    if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
-        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
-    if not submission_attempted and (sdk_status in {"quote_failed", "quote_unavailable"} or state in {"quote_failed", "quote_unavailable"}):
-        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    terminal_failure_states = {
-        "submission_failed",
-        "submit_failed",
-        "order_failed",
-        "execution_failed",
-        "settlement_failed",
-        "confirmation_failed",
-        "confirmed_failed",
-        "failed",
-        "error",
-    }
-    if (
-        sdk_status in terminal_failure_states
-        or state in terminal_failure_states
-        or "failed" in sdk_status
-        or "error" in sdk_status
-    ):
-        return COW_ATTEMPT_CATEGORY_EXECUTION_FAILED
-    if phase == "market_candidate" or state in _NOT_EXECUTABLE_STATES:
-        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    if not checks_passed or not can_submit_order:
-        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    if sdk_status in {"", "quote_precheck", "quote_required", "not_submitted", "ready_not_submitted", "limit_order_ready_not_submitted", "limit_order_ready_to_submit", "ready_to_submit"}:
-        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    if submission_attempted:
-        return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
-    return COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE
 
 
-def cow_execution_attempt_retention_days(row_or_category: dict[str, Any] | str) -> int | None:
-    if isinstance(row_or_category, str):
-        category = row_or_category
-    else:
-        category = cow_execution_attempt_category(row_or_category)
-    return COW_ATTEMPT_CATEGORY_RETENTION_DAYS.get(category, DEFAULT_COW_EXECUTION_RETENTION_DAYS)
 
 
-def cow_execution_attempt_analysis_days(row_or_category: dict[str, Any] | str) -> int | None:
-    if isinstance(row_or_category, str):
-        category = row_or_category
-    else:
-        category = cow_execution_attempt_category(row_or_category)
-    return COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS.get(category, DEFAULT_COW_EXECUTION_RETENTION_DAYS)
 
 
-def cow_execution_attempt_retention_policy(row_or_category: dict[str, Any] | str) -> dict[str, Any]:
-    if isinstance(row_or_category, str):
-        category = row_or_category
-    else:
-        category = cow_execution_attempt_category(row_or_category)
-    return dict(COW_ATTEMPT_CATEGORY_RETENTION_POLICY.get(category, {}))
 
 
-def _local_midnight(value: datetime) -> datetime:
-    local = value.astimezone(COW_EXECUTION_RETENTION_LOCAL_TZ)
-    return local.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def _local_iso_week_start(value: datetime) -> datetime:
-    local_midnight = _local_midnight(value)
-    return local_midnight - timedelta(days=local_midnight.weekday())
 
 
-def _category_retention_cutoff(row_or_category: dict[str, Any] | str, now: datetime | None = None) -> datetime | None:
-    current = now or datetime.now(timezone.utc)
-    category = row_or_category if isinstance(row_or_category, str) else cow_execution_attempt_category(row_or_category)
-    if category == COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS:
-        return None
-    if category == COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE:
-        return _local_midnight(current) - timedelta(days=1)
-    if category == COW_ATTEMPT_CATEGORY_EXECUTION_FAILED:
-        return _local_iso_week_start(current) - timedelta(days=7)
-    days = cow_execution_attempt_retention_days(category)
-    if days is None:
-        return None
-    return current - timedelta(days=max(1, int(days)))
 
 
-def _category_within_retention(row: dict[str, Any], now: datetime | None = None) -> bool:
-    created_at = _parse_datetime(row.get("created_at") or row.get("observed_at"))
-    if created_at is None:
-        return True
-    cutoff = _category_retention_cutoff(row, now=now)
-    if cutoff is None:
-        return True
-    return created_at.astimezone(COW_EXECUTION_RETENTION_LOCAL_TZ) >= cutoff
 
 
-def _decorate_attempt_review(row: dict[str, Any]) -> dict[str, Any]:
-    category = cow_execution_attempt_category(row)
-    row["review_category"] = category
-    row["review_category_label"] = COW_ATTEMPT_CATEGORY_LABELS.get(category, category)
-    row["review_retention_days"] = cow_execution_attempt_retention_days(category)
-    row["review_analysis_days"] = cow_execution_attempt_analysis_days(category)
-    row["review_retention_policy"] = cow_execution_attempt_retention_policy(category)
-    row["review_summary"] = _build_review_summary(row)
-    return row
 
+
+from core.db.storage_cow_policy import (
+    _category_retention_cutoff,
+    _category_within_retention,
+    _cow_control_mode_from_attempt,
+    _cow_intent_from_attempt,
+    _cow_sdk_result_from_attempt,
+    _cow_sdk_status_from_attempt,
+    _decorate_attempt_review,
+    _json_loads,
+    _json_text,
+    _local_iso_week_start,
+    _local_midnight,
+    _parse_datetime,
+    _route_hop_constraints_enforced_from_attempt,
+    cow_execution_attempt_analysis_days,
+    cow_execution_attempt_category,
+    cow_execution_attempt_retention_days,
+    cow_execution_attempt_retention_policy,
+)
+from core.db.storage_cow_candidate_builders import (
+    _attempt_signature,
+    _is_market_candidate,
+    build_cow_execution_attempts,
+    build_cow_market_candidate_attempts,
+    build_cow_market_claim_candidate_attempts,
+    build_cow_market_claim_pairs,
+)
 
 def ensure_cow_execution_attempts_table(database_url: str) -> None:
     with db_connection(database_url, connect_timeout=8) as connection:
@@ -368,343 +232,6 @@ def ensure_cow_execution_attempts_table(database_url: str) -> None:
                 )
                 cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_flashloan_intent_json TEXT")
                 cursor.execute("ALTER TABLE cow_execution_attempts ADD COLUMN IF NOT EXISTS cow_sdk_result_json TEXT")
-
-
-def _attempt_from_quote(
-    quote: dict[str, Any],
-    *,
-    market_state: dict[str, Any],
-    cow_network: str,
-    cow_chain_id: int | None,
-    owner: str | None,
-) -> dict[str, Any]:
-    precheck = quote.get("execution_precheck") or {}
-    reasons = precheck.get("reasons") if isinstance(precheck, dict) else []
-    state = str(precheck.get("status") or ("quote_failed" if quote.get("error") else "quoted"))
-    execution_phase = str(
-        precheck.get("execution_phase")
-        or ("order_submission" if state in {"submitted_success", "submission_failed"} else "quote_precheck")
-    )
-    cow_intent = quote.get("cow_flashloan_intent") if isinstance(quote.get("cow_flashloan_intent"), dict) else precheck.get("cow_flashloan_intent") if isinstance(precheck, dict) else {}
-    cow_sdk_result = quote.get("cow_sdk_result") if isinstance(quote.get("cow_sdk_result"), dict) else {}
-    return {
-        "observed_at": market_state.get("observed_at"),
-        "network": cow_network,
-        "chain_id": cow_chain_id,
-        "owner_address": owner,
-        "pair": quote.get("pair"),
-        "pair_rank": quote.get("pair_rank"),
-        "priority_reason": quote.get("priority_reason"),
-        "route_path": quote.get("path") or [],
-        "state": state,
-        "execution_phase": execution_phase,
-        "checks_passed": bool(precheck.get("checks_passed")),
-        "can_submit_order": bool(precheck.get("can_submit_order")),
-        "order_submission_enabled": bool(precheck.get("order_submission_enabled")),
-        "auto_execute_requested": bool(precheck.get("auto_execute_requested")),
-        "control_mode": precheck.get("control_mode") or (cow_intent or {}).get("control_mode"),
-        "route_hop_constraints_enforced": bool(precheck.get("route_hop_constraints_enforced")),
-        "final_delta_amount": quote.get("final_delta_amount"),
-        "final_symbol": quote.get("final_symbol"),
-        "blocked_reasons": reasons if isinstance(reasons, list) else [str(reasons)],
-        "cow_flashloan_intent": cow_intent or {},
-        "cow_sdk_result": cow_sdk_result or {},
-        "quote": quote,
-        "precheck": precheck,
-        "market_state": _market_state_summary(market_state),
-        "error": quote.get("error"),
-    }
-
-
-def _attempt_from_market_route(
-    pair: dict[str, Any],
-    route: dict[str, Any],
-    *,
-    market_state: dict[str, Any],
-    cow_network: str,
-    cow_chain_id: int | None,
-) -> dict[str, Any]:
-    route_path = route.get("route") or pair.get("route") or []
-    reasons = []
-    for item in [*(pair.get("blocked_reasons") or []), *(route.get("blocked_reasons") or [])]:
-        if item and item not in reasons:
-            reasons.append(item)
-    if not reasons:
-        reasons.append("requires_cow_or_dex_quote")
-    precheck = {
-        "status": "quote_required",
-        "checks_passed": False,
-        "can_submit_order": False,
-        "order_submission_enabled": False,
-        "auto_execute_requested": False,
-        "reasons": reasons,
-        "quote_required": bool(pair.get("quote_required", True) or route.get("quote_required", True)),
-        "estimation_available": bool(pair.get("estimation_available") or route.get("estimation_available")),
-        "edge_hint_percent": route.get("edge_hint_percent", pair.get("edge_hint_percent")),
-        "window_spread_percent": pair.get("window_spread_percent"),
-    }
-    quote = {
-        "pair": pair.get("pair"),
-        "pair_rank": pair.get("rank") or pair.get("grid_rank"),
-        "priority_reason": route.get("priority_reason"),
-        "path": route_path,
-        "input_amount": route.get("initial_amount"),
-        "input_symbol": route.get("initial_symbol"),
-        "final_symbol": route.get("initial_symbol"),
-        "final_delta_amount": route.get("net_after_flashloan_amount") or route.get("profit_amount"),
-        "quote_verified": False,
-        "quote_required": True,
-        "candidate_basis": pair.get("candidate_basis") or route.get("candidate_basis"),
-        "trigger_source": pair.get("trigger_source"),
-        "edge_hint_percent": route.get("edge_hint_percent", pair.get("edge_hint_percent")),
-        "window_spread_percent": pair.get("window_spread_percent"),
-        "binance_execution_plan": route.get("binance_execution_plan") or pair.get("binance_execution_plan") or {},
-        "x_symbol": pair.get("x_symbol"),
-        "y_symbol": pair.get("y_symbol"),
-        "x_base_symbol": pair.get("x_base_symbol"),
-        "y_base_symbol": pair.get("y_base_symbol"),
-        "x_change_percent": pair.get("x_change_percent"),
-        "y_change_percent": pair.get("y_change_percent"),
-        "x_start_price": pair.get("x_start_price"),
-        "x_current_price": pair.get("x_current_price"),
-        "x_end_price": pair.get("x_end_price", pair.get("x_current_price")),
-        "x_start_ms": pair.get("x_start_ms"),
-        "x_end_ms": pair.get("x_end_ms"),
-        "x_price_source": pair.get("x_price_source"),
-        "y_start_ms": pair.get("y_start_ms"),
-        "y_end_ms": pair.get("y_end_ms"),
-        "y_price_source": pair.get("y_price_source"),
-        "y_start_price": pair.get("y_start_price"),
-        "y_current_price": pair.get("y_current_price"),
-        "y_end_price": pair.get("y_end_price", pair.get("y_current_price")),
-        "signal_timing": pair.get("signal_timing") or market_state.get("signal_timing"),
-        "route": route,
-    }
-    return {
-        "observed_at": market_state.get("observed_at"),
-        "network": cow_network,
-        "chain_id": cow_chain_id,
-        "owner_address": None,
-        "pair": pair.get("pair"),
-        "pair_rank": pair.get("rank") or pair.get("grid_rank"),
-        "priority_reason": route.get("priority_reason"),
-        "route_path": route_path,
-        "state": "quote_required",
-        "execution_phase": "market_candidate",
-        "checks_passed": False,
-        "can_submit_order": False,
-        "order_submission_enabled": False,
-        "auto_execute_requested": False,
-        "final_delta_amount": quote["final_delta_amount"],
-        "final_symbol": quote["final_symbol"],
-        "blocked_reasons": reasons,
-        "quote": quote,
-        "precheck": precheck,
-        "market_state": _market_state_summary(market_state),
-        "error": None,
-    }
-
-
-def build_cow_execution_attempts(
-    payload: dict[str, Any],
-    *,
-    market_state: dict[str, Any],
-) -> list[dict[str, Any]]:
-    return [
-        _attempt_from_quote(
-            quote,
-            market_state=market_state,
-            cow_network=str(payload.get("cow_network") or ""),
-            cow_chain_id=payload.get("cow_chain_id"),
-            owner=payload.get("owner"),
-        )
-        for quote in payload.get("ranking") or []
-        if isinstance(quote, dict)
-    ]
-
-
-def build_cow_market_candidate_attempts(market_state: dict[str, Any]) -> list[dict[str, Any]]:
-    cow_filter = market_state.get("cow_filter") if isinstance(market_state, dict) else {}
-    cow_network = str((cow_filter or {}).get("network") or market_state.get("cow_network") or "")
-    cow_chain_id = (cow_filter or {}).get("chain_id") or market_state.get("cow_chain_id")
-    attempts = []
-    for pair in market_state.get("pairs") or []:
-        if not isinstance(pair, dict):
-            continue
-        route_results = pair.get("route_results") or []
-        if not route_results:
-            route_results = [{"route": pair.get("route") or [], "priority_reason": pair.get("priority_reason")}]
-        for route in route_results:
-            if isinstance(route, dict):
-                attempts.append(
-                    _attempt_from_market_route(
-                        pair,
-                        route,
-                        market_state=market_state,
-                        cow_network=cow_network,
-                        cow_chain_id=cow_chain_id,
-                    )
-                )
-    return attempts
-
-
-def _claim_route_results(x: dict[str, Any], y: dict[str, Any], amount: Any) -> list[dict[str, Any]]:
-    x_base = str(x.get("base_symbol") or x.get("symbol") or "").removesuffix("USDT")
-    y_base = str(y.get("base_symbol") or y.get("symbol") or "").removesuffix("USDT")
-    return [
-        {
-            "route_no": 1,
-            "route": ["USDC", y_base, x_base, "USDC"],
-            "initial_amount": str(amount) if amount is not None else None,
-            "initial_symbol": "USDC",
-            "priority_reason": "buy_loser_then_gainer",
-            "quote_required": True,
-        },
-        {
-            "route_no": 2,
-            "route": ["USDC", x_base, y_base, "USDC"],
-            "initial_amount": str(amount) if amount is not None else None,
-            "initial_symbol": "USDC",
-            "priority_reason": "reverse_check",
-            "quote_required": True,
-        },
-    ]
-
-
-def _claim_pair_row(x: dict[str, Any], y: dict[str, Any], rank: int, *, amount: Any) -> dict[str, Any] | None:
-    x_symbol = str(x.get("symbol") or "").strip().upper()
-    y_symbol = str(y.get("symbol") or "").strip().upper()
-    if not x_symbol or not y_symbol or x_symbol == y_symbol:
-        return None
-    try:
-        x_change = float(x.get("change_percent"))
-        y_change = float(y.get("change_percent"))
-    except (TypeError, ValueError):
-        return None
-    x_base = str(x.get("base_symbol") or x_symbol).strip().upper()
-    y_base = str(y.get("base_symbol") or y_symbol).strip().upper()
-    return {
-        "rank": rank,
-        "pair": f"{x_symbol} / {y_symbol}",
-        "x_symbol": x_symbol,
-        "y_symbol": y_symbol,
-        "x_base_symbol": x_base,
-        "y_base_symbol": y_base,
-        "x_change_percent": x_change,
-        "y_change_percent": y_change,
-        "x_start_price": x.get("start_price"),
-        "x_current_price": x.get("current_price"),
-        "x_end_price": x.get("end_price", x.get("current_price")),
-        "x_start_ms": x.get("start_ms"),
-        "x_end_ms": x.get("end_ms"),
-        "x_price_source": x.get("price_source"),
-        "y_start_price": y.get("start_price"),
-        "y_current_price": y.get("current_price"),
-        "y_end_price": y.get("end_price", y.get("current_price")),
-        "y_start_ms": y.get("start_ms"),
-        "y_end_ms": y.get("end_ms"),
-        "y_price_source": y.get("price_source"),
-        "window_spread_percent": x_change - y_change,
-        "candidate_basis": "cow_network_claim_top_bottom",
-        "trigger_source": "cow_network_claim",
-        "quote_required": True,
-        "estimation_available": False,
-        "blocked_reasons": ["requires_cow_or_dex_quote"],
-        "route_results": _claim_route_results(x, y, amount),
-    }
-
-
-def build_cow_market_claim_pairs(
-    claim: dict[str, Any],
-    *,
-    include_below_min_spread: bool = False,
-    max_pairs: int | None = None,
-) -> list[dict[str, Any]]:
-    if not isinstance(claim, dict):
-        return []
-    threshold_detail = claim.get("threshold_detail") if isinstance(claim.get("threshold_detail"), dict) else {}
-    try:
-        min_spread = float(claim.get("min_spread_percent") or threshold_detail.get("adjusted_min_spread_percent") or 0)
-    except (TypeError, ValueError):
-        min_spread = 0.0
-    amount = threshold_detail.get("amount")
-    pairs = []
-    for x in claim.get("top") or []:
-        if not isinstance(x, dict):
-            continue
-        if x.get("pool_route_supported") is False:
-            continue
-        for y in claim.get("bottom") or []:
-            if not isinstance(y, dict):
-                continue
-            if y.get("pool_route_supported") is False:
-                continue
-            pair = _claim_pair_row(x, y, len(pairs) + 1, amount=amount)
-            if not pair:
-                continue
-            if float(pair.get("window_spread_percent") or 0) <= min_spread and not include_below_min_spread:
-                continue
-            if float(pair.get("window_spread_percent") or 0) <= min_spread:
-                pair["blocked_reasons"] = ["spread_below_dynamic_min", "requires_cow_or_dex_quote"]
-                pair["candidate_basis"] = "cow_network_claim_top_bottom_below_spread"
-            pairs.append(pair)
-            if max_pairs is not None and len(pairs) >= max(1, int(max_pairs)):
-                return pairs
-    return pairs
-
-
-def build_cow_market_claim_candidate_attempts(
-    network_claims: list[dict[str, Any]],
-    *,
-    observed_at: Any = None,
-    window_seconds: Any = None,
-    price_source: Any = None,
-    market_state_source: Any = None,
-    fallback_reason: Any = None,
-) -> list[dict[str, Any]]:
-    attempts = []
-    for claim in network_claims or []:
-        if not isinstance(claim, dict):
-            continue
-        threshold_detail = claim.get("threshold_detail") if isinstance(claim.get("threshold_detail"), dict) else {}
-        pairs = build_cow_market_claim_pairs(claim)
-        if not pairs:
-            continue
-        market_state = {
-            "observed_at": observed_at,
-            "window_seconds": window_seconds,
-            "price_source": price_source,
-            "market_state_source": market_state_source,
-            "fallback_reason": fallback_reason,
-            "cow_filter": {
-                "network": claim.get("network"),
-                "chain_id": claim.get("chain_id"),
-                "source": "cow_network_claim",
-                "token_cache_source": claim.get("token_cache_source"),
-                "token_cache_count": claim.get("token_cache_count"),
-                "threshold_detail": threshold_detail,
-            },
-            "pairs": pairs,
-        }
-        attempts.extend(build_cow_market_candidate_attempts(market_state))
-    return attempts
-
-
-def _is_market_candidate(item: dict[str, Any]) -> bool:
-    return str(item.get("execution_phase") or "") == "market_candidate"
-
-
-def _attempt_signature(item: dict[str, Any]) -> tuple[Any, ...]:
-    return (
-        item.get("observed_at"),
-        item.get("network"),
-        item.get("pair"),
-        item.get("pair_rank"),
-        item.get("priority_reason"),
-        _json_text(item.get("route_path") or []),
-        _json_text(_attempt_route_address_identity(item)),
-        item.get("execution_phase") or "quote_precheck",
-    )
 
 
 def prune_cow_execution_attempts(database_url: str, retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS) -> int:

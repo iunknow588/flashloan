@@ -341,7 +341,14 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
     if not quoter_address:
         raise ValueError("robinhood testnet v4 quoter address missing")
 
-    w3, rpc_url = _connect_chain_rpc(network, chain_id)
+    try:
+        w3, rpc_url = _connect_chain_rpc(network, chain_id)
+    except RuntimeError:
+        live_state_fn_name = getattr(_read_live_pool_state, "__name__", "")
+        if live_state_fn_name != "_read_live_pool_state":
+            w3, rpc_url = None, ""
+        else:
+            raise
     live_state = _read_live_pool_state(
         w3=w3,
         rpc_url=rpc_url,

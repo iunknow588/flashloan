@@ -18,7 +18,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build Robinhood Testnet Uniswap V4 poolId liquidity cache from local JSON evidence."
     )
-    parser.add_argument("--contract-metadata", default="", help="Optional contract/robinhood/testnet/contracts.json path.")
+    parser.add_argument("--contract-metadata", default="", help="Optional contract/robinhood-testnet/DEX/config/contracts.json path.")
     parser.add_argument("--preflight-report", default="", help="Optional preflight report.json path.")
     parser.add_argument("--output", default="", help="Optional output path; defaults to chain-owned v4_pool_liquidity file.")
     parser.add_argument("--pool-limit", type=int, default=80)

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = SRC_ROOT.parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
@@ -16,6 +16,7 @@ from dex.intent_trade.chains.robinhood.chain_test_package import chain_test_pack
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
 from dex.intent_trade.chains.robinhood_testnet.predeploy_readiness import summarize_robinhood_predeploy_readiness
 from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.env_loader import load_chain_env_files
 
 
 def _read_json(path: Path) -> dict:
@@ -128,7 +129,7 @@ def _build_chain_test_plan_from_local_attempts(plan_path: Path, chain_json: Path
     result = chain_test_package_flow(
         attempt=attempt,
         output_dir=plan_path.parent,
-        contract_dir=REPO_ROOT / "contract" / "robinhood" / "testnet" / "chain-test-package",
+        contract_dir=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain-test-package",
     )
     return result["plan"]
 
@@ -140,12 +141,12 @@ def main() -> int:
     parser.add_argument(
         "--chain-json",
         type=Path,
-        default=REPO_ROOT / "contract" / "robinhood" / "testnet" / "chain.json",
+        default=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain.json",
     )
     parser.add_argument(
         "--contracts-json",
         type=Path,
-        default=REPO_ROOT / "contract" / "robinhood" / "testnet" / "contracts.json",
+        default=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "contracts.json",
     )
     parser.add_argument(
         "--plan-json",
@@ -174,6 +175,11 @@ def main() -> int:
         help="Print only; do not write readiness evidence files.",
     )
     args = parser.parse_args()
+    load_chain_env_files(
+        __file__,
+        [REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / ".env"],
+        override=False,
+    )
 
     try:
         chain_metadata = _read_json(args.chain_json)

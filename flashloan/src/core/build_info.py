@@ -66,7 +66,7 @@ def build_info_payload() -> dict[str, Any]:
         if os.getenv(name, "").strip()
     }
     return {
-        "app": "flashloan-src-bot",
+        "app": "flashloan-app-runtime",
         "git_commit": commit,
         "git_commit_short": commit[:7] if commit else None,
         "git_commit_source": env_commit_name or ("git" if git_commit else None),

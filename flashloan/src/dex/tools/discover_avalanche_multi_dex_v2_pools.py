@@ -13,7 +13,7 @@ from web3 import Web3
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SRC_ROOT = REPO_ROOT / "flashloan" / "src_bot"
+SRC_ROOT = REPO_ROOT / "flashloan" / "app_runtime"
 CURRENT_STATIC_TABLE = SRC_ROOT / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
 OUTPUT_JSON = SRC_ROOT / "runtime" / "cache" / "avalanche_multi_dex_v2_pool_discovery.json"
 OUTPUT_MD = REPO_ROOT / "data_info" / "AVALANCHE" / "Avalanche多DEX扩展扫描.md"

@@ -29,8 +29,8 @@ def _default_output_dir(network: str) -> Path:
 
 def _default_contract_dir(network: str) -> Path:
     if network == ROBINHOOD_TESTNET_NETWORK:
-        return SRC_ROOT.parent.parent / "contract" / "robinhood" / "testnet" / "chain-test-package"
-    return SRC_ROOT.parent.parent / "contract" / "robinhood"
+        return SRC_ROOT.parent.parent / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain-test-package"
+    return SRC_ROOT.parent.parent / "contract" / "robinhood" / "DEX"
 
 
 def _expected_chain_id(network: str) -> int:
@@ -46,8 +46,8 @@ def _assert_scoped_path(path: Path, *, network: str, kind: str) -> None:
     if network == ROBINHOOD_TESTNET_NETWORK:
         if kind == "output" and "/robinhood-testnet/" not in f"/{normalized}/":
             raise ValueError("Robinhood testnet chain-test output must stay under a robinhood-testnet evidence path")
-        if kind == "contract" and "/contract/robinhood/testnet/" not in f"/{normalized}/":
-            raise ValueError("Robinhood testnet contract handoff must stay under contract/robinhood/testnet")
+        if kind == "contract" and "/contract/robinhood-testnet/dex/" not in f"/{normalized}/":
+            raise ValueError("Robinhood testnet contract handoff must stay under contract/robinhood-testnet/DEX")
     if network == ROBINHOOD_NETWORK and "/robinhood-testnet/" in f"/{normalized}/":
         raise ValueError("Robinhood mainnet chain-test package must not write into robinhood-testnet paths")
 

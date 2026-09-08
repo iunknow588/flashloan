@@ -97,6 +97,14 @@ def load_flash_loan_pool_static(
     payload = _read_json(path)
     if payload:
         if expected_scope is not None:
+            if isinstance(payload.get("scope"), dict):
+                validate_scoped_payload({"scope": payload["scope"]}, expected_scope)
+            embedded = {
+                key: payload.get(key)
+                for key in ("market_id", "chain_id", "network", "protocol")
+            }
+            if all(embedded.get(key) not in (None, "") for key in ("market_id", "chain_id", "network", "protocol")):
+                validate_scoped_payload(embedded, expected_scope)
             validate_scoped_payload(payload, expected_scope)
         return {**payload, "path": str(path), "exists": True}
     evidence = {
@@ -293,6 +301,7 @@ def static_snapshot_from_protocol_view(
     normalized_network = _network_for_chain(normalized_chain_id, network or cache.get("network"))
     protocol = _protocol(view.get("protocol"))
     sections = _sections_from_view(view)
+    generated_at = _stamp()
     return {
         "ok": "status" not in view,
         "schema_version": SCHEMA_VERSION,
@@ -301,7 +310,8 @@ def static_snapshot_from_protocol_view(
         "chain_id": normalized_chain_id,
         "protocol": protocol,
         "display_name": view.get("display_name") or protocol,
-        "generated_at": _stamp(),
+        "generated_at": generated_at,
+        "pool_evidence_observed_at": generated_at,
         "refresh_mode": refresh_mode,
         "source": cache.get("source") or view.get("source") or "flash_loan_pools_payload",
         "summary": dict(view.get("summary") if isinstance(view.get("summary"), dict) else {}),
@@ -365,7 +375,14 @@ def write_flash_loan_pool_static(
         stored = merge_flash_loan_pool_static(existing, incoming) if existing else incoming
     stored = {**stored, "path": str(path), "exists": True}
     if expected_scope is not None:
-        validate_scoped_payload({"scope": expected_scope, **stored}, expected_scope)
+        embedded = {
+            "market_id": stored.get("market_id") or expected_scope["market_id"],
+            "chain_id": stored.get("chain_id") if stored.get("chain_id") is not None else expected_scope["chain_id"],
+            "network": stored.get("network") or expected_scope["network"],
+            "protocol": stored.get("protocol") or expected_scope["protocol"],
+        }
+        validate_scoped_payload(embedded, expected_scope)
+        stored["market_id"] = str(expected_scope["market_id"])
         stored["scope"] = dict(expected_scope)
     _write_json(path, stored)
     return stored

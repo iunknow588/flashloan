@@ -24,17 +24,16 @@ observations.csv
 srcs_dex/runtime/
 flashloan/srcs_dex/runtime/
 flashloan/srcs/runtime/
-flashloan/src_bot/runtime/*
-!flashloan/src_bot/runtime/*.py
-flashloan/src_bot/*.log
-flashloan/src_bot/importtime.err
-/src_bot/
+flashloan/app_runtime/runtime/*
+!flashloan/app_runtime/runtime/*.py
+flashloan/app_runtime/*.log
+flashloan/app_runtime/importtime.err
 /srcs_dex/
 /srcs/
 docs/
 back/
-!/contract/contracts-dex/back/
-!/contract/contracts-dex/back/**
+!/contract/back/
+!/contract/back/**
 .agents/
 
 # Local dev/preview runtime logs (do not commit)

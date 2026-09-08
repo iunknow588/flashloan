@@ -1,1 +1,1 @@
-"""Shared configuration helpers moved from src_bot.config."""
+"""Shared configuration helpers moved from app_runtime.config."""

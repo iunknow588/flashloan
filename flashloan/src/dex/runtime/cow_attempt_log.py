@@ -9,7 +9,8 @@ from core.db.storage_cow_execution import (
 )
 from dex.runtime.cow_submission_pause import cow_submission_pause_guard_status
 
-SRC_ROOT = Path(__file__).resolve().parents[3] / "src_bot"
+# Runtime evidence is shared through the canonical src/runtime junction.
+SRC_ROOT = Path(__file__).resolve().parents[2]
 COW_EXECUTION_ATTEMPT_LOG_PATH = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts.jsonl"
 COW_EXECUTION_ATTEMPT_LOG_ROOT = SRC_ROOT / "runtime" / "logs" / "cow_execution_attempts"
 COW_EXECUTION_RETENTION_DAYS = 7

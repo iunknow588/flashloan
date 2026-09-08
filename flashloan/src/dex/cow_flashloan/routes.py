@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -320,7 +320,7 @@ def load_cow_token_list(
         return builtin_cow_tokens(config)
     request = urllib.request.Request(
         token_list_url,
-        headers={"Accept": "application/json", "User-Agent": "src_bot_cow_route_optimizer/1.0"},
+        headers={"Accept": "application/json", "User-Agent": "app_runtime_cow_route_optimizer/1.0"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
@@ -437,7 +437,7 @@ def post_cow_quote(
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "src_bot_cow_route_optimizer/1.0",
+            "User-Agent": "app_runtime_cow_route_optimizer/1.0",
         },
     )
     try:

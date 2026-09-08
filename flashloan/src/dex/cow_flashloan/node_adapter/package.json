@@ -2,7 +2,7 @@
   "name": "flashloan-cow-intent-adapter",
   "private": true,
   "version": "0.1.0",
-  "description": "CoW SDK intent order submission adapter for src_bot.",
+  "description": "CoW SDK intent order submission adapter for app_runtime.",
   "scripts": {
     "submit:cow-intent": "node scripts/submit-cow-flashloan-order.js"
   },

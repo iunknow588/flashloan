@@ -1,1 +1,1 @@
-"""Shared database storage adapters moved from src_bot.db."""
+"""Shared database storage adapters moved from app_runtime.db."""

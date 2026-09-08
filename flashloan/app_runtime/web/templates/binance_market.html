@@ -1,0 +1,309 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEX 套利 | CoW SDK</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 10px; font-size: 15px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button, select, input { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    input { min-width: 220px; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; align-items: center; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .split { display: grid; grid-template-columns: minmax(360px, 1.3fr) minmax(320px, .9fr); gap: 14px; margin-bottom: 18px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .card strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .card span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; vertical-align: top; }
+    th:first-child, td:first-child { text-align: left; }
+    main, table, td, th, .card, .route-detail { user-select: text; }
+    button, select, input { user-select: none; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+    .muted { color: #667085; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; }
+    .context { color: #475467; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .route-cell { min-width: 520px; white-space: normal; }
+    .route-grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px; }
+    .route-box { border: 1px solid #d0d5dd; border-radius: 8px; padding: 8px; background: #fff; min-height: 86px; }
+    .route-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .route-no { color: #344054; font-weight: 700; }
+    .route-path { color: #344054; line-height: 1.35; overflow-wrap: anywhere; }
+    .route-meta { color: #667085; line-height: 1.35; font-variant-numeric: tabular-nums; }
+    .route-detail { margin-top: 6px; color: #344054; line-height: 1.45; font-size: 12px; overflow-wrap: anywhere; }
+    .route-detail div { margin-top: 2px; }
+    .route-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .route-actions button { min-height: 30px; padding: 0 8px; font-size: 12px; }
+    .network-claims { display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 12px; }
+    .network-claim { border: 1px solid #d9dee7; border-radius: 8px; padding: 10px; background: #fff; }
+    .network-claim-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .network-claim h3 { margin: 0; font-size: 14px; }
+    .mini-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .chain-market-claim { margin: 10px 0; border-top: 1px solid #e4e7ec; border-bottom: 1px solid #e4e7ec; padding: 10px 0; }
+    .chain-market-claim h4 { margin: 0 0 6px; font-size: 13px; color: #344054; }
+    .network-checks { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 720px; }
+    .network-check, .cow-trading-switch { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 10px; background: #fff; font-weight: 700; }
+    .network-check input, .cow-trading-switch input { min-width: auto; min-height: auto; width: 16px; height: 16px; padding: 0; }
+    #cowNetworkChecks { display: none !important; }
+    .cow-trading-switch.enabled { border-color: #15803d; color: #15803d; background: #f0fdf4; }
+    .cow-trading-switch.disabled { border-color: #b42318; color: #b42318; background: #fff5f5; }
+    .network-opportunity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 12px; }
+    .chain-card { border: 1px solid #cfd6e2; border-radius: 8px; background: #fff; padding: 12px; }
+    .chain-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .chain-card h3 { margin: 0; font-size: 15px; }
+    .chain-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .chain-summary span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 4px 8px; background: #f8fafc; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .strategy-analysis { border: 1px solid #e4e7ec; border-radius: 8px; padding: 10px; background: #fbfcfe; margin-bottom: 10px; }
+    .strategy-analysis-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .strategy-analysis-title { font-size: 13px; font-weight: 800; color: #101828; }
+    .strategy-analysis-meta { color: #667085; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .strategy-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .strategy-metric { border: 1px solid #e4e7ec; border-radius: 6px; padding: 8px; background: #fff; }
+    .strategy-metric small { display: block; color: #667085; font-size: 11px; margin-bottom: 4px; }
+    .strategy-metric strong { display: block; font-size: 14px; color: #101828; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .strategy-routes { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .strategy-route { border: 1px solid #d0d5dd; border-radius: 6px; padding: 8px; background: #fff; }
+    .strategy-route-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .strategy-route-title { font-weight: 800; color: #344054; }
+    .strategy-route-meta { color: #667085; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .strategy-hop-list { display: grid; grid-template-columns: 1fr; gap: 4px; margin-top: 6px; }
+    .strategy-hop { font-size: 12px; color: #344054; line-height: 1.4; overflow-wrap: anywhere; }
+    .strategy-pool-note { color: #475467; font-size: 12px; line-height: 1.45; margin-top: 8px; }
+    .chain-routes { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .execute-button { border-color: #b42318; color: #b42318; }
+    .execute-button.ready { border-color: #15803d; color: #15803d; }
+    .execute-button:disabled { color: #667085; border-color: #d0d5dd; background: #f2f4f7; }
+    .sdk-candidate-token { color: #1d4ed8; font-weight: 800; }
+    .sdk-candidate-row { background: #eff6ff; }
+    .sdk-candidate-note { color: #1d4ed8; font-weight: 800; }
+    .review-section { border: 1px solid #cfd6e2; border-radius: 8px; padding: 14px; background: #fff; margin-top: 18px; }
+    .review-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+    .review-head h2 { margin-bottom: 4px; }
+    .review-source { text-align: right; font-size: 12px; color: #667085; font-variant-numeric: tabular-nums; }
+    .review-conclusion { border: 1px solid #e4e7ec; border-radius: 8px; padding: 10px; background: #f8fafc; color: #344054; line-height: 1.5; margin-bottom: 10px; overflow-wrap: anywhere; }
+    .review-metrics { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .review-metrics span { border: 1px solid #e4e7ec; border-radius: 6px; padding: 5px 8px; background: #fff; color: #344054; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .review-group { margin-top: 14px; }
+    .review-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .review-group-head h3 { margin: 0; font-size: 15px; color: #101828; }
+    .review-pager { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #667085; }
+    .review-pager button { width: 28px; height: 28px; border: 1px solid #d0d5dd; background: #fff; border-radius: 6px; cursor: pointer; }
+    .review-pager button:disabled { opacity: .45; cursor: default; }
+    .review-group-note { margin-bottom: 8px; font-size: 12px; color: #667085; }
+    @media (max-width: 900px) { header { display: block; } nav { margin-top: 10px; } .split { grid-template-columns: 1fr; } .route-grid { grid-template-columns: 1fr; } .route-cell { min-width: 300px; } .network-opportunity-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DEX 套利 | CoW SDK</h1>
+    <nav>
+      <a href="/liquidation">清算</a>
+      <a href="/account-scan">账户扫描</a>
+      <a href="/market-observation">市场观察</a>
+      <a href="/dex-arbitrage">DEX 套利</a>
+      <a href="/dex-pools">候选池</a>
+      <a href="/exchange-matrix">兑换矩阵</a>
+      <a href="/execution">执行</a>
+      <a href="/config">配置</a>
+    </nav>
+    <div id="message"></div>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button class="primary" id="refreshBtn">刷新触发行情</button>
+      <button id="refreshTokensBtn">刷新支持代币</button>
+      <button id="supportBtn">CoW 支持检查</button>
+      <button id="quoteBtn">CoW SDK 报价验证</button>
+      <button id="copySummaryBtn">复制摘要</button>
+      <button id="copyQuotesBtn">复制报价</button>
+      <label id="cowTradingSwitchLabel" class="cow-trading-switch disabled" title="勾选后才允许自动交易提交、候选入队和数据库写入；提交路径可能是 CoW SDK 或链上 A 合约直连">
+        <input id="cowSubmissionEnabledCheckbox" type="checkbox">
+        允许自动交易
+      </label>
+      <span id="cowSubmissionPauseMessage" class="context">交易开关状态加载中</span>
+      <select id="sideLimitSelect">
+        <option value="5">前 5 名</option>
+        <option value="10">前 10 名</option>
+        <option value="20">前 20 名</option>
+        <option value="50" selected>前 50 名</option>
+      </select>
+      <select id="quoteLimitSelect">
+        <option value="1" selected>每链 1 组</option>
+      </select>
+      <div id="cowNetworkChecks" class="network-checks" title="选择要同时展示和报价的 CoW 网络"></div>
+      <input id="quoteAmountInput" inputmode="decimal" min="0" step="0.000001" type="number" value="1000" title="CoW 报价数量">
+      <input id="minSpreadInput" inputmode="decimal" min="0" max="100" step="0.01" type="number" value="0" title="额外手动价差 %">
+      <span id="cowQuoteContext" class="context">CoW -</span>
+      <span id="refreshMeta" class="muted">等待数据</span>
+    </div>
+    <section class="grid">
+      <div class="card"><small>观察窗口</small><strong id="windowSeconds">-</strong><span id="observedAt">-</span></div>
+      <div class="card"><small>样本数量</small><strong id="sampleCount">-</strong><span id="universeSize">-</span></div>
+      <div class="card"><small>CoW 支持过滤</small><strong id="cowTokenCount">-</strong><span id="cowMatchCount">-</span><span id="cowFilterMeta">-</span></div>
+      <div class="card"><small>套利候选路径</small><strong id="pairCount">-</strong><span id="bestPair">-</span></div>
+      <div class="card"><small>最佳 CoW 结果</small><strong id="notionalUsd">-</strong><span id="quoteState">等待报价</span></div>
+    </section>
+    <section class="split">
+      <div class="card">
+        <h2 id="cowSupportedTopTitle">所有 CoW 支持代币涨幅前 50</h2>
+        <div id="cowSupportedTopMeta" class="context">等待过滤条件</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
+            <tbody id="cowSupportedTopBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="cowSupportedBottomTitle">所有 CoW 支持代币跌幅前 50</h2>
+        <div id="cowSupportedBottomMeta" class="context">等待过滤条件</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>支持链</th><th>来源</th></tr></thead>
+            <tbody id="cowSupportedBottomBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="card" style="margin-bottom:18px">
+      <h2>选中 CoW 网络候选链路与 Top/Bottom 5</h2>
+      <div id="networkOpportunityCards" class="network-opportunity-grid"></div>
+    </section>
+    <section class="card">
+      <h2 id="pairTitle">多链稳定币闭环套利候选路径</h2>
+      <div class="muted">Binance 行情先给出综合排名；每条链从自己的 CoW 支持代币里独立认领最高涨幅和最高跌幅，同一个代币可以同时出现在多条链。</div>
+      <div class="muted">每个链卡片展示 U-X-Y-U 与 U-Y-X-U 路径、报价来源、目标价、滑点边界、报价结果和执行状态。</div>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>CoW SDK 报价验证</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>兑换对</th><th>初始数量</th><th>CoW 报价流程</th><th>CoW 报价比例</th><th>CoW 原始回执</th><th>预测状态</th><th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="cowQuoteBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>CoW 候选队列</h2>
+      <div id="cowQueueStatus" class="context">等待队列状态</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>来源/原因</th><th>优先级</th><th>尝试次数</th></tr></thead>
+          <tbody id="cowQueueBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="split" style="margin-top:18px">
+      <div class="card">
+        <h2 id="rawTopTitle">Binance 原始涨幅前 50</h2>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U 的代币。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>涨幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+            <tbody id="rawTopBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="rawBottomTitle">Binance 原始跌幅前 50</h2>
+        <div class="context">原始窗口排序：仅排除价格低于 0.01U 的代币。</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>代币</th><th>跌幅</th><th>起始价</th><th>当前价</th><th>来源</th></tr></thead>
+            <tbody id="rawBottomBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="review-section" id="cowExecutionReviewSection">
+      <div class="review-head">
+        <div>
+          <h2>CoW 执行复盘历史</h2>
+          <div class="muted">记录满足候选条件后的报价、预检、阻断原因和最终状态，用于事后复盘。</div>
+        </div>
+        <div id="cowAttemptHistorySource" class="review-source">来源 -</div>
+      </div>
+      <div id="cowAttemptReviewConclusion" class="review-conclusion">等待复盘历史</div>
+      <div id="cowAttemptReviewMetrics" class="review-metrics"></div>
+      <div class="review-group" id="cowAttemptNotExecutableGroup">
+        <div class="review-group-head">
+          <h3>等待 CoW 报价 / SDK 返回</h3>
+          <div class="review-pager" id="cowAttemptNotExecutablePager"></div>
+        </div>
+        <div class="review-group-note" id="cowAttemptNotExecutableNote"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/结果</th><th>当前等待状态</th></tr></thead>
+            <tbody id="cowAttemptNotExecutableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="review-group" id="cowAttemptFailedGroup">
+        <div class="review-group-head">
+          <h3>SDK 执行失败</h3>
+          <div class="review-pager" id="cowAttemptFailedPager"></div>
+        </div>
+        <div class="review-group-note" id="cowAttemptFailedNote"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/结果</th><th>失败原因</th></tr></thead>
+            <tbody id="cowAttemptFailedBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="review-group" id="cowAttemptSuccessGroup">
+        <div class="review-group-head">
+          <h3>SDK 执行成功</h3>
+          <div class="review-pager" id="cowAttemptSuccessPager"></div>
+        </div>
+        <div class="review-group-note" id="cowAttemptSuccessNote"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>SDK/等待状态</th><th>行情窗口</th><th>CoW 查询</th><th>费用/结果</th><th>结果</th></tr></thead>
+            <tbody id="cowAttemptSuccessBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th><th>网络</th><th>兑换对</th><th>路径</th><th>状态</th><th>意图状态</th><th>未成功原因</th>
+            </tr>
+          </thead>
+          <tbody id="cowAttemptHistoryBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>行情触发资产</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>代币</th><th>涨跌幅</th><th>起始价</th><th>当前价</th><th>窗口</th><th>状态</th></tr></thead>
+          <tbody id="aaveBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+    <script src="/static/binance_market_helpers.js"></script>
+    <script src="/static/binance_market_views.js"></script>
+</body>
+</html>
+
+

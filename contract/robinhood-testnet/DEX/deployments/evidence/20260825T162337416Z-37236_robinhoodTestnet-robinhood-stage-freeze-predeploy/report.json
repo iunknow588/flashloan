@@ -1,0 +1,39 @@
+﻿{
+  "schemaVersion": "robinhood-stage-freeze-predeploy-v1",
+  "runAt": "2026-08-25T16:23:37.415Z",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "chainKey": "chain:46630",
+  "marketId": "robinhood-testnet-dex-paused",
+  "requiredDeployMilestone": "paused_executor_v4_accounting_freeze",
+  "deployMilestone": "",
+  "stageFreezeApproved": false,
+  "readyForStageFreeze": false,
+  "deploymentDeferred": true,
+  "broadcastAttempted": false,
+  "readyForIntentionalPausedRedeploy": false,
+  "gates": {
+    "notDefaultDexChainSelector": true,
+    "testnetV4UsablePoolVerified": true,
+    "testnetV4ExecutionReady": false,
+    "broadcastDisabled": true,
+    "normalOnlyOnchainTesting": true,
+    "executorOffchainNormalReady": true,
+    "currentExecutorPaused": true,
+    "currentExecutorNeedsRedeploy": true,
+    "pausedRedeployTechnicallyReady": true,
+    "redeployBudgetCovered": true
+  },
+  "evidence": {
+    "readiness": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T141358653Z-36152_robinhoodTestnet-robinhood-testnet-preflight/report.json",
+    "executorOffchainNormal": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T140129376Z-28472_hardhat-robinhood-executor-v4-flash-offchain-normal/report.json",
+    "pausedRedeployPlan": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
+    "normalTestnetProbe": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T142518055Z-15028_robinhoodTestnet-robinhood-v4-flash-normal-probe/report.json",
+    "readback": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T135422573Z-34656_robinhoodTestnet-robinhood-paused-readback/report.json"
+  },
+  "nextManualAction": "keep_deployment_deferred_until_stage_freeze_is_approved",
+  "blockingReasons": [
+    "testnet_v4_execution_not_ready"
+  ]
+}
+

@@ -1,8 +1,0 @@
-{
-  "chainId": 4663,
-  "factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
-  "multicall": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
-  "network": "robinhood",
-  "quoter": null,
-  "router": null
-}

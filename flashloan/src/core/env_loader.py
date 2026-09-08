@@ -39,6 +39,42 @@ def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
     return paths
 
 
+def find_repo_root(start_path: str | os.PathLike[str]) -> Path | None:
+    path = Path(start_path).resolve()
+    directory = path.parent if path.is_file() else path
+    for current in [directory, *directory.parents]:
+        if (current / "contract").is_dir() and (current / "flashloan").is_dir():
+            return current
+    return None
+
+
+def load_chain_env_files(
+    start_path: str | os.PathLike[str],
+    chain_env_paths: Iterable[str | os.PathLike[str]] = (),
+    *,
+    override: bool = False,
+) -> list[Path]:
+    """Load chain-specific env files first, then the global app_runtime env.
+
+    The repository convention is:
+    - each chain keeps its own independent configuration in the chain directory
+      (for example ``contract/robinhood-testnet/DEX/.env``);
+    - cross-chain/global configuration lives in ``flashloan/app_runtime/.env``.
+    """
+    loaded: list[Path] = []
+    for chain_env_path in chain_env_paths:
+        path = Path(chain_env_path).resolve()
+        if path.is_file():
+            loaded.extend(load_env_files(path, override=override))
+
+    root = find_repo_root(start_path)
+    if root is not None:
+        global_env = root / "flashloan" / "app_runtime" / ".env"
+        if global_env.is_file():
+            loaded.extend(load_env_files(global_env, override=override))
+    return loaded
+
+
 def parse_env_lines(lines: Iterable[str]) -> dict[str, str]:
     values: dict[str, str] = {}
     for line in lines:

@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>债务池</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 24px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1400px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    nav a, .link { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button, input, select { min-height: 38px; border: 1px solid #b8c0cc; border-radius: 6px; padding: 0 12px; background: #fff; font-weight: 700; }
+    button.primary { border-color: #0f766e; background: #0f766e; color: #fff; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; align-items: center; }
+    .protocol-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 14px; }
+    .protocol-toolbar .muted { color: #667085; font-size: 12px; font-weight: 700; }
+    .protocol-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+    .protocol-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 5px 10px; background: #fff; color: #344054; font-size: 12px; font-weight: 700; }
+    .protocol-chip input { margin: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .card { border: 1px solid #d9dee7; border-radius: 8px; padding: 14px; background: #fff; min-height: 82px; margin-bottom: 18px; }
+    .card small { display: block; color: #667085; margin-bottom: 7px; }
+    .card strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .card span { display: block; margin-top: 4px; color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .notice { border: 1px solid #d9dee7; border-radius: 8px; padding: 12px; background: #fff; color: #344054; line-height: 1.45; margin-bottom: 18px; }
+    .system-info-strip { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px solid #d9dee7; border-radius: 8px; padding: 10px 12px; background: #fff; color: #344054; margin-bottom: 18px; }
+    .system-info-strip small { display: block; color: #667085; margin-bottom: 3px; }
+    .system-info-strip strong { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+    .system-info-strip span { color: #475467; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .state-panel { border-left: 4px solid #0f766e; }
+    .state-panel.warning { border-left-color: #b45309; }
+    .state-panel.error { border-left-color: #b42318; }
+    .state-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+    .state-head strong { font-size: 18px; }
+    .state-reason { margin-top: 10px; color: #344054; line-height: 1.45; }
+    .state-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 12px; }
+    .state-meta div { border: 1px solid #e4e7ec; border-radius: 6px; padding: 10px; background: #fbfcfd; }
+    [hidden] { display: none !important; }
+    .table-wrap { overflow-x: auto; }
+    .pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .pager span { color: #475467; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .pager button { min-height: 30px; padding: 0 9px; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #e4e7ec; padding: 6px 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    .positive { color: #15803d; }
+    .negative { color: #b42318; }
+    .status-candidate { color: #b45309; }
+    .status-watching { color: #475467; }
+    .status-healthy { color: #2563eb; }
+    .status-liquidatable { color: #b42318; }
+    .hf-green { color: #15803d; }
+    .hf-beige { color: #8a6d3b; }
+    .hf-yellow { color: #b7791f; }
+    .hf-orange { color: #c2410c; }
+    .hf-red { color: #b42318; }
+    .compact { min-height: 28px; padding: 0 10px; font-size: 12px; line-height: 1; }
+    .account-modal { width: min(1320px, calc(100% - 28px)); height: min(880px, calc(100vh - 28px)); border: 1px solid #cfd6e2; border-radius: 8px; padding: 0; overflow: hidden; }
+    .account-modal::backdrop { background: rgba(15, 23, 42, .42); }
+    .modal-head { height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; border-bottom: 1px solid #d9dee7; background: #fff; }
+    .modal-head strong { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-frame { width: 100%; height: calc(100% - 46px); border: 0; background: #f6f7f9; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>债务池</h1>
+    <nav><a href="/liquidation">债务池</a><a href="/account-scan">账户扫描</a><a href="/market-observation">市场观察</a><a href="/dex-arbitrage">DEX 套利</a><a href="/execution">清算执行</a><a href="/audit">执行审计</a><a href="/config">系统配置</a></nav>
+    <div id="message"></div>
+  </header>
+  <main>
+    <section class="system-info-strip" aria-label="系统信息">
+      <div><small>系统信息</small><strong id="systemVersion">-</strong></div>
+      <span id="systemVersionMeta">等待中</span>
+    </section>
+    <section id="daemonStatusPanel" class="card state-panel">
+      <div class="state-head">
+        <small>清算守护进程</small>
+        <strong id="daemonState">等待中</strong>
+      </div>
+      <div id="daemonStateReason" class="state-reason">正在读取守护进程状态</div>
+      <div class="state-meta">
+        <div><small>观察器</small><strong id="daemonObserverState">-</strong><span id="daemonObserverMeta">等待中</span></div>
+        <div><small>清算引擎</small><strong id="daemonEngineState">-</strong><span id="daemonEngineMeta">等待中</span></div>
+        <div><small>市场快照</small><strong id="daemonMarketState">-</strong><span id="daemonMarketMeta">等待中</span></div>
+        <div><small>账户扫描</small><strong id="daemonScanState">-</strong><span id="daemonScanMeta">等待中</span></div>
+      </div>
+    </section>
+    <div class="notice">账户池 · 动态借贷健康度 · 一年查漏补缺</div>
+    <div class="notice">账户池是长期账户名册，记录曾经发生过借贷或被人工加入观察的账户，不因当前没有借贷而删除。借贷风险池是实时状态池，每次启动和手动触发时会重新查询账户池，只保留当前 HF 低于监控阈值的借贷账户；各数据表按每页 20 条分页展示。</div>
+    <section id="accountScanStatusPanel" class="card state-panel" hidden>
+      <div class="state-head">
+        <small>账户扫描状态</small>
+        <strong id="accountScanState">等待中</strong>
+      </div>
+      <div id="accountScanReason" class="state-reason">正在读取账户扫描状态</div>
+      <div class="state-meta">
+        <div><small>账户池</small><strong id="accountScanPoolState">-</strong><span id="accountScanPoolMeta">等待中</span></div>
+        <div><small>发现扫描</small><strong id="accountScanDiscoveryState">-</strong><span id="accountScanDiscoveryMeta">等待中</span></div>
+        <div><small>一年查漏</small><strong id="accountScanBackfillState">-</strong><span id="accountScanBackfillMeta">等待中</span></div>
+        <div><small>后台任务</small><strong id="accountScanBackgroundState">-</strong><span id="accountScanBackgroundMeta">等待中</span></div>
+      </div>
+    </section>
+    <section class="grid">
+      <div class="card"><small>账户池账户</small><strong id="accountPoolCount">-</strong><span id="accountPoolMeta">等待中</span></div>
+      <div class="card"><small>风险池账户</small><strong id="borrowPoolCount">-</strong><span id="borrowPoolMeta">等待中</span></div>
+      <div class="card"><small>最弱 HF</small><strong id="borrowPoolWorstHF">-</strong><span id="borrowPoolWorstMeta">等待中</span></div>
+      <div class="card"><small>扫描状态</small><strong id="borrowPoolScanState">-</strong><span id="borrowPoolScanMeta">等待中</span></div>
+      <div class="card"><small>数据库状态</small><strong id="databaseState">-</strong><span id="databaseMeta">等待中</span></div>
+      <div class="card"><small>注册热度</small><strong id="accountTierCounts">-</strong><span id="accountTierMeta">等待中</span></div>
+      <div class="card"><small>核心机会库</small><strong id="corePoolCount">-</strong><span id="corePoolMeta">等待中</span></div>
+      <div class="card"><small>高频更新库</small><strong id="highFrequencyPoolCount">-</strong><span id="highFrequencyPoolMeta">等待中</span></div>
+      <div class="card"><small>最近扫描批次</small><strong id="latestBatchState">-</strong><span id="latestBatchMeta">等待中</span></div>
+    </section>
+    <section class="card">
+      <small>执行保护</small>
+      <div class="grid">
+        <div><small>级别</small><strong id="circuitBreakerLevel">-</strong><span id="circuitBreakerLevelMeta">等待中</span></div>
+        <div><small>暂停</small><strong id="circuitBreakerPaused">-</strong><span id="circuitBreakerPauseMeta">等待中</span></div>
+        <div><small>连续失败</small><strong id="circuitBreakerFailures">-</strong><span id="circuitBreakerFailureMeta">等待中</span></div>
+        <div><small>冷却</small><strong id="circuitBreakerCooldown">-</strong><span id="circuitBreakerUpdatedAt">等待中</span></div>
+      </div>
+      <div class="toolbar">
+        <button id="pauseGuardRefreshBtn">刷新保护</button>
+        <button id="pauseGuardClearBtn">清除保护</button>
+        <span id="pauseGuardMessage">等待中</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>账户</th><th>模式</th><th>状态</th><th>阶段</th><th>原因</th><th>时间</th></tr></thead>
+          <tbody id="circuitBreakerHistoryBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <small>账户池</small>
+      <div class="toolbar">
+        <button id="accountPoolRefreshBtn">刷新账户池</button>
+        <button id="accountPoolScanBtn" class="primary">继续扫描账户池</button>
+        <button id="accountPoolRestartBtn">从一年前重扫</button>
+        <button id="accountPoolGapFillBtn" class="primary">一年查漏补缺</button>
+        <button id="accountPoolGapStopBtn">停止查漏</button>
+        <span id="accountPoolWindow">等待中</span>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>链</th><th>市场</th><th>账户</th><th>来源</th><th>HF</th><th>池子</th><th>健康状态</th><th>账户详情</th></tr></thead><tbody id="accountPoolBody"></tbody></table>
+      </div>
+      <div id="accountPoolPager" class="pager"></div>
+    </section>
+    <section class="card">
+      <small>核心机会库</small>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>链</th><th>协议</th><th>账户</th><th>健康度</th><th>Priority</th><th>债务资产</th><th>抵押资产</th><th>覆盖债务</th><th>预估利润</th><th>清算价值</th><th>执行状态</th><th>最近结果</th><th>阻断原因</th><th>报价</th><th>静态调用</th><th>详情</th></tr></thead>
+          <tbody id="coreOpportunityBody"></tbody>
+        </table>
+      </div>
+      <div id="coreOpportunityPager" class="pager"></div>
+    </section>
+    <section class="card">
+      <small>静态模拟</small>
+      <div class="grid">
+        <div><small>通过</small><strong id="staticCallPassedCount">-</strong><span id="staticCallPassedMeta">等待中</span></div>
+        <div><small>失败</small><strong id="staticCallFailedCount">-</strong><span id="staticCallFailedMeta">等待中</span></div>
+        <div><small>主要原因</small><strong id="staticCallTopReason">-</strong><span id="staticCallTopReasonMeta">等待中</span></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>账户</th><th>状态</th><th>原因</th><th>时间</th></tr></thead>
+          <tbody id="staticCallBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <small>清算统计</small>
+      <div class="grid">
+        <div><small>最近清算次数</small><strong id="liquidationStatsDailyCount">-</strong><span id="liquidationStatsDailyMeta">最近尝试</span></div>
+        <div><small>成功率</small><strong id="liquidationStatsSuccessRate">-</strong><span id="liquidationStatsSuccessMeta">已确认结果</span></div>
+        <div><small>平均利润</small><strong id="liquidationStatsAvgProfit">-</strong><span id="liquidationStatsAvgProfitMeta">可用利润记录</span></div>
+        <div><small>主要失败原因</small><strong id="liquidationStatsTopFailure">-</strong><span id="liquidationStatsTopFailureMeta">失败样本</span></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>失败原因</th><th>样本数</th></tr></thead>
+          <tbody id="liquidationStatsFailureBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <small>高频更新库（1.0 &lt; HF &lt; 1.1，按 priority score 排序）</small>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>链</th><th>协议</th><th>账户</th><th>健康度</th><th>Priority</th><th>债务折算价值</th><th>候选数</th><th>更新时间</th><th>账户详情</th></tr></thead>
+          <tbody id="highFrequencyPoolBody"></tbody>
+        </table>
+      </div>
+      <div id="highFrequencyPoolPager" class="pager"></div>
+    </section>
+    <section class="card">
+      <small>借贷风险池（动态借贷健康度，HF &lt; 监控阈值）</small>
+      <div class="toolbar">
+        <input id="liquidationScanIntervalInput" type="number" min="30" step="30" style="width:130px" title="借贷风险池刷新间隔秒">
+        <input id="liquidationDiscoveryIntervalInput" type="number" min="30" step="300" style="width:140px" title="账户池扫描间隔秒">
+        <button id="liquidationSettingsSaveBtn">保存参数</button>
+        <button id="borrowPoolRefreshBtn">刷新风险池健康度</button>
+        <button id="borrowPoolScanBtn" class="primary">实时扫描借贷池</button>
+        <span id="borrowPoolHealthMeta">等待中</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>链</th><th>协议</th><th>账户</th><th>健康度</th><th>状态</th><th>抵押折算价值</th><th>债务折算价值</th><th>候选数</th><th>更新时间</th><th>账户详情</th></tr></thead>
+          <tbody id="borrowPoolBody"></tbody>
+        </table>
+      </div>
+      <div id="borrowPoolPager" class="pager"></div>
+    </section>
+    <section class="card">
+      <small>最近执行尝试</small>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>账户</th><th>模式</th><th>状态</th><th>执行阶段</th><th>阻断原因</th><th>错误</th><th>时间</th></tr></thead>
+          <tbody id="attemptBody"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <small>最近失败样本</small>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>账户</th><th>类型</th><th>阶段</th><th>交易</th><th>回执</th><th>可重试</th><th>原因</th><th>债务资产</th><th>抵押资产</th><th>时间</th></tr></thead>
+          <tbody id="failureSampleBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <dialog id="accountDetailDialog" class="account-modal">
+    <div class="modal-head">
+      <strong id="accountDetailTitle">账户详情</strong>
+      <button id="accountDetailCloseBtn" class="compact">关闭</button>
+    </div>
+    <iframe id="accountDetailFrame" class="modal-frame" title="账户清算详情"></iframe>
+  </dialog>
+    <script src="/static/liquidation_panel.js"></script>
+</body>
+</html>
+

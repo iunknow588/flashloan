@@ -6,11 +6,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import resolve_robinhood_testnet_normal_flash_probe
+from core.env_loader import load_chain_env_files
 
 
 REPO_ROOT = SRC_ROOT.parents[1]
@@ -37,12 +38,12 @@ def main() -> int:
     parser.add_argument(
         "--chain-json",
         type=Path,
-        default=REPO_ROOT / "contract" / "robinhood" / "testnet" / "chain.json",
+        default=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain.json",
     )
     parser.add_argument(
         "--contracts-json",
         type=Path,
-        default=REPO_ROOT / "contract" / "robinhood" / "testnet" / "contracts.json",
+        default=REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / "config" / "contracts.json",
     )
     parser.add_argument(
         "--output-dir",
@@ -50,6 +51,11 @@ def main() -> int:
         default=SRC_ROOT / "runtime" / "evidence" / "robinhood-testnet" / "normal_testnet_probe",
     )
     args = parser.parse_args()
+    load_chain_env_files(
+        __file__,
+        [REPO_ROOT / "contract" / "robinhood-testnet" / "DEX" / ".env"],
+        override=False,
+    )
 
     try:
         chain_metadata = _read_json(args.chain_json)

@@ -1,4 +1,4 @@
-"""Inject an Avalanche pool static table section into `数据.md`."""
+"""Inject an Avalanche pool static table section into `鏁版嵁.md`."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "数据.md"
-STATIC_DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "全局静态表.md"
-MULTI_DEX_DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "Avalanche多DEX扩展扫描.md"
-TABLE_PATH = REPO_ROOT / "flashloan" / "src_bot" / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
-MULTI_DEX_TABLE_PATH = REPO_ROOT / "flashloan" / "src_bot" / "runtime" / "cache" / "avalanche_multi_dex_v2_pool_discovery.json"
+DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "鏁版嵁.md"
+STATIC_DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "鍏ㄥ眬闈欐€佽〃.md"
+MULTI_DEX_DOC_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "Avalanche澶欴EX鎵╁睍鎵弿.md"
+TABLE_PATH = REPO_ROOT / "flashloan" / "app_runtime" / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
+MULTI_DEX_TABLE_PATH = REPO_ROOT / "flashloan" / "app_runtime" / "runtime" / "cache" / "avalanche_multi_dex_v2_pool_discovery.json"
 START_MARKER = "<!-- DEX_STATIC_TABLE_START -->"
 END_MARKER = "<!-- DEX_STATIC_TABLE_END -->"
 IMPROVABLE_MIN_TVL_USD = 1000.0
@@ -78,13 +78,13 @@ def _stable_token_set(tokens: list[str]) -> set[str]:
 def _observation_conclusion(path: str, edges: list[dict[str, Any]]) -> str:
     stable_tokens = _stable_token_set(_path_tokens(path))
     if len(stable_tokens) >= 2:
-        return "包含稳定币桥接，只观察；可扩展为 USDC 起止路径后复核"
+        return "鍖呭惈绋冲畾甯佹ˉ鎺ワ紝鍙瀵燂紱鍙墿灞曚负 USDC 璧锋璺緞鍚庡鏍?
     if stable_tokens and "USDC" not in stable_tokens:
         bridge = sorted(stable_tokens)[0]
-        return f"稳定币 {bridge} 起止闭环；可先做 USDC->{bridge}、末尾 {bridge}->USDC 桥接后复核"
+        return f"绋冲畾甯?{bridge} 璧锋闂幆锛涘彲鍏堝仛 USDC->{bridge}銆佹湯灏?{bridge}->USDC 妗ユ帴鍚庡鏍?
     if all(edge.get("status") == "recommended" for edge in edges):
-        return "全推荐池，但不属于当前 USDC 非稳定币高质量闭环口径"
-    return "包含可改善池，只观察，不自动执行"
+        return "鍏ㄦ帹鑽愭睜锛屼絾涓嶅睘浜庡綋鍓?USDC 闈炵ǔ瀹氬竵楂樿川閲忛棴鐜彛寰?
+    return "鍖呭惈鍙敼鍠勬睜锛屽彧瑙傚療锛屼笉鑷姩鎵ц"
 
 
 def _quality_rows(pair: dict[str, Any]) -> list[dict[str, Any]]:
@@ -107,17 +107,17 @@ def _preferred_rows(pair: dict[str, Any]) -> list[dict[str, Any]]:
 def _render_pair_summary(table: dict[str, Any]) -> str:
     lines = [
         START_MARKER,
-        "## 全局静态表（UI 触发查找表）",
+        "## 鍏ㄥ眬闈欐€佽〃锛圲I 瑙﹀彂鏌ユ壘琛級",
         "",
-        f"- 数据源：`{TABLE_PATH.relative_to(REPO_ROOT)}`",
-        f"- 网络：`{table.get('network') or 'avalanche'}` / chainId `{table.get('chainId') or table.get('chain_id') or 43114}`",
-        f"- 生成时间：`{table.get('generatedAt') or '-'}`",
-        f"- 发现池：`{table.get('summary', {}).get('staticPoolCount', '-')}`，交易对：`{table.get('summary', {}).get('staticPairCount', '-')}`，高质量池：`{table.get('summary', {}).get('strictQualityPoolCount', '-')}`，静态候选位：`{table.get('summary', {}).get('preferredPoolCount', '-')}`",
-        "- 规则：静态表保留全量池；UI 触发时先取静态候选位，再看质量结论和实时 Quoter 报价。若高质量池不足，候选位仅用于补位，不代表推荐执行。",
+        f"- 鏁版嵁婧愶細`{TABLE_PATH.relative_to(REPO_ROOT)}`",
+        f"- 缃戠粶锛歚{table.get('network') or 'avalanche'}` / chainId `{table.get('chainId') or table.get('chain_id') or 43114}`",
+        f"- 鐢熸垚鏃堕棿锛歚{table.get('generatedAt') or '-'}`",
+        f"- 鍙戠幇姹狅細`{table.get('summary', {}).get('staticPoolCount', '-')}`锛屼氦鏄撳锛歚{table.get('summary', {}).get('staticPairCount', '-')}`锛岄珮璐ㄩ噺姹狅細`{table.get('summary', {}).get('strictQualityPoolCount', '-')}`锛岄潤鎬佸€欓€変綅锛歚{table.get('summary', {}).get('preferredPoolCount', '-')}`",
+        "- 瑙勫垯锛氶潤鎬佽〃淇濈暀鍏ㄩ噺姹狅紱UI 瑙﹀彂鏃跺厛鍙栭潤鎬佸€欓€変綅锛屽啀鐪嬭川閲忕粨璁哄拰瀹炴椂 Quoter 鎶ヤ环銆傝嫢楂樿川閲忔睜涓嶈冻锛屽€欓€変綅浠呯敤浜庤ˉ浣嶏紝涓嶄唬琛ㄦ帹鑽愭墽琛屻€?,
         "",
-        "### 交易对目录",
+        "### 浜ゆ槗瀵圭洰褰?,
         "",
-        "| 交易对 | 全量池 | 高质量 | 静态候选位 | 候选地址 | 说明 |",
+        "| 浜ゆ槗瀵?| 鍏ㄩ噺姹?| 楂樿川閲?| 闈欐€佸€欓€変綅 | 鍊欓€夊湴鍧€ | 璇存槑 |",
         "| --- | ---: | ---: | --- | --- |",
     ]
     for pair in table.get("pairs") or []:
@@ -129,12 +129,12 @@ def _render_pair_summary(table: dict[str, Any]) -> str:
         quality_text = "<br>".join(
             f"`{_short_address(row.get('pool'))}` fee `{row.get('fee')}` TVL `{_fmt_num((row.get('balances') or {}).get('tvlUsd'), 2)}`"
             for row in quality_rows
-        ) or "无"
+        ) or "鏃?
         preferred_text = "<br>".join(
             f"`{_short_address(row.get('pool'))}` fee `{row.get('fee')}` TVL `{_fmt_num((row.get('balances') or {}).get('tvlUsd'), 2)}`"
             for row in preferred_rows
-        ) or "无"
-        note = "高质量池" if quality_rows else "无高质量池，候选位仅作补位"
+        ) or "鏃?
+        note = "楂樿川閲忔睜" if quality_rows else "鏃犻珮璐ㄩ噺姹狅紝鍊欓€変綅浠呬綔琛ヤ綅"
         lines.append(
             "| "
             + " | ".join(
@@ -155,9 +155,9 @@ def _render_pair_summary(table: dict[str, Any]) -> str:
 def _render_pool_index(table: dict[str, Any]) -> str:
     lines = [
         "",
-        "### 全量池索引",
+        "### 鍏ㄩ噺姹犵储寮?,
         "",
-        "| 交易对 | 池子地址 | fee | 质量 | TVL USD | token0/token1 | 0→1 输出价值保留率 | 1→0 输出价值保留率 |",
+        "| 浜ゆ槗瀵?| 姹犲瓙鍦板潃 | fee | 璐ㄩ噺 | TVL USD | token0/token1 | 0鈫? 杈撳嚭浠峰€间繚鐣欑巼 | 1鈫? 杈撳嚭浠峰€间繚鐣欑巼 |",
         "| --- | --- | ---: | --- | ---: | --- | --- | --- |",
     ]
     for pair in table.get("pairs") or []:
@@ -242,14 +242,14 @@ def _display_status(row: dict[str, Any]) -> str:
 
 def _status_html(status: str) -> str:
     if status == "recommended":
-        return '<span style="color:#15803d;font-weight:700">推荐</span>'
+        return '<span style="color:#15803d;font-weight:700">鎺ㄨ崘</span>'
     if status == "improvable":
-        return '<span style="color:#b7791f;font-weight:700">可改善</span>'
-    return '<span style="color:#667085;font-weight:700">拒绝</span>'
+        return '<span style="color:#b7791f;font-weight:700">鍙敼鍠?/span>'
+    return '<span style="color:#667085;font-weight:700">鎷掔粷</span>'
 
 
 def _status_text(status: str) -> str:
-    return {"recommended": "推荐", "improvable": "可改善", "rejected": "拒绝"}.get(status, "拒绝")
+    return {"recommended": "鎺ㄨ崘", "improvable": "鍙敼鍠?, "rejected": "鎷掔粷"}.get(status, "鎷掔粷")
 
 
 def _pool_html(row: dict[str, Any], status: str | None = None) -> str:
@@ -345,10 +345,10 @@ def _triangle_rows(best_edges: dict[tuple[str, str], dict[str, Any]]) -> list[di
                 "path": f"{a} -> {b} -> {c} -> {a}",
                 "edges": edges,
                 "min_tvl": min(float(edge["tvl"]) for edge in edges),
-                "status": "推荐闭环" if all(edge["status"] == "recommended" for edge in edges) else "观察闭环",
+                "status": "鎺ㄨ崘闂幆" if all(edge["status"] == "recommended" for edge in edges) else "瑙傚療闂幆",
             }
         )
-    triangles.sort(key=lambda item: (0 if item["status"] == "推荐闭环" else 1, -float(item["min_tvl"])))
+    triangles.sort(key=lambda item: (0 if item["status"] == "鎺ㄨ崘闂幆" else 1, -float(item["min_tvl"])))
     return triangles
 
 
@@ -373,13 +373,13 @@ def _render_static_path_analysis(table: dict[str, Any]) -> list[str]:
     observable_triangles = _triangle_rows(_best_edges_by_pair(observable_edges))
     same_pair_candidates = _same_pair_rows(observable_edges)
     lines = [
-        "## 静态套利路径分析",
+        "## 闈欐€佸鍒╄矾寰勫垎鏋?,
         "",
-        f"- 仅推荐池：边 `{len(recommended_edges)}` 条；三角闭环 `{len(recommended_triangles)}` 条。",
-        f"- 推荐 + 可改善池：边 `{len(observable_edges)}` 条；三角观察闭环 `{len(observable_triangles)}` 条；同交易对跨池观察 `{len(same_pair_candidates)}` 组。",
-        "- 结论：当前绿色推荐池不能独立形成闭环；黄色池只能进入观察和复核，不应直接自动执行。",
+        f"- 浠呮帹鑽愭睜锛氳竟 `{len(recommended_edges)}` 鏉★紱涓夎闂幆 `{len(recommended_triangles)}` 鏉°€?,
+        f"- 鎺ㄨ崘 + 鍙敼鍠勬睜锛氳竟 `{len(observable_edges)}` 鏉★紱涓夎瑙傚療闂幆 `{len(observable_triangles)}` 鏉★紱鍚屼氦鏄撳璺ㄦ睜瑙傚療 `{len(same_pair_candidates)}` 缁勩€?,
+        "- 缁撹锛氬綋鍓嶇豢鑹叉帹鑽愭睜涓嶈兘鐙珛褰㈡垚闂幆锛涢粍鑹叉睜鍙兘杩涘叆瑙傚療鍜屽鏍革紝涓嶅簲鐩存帴鑷姩鎵ц銆?,
         "",
-        "### 潜在三角观察路径",
+        "### 娼滃湪涓夎瑙傚療璺緞",
         "",
     ]
     if observable_triangles:
@@ -387,7 +387,7 @@ def _render_static_path_analysis(table: dict[str, Any]) -> list[str]:
             [
                 "<table>",
                 "<thead>",
-                "<tr><th>路径</th><th>边 1</th><th>边 2</th><th>边 3</th><th>最低 TVL USD</th><th>结论</th></tr>",
+                "<tr><th>璺緞</th><th>杈?1</th><th>杈?2</th><th>杈?3</th><th>鏈€浣?TVL USD</th><th>缁撹</th></tr>",
                 "</thead>",
                 "<tbody>",
             ]
@@ -407,15 +407,15 @@ def _render_static_path_analysis(table: dict[str, Any]) -> list[str]:
             )
         lines.extend(["</tbody>", "</table>", ""])
     else:
-        lines.extend(["无。", ""])
+        lines.extend(["鏃犮€?, ""])
 
-    lines.extend(["### 同交易对跨池观察", ""])
+    lines.extend(["### 鍚屼氦鏄撳璺ㄦ睜瑙傚療", ""])
     if same_pair_candidates:
         lines.extend(
             [
                 "<table>",
                 "<thead>",
-                "<tr><th>交易对</th><th>候选池数量</th><th>候选池</th><th>最低 TVL USD</th><th>结论</th></tr>",
+                "<tr><th>浜ゆ槗瀵?/th><th>鍊欓€夋睜鏁伴噺</th><th>鍊欓€夋睜</th><th>鏈€浣?TVL USD</th><th>缁撹</th></tr>",
                 "</thead>",
                 "<tbody>",
             ]
@@ -428,12 +428,12 @@ def _render_static_path_analysis(table: dict[str, Any]) -> list[str]:
                 f"<td>{len(item['edges'])}</td>"
                 f"<td>{pool_text}</td>"
                 f"<td>{_safe_html(_fmt_num(item['min_tvl'], 2))}</td>"
-                "<td>可做跨池价差观察；触发后必须 Quoter 精确复核</td>"
+                "<td>鍙仛璺ㄦ睜浠峰樊瑙傚療锛涜Е鍙戝悗蹇呴』 Quoter 绮剧‘澶嶆牳</td>"
                 "</tr>"
             )
         lines.extend(["</tbody>", "</table>", ""])
     else:
-        lines.extend(["无。", ""])
+        lines.extend(["鏃犮€?, ""])
     return lines
 
 
@@ -441,23 +441,23 @@ def _multi_dex_summary_lines() -> list[str]:
     payload = _safe_read_json(MULTI_DEX_TABLE_PATH)
     if not payload:
         return [
-            "## 多 DEX 扩展扫描",
+            "## 澶?DEX 鎵╁睍鎵弿",
             "",
-            "- 尚未生成多 DEX 扩展扫描结果。",
+            "- 灏氭湭鐢熸垚澶?DEX 鎵╁睍鎵弿缁撴灉銆?,
             "",
         ]
     summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
     report_text = MULTI_DEX_DOC_PATH.read_text(encoding="utf-8") if MULTI_DEX_DOC_PATH.exists() else ""
     combined_recommended = "-"
     combined_observable = "-"
-    match = re.search(r"合并当前 V3 \+ V2 推荐池(?:三角|图结构)闭环：`([^`]+)`", report_text)
+    match = re.search(r"鍚堝苟褰撳墠 V3 \+ V2 鎺ㄨ崘姹??:涓夎|鍥剧粨鏋?闂幆锛歚([^`]+)`", report_text)
     if match:
         combined_recommended = match.group(1)
     effective_recommended = "1" if report_text else "-"
-    match = re.search(r"排除(?: USDt/USDT 等)?稳定币中间跳后的有效(?:推荐|高质量)闭环：`([^`]+)`", report_text)
+    match = re.search(r"鎺掗櫎(?: USDt/USDT 绛??绋冲畾甯佷腑闂磋烦鍚庣殑鏈夋晥(?:鎺ㄨ崘|楂樿川閲?闂幆锛歚([^`]+)`", report_text)
     if match:
         effective_recommended = match.group(1)
-    match = re.search(r"合并当前 V3 \+ V2 推荐 \+ 可改善三角观察闭环：`([^`]+)`", report_text)
+    match = re.search(r"鍚堝苟褰撳墠 V3 \+ V2 鎺ㄨ崘 \+ 鍙敼鍠勪笁瑙掕瀵熼棴鐜細`([^`]+)`", report_text)
     if match:
         combined_observable = match.group(1)
     paths = ["USDC -> WAVAX -> BTC.b -> USDC"] if report_text else []
@@ -472,33 +472,33 @@ def _multi_dex_summary_lines() -> list[str]:
     ]
     missing_edges.sort(key=lambda row: (str(row.get("symbolPair")), -float(row.get("tvlUsd") or 0)))
     lines = [
-        "## 多 DEX 扩展扫描",
+        "## 澶?DEX 鎵╁睍鎵弿",
         "",
-        f"- 扩展扫描文件：`{MULTI_DEX_DOC_PATH.name}`",
-        f"- 扩展缓存：`{MULTI_DEX_TABLE_PATH.relative_to(REPO_ROOT)}`",
-        f"- V2 扩展池：`{summary.get('poolCount', '-')}`；推荐：`{summary.get('recommendedPoolCount', '-')}`；可改善：`{summary.get('improvablePoolCount', '-')}`；拒绝：`{summary.get('rejectedPoolCount', '-')}`；错误：`{summary.get('errorCount', '-')}`",
-        "- 原 V3 纯绿色推荐池：`6`；推荐池三角闭环：`0`。也就是说，只看页面原来的 6 个绿色池，确实不能形成套利闭环。",
-        f"- 合并当前 V3 + V2 推荐池图结构闭环：`{combined_recommended}`；排除 USDt/USDT 等稳定币中间跳后的有效高质量闭环：`{effective_recommended}`；推荐 + 可改善观察闭环：`{combined_observable}`",
-        "- 有效高质量闭环口径：USDC 闪电贷起点 + 两个非稳定资产中间跳。包含第二个稳定币的路径，例如 `USDC -> USDt -> WAVAX -> USDC`，只可观察，不计入有效候选。",
+        f"- 鎵╁睍鎵弿鏂囦欢锛歚{MULTI_DEX_DOC_PATH.name}`",
+        f"- 鎵╁睍缂撳瓨锛歚{MULTI_DEX_TABLE_PATH.relative_to(REPO_ROOT)}`",
+        f"- V2 鎵╁睍姹狅細`{summary.get('poolCount', '-')}`锛涙帹鑽愶細`{summary.get('recommendedPoolCount', '-')}`锛涘彲鏀瑰杽锛歚{summary.get('improvablePoolCount', '-')}`锛涙嫆缁濓細`{summary.get('rejectedPoolCount', '-')}`锛涢敊璇細`{summary.get('errorCount', '-')}`",
+        "- 鍘?V3 绾豢鑹叉帹鑽愭睜锛歚6`锛涙帹鑽愭睜涓夎闂幆锛歚0`銆備篃灏辨槸璇达紝鍙湅椤甸潰鍘熸潵鐨?6 涓豢鑹叉睜锛岀‘瀹炰笉鑳藉舰鎴愬鍒╅棴鐜€?,
+        f"- 鍚堝苟褰撳墠 V3 + V2 鎺ㄨ崘姹犲浘缁撴瀯闂幆锛歚{combined_recommended}`锛涙帓闄?USDt/USDT 绛夌ǔ瀹氬竵涓棿璺冲悗鐨勬湁鏁堥珮璐ㄩ噺闂幆锛歚{effective_recommended}`锛涙帹鑽?+ 鍙敼鍠勮瀵熼棴鐜細`{combined_observable}`",
+        "- 鏈夋晥楂樿川閲忛棴鐜彛寰勶細USDC 闂數璐疯捣鐐?+ 涓や釜闈炵ǔ瀹氳祫浜т腑闂磋烦銆傚寘鍚浜屼釜绋冲畾甯佺殑璺緞锛屼緥濡?`USDC -> USDt -> WAVAX -> USDC`锛屽彧鍙瀵燂紝涓嶈鍏ユ湁鏁堝€欓€夈€?,
     ]
     if paths:
-        lines.append("- 当前进入精确复核的有效高质量路径：" + "；".join(f"`{path}`" for path in paths))
+        lines.append("- 褰撳墠杩涘叆绮剧‘澶嶆牳鐨勬湁鏁堥珮璐ㄩ噺璺緞锛? + "锛?.join(f"`{path}`" for path in paths))
     else:
-        lines.append("- 当前没有有效高质量路径进入精确复核。")
+        lines.append("- 褰撳墠娌℃湁鏈夋晥楂樿川閲忚矾寰勮繘鍏ョ簿纭鏍搞€?)
     if missing_edges:
         lines.extend(
             [
                 "",
                 "<table>",
                 "<thead>",
-                "<tr><th>补齐闭环的 V2 推荐池</th><th>DEX</th><th>池子</th><th>TVL USD</th><th>用途</th></tr>",
+                "<tr><th>琛ラ綈闂幆鐨?V2 鎺ㄨ崘姹?/th><th>DEX</th><th>姹犲瓙</th><th>TVL USD</th><th>鐢ㄩ€?/th></tr>",
                 "</thead>",
                 "<tbody>",
             ]
         )
         for row in missing_edges:
             purpose = (
-                "补齐 USDC -> WAVAX -> BTC.b -> USDC"
+                "琛ラ綈 USDC -> WAVAX -> BTC.b -> USDC"
                 if str(row.get("symbolPair")) == "BTC.b:WAVAX"
                 else "-"
             )
@@ -512,7 +512,7 @@ def _multi_dex_summary_lines() -> list[str]:
                 "</tr>"
             )
         lines.extend(["</tbody>", "</table>"])
-    lines.extend(["", "- 说明：扩展扫描只完成静态发现和本地储备估算，不代表已经确认盈利；稳定币中间跳闭环已排除，下一步只对唯一有效高质量路径做 Router/Quoter 精确复核。", ""])
+    lines.extend(["", "- 璇存槑锛氭墿灞曟壂鎻忓彧瀹屾垚闈欐€佸彂鐜板拰鏈湴鍌ㄥ浼扮畻锛屼笉浠ｈ〃宸茬粡纭鐩堝埄锛涚ǔ瀹氬竵涓棿璺抽棴鐜凡鎺掗櫎锛屼笅涓€姝ュ彧瀵瑰敮涓€鏈夋晥楂樿川閲忚矾寰勫仛 Router/Quoter 绮剧‘澶嶆牳銆?, ""])
     return lines
 
 
@@ -534,11 +534,11 @@ def _render_standalone_pair_table(pair: dict[str, Any]) -> list[str]:
     lines = [
         f"### {symbol_pair}",
         "",
-        f"- 全量池：`{len(all_rows)}`；高质量池：`{len(_quality_rows(pair))}`；静态候选位：`{len(_preferred_rows(pair))}`",
+        f"- 鍏ㄩ噺姹狅細`{len(all_rows)}`锛涢珮璐ㄩ噺姹狅細`{len(_quality_rows(pair))}`锛涢潤鎬佸€欓€変綅锛歚{len(_preferred_rows(pair))}`",
         "",
         "<table>",
         "<thead>",
-        "<tr><th>序号</th><th>池子地址</th><th>fee</th><th>质量</th><th>静态候选位</th><th>TVL USD</th><th>token0/token1</th><th>liquidity</th><th>tick</th><th>0→1 输出价值保留率</th><th>1→0 输出价值保留率</th></tr>",
+        "<tr><th>搴忓彿</th><th>姹犲瓙鍦板潃</th><th>fee</th><th>璐ㄩ噺</th><th>闈欐€佸€欓€変綅</th><th>TVL USD</th><th>token0/token1</th><th>liquidity</th><th>tick</th><th>0鈫? 杈撳嚭浠峰€间繚鐣欑巼</th><th>1鈫? 杈撳嚭浠峰€间繚鐣欑巼</th></tr>",
         "</thead>",
         "<tbody>",
     ]
@@ -549,7 +549,7 @@ def _render_standalone_pair_table(pair: dict[str, Any]) -> list[str]:
         q10 = quotes.get("token1ToToken0") if isinstance(quotes.get("token1ToToken0"), dict) else {}
         status = _display_status(row)
         quality = _status_html(status)
-        preferred = "是" if str(row.get("pool") or "").lower() in preferred_addresses else ""
+        preferred = "鏄? if str(row.get("pool") or "").lower() in preferred_addresses else ""
         token_pair = (
             f"{row.get('token0Symbol') or row.get('token0_symbol') or '-'} / "
             f"{row.get('token1Symbol') or row.get('token1_symbol') or '-'}"
@@ -575,21 +575,21 @@ def _render_standalone_pair_table(pair: dict[str, Any]) -> list[str]:
 def build_standalone_document(table: dict[str, Any]) -> str:
     summary = table.get("summary") if isinstance(table.get("summary"), dict) else {}
     lines = [
-        "# Avalanche 全局静态池子表",
+        "# Avalanche 鍏ㄥ眬闈欐€佹睜瀛愯〃",
         "",
-        f"- 数据源：`{TABLE_PATH.relative_to(REPO_ROOT)}`",
-        f"- 网络：`{table.get('network') or 'avalanche'}` / chainId `{table.get('chainId') or table.get('chain_id') or 43114}`",
-        f"- 生成时间：`{table.get('generatedAt') or '-'}`",
-        f"- 全量池：`{summary.get('staticPoolCount', '-')}`；交易对：`{summary.get('staticPairCount', '-')}`；高质量池：`{summary.get('strictQualityPoolCount', '-')}`；静态候选位：`{summary.get('preferredPoolCount', '-')}`",
-        "- 说明：本文件保留静态缓存中的全部池子，每个交易对单独一张表。",
-        "- `质量`：绿色`推荐`表示通过静态质量检查；黄色`可改善`表示当前未达标但仍有可用报价和基础深度；灰色`拒绝`表示当前不适合进入有效候选。底层诊断字段仍保存在 JSON 中，但不在此表重复展示。",
-        "- `静态候选位`：表示该池被排入该交易对的候选槽，仅用于触发信号时快速查找，不代表推荐执行或当前盈利。",
-        "- `输出价值保留率`：以约 `1,000 USD` 探针调用 Quoter，计算 `输出价值 ÷ 输入价值 × 100%`。`100%` 表示价值基本完整保留，`0%` 表示几乎没有有效输出；超过 `100%` 只表示按参考价格折算后输出价值更高，不等于最终套利利润。",
-        f"- `可改善`判定：TVL ≥ `{IMPROVABLE_MIN_TVL_USD:,.0f} USD`、双向报价均可用，且至少一个方向输出价值保留率 ≥ `{IMPROVABLE_MIN_RETENTION_PCT:.0f}%`。",
+        f"- 鏁版嵁婧愶細`{TABLE_PATH.relative_to(REPO_ROOT)}`",
+        f"- 缃戠粶锛歚{table.get('network') or 'avalanche'}` / chainId `{table.get('chainId') or table.get('chain_id') or 43114}`",
+        f"- 鐢熸垚鏃堕棿锛歚{table.get('generatedAt') or '-'}`",
+        f"- 鍏ㄩ噺姹狅細`{summary.get('staticPoolCount', '-')}`锛涗氦鏄撳锛歚{summary.get('staticPairCount', '-')}`锛涢珮璐ㄩ噺姹狅細`{summary.get('strictQualityPoolCount', '-')}`锛涢潤鎬佸€欓€変綅锛歚{summary.get('preferredPoolCount', '-')}`",
+        "- 璇存槑锛氭湰鏂囦欢淇濈暀闈欐€佺紦瀛樹腑鐨勫叏閮ㄦ睜瀛愶紝姣忎釜浜ゆ槗瀵瑰崟鐙竴寮犺〃銆?,
+        "- `璐ㄩ噺`锛氱豢鑹瞏鎺ㄨ崘`琛ㄧず閫氳繃闈欐€佽川閲忔鏌ワ紱榛勮壊`鍙敼鍠刞琛ㄧず褰撳墠鏈揪鏍囦絾浠嶆湁鍙敤鎶ヤ环鍜屽熀纭€娣卞害锛涚伆鑹瞏鎷掔粷`琛ㄧず褰撳墠涓嶉€傚悎杩涘叆鏈夋晥鍊欓€夈€傚簳灞傝瘖鏂瓧娈典粛淇濆瓨鍦?JSON 涓紝浣嗕笉鍦ㄦ琛ㄩ噸澶嶅睍绀恒€?,
+        "- `闈欐€佸€欓€変綅`锛氳〃绀鸿姹犺鎺掑叆璇ヤ氦鏄撳鐨勫€欓€夋Ы锛屼粎鐢ㄤ簬瑙﹀彂淇″彿鏃跺揩閫熸煡鎵撅紝涓嶄唬琛ㄦ帹鑽愭墽琛屾垨褰撳墠鐩堝埄銆?,
+        "- `杈撳嚭浠峰€间繚鐣欑巼`锛氫互绾?`1,000 USD` 鎺㈤拡璋冪敤 Quoter锛岃绠?`杈撳嚭浠峰€?梅 杈撳叆浠峰€?脳 100%`銆俙100%` 琛ㄧず浠峰€煎熀鏈畬鏁翠繚鐣欙紝`0%` 琛ㄧず鍑犱箮娌℃湁鏈夋晥杈撳嚭锛涜秴杩?`100%` 鍙〃绀烘寜鍙傝€冧环鏍兼姌绠楀悗杈撳嚭浠峰€兼洿楂橈紝涓嶇瓑浜庢渶缁堝鍒╁埄娑︺€?,
+        f"- `鍙敼鍠刞鍒ゅ畾锛歍VL 鈮?`{IMPROVABLE_MIN_TVL_USD:,.0f} USD`銆佸弻鍚戞姤浠峰潎鍙敤锛屼笖鑷冲皯涓€涓柟鍚戣緭鍑轰环鍊间繚鐣欑巼 鈮?`{IMPROVABLE_MIN_RETENTION_PCT:.0f}%`銆?,
         "",
         *_multi_dex_summary_lines(),
         *_render_static_path_analysis(table),
-        "## 交易对池子明细",
+        "## 浜ゆ槗瀵规睜瀛愭槑缁?,
         "",
     ]
     for pair in table.get("pairs") or []:
@@ -603,12 +603,12 @@ def build_section(table: dict[str, Any]) -> str:
     return "\n".join(
         [
             START_MARKER,
-            "## 全局静态表",
+            "## 鍏ㄥ眬闈欐€佽〃",
             "",
-            "- 静态池子已拆分为独立文件：`全局静态表.md`",
-            f"- 网络：`{table.get('network') or 'avalanche'}` / chainId `{table.get('chainId') or table.get('chain_id') or 43114}`",
-            f"- 全量池：`{summary.get('staticPoolCount', '-')}`；交易对：`{summary.get('staticPairCount', '-')}`；高质量池：`{summary.get('strictQualityPoolCount', '-')}`；静态候选位：`{summary.get('preferredPoolCount', '-')}`",
-            "- 规则：独立文件保留全部池子，并按交易对分表；UI 触发时再根据实时输入、质量结论和 Quoter 报价进行二次选择。",
+            "- 闈欐€佹睜瀛愬凡鎷嗗垎涓虹嫭绔嬫枃浠讹細`鍏ㄥ眬闈欐€佽〃.md`",
+            f"- 缃戠粶锛歚{table.get('network') or 'avalanche'}` / chainId `{table.get('chainId') or table.get('chain_id') or 43114}`",
+            f"- 鍏ㄩ噺姹狅細`{summary.get('staticPoolCount', '-')}`锛涗氦鏄撳锛歚{summary.get('staticPairCount', '-')}`锛涢珮璐ㄩ噺姹狅細`{summary.get('strictQualityPoolCount', '-')}`锛涢潤鎬佸€欓€変綅锛歚{summary.get('preferredPoolCount', '-')}`",
+            "- 瑙勫垯锛氱嫭绔嬫枃浠朵繚鐣欏叏閮ㄦ睜瀛愶紝骞舵寜浜ゆ槗瀵瑰垎琛紱UI 瑙﹀彂鏃跺啀鏍规嵁瀹炴椂杈撳叆銆佽川閲忕粨璁哄拰 Quoter 鎶ヤ环杩涜浜屾閫夋嫨銆?,
             *_multi_dex_summary_lines(),
             END_MARKER,
         ]
@@ -623,10 +623,10 @@ def update_doc() -> Path:
     if pattern.search(doc):
         updated = pattern.sub(lambda _match: section + "\n", doc, count=1)
     else:
-        anchor = "## 总览"
+        anchor = "## 鎬昏"
         index = doc.find(anchor)
         if index < 0:
-            raise RuntimeError("cannot find insertion anchor ## 总览 in 数据.md")
+            raise RuntimeError("cannot find insertion anchor ## 鎬昏 in 鏁版嵁.md")
         updated = doc[:index] + section + "\n\n" + doc[index:]
     DOC_PATH.write_text(updated, encoding="utf-8")
     STATIC_DOC_PATH.write_text(build_standalone_document(table), encoding="utf-8")

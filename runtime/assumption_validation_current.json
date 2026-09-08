@@ -33,9 +33,9 @@
     "is_default": true
   },
   "inputs": {
-    "liquidation_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\logs\\liquidation_events.jsonl",
-    "cow_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\logs\\cow_execution_attempts.jsonl",
-    "scan_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\logs\\liquidation_health_scans.jsonl"
+    "liquidation_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\runtime\\logs\\liquidation_events.jsonl",
+    "cow_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\runtime\\logs\\cow_execution_attempts.jsonl",
+    "scan_path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\runtime\\logs\\liquidation_health_scans.jsonl"
   },
   "liquidation_profit": {
     "status": "no_data",

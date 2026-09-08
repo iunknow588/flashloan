@@ -10,56 +10,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-try:
-    from core.capabilities import (
-        Capability,
-        CapabilityDecision,
-        CapabilityKey,
-        CapabilityRegistry,
-        CapabilityState,
-    )
-    from core.contracts import (
-        DATA_SOURCES,
-        EvidenceEnvelope,
-        ExecutionGate,
-        ExecutionIntent,
-        GateDecision,
-        MarketScope,
-        validate_scoped_payload,
-        normalize_data_source,
-        source_metadata,
-    )
-    from core.errors import (
-        ERROR_CODES,
-        RETRY_POLICIES,
-        error_payload,
-        normalize_error_code,
-    )
-except ImportError:  # pragma: no cover - fallback when running against src_bot core
-    from src_bot.core.capabilities import (
-        Capability,
-        CapabilityDecision,
-        CapabilityKey,
-        CapabilityRegistry,
-        CapabilityState,
-    )
-    from src_bot.core.contracts import (
-        DATA_SOURCES,
-        EvidenceEnvelope,
-        ExecutionGate,
-        ExecutionIntent,
-        GateDecision,
-        MarketScope,
-        validate_scoped_payload,
-        normalize_data_source,
-        source_metadata,
-    )
-    from src_bot.core.errors import (
-        ERROR_CODES,
-        RETRY_POLICIES,
-        error_payload,
-        normalize_error_code,
-    )
+from core.capabilities import (
+    Capability,
+    CapabilityDecision,
+    CapabilityKey,
+    CapabilityRegistry,
+    CapabilityState,
+)
+from core.contracts import (
+    DATA_SOURCES,
+    EvidenceEnvelope,
+    ExecutionGate,
+    ExecutionIntent,
+    GateDecision,
+    MarketScope,
+    validate_scoped_payload,
+    normalize_data_source,
+    source_metadata,
+)
+from core.errors import (
+    ERROR_CODES,
+    RETRY_POLICIES,
+    error_payload,
+    normalize_error_code,
+)
 
 
 __all__ = (

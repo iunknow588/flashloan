@@ -109,7 +109,7 @@ def _run_probe(args: argparse.Namespace) -> dict[str, Any]:
         "strategyMode": "cow_sdk_intent_order",
         "liveStatus": "legacy_probe_disabled",
         "error": (
-            "The contract-workspace CoW probe has been removed from src_bot. "
+            "The contract-workspace CoW probe has been removed from app_runtime. "
             f"Use the dex-arbitrage page/queue submission flow backed by {NODE_ADAPTER_ROOT}."
         ),
         "processExitCode": 2,

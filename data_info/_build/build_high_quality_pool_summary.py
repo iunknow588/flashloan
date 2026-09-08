@@ -9,9 +9,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-V3_TABLE_PATH = REPO_ROOT / "flashloan" / "src_bot" / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
-V2_TABLE_PATH = REPO_ROOT / "flashloan" / "src_bot" / "runtime" / "cache" / "avalanche_multi_dex_v2_pool_discovery.json"
-OUTPUT_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "高质量池子总结表.md"
+V3_TABLE_PATH = REPO_ROOT / "flashloan" / "app_runtime" / "runtime" / "cache" / "avalanche_l1_pool_static_table.json"
+V2_TABLE_PATH = REPO_ROOT / "flashloan" / "app_runtime" / "runtime" / "cache" / "avalanche_multi_dex_v2_pool_discovery.json"
+OUTPUT_PATH = REPO_ROOT / "data_info" / "AVALANCHE" / "楂樿川閲忔睜瀛愭€荤粨琛?md"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -126,28 +126,28 @@ def build_document() -> str:
     v3_count = sum(1 for row in rows if row.get("protocol") == "v3")
     v2_count = sum(1 for row in rows if row.get("protocol") == "v2")
     lines = [
-        "# Avalanche 高质量池子总结表",
+        "# Avalanche 楂樿川閲忔睜瀛愭€荤粨琛?,
         "",
-        "- 本表只包含绿色推荐/高质量池子。",
-        f"- 高质量池总数：`{len(rows)}`；V3：`{v3_count}`；V2 扩展：`{v2_count}`。",
-        "- 当前有效高质量闭环：`1` 条，且只有 `USDC->WAVAX->BTC.b->USDC`。",
-        "- 有效闭环口径：USDC 闪电贷起点 + 两个非稳定资产中间跳；`USDC->USDt->WAVAX->USDC` 这类包含第二个稳定币的路径已排除。",
-        "- 这里仍只是静态池图结构成立，需要 Router/Quoter 精确复核后才能判断是否盈利。",
+        "- 鏈〃鍙寘鍚豢鑹叉帹鑽?楂樿川閲忔睜瀛愩€?,
+        f"- 楂樿川閲忔睜鎬绘暟锛歚{len(rows)}`锛沄3锛歚{v3_count}`锛沄2 鎵╁睍锛歚{v2_count}`銆?,
+        "- 褰撳墠鏈夋晥楂樿川閲忛棴鐜細`1` 鏉★紝涓斿彧鏈?`USDC->WAVAX->BTC.b->USDC`銆?,
+        "- 鏈夋晥闂幆鍙ｅ緞锛歎SDC 闂數璐疯捣鐐?+ 涓や釜闈炵ǔ瀹氳祫浜т腑闂磋烦锛沗USDC->USDt->WAVAX->USDC` 杩欑被鍖呭惈绗簩涓ǔ瀹氬竵鐨勮矾寰勫凡鎺掗櫎銆?,
+        "- 杩欓噷浠嶅彧鏄潤鎬佹睜鍥剧粨鏋勬垚绔嬶紝闇€瑕?Router/Quoter 绮剧‘澶嶆牳鍚庢墠鑳藉垽鏂槸鍚︾泩鍒┿€?,
         "",
-        "## 唯一有效高质量闭环",
+        "## 鍞竴鏈夋晥楂樿川閲忛棴鐜?,
         "",
         "<table>",
-        "<thead><tr><th>闭环</th><th>边 1</th><th>边 2</th><th>边 3</th><th>状态</th></tr></thead>",
+        "<thead><tr><th>闂幆</th><th>杈?1</th><th>杈?2</th><th>杈?3</th><th>鐘舵€?/th></tr></thead>",
         "<tbody>",
-        "<tr><td>USDC->WAVAX->BTC.b->USDC</td><td>WAVAX:USDC / current_v3</td><td>BTC.b:WAVAX / trader_joe_v1</td><td>BTC.b:USDC / current_v3</td><td>待精确复核</td></tr>",
+        "<tr><td>USDC->WAVAX->BTC.b->USDC</td><td>WAVAX:USDC / current_v3</td><td>BTC.b:WAVAX / trader_joe_v1</td><td>BTC.b:USDC / current_v3</td><td>寰呯簿纭鏍?/td></tr>",
         "</tbody>",
         "</table>",
         "",
-        "## 高质量池子明细",
+        "## 楂樿川閲忔睜瀛愭槑缁?,
         "",
         "<table>",
         "<thead>",
-        "<tr><th>序号</th><th>交易对</th><th>DEX</th><th>协议</th><th>池子</th><th>fee</th><th>TVL USD</th><th>token0/token1</th><th>token0 USD</th><th>token1 USD</th><th>0→1 保留率</th><th>1→0 保留率</th><th>参与闭环</th></tr>",
+        "<tr><th>搴忓彿</th><th>浜ゆ槗瀵?/th><th>DEX</th><th>鍗忚</th><th>姹犲瓙</th><th>fee</th><th>TVL USD</th><th>token0/token1</th><th>token0 USD</th><th>token1 USD</th><th>0鈫? 淇濈暀鐜?/th><th>1鈫? 淇濈暀鐜?/th><th>鍙備笌闂幆</th></tr>",
         "</thead>",
         "<tbody>",
     ]

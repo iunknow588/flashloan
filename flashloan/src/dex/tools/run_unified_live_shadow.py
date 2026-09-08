@@ -15,7 +15,7 @@ from typing import Any
 SRC_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = SRC_ROOT.parents[1]
 DEFAULT_INPUT_PATH = SRC_ROOT / "runtime" / "state" / "unified_live_shadow_input.json"
-DEFAULT_EVIDENCE_ROOT = PROJECT_ROOT / "contract" / "contracts-dex" / "deployments" / "evidence"
+DEFAULT_EVIDENCE_ROOT = PROJECT_ROOT / "contract" / "avalanche" / "DEX" / "deployments" / "evidence"
 
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))

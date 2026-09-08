@@ -17,7 +17,7 @@ from core.db.storage_common import database_unavailable_reason, is_database_unav
 from core.db.storage_chain_markets import load_current_dex_arbitrage_candidates
 
 
-SRC_ROOT = Path(__file__).resolve().parents[2] / "src_bot"
+SRC_ROOT = Path(__file__).resolve().parents[2] / "app_runtime"
 ROBINHOOD_CANDIDATE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "robinhood_dex_candidates.json"
 ROBINHOOD_EVIDENCE_ROOT = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
 ROBINHOOD_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "market_snapshot" / "latest.json"
