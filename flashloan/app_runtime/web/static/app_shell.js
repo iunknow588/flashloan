@@ -125,7 +125,7 @@
     frame.id = FRAME_ID;
     frame.name = FRAME_ID;
     frame.className = "app-shell-content-frame";
-    frame.title = "FLASH LOAN content";
+    frame.title = "闪电贷内容";
     frame.setAttribute("data-app-shell-content-frame", "true");
     document.body.appendChild(frame);
     document.body.classList.add("app-shell-framed");

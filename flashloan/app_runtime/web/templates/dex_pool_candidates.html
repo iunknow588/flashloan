@@ -128,6 +128,12 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const uiError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
     const shortAddress = value => {
       const text = String(value || "").trim();
       return text.startsWith("0x") && text.length === 42 ? `${text.slice(0, 8)}...${text.slice(-6)}` : (text || "-");
@@ -193,7 +199,7 @@
     async function api(path) {
       const resp = await fetch(path, { headers: { "Accept": "application/json" }, cache: "no-cache" });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      if (!resp.ok) throw new Error(data.error || `请求失败（HTTP ${resp.status}）`);
       return data;
     }
 
@@ -352,9 +358,9 @@
       $("groupList").innerHTML = groups.map(group => {
         const shared = !!group.ycZcSameSet;
         const sections = shared
-          ? renderSection("YC/ZC Shared PoolKey Set", group.sharedTokens || [], group.sharedPools || [])
+          ? renderSection("YC/ZC 共享池密钥集合（Shared PoolKey Set）", group.sharedTokens || [], group.sharedPools || [])
           : `${renderSection("YC", groupTokens(group, "yc"), groupPools(group, "yc"))}${renderSection("ZC", groupTokens(group, "zc"), groupPools(group, "zc"))}`;
-        const sharedBadge = shared ? '<span class="badge neutral">YC/ZC shared</span>' : "";
+const sharedBadge = shared ? '<span class="badge neutral">YC/ZC 共享</span>' : "";
         return `
         <article class="group">
           <div class="group-head">
@@ -363,8 +369,8 @@
                 <h2 title="${esc(group.anchorSymbol)}">${esc(group.anchorSymbol)}</h2>
                 <span class="badge good">X</span>
                 ${sharedBadge}
-                <span class="badge neutral">YC ${esc(group.ycTokenCount || 0)} / ${esc(group.ycPoolCount || 0)}</span>
-                <span class="badge neutral">ZC ${esc(group.zcTokenCount || 0)} / ${esc(group.zcPoolCount || 0)}</span>
+<span class="badge neutral">YC 代币 ${esc(group.ycTokenCount || 0)} / 池 ${esc(group.ycPoolCount || 0)}</span>
+<span class="badge neutral">ZC 代币 ${esc(group.zcTokenCount || 0)} / 池 ${esc(group.zcPoolCount || 0)}</span>
                 <span class="badge warn">池 ${esc(group.candidatePoolCount || 0)}</span>
               </div>
               <div class="group-meta">锚点地址：${(group.anchorAddresses || []).map(addr => `<code>${esc(addr)}</code>`).join(" · ") || "-"}</div>
@@ -408,7 +414,7 @@
           $("message").textContent = `数据已读取：${cacheMode}`;
         }
       } catch (err) {
-        $("message").textContent = err.message;
+        $("message").textContent = uiError(err.message);
       } finally {
         if (!refreshInFlight) {
           $("refreshMeta").textContent = `最后更新 ${fmtTime(new Date().toISOString())}`;
@@ -425,7 +431,7 @@
         const refreshMessage = formatRefreshState(latestPayload.refresh_state, latestPayload);
         $("message").textContent = refreshMessage || (full ? "全量刷新完成" : "增量刷新完成");
       } catch (err) {
-        $("message").textContent = err.message;
+        $("message").textContent = uiError(err.message);
       } finally {
         setRefreshBusy(false);
       }

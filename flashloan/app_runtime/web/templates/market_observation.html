@@ -79,8 +79,8 @@
       <div class="metric"><small>闭环观察序列</small><strong id="sequenceCount">-</strong><span id="sequenceNames">-</span></div>
       <div class="metric"><small>资金锚点可接入交易对</small><strong id="associatedPairCount">-</strong><span id="associatedPairNames">-</span></div>
       <div class="metric"><small>关联观察池</small><strong id="observationPoolCount">-</strong><span id="observationTokenCount">-</span></div>
-      <div class="metric"><small>直接闭环</small><strong id="directCount">-</strong><span>锚点 token 直接回到自身</span></div>
-      <div class="metric"><small>桥接闭环</small><strong id="bridgeCount">-</strong><span>通过中间 token 回到锚点</span></div>
+      <div class="metric"><small>直接闭环</small><strong id="directCount">-</strong><span>锚点代币直接回到自身</span></div>
+      <div class="metric"><small>桥接闭环</small><strong id="bridgeCount">-</strong><span>通过中间代币回到锚点</span></div>
       <div class="metric"><small>未匹配池</small><strong id="unmatchedCount">-</strong><span>暂不能进入闭环观察</span></div>
     </section>
 
@@ -182,6 +182,13 @@
     const compactText = (value, max = 42) => {
       const text = String(value || "-").trim();
       return text.length > max ? `${text.slice(0, max)}...` : text;
+    };
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (text === "amount must be positive") return "金额必须大于 0";
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
     };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
@@ -439,11 +446,11 @@
         <div class="route-head">
           <div class="route-title">
             <strong>${esc(symbolPair)}</strong>
-            <div class="route-subtitle">${esc(shortAddress(row?.pool || "-"))} · ${esc(row?.observationReason || "associated observation pool")}</div>
+            <div class="route-subtitle">${esc(shortAddress(row?.pool || "-"))} · ${esc(row?.observationReason || "关联观察池")}</div>
           </div>
           <div class="chip-row">
             <span class="chip">${esc(row?.associatedFundSymbols?.length || 0)}<small>资金关联</small></span>
-            <span class="chip">${esc(row?.closedLoopReady ? "ready" : "observe")}<small>状态</small></span>
+            <span class="chip">${esc(row?.closedLoopReady ? "可形成闭环" : "仅观察")}<small>状态</small></span>
           </div>
         </div>
         <div class="route-pairs">
@@ -568,7 +575,7 @@
         $("associatedPairCount").textContent = data.summary?.fundAnchorPairObservationAssociatedPairCount ?? data.summary?.nonEthPairFirstAssociatedPairCount ?? effectiveAssociatedPairs.length ?? 0;
         $("associatedPairNames").textContent = effectiveAssociatedPairs.slice(0, 4).map(item => item?.symbolPair || "-").join(", ") || "-";
         $("observationPoolCount").textContent = data.summary?.fundAnchorPairObservationAssociatedObservationPoolCount ?? data.summary?.nonEthPairFirstAssociatedObservationPoolCount ?? associatedObservationPools.length ?? 0;
-        $("observationTokenCount").textContent = `关联 token ${data.summary?.fundAnchorPairObservationAssociatedObservationTokenCount ?? data.summary?.nonEthPairFirstAssociatedObservationTokenCount ?? associatedObservationTokens.length ?? 0}`;
+        $("observationTokenCount").textContent = `关联代币 ${data.summary?.fundAnchorPairObservationAssociatedObservationTokenCount ?? data.summary?.nonEthPairFirstAssociatedObservationTokenCount ?? associatedObservationTokens.length ?? 0}`;
         $("directCount").textContent = data.summary?.directClosedLoopCount ?? directClosedRoutes.length ?? 0;
         $("bridgeCount").textContent = data.summary?.indirectRouteCount ?? effectiveBridgeRoutes.length ?? 0;
         $("unmatchedCount").textContent = data.summary?.unmatchedPairCount ?? 0;
@@ -590,7 +597,7 @@
 
         $("message").textContent = "已更新";
       } catch (error) {
-        $("message").textContent = error.message || "加载失败";
+        $("message").textContent = zhError(error.message) || "加载失败";
       }
     }
 
@@ -605,7 +612,7 @@
         await refresh();
         $("message").textContent = `${data.refresh_state?.message || "增量刷新完成"} · ${data.marketObservationStaticTable?.path || "-"}`;
       } catch (error) {
-        $("message").textContent = error.message || "增量刷新失败";
+        $("message").textContent = zhError(error.message) || "增量刷新失败";
       }
     };
     $("fullRefreshBtn").onclick = async () => {
@@ -618,7 +625,7 @@
         await refresh();
         $("message").textContent = `${data.refresh_state?.message || "全量刷新完成"} · ${data.marketObservationStaticTable?.path || "-"}`;
       } catch (error) {
-        $("message").textContent = error.message || "全量刷新失败";
+        $("message").textContent = zhError(error.message) || "全量刷新失败";
       }
     };
     window.addEventListener("chainselectionchanged", event => {

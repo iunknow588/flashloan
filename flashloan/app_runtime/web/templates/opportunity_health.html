@@ -42,7 +42,7 @@
   </header>
   <main>
     <div class="notice">
-      本页用于机会观察启动后诊断市场窗口、阈值命中和候选选择状态。触发场景：主控台“候选机会”为 0、观察中数量异常、兑换矩阵为空，或需要复盘某个币种为什么未进入可执行候选。清算执行仍以 Aave 清算页的 HF、quote、static call、blocked reasons 和 operator net profit 为准。
+      本页用于机会观察启动后诊断市场窗口、阈值命中和候选选择状态。触发场景：主控台“候选机会”为 0、观察中数量异常、兑换矩阵为空，或需要复盘某个币种为什么未进入可执行候选。清算执行仍以 Aave 清算页的健康因子（HF）、报价（quote）、静态调用（static call）、阻断原因（blocked reasons）和操作者净收益（operator net profit）为准。
     </div>
     <section class="grid">
       <div class="card"><small>窗口</small><strong id="monitorWindow">-</strong><span id="monitorWindowMeta">等待中</span></div>
@@ -66,10 +66,18 @@
   <script>
     const $ = id => document.getElementById(id);
     const parseApiResponse = async (r, p) => { const ct=r.headers.get("content-type")||""; if(ct.includes("application/json"))return await r.json(); const text=await r.text(); const title=(text.match(/<title>(.*?)<\/title>/i)||[])[1]; throw new Error(`${p} 返回了非 JSON 响应：HTTP ${r.status}${title?` ${title}`:""}`); };
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (text === "amount must be positive") return "金额必须大于 0";
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
     const api = async p => { const r=await fetch(p,{headers:{"Content-Type":"application/json"}}); const d=await parseApiResponse(r,p); if(!r.ok) throw new Error(d.error||`HTTP ${r.status}`); return d; };
     const pct = v => Number.isFinite(v) ? `${v>=0?"+":""}${v.toFixed(5)}%` : "-";
     const cellCls = v => Number.isFinite(v) ? (v >= 0 ? "positive" : "negative") : "";
     const statusCls = v => ({selected:"status-selected",candidate:"status-candidate",healthy:"status-healthy"}[String(v||"").toLowerCase()]||"status-watching");
+    const statusText = v => ({selected:"已选中",candidate:"候选",healthy:"健康",watching:"观察中"}[String(v||"").toLowerCase()] || v || "-");
     const base = s => String(s||"-").replace(/(USDT|USDC)$/i,"")||"-";
     function renderHealth(data){
       const rows=data.rows||[], summary=data.summary||{}, total=Number.isFinite(summary.total)?summary.total:rows.length;
@@ -77,11 +85,11 @@
       $("monitorWindowMeta").textContent=Number.isFinite(summary.trigger_up_percent)&&Number.isFinite(summary.trigger_down_percent)?`阈值 ${summary.trigger_up_percent.toFixed(2)}% / ${summary.trigger_down_percent.toFixed(2)}%`:"等待中";
       $("opportunityCount").textContent=total; $("opportunityCountMeta").textContent=summary.best_symbol?`最佳 ${base(summary.best_symbol)}`:"等待中";
       $("opportunityCandidateCount").textContent=Number.isFinite(summary.candidate_count)?summary.candidate_count:"-"; $("opportunityCandidateMeta").textContent=Number.isFinite(summary.selected_count)?`已选 ${summary.selected_count}`:"等待中";
-      $("opportunityTopScore").textContent=Number.isFinite(summary.best_health_score)?Number(summary.best_health_score).toFixed(2):"-"; $("opportunityTopMeta").textContent=summary.best_symbol?`${base(summary.best_symbol)} | ${summary.best_status||"-"}`:"等待中";
+      $("opportunityTopScore").textContent=Number.isFinite(summary.best_health_score)?Number(summary.best_health_score).toFixed(2):"-"; $("opportunityTopMeta").textContent=summary.best_symbol?`${base(summary.best_symbol)} | ${statusText(summary.best_status)}`:"等待中";
       $("opportunityHealthMeta").textContent=`${total} 条机会 | ${summary.watched_count??0} 条观察中 | ${summary.healthy_count??0} 条健康`;
-      $("opportunityHealthBody").innerHTML=rows.map(row=>`<tr><td>${row.symbol||"-"}</td><td class="${cellCls(row.health_score)}">${Number.isFinite(row.health_score)?row.health_score.toFixed(2):"-"}</td><td class="${statusCls(row.status)}">${row.status||"-"}</td><td class="${cellCls(row.change_percent)}">${Number.isFinite(row.change_percent)?pct(row.change_percent):"-"}</td><td>${Number.isFinite(row.trigger_threshold_percent)?row.trigger_threshold_percent.toFixed(2)+"%":"-"}</td><td>${row.window_ready?"就绪":"监视中"}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="7">暂无机会健康度数据</td></tr>';
+      $("opportunityHealthBody").innerHTML=rows.map(row=>`<tr><td>${row.symbol||"-"}</td><td class="${cellCls(row.health_score)}">${Number.isFinite(row.health_score)?row.health_score.toFixed(2):"-"}</td><td class="${statusCls(row.status)}">${statusText(row.status)}</td><td class="${cellCls(row.change_percent)}">${Number.isFinite(row.change_percent)?pct(row.change_percent):"-"}</td><td>${Number.isFinite(row.trigger_threshold_percent)?row.trigger_threshold_percent.toFixed(2)+"%":"-"}</td><td>${row.window_ready?"就绪":"监视中"}</td><td>${row.price_source||"-"}</td></tr>`).join("") || '<tr><td colspan="7">暂无机会健康度数据</td></tr>';
     }
-    async function refresh(){ try{ renderHealth(await api("/api/opportunity-health")); }catch(e){ $("message").textContent=e.message; } }
+    async function refresh(){ try{ renderHealth(await api("/api/opportunity-health")); }catch(e){ $("message").textContent=zhError(e.message); } }
     $("refreshBtn").onclick=refresh; refresh(); setInterval(refresh,5000);
   </script>
 </body>

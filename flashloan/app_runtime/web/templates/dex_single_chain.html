@@ -82,6 +82,13 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (text === "amount must be positive") return "金额必须大于 0";
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
 
     function selectedParams() {
       const current = new URLSearchParams(location.search);
@@ -140,7 +147,7 @@
         if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
         render(payload);
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = zhError(error.message);
       }
     }
 

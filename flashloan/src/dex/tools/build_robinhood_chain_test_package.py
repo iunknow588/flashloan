@@ -91,7 +91,7 @@ def _attempt_is_live_ready(row: dict) -> bool:
 
 
 def _read_json(path: Path) -> dict:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(payload, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return payload

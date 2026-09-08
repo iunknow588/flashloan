@@ -73,6 +73,12 @@
   <script>
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const uiError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
     const fmt = value => value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "-";
     const probeCheck = (status, name) => (status.checks || []).find(item => item.name === name) || {};
     const reasonLabels = {
@@ -85,7 +91,14 @@
       robinhood_lending_protocol_unverified: "借贷协议未验证",
       robinhood_liquidation_adapter_not_started: "清算适配器未启动"
     };
-    const reasonText = value => (value || []).map(item => reasonLabels[item] || item).join("、");
+    const poolStatusText = value => ({
+      observable: "可观察",
+      verified: "已验证",
+      not_verified: "未验证",
+      error: "错误",
+      unknown: "未知",
+    }[String(value || "")] || value || "-");
+    const reasonText = value => (value || []).map(item => reasonLabels[item] || (/[\u4e00-\u9fff]/.test(String(item)) ? item : `原因：${item}`)).join("、");
     function applyLinks() {
       const current = new URLSearchParams(location.search);
       document.querySelectorAll("[data-surface-link]").forEach(link => {
@@ -124,7 +137,7 @@
           e.poolStateVerified ? "池状态" : ""
         ].filter(Boolean).join("、") || "未完成";
         const method = e.discoveryMethod === "factory_getPool_readonly" ? "Factory getPool 只读查询" : (e.discoveryMethod || "-");
-        return `<tr><td><code>${esc(pool.address)}</code></td><td>${esc(pair)}</td><td>${esc(fee)}</td><td>${esc(pool.tickSpacing)}</td><td>${esc(pool.liquidity)}</td><td>${esc(pool.observedBlock)}</td><td>${esc(evidenceText)}<br><span class="muted">${esc(method)}</span></td><td><span class="badge">${esc(pool.status === "observable" ? "可观察" : pool.status)}</span></td></tr>`;
+        return `<tr><td><code>${esc(pool.address)}</code></td><td>${esc(pair)}</td><td>${esc(fee)}</td><td>${esc(pool.tickSpacing)}</td><td>${esc(pool.liquidity)}</td><td>${esc(pool.observedBlock)}</td><td>${esc(evidenceText)}<br><span class="muted">${esc(method)}</span></td><td><span class="badge">${esc(poolStatusText(pool.status))}</span></td></tr>`;
       }).join("") : '<tr><td class="empty" colspan="8">暂无已发现并通过证据校验的池子。</td></tr>';
       $("updated").textContent = `刷新时间：${fmt(new Date().toISOString())}`;
     }
@@ -135,17 +148,17 @@
       const controller = refreshController;
       const timeout = window.setTimeout(() => controller.abort(), 30000);
       $("refresh").disabled = true;
-      $("updated").textContent = "正在读取 Robinhood 池数据...";
+      $("updated").textContent = "正在读取 Robinhood 池数据…";
       try {
         const current = new URLSearchParams(location.search);
         const query = new URLSearchParams({ market_id: current.get("market_id") || "dex-arbitrage-4663-uniswap-v3", chain_id: current.get("chain_id") || "4663" });
         const response = await fetch(`/api/robinhood-dex/pools?${query}`, { cache: "no-cache", signal: controller.signal });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
         render(data);
         applyLinks();
       } catch (error) {
-        $("updated").textContent = error.name === "AbortError" ? "读取超时，请稍后重试。" : `读取失败：${error.message}`;
+        $("updated").textContent = error.name === "AbortError" ? "读取超时，请稍后重试。" : `读取失败：${uiError(error.message)}`;
       } finally {
         window.clearTimeout(timeout);
         if (refreshController === controller) refreshController = null;

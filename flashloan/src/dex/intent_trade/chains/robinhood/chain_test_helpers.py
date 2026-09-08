@@ -229,7 +229,7 @@ def _as_list(value: object) -> list[Any]:
 
 def _read_json(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}

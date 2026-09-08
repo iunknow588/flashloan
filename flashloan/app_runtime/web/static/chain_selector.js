@@ -476,9 +476,9 @@
     const cowNetworkList = orderedCowNetworks(selected && selected.selected_cow_networks);
     const globalChainId = selected.global_chain_id || selected.chain_key || "";
     const routeText = [
-      selected.display_name || selected.market_id || "Current route",
-      globalChainId ? "Link " + globalChainId : "",
-      selected.observation_only ? "Observation only" : "Execution capable",
+      selected.display_name || selected.market_id || "当前路线",
+      globalChainId ? "链路 " + globalChainId : "",
+      selected.observation_only ? "仅观察" : "支持执行",
     ].filter(Boolean).join(" | ");
     if (routeMeta) {
       routeMeta.textContent = routeText;
@@ -486,8 +486,8 @@
     }
     if (optionsMeta) {
       const protocolText = cowNetworkList.length
-        ? "Networks " + cowNetworkList.join(", ")
-        : (selectedList.length ? "Protocols " + selectedList.join(", ") : (selected.protocol_summary || selected.protocol || "Protocols"));
+        ? "网络 " + cowNetworkList.join(", ")
+        : (selectedList.length ? "协议 " + selectedList.join(", ") : (selected.protocol_summary || selected.protocol || "协议"));
       optionsMeta.textContent = protocolText;
       optionsMeta.title = protocolText;
     }

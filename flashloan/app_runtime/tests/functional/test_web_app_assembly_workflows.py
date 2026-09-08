@@ -642,7 +642,7 @@ def test_dex_page_variant_is_driven_by_market_selection():
     assert "cowNetworkChecks" not in bnb_body
     assert "复制本组" in bnb_body
     assert "data-copy-route" in bnb_body
-    assert "initialProbe=" in bnb_body
+    assert "初始探测（initialProbe）=" in bnb_body
     assert "hop ${step.hop" in bnb_body
     assert "referenceNetReturnBps=" in bnb_body
     assert robinhood.status_code == 200

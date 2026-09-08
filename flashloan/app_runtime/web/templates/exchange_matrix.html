@@ -37,7 +37,7 @@
   </header>
   <main>
     <div class="notice">
-      本页用于观察器产生速度窗口后，复盘 top/bottom 候选之间的套利兑换路径。它不参与清算机器人提交判断；清算执行请以 Aave 清算页的 HF、quote、static call、blocked reasons 和 operator net profit 为准。
+      本页用于观察器产生速度窗口后，复盘涨幅/跌幅（top/bottom）候选之间的套利兑换路径。它不参与清算机器人提交判断；清算执行请以 Aave 清算页的健康因子（HF）、报价（quote）、静态调用（static call）、阻断原因（blocked reasons）和操作者净收益（operator net profit）为准。
     </div>
     <section class="card">
       <small>触发场景</small>
@@ -73,10 +73,17 @@
   </main>
   <script>
     const $ = id => document.getElementById(id);
-    const zhError = value => String(value || "请求失败")
-      .replace("initialize database and collect velocity windows first", "请先初始化数据库并采集速度窗口。")
-      .replace("no velocity timepoint found", "没有找到速度时间点。")
-      .replace("request failed", "请求失败");
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (text === "amount must be positive") return "金额必须大于 0";
+      const replaced = text
+        .replace("initialize database and collect velocity windows first", "请先初始化数据库并采集速度窗口。")
+        .replace("no velocity timepoint found", "没有找到速度时间点。")
+        .replace("request failed", "请求失败");
+      if (/[\u4e00-\u9fff]/.test(replaced)) return replaced;
+      return `接口错误（${replaced}）`;
+    };
     const parseApiResponse = async (r, p) => { const ct=r.headers.get("content-type")||""; if(ct.includes("application/json"))return await r.json(); const text=await r.text(); const title=(text.match(/<title>(.*?)<\/title>/i)||[])[1]; throw new Error(`${p} 返回了非 JSON 响应：HTTP ${r.status}${title?` ${title}`:""}`); };
     const api = async (p,o={}) => { const r=await fetch(p,{headers:{"Content-Type":"application/json"},...o}); const d=await parseApiResponse(r,p); if(!r.ok) throw new Error(zhError(d.error||`HTTP ${r.status}`)); return d; };
     let refreshingSummary=false, summaryPinned=false;
@@ -94,7 +101,7 @@
       const rows=d.rows||[];
       const note=d.summary_note?` | ${d.summary_note}`:"";
       const aaveCount=Number.isFinite(d.aave_row_count)?` | Aave可用组 ${d.aave_row_count}/${d.top?.length||0}*${d.bottom?.length||0}`:"";
-      $("summaryMeta").textContent=d.error||`时间 ${fmtTime(d.observed_at)} | 窗口 ${Number(d.window_seconds||0).toFixed(3)} 秒 | 样本 ${d.sample_count||0} | 行数 ${rows.length}/${d.expected_rows||100}${aaveCount}${note}`;
+      $("summaryMeta").textContent=zhError(d.error)||`时间 ${fmtTime(d.observed_at)} | 窗口 ${Number(d.window_seconds||0).toFixed(3)} 秒 | 样本 ${d.sample_count||0} | 行数 ${rows.length}/${d.expected_rows||100}${aaveCount}${note}`;
       renderChips("topChips","上涨前 5",d.top||[]);
       renderChips("bottomChips","下跌前 5",d.bottom||[]);
       $("summaryBody").innerHTML=rows.map(r=>`<tr><td>${r.pair||`${displayAssetSymbol(r.x_symbol)} / ${displayAssetSymbol(r.y_symbol)}`}</td><td>${r.path_no||"-"}</td><td>${r.start_token||"NULL"} ${Number.isFinite(r.start_amount)?r.start_amount.toFixed(2):"NULL"}</td><td>${r.first_hop||"NULL"}</td><td>${r.second_hop||"NULL"}</td><td>${r.third_hop||"NULL"}</td><td>${r.fourth_hop||"NULL"}</td><td class="${cellCls(r.profit_percent)}">${pct(r.profit_percent)}</td></tr>`).join("") || '<tr><td colspan="8">暂无汇总行。</td></tr>';
@@ -107,13 +114,13 @@
         $("timepointSelect").innerHTML=timepoints.map(x=>`<option value="${x.id}">${fmtTime(x.observed_at)} | ${x.sample_count}</option>`).join("");
         if(summaryPinned && current && [...$("timepointSelect").options].some(opt=>opt.value===current))$("timepointSelect").value=current;
         else if(timepoints.length){ $("timepointSelect").value=timepoints[0].id; summaryPinned=false; }
-      }catch(e){ $("message").textContent=e.message; }
+      }catch(e){ $("message").textContent=zhError(e.message); }
     }
     async function refreshSummary(){
       if(refreshingSummary)return;
       refreshingSummary=true;
       try{ const id=$("timepointSelect").value; renderSummary(await api(`/api/velocity-summary${id?`?id=${id}`:""}`)); }
-      catch(e){ renderSummary({error:e.message, rows:[], top:[], bottom:[]}); }
+      catch(e){ renderSummary({error:zhError(e.message), rows:[], top:[], bottom:[]}); }
       finally{ refreshingSummary=false; }
     }
     $("summaryRefreshBtn").onclick=()=>refreshTimepoints().then(refreshSummary);

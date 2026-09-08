@@ -1,5 +1,12 @@
     const $ = id => document.getElementById(id);
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (text === "amount must be positive") return "金额必须大于 0";
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
     let cowConfig = null;
     let currentMarketState = null;
     let latestCowQuotes = null;
@@ -50,7 +57,7 @@
         headers: {"Accept": "application/json", ...(options.headers || {})},
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     };
     const fmtTime = value => value ? new Date(value).toLocaleString([], {hour12: false}) : "-";
@@ -279,15 +286,15 @@
       const sdkStatus = historyCowSdkStatus(row);
       const reasons = (row?.blocked_reasons || row?.precheck?.reasons || []).map(cowErrorSummary).filter(Boolean);
       if (preflight.failureReason && preflight.failureReason !== "none") {
-        reasons.unshift(`route_preview:${preflight.failureReason} code=${preflight.failureCode || "-"}`);
+        reasons.unshift(`路线预检失败：${precheckStatusLabel(preflight.failureReason)}（code ${preflight.failureCode || "-"}）`);
       }
       if (executionError.failureReason) {
-        reasons.unshift(`execution:${executionError.source || "unknown"}:${executionError.failureReason} code=${executionError.failureCode || "-"}`);
+        reasons.unshift(`执行预检失败：${executionError.source ? precheckStatusLabel(executionError.source) : "未知"} / ${precheckStatusLabel(executionError.failureReason)}（code ${executionError.failureCode || "-"}）`);
       }
       const sdkReason = submission.error || submission.blocked_reason || sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "";
       if (sdkReason) reasons.unshift(cowErrorSummary(sdkReason));
-      if (sdkStatus && historyCowSdkSubmitted(row)) reasons.unshift(`sdk_status:${sdkStatus}`);
-      if (sdkStatus && historySdkWaiting(row)) reasons.unshift(`sdk_pending:${sdkStatus}`);
+      if (sdkStatus && historyCowSdkSubmitted(row)) reasons.unshift(`SDK 已提交：${precheckStatusLabel(sdkStatus)}`);
+      if (sdkStatus && historySdkWaiting(row)) reasons.unshift(`SDK 等待中：${precheckStatusLabel(sdkStatus)}`);
       return reasons.filter(reason => !nonFailureReason(reason)).join("; ") || cowErrorSummary(row?.error) || "-";
     };
     const historyQuoteDelta = row => row?.profit_prediction_disabled || row?.precheck?.profit_prediction_disabled ? "预测关闭，等待 SDK/链上回执" : "预测关闭";
@@ -326,9 +333,9 @@
     const historyAttemptState = row => {
       const sdkStatus = historyCowSdkStatus(row);
       const state = String(row?.state || "").trim().toLowerCase();
-       if (sdkStatus) return historyCowSdkSubmitted(row) ? `sdk:${sdkStatus}` : `waiting:${sdkStatus}`;
-      if (["quote_required", "quote_unavailable", "market_candidate", "submission_paused"].includes(state)) return `waiting:${state}`;
-      return state || "-";
+       if (sdkStatus) return historyCowSdkSubmitted(row) ? `SDK 状态：${precheckStatusLabel(sdkStatus)}` : `等待状态：${precheckStatusLabel(sdkStatus)}`;
+      if (["quote_required", "quote_unavailable", "market_candidate", "submission_paused"].includes(state)) return `等待状态：${precheckStatusLabel(state)}`;
+      return precheckStatusLabel(state) || "-";
     };
     const sdkSuccessStates = new Set(["submitted_success", "confirmed_success", "settled", "settlement_success", "executed", "execution_success", "success"]);
     const sdkFailureStates = new Set(["submission_failed", "submit_failed", "order_failed", "execution_failed", "settlement_failed", "confirmation_failed", "confirmed_failed", "failed", "error"]);
@@ -363,7 +370,7 @@
         `耗时：信号到报价 ${quoteTiming.signal_to_quote_start_ms ?? "-"}ms | 报价延迟 ${quoteTiming.quote_latency_ms ?? "-"}ms | 窗口年龄 ${quoteTiming.binance_window_age_at_quote_start_ms ?? "-"}ms`,
         `窗口结束 ${quoteTiming.binance_window_end_ms ?? windowTiming.x_end_ms ?? windowTiming.y_end_ms ?? signalTiming.binance_window_end_ms ?? "-"} | 信号时间 ${signalTiming.signal_detected_at || "-"}`,
         ...hopLines,
-        quote.error ? `错误：${quote.error}` : "",
+        quote.error ? `错误：${zhError(quote.error)}` : "",
       ].filter(Boolean).map(esc).join("<br>") || "-";
     };
     const slippageGuardText = step => {
@@ -387,7 +394,7 @@
         const guardInfo = step.query_guard_analysis || {};
         const position = step.query_price_position || step.query_rate_position || {};
         const queryValue = step.query_price_usd_per_token || step.query_exchange_rate || "-";
-        return `hop ${step.step || "-"} query ${queryValue} rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} guard ${guardInfo.status || "-"} | ${windowTimingText(step.query_window_timing)} | ${slippageGuardText(step)}`;
+        return `第 ${step.step || "-"} 跳 查询 ${queryValue} 排名 ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} 守卫 ${guardInfo.status || "-"} | ${windowTimingText(step.query_window_timing)} | ${slippageGuardText(step)}`;
       }).join(" | ") || "-";
       const fees = (costs.cow_fee_amounts || []).map(item =>
         `${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`
@@ -395,10 +402,10 @@
       return [
         `意图目标：${guard.min_final_amount || guard.auto_execute_min_profit_usd || "-"} ${displaySymbol(guard.final_symbol || row?.final_symbol || "USDC")}`,
         "上层预测：已关闭",
-        `SDK 状态：${historyCowSdkStatus(row) || "-"}`,
+        `SDK 状态：${historyCowSdkStatus(row) ? precheckStatusLabel(historyCowSdkStatus(row)) : "-"}`,
         `报价结果门禁：${guard.quote_result_gate_enforced ? "开启" : "关闭"} | 上层报价差额门禁：已关闭 | 仅意图模式`,
         `报价探针说明：${(guard.quote_probe_notes || guard.local_profit_diagnostic_reasons || []).join("；") || "-"}`,
-        `报价错误：${guard.quote_error_type || guard.quote_error_display || "-"}`,
+        `报价错误：${zhError(guard.quote_error_type || guard.quote_error_display || "-")}`,
         `原始查询位置：${queryLines}`,
         `阻断统计：${JSON.stringify(guard.blocking_cause_counts || {})}`,
         "报价差额抵消：已关闭",
@@ -418,8 +425,8 @@
       const sdkStatus = historyCowSdkStatus(row);
       const sdkReason = cowErrorSummary(sdk.submission_blocked_reason || sdk.blocked_reason || sdk.submission_error || sdk.error || "");
       if (sdkReason) return [sdkReason];
-      if (historyCowSdkSubmitted(row) && sdkStatus) return [`sdk_status:${sdkStatus}`];
-      if (historySdkWaiting(row) && sdkStatus) return [`sdk_pending:${sdkStatus}`];
+      if (historyCowSdkSubmitted(row) && sdkStatus) return [`SDK 状态：${precheckStatusLabel(sdkStatus)}`];
+      if (historySdkWaiting(row) && sdkStatus) return [`SDK 待返回：${precheckStatusLabel(sdkStatus)}`];
       const reasons = row?.blocked_reasons || row?.precheck?.reasons || [];
       if (Array.isArray(reasons) && reasons.length) {
         return reasons
@@ -521,7 +528,7 @@
       const guard = step.query_guard_analysis || {};
       const position = step.query_price_position || step.query_rate_position || {};
       const queryValue = step.query_price_usd_per_token || step.query_exchange_rate || "-";
-      return `query ${queryValue} | rank ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} | ${windowTimingText(step.query_window_timing)} | guard ${guard.status || "-"} | ${slippageGuardText(step)} | ${guard.reason || "-"}`;
+      return `查询 ${queryValue} | 排名 ${position.rank || "-"}/${position.total || "-"} ${position.position || "-"} | ${windowTimingText(step.query_window_timing)} | 守卫 ${guard.status || "-"} | ${slippageGuardText(step)} | ${guard.reason || "-"}`;
     };
     const queryAnalysisHtml = step => esc(queryAnalysisText(step));
     const selectionHtml = step => {
@@ -586,10 +593,10 @@
       if (submitted) return check.submission_order_id ? `已提交 ${shortAddress(check.submission_order_id)}` : "已提交";
       const submissionStatus = check.submission_status || sdk.submission_status || submission.status;
       if (submission?.preflight?.failureReason && submission.preflight.failureReason !== "none") {
-        return `预检失败 ${submission.preflight.failureReason}`;
+        return `预检失败 ${zhError(submission.preflight.failureReason)}`;
       }
       if (submission?.execution_error?.failureReason) {
-        return `执行预检失败 ${submission.execution_error.failureReason}`;
+        return `执行预检失败 ${zhError(submission.execution_error.failureReason)}`;
       }
       if (check.submission_attempted || sdk.submission_attempted || submissionStatus) {
         return precheckStatusLabel(submissionStatus || check.status);
@@ -600,7 +607,7 @@
       const check = quote?.execution_precheck;
       if (!check) return "下单条件：等待查询真实报价";
       const hops = (check.hop_checks || []).map(item => esc(precheckLine(item))).join("<br>") || "-";
-      const reasons = (check.reasons || []).map(item => esc(item)).join("<br>") || "-";
+      const reasons = (check.reasons || []).map(item => esc(/[\u4e00-\u9fff]/.test(String(item)) ? String(item) : `原因（${String(item)}）`)).join("<br>") || "-";
       const autoLine = `上层盈亏预测已关闭 | 逐跳约束已关闭 | ${check.can_submit_order ? "可提交" : precheckStatusLabel(check.status)}`;
       return `下单条件：${esc(precheckStatusLabel(check.status))}<br>${esc(autoLine)}<br>原始逐跳查询：<br>${hops}<br>原因/限制：<br>${reasons}`;
     };
@@ -634,7 +641,7 @@
     ].join("\n") : `计划不可用：${plan?.reason || "-"}`;
     const planStepLine = executionStepLine;
     const planFlow = plan => plan?.available ? (plan.steps || []).map(planStepLine).join("<br>") : `计划不可用：${esc(plan?.reason || "-")}`;
-    const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `hop ${item.hop || "-"} ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
+    const feeLines = costs => (costs?.cow_fee_amounts || []).map(item => `第 ${item.hop || "-"} 步 ${item.fee_amount || "-"} ${displaySymbol(item.sell_symbol || "")}`).join(" | ") || "-";
     const costDetail = (quote, plan) => {
       const costs = quote?.costs || {};
       return `<div>原生币余额：before ${esc(costs.native_balance_before ?? "未检查")} / after ${esc(costs.native_balance_after ?? "未检查")} (${esc(costs.native_balance_source || "quote_stage")})</div>
@@ -660,7 +667,7 @@
     </tr>`;
     const cowSupportedText = (title, rows) => [
       title,
-      ...((rows || []).map((row, index) => `${index + 1}. ${displaySymbol(row.symbol)} | ${plainPct(row.change_percent)} | ${plainNum(row.start_price)} -> ${plainNum(row.current_price)} | chains ${chainList(row)} | ${row.price_source || "-"}`)),
+      ...((rows || []).map((row, index) => `${index + 1}. ${displaySymbol(row.symbol)} | ${plainPct(row.change_percent)} | ${plainNum(row.start_price)} -> ${plainNum(row.current_price)} | 链 ${chainList(row)} | ${row.price_source || "-"}`)),
       ...(rows && rows.length ? [] : ["-"]),
     ].join("\n");
     const reasonCountsText = counts => Object.entries(counts || {}).map(([key, value]) => `${key}:${value}`).join(", ") || "-";

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "robinhood-paused-redeploy-plan-v1",
+  "runAt": "2026-09-08T12:06:14.038Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "chainId": 46630,
+  "broadcastAttempted": false,
+  "deployRequiresExplicitEnv": "ROBINHOOD_TESTNET_ALLOW_PAUSED_DEPLOY=true",
+  "explicitDeployAllowed": false,
+  "deployMilestone": "",
+  "requiredDeployMilestone": "paused_executor_v4_accounting_freeze",
+  "stageFreezeApproved": false,
+  "stageFreezeContext": {
+    "purpose": "Freeze the current paused executor ABI/runtime and evidence baseline before any intentional redeploy.",
+    "releaseCriteria": [
+      "no_additional_executor_abi_changes_planned_for_this_stage",
+      "paused_redeploy_plan_remains_technically_ready",
+      "readback_and_predeploy_evidence_remain_testnet_scoped"
+    ],
+    "manualApprovalRequired": true
+  },
+  "deploymentDeferred": true,
+  "preflight": {
+    "readyForPausedDeploy": true,
+    "blockingReasons": []
+  },
+  "deployedExecutor": {
+    "configured": true,
+    "address": "0x69d9e4ac531d48E388c54EA19B11AABeCE1d59bB",
+    "hasCode": true,
+    "paused": true,
+    "codeHash": "0x76462e1b798aa127d5a585681b871e0906f55ffd2a4efe7d80d0e3483e6faee4",
+    "localArtifactCodeHash": "0x76462e1b798aa127d5a585681b871e0906f55ffd2a4efe7d80d0e3483e6faee4",
+    "matchesLocalArtifact": true,
+    "redeployNeeded": false
+  },
+  "budget": {
+    "deployerConfigured": true,
+    "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "balanceWei": "129447896590000000",
+    "estimatedDeploymentGas": "5308225",
+    "configGasUnits": "700000",
+    "estimatedTotalGasUnits": "6008225",
+    "gasPriceWei": "20000000",
+    "safetyBps": "15000",
+    "estimatedBudgetWei": "180246750000000",
+    "balanceCoversEstimatedBudget": true,
+    "error": null
+  },
+  "redeployNeeded": false,
+  "technicalReadyForPausedRedeploy": false,
+  "readyForIntentionalPausedRedeploy": false,
+  "blockingReasons": [
+    "latest_executor_already_deployed"
+  ]
+}

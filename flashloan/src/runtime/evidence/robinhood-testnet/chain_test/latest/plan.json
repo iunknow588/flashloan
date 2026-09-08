@@ -1,0 +1,41 @@
+{
+  "chainId": 46630,
+  "chainKey": "chain:46630",
+  "chainTestScope": {
+    "canBroadcast": false,
+    "chainId": 46630,
+    "enabled": true,
+    "missingPlanPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+    "network": "robinhood-testnet"
+  },
+  "decision": {
+    "canBroadcast": false,
+    "canDeployTestnet": false,
+    "canRunForkPreflight": false,
+    "readyForTransactionPreflight": false,
+    "trustedForExecution": false
+  },
+  "evidence": {
+    "allHopsQuoted": false,
+    "meetsMinProfitThreshold": false,
+    "netPositiveAfterCosts": false,
+    "routeClosed": false,
+    "status": "chain_test_plan_missing",
+    "tokenContinuity": false
+  },
+  "network": "robinhood-testnet",
+  "preflightSpec": {
+    "broadcastEnabled": false,
+    "repaymentConstraint": {},
+    "routeHops": [],
+    "status": "chain_test_plan_missing"
+  },
+  "route": {
+    "closed": false,
+    "hopCount": 0,
+    "path": [],
+    "pathText": null,
+    "tokenContinuous": false
+  },
+  "schemaVersion": "robinhood-chain-test-plan-v1"
+}

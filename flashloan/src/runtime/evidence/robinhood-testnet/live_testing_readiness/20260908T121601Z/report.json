@@ -1,0 +1,93 @@
+{
+  "blockingReasons": [
+    "chain_test_readiness_not_ready_for_live_testing",
+    "normal_testnet_probe_not_ready",
+    "normal_testnet_probe_measurement_not_ready"
+  ],
+  "broadcastEnabled": true,
+  "chainId": 46630,
+  "chainKey": "chain:46630",
+  "chainTestReady": false,
+  "evidence": {
+    "candidatePoolSupply": null,
+    "chainTestPlan": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+    "chainTestPlanGeneratedAt": null,
+    "currentLiveProfitableRouteCount": 0,
+    "currentOpportunitySnapshotUpdatedAt": "2026-09-05T22:33:28.384938+00:00",
+    "lendingLiquidity": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "normalTestnetProbe": "contract/robinhood-testnet/DEX/deployments/evidence/20260907T204504739Z-35232_robinhoodTestnet-robinhood-v4-flash-normal-probe/report.json",
+    "pausedRedeployPlan": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
+    "predeployReadiness": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/predeploy_readiness/20260829T044537Z/report.json"
+  },
+  "gates": {
+    "broadcastEnabled": true,
+    "candidatePoolSupplyEvidenceUnset": true,
+    "chainBroadcastEnabled": false,
+    "chainTestPlanEvidenceScoped": true,
+    "chainTestReady": false,
+    "contractBroadcastEnabled": false,
+    "currentSnapshotHasNoLiveProfitableRoute": true,
+    "lendingLiquidityEvidenceScoped": true,
+    "normalTestnetProbeMeasurementReady": false,
+    "normalTestnetProbeReady": false,
+    "opportunitySnapshotNewerThanPlan": false,
+    "predeployReadinessEvidenceScoped": true,
+    "stageFreezeApproved": true
+  },
+  "marketId": "robinhood-testnet-dex-paused",
+  "missingChainTestPlanPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+  "nextRequiredActions": [
+    "prepare_normal_testnet_probe",
+    "verify_normal_testnet_probe_measurement",
+    "finish_chain_test_readiness"
+  ],
+  "normalTestnetProbe": {
+    "amount": {
+      "amount": "0",
+      "decimals": 18,
+      "human": "0",
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"
+    },
+    "blockingReasons": [
+      "normal_flash_amount_missing_or_zero"
+    ],
+    "borrowableLiquidity": {
+      "human": "220643627.094560557634862935",
+      "raw": "220643627094560557634862935",
+      "ready": false,
+      "source": "decoded_pool_key_metadata"
+    },
+    "chainId": 46630,
+    "measurementReady": false,
+    "network": "robinhood-testnet",
+    "poolManager": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+    "probe": {
+      "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "deploymentFile": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+      "source": "contracts_metadata.normalTestnetProbe.address"
+    },
+    "readyForNormalBroadcast": false,
+    "route": {
+      "closed": false,
+      "hopCount": 0,
+      "pathText": ""
+    },
+    "schemaVersion": "robinhood-normal-test-probe-config-v1",
+    "sourceFiles": {
+      "chainTestPlan": "E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+      "probeDeployment": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+      "v4PoolLiquidity": "E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\runtime\\evidence\\robinhood-testnet\\v4_pool_liquidity\\latest.json"
+    },
+    "token": {
+      "address": "0x3bfadb358fdbfa63a3fad9c267759a462af2ce0f",
+      "decimals": 18,
+      "poolManagerBalance": "220643627.094560557634862935",
+      "poolManagerBalanceRaw": "220643627094560557634862935",
+      "poolManagerSource": "decoded_pool_key_metadata",
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint",
+      "symbol": "FRAX"
+    }
+  },
+  "readyForLiveTest": false,
+  "schemaVersion": "robinhood-testnet-live-testing-readiness-v1"
+}

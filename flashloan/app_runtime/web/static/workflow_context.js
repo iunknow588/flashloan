@@ -35,7 +35,7 @@
     const response = await fetch("/api/workflow-context?" + contextQuery().toString(), {cache: "no-cache"});
     const payload = await response.json();
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.error || ("HTTP " + response.status));
+      throw new Error(payload.error || ("请求失败（HTTP " + response.status + "）"));
     }
     return applyContext(payload);
   }

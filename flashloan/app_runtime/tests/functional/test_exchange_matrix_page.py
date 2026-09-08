@@ -191,10 +191,10 @@ def test_liquidation_account_page_audit_tables_show_execution_replay_fields():
 
     assert "accountAttemptBody" in body
     assert "accountSampleBody" in body
-    assert "Phase" in body
+    assert "阶段" in body
     assert "Tx" in body
-    assert "Receipt" in body
-    assert "Retryable" in body
+    assert "回执（Receipt）" in body
+    assert "可重试" in body
     assert "row.execution_phase" in body
     assert "row.tx_hash" in body
     assert "p.receipt_status" in body

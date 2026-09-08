@@ -91,6 +91,12 @@
     const $ = id => document.getElementById(id);
     let latestRows = [];
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const uiError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
     const fmtTime = value => value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
@@ -101,13 +107,13 @@
     async function fetchJson(path) {
       const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     }
     async function postJson(path) {
       const response = await fetch(apiPath(path), {method: "POST", cache: "no-cache", headers: {"Accept": "application/json"}});
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     }
     function numberValue(value) {
@@ -193,7 +199,7 @@
         button.textContent = "已复制";
         setTimeout(() => { button.textContent = old; }, 1200);
       } catch (error) {
-        $("message").textContent = `复制失败：${error.message}`;
+        $("message").textContent = `复制失败：${uiError(error.message)}`;
       }
     }
     function evidenceBadge(row) {
@@ -294,7 +300,7 @@
         $("rows").innerHTML = latestRows.map(rowHtml).join("") || '<tr><td colspan="9">暂无提交记录。</td></tr>';
         $("message").textContent = "已更新";
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = uiError(error.message);
       }
     }
     async function clearRecords() {
@@ -306,7 +312,7 @@
         $("message").textContent = `已清空 ${data.cleared ?? 0} 条记录`;
         await refresh();
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = uiError(error.message);
       } finally {
         $("clearBtn").disabled = false;
       }

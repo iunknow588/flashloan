@@ -3,8 +3,8 @@ const path = require("path");
 const dotenv = require("dotenv");
 
 dotenv.config();
-dotenv.config({ path: path.resolve(__dirname, "../../flashloan/app_runtime/.env"), override: false });
-const testEnvPath = path.resolve(__dirname, "../../flashloan/app_runtime/.env.test");
+dotenv.config({ path: path.resolve(__dirname, "../../../flashloan/app_runtime/.env"), override: false });
+const testEnvPath = path.resolve(__dirname, "../../../flashloan/app_runtime/.env.test");
 const testEnv = dotenv.config({ path: testEnvPath, processEnv: {} }).parsed || {};
 const sensitiveEnvMarkers = ["PRIVATE_KEY", "SECRET", "PASSWORD", "DATABASE_URL", "JWT"];
 for (const [key, value] of Object.entries(testEnv)) {

@@ -1,3 +1,11 @@
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (text === "amount must be positive") return "金额必须大于 0";
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
+
     function routeBox(route, pair, network) {
       const reason = route.priority_reason === "buy_loser_then_gainer" ? "优先" : "逆向";
       const quote = route.cow_quote || null;
@@ -29,7 +37,7 @@
             <div>预测状态：上层盈亏预测关闭，不按本地差额阻断</div>
             <div>${precheckHtml(quote)}</div>
             ${costDetail(quote, plan)}
-            ${quote.viable ? "" : `<div>报价失败原因：${esc(quote.error || "-")}</div>`}
+            ${quote.viable ? "" : `<div>报价失败原因：${esc(zhError(quote.error || "-"))}</div>`}
           </div>`
         : `<div class="route-detail">
             <div>初始数量：${esc(planInitial(plan))}</div>
@@ -142,7 +150,7 @@
         `CoW 原始回执：${quote ? quoteFinal(quote) : "等待查询"}`,
         precheckText(quote),
         costText(quote, plan),
-        quote && quote.error ? `失败原因：${quote.error}` : "",
+        quote && quote.error ? `失败原因：${zhError(quote.error)}` : "",
       ].filter(Boolean).join("\n");
     }
     function pairText(pair) {
@@ -163,7 +171,7 @@
         `CoW 原始回执：${quoteFinal(row)}`,
         `预测状态：上层盈亏预测关闭`,
         costText(row, plan),
-        row.error ? `错误：${row.error}` : "",
+        row.error ? `错误：${zhError(row.error)}` : "",
       ].filter(Boolean).join("\n");
     }
     function marketCopyText(includeQuotes) {
@@ -355,7 +363,7 @@
         $("notionalUsd").textContent = "-";
         $("quoteState").textContent = "等待 CoW SDK 报价";
       }
-      $("refreshMeta").textContent = `更新 ${fmtTime(data.observed_at)} | ${data.market_state_source || data.price_source || "-"}${data.fallback_reason ? ` | ${data.fallback_reason}` : ""}`;
+      $("refreshMeta").textContent = `更新 ${fmtTime(data.observed_at)} | ${data.market_state_source || data.price_source || "-"}${data.fallback_reason ? ` | ${zhError(data.fallback_reason)}` : ""}`;
     }
     function renderCowQuoteTable() {
       const opportunities = activeNetworkPanels().flatMap(panel =>
@@ -465,9 +473,9 @@
         const suffix = networks.length ? `&cow_networks=${encodeURIComponent(networks.join(","))}` : "";
         renderCowAttemptHistory(await api(`/api/binance-market/cow-execution-attempts?limit=300${suffix}`));
       } catch (error) {
-        $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="9">${esc(error.message)}</td></tr>`;
+        $("cowAttemptHistoryBody").innerHTML = `<tr><td colspan="9">${esc(zhError(error.message))}</td></tr>`;
         for (const meta of Object.values(COW_ATTEMPT_GROUP_META)) {
-          $(meta.bodyId).innerHTML = `<tr><td colspan="9">${esc(error.message)}</td></tr>`;
+          $(meta.bodyId).innerHTML = `<tr><td colspan="9">${esc(zhError(error.message))}</td></tr>`;
           $(meta.noteId).textContent = "加载失败";
           $(meta.pagerId).innerHTML = "";
         }
@@ -495,7 +503,7 @@
         precheck.quote_error_display,
         result.error,
         item.last_error,
-      ].filter(Boolean).map(value => String(value));
+      ].filter(Boolean).map(value => /[\u4e00-\u9fff]/.test(String(value)) ? String(value) : `原因（${String(value)}）`);
       const causeCounts = precheck.blocking_cause_counts || {};
       for (const [cause, count] of Object.entries(causeCounts)) {
         if (cause) reasons.push(`${cause}${count ? ` x${count}` : ""}`);
@@ -556,7 +564,7 @@
         const suffix = networks.length ? `&cow_networks=${encodeURIComponent(networks.join(","))}` : "";
         renderCowCandidateQueue(await api(`/api/binance-market/cow-candidate-queue?limit=100${suffix}`));
       } catch (error) {
-        $("cowQueueBody").innerHTML = `<tr><td colspan="8">${esc(error.message)}</td></tr>`;
+        $("cowQueueBody").innerHTML = `<tr><td colspan="8">${esc(zhError(error.message))}</td></tr>`;
       }
     }
     function renderCowSubmissionPause(data) {
@@ -587,7 +595,7 @@
         }
         $("quoteBtn").disabled = false;
         renderNetworkOpportunityCards();
-        $("cowSubmissionPauseMessage").textContent = `开关状态读取失败，保留当前状态：${error.message}`;
+        $("cowSubmissionPauseMessage").textContent = `开关状态读取失败，保留当前状态：${zhError(error.message)}`;
       }
     }
     async function setCowSubmissionPause(paused, reason = null) {
@@ -600,7 +608,7 @@
           body: JSON.stringify({paused, reason}),
         }));
       } catch (error) {
-        $("cowSubmissionPauseMessage").textContent = error.message;
+        $("cowSubmissionPauseMessage").textContent = zhError(error.message);
         await refreshCowSubmissionPause();
       } finally {
         checkbox.disabled = false;
@@ -630,7 +638,7 @@
       try {
         renderCowConfig(await api("/api/binance-market/cow-config"));
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = zhError(error.message);
       }
     }
     async function refresh(force = false) {
@@ -647,7 +655,7 @@
           renderNetworkOpportunityCards();
           throw new Error("请至少选择一条 CoW 网络");
         }
-        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
+        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("金额必须大于 0");
         const data = await api(`/api/binance-market/states?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&cow_networks=${encodeURIComponent(networks.join(","))}&min_spread_percent=${encodeURIComponent(minSpread)}&amount=${encodeURIComponent(amount)}`);
         if (requestId !== marketRefreshRequestId) return;
         for (const network of networks) {
@@ -656,10 +664,10 @@
         }
         refreshCowAttemptHistory();
         refreshCowCandidateQueue();
-        autoRefreshCowQuotes(data).catch(error => { $("message").textContent = error.message; });
+        autoRefreshCowQuotes(data).catch(error => { $("message").textContent = zhError(error.message); });
       } catch (error) {
         if (requestId !== marketRefreshRequestId) return;
-        $("message").textContent = error.message;
+        $("message").textContent = zhError(error.message);
       } finally {
         if (requestId === marketRefreshRequestId) {
           marketRefreshInFlight = false;
@@ -677,13 +685,13 @@
         const amount = $("quoteAmountInput").value || "1000";
         const minSpread = minSpreadValue();
         if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
-        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
+        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("金额必须大于 0");
         await Promise.all(networks.map(async cowNetwork => {
           const data = await api(`/api/binance-market/cow-quotes?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}&quote_timeout_seconds=8`);
           renderCowQuotes(data, cowNetwork);
         }));
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = zhError(error.message);
       } finally {
         cowQuoteRefreshInFlight = false;
       }
@@ -708,7 +716,7 @@
         const amount = $("quoteAmountInput").value || "1000";
         const minSpread = minSpreadValue();
         if (!networks.length) throw new Error("请至少选择一条 CoW 网络");
-        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("amount must be positive");
+        if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new Error("金额必须大于 0");
         await Promise.all(networks.map(async cowNetwork => {
           const data = await api(`/api/binance-market/cow-support?side_limit=${encodeURIComponent(sideLimit)}&pair_side_limit=1&quote_limit=${encodeURIComponent(quoteLimit)}&amount=${encodeURIComponent(amount)}&cow_network=${encodeURIComponent(cowNetwork)}&min_spread_percent=${encodeURIComponent(minSpread)}`);
           latestCowSupport = data || null;
@@ -722,7 +730,7 @@
         const routeCount = activeNetworkPanels().reduce((sum, panel) => sum + Number(panel?.support?.route_count || 0), 0);
         $("quoteState").innerHTML = `<span class="badge">CoW 多链</span><span class="muted">${esc(supportedRoutes)} / ${esc(routeCount)} 条路由支持</span>`;
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = zhError(error.message);
       }
     }
     async function refreshCowTokens() {
@@ -735,7 +743,7 @@
           const tokenPath = `/api/binance-market/cow-tokens/refresh?cow_network=${encodeURIComponent(network)}`;
           const response = await fetch(window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(tokenPath) : tokenPath, {method: "POST", headers: {"Accept": "application/json"}});
           const data = await response.json();
-          if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+          if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
           refreshed.push(`${data.network}:${data.token_count || 0}`);
         }
         latestCowQuotes = null;
@@ -744,7 +752,7 @@
         await refresh();
         await refreshCowSupport();
       } catch (error) {
-        $("message").textContent = error.message;
+        $("message").textContent = zhError(error.message);
       }
     }
     $("refreshBtn").onclick = refresh;
@@ -752,8 +760,8 @@
     $("supportBtn").onclick = refreshCowSupport;
     $("quoteBtn").onclick = refreshCowQuotes;
     $("cowSubmissionEnabledCheckbox").onchange = updateCowSubmissionFromCheckbox;
-    $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "页面信息").catch(error => { $("message").textContent = error.message; });
-    $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 报价" : "页面信息").catch(error => { $("message").textContent = error.message; });
+    $("copySummaryBtn").onclick = () => copyText(marketCopyText(true), "页面信息").catch(error => { $("message").textContent = zhError(error.message); });
+    $("copyQuotesBtn").onclick = () => copyText(activeNetworkPanels().some(panel => panel?.quotes) ? marketCopyText(true) : marketCopyText(false), activeNetworkPanels().some(panel => panel?.quotes) ? "CoW 报价" : "页面信息").catch(error => { $("message").textContent = zhError(error.message); });
     $("cowExecutionReviewSection").onclick = event => {
       const button = event.target.closest("button[data-cow-attempt-page]");
       if (!button) return;
@@ -767,13 +775,13 @@
       lastAutoCowQuoteKey = "";
       lastAutoCowQuoteAt = 0;
       networkPanels.clear();
-      refresh(true).then(() => refreshCowSupport()).catch(error => { $("message").textContent = error.message; });
+      refresh(true).then(() => refreshCowSupport()).catch(error => { $("message").textContent = zhError(error.message); });
     });
     $("networkOpportunityCards").onclick = event => {
       const button = event.target.closest("button[data-route-action]");
       if (!button) return;
       if (button.dataset.routeAction === "quote") {
-        quoteRouteGroup(button.dataset.cowNetwork, button.dataset.pairRank).catch(error => { $("message").textContent = error.message; });
+        quoteRouteGroup(button.dataset.cowNetwork, button.dataset.pairRank).catch(error => { $("message").textContent = zhError(error.message); });
       } else if (button.dataset.routeAction === "execute-check") {
         executePrecheck(button);
       }
@@ -800,7 +808,7 @@
       await refresh();
       await refreshCowSupport();
     }
-    bootDexArbitragePanel().catch(error => { $("message").textContent = error.message; });
+    bootDexArbitragePanel().catch(error => { $("message").textContent = zhError(error.message); });
     refreshCowAttemptHistory();
     refreshCowCandidateQueue();
     setInterval(refresh, 1000);

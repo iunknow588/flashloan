@@ -12,7 +12,7 @@ from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID,
 
 def _read_json(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         return {}
     except json.JSONDecodeError as exc:

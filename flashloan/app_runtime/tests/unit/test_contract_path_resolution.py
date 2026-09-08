@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 def test_liquidation_contracts_bot_dir_uses_chain_scoped_contract_root(monkeypatch, tmp_path):
@@ -54,3 +57,27 @@ def test_contract_project_resolver_rejects_legacy_or_unconfigured_modules(tmp_pa
             os.environ.pop("TEST_CONTRACT_PROJECT", None)
         else:
             os.environ["TEST_CONTRACT_PROJECT"] = previous
+
+
+def test_hardhat_configs_resolve_global_env_files_under_repo_flashloan(tmp_path):
+    from core.contract_project import workspace_root
+
+    root = workspace_root()
+    app_runtime_root = root / "flashloan" / "app_runtime"
+    configs = [
+        path
+        for path in (root / "contract").glob("*/[A-Z]*/hardhat.config.js")
+        if path.is_file()
+    ]
+    assert configs, f"expected chain-scoped hardhat configs under {root / 'contract'}"
+
+    pattern = re.compile(r'path\.resolve\s*\(\s*__dirname\s*,\s*"([^"]*flashloan/app_runtime[^"]*)"\s*\)')
+    for config in configs:
+        text = config.read_text(encoding="utf-8-sig", errors="ignore")
+        for match in pattern.finditer(text):
+            relative = match.group(1)
+            resolved = (config.parent / relative).resolve()
+            assert resolved.is_relative_to(app_runtime_root), (
+                f"{config} references app_runtime via {relative}; resolved to {resolved}"
+            )
+            assert resolved.exists(), f"{config} resolves to missing file {resolved}"

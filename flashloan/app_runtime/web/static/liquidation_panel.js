@@ -1,4 +1,10 @@
     const $ = id => document.getElementById(id);
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
     const parseApiResponse = async (r, p) => {
       const ct = r.headers.get("content-type") || "";
       if (ct.includes("application/json")) return await r.json();
@@ -9,7 +15,7 @@
     const api = async (p, o = {}) => {
       const r = await fetch(p, { headers: { "Content-Type": "application/json" }, ...o });
       const d = await parseApiResponse(r, p);
-      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      if (!r.ok) throw new Error(d.error || `请求失败（HTTP ${r.status}）`);
       return d;
     };
     let refreshingAccounts = false;
@@ -156,19 +162,92 @@
       missing_executor: "缺少执行器",
       auto_pause_active: "自动暂停保护",
     };
+    const rawStatusText = value => {
+      const text = String(value || "").toLowerCase();
+      const map = {
+        blocked: "已阻断",
+        pending: "待处理",
+        running: "运行中",
+        completed: "已完成",
+        complete: "已完成",
+        success: "成功",
+        failed: "失败",
+        error: "错误",
+        idle: "空闲",
+        not_submitted: "尚未提交",
+        submission_blocked: "提交阻断",
+        submission_failed: "提交失败",
+        static_call_failed: "预演失败",
+        confirmed_failed: "确认失败",
+        confirmed_success: "清算成功",
+        waiting_quote: "等待报价",
+        waiting_preflight: "等待预演",
+        preflight_passed: "预演通过",
+        preflight_failed: "预演失败",
+        no_candidate: "缺少资产对",
+        account_not_liquidatable: "HF 未低于 1",
+        no_liquidation_candidate: "没有可执行资产对",
+        profit_below_minimum: "预估净收益低于 1U",
+        quote_failed: "报价失败",
+        static_call_required: "等待静态预演",
+        missing_executor: "缺少执行器",
+        auto_pause_active: "自动暂停保护",
+      };
+      return map[text] || value || "-";
+    };
+    const reasonListText = values => (Array.isArray(values) ? values : []).map(value => {
+      const text = String(value || "");
+      const known = {
+        account_not_liquidatable: "HF 未低于 1",
+        no_liquidation_candidate: "没有可执行资产对",
+        profit_below_minimum: "预估净收益低于 1U",
+        quote_failed: "报价失败",
+        static_call_required: "等待静态预演",
+        missing_executor: "缺少执行器",
+        auto_pause_active: "自动暂停保护",
+        deadline_too_close: "参数即将过期",
+        fork_simulation_required: "需要分叉模拟",
+        no_live_quote: "缺少实时报价",
+        no_live_evidence: "缺少链上证据",
+      }[text];
+      if (known) return known;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `原因（${text}）`;
+    }).join(", ") || "-";
+    const failureReasonText = value => {
+      const text = String(value || "");
+      const known = {
+        unknown: "未知",
+        static_call_failed: "预演失败",
+        confirmation_failed: "确认失败",
+        confirmed_failed: "确认失败",
+        submission_failed: "提交失败",
+        submission_blocked: "提交阻断",
+        quote_failed: "报价失败",
+        network_error: "网络错误",
+        insufficient_balance: "余额不足",
+        not_enough_liquidity: "流动性不足",
+        "NotEnoughLiquidity(bytes32)": "流动性不足(bytes32)",
+        execution_reverted: "链上回滚",
+        slippage_exceeded: "滑点超限",
+      }[text];
+      if (known) return known;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `原因：${text}`;
+    };
     function coreExecutionSummary(row) {
       const execution = row && row.execution ? row.execution : {};
       const reasons = Array.isArray(execution.blocked_reasons) ? execution.blocked_reasons : (row.blocked_reasons || []);
       const latest = execution.latest_attempt || {};
       const resultCode = execution.execution_result || latest.state || "not_submitted";
-      const resultText = coreExecutionResultText[resultCode] || resultCode;
+      const resultText = coreExecutionResultText[resultCode] || rawStatusText(resultCode);
       const historical = latest && latest.stale && latest.state
-        ? `历史记录（本轮未提交）：${coreExecutionResultText[latest.state] || latest.state}`
+        ? `历史记录（本轮未提交）：${coreExecutionResultText[latest.state] || rawStatusText(latest.state)}`
         : "";
       const lowValueNoCandidate = execution.value_state === "manual_test_under_1u" && reasons.includes("no_liquidation_candidate");
       const detail = lowValueNoCandidate
         ? "预计净收益低于 1U，且没有可执行资产对；本轮不提交，仅保留手工测试标记。"
-        : historical || reasons.map(reason => coreReasonText[reason] || reason).join("、") || "暂无执行记录";
+        : historical || reasons.map(reason => coreReasonText[reason] || rawStatusText(reason)).join("、") || "暂无执行记录";
       return {
         value: coreValueText[execution.value_state] || coreProfitAssessment(row),
         status: coreExecutionStatusText[execution.execution_status] || "待判定",
@@ -259,7 +338,7 @@
           $("message").textContent = s.reason || "账户池尚未就绪";
         }
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       }
     }
 
@@ -306,22 +385,22 @@
         : "快照完整";
       $("daemonState").textContent = stateText;
       $("daemonState").className = state === "running" ? "positive" : (state === "error" ? "negative" : "status-candidate");
-      $("daemonStateReason").textContent = daemon.last_error ? String(daemon.last_error) : "守护进程负责接收行情快照、驱动清算引擎并同步账户扫描状态，Aave 仍是最终判断源";
+      $("daemonStateReason").textContent = daemon.last_error ? zhError(String(daemon.last_error)) : "守护进程负责接收行情快照、驱动清算引擎并同步账户扫描状态，Aave 仍是最终判断源";
       $("daemonObserverState").textContent = observer.state || (observer.enabled ? "启用" : "未启用");
       $("daemonObserverMeta").textContent = [observer.env_symbols || "-", observer.display_symbols ? `显示 ${observer.display_symbols}` : "", observer.heartbeat_age_seconds ? `心跳 ${Number(observer.heartbeat_age_seconds).toFixed(1)}s` : ""].filter(Boolean).join(" | ");
       $("daemonEngineState").textContent = engine.started ? (engine.mode === "auto" ? "自动模式" : "观察模式") : "未启动";
       $("daemonEngineMeta").textContent = [engine.auto_execute ? "满足条件将自动提交" : "不会自动下单", engine.manual_test_completed ? "手工测试完成" : "手工测试未完成"].join(" | ");
       $("daemonMarketState").textContent = `${Number(market.snapshot_count || 0)} 快照`;
       $("daemonMarketMeta").textContent = [freshText, market.display_symbols ? `显示 ${market.display_symbols.join(", ")}` : "显示 -", missingText].join(" | ");
-      $("daemonScanState").textContent = accountScan.state || "unknown";
-      $("daemonScanMeta").textContent = accountScan.stage || "等待扫描";
+      $("daemonScanState").textContent = rawStatusText(accountScan.state || "unknown");
+      $("daemonScanMeta").textContent = accountScan.stage ? rawStatusText(accountScan.stage) : "等待扫描";
     }
 
     async function refreshSystemInfo() {
       try {
         renderSystemInfo(await api("/api/system-info"));
       } catch (e) {
-        $("systemVersionMeta").textContent = e.message;
+        $("systemVersionMeta").textContent = zhError(e.message);
       }
     }
 
@@ -337,7 +416,7 @@
         renderProtocolFilter();
         return selected;
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
         return null;
       }
     }
@@ -348,7 +427,7 @@
       } catch (e) {
         $("daemonState").textContent = "错误";
         $("daemonState").className = "negative";
-        $("daemonStateReason").textContent = e.message;
+        $("daemonStateReason").textContent = zhError(e.message);
       }
     }
 
@@ -365,13 +444,13 @@
       const backfillBg = bg.liquidation_account_backfill || {};
       const running = Boolean(discovery.running || backfill.running || discoveryBg.running || backfillBg.running);
       const error = discovery.error || backfill.error || state.last_error || discoveryBg.detail || backfillBg.detail || "";
-      const reason = scanReasonText(discovery.reason || state.result || state.message || pool.reason || "");
+      const reason = scanReasonText(discovery.reason || state.result || pool.reason || "");
       const headline = accountScanStatusText(state.status);
       $("accountScanState").textContent = running ? `${headline}中` : headline;
       $("accountScanState").className = error ? "negative" : (running ? "status-candidate" : "positive");
       panel.className = `card state-panel ${error ? "error" : (state.status === "SKIPPED" || !pool.ready ? "warning" : "")}`;
       if (error) {
-        $("accountScanReason").textContent = `账户扫描没有继续推进：${error}`;
+        $("accountScanReason").textContent = `账户扫描没有继续推进：${zhError(error)}`;
       } else if (reason) {
         $("accountScanReason").textContent = reason;
       } else if (running) {
@@ -413,7 +492,7 @@
       $("accountPoolGapFillBtn").disabled = running || scanningGapFill;
       $("accountPoolGapStopBtn").disabled = !running;
       $("accountPoolGapFillBtn").textContent = running ? "查漏中" : "一年查漏补缺";
-      $("accountPoolWindow").textContent = running ? `查漏 ${d.stage || "running"} | ${percent} | 已发现 ${count}` : $("accountPoolWindow").textContent;
+      $("accountPoolWindow").textContent = running ? `查漏 ${rawStatusText(d.stage)} | ${percent} | 已发现 ${count}` : $("accountPoolWindow").textContent;
     }
 
     function renderAccounts(d) {
@@ -434,7 +513,7 @@
       $("accountPoolWindow").textContent = `窗口 ${fmtTime(w.earliest_scan_start_at)} ~ ${fmtTime(w.latest_scan_end_at)} | 长期保留`;
       $("accountPoolBody").innerHTML = visibleRows.map(row => {
         const hf = Number(row.last_health_factor);
-        return `<tr><td>${row.chain_id || "-"}</td><td>${row.market_id || row.network || "-"}</td><td>${row.account || "-"}</td><td>${row.source || d.source || "-"}</td><td class="${hfCls(row.last_health_factor_band)}">${row.last_health_display || (Number.isFinite(hf) ? hf.toFixed(3) : "-")}</td><td class="${poolTierCls(row.pool_tier)}">${poolTierText(row.pool_tier)}</td><td class="${statusCls(row.last_status)}">${row.last_status || "-"}</td><td>${detailButton(row)}</td></tr>`;
+        return `<tr><td>${row.chain_id || "-"}</td><td>${row.market_id || row.network || "-"}</td><td>${row.account || "-"}</td><td>${row.source || d.source || "-"}</td><td class="${hfCls(row.last_health_factor_band)}">${row.last_health_display || (Number.isFinite(hf) ? hf.toFixed(3) : "-")}</td><td class="${poolTierCls(row.pool_tier)}">${poolTierText(row.pool_tier)}</td><td class="${statusCls(row.last_status)}">${rawStatusText(row.last_status)}</td><td>${detailButton(row)}</td></tr>`;
       }).join("") || '<tr><td colspan="8">暂无账户池记录</td></tr>';
       bindAccountDetailButtons($("accountPoolBody"));
       renderPager("accountPoolPager", pagination, page => {
@@ -466,11 +545,11 @@
       $("borrowPoolWorstMeta").textContent = s.worst_account || "暂无风险账户";
       $("borrowPoolScanState").textContent = blocked ? borrowPoolBlockReasonText(s.scan_blocked_reason) : (running ? "扫描中" : "已就绪");
       $("borrowPoolScanState").className = blocked ? "negative" : (running ? "status-candidate" : "positive");
-      $("borrowPoolScanMeta").textContent = blocked ? (s.next_action || s.error || "等待数据库恢复") : (running && s.scan_finished_at ? `本轮扫描中 | 上轮完成 ${fmtTime(s.scan_finished_at)}` : (s.scan_finished_at ? `完成 ${fmtTime(s.scan_finished_at)}` : (s.stage ? `阶段 ${s.stage}` : (s.error || "等待扫描"))));
+      $("borrowPoolScanMeta").textContent = blocked ? (zhError(s.next_action) || zhError(s.error) || "等待数据库恢复") : (running && s.scan_finished_at ? `本轮扫描中 | 上轮完成 ${fmtTime(s.scan_finished_at)}` : (s.scan_finished_at ? `完成 ${fmtTime(s.scan_finished_at)}` : (s.stage ? `阶段 ${rawStatusText(s.stage)}` : (zhError(s.error) || "等待扫描"))));
       $("databaseState").textContent = fileBacked ? "文件已就绪" : (s.db_ready === true ? "已连接" : borrowPoolBlockReasonText(s.scan_blocked_reason));
       $("databaseState").className = fileBacked || s.db_ready === true ? "positive" : "negative";
-      $("databaseMeta").textContent = fileBacked ? "读取 BNB 当前健康池" : (s.db_ready === true ? "可读取扫描数据" : (s.next_action || s.error || "等待数据库配置"));
-      $("borrowPoolHealthMeta").textContent = blocked ? (s.next_action || s.error || "数据库未就绪，扫描暂停") : (s.error || `响应 ${responseSourceText} | 阶段 ${s.stage || "idle"} | 策略 ${scanStrategyText(s.scan_strategy)} | 来源 ${s.source_account_count ?? "-"} | 选中 ${s.selected_account_count ?? "-"} | 已扫 ${s.scanned_account_count ?? "-"} | block ${s.block_number ?? "-"} | 进入 ${s.entered_count ?? "-"} 退出 ${s.exited_count ?? "-"}`);
+      $("databaseMeta").textContent = fileBacked ? "读取 BNB 当前健康池" : (s.db_ready === true ? "可读取扫描数据" : (zhError(s.next_action) || zhError(s.error) || "等待数据库配置"));
+      $("borrowPoolHealthMeta").textContent = blocked ? (zhError(s.next_action) || zhError(s.error) || "数据库未就绪，扫描暂停") : (zhError(s.error) || `响应 ${responseSourceText} | 阶段 ${rawStatusText(s.stage)} | 策略 ${scanStrategyText(s.scan_strategy)} | 来源 ${s.source_account_count ?? "-"} | 选中 ${s.selected_account_count ?? "-"} | 已扫 ${s.scanned_account_count ?? "-"} | block ${s.block_number ?? "-"} | 进入 ${s.entered_count ?? "-"} 退出 ${s.exited_count ?? "-"}`);
       $("accountTierCounts").textContent = `${accountTiers.hot_count ?? 0}/${accountTiers.warm_count ?? 0}/${accountTiers.cold_count ?? 0}`;
       $("accountTierMeta").textContent = `注册热/温/冷 | 转化率 ${Number.isFinite(s.risk_pool_conversion_rate) ? (s.risk_pool_conversion_rate * 100).toFixed(2) + "%" : "-"}`;
       $("corePoolCount").textContent = tiers.core_opportunity_count ?? 0;
@@ -479,18 +558,18 @@
       $("corePoolMeta").textContent = blocked ? "等待数据库" : `自动候选 ${coreCounts.auto} | 手工测试 ${coreCounts.manual} | 阻断/观察 ${coreCounts.blocked}`;
       $("highFrequencyPoolCount").textContent = tiers.high_frequency_count ?? 0;
       $("highFrequencyPoolMeta").textContent = "HF 1.0 至 1.1";
-      $("latestBatchState").textContent = fileBacked ? "当前健康池" : (batch.status || "-");
+      $("latestBatchState").textContent = fileBacked ? "当前健康池" : rawStatusText(batch.status);
       $("latestBatchMeta").textContent = fileBacked
         ? `批次仅过程记录 | 本轮 ${batch.scanned_count || s.selected_account_count || 0} | 已扫 ${s.scanned_account_count ?? "-"}/${s.current_pool_account_count ?? s.registry_account_count ?? "-"}`
         : (batch.id ? `#${batch.id} | ${batch.scanned_count || 0}/${batch.account_count || 0} | 错误 ${batch.error_count || 0}` : (s.error || "暂无批次"));
       $("borrowPoolScanBtn").disabled = running || blocked;
       $("borrowPoolScanBtn").textContent = blocked ? "等待数据库" : (running ? "扫描中" : "实时扫描借贷池");
       $("borrowPoolMeta").textContent = `${$("borrowPoolMeta").textContent} | 协议 ${currentSelectedProtocols().join(", ") || "全部"}`;
-      $("borrowPoolBody").innerHTML = visibleRows.map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td class="${statusCls(row.status)}">${row.status || "-"}</td><td>${moneyText(row.total_collateral_base)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="10">暂无普通借贷账户</td></tr>';
+      $("borrowPoolBody").innerHTML = visibleRows.map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td class="${statusCls(row.status)}">${rawStatusText(row.status)}</td><td>${moneyText(row.total_collateral_base)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="10">暂无普通借贷账户</td></tr>';
       $("highFrequencyPoolBody").innerHTML = filterRowsByProtocol(tiers.high_frequency_rows || []).map(row => `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td>${moneyText(row.priority_score)}</td><td>${moneyText(row.total_debt_base)}</td><td>${Number.isFinite(row.candidate_count) ? row.candidate_count : "-"}</td><td>${fmtTime(row.last_scanned_at)}</td><td>${detailButton(row)}</td></tr>`).join("") || '<tr><td colspan="9">暂无高频更新账户</td></tr>';
       $("coreOpportunityBody").innerHTML = filterRowsByProtocol(coreRows).map(row => {
         const execution = coreExecutionSummary(row);
-        return `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td>${moneyText(row.priority_score)}</td><td>${row.best_debt_asset || "-"}</td><td>${row.best_collateral_asset || "-"}</td><td>${row.debt_to_cover_units || "-"}</td><td>${moneyText(row.estimated_operator_net_profit_usd)}</td><td>${execution.value}</td><td>${execution.status}</td><td title="${execution.reason}">${execution.result}</td><td title="${execution.reason}">${execution.reason}</td><td>${row.quote_viable ? "viable" : "pending"}</td><td>${row.static_call_status || "-"}</td><td>${detailButton(row)}</td></tr>`;
+        return `<tr><td>${marketLabel(row)}</td><td>${protocolLabel(row)}</td><td>${row.account || "-"}</td><td class="${hfCls(healthBand(row))}">${healthText(row)}</td><td>${moneyText(row.priority_score)}</td><td>${row.best_debt_asset || "-"}</td><td>${row.best_collateral_asset || "-"}</td><td>${row.debt_to_cover_units || "-"}</td><td>${moneyText(row.estimated_operator_net_profit_usd)}</td><td>${execution.value}</td><td>${execution.status}</td><td title="${execution.reason}">${execution.result}</td><td title="${execution.reason}">${execution.reason}</td><td>${row.quote_viable ? "可报价" : "待报价"}</td><td>${rawStatusText(row.static_call_status)}</td><td>${detailButton(row)}</td></tr>`;
       }).join("") || '<tr><td colspan="16">暂无核心机会</td></tr>';
       bindAccountDetailButtons($("borrowPoolBody"));
       bindAccountDetailButtons($("highFrequencyPoolBody"));
@@ -519,14 +598,14 @@
         if (force) query.set("force", "1");
         renderAccounts(await api(`/api/liquidation/accounts?${query}`));
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       } finally {
         refreshingAccounts = false;
       }
     }
 
     async function refreshGapFillStatus() {
-      try { renderGapFillStatus(await api("/api/liquidation/account-backfill")); } catch (e) { $("message").textContent = e.message; }
+      try { renderGapFillStatus(await api("/api/liquidation/account-backfill")); } catch (e) { $("message").textContent = zhError(e.message); }
     }
 
     async function refreshBorrowPool(options = {}) {
@@ -542,7 +621,7 @@
         renderBorrowPool(await api(`/api/liquidation/borrow-pool?${query}`));
         if (options.showMessage) $("message").textContent = `风险池显示已刷新：${new Date().toLocaleString([], {hour12:false})}`;
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       } finally {
         refreshingBorrow = false;
       }
@@ -579,9 +658,9 @@
       $("staticCallFailedCount").textContent = failed;
       $("staticCallFailedCount").className = failed ? "negative" : "positive";
       $("staticCallFailedMeta").textContent = failed ? "检查失败原因" : "近期无失败";
-      $("staticCallTopReason").textContent = top ? top[0] : "-";
+      $("staticCallTopReason").textContent = top ? failureReasonText(top[0]) : "-";
       $("staticCallTopReasonMeta").textContent = top ? `${top[1]} 个样本` : "无失败样本";
-      $("staticCallBody").innerHTML = staticRows.slice(0, 20).map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${row.state || "-"}</td><td>${row.error || (row.blocked_reasons || []).join(", ") || "-"}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="5">暂无静态模拟记录</td></tr>';
+      $("staticCallBody").innerHTML = staticRows.slice(0, 20).map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${rawStatusText(row.state)}</td><td>${row.error ? zhError(row.error) : reasonListText(row.blocked_reasons)}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="5">暂无静态模拟记录</td></tr>';
     }
 
     function renderLiquidationStats(attemptRows, sampleRows, stats = {}) {
@@ -609,25 +688,25 @@
       $("liquidationStatsSuccessMeta").textContent = confirmed ? `${confirmed} 条已确认结果` : "暂无已确认结果";
       $("liquidationStatsAvgProfit").textContent = average === null ? "-" : moneyText(average);
       $("liquidationStatsAvgProfitMeta").textContent = profits.length ? `${profits.length} 条利润记录` : "未记录";
-      $("liquidationStatsTopFailure").textContent = top ? top[0] : "-";
+      $("liquidationStatsTopFailure").textContent = top ? failureReasonText(top[0]) : "-";
       $("liquidationStatsTopFailureMeta").textContent = top ? `${top[1]} 个样本` : "无失败样本";
-      $("liquidationStatsFailureBody").innerHTML = reasons.map(([reason, count]) => `<tr><td>${reason}</td><td>${count}</td></tr>`).join("") || '<tr><td colspan="2">无失败样本</td></tr>';
+      $("liquidationStatsFailureBody").innerHTML = reasons.map(([reason, count]) => `<tr><td>${failureReasonText(reason)}</td><td>${count}</td></tr>`).join("") || '<tr><td colspan="2">无失败样本</td></tr>';
     }
 
     async function refreshPauseGuard() {
       if (isBnbVenusMarket()) {
-        $("circuitBreakerLevel").textContent = "OBS";
-        $("circuitBreakerLevelMeta").textContent = "BNB Venus observation-only";
-        $("circuitBreakerPaused").textContent = "No";
-        $("circuitBreakerPauseMeta").textContent = "No execution submission";
+        $("circuitBreakerLevel").textContent = "观察";
+        $("circuitBreakerLevelMeta").textContent = "BNB Venus 仅观察";
+        $("circuitBreakerPaused").textContent = "否";
+        $("circuitBreakerPauseMeta").textContent = "不执行提交";
         $("circuitBreakerFailures").textContent = "0";
-        $("circuitBreakerFailureMeta").textContent = "File-backed observation";
+        $("circuitBreakerFailureMeta").textContent = "文件回填观察";
         $("circuitBreakerCooldown").textContent = "-";
-        $("circuitBreakerUpdatedAt").textContent = "No database guard needed";
-        $("pauseGuardMessage").textContent = "BNB Venus observation-only";
+        $("circuitBreakerUpdatedAt").textContent = "观察模式无需数据库保护";
+        $("pauseGuardMessage").textContent = "BNB Venus 仅观察";
         return;
       }
-      try { renderPauseGuard(await api("/api/liquidation/pause-guard")); } catch (e) { $("pauseGuardMessage").textContent = e.message; }
+      try { renderPauseGuard(await api("/api/liquidation/pause-guard")); } catch (e) { $("pauseGuardMessage").textContent = zhError(e.message); }
     }
 
     async function clearPauseGuard() {
@@ -639,7 +718,7 @@
         renderPauseGuard(await api("/api/liquidation/pause-guard/clear", { method: "POST", body: "{}" }));
         await refreshAudit();
       } catch (e) {
-        $("pauseGuardMessage").textContent = e.message;
+        $("pauseGuardMessage").textContent = zhError(e.message);
       } finally {
         b.disabled = false;
         b.textContent = old;
@@ -648,9 +727,9 @@
 
     async function refreshAudit() {
       if (isBnbVenusMarket()) {
-        $("attemptBody").innerHTML = '<tr><td colspan="8">BNB Venus observation-only, no execution attempts</td></tr>';
-        $("circuitBreakerHistoryBody").innerHTML = '<tr><td colspan="7">BNB Venus observation-only, no guard history</td></tr>';
-        $("failureSampleBody").innerHTML = '<tr><td colspan="11">BNB Venus observation-only, no failure samples</td></tr>';
+        $("attemptBody").innerHTML = '<tr><td colspan="8">BNB Venus 仅观察，不执行提交</td></tr>';
+        $("circuitBreakerHistoryBody").innerHTML = '<tr><td colspan="7">BNB Venus 仅观察，无保护历史</td></tr>';
+        $("failureSampleBody").innerHTML = '<tr><td colspan="11">BNB Venus 仅观察，无失败样本</td></tr>';
         renderStaticCallPanel([], []);
         renderLiquidationStats([], [], {});
         return;
@@ -659,23 +738,23 @@
         const auditQuery = appendMarketParams(new URLSearchParams({ limit: "20" }));
         const attempts = await api(`/api/liquidation/execution-attempts?${auditQuery}`);
         const attemptRows = attempts.attempts || [];
-        $("attemptBody").innerHTML = attemptRows.map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${row.mode || "-"}</td><td>${row.state || "-"}</td><td>${row.execution_phase || "-"}</td><td>${(row.blocked_reasons || []).join(", ") || "-"}</td><td>${row.error || "-"}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="8">暂无执行尝试</td></tr>';
+        $("attemptBody").innerHTML = attemptRows.map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${row.mode || "-"}</td><td>${rawStatusText(row.state)}</td><td>${rawStatusText(row.execution_phase)}</td><td>${reasonListText(row.blocked_reasons)}</td><td>${zhError(row.error || "-")}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="8">暂无执行尝试</td></tr>';
         const breakerStates = new Set(["submission_blocked", "submission_failed", "static_call_failed", "confirmed_failed", "confirmed_success"]);
-        $("circuitBreakerHistoryBody").innerHTML = attemptRows.filter(row => breakerStates.has(row.state)).map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${row.mode || "-"}</td><td>${row.state || "-"}</td><td>${row.execution_phase || "-"}</td><td>${(row.blocked_reasons || []).join(", ") || row.error || "-"}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="7">暂无保护历史</td></tr>';
+        $("circuitBreakerHistoryBody").innerHTML = attemptRows.filter(row => breakerStates.has(row.state)).map(row => `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${row.mode || "-"}</td><td>${rawStatusText(row.state)}</td><td>${rawStatusText(row.execution_phase)}</td><td>${reasonListText(row.blocked_reasons) === "-" ? zhError(row.error || "-") : reasonListText(row.blocked_reasons)}</td><td>${fmtTime(row.created_at)}</td></tr>`).join("") || '<tr><td colspan="7">暂无保护历史</td></tr>';
         const samples = await api(`/api/liquidation/failure-samples?${auditQuery}`);
         const sampleRows = samples.samples || [];
         renderStaticCallPanel(attemptRows, sampleRows);
         renderLiquidationStats(attemptRows, sampleRows, attempts.stats || {});
         $("failureSampleBody").innerHTML = sampleRows.map(row => {
           const p = row.payload || {};
-          const phase = p.execution_phase || row.execution_phase || "-";
+          const phase = rawStatusText(p.execution_phase || row.execution_phase);
           const tx = p.tx_hash || row.tx_hash || "-";
           const receipt = p.receipt_status ?? (p.receipt && p.receipt.status) ?? "-";
           const retry = p.retryable === undefined ? "-" : (p.retryable ? "是" : "否");
-          return `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${row.failure_type || "-"}</td><td>${phase}</td><td>${tx}</td><td>${receipt}</td><td>${retry}</td><td>${row.failure_reason || "-"}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${fmtTime(row.created_at)}</td></tr>`;
+          return `<tr><td>${row.id}</td><td>${row.account || "-"}</td><td>${failureReasonText(row.failure_type)}</td><td>${phase}</td><td>${tx}</td><td>${receipt}</td><td>${retry}</td><td>${failureReasonText(row.failure_reason)}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${fmtTime(row.created_at)}</td></tr>`;
         }).join("") || '<tr><td colspan="11">无失败样本</td></tr>';
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       }
     }
 
@@ -702,7 +781,7 @@
         renderBorrowPool(await api(`/api/liquidation/borrow-pool/scan?${query}`, { method: "POST", body: "{}" }));
         $("message").textContent = `风险池健康度已重新链上扫描：${new Date().toLocaleString([], {hour12:false})}`;
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       } finally {
         scanningBorrow = false;
         refreshButton.disabled = false;
@@ -719,7 +798,7 @@
         $("liquidationScanIntervalInput").value = Number.isFinite(d.scan_interval_seconds) ? Math.round(d.scan_interval_seconds) : 300;
         $("liquidationDiscoveryIntervalInput").value = Number.isFinite(d.discovery_interval_seconds) ? Math.round(d.discovery_interval_seconds) : 3600;
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       }
     }
 
@@ -732,7 +811,7 @@
         await api("/api/liquidation-settings", { method: "POST", body: JSON.stringify({ scan_interval_seconds: $("liquidationScanIntervalInput").value, discovery_interval_seconds: $("liquidationDiscoveryIntervalInput").value }) });
         $("message").textContent = "清算参数已保存";
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       } finally {
         b.disabled = false;
         b.textContent = old;
@@ -753,7 +832,7 @@
         refreshAccountScanState();
         await autoReturnToDebtPoolIfReady();
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       } finally {
         scanningAccounts = false;
         b.disabled = false;
@@ -769,7 +848,7 @@
         $("message").textContent = d.started ? "一年查漏补缺已启动" : "查漏补缺已在运行";
         refreshGapFillStatus();
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       } finally {
         scanningGapFill = false;
       }
@@ -781,7 +860,7 @@
         $("message").textContent = "已请求停止账户查漏补缺";
         refreshGapFillStatus();
       } catch (e) {
-        $("message").textContent = e.message;
+        $("message").textContent = zhError(e.message);
       }
     }
 
@@ -824,7 +903,7 @@
           refreshBorrowPool({ showMessage: true });
           refreshAudit();
         })
-        .catch(error => { $("message").textContent = error.message; });
+        .catch(error => { $("message").textContent = zhError(error.message); });
     });
 
     window.addEventListener("chainselectionprotocolschanged", () => {

@@ -75,8 +75,8 @@
       <div id="accountMeta">等待输入账户地址。</div>
       <div class="grid" style="margin-top:12px">
         <div class="metric"><small>提交状态</small><strong id="submissionState">-</strong><span id="submissionMeta">等待 payload</span></div>
-        <div class="metric"><small>Static call</small><strong id="staticCallState">-</strong><span id="staticCallMeta">等待预演</span></div>
-        <div class="metric"><small>Payload / Quote</small><strong id="payloadAge">-</strong><span id="quoteAge">-</span></div>
+<div class="metric"><small>静态调用</small><strong id="staticCallState">-</strong><span id="staticCallMeta">等待预演</span></div>
+<div class="metric"><small>执行参数 / 报价</small><strong id="payloadAge">-</strong><span id="quoteAge">-</span></div>
         <div class="metric"><small>参数来源</small><strong id="paramSources">-</strong><span id="premiumSource">-</span></div>
       </div>
       <div id="blockedReasonBox" class="detail-box">暂无提交状态。</div>
@@ -104,11 +104,11 @@
     </section>
     <section class="card">
       <small>本账户执行尝试</small>
-      <div class="table-wrap"><table><thead><tr><th>ID</th><th>模式</th><th>状态</th><th>Phase</th><th>Tx</th><th>Receipt</th><th>阻断原因</th><th>错误</th><th>时间</th></tr></thead><tbody id="accountAttemptBody"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>模式</th><th>状态</th><th>阶段</th><th>交易（Tx）</th><th>回执（Receipt）</th><th>阻断原因</th><th>错误</th><th>时间</th></tr></thead><tbody id="accountAttemptBody"></tbody></table></div>
     </section>
     <section class="card">
       <small>本账户失败样本</small>
-      <div class="table-wrap"><table><thead><tr><th>ID</th><th>类型</th><th>Phase</th><th>Tx</th><th>Receipt</th><th>Retryable</th><th>原因</th><th>债务资产</th><th>抵押资产</th><th>时间</th></tr></thead><tbody id="accountSampleBody"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>类型</th><th>阶段</th><th>交易</th><th>回执</th><th>可重试</th><th>原因</th><th>债务资产</th><th>抵押资产</th><th>时间</th></tr></thead><tbody id="accountSampleBody"></tbody></table></div>
     </section>
   </main>
   <script>
@@ -137,6 +137,13 @@
       const text = await response.text();
       const title = (text.match(/<title>(.*?)<\/title>/i) || [])[1];
       throw new Error(`${path} 返回了非 JSON 响应：HTTP ${response.status}${title ? ` ${title}` : ""}`);
+    };
+    const zhError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (text === "amount must be positive") return "金额必须大于 0";
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
     };
     const api = async (path, options = {}) => {
       const timeoutMs = options.timeoutMs || 0;
@@ -210,14 +217,14 @@
       const phase = p.execution_phase || (p.context && p.context.phase) || "-";
       const friendly = userFacingExecutionMessage(p, "");
       const hf = Number(checks.health_factor ?? (p.cached_snapshot && p.cached_snapshot.summary && p.cached_snapshot.summary.health_factor));
-      $("submissionState").textContent = allowed ? "可提交清算" : (forkSimulationOnly ? "需Fork预演" : (Number.isFinite(hf) && hf >= 1 ? "暂不可清算" : "等待清算条件"));
+      $("submissionState").textContent = allowed ? "可提交清算" : (forkSimulationOnly ? "需要 Fork 预演" : (Number.isFinite(hf) && hf >= 1 ? "暂不可清算" : "等待清算条件"));
       $("submissionState").className = canRunExecutionPreflight ? "positive" : "negative";
       $("submissionMeta").textContent = friendly;
       $("staticCallState").textContent = allowed ? "预演通过" : (forkSimulationOnly ? "等待Fork预演" : "未执行");
       $("staticCallState").className = preflight.static_call_passed ? "positive" : "negative";
-      $("staticCallMeta").textContent = allowed ? "提交前需要通过链上预演" : (forkSimulationOnly ? "执行时会先跑 Hardhat fork transaction simulation" : friendly);
+      $("staticCallMeta").textContent = allowed ? "提交前需要通过链上预演" : (forkSimulationOnly ? "执行时将先运行 Hardhat 分叉交易模拟" : friendly);
       $("payloadAge").textContent = Number.isFinite(checks.payload_age_seconds) ? `${Number(checks.payload_age_seconds).toFixed(1)}s` : "-";
-      $("quoteAge").textContent = Number.isFinite(checks.quote_age_seconds) ? `quote ${Number(checks.quote_age_seconds).toFixed(1)}s / max ${checks.max_quote_age_seconds ?? "-"}s` : "quote -";
+      $("quoteAge").textContent = Number.isFinite(checks.quote_age_seconds) ? `报价 ${Number(checks.quote_age_seconds).toFixed(1)} 秒 / 上限 ${checks.max_quote_age_seconds ?? "-"} 秒` : "报价 -";
       $("paramSources").textContent = checks.amount_to_pass_source || checks.repay_base_source ? "Aave 实时数据" : "-";
       $("premiumSource").textContent = allowed ? "提交前实时校验" : "-";
       $("blockedReasonBox").textContent = friendly;
@@ -240,7 +247,7 @@
         return "\u6e05\u7b97\u53c2\u6570\u5df2\u51c6\u5907\uff0c\u7b49\u5f85\u94fe\u4e0a\u9884\u6f14\u6216\u7528\u6237\u786e\u8ba4\u63d0\u4ea4\u3002";
       }
       if (reasons.length === 1 && reasons.includes("fork_simulation_required")) {
-        return "清算参数和 static call 已通过，发送前需要先完成 Hardhat fork transaction simulation。";
+        return "清算参数和静态调用（static call）已通过，发送前需要先完成 Hardhat 分叉交易模拟（fork transaction simulation）。";
       }
       if (reasons.includes("deadline_too_close")) {
         return "清算 payload 即将过期，需要刷新账户并重新构造交易参数。";
@@ -260,7 +267,7 @@
       return "\u7b49\u5f85\u6e05\u7b97\u6761\u4ef6\u3002";
     }
     function renderSubmissionError(message, details = null) {
-      const friendly = userFacingExecutionMessage(details, message);
+      const friendly = userFacingExecutionMessage(details, zhError(message));
       const snapshot = details && details.cached_snapshot ? details.cached_snapshot : {};
       const summary = snapshot.summary || {};
       const hf = Number((details && details.checks && details.checks.health_factor) ?? summary.health_factor);
@@ -280,7 +287,7 @@
       $("forceFlashloanBtn").disabled = true;
     }
     function renderActionDetail(data, fallback = "-") {
-      $("actionDetail").textContent = userFacingExecutionMessage(data, fallback);
+      $("actionDetail").textContent = userFacingExecutionMessage(data, zhError(fallback));
     }
     function userFacingAuditStatus(row) {
       const receipt = row && row.receipt && row.receipt.status !== undefined ? row.receipt.status : row && row.receipt_status;
@@ -314,7 +321,7 @@
       $("accountCandidates").textContent = candidates.length;
       $("accountHint").textContent = summary.positions_count
         ? `持仓 ${summary.positions_count} | 抵押 ${summary.collateral_positions_count} | 借款 ${summary.debt_positions_count} | ${positionsSourceText(report.positions_source)}`
-        : (report && report.cached ? `核心库 ${core.payload_state || "-"} | quote ${core.quote_viable ? "viable" : "pending"}` : "-");
+        : (report && report.cached ? `核心库 ${core.payload_state || "-"} | 报价 ${core.quote_viable ? "可用" : "等待中"}` : "-");
       $("accountRecommendation").textContent = recommended ? `${displayAssetSymbol(recommended.collateral_symbol)} / ${displayAssetSymbol(recommended.debt_symbol)}` : (core.best_collateral_asset || core.best_debt_asset ? `${displayAssetSymbol(core.best_collateral_asset)} / ${displayAssetSymbol(core.best_debt_asset)}` : "暂无可执行资产对");
       $("accountProfit").textContent = Number.isFinite(profit) ? `预估净收益 ${profit.toFixed(2)}U` : "等待更低 HF";
       $("candidateBody").innerHTML = candidates.map(row => {
@@ -356,7 +363,7 @@
         return data;
       } catch (error) {
         renderSubmissionError(error.message, error.details || null);
-        renderActionDetail(error.details || {error: error.message});
+        renderActionDetail(error.details || {error: zhError(error.message)});
         return null;
       }
     }
@@ -364,7 +371,7 @@
       const cached = await api(`/api/liquidation/account/cached?${accountApiQuery(account)}`, {timeoutMs: 10000});
       if (cached && cached.found) {
         renderAccount(cached);
-        renderSubmissionError((cached.liquidation_candidates || []).length ? "等待实时 payload/quote。" : "缓存快照缺少可执行清算资产对，正在实时查询。");
+        renderSubmissionError((cached.liquidation_candidates || []).length ? "等待实时执行参数/报价（payload/quote）。" : "缓存快照缺少可执行清算资产对，正在实时查询。");
       }
       return cached;
     }
@@ -406,7 +413,7 @@
         }
         await refreshRealtimeAccount(account);
       } catch (error) {
-        const message = error.message || "账户查询失败";
+        const message = error.message ? zhError(error.message) : "账户查询失败";
         if (cachedShown) {
           $("accountMeta").textContent = "实时账户详情暂不可用，已保留最近一次持仓快照。";
           renderPlan({reason: "实时详情暂不可用，当前展示最近一次持仓快照", execution_ready: false, profitable: false, profit_preview: {}});
@@ -435,7 +442,7 @@
           const phase = p.execution_phase || row.execution_phase || "-";
           const tx = p.tx_hash || row.tx_hash || "-";
           const receipt = p.receipt_status ?? (p.receipt && p.receipt.status) ?? "-";
-          const retry = row.retryable === undefined ? "-" : (row.retryable ? "yes" : "no");
+          const retry = row.retryable === undefined ? "-" : (row.retryable ? "是" : "否");
           const status = userFacingExecutionMessage({...p, error: row.failure_reason, receipt_status: receipt}, "");
           return `<tr><td>${row.id}</td><td>${row.failure_type || "-"}</td><td>${phase ? "已记录" : "-"}</td><td>${tx === "-" ? "未生成" : "已生成"}</td><td>${receipt === 1 ? "成功" : receipt === 0 ? "未确认" : "-"}</td><td>${retry}</td><td>${status}</td><td>${row.debt_asset || "-"}</td><td>${row.collateral_asset || "-"}</td><td>${row.created_at ? new Date(row.created_at).toLocaleString([], {hour12:false}) : "-"}</td></tr>`;
         }).join("") || '<tr><td colspan="10">暂无失败样本</td></tr>';
@@ -463,7 +470,7 @@
         await refreshAccountAudit(account);
         refreshAccount(account);
       } catch (error) {
-        renderActionDetail(error.details || {error: error.message});
+        renderActionDetail(error.details || {error: zhError(error.message)});
         if (error.details && error.details.checks) renderSubmission(error.details);
         await refreshAccountAudit(account);
       } finally {
@@ -480,7 +487,7 @@
         const payload = await refreshPayloadPreview(account, true);
         const hf = Number(cached && cached.summary ? cached.summary.health_factor : NaN);
         if (payload && payload.submission_allowed) {
-          stopMonitor("payload 已满足提交闸门，请先预演，确认通过后由你手工发送交易。");
+          stopMonitor("执行参数（payload）已满足提交闸门，请先预演，确认通过后由你手工发送交易。");
           return;
         }
         if (cached && cached.found === false) {
@@ -493,7 +500,7 @@
         }
         $("message").textContent = `监控第 ${monitorCount} 次完成，5 秒后重试。`;
       } catch (error) {
-        stopMonitor(`监控故障：${error.message}`);
+        stopMonitor(`监控故障：${zhError(error.message)}`);
       }
     }
     function startMonitor() {

@@ -78,7 +78,7 @@
     return mount.querySelector("[data-dex-strategy-select]") || mount.querySelector("select") || (() => {
       const select = document.createElement("select");
       select.setAttribute("data-dex-strategy-select", "true");
-      select.setAttribute("aria-label", "Select DEX strategy");
+      select.setAttribute("aria-label", "选择 DEX 策略");
       mount.appendChild(select);
       return select;
     })();
@@ -135,7 +135,7 @@
       });
       const payload = await response.json().catch(function () { return {}; });
       if (!response.ok) {
-        throw new Error(payload.error || ("HTTP " + response.status));
+        throw new Error(payload.error || ("请求失败（HTTP " + response.status + "）"));
       }
       window.__DEX_STRATEGY_STATE__ = payload;
       return payload;
@@ -207,7 +207,7 @@
     const response = await fetch(requestUrl.toString(), { cache: "no-cache", headers: { Accept: "application/json" } });
     const payload = await response.json();
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.error || ("HTTP " + response.status));
+      throw new Error(payload.error || ("请求失败（HTTP " + response.status + "）"));
     }
 
     window.__DEX_STRATEGY_STATE__ = payload;
