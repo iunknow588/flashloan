@@ -2,9 +2,12 @@ import pytest
 
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
+from runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
+from core.error_registry import ErrorCode
 from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
 from dex.intent_trade.chains.robinhood_testnet import trigger_context
+from eth_abi import encode as abi_encode
 
 
 def test_robinhood_testnet_trigger_context_uses_confirmed_live_head(monkeypatch):
@@ -35,6 +38,19 @@ def test_robinhood_testnet_trigger_context_uses_confirmed_live_head(monkeypatch)
     assert context["triggerBlockNumber"] == 97
     assert context["headBlockNumber"] == 100
     assert context["blockTimestamp"] == 1_777_777_777
+
+
+def test_dex_error_stack_from_state_returns_only_module_code_message():
+    rows = dex_error_stack_from_state(
+        "pool_not_initialized",
+        message="V4 pool is not initialized",
+        details={"routeKey": "ETH->0XC9F9C8->ETH"},
+    )
+    assert rows[0] == {
+        "module": "DEX",
+        "code": int(ErrorCode.DEX_POOL_NOT_INITIALIZED),
+        "message": "V4 pool is not initialized",
+    }
 
 
 def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
@@ -101,6 +117,13 @@ def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
     assert evidence["hops"][0]["executionTrust"] == "live_quote_failed"
     assert evidence["hops"][0]["amountOutRaw"] is None
     assert any("quote adapter is required" in blocker.lower() for blocker in evidence["blockers"])
+    hop_stamp = evidence["hops"][0]["errorStack"][0]
+    assert set(hop_stamp.keys()) == {"module", "code", "message"}
+    assert hop_stamp["module"] == "DEX"
+    assert "USDG->STONKBROKER" in hop_stamp["message"]
+    evidence_stamp = evidence["errorStack"][0]
+    assert set(evidence_stamp.keys()) == {"module", "code", "message"}
+    assert evidence_stamp["module"] == "DEX"
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
@@ -899,6 +922,88 @@ def test_robinhood_testnet_v4_liquidity_probe_reports_unexecutable_amount(monkey
     assert result["status"] == "liquidity_probe_unexecutable"
     assert result["searchStatus"] == "no_successful_amount_found"
     assert result["minExecutableAmountRaw"] is None
+    assert result["maxExecutableAmountRaw"] is None
+
+
+def test_robinhood_testnet_v4_summarize_pool_not_initialized():
+    assert v4_quote_adapter._summarize_v4_revert_data("0x486aa307") == "PoolNotInitialized()"
+
+    nested = abi_encode(["bytes"], [bytes.fromhex("486aa307")]).hex()
+    data = "0x6190b2b0" + nested
+    assert (
+        v4_quote_adapter._summarize_v4_revert_data(data)
+        == "UnexpectedRevertBytes(bytes) -> PoolNotInitialized()"
+    )
+
+
+def test_robinhood_testnet_v4_liquidity_probe_reports_pool_not_initialized(monkeypatch):
+    monkeypatch.setattr(
+        v4_quote_adapter,
+        "_resolve_v4_quote_context",
+        lambda request: {
+            "pool": {
+                "pool": "0x" + "1" * 64,
+                "poolId": "0x" + "1" * 64,
+                "token0": "0x" + "2" * 40,
+                "token1": "0x" + "3" * 40,
+                "fee": 3000,
+                "tickSpacing": 60,
+                "hooks": "0x" + "0" * 40,
+            },
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "poolId": "0x" + "1" * 64,
+            "poolManager": "0x" + "4" * 40,
+            "quoterAddress": "0x" + "5" * 40,
+            "w3": None,
+            "rpcUrl": "https://rpc.example",
+            "liveState": {
+                "source": "pool_manager_extsload_live_state",
+                "poolManager": "0x" + "4" * 40,
+                "poolId": "0x" + "1" * 64,
+                "stateSlot": "0x" + "6" * 64,
+                "sqrtPriceX96": str(2**96),
+                "tick": 0,
+                "protocolFee": 0,
+                "lpFee": 3000,
+                "liquidity": str(10**18),
+                "rpcUrl": "https://rpc.example",
+            },
+            "amountInRaw": int(request["amountInRaw"]),
+            "feeBps": 30,
+            "hookData": b"",
+            "zeroForOne": True,
+            "poolKey": (
+                "0x" + "2" * 40,
+                "0x" + "3" * 40,
+                3000,
+                60,
+                "0x" + "0" * 40,
+            ),
+            "callFrom": None,
+        },
+    )
+
+    def fake_quote(**kwargs):
+        raise RuntimeError("robinhood testnet v4 quoter reverted: PoolNotInitialized()")
+
+    monkeypatch.setattr(v4_quote_adapter, "_quote_v4_exact_input_single", fake_quote)
+
+    result = v4_quote_adapter.probe_v4_executable_amount_from_pool_index(
+        {
+            "pool": "0x" + "1" * 64,
+            "tokenIn": "0x" + "2" * 40,
+            "tokenOut": "0x" + "3" * 40,
+            "amountInRaw": "100",
+            "fee": 3000,
+            "quoteMode": "uniswap_v4_sdk_exact_input_single",
+            "maxProbeAttempts": 24,
+        }
+    )
+
+    assert result["status"] == "liquidity_probe_unexecutable"
+    assert result["searchStatus"] == "pool_not_initialized"
+    assert "PoolNotInitialized()" in result["failureReason"]
     assert result["maxExecutableAmountRaw"] is None
 
 

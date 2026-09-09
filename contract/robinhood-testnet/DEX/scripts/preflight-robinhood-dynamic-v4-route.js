@@ -3,7 +3,7 @@ const path = require("path");
 const hre = require("hardhat");
 const { deploymentAddress } = require("./readback-robinhood-paused-executor");
 
-const REPO_ROOT = path.resolve(__dirname, "../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../../..");
 const APP_RUNTIME_ROOT = path.join(REPO_ROOT, "flashloan", "app_runtime");
 const DEFAULT_CHAIN_TEST_PLAN = path.join(
   APP_RUNTIME_ROOT,

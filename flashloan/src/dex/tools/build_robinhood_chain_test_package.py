@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
@@ -118,6 +118,7 @@ def _block_number(row: dict) -> int | None:
 def _select_attempt(rows: list[dict], pair: str | None, *, trigger_block: int | None = None) -> dict:
     wanted = str(pair or "").strip().lower()
     candidates: list[dict] = []
+    live_ready_candidates: list[dict] = []
     for row in rows:
         row_pair = str(row.get("pair") or row.get("route_key") or "").strip().lower()
         route_path = row.get("route_path") if isinstance(row.get("route_path"), list) else []
@@ -125,13 +126,16 @@ def _select_attempt(rows: list[dict], pair: str | None, *, trigger_block: int | 
         if not wanted or row_pair == wanted or route_pair == wanted:
             if trigger_block is not None and _block_number(row) != trigger_block:
                 continue
-            if not _attempt_is_live_ready(row):
-                continue
             candidates.append(row)
+            if _attempt_is_live_ready(row):
+                live_ready_candidates.append(row)
     if candidates:
+        if live_ready_candidates:
+            live_ready_candidates.sort(key=_attempt_score, reverse=True)
+            return live_ready_candidates[0]
         candidates.sort(key=_attempt_score, reverse=True)
         return candidates[0]
-    raise ValueError("no live-ready Robinhood attempt row was found")
+    raise ValueError("no Robinhood attempt row was found")
 
 
 def main() -> int:

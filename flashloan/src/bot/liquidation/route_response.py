@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from core.error_registry import ErrorCode
+from core.error_stack import ErrorStack, ModuleError
 from core.sensitive_data import redact_sensitive_text
 from bot.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
 
@@ -13,6 +15,27 @@ CANONICAL_ROUTE_FAILURE_STATES = {
     "confirmed_failed",
 }
 
+_BOT_ERROR_KEY_MAP = {
+    "account_not_liquidatable": "BOT.LIQUIDATION.ACCOUNT_NOT_LIQUIDATABLE",
+    "no_liquidation_candidate": "BOT.LIQUIDATION.NO_EXECUTABLE_CANDIDATE",
+    "quote_failed": "BOT.LIQUIDATION.QUOTE_FAILED",
+    "static_call_failed": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "approval_failed": "BOT.EXECUTION.APPROVAL_FAILED",
+    "submission_reverted": "BOT.EXECUTION.SUBMISSION_REVERTED",
+}
+
+_BOT_ERROR_CODES = {
+    "BOT.LIQUIDATION.ACCOUNT_NOT_LIQUIDATABLE": ErrorCode.BOT_ACCOUNT_NOT_LIQUIDATABLE,
+    "BOT.LIQUIDATION.NO_EXECUTABLE_CANDIDATE": ErrorCode.BOT_NO_EXECUTABLE_CANDIDATE,
+    "BOT.LIQUIDATION.QUOTE_FAILED": ErrorCode.BOT_QUOTE_FAILED,
+    "BOT.LIQUIDATION.STATIC_CALL_FAILED": ErrorCode.BOT_STATIC_CALL_FAILED,
+    "BOT.EXECUTION.APPROVAL_FAILED": ErrorCode.BOT_APPROVAL_FAILED,
+    "BOT.EXECUTION.SUBMISSION_REVERTED": ErrorCode.BOT_SUBMISSION_REVERTED,
+    "BOT.EXECUTION.RECEIPT_FAILED": ErrorCode.BOT_RECEIPT_FAILED,
+    "BOT.EXECUTION.BLOCKED": ErrorCode.BOT_EXECUTION_BLOCKED,
+    "BOT.INTERNAL": ErrorCode.BOT_INTERNAL,
+}
+
 
 def route_error_message(error: object | None) -> str | None:
     if error is None:
@@ -20,7 +43,76 @@ def route_error_message(error: object | None) -> str | None:
     return redact_sensitive_text(error)
 
 
+def bot_error_stack_from_state(
+    *,
+    account: str = "",
+    state: str | None = None,
+    blocked_reasons: list[str] | None = None,
+    error: object | None = None,
+    flow: str = "liquidation",
+) -> list[dict]:
+    return _error_stack_from_response(
+        account=account,
+        state=state,
+        blocked_reasons=blocked_reasons,
+        error=error,
+        flow=flow,
+    )
+
+
+def _error_stack_from_response(
+    *,
+    account: str,
+    state: str | None,
+    blocked_reasons: list[str] | None,
+    error: object | None,
+    flow: str = "liquidation",
+) -> list[dict]:
+    reasons = list(blocked_reasons or [])
+    reason = reasons[0] if reasons else None
+    raw = route_error_message(error) if error is not None else None
+    stack = ErrorStack()
+    if raw or reason or str(state or "").strip():
+        if reason and reason.lower() in _BOT_ERROR_KEY_MAP:
+            error_key = _BOT_ERROR_KEY_MAP[reason.lower()]
+        elif reason == "account_not_liquidatable":
+            error_key = "BOT.LIQUIDATION.ACCOUNT_NOT_LIQUIDATABLE"
+        elif reason == "no_liquidation_candidate":
+            error_key = "BOT.LIQUIDATION.NO_EXECUTABLE_CANDIDATE"
+        elif reason == "quote_failed":
+            error_key = "BOT.LIQUIDATION.QUOTE_FAILED"
+        elif str(state or "").strip() == "static_call_failed":
+            error_key = "BOT.LIQUIDATION.STATIC_CALL_FAILED"
+        elif str(state or "").strip() in {"submission_blocked", "submission_failed"}:
+            error_key = "BOT.EXECUTION.BLOCKED"
+        else:
+            error_key = "BOT.EXECUTION.BLOCKED" if reason else "BOT.INTERNAL"
+        message = raw or reason or error_key
+        if account:
+            message = f"[{account}] {message}"
+        if flow and flow != "liquidation":
+            message = f"[{flow}] {message}"
+        stack.push(
+            ModuleError(
+                module="BOT",
+                code=int(_BOT_ERROR_CODES[error_key]),
+                message=message,
+            )
+        )
+    else:
+        stack.mark_ok(ModuleError(module="BOT", code=0, message="OK"))
+    return stack.as_list()
+
+
 def stale_liquidatable_context_response(account: str, validation: dict) -> tuple[dict, int]:
+    stack = ErrorStack()
+    stack.push(
+        ModuleError(
+            module="BOT",
+            code=int(ErrorCode.BOT_EXECUTION_BLOCKED),
+            message=f"BOT.liquidation.context_expired[{account}]: liquidatable context is stale; refresh prediction/quote/preflight before submit",
+        )
+    )
     return (
         {
             "error": "liquidatable context is stale; refresh prediction/quote/preflight before submit",
@@ -28,6 +120,7 @@ def stale_liquidatable_context_response(account: str, validation: dict) -> tuple
             "state": "submission_blocked",
             "execution_phase": "context_expired",
             "blocked_reasons": validation.get("blocked_reasons") or [],
+            "errorStack": stack.as_list(),
             "liquidatable_context": validation,
         },
         400,
@@ -98,6 +191,12 @@ def classify_liquidation_payload_block(account: str, snapshot: dict | None, erro
         "state": "submission_blocked",
         "execution_phase": "payload_blocked",
         "blocked_reasons": blocked_reasons,
+        "errorStack": _error_stack_from_response(
+            account=account,
+            state="submission_blocked",
+            blocked_reasons=blocked_reasons,
+            error=error_text,
+        ),
         "preflight": {
             "static_call_required": True,
             "static_call_status": "blocked",
@@ -120,7 +219,15 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
     response = {"error": route_error_message(error), "account": account}
     if not isinstance(payload, dict):
         blocked = classify_liquidation_payload_block(account, cached_snapshot, error)
-        return blocked if blocked is not None else response
+        if blocked is not None:
+            return blocked
+        response["errorStack"] = _error_stack_from_response(
+            account=account,
+            state=None,
+            blocked_reasons=[],
+            error=error,
+        )
+        return response
     account_report = payload.get("account_report") or {}
     response.update(
         {
@@ -131,6 +238,13 @@ def liquidation_failure_response(account: str, payload: dict | None, error: Exce
             "state": payload.get("state"),
             "submission_allowed": payload.get("submission_allowed"),
             "blocked_reasons": payload.get("blocked_reasons") or [],
+            "errorStack": _error_stack_from_response(
+                account=account,
+                state=payload.get("state") or payload.get("execution_phase"),
+                blocked_reasons=payload.get("blocked_reasons") or [],
+                error=error,
+                flow="execution" if payload.get("execution_phase") not in (None, "payload_blocked") else "liquidation",
+            ),
             "checks": payload.get("checks") or {},
             "dex_quote": payload.get("dex_quote") or {},
             "tx_hash": normalize_tx_hash(payload),

@@ -1,0 +1,36 @@
+{
+  "chainId": 46630,
+  "entries": {
+    "0x71178bac73cbeb415514eb542a8995b82669778d": {
+      "address": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+      "balanceRaw": "121831810956494524843",
+      "decimals": 18,
+      "metadataScannedAt": "2026-09-09T06:00:17.275346Z",
+      "poolIds": [
+        "chain_test.routeHops"
+      ],
+      "scanScope": "active_plus_known",
+      "scannedAt": "2026-09-09T06:00:08.899960Z",
+      "symbol": "AMD"
+    },
+    "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e": {
+      "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "balanceRaw": "202842631590776505159",
+      "decimals": 18,
+      "metadataScannedAt": "2026-09-09T06:00:17.275346Z",
+      "poolIds": [
+        "chain_test.routeHops"
+      ],
+      "scanScope": "active_plus_known",
+      "scannedAt": "2026-09-09T06:00:08.899960Z",
+      "symbol": "TSLA"
+    }
+  },
+  "entryCount": 2,
+  "lastScanScope": "active_plus_known",
+  "network": "robinhood-testnet",
+  "poolIndexSource": "E:\\2026OPC大赛\\flashLoan\\flashloan\\app_runtime\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "refreshedAt": "2026-09-09T06:00:17.279355Z",
+  "schemaVersion": "robinhood-testnet-v4-poolmanager-token-balance-scan-v1"
+}

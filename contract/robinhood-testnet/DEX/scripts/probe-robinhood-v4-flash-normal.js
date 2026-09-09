@@ -7,7 +7,7 @@ const {
   normalizeAddress,
 } = require("./preflight-robinhood-testnet");
 
-const REPO_ROOT = path.resolve(__dirname, "../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../../..");
 const APP_RUNTIME_ROOT = path.join(REPO_ROOT, "flashloan", "app_runtime");
 const DEFAULT_CHAIN_TEST_PLAN = path.join(
   APP_RUNTIME_ROOT,

@@ -10,6 +10,7 @@ from typing import Any, Callable
 from core.sensitive_data import redact_sensitive_text
 from core.config_schema import parse_env_float, parse_env_int
 from core.market_config import liquidation_market_config, liquidation_market_scope_is_explicit
+from bot.liquidation.route_response import bot_error_stack_from_state
 
 
 AccountLoader = Callable[[], list[str]]
@@ -134,11 +135,17 @@ class LiquidationEngine:
     def run_once(self, accounts: list[str] | None = None, *, allow_poll: bool = True) -> dict[str, Any]:
         controls = self.dependencies.load_controls()
         if controls.get("auto_pause_active") or int(controls.get("circuit_breaker_level") or 0) >= 3:
+            blocked_reasons = ["auto_pause_active"]
             return {
                 "mode": self.config.mode,
                 "state": "paused",
                 "processed": [],
-                "blocked_reasons": ["auto_pause_active"],
+                "blocked_reasons": blocked_reasons,
+                "errorStack": bot_error_stack_from_state(
+                    state="submission_blocked",
+                    blocked_reasons=blocked_reasons,
+                    flow="engine",
+                ),
                 "controls": controls,
             }
 
@@ -173,12 +180,31 @@ class LiquidationEngine:
 
             blocked = list(static_result.get("blocked_reasons") or [])
             if not preflight.get("static_call_passed"):
-                return {"account": account, "state": "static_call_failed", "blocked_reasons": blocked}
+                return {
+                    "account": account,
+                    "state": "static_call_failed",
+                    "blocked_reasons": blocked,
+                    "errorStack": bot_error_stack_from_state(
+                        account=account,
+                        state="static_call_failed",
+                        blocked_reasons=blocked,
+                        error=preflight.get("static_call_error"),
+                    ),
+                }
             deferred_submit_blockers = {"fork_simulation_required"} if self.config.auto_execute else set()
             remaining_blockers = [reason for reason in blocked if reason not in deferred_submit_blockers]
             if remaining_blockers:
                 self._record(account, state="submission_blocked", payload=static_result)
-                return {"account": account, "state": "submission_blocked", "blocked_reasons": remaining_blockers}
+                return {
+                    "account": account,
+                    "state": "submission_blocked",
+                    "blocked_reasons": remaining_blockers,
+                    "errorStack": bot_error_stack_from_state(
+                        account=account,
+                        state="submission_blocked",
+                        blocked_reasons=remaining_blockers,
+                    ),
+                }
             if not self.config.auto_execute:
                 return {"account": account, "state": "observed", "preflight": preflight}
 
@@ -208,9 +234,25 @@ class LiquidationEngine:
                     "state": "submission_blocked",
                     "blocked_reasons": blocked_reasons,
                     "error": message,
+                    "errorStack": bot_error_stack_from_state(
+                        account=account,
+                        state="submission_blocked",
+                        blocked_reasons=blocked_reasons,
+                        error=message,
+                    ),
                 }
             self._record(account, state="submission_failed", payload=payload or {}, error=message)
-            return {"account": account, "state": "submission_failed", "error": message}
+            return {
+                "account": account,
+                "state": "submission_failed",
+                "error": message,
+                "errorStack": bot_error_stack_from_state(
+                    account=account,
+                    state="submission_failed",
+                    error=message,
+                    flow="engine",
+                ),
+            }
 
     def _record(
         self,

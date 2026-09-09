@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "robinhood-mainnet-preflight-v1",
+  "runAt": "2026-09-09T00:01:19.715Z",
+  "network": "robinhood",
+  "expectedChainId": 4663,
+  "routeRequirements": {
+    "requireV3Adapter": true,
+    "requireV4Adapter": true,
+    "flashSourceKind": 4
+  },
+  "rpc": {
+    "configured": true,
+    "host": "rpc.mainnet.chain.robinhood.com",
+    "chainId": 4663,
+    "blockNumber": 58102927,
+    "ok": true,
+    "error": null
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": false,
+      "envName": "chain_json.defaultV4PoolManager",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "ok": false,
+      "error": "missing_address"
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": true,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "ok": false,
+      "error": "missing_address"
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": false,
+      "envName": "chain_json.defaultV4UniversalRouter",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "ok": false,
+      "error": "missing_address"
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": false,
+      "envName": "chain_json.defaultV4PoolManager",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "ok": false,
+      "error": "missing_address"
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": false,
+      "envName": "chain_json.defaultPermit2",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "ok": false,
+      "error": "missing_address"
+    }
+  ],
+  "deployer": {
+    "configured": true,
+    "address": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "balanceWei": "0",
+    "ok": true,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": false,
+  "blockingReasons": [
+    "flashSource_address_missing",
+    "v3SwapRouter_address_missing",
+    "v4UniversalRouter_address_missing",
+    "v4PoolManager_address_missing",
+    "permit2_address_missing",
+    "mainnet_broadcast_gate_closed"
+  ]
+}

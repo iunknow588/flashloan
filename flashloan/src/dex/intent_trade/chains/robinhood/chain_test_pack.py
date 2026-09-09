@@ -464,15 +464,15 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
             "4. Keep the broadcast gate closed.",
         ]
     lines = [
-        "# Robinhood 閾句笂娆℃祴璇曞寘",
+        "# Robinhood 链上测试包",
         "",
-        f"- 缃戠粶锛歚{plan.get('network')}`",
-        f"- 閾?ID锛歚{plan.get('chainId')}`",
-        f"- 璺緞锛歚{route.get('pathText')}`",
+        f"- 网络：`{plan.get('network')}`",
+        f"- 链 ID：`{plan.get('chainId')}`",
+        f"- 路径：`{route.get('pathText')}`",
         f"- Execution mode: `{_text(_as_dict(plan.get('preflightSpec')).get('executionModel', {}).get('routeExecutionMode'))}`",
-        f"- 瑙﹀彂鍖哄潡锛歚{attempt.get('triggerBlockNumber')}`",
-        f"- 澶嶆牳鍖哄潡锛歚{attempt.get('reviewBlockNumber')}`",
-        f"- 璇佹嵁鐘舵€侊細`{evidence.get('status')}`",
+        f"- 触发区块：`{attempt.get('triggerBlockNumber')}`",
+        f"- 复核区块：`{attempt.get('reviewBlockNumber')}`",
+        f"- 证据状态：`{evidence.get('status')}`",
         f"- Trusted for execution: `{'yes' if decision.get('trustedForExecution') else 'no'}`",
         f"- Ready for preflight: `{'yes' if decision.get('readyForTransactionPreflight') else 'no'}`",
         "",
@@ -486,11 +486,11 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-        "## 缁撹",
-        "",
-        conclusion,
-        "",
-        "## 鍏抽敭闃绘柇",
+            "## 结论",
+            "",
+            conclusion,
+            "",
+            "## 关键阻断",
         ]
     )
     blockers = evidence.get("blockers") or decision.get("blockedReasons") or []
@@ -510,7 +510,7 @@ def render_robinhood_chain_test_summary(plan: dict[str, Any]) -> str:
 
 
 def render_robinhood_chain_test_checklist(plan: dict[str, Any]) -> str:
-    lines = ["# Robinhood 閾句笂娆℃祴璇?checklist", ""]
+    lines = ["# Robinhood 链上测试 checklist", ""]
     for item in plan.get("checklist") or []:
         if not isinstance(item, dict):
             continue

@@ -1,0 +1,51 @@
+[
+  {
+    "detail": "锁定 ETH -> 0XC9F9C8 -> 0X71178B -> ETH / 触发区块 113728916",
+    "done": true,
+    "id": "freeze_snapshot",
+    "status": "done",
+    "title": "冻结链上复核快照"
+  },
+  {
+    "detail": "在 contract/robinhood 下保留链别信息与后续部署占位",
+    "done": true,
+    "id": "build_contract_dir",
+    "status": "done",
+    "title": "准备链别合约信息目录"
+  },
+  {
+    "detail": "按链上复核路径生成 flashloan / AMM 交换参数",
+    "done": false,
+    "id": "calldata_builder",
+    "status": "pending",
+    "title": "生成交易 calldata"
+  },
+  {
+    "detail": "Add minOut, slippage guard, repayment balance, and minimum-profit threshold",
+    "done": false,
+    "id": "risk_guard",
+    "status": "pending",
+    "title": "Add slippage and repayment constraints"
+  },
+  {
+    "detail": "只读 Quoter 已复核后仍需本地仿真",
+    "done": false,
+    "id": "fork_staticcall",
+    "status": "blocked",
+    "title": "执行 fork/static-call 仿真"
+  },
+  {
+    "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
+    "done": false,
+    "id": "broadcast_gate",
+    "status": "blocked",
+    "title": "保持广播闸门关闭"
+  },
+  {
+    "detail": "完成后把方案、清单、测试包归档到部署目录",
+    "done": false,
+    "id": "archive_outputs",
+    "status": "pending",
+    "title": "归档实施方案与测试包"
+  }
+]

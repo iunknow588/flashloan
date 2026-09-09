@@ -18,7 +18,7 @@
     "usesNativeBorrow": true
   },
   "executionRequest": {
-    "amount": "715255737304",
+    "amount": "10000000000000000",
     "borrowTokenIsNative": true,
     "calldataStatus": "pending",
     "executorContract": "RobinhoodPausedFlashLoanExecutor",
@@ -52,16 +52,16 @@
     "transactionValueRaw": "0"
   },
   "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
-  "marketId": "robinhood-testnet-dex-paused",
+  "marketId": "dex-arbitrage-46630-uniswap-v4",
   "morphoBlueStatus": "not_publicly_verified_on_testnet_46630",
   "network": "robinhood-testnet",
   "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
   "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "repaymentConstraint": {
-    "borrowAmountRaw": "715255737304",
+    "borrowAmountRaw": "10000000000000000",
     "borrowSymbol": "ETH",
     "borrowToken": "0x0000000000000000000000000000000000000000",
-    "finalAmountRaw": "976463234856",
+    "finalAmountRaw": "295369155315853212",
     "finalSymbol": "ETH",
     "finalToken": "0x0000000000000000000000000000000000000000",
     "flashLoanFeeBps": 5.0,
@@ -69,9 +69,9 @@
     "minProfitRaw": "1",
     "minProfitRule": "positive_x_profit_min_raw_unit",
     "profitBasis": "borrow_token",
-    "repayAmountRaw": "715613365172"
+    "repayAmountRaw": "10005000000000000"
   },
-  "routePreflightStatus": "ready_for_fork_staticcall",
+  "routePreflightStatus": "blocked_route_execution_size_probe",
   "scope": "robinhood_testnet_46630_only",
   "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904"

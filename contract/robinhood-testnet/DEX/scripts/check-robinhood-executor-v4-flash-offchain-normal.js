@@ -30,6 +30,38 @@ function writeEvidence(report) {
   return reportPath;
 }
 
+async function deployExecutorV4Fixture(owner) {
+  const PoolManager = await hre.ethers.getContractFactory("MockV4PoolManager");
+  const poolManager = await PoolManager.deploy();
+  const Router = await hre.ethers.getContractFactory("MockRobinhoodUniversalRouter");
+  const router = await Router.deploy();
+  const Executor = await hre.ethers.getContractFactory("RobinhoodPausedFlashLoanExecutor");
+  const executor = await Executor.deploy(owner.address);
+
+  await executor.setFlashSourceAdapter(
+    FLASH_SOURCE_UNISWAP_V4_POOL_MANAGER,
+    true,
+    await poolManager.getAddress(),
+    0,
+    hre.ethers.ZeroHash,
+  );
+  await executor.setUniswapV4Adapter(
+    true,
+    await router.getAddress(),
+    await poolManager.getAddress(),
+    hre.ethers.getAddress("0x000000000022D473030F116dDEE9F6B43aC78BA3"),
+    hre.ethers.ZeroHash,
+  );
+  await executor.setRepaymentGuard(0, 0, 0, true);
+  await executor.setPaused(false);
+
+  return { poolManager, router, executor };
+}
+
+function v4RouterRouteCall(routerInterface, deadline) {
+  return routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline]);
+}
+
 async function localArtifactCodeStatus(contractName) {
   const artifact = await hre.artifacts.readArtifact(contractName);
   const deployedBytecode = String(artifact.deployedBytecode || "");
@@ -44,43 +76,22 @@ async function localArtifactCodeStatus(contractName) {
 async function runExecutorOffchainNormalReadiness() {
   const [owner] = await hre.ethers.getSigners();
   const Token = await hre.ethers.getContractFactory("TestERC20");
-  const token = await Token.deploy("Test USDG", "tUSDG", 6, owner.address);
-  const PoolManager = await hre.ethers.getContractFactory("MockV4PoolManager");
-  const poolManager = await PoolManager.deploy();
-  const Router = await hre.ethers.getContractFactory("MockRobinhoodUniversalRouter");
-  const router = await Router.deploy();
-  const Executor = await hre.ethers.getContractFactory("RobinhoodPausedFlashLoanExecutor");
-  const executor = await Executor.deploy(owner.address);
 
   const amount = BigInt(process.env.ROBINHOOD_TESTNET_EXECUTOR_OFFCHAIN_NORMAL_FLASH_AMOUNT || "1000");
-  const tokenAddress = await token.getAddress();
-  const poolManagerAddress = await poolManager.getAddress();
-  const routerAddress = await router.getAddress();
-  const executorAddress = await executor.getAddress();
   const artifact = await localArtifactCodeStatus("RobinhoodPausedFlashLoanExecutor");
-
-  await executor.setFlashSourceAdapter(
-    FLASH_SOURCE_UNISWAP_V4_POOL_MANAGER,
-    true,
-    poolManagerAddress,
-    0,
-    hre.ethers.ZeroHash,
-  );
-  await executor.setUniswapV4Adapter(
-    true,
-    routerAddress,
-    poolManagerAddress,
-    hre.ethers.getAddress("0x000000000022D473030F116dDEE9F6B43aC78BA3"),
-    hre.ethers.ZeroHash,
-  );
-  await executor.setRepaymentGuard(0, 0, 0, true);
-  await executor.setPaused(false);
-  await token.mint(poolManagerAddress, amount);
 
   const routerInterface = new hre.ethers.Interface(["function execute(bytes commands, bytes[] inputs, uint256 deadline)"]);
   const block = await hre.ethers.provider.getBlock("latest");
   const deadline = BigInt(block.timestamp + 600);
-  const routeCall = routerInterface.encodeFunctionData("execute", ["0x10", ["0x"], deadline]);
+  const routeCall = v4RouterRouteCall(routerInterface, deadline);
+
+  const token = await Token.deploy("Test USDG", "tUSDG", 6, owner.address);
+  const tokenAddress = await token.getAddress();
+  const tokenFixture = await deployExecutorV4Fixture(owner);
+  const poolManagerAddress = await tokenFixture.poolManager.getAddress();
+  const routerAddress = await tokenFixture.router.getAddress();
+  const executorAddress = await tokenFixture.executor.getAddress();
+  await token.mint(poolManagerAddress, amount);
   const request = {
     token: tokenAddress,
     amount,
@@ -91,33 +102,39 @@ async function runExecutorOffchainNormalReadiness() {
     gasReserve: 0n,
   };
 
-  const tx = await executor.requestV4FlashLoan(request);
+  const tx = await tokenFixture.executor.requestV4FlashLoan(request);
   const receipt = await tx.wait();
 
   const nativeAmount = BigInt(process.env.ROBINHOOD_TESTNET_EXECUTOR_OFFCHAIN_NORMAL_NATIVE_AMOUNT || amount.toString());
   const nativeMinProfit = BigInt(process.env.ROBINHOOD_TESTNET_EXECUTOR_OFFCHAIN_NORMAL_NATIVE_MIN_PROFIT || "1");
-  await owner.sendTransaction({ to: poolManagerAddress, value: nativeAmount });
-  await owner.sendTransaction({ to: routerAddress, value: nativeMinProfit });
-  await router.setNativeTransferOnNextExecute(nativeAmount + nativeMinProfit);
+  const nativeFixture = await deployExecutorV4Fixture(owner);
+  const nativePoolManagerAddress = await nativeFixture.poolManager.getAddress();
+  const nativeRouterAddress = await nativeFixture.router.getAddress();
+  const nativeExecutorAddress = await nativeFixture.executor.getAddress();
+  await owner.sendTransaction({ to: nativePoolManagerAddress, value: nativeAmount });
+  await owner.sendTransaction({ to: nativeRouterAddress, value: nativeMinProfit });
+  await nativeFixture.router.setNativeTransferOnNextExecute(nativeAmount + nativeMinProfit);
   const nativeRequest = {
     token: hre.ethers.ZeroAddress,
     amount: nativeAmount,
-    swapTargets: [routerAddress],
+    swapTargets: [nativeRouterAddress],
     swapCalldatas: [routeCall],
     swapValues: [nativeAmount],
     finalToken: hre.ethers.ZeroAddress,
     minProfit: nativeMinProfit,
     gasReserve: 0n,
   };
-  const nativeTx = await executor.requestV4FlashLoanWithValues(nativeRequest);
+  const nativeTx = await nativeFixture.executor.requestV4FlashLoanWithValues(nativeRequest);
   const nativeReceipt = await nativeTx.wait();
 
   const poolBalance = await token.balanceOf(poolManagerAddress);
   const executorBalance = await token.balanceOf(executorAddress);
-  const debt = await poolManager.currencyDebt(executorAddress, tokenAddress);
-  const nativeExecutorBalance = await hre.ethers.provider.getBalance(executorAddress);
-  const nativeDebt = await poolManager.currencyDebt(executorAddress, hre.ethers.ZeroAddress);
-  const routerEvents = await router.queryFilter(router.filters.Executed());
+  const debt = await tokenFixture.poolManager.currencyDebt(executorAddress, tokenAddress);
+  const nativeExecutorBalance = await hre.ethers.provider.getBalance(nativeExecutorAddress);
+  const nativeDebt = await nativeFixture.poolManager.currencyDebt(nativeExecutorAddress, hre.ethers.ZeroAddress);
+  const tokenRouterEvents = await tokenFixture.router.queryFilter(tokenFixture.router.filters.Executed());
+  const nativeRouterEvents = await nativeFixture.router.queryFilter(nativeFixture.router.filters.Executed());
+  const routerEvents = [...tokenRouterEvents, ...nativeRouterEvents];
   const ok = poolBalance === amount
     && executorBalance === 0n
     && debt === 0n
@@ -157,6 +174,9 @@ async function runExecutorOffchainNormalReadiness() {
       routerEventCount: routerEvents.length,
       nativeExecutionFunction: "requestV4FlashLoanWithValues",
       nativeSwapValues: [nativeAmount.toString()],
+      nativePoolManagerAddress,
+      nativeRouterAddress,
+      nativeExecutorAddress,
     },
     balances: {
       poolManager: poolBalance,

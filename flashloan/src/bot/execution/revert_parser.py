@@ -3,6 +3,8 @@
 import re
 from typing import Any
 
+from core.error_registry import resolve_error_definition
+
 
 REVERT_PATTERNS: list[tuple[str, str]] = [
     (r"ProfitTooLow\(", "profit_too_low"),
@@ -57,6 +59,29 @@ REVERT_CATEGORY_LABELS: dict[str, str] = {
 }
 
 
+REVERT_ERROR_KEYS: dict[str, str] = {
+    "profit_too_low": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "invalid_request": "CORE.VALIDATION.INVALID",
+    "not_pool": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "bad_initiator": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "not_owner": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "paused": "BOT.EXECUTION.BLOCKED",
+    "liquidation_not_configured": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "liquidation_not_allowed": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "close_factor_exceeded": "BOT.LIQUIDATION.STATIC_CALL_FAILED",
+    "slippage_exceeded": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "transfer_failed": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "insufficient_allowance": "BOT.EXECUTION.APPROVAL_FAILED",
+    "insufficient_balance": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "deadline_expired": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "rate_not_set": "BOT.LIQUIDATION.QUOTE_FAILED",
+    "execution_reverted": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "out_of_gas": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "nonce_too_low": "BOT.EXECUTION.SUBMISSION_REVERTED",
+    "replacement_tx_underpriced": "BOT.EXECUTION.SUBMISSION_REVERTED",
+}
+
+
 def parse_revert_reason(error_text: str) -> dict[str, Any]:
     """Parse a revert exception message into structured categories.
 
@@ -69,6 +94,9 @@ def parse_revert_reason(error_text: str) -> dict[str, Any]:
     if not error_text:
         return {
             "category": "unknown",
+            "module": "BOT.revert_parser",
+            "code": int(resolve_error_definition("BOT.INTERNAL").code),
+            "message": "未知错误",
             "label": "未知错误",
             "raw": "",
             "confidence": "low",
@@ -78,15 +106,25 @@ def parse_revert_reason(error_text: str) -> dict[str, Any]:
     for pattern, category in REVERT_PATTERNS:
         if re.search(pattern, text, re.IGNORECASE):
             label = REVERT_CATEGORY_LABELS.get(category, category)
+            error_key = REVERT_ERROR_KEYS.get(category, "BOT.EXECUTION.SUBMISSION_REVERTED")
             return {
                 "category": category,
+                "error_key": error_key,
+                "module": "BOT.revert_parser",
+                "code": int(resolve_error_definition(error_key).code),
+                "message": label,
                 "label": label,
                 "raw": text[:500],
                 "confidence": "high",
             }
 
+    error_key = "BOT.INTERNAL"
     return {
         "category": "unknown",
+        "error_key": error_key,
+        "module": "BOT.revert_parser",
+        "code": int(resolve_error_definition(error_key).code),
+        "message": f"未分类错误: {text[:100]}",
         "label": f"未分类错误: {text[:100]}",
         "raw": text[:500],
         "confidence": "low",
@@ -109,6 +147,10 @@ def build_failure_record(
         "debt_asset": str(request.get("debtAsset") or ""),
         "failure_type": f"static_call_{parsed['category']}",
         "failure_reason": parsed.get("label") or parsed.get("raw", ""),
+        "error_key": parsed.get("error_key") or "BOT.INTERNAL",
+        "module": parsed.get("module") or "BOT.revert_parser",
+        "code": parsed.get("code"),
+        "message": parsed.get("message") or parsed.get("label") or parsed.get("raw", ""),
         "payload": payload,
         "source": "static_call_preflight",
     }

@@ -34,6 +34,8 @@ from core.errors import (
     error_payload,
     normalize_error_code,
 )
+from core.error_registry import ERROR_REGISTRY, ErrorCode, ErrorDefinition, resolve_error_definition
+from core.error_stack import ErrorStack, ModuleError, ResultStamp, stack_from_legacy
 
 
 __all__ = (
@@ -52,6 +54,14 @@ __all__ = (
     "MarketScope",
     "validate_scoped_payload",
     "error_payload",
+    "ERROR_REGISTRY",
+    "ErrorCode",
+    "ErrorDefinition",
+    "ErrorStack",
+    "ModuleError",
+    "ResultStamp",
+    "resolve_error_definition",
+    "stack_from_legacy",
     "normalize_data_source",
     "normalize_error_code",
     "source_metadata",

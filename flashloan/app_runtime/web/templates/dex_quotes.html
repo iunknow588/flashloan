@@ -98,6 +98,7 @@
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "单跳价格影响超过 10 bps",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
+      pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
       requires_live_quoter: "需要链上报价器",
       sdk_adapter_required: "需要 V4 SDK 适配器",
@@ -154,11 +155,15 @@
     const blockerText = value => {
       const text = String(value || "");
       const translated = text
+        .replace(/hop (\d+) ([A-Za-z0-9]+)->([A-Za-z0-9]+) verification failed/g, "链上第 $1 步 $2 -> $3 验证失败")
         .replace(/on-chain hop (\d+) verification failed/g, "链上第 $1 步验证失败")
         .replace(/robinhood testnet v4 quoter exact-input call failed/g, "Robinhood 测试网 V4 报价器精确输入调用失败")
         .replace(/robinhood testnet v4 quoter reverted/g, "Robinhood 测试网 V4 报价器回滚")
         .replace(/UnexpectedRevertBytes\(bytes\)/g, "意外回滚字节(bytes)")
         .replace(/NotEnoughLiquidity\(bytes32\)/g, "流动性不足(bytes32)")
+        .replace(/0x486aa307/g, "PoolNotInitialized()")
+        .replace(/PoolNotInitialized\(\)/g, "V4 池未初始化")
+        .replace(/意外回滚字节\(bytes\) -> V4 池未初始化/g, "V4 池未初始化")
         .replace(/robinhood testnet v4 quoter/g, "Robinhood 测试网 V4 报价器");
       if (translated && !/[\u4e00-\u9fff]/.test(translated)) return `原因：${translated}`;
       return translated;
@@ -201,17 +206,22 @@
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "单跳价格影响超过 10 bps",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
+      pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
     }[String(status || "").toLowerCase()] || "链上验证未完成");
-    function onchainEvidenceHtml(evidence) {
+    function onchainEvidenceHtml(evidence, route) {
       if (!evidence || !Object.keys(evidence).length) return "";
       const status = String(evidence.status || "").toLowerCase();
-      const failed = (evidence.hops || []).filter(hop => hop?.liveQuoteError || String(hop?.status || "").toLowerCase() === "live_quote_failed");
+      const failed = (evidence.hops || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const focusFailed = failed[0] || null;
+      const stackTop = route?.errorStack?.[0] || focusFailed?.errorStack?.[0] || evidence.errorStack?.[0] || null;
+      const blockersToShow = focusFailed ? [] : lines(evidence.blockers);
       return `<div class="onchain-evidence ${status === "live_verified" ? "good" : "bad"}"
         data-onchain-status="${esc(status)}"><strong>${esc(evidenceStatus(status))}</strong>
         <span class="muted">区块 ${esc(evidence.blockNumber || evidence.triggerBlockNumber || "-")} | 信任级别 ${esc(executionTrustText(evidence.executionTrust))}</span>
-        ${failed.map(hop => `<div class="evidence-error">第 ${esc(hop.hop || "-")} 步 ${esc(hop.fromSymbol || "-")} -> ${esc(hop.toSymbol || "-")}：${esc(blockerText(hop.liveQuoteError || "报价失败"))}</div>`).join("")}
-        ${lines(evidence.blockers).map(item => `<div class="muted">${esc(blockerText(item))}</div>`).join("")}</div>`;
+        ${focusFailed ? `<div class="evidence-error">第 ${esc(focusFailed.hop || "-")} 步 ${esc(focusFailed.fromSymbol || "-")} -> ${esc(focusFailed.toSymbol || "-")}：${esc(blockerText(focusFailed.liveQuoteError || "报价失败"))}</div>` : ""}
+        ${stackTop ? `<div class="muted">模块 ${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")} | ${esc(stackTop.message || "")}</div>` : ""}
+        ${blockersToShow.map(item => `<div class="muted">${esc(blockerText(item))}</div>`).join("")}</div>`;
     }
     const inputSymbol = (route, analysis) => route?.routeSymbols?.[0] || analysis?.referenceInputSymbol || analysis?.inputSymbol || "";
     const routeSizeAmount = (value, route, analysis) => amount(value, inputSymbol(route, analysis));
@@ -220,29 +230,43 @@
       const analysis = routeAnalysis(route);
       const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified");
       const steps = analysis.steps || [];
+      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : steps).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failedHop = failedHops[0] || null;
+      const focusOnError = Boolean(failedHop);
+      const focusSteps = focusOnError ? steps.filter(step => Number(step.hop) === Number(failedHop.hop)) : steps;
+      const stackTop = route.errorStack?.[0] || failedHop?.errorStack?.[0] || evidence.errorStack?.[0] || null;
+      const focusErrorText = stackTop?.message ? blockerText(stackTop.message) : (failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : "链上单跳报价失败");
       const recommendation = analysis.recommendation || {};
       const requests = route.quoteInputs?.quoteRequests || [];
       const pools = route.quoteInputs?.candidatePools || [];
-      const stepRows = steps.map(step => `<tr><td>${esc(step.hop)}</td><td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td><td>${esc(step.protocol || step.dex || "-")}</td><td>${esc(label(step.quoteSource))}${step.liveQuoteError ? `<div class="evidence-error">${esc(blockerText(step.liveQuoteError))}</div>` : ""}</td><td>${esc(step.pool || "-")}</td><td>${numeric(step.feeBps, 2)}</td><td>${numeric(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td><td>${live ? `${numeric(step.outputAmount, 8)} ${esc(step.toSymbol)}` : `${numeric(step.referenceOutputAmount, 8)} ${esc(step.toSymbol)} (ref)`}</td><td>${live ? numeric(step.effectiveRate, 8) : numeric(step.referenceEffectiveRate, 8)}</td><td>${step.priceImpactBps == null ? "-" : `${numeric(step.priceImpactBps, 2)} / ${numeric(step.priceImpactLimitBps ?? evidence.validation?.hopPriceImpactLimitBps ?? 10, 0)} bps`}</td></tr>`).join("");
+      const displayedSteps = focusSteps.length ? focusSteps : (focusOnError ? [failedHop] : steps);
+      const stepRows = displayedSteps.map(step => `<tr><td>${esc(step.hop)}</td><td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td><td>${esc(step.protocol || step.dex || "-")}</td><td>${esc(label(step.quoteSource))}${step.liveQuoteError ? `<div class="evidence-error">${esc(blockerText(step.liveQuoteError))}</div>` : ""}</td><td>${esc(step.pool || "-")}</td><td>${numeric(step.feeBps, 2)}</td><td>${numeric(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td><td>${focusOnError ? (step.liveQuoteError ? "报价失败" : "-") : (live ? `${numeric(step.outputAmount, 8)} ${esc(step.toSymbol)}` : `${numeric(step.referenceOutputAmount, 8)} ${esc(step.toSymbol)} (ref)`)}</td><td>${focusOnError ? "-" : (live ? numeric(step.effectiveRate, 8) : numeric(step.referenceEffectiveRate, 8))}</td><td>${focusOnError ? "-" : (step.priceImpactBps == null ? "-" : `${numeric(step.priceImpactBps, 2)} / ${numeric(step.priceImpactLimitBps ?? evidence.validation?.hopPriceImpactLimitBps ?? 10, 0)} bps`)}</td></tr>`).join("");
       const tokenProfit = analysis.referenceReturnBasis === "borrow_token" && analysis.referenceNetProfitAmount != null ? `${amount(analysis.referenceNetProfitAmount, analysis.referenceInputSymbol)} / ${numeric(analysis.referenceNetReturnBps, 2)} bps` : "-";
       const tokenProfitLabel = live ? "X 本位结果" : "X 本位参考";
       const netProfitDisplay = live ? (analysis.netProfitUsd != null ? money(analysis.netProfitUsd) : tokenProfit) : tokenProfit;
       const netReturnDisplay = live ? numeric(analysis.netProfitBps ?? analysis.referenceNetReturnBps, 2) : numeric(analysis.referenceNetReturnBps, 2);
       const depthStatus = String(analysis.staticDepthStatus || "unavailable").toLowerCase();
       const depthKnown = live || depthStatus === "available";
-      const depthLabel = depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
-      const recClass = ["live_quote_failed", "live_evidence_deferred", "pool_insufficient_for_profitable_execution", "slippage_limit_exceeded", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (live ? "good" : "warn");
+      const recommendationRows = focusOnError ? [`第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 失败：${esc(focusErrorText)}`] : lines(recommendation.reasons);
+      const analysisHtml = focusOnError
+        ? `<div class="analysis focus-error"><div><small>错误定位</small><strong>第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)}</strong></div><div><small>链上错误</small><strong>${esc(focusErrorText)}</strong></div>${stackTop ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div>` : ""}</div>`
+        : `<div class="analysis"><div><small>${live ? "1000U 输出" : "1000U 输出（参考）"}</small><strong>${depthKnown ? (live ? money(analysis.finalOutputUsd) : money(analysis.referenceFinalOutputUsd)) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? (live ? money(analysis.grossProfitUsd) : money(analysis.referenceGrossProfitUsd)) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>初始探测金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0], route, analysis)}</strong></div><div><small>最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div></div>`;
+      const depthLabel = focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
+      const recClass = ["pool_not_initialized", "live_quote_failed", "live_evidence_deferred", "pool_insufficient_for_profitable_execution", "slippage_limit_exceeded", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (live ? "good" : "warn");
+      const actionText = focusOnError
+        ? `第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 失败`
+        : recommendationAction(recommendation.action || label(route.quoteStatus));
       return `<article class="route"><div class="route-head"><div><h2>${esc(route.symbolPair || route.routeSymbols?.join(" -> ") || "路线")}</h2><div class="badges">
-        <span class="badge ${recClass}">${esc(recommendationAction(recommendation.action || label(route.quoteStatus)))}</span>
+        <span class="badge ${recClass}">${esc(actionText)}</span>
         <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
         <span class="badge ${live ? "good" : "warn"}">${live ? "链上价格已验证" : "链上价格不可用"}</span>
         <span class="badge ${Object.keys(evidence).length && evidence.status !== "live_verified" ? "bad" : "good"}">${esc(evidenceStatus(evidence.status || ""))}</span>
         <span class="badge ${depthStatus === "available" ? "good" : "warn"}">${esc(depthLabel)}</span>
       </div></div><button class="copy-btn" type="button" data-copy-route="${index}">复制本组</button></div>
-      ${onchainEvidenceHtml(evidence)}
-      <div class="analysis"><div><small>${live ? "1000U 输出" : "1000U 输出（参考）"}</small><strong>${depthKnown ? (live ? money(analysis.finalOutputUsd) : money(analysis.referenceFinalOutputUsd)) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? (live ? money(analysis.grossProfitUsd) : money(analysis.referenceGrossProfitUsd)) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>初始探测金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0], route, analysis)}</strong></div><div><small>最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div></div>
+        ${onchainEvidenceHtml(evidence, route)}
+      ${analysisHtml}
       <div class="table-wrap"><table><thead><tr><th>跳</th><th>兑换</th><th>协议</th><th>报价来源</th><th>池</th><th>手续费 bps</th><th>输入</th><th>输出</th><th>汇率</th><th>价格影响 / 上限</th></tr></thead><tbody>${stepRows || '<tr><td colspan="10">暂无单跳报价数据</td></tr>'}</tbody></table></div>
-      <div class="recommendation"><strong>建议：${esc(recommendationAction(recommendation.action || "-"))}</strong><ol>${lines(recommendation.reasons).map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
+      <div class="recommendation"><strong>建议：${esc(focusOnError ? actionText : recommendationAction(recommendation.action || "-"))}</strong><ol>${recommendationRows.map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
       <div class="muted">候选池：${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div><div class="badges">${requests.map(item => `<span class="badge">${esc(label(item.venue))} / ${esc(label(item.quoteMode))} / ${esc(label(item.status))}</span>`).join("")}</div></article>`;
     }
     const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
@@ -319,6 +343,26 @@
       const size = route?.sizeAnalysis || {};
       const costs = evidence.costModel || {};
       const display = value => value === null || value === undefined || value === "" ? "-" : String(value);
+      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failedHop = failedHops[0] || null;
+      const focusOnError = Boolean(failedHop);
+      const stackTop = route.errorStack?.[0] || failedHop?.errorStack?.[0] || evidence.errorStack?.[0] || null;
+      const focusErrorText = stackTop?.message ? blockerText(stackTop.message) : (failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : "链上单跳报价失败");
+      if (focusOnError) {
+        const text = [
+          `route=${display(route.symbolPair)}`,
+          `path=${display((route.routeSymbols || []).join(" -> "))}`,
+          `quoteStatus=${display(route.quoteStatus)}`,
+          `evidenceStatus=${display(evidence.status)}`,
+          `block=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
+          `executionTrust=${display(evidence.executionTrust)}`,
+          `错误定位=第 ${display(failedHop.hop)} 步 ${display(failedHop.fromSymbol)} -> ${display(failedHop.toSymbol)}`,
+          `链上错误=${display(focusErrorText)}`,
+          `建议=链上报价失败，阻止交易预检`,
+        ].filter(Boolean).join("\n");
+        try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
+        return;
+      }
       const netProfit = analysis.netProfitUsd ?? sourceAnalysis.netProfitUsd ?? costs.netProfitUsd ?? sourceAnalysis.referenceNetProfitAmount ?? costs.netProfitAmount;
       const netProfitSymbol = analysis.netProfitUsd != null || sourceAnalysis.netProfitUsd != null || costs.netProfitUsd != null ? "USD" : (costs.netProfitAmountSymbol || sourceAnalysis.referenceInputSymbol || "token");
       const rows = Array.isArray(size.rows) ? size.rows : [];

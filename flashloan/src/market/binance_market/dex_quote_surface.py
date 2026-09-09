@@ -7,6 +7,7 @@ from urllib.parse import quote
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_analysis import DEFAULT_QUOTE_PROBE_NOTIONAL_USD
 from market.binance_market.dex_quote_route_builder import build_quote_route_payload
+from dex.error_stack import route_error_stack
 from market.binance_market.dex_quote_route_common import (
     build_quote_analysis_defaults,
     build_quote_inputs_bundle,
@@ -288,6 +289,10 @@ def build_quote_request_payload(
             "pair": normalized_pair,
             "venue": normalized_venue,
             "availablePairs": [route.get("symbolPair") for route in quote_routes_payload.get("routes") or []],
+            "errorStack": route_error_stack(
+                status="candidate_pair_not_found",
+                message="candidate_pair_not_found",
+            ),
         }
     requests = [
         request
@@ -296,6 +301,12 @@ def build_quote_request_payload(
     ]
     quote_analysis = matched.get("quoteAnalysis") or {}
     quote_verification = matched.get("quoteVerification") or build_quote_verification_payload(quote_analysis=quote_analysis)
+    route_stack = matched.get("errorStack") or route_error_stack(
+        status=matched.get("quoteStatus") or quote_route_status(quote_analysis),
+        message=quote_analysis.get("failureReason") or quote_analysis.get("error"),
+        evidence=quote_analysis.get("live_onchain_evidence") if isinstance(quote_analysis.get("live_onchain_evidence"), dict) else None,
+        blockers=list(quote_analysis.get("blockers") or quote_analysis.get("blocked_reasons") or []),
+    )
     return {
         "ok": bool(requests),
         "mode": "dex_quote_request",
@@ -307,6 +318,7 @@ def build_quote_request_payload(
         "quoteVerification": quote_verification,
         "quoteAnalysis": quote_analysis,
         "quoteRequests": requests,
+        "errorStack": route_stack,
         "candidatePools": (matched.get("quoteInputs") or {}).get("candidatePools") or [],
         "status": "quote_request_ready" if requests else "venue_not_available_for_pair",
         "note": "This endpoint returns the exact quote request specification; live quote execution is handled by the configured venue adapter.",

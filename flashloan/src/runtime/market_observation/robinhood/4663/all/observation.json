@@ -1,10 +1,10 @@
 {
   "borrowableSymbols": [
-    "WETH"
+    "USDG"
   ],
   "candidateObservationGroups": [
     {
-      "anchorSymbol": "WETH",
+      "anchorSymbol": "USDG",
       "observationCombinationCount": 0,
       "observationCombinationPreview": [],
       "observationReachable": false,
@@ -89,7 +89,7 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-08T17:55:00.908699Z",
+  "generated_at": "2026-09-09T05:59:18.188939Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
     "borrowableSymbols": 1,
@@ -102,7 +102,7 @@
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [
-    "WETH"
+    "USDG"
   ],
   "observationSequences": [],
   "ok": true,

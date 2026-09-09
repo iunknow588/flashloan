@@ -1,7 +1,6 @@
 {
   "borrowableSymbols": [
-    "USDG",
-    "WETH"
+    "USDG"
   ],
   "chainSpecificObservationPairs": [],
   "chain_id": 4663,
@@ -76,19 +75,18 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-08T17:55:01.235455Z",
+  "generated_at": "2026-09-09T05:59:18.481235Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "borrowableSymbols": 2,
+    "borrowableSymbols": 1,
     "chainSpecificObservationPairs": 0,
     "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 2
+    "observationAnchorSymbols": 1
   },
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [
-    "USDG",
-    "WETH"
+    "USDG"
   ],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\observation.json",
   "ok": true,
@@ -134,7 +132,7 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 2,
+    "borrowableTokenCount": 1,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
@@ -158,7 +156,7 @@
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
     "observableTokenCount": 0,
-    "observationAnchorCount": 2,
+    "observationAnchorCount": 1,
     "observationSequenceAnchorCount": 0,
     "observationSequenceCount": 0,
     "observationSequencePoolCount": 0,

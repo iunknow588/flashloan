@@ -194,6 +194,9 @@ def test_split_packages_exist_without_cross_imports():
             "dex/intent_trade/direct_impl.py",
             "dex/intent_trade/direct_unified_broadcast.py",
             "market/binance_market/cow_tokens.py",
+                # DEX quote page adapters consume the DEX-owned error stack
+                # contract to publish route-level API/page results.
+                "market/binance_market/dex_quote_route_builder.py",
                 "market/binance_market/dex_quote_surface.py",
                     "market/binance_market/dex_surface_quotes.py",
                     "market/binance_market/dex_surface_route_quotes.py",

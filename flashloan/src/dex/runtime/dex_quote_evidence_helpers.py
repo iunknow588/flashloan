@@ -9,6 +9,8 @@ from typing import Any, Callable
 
 from web3 import Web3
 
+from core.error_stack import ErrorStack, ModuleError
+from core.error_registry import ErrorCode
 from bot.execution.uniswap_v4 import build_v4_quote_request, quote_v4_exact_input_single
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from bot.execution.uniswap_v3 import quote_v3_exact_input_single, snapshot_v3_pool
@@ -79,6 +81,116 @@ def _text(value: object) -> str:
 def _is_missing_historical_state_error(exc: BaseException) -> bool:
     message = _text(exc).lower()
     return "missing trie node" in message or "state is not available" in message or "state .* not found" in message
+
+
+def _is_pool_not_initialized_error(exc: BaseException) -> bool:
+    message = _text(exc).lower()
+    if "poolnotinitialized" in message.replace("_", "").replace("(", "").replace(")", "") or "pool not initialized" in message:
+        return True
+    cause = getattr(exc, "__cause__", None)
+    return bool(cause is not None and _is_pool_not_initialized_error(cause))
+
+
+def _pool_not_initialized_error(exc: BaseException) -> str | None:
+    if _is_pool_not_initialized_error(exc):
+        return str(exc)
+    return None
+
+
+DEX_STATUS_ERROR_KEYS = {
+    "live_quote_failed": "DEX.QUOTE.LIVE_QUOTE_FAILED",
+    "pool_not_initialized": "DEX.ONCHAIN.HOP_QUOTE.POOL_NOT_INITIALIZED",
+    "not_enough_liquidity": "DEX.ONCHAIN.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY",
+    "not_profitable_after_costs": "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS",
+    "route_unprofitable": "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS",
+    "pool_insufficient_for_profitable_execution": "DEX.GATE.NOT_READY",
+    "slippage_limit_exceeded": "DEX.GATE.NOT_READY",
+    "live_evidence_deferred": "DEX.GATE.NOT_READY",
+    "live_quote_reference_only": "DEX.GATE.NOT_READY",
+}
+
+DEX_ERROR_KEY_CODES = {
+    "DEX.QUOTE.LIVE_QUOTE_FAILED": ErrorCode.DEX_LIVE_QUOTE_FAILED,
+    "DEX.ONCHAIN.HOP_QUOTE.POOL_NOT_INITIALIZED": ErrorCode.DEX_POOL_NOT_INITIALIZED,
+    "DEX.ONCHAIN.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY": ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY,
+    "DEX.SIZE_PROBE.POOL_NOT_INITIALIZED": ErrorCode.DEX_SIZE_POOL_NOT_INITIALIZED,
+    "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS": ErrorCode.DEX_SIZE_NOT_PROFITABLE,
+    "DEX.GATE.NOT_READY": ErrorCode.DEX_GATE_NOT_READY,
+    "DEX.ROUTE.INVALID": ErrorCode.DEX_ROUTE_INVALID,
+    "DEX.RPC.FAILED": ErrorCode.DEX_RPC_FAILED,
+    "DEX.INTERNAL": ErrorCode.DEX_INTERNAL,
+}
+
+
+def dex_error_stack_from_state(
+    status: object,
+    *,
+    message: object = None,
+    details: dict[str, Any] | None = None,
+    flow: str = "dex_route",
+) -> list[dict[str, Any]]:
+    return _dex_error_stack_from_status(
+        status,
+        message=message,
+        raw_error=message,
+        details=details,
+        flow=flow,
+        node_id=str((details or {}).get("hop") or ""),
+    )
+
+
+def _dex_error_stack_from_status(
+    status: object,
+    *,
+    message: object = None,
+    raw_error: object = None,
+    details: dict[str, Any] | None = None,
+    flow: str = "onchain_quote",
+    node_id: str = "evidence",
+) -> list[dict[str, Any]]:
+    status_text = str(status or "").strip().lower()
+    detail_values = dict(details or {})
+    error_key = DEX_STATUS_ERROR_KEYS.get(status_text, "DEX.GATE.NOT_READY" if status_text and status_text != "live_verified" else "CORE.OK")
+    stack = ErrorStack()
+    if status_text and status_text != "live_verified":
+        node_label = str(detail_values.get("hop") or node_id or "")
+        reason = str(message or error_key)
+        if node_label and node_label not in reason:
+            reason = f"[{flow}:{node_label}] {reason}"
+        stack.push(
+            ModuleError(
+                module="DEX",
+                code=int(DEX_ERROR_KEY_CODES.get(error_key, ErrorCode.DEX_INTERNAL)),
+                message=reason,
+            )
+        )
+    else:
+        stack.mark_ok(ModuleError(module="DEX", code=0, message="OK"))
+    return stack.as_list()
+
+
+def _dex_error_stack_from_hop(hop: dict[str, Any], *, index: int = 0, flow: str = "onchain_quote") -> list[dict[str, Any]]:
+    status = str(hop.get("status") or "").strip().lower()
+    raw = hop.get("liveQuoteError")
+    message = raw or status
+    key = DEX_STATUS_ERROR_KEYS.get(
+        "pool_not_initialized" if _is_pool_not_initialized_error(ValueError(str(raw))) else status,
+        "DEX.QUOTE.LIVE_QUOTE_FAILED" if status in {"live_quote_failed", "quote_failed"} else "CORE.OK",
+    )
+    stack = None
+    if status in {"live_quote_failed", "quote_failed", "live_evidence_deferred", "pool_not_initialized"}:
+        stack = ErrorStack()
+        hop_num = hop.get("hop") or index
+        symbols = f"{_norm_symbol(hop.get('fromSymbol'))}->{_norm_symbol(hop.get('toSymbol'))}"
+        reason = str(message or key)
+        stack.push(
+            ModuleError(
+                module="DEX",
+                code=int(DEX_ERROR_KEY_CODES.get(key, ErrorCode.DEX_LIVE_QUOTE_FAILED)),
+                message=f"hop {hop_num} {symbols}: {reason}",
+            )
+        )
+    return stack.as_list() if stack is not None else []
 
 
 def _as_dict(value: object) -> dict[str, Any]:
@@ -934,11 +1046,18 @@ def _probe_robinhood_testnet_route_execution_size(
                 "netProfitAmountBps": costs.get("netProfitAmountBps"),
                 "blockers": list(evidence.get("blockers") or []),
                 "failureReason": reason,
+                "errorStack": evidence.get("errorStack") or _dex_error_stack_from_status(
+                    "live_verified" if passed else (reason or "not_profitable_after_costs"),
+                    message=reason or "OK",
+                    details={"attempt": attempts, "amountRaw": str(amount_raw)},
+                    flow="size_probe",
+                    node_id="probe_attempt",
+                ),
             }
         )
         return passed, reason
 
-    def _stop_without_size(reason: str) -> dict[str, Any]:
+    def _stop_without_size(reason: str, *, raw_error: str | None = None) -> dict[str, Any]:
         search_status = (
             "pool_insufficient_for_profitable_execution"
             if reason == "price_impact_limit_exceeded"
@@ -946,6 +1065,9 @@ def _probe_robinhood_testnet_route_execution_size(
             if reason == "not_profitable_after_costs"
             else reason
         )
+        failure_reason = reason
+        if raw_error:
+            failure_reason = f"{reason}: {raw_error}"
         return {
             "status": "route_execution_size_probe_unexecutable",
             "searchStatus": search_status,
@@ -957,7 +1079,15 @@ def _probe_robinhood_testnet_route_execution_size(
             "maxExecutableAmountRaw": None,
             "firstFailureAmountRaw": str(target_amount_raw),
             "attempts": candidate_rows,
-            "failureReason": reason,
+            "failureReason": failure_reason,
+            "errorStack": _dex_error_stack_from_status(
+                search_status,
+                message=failure_reason,
+                raw_error=raw_error,
+                details={"reason": reason, "searchStatus": search_status},
+                flow="size_probe",
+                node_id="probe_quote",
+            ),
         }
 
     lower_bound: int | None = None
@@ -983,15 +1113,24 @@ def _probe_robinhood_testnet_route_execution_size(
             upper_bound = probe
             first_ineligible_amount_raw = probe
         except Exception as exc:
+            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
             candidate_rows.append(
                 {
                     "attempt": attempts,
                     "amountRaw": str(probe),
                     "status": "quote_failed",
                     "error": str(exc),
+                    "errorStack": _dex_error_stack_from_status(
+                        quote_failure_reason,
+                        message=str(exc),
+                        raw_error=str(exc),
+                        details={"attempt": attempts, "amountRaw": str(probe)},
+                        flow="size_probe",
+                        node_id="probe_attempt",
+                    ),
                 }
             )
-            return _stop_without_size("live_quote_failed")
+            return _stop_without_size(quote_failure_reason, raw_error=str(exc))
         if lower_bound is not None:
             break
         next_probe = max(min_probe_amount_raw, probe // 2)
@@ -1003,6 +1142,8 @@ def _probe_robinhood_testnet_route_execution_size(
         search_status = (
             "not_profitable_at_low_slippage"
             if last_failure_reason == "not_profitable_after_costs"
+            else "pool_not_initialized"
+            if last_failure_reason == "pool_not_initialized"
             else "pool_insufficient_for_profitable_execution"
         )
         return {
@@ -1017,6 +1158,13 @@ def _probe_robinhood_testnet_route_execution_size(
             "firstFailureAmountRaw": str(target_amount_raw),
             "attempts": candidate_rows,
             "failureReason": f"after up to {max_attempts} half-size attempts, no amount passed live quote, 10 bps per-hop impact, and positive net-profit gates",
+            "errorStack": _dex_error_stack_from_status(
+                search_status,
+                message=search_status,
+                details={"lastFailureReason": last_failure_reason, "searchStatus": search_status},
+                flow="size_probe",
+                node_id="probe_quote",
+            ),
         }
 
     probe = min(max_probe_amount_raw, max(lower_bound * 2, lower_bound + 1))
@@ -1038,16 +1186,25 @@ def _probe_robinhood_testnet_route_execution_size(
             upper_bound = probe if reason == "price_impact_limit_exceeded" else None
             break
         except Exception as exc:
+            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
             candidate_rows.append(
                 {
                     "attempt": attempts,
                     "amountRaw": str(probe),
                     "status": "quote_failed",
                     "error": str(exc),
+                    "errorStack": _dex_error_stack_from_status(
+                        quote_failure_reason,
+                        message=str(exc),
+                        raw_error=str(exc),
+                        details={"attempt": attempts, "amountRaw": str(probe)},
+                        flow="size_probe",
+                        node_id="probe_attempt",
+                    ),
                 }
             )
             first_ineligible_amount_raw = probe
-            expansion_stop_reason = "live_quote_failed"
+            expansion_stop_reason = quote_failure_reason
             upper_bound = None
             break
 
@@ -1062,12 +1219,21 @@ def _probe_robinhood_testnet_route_execution_size(
                 else:
                     upper_bound = mid
             except Exception as exc:
+                quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
                 candidate_rows.append(
                     {
                         "attempt": attempts,
                         "amountRaw": str(mid),
                         "status": "quote_failed",
                         "error": str(exc),
+                        "errorStack": _dex_error_stack_from_status(
+                            quote_failure_reason,
+                            message=str(exc),
+                            raw_error=str(exc),
+                            details={"attempt": attempts, "amountRaw": str(mid)},
+                            flow="size_probe",
+                            node_id="probe_attempt",
+                        ),
                     }
                 )
                 upper_bound = mid
@@ -1085,4 +1251,10 @@ def _probe_robinhood_testnet_route_execution_size(
         "attempts": candidate_rows,
         "failureReason": None,
         "expansionStopReason": expansion_stop_reason,
+        "errorStack": _dex_error_stack_from_status(
+            "live_verified",
+            message="OK",
+            flow="size_probe",
+            node_id="complete",
+        ),
     }

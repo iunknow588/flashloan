@@ -255,7 +255,7 @@ def test_build_robinhood_chain_test_plan_marks_preflight_boundary():
     assert any(item["id"] == "fork_staticcall" for item in plan["checklist"])
     assert plan["checklist"][0]["done"] is True
     assert "45513946" in plan["checklist"][0]["detail"]
-    assert plan["checklist"][-1]["title"] == "褰掓。瀹炴柦鏂囨。涓庢祴璇曞寘"
+    assert plan["checklist"][-1]["title"] == "归档实施方案与测试包"
 
 
 def test_build_robinhood_chain_test_plan_falls_back_to_quote_hops_when_live_evidence_is_empty():

@@ -9,6 +9,7 @@ from market.binance_market.dex_quote_route_common import (
     build_quote_verification_payload,
     quote_route_status,
 )
+from dex.error_stack import route_error_stack
 from core.dex_provenance import build_price_evidence_payload
 
 
@@ -120,5 +121,13 @@ def build_quote_route_payload(
             source=route_payload["priceEvidenceSource"],
             mode=route_payload["priceEvidenceMode"],
         )
+    )
+    evidence = quote_analysis.get("live_onchain_evidence")
+    route_payload["errorStack"] = route_error_stack(
+        status=quote_status,
+        message=quote_analysis.get("failureReason") or quote_analysis.get("error"),
+        evidence=evidence if isinstance(evidence, dict) else None,
+        blockers=list(quote_analysis.get("blockers") or quote_analysis.get("blocked_reasons") or []),
+        existing=quote_analysis.get("errorStack"),
     )
     return route_payload

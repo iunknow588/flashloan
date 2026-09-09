@@ -30,12 +30,15 @@ from dex.runtime.dex_quote_evidence_helpers import (
     _checksum,
     _connect_robinhood,
     _connect_robinhood_family,
+    _dex_error_stack_from_hop,
+    _dex_error_stack_from_status,
     _decimal,
     _fee_bps,
     _hop_fee_bps,
     _human_from_raw,
     _int_or_none,
     _is_missing_historical_state_error,
+    _is_pool_not_initialized_error,
     _is_robinhood_family,
     _load_v4_quote_adapter,
     _norm_symbol,
@@ -588,18 +591,30 @@ def build_route_onchain_evidence(
                         "amountInRaw": str(amount_in_raw),
                         "amountOutRaw": None,
                         "liveQuoteError": str(exc),
+                        "errorStack": _dex_error_stack_from_hop(
+                            {
+                                "hop": hop_number,
+                                "status": "live_evidence_deferred",
+                                "liveQuoteError": str(exc),
+                                "fromSymbol": _norm_symbol(step.get("fromSymbol")),
+                                "toSymbol": _norm_symbol(step.get("toSymbol")),
+                            },
+                            index=hop_number,
+                        ),
                     }
                 )
                 blockers.append(
                     f"绗?{hop_number} 璺冲巻鍙插尯鍧?{block_number} 鐨?trie 鐘舵€佷笉鍙敤锛屽凡寤跺悗澶嶆牳锛屼笉鍒ゅ畾涓鸿矾绾垮け璐ワ細{exc}"
                 )
                 break
+            hop_status = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
+            quote_source = "chain_pool_not_initialized" if hop_status == "pool_not_initialized" else "chain_live_quote_failed"
             hop_rows.append(
                 {
                     "hop": hop_number,
-                    "status": "live_quote_failed",
-                    "executionTrust": "live_quote_failed",
-                    "quoteSource": "chain_live_quote_failed",
+                    "status": hop_status,
+                    "executionTrust": hop_status,
+                    "quoteSource": quote_source,
                     "quoteMethod": f"{protocol}_exact_input",
                     "protocol": protocol,
                     "pool": step.get("pool") or pool.get("pool"),
@@ -610,6 +625,16 @@ def build_route_onchain_evidence(
                     "amountInRaw": str(amount_in_raw),
                     "amountOutRaw": None,
                     "liveQuoteError": str(exc),
+                    "errorStack": _dex_error_stack_from_hop(
+                        {
+                            "hop": hop_number,
+                            "status": hop_status,
+                            "liveQuoteError": str(exc),
+                            "fromSymbol": _norm_symbol(step.get("fromSymbol")),
+                            "toSymbol": _norm_symbol(step.get("toSymbol")),
+                        },
+                        index=hop_number,
+                    ),
                     "staticQuote": {
                         "outputAmount": step.get("outputAmount"),
                         "outputUsd": step.get("outputUsd"),
@@ -618,7 +643,10 @@ def build_route_onchain_evidence(
                     },
                 }
             )
-            blockers.append(f"on-chain hop {hop_number} verification failed: {exc}")
+            if hop_status == "pool_not_initialized":
+                blockers.append(f"V4 pool is not initialized or cannot be quoted at hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))}: {exc}")
+            else:
+                blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} verification failed: {exc}")
             break
         hop["hop"] = hop_number
         hop["fromSymbol"] = _norm_symbol(step.get("fromSymbol"))
@@ -742,10 +770,22 @@ def build_route_onchain_evidence(
         execution_size_probe
         and execution_size_probe.get("searchStatus") == "pool_insufficient_for_profitable_execution"
     )
+    pool_not_initialized = bool(
+        any(_text(hop.get("status")).lower() == "pool_not_initialized" for hop in hop_rows)
+        or bool(
+            execution_size_probe
+            and execution_size_probe.get("searchStatus") == "pool_not_initialized"
+        )
+    )
     if pool_insufficient_for_profitable_execution:
         blockers.append("current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee")
+    if pool_not_initialized:
+        blockers.append("V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate")
     evidence_status = (
-        "live_evidence_deferred"
+        "pool_not_initialized"
+        if pool_not_initialized
+        else (
+            "live_evidence_deferred"
         if historical_state_unavailable
         else (
             "pool_insufficient_for_profitable_execution"
@@ -758,6 +798,7 @@ def build_route_onchain_evidence(
                 if all_hops_verified and all_hops_within_price_impact_limit and not net_positive_after_costs
                 else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
             )
+        )
         )
         )
     )
@@ -856,8 +897,19 @@ def build_route_onchain_evidence(
             "nonStablePositiveXProfitPolicy": bool(not borrow_asset_is_stable),
             "executionSizeSearchStatus": execution_size_probe.get("searchStatus") if execution_size_probe else None,
             "poolInsufficientForProfitableExecution": pool_insufficient_for_profitable_execution,
+            "poolNotInitialized": pool_not_initialized,
         },
         "blockers": blockers,
+        "errorStack": _dex_error_stack_from_status(
+            evidence_status,
+            message=blockers[0] if blockers else "OK",
+            raw_error=blockers[0] if blockers else None,
+            details={
+                "status": evidence_status,
+                "blockers": blockers,
+                "executionSizeProbe": execution_size_probe,
+            },
+        ),
         "transactionDevelopment": _transaction_development(meets_submission_profit_threshold, blockers),
     }
 

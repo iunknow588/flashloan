@@ -554,24 +554,24 @@ def _checklist_items(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {
             "id": "freeze_snapshot",
-            "title": "鍐荤粨閾句笂澶嶆牳蹇収",
+            "title": "冻结链上复核快照",
             "status": "done",
             "done": True,
-            "detail": f"閿佸畾 {route['pathText']} / 瑙﹀彂鍖哄潡 {evidence.get('triggerBlockNumber')}",
+            "detail": f"锁定 {route['pathText']} / 触发区块 {evidence.get('triggerBlockNumber')}",
         },
         {
             "id": "build_contract_dir",
-            "title": "鍑嗗閾惧埆鍚堢害淇℃伅鐩綍",
+            "title": "准备链别合约信息目录",
             "status": "done" if contract_dir else "pending",
             "done": bool(contract_dir),
-            "detail": "鍦?contract/robinhood 涓嬩繚鐣欓摼鍒俊鎭笌鍚庣画閮ㄧ讲鍗犱綅",
+            "detail": "在 contract/robinhood 下保留链别信息与后续部署占位",
         },
         {
             "id": "calldata_builder",
-            "title": "鐢熸垚浜ゆ槗 calldata",
+            "title": "生成交易 calldata",
             "status": "pending",
             "done": False,
-            "detail": "鎸夐摼涓婂鏍歌矾寰勭敓鎴?flashloan / AMM 浜ゆ崲鍙傛暟",
+            "detail": "按链上复核路径生成 flashloan / AMM 交换参数",
         },
         {
             "id": "risk_guard",
@@ -582,24 +582,24 @@ def _checklist_items(plan: dict[str, Any]) -> list[dict[str, Any]]:
         },
         {
             "id": "fork_staticcall",
-            "title": "鎵ц fork/static-call 浠跨湡",
+            "title": "执行 fork/static-call 仿真",
             "status": "pending" if ready_for_preflight else "blocked",
             "done": False,
-            "detail": "鍙 Quoter 宸插鏍稿悗浠嶉渶鏈湴浠跨湡",
+            "detail": "只读 Quoter 已复核后仍需本地仿真",
         },
         {
             "id": "broadcast_gate",
-            "title": "淇濇寔骞挎挱闂搁棬鍏抽棴",
+            "title": "保持广播闸门关闭",
             "status": "blocked" if trust_gap else "pending",
             "done": False,
             "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
         },
         {
             "id": "archive_outputs",
-            "title": "褰掓。瀹炴柦鏂囨。涓庢祴璇曞寘",
+            "title": "归档实施方案与测试包",
             "status": "pending",
             "done": False,
-            "detail": "瀹屾垚鍚庢妸鏂规銆佹竻鍗曘€佹祴璇曞寘褰掓。鍒?back",
+            "detail": "完成后把方案、清单、测试包归档到部署目录",
         },
     ]
 

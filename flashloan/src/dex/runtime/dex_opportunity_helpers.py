@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
+from dex.runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -349,6 +350,12 @@ def _route_attempt(
         "chain_submission_policy": analysis.get("chainSubmissionPolicy"),
         "final_symbol": quote.get("final_symbol"),
         "blocked_reasons": reasons,
+        "errorStack": dex_error_stack_from_state(
+            quote_status,
+            message=reasons[0] if reasons else "dex_opportunity_requires_quote_review",
+            details={"routeKey": " -> ".join(route_symbols), "pair": route.get("symbolPair")},
+            flow="dex_opportunity",
+        ),
         "quote": quote,
         "precheck": precheck,
         "market_state": {

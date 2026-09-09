@@ -1,41 +1,321 @@
 {
+  "attempt": {
+    "blockNumber": 113728916,
+    "createdAt": "",
+    "observedAt": "2026-09-05T22:27:38.248681+00:00",
+    "pair": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+    "pathText": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+    "reviewBlockNumber": 113728916,
+    "routePath": [
+      "ETH",
+      "0XC9F9C8",
+      "0X71178B",
+      "ETH"
+    ],
+    "state": "pool_insufficient_for_profitable_execution",
+    "status": "pool_insufficient_for_profitable_execution",
+    "triggerBlockNumber": 113728916
+  },
   "chainId": 46630,
-  "chainKey": "chain:46630",
   "chainTestScope": {
     "canBroadcast": false,
+    "canCaptureLiveOpportunity": false,
+    "canDeployTestnet": true,
+    "canRunForkStaticcall": true,
     "chainId": 46630,
+    "disabledReason": null,
     "enabled": true,
-    "missingPlanPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+    "mode": "testnet_deploy_readback_only",
     "network": "robinhood-testnet"
   },
+  "checklist": [
+    {
+      "detail": "锁定 ETH -> 0XC9F9C8 -> 0X71178B -> ETH / 触发区块 113728916",
+      "done": true,
+      "id": "freeze_snapshot",
+      "status": "done",
+      "title": "冻结链上复核快照"
+    },
+    {
+      "detail": "在 contract/robinhood 下保留链别信息与后续部署占位",
+      "done": true,
+      "id": "build_contract_dir",
+      "status": "done",
+      "title": "准备链别合约信息目录"
+    },
+    {
+      "detail": "按链上复核路径生成 flashloan / AMM 交换参数",
+      "done": false,
+      "id": "calldata_builder",
+      "status": "pending",
+      "title": "生成交易 calldata"
+    },
+    {
+      "detail": "Add minOut, slippage guard, repayment balance, and minimum-profit threshold",
+      "done": false,
+      "id": "risk_guard",
+      "status": "pending",
+      "title": "Add slippage and repayment constraints"
+    },
+    {
+      "detail": "只读 Quoter 已复核后仍需本地仿真",
+      "done": false,
+      "id": "fork_staticcall",
+      "status": "blocked",
+      "title": "执行 fork/static-call 仿真"
+    },
+    {
+      "detail": "trustedForExecution is still false, so signing and broadcast remain disabled.",
+      "done": false,
+      "id": "broadcast_gate",
+      "status": "blocked",
+      "title": "保持广播闸门关闭"
+    },
+    {
+      "detail": "完成后把方案、清单、测试包归档到部署目录",
+      "done": false,
+      "id": "archive_outputs",
+      "status": "pending",
+      "title": "归档实施方案与测试包"
+    }
+  ],
+  "contractHandoff": {
+    "contractDir": "contract\\robinhood-testnet\\DEX\\config\\chain-test-package",
+    "executionModel": {
+      "allV4Hops": true,
+      "mixedProtocolRoute": false,
+      "nestedUnlockAvoidance": true,
+      "requiresDirectPoolManagerFlow": true,
+      "requiresNativeValueForwarding": false,
+      "requiresUniversalRouter": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "status": "planned",
+      "usesNativeBorrow": true
+    },
+    "expectedFiles": [
+      "README.md",
+      "contracts.json"
+    ]
+  },
   "decision": {
+    "blockedReasons": [
+      "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
+      "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
+      "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。",
+      "latest_snapshot_route_not_executable_candidate"
+    ],
     "canBroadcast": false,
-    "canDeployTestnet": false,
+    "canDeployTestnet": true,
     "canRunForkPreflight": false,
+    "canSubmitOrder": false,
+    "needsLiveQuoter": false,
     "readyForTransactionPreflight": false,
+    "requiresTransactionDevelopment": true,
     "trustedForExecution": false
   },
   "evidence": {
-    "allHopsQuoted": false,
+    "allHopsQuoted": true,
+    "blockNumber": 113728916,
+    "blockers": [
+      "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
+      "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
+      "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。",
+      "latest_snapshot_route_not_executable_candidate"
+    ],
+    "borrowInputAmount": 0.01,
+    "borrowInputSymbol": "ETH",
+    "executionTrust": "live_quoter_verified_readonly",
+    "finalOutputAmount": 0.2953691553158532,
+    "finalOutputSymbol": "ETH",
+    "finalOutputUsd": 0.2953691553158532,
+    "grossProfitAmount": 0.2853691553158532,
+    "grossProfitUsd": null,
+    "latestSnapshotUpdatedAt": "2026-09-08T23:28:32.769090+00:00",
+    "liveProfitPercent": null,
     "meetsMinProfitThreshold": false,
+    "meetsOffchainProfitThreshold": false,
+    "meetsSubmissionProfitThreshold": false,
+    "minProfitUsd": 6.0,
     "netPositiveAfterCosts": false,
-    "routeClosed": false,
-    "status": "chain_test_plan_missing",
-    "tokenContinuity": false
+    "netProfitAmount": 0.2853641553158532,
+    "netProfitAmountBps": 285364.1553158532,
+    "netProfitAmountSymbol": "ETH",
+    "netProfitBps": 285364.1553158532,
+    "netProfitUsd": null,
+    "profitBasis": "borrow_token",
+    "profitableAfterCosts": false,
+    "readyForTransactionPreflight": false,
+    "readyForTransactionPreflightRaw": false,
+    "referenceNetProfitUsd": null,
+    "routeChainSubmissionCandidate": false,
+    "routeClosed": true,
+    "routeExecutableCandidate": false,
+    "routeExecutionSizeProbe": null,
+    "routeExecutionSizeProbeExceeded": false,
+    "routeExecutionSizeProbeStatus": "",
+    "routeExecutionSizeShortfallRaw": null,
+    "routeMaxExecutableAmountRaw": null,
+    "routeOriginalExecutionSizeProbeExceeded": false,
+    "routeOriginalExecutionSizeShortfallRaw": null,
+    "routeOriginalRequestedBorrowAmountRaw": 10000000000000000,
+    "routeRecommendedBorrowAmountRaw": null,
+    "routeRequestedBorrowAmountRaw": 10000000000000000,
+    "routeSelectedBorrowAmountRaw": 10000000000000000,
+    "status": "pool_insufficient_for_profitable_execution",
+    "submissionNetProfitAmount": 0.2853641553158532,
+    "tokenContinuity": true,
+    "tokenContinuityIssues": [],
+    "triggerBlockNumber": 113728916,
+    "trustedForExecution": false
   },
+  "generatedAt": "2026-09-08T23:29:12.183162+00:00",
+  "legacyMarketId": "robinhood-testnet-dex-paused",
+  "marketId": "dex-arbitrage-46630-uniswap-v4",
   "network": "robinhood-testnet",
   "preflightSpec": {
     "broadcastEnabled": false,
-    "repaymentConstraint": {},
-    "routeHops": [],
-    "status": "chain_test_plan_missing"
+    "executionModel": {
+      "allV4Hops": true,
+      "mixedProtocolRoute": false,
+      "nestedUnlockAvoidance": true,
+      "requiresDirectPoolManagerFlow": true,
+      "requiresNativeValueForwarding": false,
+      "requiresUniversalRouter": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "status": "planned",
+      "usesNativeBorrow": true
+    },
+    "executionRequest": {
+      "amount": "10000000000000000",
+      "borrowTokenIsNative": true,
+      "calldataStatus": "pending",
+      "executorContract": "RobinhoodPausedFlashLoanExecutor",
+      "finalToken": "0x0000000000000000000000000000000000000000",
+      "function": "requestV4FlashLoan",
+      "gasReserve": "0",
+      "minProfit": "1",
+      "nativeValueForwardingPolicy": "forward_amountInRaw_on_hops_where_tokenIn_is_zero_address",
+      "requiresNativeValueForwarding": false,
+      "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+      "routeExecutionModel": {
+        "allV4Hops": true,
+        "mixedProtocolRoute": false,
+        "nestedUnlockAvoidance": true,
+        "requiresDirectPoolManagerFlow": true,
+        "requiresNativeValueForwarding": false,
+        "requiresUniversalRouter": false,
+        "routeExecutionMode": "pool_manager_direct_swap_settle_take",
+        "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
+        "status": "planned",
+        "usesNativeBorrow": true
+      },
+      "struct": "V4FlashAccountingRequest",
+      "swapValues": [
+        "0",
+        "0",
+        "0"
+      ],
+      "token": "0x0000000000000000000000000000000000000000",
+      "transactionValueRaw": "0"
+    },
+    "repaymentConstraint": {
+      "borrowAmountRaw": "10000000000000000",
+      "borrowSymbol": "ETH",
+      "borrowToken": "0x0000000000000000000000000000000000000000",
+      "finalAmountRaw": "295369155315853212",
+      "finalSymbol": "ETH",
+      "finalToken": "0x0000000000000000000000000000000000000000",
+      "flashLoanFeeBps": 5.0,
+      "gasReserveRaw": "0",
+      "minProfitRaw": "1",
+      "minProfitRule": "positive_x_profit_min_raw_unit",
+      "profitBasis": "borrow_token",
+      "repayAmountRaw": "10005000000000000"
+    },
+    "requiredChecks": [
+      "calldata_matches_verified_hops",
+      "each_hop_min_amount_out_enforced",
+      "flashloan_repay_amount_enforced",
+      "final_token_balance_covers_repay_and_min_profit",
+      "fork_staticcall_or_fork_transaction_simulation_passed",
+      "broadcast_gate_remains_disabled_until_trusted_for_execution"
+    ],
+    "routeHops": [
+      {
+        "amountIn": "0.01",
+        "amountInRaw": "10000000000000000",
+        "amountOut": "1.006155055850042086",
+        "amountOutRaw": "1006155055850042086",
+        "fee": 500,
+        "fromSymbol": "ETH",
+        "hop": 1,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "1001124280570791875",
+        "outputDecimals": 18,
+        "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 508816,
+        "toSymbol": "0XC9F9C8",
+        "tokenIn": "0x0000000000000000000000000000000000000000",
+        "tokenOut": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E"
+      },
+      {
+        "amountIn": "1.006155055850042086",
+        "amountInRaw": "1006155055850042086",
+        "amountOut": "0.50683292470144161",
+        "amountOutRaw": "506832924701441610",
+        "fee": 3000,
+        "fromSymbol": "0XC9F9C8",
+        "hop": 2,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "504298760077934401",
+        "outputDecimals": 18,
+        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 53333,
+        "toSymbol": "0X71178B",
+        "tokenIn": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "tokenOut": "0x71178BAc73cBeb415514eB542a8995b82669778d"
+      },
+      {
+        "amountIn": "0.50683292470144161",
+        "amountInRaw": "506832924701441610",
+        "amountOut": "0.295369155315853212",
+        "amountOutRaw": "295369155315853212",
+        "fee": 10000,
+        "fromSymbol": "0X71178B",
+        "hop": 3,
+        "inputDecimals": 18,
+        "minAmountOutRaw": "293892309539273945",
+        "outputDecimals": 18,
+        "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "quoterGasEstimate": 53677,
+        "toSymbol": "ETH",
+        "tokenIn": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+        "tokenOut": "0x0000000000000000000000000000000000000000"
+      }
+    ],
+    "slippageBps": 50,
+    "status": "blocked_route_execution_size_probe"
   },
   "route": {
-    "closed": false,
-    "hopCount": 0,
-    "path": [],
-    "pathText": null,
-    "tokenContinuous": false
-  },
-  "schemaVersion": "robinhood-chain-test-plan-v1"
+    "analysisStage": "",
+    "closed": true,
+    "hopCount": 3,
+    "path": [
+      "ETH",
+      "0XC9F9C8",
+      "0X71178B",
+      "ETH"
+    ],
+    "pathText": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+    "tokenContinuous": true
+  }
 }

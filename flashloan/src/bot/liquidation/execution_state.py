@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from bot.page_state import ExecutionStatus, PageName, store_page_state
+from bot.liquidation.route_response import bot_error_stack_from_state
+from core.error_stack import stack_from_legacy
 
 
 def _current_request_id() -> str | None:
@@ -55,6 +57,28 @@ def execution_state_context(payload: dict[str, Any], *, mode: str, extra: dict[s
     }
 
 
+def _append_execution_error_stack(
+    payload: dict[str, Any],
+    *,
+    mode: str,
+    state: str | None,
+    message: str,
+) -> None:
+    generated = bot_error_stack_from_state(
+        account=str(payload.get("account") or (payload.get("request") or {}).get("user") or ""),
+        state=state,
+        blocked_reasons=list(payload.get("blocked_reasons") or []),
+        error=message,
+        flow=f"execution:{mode}",
+    )
+    if not generated:
+        return
+    stack = stack_from_legacy(payload.get("errorStack"))
+    for item in generated:
+        stack.push(item)
+    payload["errorStack"] = stack.as_list()
+
+
 def record_execution_state(
     payload: dict[str, Any],
     status: ExecutionStatus,
@@ -64,6 +88,19 @@ def record_execution_state(
     message: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
+    if status in {
+        ExecutionStatus.SOFT_BLOCKED,
+        ExecutionStatus.HARD_BLOCKED,
+        ExecutionStatus.CONFIRMED_FAILED,
+        ExecutionStatus.ERROR,
+        ExecutionStatus.SCAN_ERROR,
+    } and message:
+        _append_execution_error_stack(
+            payload,
+            mode=mode,
+            state=result if result is not None else payload.get("state") or status.value,
+            message=message,
+        )
     store_page_state(
         PageName.EXECUTION,
         status.value,

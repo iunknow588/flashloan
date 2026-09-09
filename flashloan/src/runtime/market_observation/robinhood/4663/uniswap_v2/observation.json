@@ -1,24 +1,10 @@
 {
   "borrowableSymbols": [
-    "USDG",
-    "WETH"
+    "USDG"
   ],
   "candidateObservationGroups": [
     {
       "anchorSymbol": "USDG",
-      "observationCombinationCount": 0,
-      "observationCombinationPreview": [],
-      "observationReachable": false,
-      "observationSequenceCount": 0,
-      "observationSequencePreview": [],
-      "observationState": {
-        "groupCount": 0,
-        "reachable": false,
-        "status": "no_observation_sequence"
-      }
-    },
-    {
-      "anchorSymbol": "WETH",
       "observationCombinationCount": 0,
       "observationCombinationPreview": [],
       "observationReachable": false,
@@ -103,21 +89,20 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-08T17:55:01.235455Z",
+  "generated_at": "2026-09-09T05:59:18.481235Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "borrowableSymbols": 2,
-    "candidateObservationGroups": 2,
+    "borrowableSymbols": 1,
+    "candidateObservationGroups": 1,
     "chainSpecificObservationPairs": 0,
-    "observationAnchorSymbols": 2,
+    "observationAnchorSymbols": 1,
     "observationSequences": 0
   },
   "marketObservationSourceStage": "computed",
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [
-    "USDG",
-    "WETH"
+    "USDG"
   ],
   "observationSequences": [],
   "ok": true,
@@ -162,7 +147,7 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 2,
+    "borrowableTokenCount": 1,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
@@ -186,7 +171,7 @@
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
     "observableTokenCount": 0,
-    "observationAnchorCount": 2,
+    "observationAnchorCount": 1,
     "observationSequenceAnchorCount": 0,
     "observationSequenceCount": 0,
     "observationSequencePoolCount": 0,

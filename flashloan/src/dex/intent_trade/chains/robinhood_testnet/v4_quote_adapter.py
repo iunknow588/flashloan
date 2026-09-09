@@ -34,6 +34,7 @@ _V4_CUSTOM_ERROR_SELECTORS = {
     "0x6190b2b0": "UnexpectedRevertBytes(bytes)",
     "0x7a5ed734": "NotEnoughLiquidity(bytes32)",
     "0xe0752a5a": "UnexpectedCallSuccess()",
+    "0x486aa307": "PoolNotInitialized()",
 }
 _V4_QUOTER_ABI = [
     {
@@ -563,10 +564,23 @@ def _is_v4_liquidity_revert(exc: Exception) -> bool:
     message = _text(exc)
     if "NotEnoughLiquidity" in message:
         return True
+    if "PoolNotInitialized" in message or "pool not initialized" in message.lower():
+        return True
     cause = getattr(exc, "__cause__", None)
     if cause is not None and _is_v4_liquidity_revert(cause):
         return True
     return False
+
+
+def _v4_liquidity_revert_reason(exc: Exception) -> str | None:
+    if "PoolNotInitialized" in _text(exc) or "pool not initialized" in _text(exc).lower():
+        return "pool_not_initialized"
+    if "NotEnoughLiquidity" in _text(exc):
+        return "not_enough_liquidity"
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None:
+        return _v4_liquidity_revert_reason(cause)
+    return None
 
 
 def probe_v4_executable_amount_from_pool_index(request: dict[str, Any]) -> dict[str, Any]:
@@ -633,6 +647,21 @@ def probe_v4_executable_amount_from_pool_index(request: dict[str, Any]) -> dict[
         last_success = _attempt(target_amount)
         lower_bound = target_amount
     except Exception as exc:
+        if _v4_liquidity_revert_reason(exc) == "pool_not_initialized":
+            return {
+                "status": "liquidity_probe_unexecutable",
+                "quoteMethod": "robinhood_testnet_v4_liquidity_probe_binary_search",
+                "quoteMode": request.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
+                "targetAmountInRaw": str(target_amount),
+                "minExecutableAmountRaw": None,
+                "maxExecutableAmountRaw": None,
+                "firstFailureAmountRaw": str(target_amount),
+                "probeAttempts": attempts,
+                "poolState": pool_state,
+                "quoterAddress": context["quoterAddress"],
+                "searchStatus": "pool_not_initialized",
+                "failureReason": str(exc),
+            }
         if not _is_v4_liquidity_revert(exc):
             raise
         upper_bound = target_amount
