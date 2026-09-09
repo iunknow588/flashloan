@@ -131,6 +131,9 @@
     const uiError = value => {
       const text = String(value || "请求失败");
       if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/FileNotFoundError|No such file or directory|WinError|Errno 2|系统找不到指定的文件|src_bot/.test(text)) {
+        return "候选池数据文件缺失或缓存路径失效，请先执行全量刷新重建缓存";
+      }
       if (/[\u4e00-\u9fff]/.test(text)) return text;
       return `接口错误（${text}）`;
     };
@@ -238,7 +241,7 @@
     function statusBadge(quality) {
       const value = String(quality || "").toLowerCase();
       if (value === "pass" || value === "recommended") return '<span class="badge good">可候选</span>';
-      if (value === "observable") return '<span class="badge neutral">可观察</span>';
+      if (value === "observable") return '<span class="badge neutral">可候选</span>';
       return '<span class="badge reject">待确认</span>';
     }
 
@@ -304,6 +307,30 @@
       `;
     }
 
+    function dedupeBy(items, keyFn) {
+      const seen = new Set();
+      const out = [];
+      for (const item of items || []) {
+        const key = String(keyFn(item) || "").toLowerCase();
+        if (key && seen.has(key)) continue;
+        if (key) seen.add(key);
+        out.push(item);
+      }
+      return out;
+    }
+
+    function renderBidirectionalSection(group) {
+      const tokens = dedupeBy(
+        [...groupTokens(group, "yc"), ...groupTokens(group, "zc")],
+        token => token.address || token.symbol || ""
+      );
+      const pools = dedupeBy(
+        [...groupPools(group, "yc"), ...groupPools(group, "zc")],
+        pool => pool.pool || pool.poolId || `${pool.counterAddress || ""}:${pool.routeText || ""}`
+      );
+      return renderSection("YC/ZC 双向候选", tokens, pools);
+    }
+
     function groupMatches(group, query) {
       if (!query) return true;
       const parts = [
@@ -356,11 +383,10 @@
         return;
       }
       $("groupList").innerHTML = groups.map(group => {
-        const shared = !!group.ycZcSameSet;
-        const sections = shared
-          ? renderSection("YC/ZC 共享池密钥集合（Shared PoolKey Set）", group.sharedTokens || [], group.sharedPools || [])
+        const sameSet = Boolean(group.ycZcSameSet || group.candidateSetMode === "bidirectional_same_pool_key_set");
+        const sections = sameSet
+          ? renderBidirectionalSection(group)
           : `${renderSection("YC", groupTokens(group, "yc"), groupPools(group, "yc"))}${renderSection("ZC", groupTokens(group, "zc"), groupPools(group, "zc"))}`;
-const sharedBadge = shared ? '<span class="badge neutral">YC/ZC 共享</span>' : "";
         return `
         <article class="group">
           <div class="group-head">
@@ -368,7 +394,6 @@ const sharedBadge = shared ? '<span class="badge neutral">YC/ZC 共享</span>' :
               <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                 <h2 title="${esc(group.anchorSymbol)}">${esc(group.anchorSymbol)}</h2>
                 <span class="badge good">X</span>
-                ${sharedBadge}
 <span class="badge neutral">YC 代币 ${esc(group.ycTokenCount || 0)} / 池 ${esc(group.ycPoolCount || 0)}</span>
 <span class="badge neutral">ZC 代币 ${esc(group.zcTokenCount || 0)} / 池 ${esc(group.zcPoolCount || 0)}</span>
                 <span class="badge warn">池 ${esc(group.candidatePoolCount || 0)}</span>
@@ -398,7 +423,7 @@ const sharedBadge = shared ? '<span class="badge neutral">YC/ZC 共享</span>' :
       $("generatedAt").textContent = fmtTime(source.generatedAt);
       $("filtersLine").textContent = `来源 ${source.path || "-"} | 网络 ${source.network || "-"} | Chain ${source.chainId || "-"}`;
       $("refreshMeta").textContent = `刷新时间 ${fmtTime(new Date().toISOString())}`;
-      $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；同一池在不同方向下会分别进入两个分区。`;
+      $("scopeNotice").textContent = `本页按资金池 X 分组分页展示候选池，默认每页 1 个 X。YC 表示从 X 出发的候选方向，ZC 表示可返回 X 的候选方向；部分协议底层 PoolKey 相同，页面会合并为 YC/ZC 双向候选，方向有区别时仍分开展示。`;
       renderPager(payload);
       renderGroups(payload);
     }

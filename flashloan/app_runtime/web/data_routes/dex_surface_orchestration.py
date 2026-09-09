@@ -19,6 +19,13 @@ from core.dex_provenance import build_route_framework_payload, framework_label
 logger = logging.getLogger(__name__)
 
 
+def _friendly_oserror(prefix: str, exc: Exception) -> str:
+    text = str(exc or "").lower()
+    if "filenotfounderror" in text or "no such file" in text or "winerror" in text or "errno 2" in text or "src_bot" in text:
+        return "Robinhood testnet 候选池源文件缺失或缓存路径失效，请先执行全量刷新重建本地证据缓存"
+    return f"{prefix}"
+
+
 def _bootstrap_dex_surface_dependencies(
     *,
     chain_id: int | None,
@@ -188,8 +195,9 @@ def _refresh_robinhood_testnet_v4_sources() -> dict:
             }
         )
     except Exception as exc:
-        errors.append(f"v4_pool_index: {exc}")
-        steps.append({"source": "v4_pool_index", "ok": False, "error": str(exc)})
+        message = _friendly_oserror(f"v4_pool_index: {exc}", exc)
+        errors.append(message)
+        steps.append({"source": "v4_pool_index", "ok": False, "error": message})
 
     try:
         liquidity_result = write_v4_pool_liquidity_from_contract_evidence(
@@ -210,8 +218,9 @@ def _refresh_robinhood_testnet_v4_sources() -> dict:
             }
         )
     except Exception as exc:
-        errors.append(f"v4_pool_liquidity: {exc}")
-        steps.append({"source": "v4_pool_liquidity", "ok": False, "error": str(exc)})
+        message = _friendly_oserror(f"v4_pool_liquidity: {exc}", exc)
+        errors.append(message)
+        steps.append({"source": "v4_pool_liquidity", "ok": False, "error": message})
 
     return {
         "ok": not errors,

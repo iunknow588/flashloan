@@ -100,13 +100,27 @@ def _pool_key_balance_sources(liquidity: dict[str, Any]) -> list[dict[str, Any]]
 
 def _configured_flash_sources(liquidity: dict[str, Any]) -> list[dict[str, Any]]:
     payload = liquidity.get("payload") if isinstance(liquidity.get("payload"), dict) else {}
-    rows = payload.get("flashAccountingSources") or payload.get("flash_accounting_sources") or []
+    # Evidence writers historically emitted these fields both under `payload`
+    # and at the document root. Accept both layouts so a valid balance scan is
+    # not silently reduced to an empty source list.
+    rows = (
+        payload.get("flashAccountingSources")
+        or payload.get("flash_accounting_sources")
+        or liquidity.get("flashAccountingSources")
+        or liquidity.get("flash_accounting_sources")
+        or []
+    )
     return [item for item in rows if isinstance(item, dict)]
 
 
 def _native_flash_source(liquidity: dict[str, Any]) -> dict[str, Any] | None:
     payload = liquidity.get("payload") if isinstance(liquidity.get("payload"), dict) else {}
-    raw = as_int_units(payload.get("nativePoolManagerBalanceWei"))
+    raw = as_int_units(
+        payload.get("nativePoolManagerBalanceWei")
+        or payload.get("native_pool_manager_balance_wei")
+        or liquidity.get("nativePoolManagerBalanceWei")
+        or liquidity.get("native_pool_manager_balance_wei")
+    )
     if raw <= 0:
         return None
     return {

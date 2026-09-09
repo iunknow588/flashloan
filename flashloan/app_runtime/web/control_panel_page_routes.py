@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from flask import Response, jsonify, request, send_file
 
@@ -17,6 +18,7 @@ from core.flash_loan_pool_discovery import (
     start_flash_loan_pool_discovery_idle_worker,
 )
 from core.chain_data_registry import default_chain_scope, default_flash_loan_pool_scope
+from core.flash_loan_pools import load_flash_loan_pool_static
 from core.market_config import (
     DEFAULT_ROBINHOOD_CHAIN_ID,
     DEFAULT_ROBINHOOD_DEX_MARKET_ID,
@@ -217,6 +219,108 @@ def _default_scope_kwargs(feature: str) -> dict[str, object]:
         "default_market_id": str(scope["market_id"]),
         "default_chain_id": int(scope["chain_id"]),
     }
+
+
+def _static_pool_snapshot(summary: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: summary.get(key)
+        for key in (
+            "borrow_asset_count",
+            "borrow_target_count",
+            "v4_pool_key_count",
+            "v4_pool_liquidity_pool_count",
+            "v4_indexed_pool_key_count",
+            "flash_accounting_asset_count",
+        )
+    }
+
+
+def _static_pool_diff(old_summary: dict[str, Any], new_summary: dict[str, Any]) -> dict[str, Any]:
+    changed: list[str] = []
+    fields: dict[str, dict[str, Any]] = {}
+    for key in sorted(set(old_summary) | set(new_summary)):
+        old_value = old_summary.get(key)
+        new_value = new_summary.get(key)
+        if old_value == new_value:
+            continue
+        changed.append(key)
+        fields[key] = {"previous": old_value, "current": new_value}
+    return {
+        "changed": bool(changed),
+        "changedFields": changed,
+        "fields": fields,
+    }
+
+
+def _previous_static_pool_store(
+    *,
+    chain_id: int | None,
+    protocols: list[str],
+    panel,
+) -> dict[str, dict[str, Any]]:
+    if chain_id is None or not protocols:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for protocol in protocols:
+        stored = load_flash_loan_pool_static(chain_id=chain_id, protocol=protocol)
+        if not stored.get("exists"):
+            continue
+        summary = stored.get("summary") if isinstance(stored.get("summary"), dict) else {}
+        result[protocol] = {
+            "path": stored.get("path"),
+            "network": stored.get("network"),
+            "chain_id": stored.get("chain_id"),
+            "protocol": stored.get("protocol"),
+            "generated_at": stored.get("generated_at"),
+            "refresh_mode": stored.get("refresh_mode"),
+            "summary": _static_pool_snapshot(summary),
+            "section_counts": dict(stored.get("section_counts") or {}),
+        }
+    return result
+
+
+def _current_static_pool_store(
+    *,
+    chain_id: int | None,
+    protocols: list[str],
+) -> dict[str, dict[str, Any]]:
+    if chain_id is None or not protocols:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for protocol in protocols:
+        stored = load_flash_loan_pool_static(chain_id=chain_id, protocol=protocol)
+        if not stored.get("exists"):
+            continue
+        summary = stored.get("summary") if isinstance(stored.get("summary"), dict) else {}
+        result[protocol] = {
+            "path": stored.get("path"),
+            "network": stored.get("network"),
+            "chain_id": stored.get("chain_id"),
+            "protocol": stored.get("protocol"),
+            "generated_at": stored.get("generated_at"),
+            "refresh_mode": stored.get("refresh_mode"),
+            "summary": _static_pool_snapshot(summary),
+            "section_counts": dict(stored.get("section_counts") or {}),
+        }
+    return result
+
+
+def _static_pool_store_diff(
+    previous: dict[str, dict[str, Any]],
+    current_static: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    protocols = set(previous) | set(current_static)
+    for protocol in sorted(protocols):
+        old = previous.get(protocol)
+        new = current_static.get(protocol)
+        old_summary = _static_pool_snapshot((old or {}).get("summary") or {})
+        new_summary = _static_pool_snapshot((new or {}).get("summary") or {})
+        diff = _static_pool_diff(old_summary, new_summary)
+        diff["previousPath"] = (old or {}).get("path")
+        diff["currentPath"] = (new or {}).get("path")
+        result[str(protocol)] = diff
+    return result
 
 
 def _refresh_flash_loan_pool_sources(*, chain_id: int | None, protocols: list[str], full: bool, panel) -> dict:
@@ -633,6 +737,11 @@ def register_page_routes(app, panel) -> None:
             chain_id = int(default_flash_loan_pool_scope()["chain_id"])
         protocols = _request_protocols()
         full_refresh = _request_bool_arg("full")
+        previous_static = _previous_static_pool_store(
+            chain_id=chain_id,
+            protocols=protocols,
+            panel=panel,
+        )
         refresh_state = _refresh_flash_loan_pool_sources(
             chain_id=chain_id,
             protocols=protocols,
@@ -652,8 +761,11 @@ def register_page_routes(app, panel) -> None:
             persist_static=True,
             refresh_mode="full" if full_refresh else "incremental",
         )
+        current_static = _current_static_pool_store(chain_id=chain_id, protocols=protocols)
         payload["refresh_state"] = {
             **refresh_state,
             "staticPoolStore": payload.get("static_pool_store") or [],
+            "previousStaticPoolStore": previous_static,
+            "staticPoolDiff": _static_pool_store_diff(previous_static, current_static),
         }
         return jsonify(payload), 200 if refresh_state.get("ok") else 500

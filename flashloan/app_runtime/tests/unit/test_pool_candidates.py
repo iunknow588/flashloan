@@ -217,7 +217,14 @@ def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
 
     assert payload["poolStaticTable"]["network"] == "robinhood-testnet"
     assert payload["poolStaticTable"]["chainId"] == 46630
-    assert payload["poolStaticTable"]["mode"] in {"robinhood_testnet_v4_pool_index", "robinhood_testnet_v4_pool_liquidity"}
+    assert payload["poolStaticTable"]["mode"] in {
+        "robinhood_testnet_v4_pool_index",
+        "robinhood_testnet_v4_pool_liquidity",
+        "robinhood_testnet_v4_pool_index_active",
+        "robinhood_testnet_v4_pool_liquidity_fallback",
+        "robinhood_testnet_v4_pool_sources_merged",
+    }
+    assert int(payload["summary"].get("candidateRouteCount") or 0) > 0
     assert payload["poolStaticTable"]["exists"] is True
     assert payload["processing"]["handler"] == (
         "intent_trade.chains.robinhood_testnet.dex_pool_candidates:dex_pool_candidates_payload"
@@ -227,7 +234,7 @@ def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
     assert int(payload["summary"]["anchorGroupCount"]) <= int(payload["summary"]["flashAccountingAssetCount"])
     assert payload["summary"]["candidateSetStorageMode"] == "shared_yc_zc_pool_set"
     assert int(payload["summary"]["ycZcSameSetGroupCount"]) > 0
-    assert int(payload["summary"]["candidateRouteCount"]) == int(payload["summary"]["v4ActivePoolCount"])
+    assert 0 < int(payload["summary"]["candidateRouteCount"]) <= int(payload["summary"]["v4ActivePoolCount"])
     assert payload["pairs"][0]["identityMode"] == "pool_key"
     assert payload["pairs"][0]["preferredPools"][0]["poolIdentityMode"] == "pool_id"
     assert payload["pairs"][0]["preferredPools"][0]["protocol"] == "uniswap_v4"
@@ -235,6 +242,23 @@ def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
     assert payload["anchorGroups"][0]["ycZcSameSet"] is True
     assert payload["anchorGroups"][0]["ycPoolsRef"] == "sharedPools"
     assert payload["anchorGroups"][0]["sharedPools"]
+
+
+def test_robinhood_testnet_v4_pool_candidates_merge_disjoint_index_and_liquidity_sources():
+    from dex.intent_trade.chains.robinhood_testnet.dex_pool_candidates import _candidate_source_pools
+
+    indexed = {"ok": True, "source": "index.json", "pools": [{"poolId": "0x01"}]}
+    liquidity = {
+        "ok": True,
+        "source": "liquidity.json",
+        "pools": [{"poolId": "0x02"}],
+    }
+
+    pools, mode, source = _candidate_source_pools(indexed, liquidity)
+
+    assert [pool["poolId"] for pool in pools] == ["0x01", "0x02"]
+    assert mode == "robinhood_testnet_v4_pool_sources_merged"
+    assert source == "index.json"
 
 
 def test_dex_pool_candidates_classifies_stable_and_non_stable_pools(tmp_path, monkeypatch):

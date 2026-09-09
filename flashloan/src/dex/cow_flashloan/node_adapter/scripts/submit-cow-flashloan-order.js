@@ -15,7 +15,8 @@ const {
 } = require("@cowprotocol/sdk-flash-loans");
 
 const NODE_ADAPTER_ROOT = path.resolve(__dirname, "..");
-const APP_RUNTIME_ROOT = path.resolve(NODE_ADAPTER_ROOT, "../..");
+const APP_RUNTIME_ROOT = path.resolve(NODE_ADAPTER_ROOT, "../../../../app_runtime");
+const SRC_RUNTIME_ROOT = path.resolve(NODE_ADAPTER_ROOT, "../../../runtime");
 const DEFAULT_INPUT_PATH = process.env.COW_SUBMISSION_INPUT_PATH || "";
 const TEN = 10n;
 
@@ -128,8 +129,8 @@ function registerToken(registry, token) {
 }
 
 function loadTokenRegistry(network) {
-  const aavePath = path.resolve(APP_RUNTIME_ROOT, "runtime/cache/aave_reserve_assets.json");
-  const cowPath = path.resolve(APP_RUNTIME_ROOT, "runtime/cache/cow_supported_tokens.json");
+  const aavePath = path.resolve(SRC_RUNTIME_ROOT, "cache/aave_reserve_assets.json");
+  const cowPath = path.resolve(SRC_RUNTIME_ROOT, "cache/cow_supported_tokens.json");
   const aave = fs.existsSync(aavePath) ? loadJson(aavePath).assets || [] : [];
   const cow = (((fs.existsSync(cowPath) ? loadJson(cowPath) : {}).networks || {})[network] || {}).tokens || [];
   const registry = new Map();

@@ -43,9 +43,9 @@
     "executorOffchainNormal": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T140129376Z-28472_hardhat-robinhood-executor-v4-flash-offchain-normal/report.json",
     "pausedRedeployPlan": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
     "normalTestnetProbe": "contract/robinhood-testnet/DEX/deployments/evidence/20260829T032042328Z-7704_robinhoodTestnet-robinhood-v4-flash-normal-probe-deploy/report.json",
-    "chainTestPlan": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
-    "predeployReadiness": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/predeploy_readiness/20260829T044537Z/report.json",
-    "lendingLiquidity": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "chainTestPlan": "flashloan/src/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+    "predeployReadiness": "flashloan/src/runtime/evidence/robinhood-testnet/predeploy_readiness/20260829T044537Z/report.json",
+    "lendingLiquidity": "flashloan/src/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
     "candidatePoolSupply": null,
     "readback": "contract/robinhood-testnet/DEX/deployments/evidence/20260829T112029944Z-1592_robinhoodTestnet-robinhood-paused-readback/report.json"
   },

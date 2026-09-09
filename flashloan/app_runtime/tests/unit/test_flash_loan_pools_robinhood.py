@@ -491,6 +491,7 @@ def test_flash_loan_pools_uses_robinhood_testnet_v4_pool_liquidity_loader(monkey
     assert view["summary"]["borrow_asset_count"] == 2
     assert view["summary"]["verified_lending_borrow_asset_count"] == 0
     assert view["summary"]["flash_accounting_asset_count"] == 2
+    assert view["summary"]["flash_accounting_pool_key_count"] == 2
     assert view["summary"]["flash_borrowable_asset_count"] == 2
     assert view["summary"]["eth_call_verified_flash_asset_count"] == 0
     assert len(view["stable_borrow_pools"]) == 1

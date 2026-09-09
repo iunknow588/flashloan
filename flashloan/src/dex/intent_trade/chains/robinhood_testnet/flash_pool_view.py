@@ -171,6 +171,7 @@ def robinhood_testnet_flash_protocol_view(
         for row in flash_source_evidence_rows
         if row.get("effective_flash_accounting_asset", row.get("effective_flash_asset", True))
     ]
+    flash_source_pool_key_count = sum(int(row.get("pool_key_count") or 0) for row in flash_source_rows)
     has_flash_sources = bool(flash_source_rows)
     executor_supported_flash_rows = [row for row in flash_source_rows if row.get("executor_supported")]
     stable_pool_key_rows = [row for row in pool_rows if row.get("is_stable")]
@@ -223,6 +224,7 @@ def robinhood_testnet_flash_protocol_view(
             "flash_accounting_evidence_asset_count": len(flash_source_evidence_rows),
             "flash_accounting_asset_count": len(flash_source_rows),
             "executor_supported_flash_accounting_asset_count": len(executor_supported_flash_rows),
+            "flash_accounting_pool_key_count": flash_source_pool_key_count,
             "observable_pool_key_count": len(pool_rows),
             "pool_key_count": len(liquidity.get("pool_keys") or []),
             "indexed_pool_key_count": len(pool_index.get("pool_keys") or []),
@@ -254,6 +256,7 @@ def robinhood_testnet_flash_protocol_view(
             "borrow_asset_count": len(flash_source_rows),
             "verified_lending_borrow_asset_count": 0,
             "flash_accounting_asset_count": len(flash_source_rows),
+            "flash_accounting_pool_key_count": flash_source_pool_key_count,
             "flash_borrowable_asset_count": len(flash_source_rows),
             "executor_supported_flash_asset_count": len(executor_supported_flash_rows),
             "eth_call_verified_flash_asset_count": 0,
@@ -278,6 +281,7 @@ def robinhood_testnet_flash_protocol_view(
         "stable_pool_key_count": len(stable_pool_key_rows),
         "non_stable_pool_key_count": len(non_stable_pool_key_rows),
         "flash_accounting_asset_count": len(flash_source_rows),
+        "flash_accounting_pool_key_count": flash_source_pool_key_count,
         "poolmanager_balance_asset_count": len(flash_source_rows),
         "verified_lending_borrow_asset_count": 0,
         "flash_borrowable_asset_count": len(flash_source_rows),

@@ -19,7 +19,7 @@ const {
 const CONTRACTS_ROOT = path.resolve(__dirname, "..", "..");
 const DEFAULT_LIVE_EXTREMES_PATH = path.resolve(
   CONTRACTS_ROOT,
-  "../../flashloan/app_runtime/runtime/state/latest_extremes.json"
+  "../../flashloan/src/runtime/state/latest_extremes.json"
 );
 
 function baseSymbol(row) {

@@ -22,9 +22,9 @@ def _chain_metadata():
         "broadcastEnabled": False,
         "readyForStageFreeze": True,
         "stageFreezeApproved": False,
-        "lastChainTestPlanEvidence": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
-        "lastPredeployReadinessEvidence": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
-        "lastLendingLiquidityEvidence": "flashloan/app_runtime/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+        "lastChainTestPlanEvidence": "flashloan/src/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+        "lastPredeployReadinessEvidence": "flashloan/src/runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
+        "lastLendingLiquidityEvidence": "flashloan/src/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
         "lastCandidatePoolSupplyEvidence": None,
         "lastStageFreezePredeployEvidence": "stage/report.json",
         "lastPausedRedeployPlanEvidence": "plan/report.json",
@@ -144,15 +144,15 @@ def test_predeploy_readiness_blocks_mainnet_plan_for_testnet_deploy():
 
 def test_predeploy_readiness_blocks_mainnet_evidence_paths_for_testnet_metadata():
     chain_metadata = _chain_metadata()
-    chain_metadata["lastChainTestPlanEvidence"] = "flashloan/app_runtime/runtime/evidence/robinhood/chain_test/latest/plan.json"
+    chain_metadata["lastChainTestPlanEvidence"] = "flashloan/src/runtime/evidence/robinhood/chain_test/latest/plan.json"
     chain_metadata["lastPredeployReadinessEvidence"] = (
-        "flashloan/app_runtime/runtime/evidence/robinhood/predeploy_readiness/latest.json"
+        "flashloan/src/runtime/evidence/robinhood/predeploy_readiness/latest.json"
     )
     chain_metadata["lastLendingLiquidityEvidence"] = (
-        "flashloan/app_runtime/runtime/evidence/robinhood/lending_liquidity/latest.json"
+        "flashloan/src/runtime/evidence/robinhood/lending_liquidity/latest.json"
     )
     chain_metadata["lastCandidatePoolSupplyEvidence"] = (
-        "flashloan/app_runtime/runtime/evidence/robinhood/candidate_pool_supply/latest/report.json"
+        "flashloan/src/runtime/evidence/robinhood/candidate_pool_supply/latest/report.json"
     )
     plan = _as_testnet_plan(build_robinhood_chain_test_plan(_sample_attempt()))
     plan["forkEvidence"] = {
@@ -180,7 +180,7 @@ def test_predeploy_readiness_blocks_mainnet_evidence_paths_for_testnet_metadata(
 def test_predeploy_readiness_accepts_testnet_scoped_timestamp_report_paths():
     chain_metadata = _chain_metadata()
     chain_metadata["lastPredeployReadinessEvidence"] = (
-        "flashloan/app_runtime/runtime/evidence/robinhood-testnet/predeploy_readiness/20260827T014839Z/report.json"
+        "flashloan/src/runtime/evidence/robinhood-testnet/predeploy_readiness/20260827T014839Z/report.json"
     )
     plan = _as_testnet_plan(build_robinhood_chain_test_plan(_sample_attempt()))
 

@@ -315,17 +315,29 @@ def register_dex_surface_routes(app, panel) -> None:
             chain_selection, selected_chain_id = selected_chain_id_from_request()
         except ChainSelectionError as exc:
             return shared._chain_selection_error_response(exc)
-        protocols = request_dex_protocols_arg()
-        _bootstrap_dex_surface_dependencies(
-            chain_id=selected_chain_id,
-            protocols=protocols,
-            flow_name="dex_pool_candidates",
-        )
-        page, page_size, query, quality = candidate_pagination_args()
-        payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
-        payload["chain_selection"] = chain_selection
-        payload.setdefault("candidates", payload.get("pairs") or [])
-        return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
+        try:
+            protocols = request_dex_protocols_arg()
+            _bootstrap_dex_surface_dependencies(
+                chain_id=selected_chain_id,
+                protocols=protocols,
+                flow_name="dex_pool_candidates",
+            )
+            page, page_size, query, quality = candidate_pagination_args()
+            payload = dex_pool_candidates_payload(chain_id=selected_chain_id, protocols=protocols)
+            payload["chain_selection"] = chain_selection
+            payload.setdefault("candidates", payload.get("pairs") or [])
+            return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
+        except Exception as exc:
+            return jsonify(
+                {
+                    "ok": False,
+                    "mode": "dex_pool_candidates",
+                    "error": "候选池数据暂不可用，请先执行全量刷新重建本地缓存",
+                    "rawError": str(exc)[:500],
+                    "chain_id": selected_chain_id,
+                    "selected_protocols": request_dex_protocols_arg() if selected_chain_id is not None else [],
+                }
+            ), 503
 
     @app.get("/api/dex-pools/candidates/refresh")
     @app.post("/api/dex-pools/candidates/refresh")
@@ -343,26 +355,44 @@ def register_dex_surface_routes(app, panel) -> None:
             "ok": None,
             "message": "全量刷新进行中" if full_refresh else "增量刷新进行中",
         }
-        if full_refresh:
-            chain_row = chain_data_by_chain_id(selected_chain_id) if selected_chain_id is not None else None
-            network = str((chain_selection or {}).get("network") or (chain_row or {}).get("network") or "").strip().lower()
-            if network == "robinhood-testnet" or selected_chain_id == 46630:
-                refresh_state = {
-                    **refresh_state,
-                    **_refresh_robinhood_testnet_v4_sources(),
-                    "scope": "robinhood-testnet-v4",
+        try:
+            if full_refresh:
+                chain_row = chain_data_by_chain_id(selected_chain_id) if selected_chain_id is not None else None
+                network = str((chain_selection or {}).get("network") or (chain_row or {}).get("network") or "").strip().lower()
+                if network == "robinhood-testnet" or selected_chain_id == 46630:
+                    refresh_state = {
+                        **refresh_state,
+                        **_refresh_robinhood_testnet_v4_sources(),
+                        "scope": "robinhood-testnet-v4",
+                    }
+            payload = dex_pool_candidates_payload(
+                chain_id=selected_chain_id,
+                protocols=protocols,
+                refresh=True,
+                force_full=full_refresh,
+            )
+            payload["chain_selection"] = chain_selection
+            payload["refresh_state"] = _refresh_state_summary(payload, {**refresh_state, "running": False})
+            payload.setdefault("candidates", payload.get("pairs") or [])
+            page, page_size, query, quality = candidate_pagination_args()
+            return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
+        except Exception as exc:
+            return jsonify(
+                {
+                    "ok": False,
+                    "mode": "dex_pool_candidates",
+                    "error": "候选池刷新失败，底层数据文件缺失或路径失效，请稍后重新全量刷新",
+                    "rawError": str(exc)[:500],
+                    "chain_id": selected_chain_id,
+                    "refresh_state": {
+                        **refresh_state,
+                        "running": False,
+                        "ok": False,
+                        "errors": [str(exc)[:200]],
+                        "message": "候选池刷新失败，底层数据文件缺失或路径失效",
+                    },
                 }
-        payload = dex_pool_candidates_payload(
-            chain_id=selected_chain_id,
-            protocols=protocols,
-            refresh=True,
-            force_full=full_refresh,
-        )
-        payload["chain_selection"] = chain_selection
-        payload["refresh_state"] = _refresh_state_summary(payload, {**refresh_state, "running": False})
-        payload.setdefault("candidates", payload.get("pairs") or [])
-        page, page_size, query, quality = candidate_pagination_args()
-        return jsonify(_attach_dex_strategy(paginate_candidate_payload(payload, page=page, page_size=page_size, query=query, quality=quality)))
+            ), 503
 
     @app.get("/api/dex/submissions")
     def dex_submission_review():
