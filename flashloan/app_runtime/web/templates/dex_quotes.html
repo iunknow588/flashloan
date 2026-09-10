@@ -96,7 +96,7 @@
       live_quote_failed: "链上报价失败",
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
-      slippage_limit_exceeded: "单跳价格影响超过 10 bps",
+      slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
@@ -126,7 +126,12 @@
     };
     const warningText = value => {
       const text = String(value || "");
-      return warningZh[text] || (/[\u4e00-\u9fff]/.test(text) ? text : `接口提示（${text}）`);
+      if (warningZh[text]) return warningZh[text];
+      if (text === "robinhood_live_price_only_enforced") return "Robinhood 强制使用链上实时价格";
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      const blocker = blockerText(text);
+      if (/[\u4e00-\u9fff]/.test(blocker)) return blocker;
+      return `接口提示（${blocker}）`;
     };
     const uiError = value => {
       const text = String(value || "请求失败");
@@ -150,10 +155,56 @@
         "Reference quote only": "仅参考报价",
         "On-chain verification deferred": "链上验证已延后",
       };
-      return map[text] || text || "-";
+      const extra = {
+        "at least one hop price impact cannot be confirmed or exceeds 10 bps": "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
+        "on-chain computed profit is not positive after flash loan fees; cannot enter preflight": "链上已验证，但扣除闪电贷费用后尚未转正；不能进入预检",
+        "on-chain verification did not cover all hops; cannot enter preflight": "链上验证未覆盖全部跳数；不能进入预检",
+        "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入预检",
+        "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动交易预检",
+        "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制并扣除闪电贷费用后仍有盈利的借贷量",
+        "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行门禁",
+        "historic block state unavailable; deferred on-chain reverify": "历史区块状态不可用；链上复核已延后",
+        "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；提交前仍需交易 calldata、滑点保护、闪电贷返还约束以及 fork/static-call 模拟",
+      };
+      return map[text] || extra[text] || text || "-";
+    };
+    const nestedBlockerText = value => {
+      const raw = String(value || "").trim();
+      const hopMatch = raw.match(/^(hop\s+\d+\s+[A-Za-z0-9]+\s*->\s*[A-Za-z0-9]+\s+verification\s+failed):\s*(.*)$/i);
+      const outer = hopMatch ? blockerText(hopMatch[1]) : "";
+      const errPart = hopMatch ? hopMatch[2] : raw;
+      const looksNested = Boolean(hopMatch)
+        || /verification\s+failed/i.test(raw)
+        || /robinhood\s+testnet\s+v4\s+quoter\s+(exact-input\s+call\s+failed|reverted)/i.test(raw)
+        || /UnexpectedRevertBytes|NotEnoughLiquidity/.test(raw);
+      if (!looksNested) return "";
+      const parts = errPart
+        .split(/\s*;\s*/)
+        .flatMap(segment => segment.split(/\s*:\s*/).flatMap(chunk => chunk.split(/\s*->\s*/)))
+        .map(part => part.trim())
+        .filter(Boolean);
+      if (parts.length < 2) return "";
+      const zhParts = parts.map(part => String(blockerText(part)).replace(/^原因[:：]?\s*/, ""));
+      const finalCause = zhParts[zhParts.length - 1];
+      const errorChain = zhParts.join(" -> ");
+      return `${outer || "链上报价失败"}：最终原因 ${finalCause}；错误链 ${errorChain}`;
     };
     const blockerText = value => {
       const text = String(value || "");
+      const nested = nestedBlockerText(text);
+      if (nested) return nested;
+      const blockerDirectMap = {
+        "at least one hop price impact cannot be confirmed or exceeds 10 bps": "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
+        "on-chain computed profit is not positive after flash loan fees; cannot enter preflight": "链上已验证，但扣除闪电贷费用后尚未转正；不能进入预检",
+        "on-chain verification did not cover all hops; cannot enter preflight": "链上验证未覆盖全部跳数；不能进入预检",
+        "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入预检",
+        "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动交易预检",
+        "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制并扣除闪电贷费用后仍有盈利的借贷量",
+        "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行门禁",
+        "historic block state unavailable; deferred on-chain reverify": "历史区块状态不可用；链上复核已延后",
+        "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；提交前仍需交易 calldata、滑点保护、闪电贷返还约束以及 fork/static-call 模拟",
+      };
+      if (blockerDirectMap[text]) return blockerDirectMap[text];
       const translated = text
         .replace(/hop (\d+) ([A-Za-z0-9]+)->([A-Za-z0-9]+) verification failed/g, "链上第 $1 步 $2 -> $3 验证失败")
         .replace(/on-chain hop (\d+) verification failed/g, "链上第 $1 步验证失败")
@@ -204,11 +255,23 @@
       live_quote_failed: "链上单跳验证失败",
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
-      slippage_limit_exceeded: "单跳价格影响超过 10 bps",
+      slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
-    }[String(status || "").toLowerCase()] || "链上验证未完成");
+    }[String(status || "").toLowerCase()] || "等待链上复核");
+    const evidenceStatusEx = status => {
+      const value = String(status || "").toLowerCase();
+      const blocked = {
+        slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
+        route_unprofitable: "链上已验证，收益未转正",
+        pool_insufficient_for_profitable_execution: "链上已验证，池深度不足",
+        pool_not_initialized: "链上复核失败：V4 池未初始化",
+        live_quote_failed: "链上单跳验证失败",
+        live_verified: "链上验证通过",
+      };
+      return blocked[value] || evidenceStatus(value);
+    };
     function onchainEvidenceHtml(evidence, route) {
       if (!evidence || !Object.keys(evidence).length) return "";
       const status = String(evidence.status || "").toLowerCase();
@@ -217,7 +280,7 @@
       const stackTop = route?.errorStack?.[0] || focusFailed?.errorStack?.[0] || evidence.errorStack?.[0] || null;
       const blockersToShow = focusFailed ? [] : lines(evidence.blockers);
       return `<div class="onchain-evidence ${status === "live_verified" ? "good" : "bad"}"
-        data-onchain-status="${esc(status)}"><strong>${esc(evidenceStatus(status))}</strong>
+        data-onchain-status="${esc(status)}"><strong>${esc(evidenceStatusEx(status))}</strong>
         <span class="muted">区块 ${esc(evidence.blockNumber || evidence.triggerBlockNumber || "-")} | 信任级别 ${esc(executionTrustText(evidence.executionTrust))}</span>
         ${focusFailed ? `<div class="evidence-error">第 ${esc(focusFailed.hop || "-")} 步 ${esc(focusFailed.fromSymbol || "-")} -> ${esc(focusFailed.toSymbol || "-")}：${esc(blockerText(focusFailed.liveQuoteError || "报价失败"))}</div>` : ""}
         ${stackTop ? `<div class="muted">模块 ${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")} | ${esc(stackTop.message || "")}</div>` : ""}
@@ -255,12 +318,14 @@
       const recClass = ["pool_not_initialized", "live_quote_failed", "live_evidence_deferred", "pool_insufficient_for_profitable_execution", "slippage_limit_exceeded", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (live ? "good" : "warn");
       const actionText = focusOnError
         ? `第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 失败`
-        : recommendationAction(recommendation.action || label(route.quoteStatus));
+        : (live && ["slippage_limit_exceeded", "route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase())
+          ? "链上验证通过，但执行门禁未放行"
+          : recommendationAction(recommendation.action || label(route.quoteStatus)));
       return `<article class="route"><div class="route-head"><div><h2>${esc(route.symbolPair || route.routeSymbols?.join(" -> ") || "路线")}</h2><div class="badges">
         <span class="badge ${recClass}">${esc(actionText)}</span>
         <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
-        <span class="badge ${live ? "good" : "warn"}">${live ? "链上价格已验证" : "链上价格不可用"}</span>
-        <span class="badge ${Object.keys(evidence).length && evidence.status !== "live_verified" ? "bad" : "good"}">${esc(evidenceStatus(evidence.status || ""))}</span>
+        <span class="badge ${live ? "good" : "warn"}">${live ? "链上价格已验证" : "等待链上价格复核"}</span>
+        <span class="badge ${Object.keys(evidence).length && evidence.status !== "live_verified" ? "bad" : "good"}">${esc(evidenceStatusEx(evidence.status || ""))}</span>
         <span class="badge ${depthStatus === "available" ? "good" : "warn"}">${esc(depthLabel)}</span>
       </div></div><button class="copy-btn" type="button" data-copy-route="${index}">复制本组</button></div>
         ${onchainEvidenceHtml(evidence, route)}
@@ -329,7 +394,11 @@
     }
     async function startScanner() {
       const generation = selectionGeneration; const signature = activeSelectionSignature;
-      try { const response = await fetchJson("/api/dex/opportunity-scanner/start"); if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response); }
+      try {
+        await fetchJson("/api/dex/opportunity-scanner/start");
+        const response = await fetchJson("/api/dex/opportunity-scanner/scan-now");
+        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
+      }
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
     }
     async function refresh() {
@@ -339,10 +408,30 @@
     }
     async function copyRoute(route, button) {
       const evidence = routeEvidence(route); const analysis = routeAnalysis(route);
-      const sourceAnalysis = route?.quoteAnalysis || {};
+      const sourceAnalysis = analysis;
       const size = route?.sizeAnalysis || {};
       const costs = evidence.costModel || {};
       const display = value => value === null || value === undefined || value === "" ? "-" : String(value);
+      const gateBlocked = Object.keys(evidence).length > 0
+        && (analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified")
+        && ["slippage_limit_exceeded", "route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase());
+      const hasLiveEvidence = Object.keys(evidence).length > 0 && String(evidence.status || "") !== "live_evidence_deferred";
+      const staleWarningCodes = [
+        "hop_1_reference_quote_requires_live_quoter",
+        "hop_2_reference_quote_requires_live_quoter",
+        "hop_3_reference_quote_requires_live_quoter",
+        "hop_4_reference_quote_requires_live_quoter",
+        "hop_1_requires_live_quoter",
+        "hop_2_requires_live_quoter",
+        "hop_3_requires_live_quoter",
+        "hop_4_requires_live_quoter",
+        "reference_price_step_requires_live_quoter",
+        "reference_usd_price_missing_or_untrusted",
+        "static_depth_evidence_unavailable",
+        "robinhood_live_price_only_enforced",
+        "v4_token_decimals_missing_or_assumed",
+      ];
+      const copiedWarnings = (sourceAnalysis.warnings || []).filter(warning => !hasLiveEvidence || !staleWarningCodes.some(code => String(warning).startsWith(code))).map(warningText);
       const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
       const failedHop = failedHops[0] || null;
       const focusOnError = Boolean(failedHop);
@@ -352,10 +441,10 @@
         const text = [
           `route=${display(route.symbolPair)}`,
           `path=${display((route.routeSymbols || []).join(" -> "))}`,
-          `quoteStatus=${display(route.quoteStatus)}`,
-          `evidenceStatus=${display(evidence.status)}`,
+          `quoteStatus=${display(label(route.quoteStatus))}`,
+          `evidenceStatus=${display(evidenceStatusEx(evidence.status))}`,
           `block=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
-          `executionTrust=${display(evidence.executionTrust)}`,
+          `executionTrust=${display(executionTrustText(evidence.executionTrust))}`,
           `错误定位=第 ${display(failedHop.hop)} 步 ${display(failedHop.fromSymbol)} -> ${display(failedHop.toSymbol)}`,
           `链上错误=${display(focusErrorText)}`,
           `建议=链上报价失败，阻止交易预检`,
@@ -375,10 +464,10 @@
       const text = [
         `route=${display(route.symbolPair)}`,
         `path=${display((route.routeSymbols || []).join(" -> "))}`,
-        `quoteStatus=${display(route.quoteStatus)}`,
-        `evidenceStatus=${display(evidence.status)}`,
+        `quoteStatus=${display(label(route.quoteStatus))}`,
+        `evidenceStatus=${display(evidenceStatusEx(evidence.status))}`,
         `block=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
-        `executionTrust=${display(evidence.executionTrust)}`,
+        `executionTrust=${display(executionTrustText(evidence.executionTrust))}`,
         `referenceInput=${display(sourceAnalysis.referenceInputAmount)} ${display(sourceAnalysis.referenceInputSymbol)}`,
         `初始探测（initialProbe）=${display(size.recommendedBorrowInputAmount)} ${display(size.recommendedBorrowInputAmountBasis || sourceAnalysis.referenceInputSymbol)}`,
         `referenceOutput=${display(sourceAnalysis.referenceFinalOutputAmount)} ${display(sourceAnalysis.referenceFinalOutputSymbol)}`,
@@ -388,11 +477,11 @@
         `depthStatus=${display(sourceAnalysis.staticDepthStatus)}`,
         `maxStaticDepthImpactBps=${display(sourceAnalysis.maxStaticDepthImpactBps)}`,
         `depthImpactLimitBps=${display(sourceAnalysis.staticDepthImpactLimitBps || size.depthImpactLimitBps || 10)}`,
-        `建议=${display((sourceAnalysis.recommendation || {}).action)}`,
+        `建议=${display(gateBlocked ? "链上验证通过，但执行门禁未放行" : recommendationAction((sourceAnalysis.recommendation || {}).action))}`,
         ...hopLines,
         ...ladderLines,
-        ...(evidence.blockers || []),
-        ...(sourceAnalysis.warnings || []),
+        ...(lines(evidence.blockers).map(blockerText)),
+        ...copiedWarnings,
       ].filter(Boolean).join("\n");
       try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
     }

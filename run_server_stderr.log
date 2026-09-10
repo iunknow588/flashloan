@@ -1,12 +1,5 @@
 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on all addresses (0.0.0.0)
- * Running on http://127.0.0.1:5010
- * Running on http://192.168.1.10:5010
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.10:5000
 Press CTRL+C to quit
-127.0.0.1 - - [09/Sep/2026 19:05:43] "GET /dex/candidates?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
-127.0.0.1 - - [09/Sep/2026 19:05:44] "GET /dex/quotes?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
-127.0.0.1 - - [09/Sep/2026 19:05:45] "GET /api/flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
-127.0.0.1 - - [09/Sep/2026 19:05:46] "GET /flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
-127.0.0.1 - - [09/Sep/2026 19:25:42] "GET /dex/candidates?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
-127.0.0.1 - - [09/Sep/2026 19:25:42] "GET /flash-loan/pools?chain_id=46630&protocols=uniswap_v4 HTTP/1.1" 200 -
-127.0.0.1 - - [09/Sep/2026 19:25:43] "GET /dex/quotes?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -

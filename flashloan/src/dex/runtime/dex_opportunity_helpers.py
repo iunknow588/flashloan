@@ -169,6 +169,17 @@ def _trigger_block_number(trigger_context: dict[str, Any] | None) -> int | None:
 def _recordable_route(route: dict[str, Any], *, chain_id: int | None = None) -> bool:
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     quote_requests = (route.get("quoteInputs") or {}).get("quoteRequests") or []
+    route_symbols = [str(item).strip() for item in route.get("routeSymbols") or [] if str(item).strip()]
+    robinhood_network = _network_for_chain_id(chain_id).lower()
+    if (
+        robinhood_network in {"robinhood", "robinhood-mainnet", "robinhood-testnet", "robinhood_testnet"}
+        and len(route_symbols) >= 2
+        and route_symbols[0].upper() == route_symbols[-1].upper()
+        and quote_requests
+    ):
+        # The overview owns the closed-loop universe. Every route must be
+        # sent to the live reviewer even when its offline probe is negative.
+        return True
     reference_profit = _number_or_none(analysis.get("referenceNetProfitUsd"))
     reference_token_profit = _number_or_none(analysis.get("referenceNetProfitAmount"))
     live_verified = bool(analysis.get("livePriceVerified")) or str(analysis.get("priceEvidenceMode") or "").strip().lower() == "live_verified"
@@ -472,6 +483,37 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     validation = evidence.get("validation") if isinstance(evidence.get("validation"), dict) else {}
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
     blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
+
+    # Once real on-chain Quoter/eth_call evidence has been produced, static
+    # warnings about “requires live quoter” are stale noise for the user.
+    stale_static_warnings = {
+        "hop_1_reference_quote_requires_live_quoter",
+        "hop_2_reference_quote_requires_live_quoter",
+        "hop_3_reference_quote_requires_live_quoter",
+        "hop_4_reference_quote_requires_live_quoter",
+        "hop_1_requires_live_quoter",
+        "hop_2_requires_live_quoter",
+        "hop_3_requires_live_quoter",
+        "hop_4_requires_live_quoter",
+        "reference_price_step_requires_live_quoter",
+        "reference_usd_price_missing_or_untrusted",
+        "static_depth_evidence_unavailable",
+        "robinhood_live_price_only_enforced",
+        "v4_token_decimals_missing_or_assumed",
+    }
+    has_live_evidence = bool(evidence.get("hops")) or (status and status != "live_evidence_deferred")
+    if has_live_evidence:
+        analysis["warnings"] = [
+            warning
+            for warning in (analysis.get("warnings") or [])
+            if not (
+                isinstance(warning, str)
+                and any(
+                    warning == code or warning.startswith(f"{code}:")
+                    for code in stale_static_warnings
+                )
+            )
+        ]
 
     analysis.update(
         {

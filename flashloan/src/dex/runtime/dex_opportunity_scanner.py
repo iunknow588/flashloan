@@ -47,11 +47,50 @@ _SCANNER_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
+def _is_robinhood_family_network(chain_id: int | None) -> bool:
+    return _network_for_chain_id(chain_id).lower() in {
+        "robinhood",
+        "robinhood-mainnet",
+        "robinhood-testnet",
+        "robinhood_testnet",
+    }
+
+
+def _scanner_onchain_evidence_provider(*args, **kwargs):
+    # The UI review needs per-hop live Quoter/eth_call confirmation fast.
+    # Full execution-size binary probing is kept available for dedicated
+    # sizing flows, but is too heavy to run by default inside a page scan.
+    kwargs.setdefault("skip_execution_size_probe", True)
+    return build_route_onchain_evidence(*args, **kwargs)
+
+
+def _reference_only_quote_payload(**kwargs):
+    key = "DEX_V4_LIVE_QUOTE_ENABLED"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    try:
+        return dex_quote_routes_payload(**kwargs)
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
 def default_quote_payload_provider(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
+    if _is_robinhood_family_network(chain_id):
+        return _reference_only_quote_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        )
     return dex_quote_routes_payload(
         chain_id=chain_id,
         protocols=protocols,
-        use_static_observation=False,
+        # Robinhood mainnet/testnet route review is a closed-loop market observation
+        # task, not a fresh computed route expansion. Keep the scanner aligned
+        # with the DEX overview instead of surfacing every candidate loop.
+        use_static_observation=_is_robinhood_family_network(chain_id),
     )
 
 
@@ -90,16 +129,16 @@ def build_dex_opportunity_attempts(
             )
     if not recordable_routes:
         return []
-    testnet_full_scan = _chain_network(payload, chain_id) == "robinhood-testnet"
+    robinhood_full_scan = _chain_network(payload, chain_id) in {"robinhood", "robinhood-testnet"}
     selected_routes = _select_recordable_routes(
         recordable_routes,
         max_routes=max_recordable_routes,
-        testnet_full_scan=testnet_full_scan,
+        testnet_full_scan=robinhood_full_scan,
     )
     raw_routes = [route for _, route, _ in selected_routes]
     raw_attempts = [attempt for _, _, attempt in selected_routes]
     payload_routes = payload.get("routes") if isinstance(payload.get("routes"), list) else []
-    evidence_provider = onchain_evidence_provider or build_route_onchain_evidence
+    evidence_provider = onchain_evidence_provider or _scanner_onchain_evidence_provider
     # Keep the testnet candidate universe broad, but bound live RPC work per scan.
     # A full static candidate scan must not turn into an unbounded Quoter scan.
     budget = (
@@ -180,7 +219,7 @@ class DexOpportunityScanner:
         self.record_cooldown_seconds = max(0.0, float(record_cooldown_seconds))
         self.quote_payload_provider = quote_payload_provider or default_quote_payload_provider
         self.record_attempts = record_attempts or default_record_attempts
-        self.onchain_evidence_provider = onchain_evidence_provider or build_route_onchain_evidence
+        self.onchain_evidence_provider = onchain_evidence_provider or _scanner_onchain_evidence_provider
         self.trigger_context_provider = trigger_context_provider or capture_onchain_trigger_context
         self.cache_path = cache_path
         self.record_opportunities = bool(record_opportunities)
@@ -494,7 +533,7 @@ def ensure_dex_opportunity_scanner_running(
             dex_overview_payload(
                 chain_id=chain_id,
                 protocols=protocols or [],
-                use_static_observation=False,
+                use_static_observation=_is_robinhood_family_network(chain_id),
             )
             payload = scanner.quote_payload_provider(chain_id=chain_id, protocols=protocols or [])
             if isinstance(payload, dict):

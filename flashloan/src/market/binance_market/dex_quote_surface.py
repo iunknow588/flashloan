@@ -235,7 +235,10 @@ def build_quote_routes_payload_from_overview(
             "bestTokenBasisNetReturnBps": best_token_basis_bps,
             "directAnchorRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
             "bridgeRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
-            "marketObservationRouteCount": len(overview.get("marketObservation", {}).get("chainSpecificObservationPairs") or []),
+            "marketObservationRouteCount": int(
+                summary.get("marketObservationRouteCount")
+                or len(overview.get("marketObservation", {}).get("chainSpecificObservationPairs") or [])
+            ),
             "marketObservationSequenceCount": int((market_observation.get("summary") or {}).get("observationSequenceCount") or 0),
             "chainSpecificObservationPairCount": len(overview.get("marketObservation", {}).get("chainSpecificObservationPairs") or []),
             "pathSource": overview.get("routeFrameworkSource") or "market_observation",

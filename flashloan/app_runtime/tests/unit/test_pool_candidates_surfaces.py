@@ -227,7 +227,7 @@ def test_robinhood_chain_market_observation_flow_prefers_static_snapshot(monkeyp
     assert calls == {"surface": 1, "overview": 1, "quotes": 1, "request": 1}
 
 
-def test_dex_opportunity_scanner_warmup_uses_live_overview(monkeypatch):
+def test_dex_opportunity_scanner_warmup_uses_static_overview_for_robinhood_family(monkeypatch):
     from runtime import dex_opportunity_scanner
 
     calls = {"overview": []}
@@ -258,7 +258,7 @@ def test_dex_opportunity_scanner_warmup_uses_live_overview(monkeypatch):
     scanner = dex_opportunity_scanner.ensure_dex_opportunity_scanner_running(chain_id=46630, protocols=["uniswap_v4"])
 
     assert scanner is not None
-    assert calls["overview"] and calls["overview"][0]["use_static_observation"] is False
+    assert calls["overview"] and calls["overview"][0]["use_static_observation"] is True
 
 
 def test_dex_market_observation_includes_bridge_closed_loop(monkeypatch):

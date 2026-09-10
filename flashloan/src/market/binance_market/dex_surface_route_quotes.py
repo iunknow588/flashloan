@@ -50,7 +50,9 @@ from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
+ROBINHOOD_CHAIN_ID = 4663
 ROBINHOOD_TESTNET_CHAIN_ID = 46630
+_ROBINHOOD_CHAIN_IDS = {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
 
 
 def _chain_network_name(chain_id: int | None) -> str:
@@ -60,19 +62,24 @@ def _chain_network_name(chain_id: int | None) -> str:
     return str(row.get("network") or "").strip().lower()
 
 
-def _v4_live_quote_enabled() -> bool:
+def _v4_live_quote_enabled(chain_id: int | None = None) -> bool:
     try:
         from market.binance_market import dex_surfaces
 
         compatibility = getattr(dex_surfaces, "_v4_live_quote_enabled", None)
         if callable(compatibility) and getattr(compatibility, "__module__", "") != __name__:
-            return bool(compatibility())
+            if chain_id is None:
+                return bool(compatibility())
+            try:
+                return bool(compatibility(chain_id=chain_id))
+            except TypeError:
+                return bool(compatibility())
     except (AttributeError, ImportError, TypeError):
         pass
     import os
     raw = os.getenv("DEX_V4_LIVE_QUOTE_ENABLED")
     if raw is None:
-        return False
+        return int(chain_id or 0) in _ROBINHOOD_CHAIN_IDS
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -118,7 +125,7 @@ def _edge_quote(
         return None
     protocol = _pool_protocol(pool)
     if protocol == "uniswap_v4":
-        if _v4_live_quote_enabled() and input_amount is not None and input_amount > 0:
+        if _v4_live_quote_enabled(chain_id=chain_id) and input_amount is not None and input_amount > 0:
             network = _chain_network_name(chain_id) or str(pool.get("network") or "").strip().lower()
             adapter = None
             if network:
@@ -420,7 +427,7 @@ def _route_quote_analysis(
     notional_usd: float = QUOTE_PROBE_NOTIONAL_USD,
     token_basis_input_amount: float | None = None,
 ) -> dict[str, Any]:
-    strict_live_price_only = chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+    strict_live_price_only = chain_id in _ROBINHOOD_CHAIN_IDS
     overview_route = route.get("overviewRoute") or {}
     route_tokens = [token for token in route.get("routeTokenPath") or overview_route.get("pathTokens") or [] if isinstance(token, dict)]
     route_symbols = _route_symbols_from_tokens(route_tokens) if route_tokens else list(overview_route.get("pathSymbols") or route.get("routeSymbols") or [])
@@ -650,17 +657,19 @@ def _route_quote_analysis(
     )
     net_profit_bps = net_profit_usd / notional_usd * 10_000.0 if net_profit_usd is not None and notional_usd > 0 else None
     min_profit_usd = float(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD)
-    if strict_live_price_only:
-        warnings.append("robinhood_testnet_live_price_only_enforced")
-        fully_live_adapter = bool(steps) and all(str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter" for step in steps)
-        if not fully_live_adapter:
-            requires_live_quoter = True
-            executable_ready = False
-            final_output_usd = None
-            gross_profit_usd = None
-            net_profit_usd = None
-            net_profit_bps = None
-            non_stable_chain_submission_candidate = False
+    fully_live_adapter = bool(steps) and all(
+        str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter"
+        for step in steps
+    )
+    if strict_live_price_only and not fully_live_adapter:
+        warnings.append("robinhood_live_price_only_enforced")
+        requires_live_quoter = True
+        executable_ready = False
+        final_output_usd = None
+        gross_profit_usd = None
+        net_profit_usd = None
+        net_profit_bps = None
+        non_stable_chain_submission_candidate = False
     live_price_verified = bool(steps) and all(
         str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter" and step.get("trustedUsdPrice") is True
         for step in steps
