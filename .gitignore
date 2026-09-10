@@ -37,6 +37,9 @@ back/
 .agents/
 
 # Local dev/preview runtime logs (do not commit)
+run_server*.log
+run_server*_pid.txt
+flashloan/run_server*.log
 runtime_port*.log
 runtime_port*.out.log
 runtime_port*.err.log
