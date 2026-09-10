@@ -52,6 +52,18 @@ def _error_rows(value: object) -> list[dict[str, Any]]:
 def _first_child_error(evidence: Mapping[str, Any] | None) -> list[dict[str, Any]]:
     if not isinstance(evidence, Mapping):
         return []
+    for hop in evidence.get("hops") or []:
+        if isinstance(hop, Mapping):
+            if hop.get("liveQuoteError") or str(hop.get("status") or "").strip().lower() in {
+                "live_quote_failed",
+                "quote_failed",
+                "pool_not_initialized",
+                "not_enough_liquidity",
+                "live_evidence_deferred",
+            }:
+                errors = _error_rows(hop.get("errorStack"))
+                if errors:
+                    return errors[:1]
     direct = _error_rows(evidence.get("errorStack"))
     if direct:
         return direct[:1]

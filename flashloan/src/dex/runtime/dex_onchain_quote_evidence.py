@@ -196,27 +196,22 @@ def _probe_robinhood_testnet_route_execution_size(
 
     def _passes(evidence: dict[str, Any]) -> bool:
         validation = _as_dict(evidence.get("validation"))
-        price_impact_gate = validation.get("allHopsWithinPriceImpactLimit", True)
         profit_gate = validation.get("profitableAfterCosts", True)
         return bool(
-            _text(evidence.get("status")).lower() == "live_verified"
+            _text(evidence.get("status")).lower()
+            in {"live_verified", "slippage_limit_exceeded", "route_unprofitable"}
             and validation.get("allHopsQuoted", True) is True
             and validation.get("routeClosed", True) is True
             and validation.get("tokenContinuity", True) is True
             and profit_gate is True
-            and price_impact_gate is True
         )
 
     def _failure_reason(evidence: dict[str, Any]) -> str | None:
         validation = _as_dict(evidence.get("validation"))
         status = _text(evidence.get("status")).lower()
-        if validation.get("allHopsWithinPriceImpactLimit") is False and validation.get("allHopsQuoted") is True:
-            return "price_impact_limit_exceeded"
         if validation.get("profitableAfterCosts") is False and validation.get("allHopsQuoted") is True:
             return "not_profitable_after_costs"
-        if status == "slippage_limit_exceeded":
-            return "price_impact_limit_exceeded"
-        if status != "live_verified":
+        if status not in {"live_verified", "slippage_limit_exceeded", "route_unprofitable"}:
             return status or "live_quote_failed"
         if validation.get("allHopsQuoted") is not True:
             return "not_all_hops_quoted"
@@ -224,8 +219,6 @@ def _probe_robinhood_testnet_route_execution_size(
             return "route_not_closed"
         if validation.get("tokenContinuity") is not True:
             return "token_continuity_failed"
-        if validation.get("allHopsWithinPriceImpactLimit") is not True:
-            return "price_impact_limit_exceeded"
         if validation.get("profitableAfterCosts") is not True:
             return "not_profitable_after_costs"
         return None
@@ -267,9 +260,7 @@ def _probe_robinhood_testnet_route_execution_size(
 
     def _stop_without_size(reason: str) -> dict[str, Any]:
         search_status = (
-            "pool_insufficient_for_profitable_execution"
-            if reason == "price_impact_limit_exceeded"
-            else "not_profitable_at_low_slippage"
+            "not_profitable_after_costs"
             if reason == "not_profitable_after_costs"
             else reason
         )
@@ -301,11 +292,10 @@ def _probe_robinhood_testnet_route_execution_size(
                 lower_bound = probe
                 break
             last_failure_reason = reason
-            if reason not in {"price_impact_limit_exceeded", "not_profitable_after_costs"}:
+            if reason not in {"not_profitable_after_costs"}:
                 return _stop_without_size(reason or "not_eligible")
             if reason == "not_profitable_after_costs":
                 return _stop_without_size(reason)
-            upper_bound = probe
             first_ineligible_amount_raw = probe
         except Exception as exc:
             candidate_rows.append(
@@ -326,9 +316,9 @@ def _probe_robinhood_testnet_route_execution_size(
 
     if lower_bound is None:
         search_status = (
-            "not_profitable_at_low_slippage"
+            "not_profitable_after_costs"
             if last_failure_reason == "not_profitable_after_costs"
-            else "pool_insufficient_for_profitable_execution"
+            else "live_quote_failed"
         )
         return {
             "status": "route_execution_size_probe_unexecutable",
@@ -341,7 +331,7 @@ def _probe_robinhood_testnet_route_execution_size(
             "maxExecutableAmountRaw": None,
             "firstFailureAmountRaw": str(target_amount_raw),
             "attempts": candidate_rows,
-            "failureReason": f"after up to {max_attempts} half-size attempts, no amount passed live quote, 10 bps per-hop impact, and positive net-profit gates",
+            "failureReason": f"after up to {max_attempts} attempts, no amount passed live quote and positive net-profit gates",
         }
 
     probe = min(max_probe_amount_raw, max(lower_bound * 2, lower_bound + 1))
@@ -360,7 +350,7 @@ def _probe_robinhood_testnet_route_execution_size(
                 continue
             first_ineligible_amount_raw = probe
             expansion_stop_reason = reason or "not_eligible"
-            upper_bound = probe if reason == "price_impact_limit_exceeded" else None
+            upper_bound = None
             break
         except Exception as exc:
             candidate_rows.append(
@@ -703,10 +693,6 @@ def build_route_onchain_evidence(
         _text(hop.get("status")).lower() == "live_evidence_deferred"
         for hop in hop_rows
     )
-    if all_hops_verified and not all_hops_within_price_impact_limit:
-        blockers.append(
-            f"at least one hop price impact cannot be confirmed or exceeds {DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS} bps",
-        )
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
     final_hop = hop_rows[-1] if all_hops_verified and hop_rows else None
     final_decimals = int(final_hop["outputDecimals"]) if final_hop and final_hop.get("outputDecimals") is not None else None
@@ -744,7 +730,6 @@ def build_route_onchain_evidence(
     min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
     net_positive_after_costs = bool(
         all_hops_verified
-        and all_hops_within_price_impact_limit
         and (
             (borrow_asset_is_stable and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
             or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
@@ -752,7 +737,6 @@ def build_route_onchain_evidence(
     )
     meets_submission_profit_threshold = bool(
         all_hops_verified
-        and all_hops_within_price_impact_limit
         and (
             (borrow_asset_is_stable and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
             or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
@@ -791,13 +775,9 @@ def build_route_onchain_evidence(
             "pool_insufficient_for_profitable_execution"
         if pool_insufficient_for_profitable_execution
         else (
-            "slippage_limit_exceeded"
-            if all_hops_verified and not all_hops_within_price_impact_limit
-            else (
-                "route_unprofitable"
-                if all_hops_verified and all_hops_within_price_impact_limit and not net_positive_after_costs
-                else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
-            )
+            "route_unprofitable"
+            if all_hops_verified and not net_positive_after_costs
+            else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
         )
         )
         )

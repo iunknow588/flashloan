@@ -98,6 +98,7 @@
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
+      not_enough_liquidity: "流动性不足",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
@@ -265,6 +266,7 @@
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
+      not_enough_liquidity: "链上报价失败：流动性不足",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
@@ -284,15 +286,15 @@
     function onchainEvidenceHtml(evidence, route) {
       if (!evidence || !Object.keys(evidence).length) return "";
       const status = String(evidence.status || "").toLowerCase();
-      const failed = (evidence.hops || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failed = (evidence.hops || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
       const focusFailed = failed[0] || null;
-      const stackTop = route?.errorStack?.[0] || focusFailed?.errorStack?.[0] || evidence.errorStack?.[0] || null;
+      const stackTop = focusFailed?.errorStack?.[0] || route?.errorStack?.[0] || evidence.errorStack?.[0] || null;
       const blockersToShow = focusFailed ? [] : lines(evidence.blockers);
       return `<div class="onchain-evidence ${status === "live_verified" ? "good" : "bad"}"
         data-onchain-status="${esc(status)}"><strong>${esc(evidenceStatusEx(status))}</strong>
         <span class="muted">区块 ${esc(evidence.blockNumber || evidence.triggerBlockNumber || "-")} | 信任级别 ${esc(executionTrustText(evidence.executionTrust))}</span>
         ${focusFailed ? `<div class="evidence-error">第 ${esc(focusFailed.hop || "-")} 步 ${esc(focusFailed.fromSymbol || "-")} -> ${esc(focusFailed.toSymbol || "-")}：${esc(blockerText(focusFailed.liveQuoteError || "报价失败"))}</div>` : ""}
-        ${stackTop ? `<div class="muted">模块 ${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")} | ${esc(stackTop.message || "")}</div>` : ""}
+        ${focusFailed?.liveQuoteError ? "" : (stackTop ? `<div class="muted">模块 ${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")} | ${esc(stackTop.message || "")}</div>` : "")}
         ${blockersToShow.map(item => `<div class="muted">${esc(blockerText(item))}</div>`).join("")}</div>`;
     }
     const inputSymbol = (route, analysis) => route?.routeSymbols?.[0] || analysis?.referenceInputSymbol || analysis?.inputSymbol || "";
@@ -303,12 +305,12 @@
       const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified");
       const steps = analysis.steps || [];
       const costs = evidence.costModel || {};
-      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : steps).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : steps).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
       const failedHop = failedHops[0] || null;
       const focusOnError = Boolean(failedHop);
       const focusSteps = focusOnError ? steps.filter(step => Number(step.hop) === Number(failedHop.hop)) : steps;
-      const stackTop = route.errorStack?.[0] || failedHop?.errorStack?.[0] || evidence.errorStack?.[0] || null;
-      const focusErrorText = stackTop?.message ? blockerText(stackTop.message) : (failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : "链上单跳报价失败");
+      const stackTop = failedHop?.errorStack?.[0] || route.errorStack?.[0] || evidence.errorStack?.[0] || null;
+      const focusErrorText = failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : (stackTop?.message ? blockerText(stackTop.message) : "链上单跳报价失败");
       const recommendation = analysis.recommendation || {};
       const requests = route.quoteInputs?.quoteRequests || [];
       const pools = route.quoteInputs?.candidatePools || [];
@@ -334,13 +336,13 @@
       const depthKnown = live || depthStatus === "available";
       const recommendationRows = focusOnError ? [`第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 失败：${esc(focusErrorText)}`] : lines(recommendation.reasons);
       const analysisHtml = focusOnError
-        ? `<div class="analysis focus-error"><div><small>错误定位</small><strong>第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)}</strong></div><div><small>链上错误</small><strong>${esc(focusErrorText)}</strong></div>${stackTop ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div>` : ""}</div>`
+        ? `<div class="analysis focus-error"><div><small>错误定位</small><strong>第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)}</strong></div><div><small>链上错误</small><strong>${esc(focusErrorText)}</strong></div>${stackTop && !failedHop?.liveQuoteError ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div>` : ""}</div>`
         : `<div class="analysis"><div><small>${live ? "最终输出" : "最终输出（参考）"}</small><strong>${depthKnown ? esc(finalOutputDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? esc(grossProfitDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>初始探测金额</small><strong>${routeSizeAmount(initialProbeValue, route, analysis)}</strong></div><div><small>最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div></div>`;
       const depthLabel = focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
-      const recClass = ["pool_not_initialized", "live_quote_failed", "live_evidence_deferred", "pool_insufficient_for_profitable_execution", "slippage_limit_exceeded", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (live ? "good" : "warn");
+      const recClass = ["pool_not_initialized", "live_quote_failed", "live_evidence_deferred", "pool_insufficient_for_profitable_execution", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (live ? "good" : "warn");
       const actionText = focusOnError
         ? `第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)} 失败`
-        : (live && ["slippage_limit_exceeded", "route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase())
+        : (live && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase())
           ? "链上验证通过，但执行门禁未放行"
           : recommendationAction(recommendation.action || label(route.quoteStatus)));
       const referenceBadge = !live && analysis.requiresLiveQuoter ? `<span class="badge warn">静态参考（待链上报价）</span>` : "";
@@ -439,7 +441,7 @@
       const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified");
       const gateBlocked = Object.keys(evidence).length > 0
         && live
-        && ["slippage_limit_exceeded", "route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase());
+        && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase());
       const hasLiveEvidence = Object.keys(evidence).length > 0 && String(evidence.status || "") !== "live_evidence_deferred";
       const staleWarningCodes = [
         "hop_1_reference_quote_requires_live_quoter",
@@ -457,11 +459,11 @@
         "v4_token_decimals_missing_or_assumed",
       ];
       const copiedWarnings = (sourceAnalysis.warnings || []).filter(warning => !hasLiveEvidence || !staleWarningCodes.some(code => String(warning).startsWith(code))).map(warningText);
-      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
       const failedHop = failedHops[0] || null;
       const focusOnError = Boolean(failedHop);
-      const stackTop = route.errorStack?.[0] || failedHop?.errorStack?.[0] || evidence.errorStack?.[0] || null;
-      const focusErrorText = stackTop?.message ? blockerText(stackTop.message) : (failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : "链上单跳报价失败");
+      const stackTop = failedHop?.errorStack?.[0] || route.errorStack?.[0] || evidence.errorStack?.[0] || null;
+      const focusErrorText = failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : (stackTop?.message ? blockerText(stackTop.message) : "链上单跳报价失败");
       if (focusOnError) {
         const text = [
           `route=${display(route.symbolPair || (route.routeSymbols || []).join(" -> "))}`,

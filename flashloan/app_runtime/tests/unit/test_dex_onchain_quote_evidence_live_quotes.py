@@ -94,7 +94,7 @@ def test_sushiswap_v3_pool_can_be_verified_with_v3_quoter(monkeypatch):
         trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
     )
 
-    assert evidence["status"] == "slippage_limit_exceeded"
+    assert evidence["status"] == "route_unprofitable"
     assert evidence["trustedForExecution"] is False
     assert evidence["executionTrust"] == "live_quoter_verified_readonly"
     assert evidence["hops"][0]["quoteMethod"] == "v3_quoter_quoteExactInputSingle_eth_call"

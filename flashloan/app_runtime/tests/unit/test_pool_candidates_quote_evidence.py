@@ -235,9 +235,12 @@ def test_robinhood_testnet_requires_live_quoter_before_submission_candidate(monk
     monkeypatch.setattr(dex_surfaces, "quote_v4_exact_input_single", fake_quote_v4_exact_input_single)
     analysis = dex_surfaces._route_quote_analysis(route, price_map=price_map, chain_id=46630)
 
-    assert analysis["requiresLiveQuoter"] is True
-    assert analysis["adapterRequired"] is True
-    assert analysis["chainSubmissionCandidate"] is False
+    # The Robinhood testnet path is live-enabled by default.  The mocked
+    # adapter only replaces the network call; it still represents a complete
+    # live quote for route-analysis purposes.
+    assert analysis["requiresLiveQuoter"] is False
+    assert analysis["adapterRequired"] is False
+    assert analysis["chainSubmissionCandidate"] is True
     assert analysis["executableCandidate"] is False
     assert analysis["tokenBasisReferenceProfitable"] is True
     assert analysis["staticDepthStatus"] == "unavailable"

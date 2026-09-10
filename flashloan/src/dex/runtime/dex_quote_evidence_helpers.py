@@ -91,6 +91,14 @@ def _is_pool_not_initialized_error(exc: BaseException) -> bool:
     return bool(cause is not None and _is_pool_not_initialized_error(cause))
 
 
+def _is_not_enough_liquidity_error(exc: BaseException) -> bool:
+    message = _text(exc).lower()
+    if "notenoughliquidity" in message.replace("_", "").replace("(", "").replace(")", "") or "not enough liquidity" in message:
+        return True
+    cause = getattr(exc, "__cause__", None)
+    return bool(cause is not None and _is_not_enough_liquidity_error(cause))
+
+
 def _pool_not_initialized_error(exc: BaseException) -> str | None:
     if _is_pool_not_initialized_error(exc):
         return str(exc)
@@ -174,11 +182,15 @@ def _dex_error_stack_from_hop(hop: dict[str, Any], *, index: int = 0, flow: str 
     raw = hop.get("liveQuoteError")
     message = raw or status
     key = DEX_STATUS_ERROR_KEYS.get(
-        "pool_not_initialized" if _is_pool_not_initialized_error(ValueError(str(raw))) else status,
+        "not_enough_liquidity"
+        if _is_not_enough_liquidity_error(ValueError(str(raw)))
+        else "pool_not_initialized"
+        if _is_pool_not_initialized_error(ValueError(str(raw)))
+        else status,
         "DEX.QUOTE.LIVE_QUOTE_FAILED" if status in {"live_quote_failed", "quote_failed"} else "CORE.OK",
     )
     stack = None
-    if status in {"live_quote_failed", "quote_failed", "live_evidence_deferred", "pool_not_initialized"}:
+    if status in {"live_quote_failed", "quote_failed", "live_evidence_deferred", "pool_not_initialized", "not_enough_liquidity"}:
         stack = ErrorStack()
         hop_num = hop.get("hop") or index
         symbols = f"{_norm_symbol(hop.get('fromSymbol'))}->{_norm_symbol(hop.get('toSymbol'))}"
@@ -979,27 +991,22 @@ def _probe_robinhood_testnet_route_execution_size(
 
     def _passes(evidence: dict[str, Any]) -> bool:
         validation = _as_dict(evidence.get("validation"))
-        price_impact_gate = validation.get("allHopsWithinPriceImpactLimit", True)
         profit_gate = validation.get("profitableAfterCosts", True)
         return bool(
-            _text(evidence.get("status")).lower() == "live_verified"
+            _text(evidence.get("status")).lower()
+            in {"live_verified", "slippage_limit_exceeded", "route_unprofitable"}
             and validation.get("allHopsQuoted", True) is True
             and validation.get("routeClosed", True) is True
             and validation.get("tokenContinuity", True) is True
             and profit_gate is True
-            and price_impact_gate is True
         )
 
     def _failure_reason(evidence: dict[str, Any]) -> str | None:
         validation = _as_dict(evidence.get("validation"))
         status = _text(evidence.get("status")).lower()
-        if validation.get("allHopsWithinPriceImpactLimit") is False and validation.get("allHopsQuoted") is True:
-            return "price_impact_limit_exceeded"
         if validation.get("profitableAfterCosts") is False and validation.get("allHopsQuoted") is True:
             return "not_profitable_after_costs"
-        if status == "slippage_limit_exceeded":
-            return "price_impact_limit_exceeded"
-        if status != "live_verified":
+        if status not in {"live_verified", "slippage_limit_exceeded", "route_unprofitable"}:
             return status or "live_quote_failed"
         if validation.get("allHopsQuoted") is not True:
             return "not_all_hops_quoted"
@@ -1007,8 +1014,6 @@ def _probe_robinhood_testnet_route_execution_size(
             return "route_not_closed"
         if validation.get("tokenContinuity") is not True:
             return "token_continuity_failed"
-        if validation.get("allHopsWithinPriceImpactLimit") is not True:
-            return "price_impact_limit_exceeded"
         if validation.get("profitableAfterCosts") is not True:
             return "not_profitable_after_costs"
         return None
@@ -1059,9 +1064,7 @@ def _probe_robinhood_testnet_route_execution_size(
 
     def _stop_without_size(reason: str, *, raw_error: str | None = None) -> dict[str, Any]:
         search_status = (
-            "pool_insufficient_for_profitable_execution"
-            if reason == "price_impact_limit_exceeded"
-            else "not_profitable_at_low_slippage"
+            "not_profitable_after_costs"
             if reason == "not_profitable_after_costs"
             else reason
         )
@@ -1104,13 +1107,12 @@ def _probe_robinhood_testnet_route_execution_size(
                 lower_bound = probe
                 break
             last_failure_reason = reason
-            if reason not in {"price_impact_limit_exceeded", "not_profitable_after_costs"}:
+            if reason not in {"not_profitable_after_costs"}:
                 return _stop_without_size(reason or "not_eligible")
             if reason == "not_profitable_after_costs":
-                # A route that is unprofitable while still within the price
-                # impact limit cannot be fixed by lowering the borrow size.
+                # A route that is unprofitable after all hops and costs cannot
+                # be made profitable by lowering the borrow size.
                 return _stop_without_size(reason)
-            upper_bound = probe
             first_ineligible_amount_raw = probe
         except Exception as exc:
             quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
@@ -1140,11 +1142,11 @@ def _probe_robinhood_testnet_route_execution_size(
 
     if lower_bound is None:
         search_status = (
-            "not_profitable_at_low_slippage"
+            "not_profitable_after_costs"
             if last_failure_reason == "not_profitable_after_costs"
             else "pool_not_initialized"
             if last_failure_reason == "pool_not_initialized"
-            else "pool_insufficient_for_profitable_execution"
+            else "live_quote_failed"
         )
         return {
             "status": "route_execution_size_probe_unexecutable",
@@ -1157,7 +1159,7 @@ def _probe_robinhood_testnet_route_execution_size(
             "maxExecutableAmountRaw": None,
             "firstFailureAmountRaw": str(target_amount_raw),
             "attempts": candidate_rows,
-            "failureReason": f"after up to {max_attempts} half-size attempts, no amount passed live quote, 10 bps per-hop impact, and positive net-profit gates",
+            "failureReason": f"after up to {max_attempts} attempts, no amount passed live quote and positive net-profit gates",
             "errorStack": _dex_error_stack_from_status(
                 search_status,
                 message=search_status,
@@ -1183,7 +1185,7 @@ def _probe_robinhood_testnet_route_execution_size(
                 continue
             first_ineligible_amount_raw = probe
             expansion_stop_reason = reason or "not_eligible"
-            upper_bound = probe if reason == "price_impact_limit_exceeded" else None
+            upper_bound = None
             break
         except Exception as exc:
             quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"

@@ -405,7 +405,7 @@ def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_qu
     assert evidence["status"] == "live_verified"
 
 
-def test_robinhood_testnet_route_execution_probe_reduces_by_half_until_profitable_size(monkeypatch):
+def test_robinhood_testnet_route_execution_probe_ignores_impact_limit_when_profitable(monkeypatch):
     attempted = []
 
     def fake_build_route_onchain_evidence(*args, **kwargs):
@@ -442,12 +442,12 @@ def test_robinhood_testnet_route_execution_probe_reduces_by_half_until_profitabl
     )
 
     assert probe["status"] == "route_execution_size_probe_complete"
-    assert probe["maxExecutableAmountRaw"] == "60"
-    assert probe["selectedProfitableAmountRaw"] == "60"
-    assert attempted == [100, 50, 100, 75, 62, 56, 59, 60, 61]
+    assert probe["maxExecutableAmountRaw"] == "6400"
+    assert probe["selectedProfitableAmountRaw"] == "6400"
+    assert attempted == [100, 200, 400, 800, 1600, 3200, 6400]
 
 
-def test_route_execution_probe_expands_profitable_low_impact_starting_amount(monkeypatch):
+def test_route_execution_probe_expands_profitable_starting_amount(monkeypatch):
     attempted = []
 
     def fake_build_route_onchain_evidence(*args, **kwargs):
@@ -478,10 +478,10 @@ def test_route_execution_probe_expands_profitable_low_impact_starting_amount(mon
     )
 
     assert probe["searchStatus"] == "profitable_amount_found"
-    assert probe["selectedProfitableAmountRaw"] == "60"
-    assert probe["firstFailureAmountRaw"] == "61"
-    assert probe["expansionStopReason"] == "price_impact_limit_exceeded"
-    assert attempted == [25, 50, 100, 75, 62, 56, 59, 60, 61]
+    assert probe["selectedProfitableAmountRaw"] == "1600"
+    assert probe["firstFailureAmountRaw"] == "25"
+    assert probe["expansionStopReason"] is None
+    assert attempted == [25, 50, 100, 200, 400, 800, 1600]
 
 
 def test_route_size_advice_ignores_per_hop_token_units_for_borrow_amount():
@@ -552,7 +552,7 @@ def test_route_execution_probe_stops_after_ten_half_size_attempts_when_never_eli
     )
 
     assert probe["status"] == "route_execution_size_probe_unexecutable"
-    assert probe["searchStatus"] == "not_profitable_at_low_slippage"
+    assert probe["searchStatus"] == "not_profitable_after_costs"
     assert probe["probeAttempts"] == 1
     assert attempted == [10**12]
 
@@ -586,7 +586,7 @@ def test_route_execution_probe_does_not_reduce_low_slippage_unprofitable_amount(
         requested_amount_raw=100,
     )
 
-    assert probe["searchStatus"] == "not_profitable_at_low_slippage"
+    assert probe["searchStatus"] == "not_profitable_after_costs"
     assert probe["probeAttempts"] == 1
     assert attempted == [100]
 
