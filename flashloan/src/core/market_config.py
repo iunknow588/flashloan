@@ -44,6 +44,7 @@ from core.market_profiles import (
     DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS,
     DEFAULT_ROBINHOOD_MORPHO_MARKET_ID,
     DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
+    DEFAULT_ROBINHOOD_RPC_URL,
     DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID,
     DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID,
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID,
@@ -295,7 +296,7 @@ def _rpc_urls_for(profile: dict[str, Any]) -> tuple[str, ...]:
             ]
         )
     if profile.get("network") == "robinhood":
-        candidates.extend(["https://rpc.mainnet.chain.robinhood.com"])
+        candidates.extend([DEFAULT_ROBINHOOD_RPC_URL])
     if profile.get("network") == "robinhood-testnet":
         candidates.extend([DEFAULT_ROBINHOOD_TESTNET_RPC_URL])
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))

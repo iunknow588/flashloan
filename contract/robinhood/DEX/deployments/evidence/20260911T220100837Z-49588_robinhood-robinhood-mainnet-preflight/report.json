@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "robinhood-mainnet-preflight-v1",
+  "runAt": "2026-09-11T22:00:53.014Z",
+  "network": "robinhood",
+  "expectedChainId": 4663,
+  "routeRequirements": {
+    "requireV3Adapter": false,
+    "requireV4Adapter": true,
+    "flashSourceKind": 4
+  },
+  "rpc": {
+    "configured": true,
+    "host": "rpc.mainnet.chain.robinhood.com",
+    "chainId": 4663,
+    "blockNumber": 60594171,
+    "ok": true,
+    "error": null
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4PoolManager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "hasCode": false,
+      "codeBytes": 0,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4UniversalRouter",
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "hasCode": true,
+      "codeBytes": 24546,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4PoolManager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "hasCode": true,
+      "codeBytes": 24009,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultPermit2",
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "hasCode": true,
+      "codeBytes": 9152,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "deployer": {
+    "configured": true,
+    "address": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+    "balanceWei": "0",
+    "minBalanceWei": "0",
+    "ok": false,
+    "error": null
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": false,
+  "blockingReasons": [
+    "mainnet_broadcast_gate_closed",
+    "deployer_balance_insufficient"
+  ]
+}

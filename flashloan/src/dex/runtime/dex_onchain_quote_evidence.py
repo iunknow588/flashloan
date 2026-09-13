@@ -36,8 +36,11 @@ from dex.runtime.dex_quote_evidence_helpers import (
     _fee_bps,
     _hop_fee_bps,
     _human_from_raw,
+    _has_not_enough_liquidity_blocker,
     _int_or_none,
     _is_missing_historical_state_error,
+    _is_missing_v4_adapter_error,
+    _is_not_enough_liquidity_error,
     _is_pool_not_initialized_error,
     _is_robinhood_family,
     _load_v4_quote_adapter,
@@ -149,12 +152,22 @@ def _unsupported_evidence(
     trigger_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     trigger = _trigger_context_from_route(route, trigger_context)
+    joined = " ".join(reasons)
+    lower = joined.lower()
+    if "rpc" in lower and ("unavailable" in lower or "failed" in lower or "connect" in lower):
+        status = "rpc_verification_failed"
+    elif "adapter" in lower and "required" in lower:
+        status = "adapter_required"
+    elif "trigger block" in lower or "block context" in lower:
+        status = "missing_trigger_block"
+    else:
+        status = "not_live_verified"
     return {
         "evidenceVersion": 1,
         "observedAt": observed_at,
         "network": network,
         "chainId": chain_id,
-        "status": "not_live_verified",
+        "status": status,
         "executionTrust": "static_reference_only",
         "trustedForExecution": False,
         "blockNumber": None,
@@ -167,7 +180,82 @@ def _unsupported_evidence(
         "costModel": {},
         "blockers": reasons,
         "transactionDevelopment": _transaction_development(False, reasons),
+        "errorStack": _dex_error_stack_from_status(
+            status,
+            message=reasons[0] if reasons else "OK",
+            raw_error=reasons[0] if reasons else None,
+            details={"reasons": reasons, "status": status},
+        ),
     }
+
+
+def _first_pool_for_edge(
+    *,
+    pools: dict[str, dict[str, Any]],
+    from_symbol: str,
+    to_symbol: str,
+    from_address: str = "",
+    to_address: str = "",
+) -> dict[str, Any]:
+    candidates = list(pools.values())
+    for pool in candidates:
+        from_side = _pool_side(pool, from_symbol)
+        to_side = _pool_side(pool, to_symbol)
+        if not from_side[0] or not to_side[0]:
+            continue
+        if from_address and from_side[0].lower() != from_address.lower():
+            continue
+        if to_address and to_side[0].lower() != to_address.lower():
+            continue
+        if from_side[0] and to_side[0]:
+            return pool
+    return {}
+
+
+def _complete_route_steps(
+    route_symbols: list[str],
+    route_addresses: list[str],
+    steps: list[dict[str, Any]],
+    pools: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if len(route_symbols) < 2:
+        return steps
+    # Only synthesize omitted hops when the route supplies a complete pool
+    # set. A partial fixture may intentionally describe only the verified hop.
+    if len(pools) < len(route_symbols) - 1:
+        return steps
+    by_hop: dict[int, dict[str, Any]] = {}
+    for index, step in enumerate(steps):
+        hop_number = int(step.get("hop") or index + 1)
+        by_hop[hop_number] = step
+    completed: list[dict[str, Any]] = []
+    for index, (from_symbol, to_symbol) in enumerate(zip(route_symbols, route_symbols[1:]), start=1):
+        step = by_hop.get(index)
+        if not isinstance(step, dict):
+            from_address = route_addresses[index - 1] if index - 1 < len(route_addresses) else ""
+            to_address = route_addresses[index] if index < len(route_addresses) else ""
+            pool = _first_pool_for_edge(
+                pools=pools,
+                from_symbol=from_symbol,
+                to_symbol=to_symbol,
+                from_address=from_address,
+                to_address=to_address,
+            )
+            step = {
+                "hop": index,
+                "fromSymbol": from_symbol,
+                "toSymbol": to_symbol,
+                "tokenIn": from_address,
+                "tokenOut": to_address,
+                "pool": pool.get("pool") or "",
+                "protocol": pool.get("protocol") or pool.get("dex") or "uniswap_v4",
+                "status": "quoted",
+                "quoteSource": "route_step_expanded_for_onchain_review",
+                "inputAmount": None,
+            }
+            by_hop[index] = step
+        completed.append(by_hop[index])
+    return completed
 
 
 
@@ -293,20 +381,28 @@ def _probe_robinhood_testnet_route_execution_size(
                 break
             last_failure_reason = reason
             if reason not in {"not_profitable_after_costs"}:
-                return _stop_without_size(reason or "not_eligible")
+                if reason == "not_enough_liquidity" or (reason == "live_quote_failed" and _has_not_enough_liquidity_blocker(evidence)):
+                    first_ineligible_amount_raw = probe
+                else:
+                    return _stop_without_size(reason or "not_eligible")
             if reason == "not_profitable_after_costs":
                 return _stop_without_size(reason)
             first_ineligible_amount_raw = probe
         except Exception as exc:
+            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed")
             candidate_rows.append(
                 {
                     "attempt": attempts,
                     "amountRaw": str(probe),
-                    "status": "quote_failed",
+                    "status": quote_failure_reason,
                     "error": str(exc),
                 }
             )
-            return _stop_without_size("live_quote_failed")
+            if quote_failure_reason in {"live_quote_failed", "not_enough_liquidity"} and _is_not_enough_liquidity_error(exc):
+                first_ineligible_amount_raw = probe
+                last_failure_reason = quote_failure_reason
+            else:
+                return _stop_without_size(quote_failure_reason)
         if lower_bound is not None:
             break
         next_probe = max(min_probe_amount_raw, probe // 2)
@@ -318,6 +414,8 @@ def _probe_robinhood_testnet_route_execution_size(
         search_status = (
             "not_profitable_after_costs"
             if last_failure_reason == "not_profitable_after_costs"
+            else "not_enough_liquidity"
+            if last_failure_reason == "not_enough_liquidity"
             else "live_quote_failed"
         )
         return {
@@ -333,6 +431,9 @@ def _probe_robinhood_testnet_route_execution_size(
             "attempts": candidate_rows,
             "failureReason": f"after up to {max_attempts} attempts, no amount passed live quote and positive net-profit gates",
         }
+
+    if upper_bound is None and first_ineligible_amount_raw is not None and first_ineligible_amount_raw > lower_bound:
+        upper_bound = first_ineligible_amount_raw
 
     probe = min(max_probe_amount_raw, max(lower_bound * 2, lower_bound + 1))
     while attempts < max_attempts and probe <= max_probe_amount_raw:
@@ -350,20 +451,27 @@ def _probe_robinhood_testnet_route_execution_size(
                 continue
             first_ineligible_amount_raw = probe
             expansion_stop_reason = reason or "not_eligible"
-            upper_bound = None
+            if reason == "not_enough_liquidity" or (reason == "live_quote_failed" and _has_not_enough_liquidity_blocker(evidence)):
+                upper_bound = probe
+            else:
+                upper_bound = None
             break
         except Exception as exc:
+            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed")
             candidate_rows.append(
                 {
                     "attempt": attempts,
                     "amountRaw": str(probe),
-                    "status": "quote_failed",
+                    "status": quote_failure_reason,
                     "error": str(exc),
                 }
             )
             first_ineligible_amount_raw = probe
-            expansion_stop_reason = "live_quote_failed"
-            upper_bound = None
+            expansion_stop_reason = quote_failure_reason
+            if quote_failure_reason in {"live_quote_failed", "not_enough_liquidity"} and _is_not_enough_liquidity_error(exc):
+                upper_bound = probe
+            else:
+                upper_bound = None
             break
 
     if upper_bound is not None and lower_bound is not None:
@@ -377,11 +485,12 @@ def _probe_robinhood_testnet_route_execution_size(
                 else:
                     upper_bound = mid
             except Exception as exc:
+                quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed")
                 candidate_rows.append(
                     {
                         "attempt": attempts,
                         "amountRaw": str(mid),
-                        "status": "quote_failed",
+                        "status": quote_failure_reason,
                         "error": str(exc),
                     }
                 )
@@ -418,8 +527,11 @@ def build_route_onchain_evidence(
     network = _text(table.get("network") or route.get("network") or ("robinhood" if chain_id == robinhood.CHAIN_ID else f"chain_{chain_id}")).lower()
     trigger = _trigger_context_from_route(route, trigger_context)
     route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
+    route_addresses = [str(item) for item in route.get("routeAddresses") or [] if str(item).strip()]
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     steps = [step for step in analysis.get("steps") or [] if isinstance(step, dict)]
+    pools = _pool_map(route)
+    steps = _complete_route_steps(route_symbols, route_addresses, steps, pools)
     if not _is_robinhood_family(chain_id, network):
         return _unsupported_evidence(
             chain_id=chain_id,
@@ -432,29 +544,24 @@ def build_route_onchain_evidence(
     unsupported = [
         reason
         for step in steps
-        for reason in [_unsupported_step_reason(step, _pool_for_step(step, _pool_map(route)))]
+        for reason in [_unsupported_step_reason(step, _pool_for_step(step, pools))]
         if reason
     ]
     if unsupported:
         return _unsupported_evidence(chain_id=chain_id, network=network, route=route, observed_at=observed, reasons=unsupported, trigger_context=trigger)
 
     trigger_block_number = _trigger_block_number(trigger)
-    if trigger_block_number is None:
-        return _unsupported_evidence(
-            chain_id=chain_id,
-            network=network,
-            route=route,
-            observed_at=observed,
-            reasons=["missing trigger block context; later latest price cannot replace the trigger-time price."],
-            trigger_context=trigger,
-        )
 
-    pools = _pool_map(route)
     quoter = _text(table.get("quoter") or robinhood.default_v3_quoter_address(ROBINHOOD_DEFAULT_V3_QUOTER))
     token_cache: dict[str, int] = {}
     try:
         w3, rpc_url = _connect_robinhood_family(chain_id, network)
-        block_number = trigger_block_number
+        if trigger_block_number is None:
+            block_number = int(w3.eth.block_number)
+            quote_block_source = "latest_fallback_missing_trigger"
+        else:
+            block_number = trigger_block_number
+            quote_block_source = "trigger_block"
     except Exception as exc:
         return _unsupported_evidence(
             chain_id=chain_id,
@@ -507,14 +614,14 @@ def build_route_onchain_evidence(
         str(step.get("protocol") or step.get("dex") or "").strip().lower() == "uniswap_v4"
         for step in steps
     )
-    testnet_closed_loop_v4_route = bool(
-        chain_id == ROBINHOOD_TESTNET_CHAIN_ID and route_closed and all_v4_route
+    robinhood_closed_loop_v4_route = bool(
+        chain_id in {robinhood.CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} and route_closed and all_v4_route
     )
     if (
         not skip_execution_size_probe
-        and chain_id == ROBINHOOD_TESTNET_CHAIN_ID
+        and chain_id in {robinhood.CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
         and selected_borrow_input_amount_raw > 0
-        and (route_has_size_metadata or testnet_closed_loop_v4_route)
+        and (route_has_size_metadata or robinhood_closed_loop_v4_route)
     ):
         probe_amount_raw = offchain_initial_probe_amount_raw
         # Off-chain sizing chooses the starting point and passes it to the
@@ -567,6 +674,38 @@ def build_route_onchain_evidence(
                 hop = _quote_v3_hop(w3=w3, quoter=quoter, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
         except Exception as exc:
             if _is_missing_historical_state_error(exc):
+                # A trigger block is useful for reproducibility, but it must
+                # not prevent a live verification when the RPC has pruned or
+                # never exposed that historical state. Retry this route from
+                # the current head once; downstream profitability checks then
+                # decide whether the route is usable.
+                if quote_block_source == "trigger_block":
+                    try:
+                        latest_block = int(w3.eth.block_number)
+                    except Exception:
+                        latest_block = None
+                    if latest_block is not None and latest_block > 0 and latest_block != block_number:
+                        latest_trigger = {
+                            key: value
+                            for key, value in trigger.items()
+                            if isinstance(key, str) and "block" not in key.lower()
+                        }
+                        latest_trigger.update(
+                            {
+                                "source": "latest_fallback_historical_state_unavailable",
+                                "observedAt": observed,
+                            }
+                        )
+                        return build_route_onchain_evidence(
+                            route,
+                            payload=payload,
+                            chain_id=chain_id,
+                            observed_at=observed,
+                            trigger_context=latest_trigger,
+                            quote_hop_provider=quote_hop_provider,
+                            borrow_input_amount_override_raw=borrow_input_amount_override_raw,
+                            skip_execution_size_probe=skip_execution_size_probe,
+                        )
                 hop_rows.append(
                     {
                         "hop": hop_number,
@@ -597,8 +736,24 @@ def build_route_onchain_evidence(
                     f"绗?{hop_number} 璺冲巻鍙插尯鍧?{block_number} 鐨?trie 鐘舵€佷笉鍙敤锛屽凡寤跺悗澶嶆牳锛屼笉鍒ゅ畾涓鸿矾绾垮け璐ワ細{exc}"
                 )
                 break
-            hop_status = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
-            quote_source = "chain_pool_not_initialized" if hop_status == "pool_not_initialized" else "chain_live_quote_failed"
+            if _is_missing_v4_adapter_error(exc):
+                hop_status = "adapter_required"
+                quote_source = "chain_adapter_required"
+            elif _is_pool_not_initialized_error(exc):
+                hop_status = "pool_not_initialized"
+                quote_source = "chain_pool_not_initialized"
+            elif _is_not_enough_liquidity_error(exc):
+                hop_status = "not_enough_liquidity"
+                quote_source = "chain_live_quote_liquidity_exceeded"
+            else:
+                hop_status = "live_quote_failed"
+                quote_source = "chain_live_quote_failed"
+            from_symbol = _norm_symbol(step.get("fromSymbol"))
+            to_symbol = _norm_symbol(step.get("toSymbol"))
+            _, _, hop_in_decimals = _pool_side(pool, from_symbol)
+            _, _, hop_out_decimals = _pool_side(pool, to_symbol)
+            hop_in_decimals = hop_in_decimals if hop_in_decimals is not None else int(step.get("inputDecimals") or 18)
+            hop_out_decimals = hop_out_decimals if hop_out_decimals is not None else int(step.get("outputDecimals") or 18)
             hop_rows.append(
                 {
                     "hop": hop_number,
@@ -608,11 +763,14 @@ def build_route_onchain_evidence(
                     "quoteMethod": f"{protocol}_exact_input",
                     "protocol": protocol,
                     "pool": step.get("pool") or pool.get("pool"),
-                    "fromSymbol": _norm_symbol(step.get("fromSymbol")),
-                    "toSymbol": _norm_symbol(step.get("toSymbol")),
-                    "tokenIn": step.get("tokenIn") or _pool_side(pool, _norm_symbol(step.get("fromSymbol")))[0],
-                    "tokenOut": step.get("tokenOut") or _pool_side(pool, _norm_symbol(step.get("toSymbol")))[0],
+                    "fromSymbol": from_symbol,
+                    "toSymbol": to_symbol,
+                    "tokenIn": step.get("tokenIn") or _pool_side(pool, from_symbol)[0],
+                    "tokenOut": step.get("tokenOut") or _pool_side(pool, to_symbol)[0],
                     "amountInRaw": str(amount_in_raw),
+                    "amountIn": _human_from_raw(amount_in_raw, hop_in_decimals),
+                    "inputDecimals": hop_in_decimals,
+                    "outputDecimals": hop_out_decimals,
                     "amountOutRaw": None,
                     "liveQuoteError": str(exc),
                     "errorStack": _dex_error_stack_from_hop(
@@ -620,8 +778,8 @@ def build_route_onchain_evidence(
                             "hop": hop_number,
                             "status": hop_status,
                             "liveQuoteError": str(exc),
-                            "fromSymbol": _norm_symbol(step.get("fromSymbol")),
-                            "toSymbol": _norm_symbol(step.get("toSymbol")),
+                            "fromSymbol": from_symbol,
+                            "toSymbol": to_symbol,
                         },
                         index=hop_number,
                     ),
@@ -633,8 +791,13 @@ def build_route_onchain_evidence(
                     },
                 }
             )
-            if hop_status == "pool_not_initialized":
+            del from_symbol, to_symbol, hop_in_decimals, hop_out_decimals
+            if hop_status == "adapter_required":
+                blockers.append(f"V4 quote adapter is required at hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))}: {exc}")
+            elif hop_status == "pool_not_initialized":
                 blockers.append(f"V4 pool is not initialized or cannot be quoted at hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))}: {exc}")
+            elif hop_status == "not_enough_liquidity":
+                blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} has not enough liquidity for requested amount: {exc}")
             else:
                 blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} verification failed: {exc}")
             break
@@ -668,7 +831,7 @@ def build_route_onchain_evidence(
     if reference_quote_only:
         blockers.append("V4 route uses reference_quote_adapter; must connect real V4 Quoter/SDK or swap static-call before transaction preflight")
     all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and token_continuity_ok and not any(
-        _text(hop.get("status")).lower() in {"live_quote_failed", "quote_failed"}
+        _text(hop.get("status")).lower() in {"live_quote_failed", "quote_failed", "not_enough_liquidity", "adapter_required", "pool_not_initialized", "live_evidence_deferred"}
         for hop in hop_rows
     ) and not reference_quote_only
     hop_price_impact_rows = [
@@ -692,6 +855,9 @@ def build_route_onchain_evidence(
     historical_state_unavailable = any(
         _text(hop.get("status")).lower() == "live_evidence_deferred"
         for hop in hop_rows
+    )
+    adapter_required = bool(
+        any(_text(hop.get("status")).lower() == "adapter_required" for hop in hop_rows)
     )
     final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
     final_hop = hop_rows[-1] if all_hops_verified and hop_rows else None
@@ -761,16 +927,33 @@ def build_route_onchain_evidence(
             and execution_size_probe.get("searchStatus") == "pool_not_initialized"
         )
     )
+    not_enough_liquidity = bool(
+        any(_text(hop.get("status")).lower() == "not_enough_liquidity" for hop in hop_rows)
+        or bool(
+            execution_size_probe
+            and execution_size_probe.get("searchStatus") == "not_enough_liquidity"
+        )
+    )
     if pool_insufficient_for_profitable_execution:
         blockers.append("current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee")
     if pool_not_initialized:
         blockers.append("V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate")
+    if not_enough_liquidity:
+        blockers.append("current borrow size exceeds available liquidity for at least one hop; reduce borrow size and retry")
+    if adapter_required:
+        blockers.append("V4 quote adapter is required; pool interpretation deferred until the mainnet V4 adapter is configured")
     evidence_status = (
+        "adapter_required"
+        if adapter_required
+        else (
         "pool_not_initialized"
         if pool_not_initialized
         else (
             "live_evidence_deferred"
         if historical_state_unavailable
+        else (
+            "not_enough_liquidity"
+        if not_enough_liquidity
         else (
             "pool_insufficient_for_profitable_execution"
         if pool_insufficient_for_profitable_execution
@@ -781,6 +964,8 @@ def build_route_onchain_evidence(
         )
         )
         )
+        )
+    )
     )
     return {
         "evidenceVersion": 1,
@@ -792,7 +977,7 @@ def build_route_onchain_evidence(
         "blockTimestamp": _block_timestamp(w3, block_number),
         "triggerContext": trigger,
         "triggerBlockNumber": trigger_block_number,
-        "quoteBlockSource": "trigger_block",
+        "quoteBlockSource": quote_block_source,
         "quoter": quoter,
         "routeSymbols": route_symbols,
         "routeAddresses": route.get("routeAddresses") or [],
@@ -878,6 +1063,8 @@ def build_route_onchain_evidence(
             "executionSizeSearchStatus": execution_size_probe.get("searchStatus") if execution_size_probe else None,
             "poolInsufficientForProfitableExecution": pool_insufficient_for_profitable_execution,
             "poolNotInitialized": pool_not_initialized,
+            "notEnoughLiquidity": not_enough_liquidity,
+            "adapterRequired": adapter_required,
         },
         "blockers": blockers,
         "errorStack": _dex_error_stack_from_status(

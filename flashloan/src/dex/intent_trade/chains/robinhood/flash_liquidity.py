@@ -9,14 +9,14 @@ import requests
 from core.chain_data_registry import chain_data_by_network
 from core.chain_flow_dispatcher import ChainFlowRequest
 from core.flash_loan_pool_discovery import DEFAULT_SNAPSHOT_PATH, load_cached_flash_loan_pool_discovery
+from dex.intent_trade.chains.robinhood import config as robinhood
 
 
-ROBINHOOD_CHAIN_ID = 4663
-ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com"
-MORPHO_BLUE_CORE = "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
-UNISWAP_V2_FACTORY = "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
-USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
-WETH = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+ROBINHOOD_CHAIN_ID = robinhood.CHAIN_ID
+MORPHO_BLUE_CORE = robinhood.chain_contract_value("robinhood", "morpho_blue_core", "ROBINHOOD_MORPHO_BLUE_CORE")
+UNISWAP_V2_FACTORY = robinhood.chain_contract_value("robinhood", "v2_factory", "ROBINHOOD_V2_FACTORY")
+USDG = robinhood.chain_contract_value("robinhood", "usdg", "ROBINHOOD_USDG_ADDRESS")
+WETH = robinhood.WETH_ADDRESS
 
 TOKENS = {
     "USDG": {"symbol": "USDG", "address": USDG, "decimals": 6, "price_hint_usd": 1.0},
@@ -241,13 +241,14 @@ def _uniswap_v2_source(*, rpc_url: str, timeout: float) -> dict[str, Any]:
 
 def load_robinhood_flash_liquidity_snapshot(
     *,
-    rpc_url: str = ROBINHOOD_RPC_URL,
+    rpc_url: str = "",
     timeout: float = 10.0,
 ) -> dict[str, Any]:
     """Read Robinhood flash liquidity sources without building or broadcasting transactions."""
 
     sources: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    rpc_url = rpc_url or (robinhood.rpc_urls_from_env() or ("",))[0]
     for symbol in ("USDG", "WETH"):
         try:
             sources.append(_morpho_source(token=TOKENS[symbol], rpc_url=rpc_url, timeout=timeout))
@@ -339,7 +340,7 @@ def robinhood_flash_liquidity_discovery_contribution(
 def pool_discovery_flow(
     *,
     request: ChainFlowRequest | None = None,
-    rpc_url: str = ROBINHOOD_RPC_URL,
+    rpc_url: str = "",
     timeout: float = 10.0,
     **_: Any,
 ) -> dict[str, Any]:

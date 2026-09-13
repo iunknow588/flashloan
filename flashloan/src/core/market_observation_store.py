@@ -412,11 +412,11 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
         payload["borrowableSymbols"] = list(payload.get("observationAnchorSymbols") or [])
     if not isinstance(payload.get("summary"), dict):
         payload["summary"] = {}
-    payload["summary"].setdefault("observationAnchorCount", len(payload.get("observationAnchorSymbols") or []))
-    payload["summary"].setdefault("borrowableTokenCount", len(payload.get("borrowableSymbols") or []))
-    payload["summary"].setdefault("candidateObservationGroupCount", len(payload.get("candidateObservationGroups") or []))
-    payload["summary"].setdefault("observationSequenceCount", len(payload.get("observationSequences") or []))
-    payload["summary"].setdefault("closedLoopRouteCount", len(payload.get("closedLoopRoutes") or []))
+    payload["summary"]["observationAnchorCount"] = len(payload.get("observationAnchorSymbols") or [])
+    payload["summary"]["borrowableTokenCount"] = len(payload.get("borrowableSymbols") or [])
+    payload["summary"]["candidateObservationGroupCount"] = len(payload.get("candidateObservationGroups") or [])
+    payload["summary"]["observationSequenceCount"] = len(payload.get("observationSequences") or [])
+    payload["summary"]["closedLoopRouteCount"] = len(payload.get("closedLoopRoutes") or [])
     payload["mode"] = payload.get("mode") or "dex_market_observation"
     payload["selected_protocols"] = payload.get("selected_protocols") or snapshot.get("protocols") or []
     # This field describes the current page handoff. A snapshot may have been

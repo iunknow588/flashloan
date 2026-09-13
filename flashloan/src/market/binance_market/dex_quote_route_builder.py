@@ -108,6 +108,10 @@ def build_quote_route_payload(
             else "reference_only"
         ),
         "poolCount": len(pools),
+        "routePools": pools,
+        "executionPools": pools,
+        "preferredPools": pools,
+        "strictQualityPools": pools,
         "quoteStatus": quote_status,
         "quoteVerification": build_quote_verification_payload(quote_analysis=quote_analysis),
         "quoteAnalysis": quote_analysis,

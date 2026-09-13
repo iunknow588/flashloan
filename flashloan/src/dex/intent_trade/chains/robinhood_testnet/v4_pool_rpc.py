@@ -9,11 +9,18 @@ from typing import Any
 from web3 import Web3
 
 from core.chain_data_registry import chain_contracts
+from dex.intent_trade.chains.robinhood.config import (
+    TESTNET_MULTICALL_ADDRESS,
+    TESTNET_V4_POOL_MANAGER_ADDRESS,
+    testnet_rpc_urls_from_env,
+)
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK as _ROBINHOOD_TESTNET_NETWORK,
+)
 
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
-ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
-ROBINHOOD_TESTNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
-ROBINHOOD_TESTNET_RPC_URL = "https://rpc.testnet.chain.robinhood.com"
+ROBINHOOD_TESTNET_CHAIN_ID = _ROBINHOOD_TESTNET_CHAIN_ID
+ROBINHOOD_TESTNET_NETWORK = _ROBINHOOD_TESTNET_NETWORK
 V4_INITIALIZE_TOPIC = Web3.keccak(
     text="Initialize(bytes32,address,address,uint24,int24,address,uint160,int24)"
 ).hex()
@@ -110,25 +117,19 @@ def _configured_contract(key: str, fallback: str = "") -> str:
     return str(configured.get(key) or fallback).strip()
 
 
+ROBINHOOD_TESTNET_V4_POOL_MANAGER = _configured_contract(
+    "v4_pool_manager",
+    TESTNET_V4_POOL_MANAGER_ADDRESS,
+)
+
+
 def _multicall3_address() -> str:
-    return _configured_contract("multicall3", "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8")
+    return _configured_contract("multicall3", TESTNET_MULTICALL_ADDRESS)
 
 
 def _rpc_url_from_env_or_default() -> str:
-    import os
-
-    for name in (
-        "ROBINHOOD_TESTNET_RPC_URL",
-        "ROBINHOOD_TESTNET_RPC",
-        "ROBINHOOD_TESTNET_RPCS",
-        "ROBINHOOD_TESTNET_RPC_URLS",
-        "ROBINHOOD_TESTNET_ALCHEMY_RPC_URL",
-        "ROBINHOOD_TESTNET_ALCHEMY_RPC",
-    ):
-        value = str(os.getenv(name) or "").split(",")[0].strip()
-        if value:
-            return value
-    return ROBINHOOD_TESTNET_RPC_URL
+    urls = testnet_rpc_urls_from_env()
+    return urls[0] if urls else ""
 
 
 def _web3(rpc_url: str) -> Web3:

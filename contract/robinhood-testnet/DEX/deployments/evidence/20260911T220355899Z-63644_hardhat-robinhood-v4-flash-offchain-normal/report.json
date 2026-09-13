@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "robinhood-v4-flash-offchain-normal-v1",
+  "runAt": "2026-09-11T22:03:55.898Z",
+  "network": "hardhat",
+  "policy": {
+    "mode": "normal_only",
+    "tokenConservation": true,
+    "abnormalCases": "deferred"
+  },
+  "contracts": {
+    "token": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "poolManager": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "probe": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+  },
+  "amount": "1000",
+  "receipt": {
+    "hash": "0x81ac2d2771b0f538b05b31859fa28aa5645ea457417af34cb4a3062da9b94457",
+    "gasUsed": "161564"
+  },
+  "balances": {
+    "poolManager": "1000",
+    "probe": "0"
+  },
+  "debt": "0",
+  "readyForTestnetNormalProbe": true,
+  "blockingReasons": []
+}

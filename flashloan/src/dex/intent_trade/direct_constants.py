@@ -8,6 +8,7 @@ from dex.intent_trade.chains.avalanche.config import (
     FUJI_CHAIN_ID,
     FUJI_RPC_ENV,
 )
+from dex.intent_trade.chains.robinhood import config as robinhood
 
 MAX_RUNTIME_POOL_SCAN = 5
 MAX_RUNTIME_TRADE_SCAN = 5
@@ -26,7 +27,7 @@ DEFAULT_GAS_TOKEN_PRICE_MAX_AGE_SECONDS = 120
 DEFAULT_GAS_TOKEN_PRICE_MAX_DEVIATION_BPS = 100
 SRC_ROOT = Path(__file__).resolve().parents[1]
 BNB_USDC_ADDRESS = "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+ROBINHOOD_WETH_ADDRESS = robinhood.WETH_ADDRESS
 STABLE_EXERCISE_SYMBOLS = {
     "USDC",
     "USDC.E",
@@ -61,7 +62,7 @@ DIRECT_ONCHAIN_NETWORKS = {
         "unified_executor_supported": False,
     },
     "robinhood": {
-        "chain_id": 4663,
+        "chain_id": robinhood.CHAIN_ID,
         "testnet": False,
         "rpc_env": (
             "ROBINHOOD_RPC_URL",
@@ -75,7 +76,7 @@ DIRECT_ONCHAIN_NETWORKS = {
         "unified_executor_supported": False,
     },
     "robinhood-testnet": {
-        "chain_id": 46630,
+        "chain_id": robinhood.TESTNET_CHAIN_ID,
         "testnet": True,
         "rpc_env": (
             "ROBINHOOD_TESTNET_RPC_URL",
@@ -103,10 +104,10 @@ DIRECT_ONCHAIN_NETWORK_ALIASES = {
     "robinhood": "robinhood",
     "robinhood-chain": "robinhood",
     "robinhood-mainnet": "robinhood",
-    "4663": "robinhood",
+    str(robinhood.CHAIN_ID): "robinhood",
     "robinhood-testnet": "robinhood-testnet",
     "robinhood-sepolia": "robinhood-testnet",
-    "46630": "robinhood-testnet",
+    str(robinhood.TESTNET_CHAIN_ID): "robinhood-testnet",
 }
 ROUTE_DECISION_COMPONENTS = [
     {"name": "viable", "type": "bool"},

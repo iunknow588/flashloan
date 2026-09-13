@@ -4,6 +4,7 @@ import os
 from typing import Any, Callable
 from urllib.parse import quote
 
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
 from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_analysis import DEFAULT_QUOTE_PROBE_NOTIONAL_USD
 from market.binance_market.dex_quote_route_builder import build_quote_route_payload
@@ -29,6 +30,85 @@ def _pool_address(pool: dict[str, Any]) -> str:
     return str(pool.get("pool") or pool.get("address") or "").strip()
 
 
+def _hop_fee_bps(pool: dict[str, Any]) -> float | None:
+    if not isinstance(pool, dict):
+        return None
+    if "feeBps" in pool and pool.get("feeBps") not in (None, ""):
+        return _number(pool.get("feeBps"))
+    return None
+
+
+def _find_hop_pool(pools: list[dict[str, Any]], *, from_addr: str, to_addr: str, from_sym: str, to_sym: str) -> dict[str, Any]:
+    from_l = str(from_addr or "").strip().lower()
+    to_l = str(to_addr or "").strip().lower()
+    from_sym_n = str(from_sym or "").strip().upper()
+    to_sym_n = str(to_sym or "").strip().upper()
+    for pool in pools:
+        if not isinstance(pool, dict):
+            continue
+        tokens = [str(pool.get("token0") or "").strip().lower(), str(pool.get("token1") or "").strip().lower()]
+        if from_l and to_l:
+            if from_l in tokens and to_l in tokens:
+                return pool
+            token_match = str(pool.get("pairAddress") or "").strip().lower()
+            if token_match and from_l in token_match and to_l in token_match:
+                return pool
+        route_symbols = [str(item or "").strip().upper() for item in pool.get("routeSymbols") or []]
+        if from_sym_n and to_sym_n and {from_sym_n, to_sym_n}.issubset(set(route_symbols)):
+            return pool
+        route_text = str(pool.get("routeText") or "").upper()
+        if from_sym_n and to_sym_n and route_text and f"{from_sym_n} -> {to_sym_n}" in route_text:
+            return pool
+    return {}
+
+
+def _static_hop_steps(
+    *,
+    pools: list[dict[str, Any]],
+    route_symbols: list[str],
+    route_addresses: list[str],
+) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    if len(route_symbols) < 2:
+        return steps
+    for index in range(len(route_symbols) - 1):
+        from_symbol = route_symbols[index]
+        to_symbol = route_symbols[index + 1]
+        from_address = route_addresses[index] if index < len(route_addresses) else ""
+        to_address = route_addresses[index + 1] if index + 1 < len(route_addresses) else ""
+        pool = _find_hop_pool(
+            pools,
+            from_addr=from_address,
+            to_addr=to_address,
+            from_sym=from_symbol,
+            to_sym=to_symbol,
+        )
+        steps.append(
+            {
+                "hop": index + 1,
+                "fromSymbol": from_symbol,
+                "toSymbol": to_symbol,
+                "fromAddress": from_address,
+                "toAddress": to_address,
+                "tokenIn": from_address,
+                "tokenOut": to_address,
+                "pool": _pool_address(pool) or str(pool.get("pool") or ""),
+                "protocol": str(pool.get("protocol") or pool.get("dex") or "uniswap_v4").lower(),
+                "feeBps": _hop_fee_bps(pool),
+                "priceImpactBps": pool.get("priceImpactBps"),
+                "status": "static_reference_pending_live_quote",
+                "quoteSource": "market_observation_static_pool_route",
+                "inputAmount": None,
+                "outputAmount": None,
+                "outputUsd": None,
+                "referenceOutputAmount": None,
+                "referenceOutputUsd": None,
+                "effectiveRate": None,
+            }
+        )
+    return steps
+
+
 def _framework_route_pools(route_payload: dict[str, Any]) -> list[dict[str, Any]]:
     pools: list[dict[str, Any]] = []
     quote_inputs = route_payload.get("quoteInputs") if isinstance(route_payload.get("quoteInputs"), dict) else {}
@@ -36,7 +116,7 @@ def _framework_route_pools(route_payload: dict[str, Any]) -> list[dict[str, Any]
         for pool in quote_inputs.get(key) or []:
             if isinstance(pool, dict):
                 pools.append(pool)
-    for key in ("preferredPools", "strictQualityPools", "executionPools", "rejectedPools"):
+    for key in ("routePools", "preferredPools", "strictQualityPools", "executionPools", "rejectedPools"):
         for pool in route_payload.get(key) or []:
             if isinstance(pool, dict):
                 pools.append(pool)
@@ -78,7 +158,28 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_amount = None
     best_token_basis_bps = None
     force_live_refresh = str(os.getenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
-    size_probe_limit = max(0, int(os.getenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "3") or 3))
+    # Page requests should not turn into a blocking live Quoter sweep when the
+    # chain RPC is slow. The opportunity scanner can use the same route payload
+    # and then run bounded on-chain evidence per selected route. Operators can
+    # opt into live route refresh for the first N routes with this env var.
+    # Keep page requests fast for the Robinhood family too. The background
+    # scanner enables bounded live on-chain evidence separately.
+    mainnet_fast_page = bool(chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID})
+    live_route_env = os.getenv("DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT")
+    live_route_limit = (
+        max(0, int(live_route_env))
+        if live_route_env not in (None, "")
+        # Keep page scans fast on mainnet; live evidence is produced by the
+        # background opportunity scanner, not by the synchronous page route.
+        # Operators can force live page routes with DEX_QUOTE_ROUTE_FORCE_REFRESH.
+        else (0 if mainnet_fast_page else 999)
+    )
+    size_probe_env = os.getenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT")
+    size_probe_limit = (
+        max(0, int(size_probe_env))
+        if size_probe_env not in (None, "")
+        else (0 if mainnet_fast_page else 3)
+    )
     probe_all_testnet_routes = (
         chain_id == ROBINHOOD_TESTNET_CHAIN_ID
         and str(os.getenv("DEX_QUOTE_ROUTE_PROBE_ALL_TESTNET_ROUTES", "")).strip().lower()
@@ -138,7 +239,18 @@ def build_quote_routes_payload_from_overview(
             )
         else:
             quote_inputs = dict(route.get("quoteInputs") or {})
-        if pools and (force_live_refresh or not base_quote_analysis.get("steps")):
+        should_run_live_route = bool(
+            pools
+            and (
+                force_live_refresh
+                or (
+                    not base_quote_analysis.get("steps")
+                    and (probe_all_testnet_routes or route_index <= live_route_limit)
+                )
+                or base_quote_analysis.get("executableCandidate")
+            )
+        )
+        if should_run_live_route:
             analysis_route["quoteInputs"] = quote_inputs
             live_analysis = route_quote_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
             if isinstance(live_analysis, dict) and (live_analysis.get("steps") or live_analysis.get("complete")):
@@ -189,6 +301,13 @@ def build_quote_routes_payload_from_overview(
             price_evidence_source=quote_analysis.get("priceEvidenceSource"),
             price_evidence_mode=quote_analysis.get("priceEvidenceMode"),
         )
+        route_quote_analysis = route_payload.get("quoteAnalysis")
+        if isinstance(route_quote_analysis, dict) and not route_quote_analysis.get("steps"):
+            route_quote_analysis["steps"] = _static_hop_steps(
+                pools=pools,
+                route_symbols=route_symbols,
+                route_addresses=route_addresses,
+            )
         routes.append(route_payload)
         observed_value = quote_analysis.get("referenceNetProfitUsd")
         if observed_value is not None:

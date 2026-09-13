@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "robinhood-testnet-normal-probe-live-evidence-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "probeAddress": "0x02a0BAcC642D501422Af804A462F98335b2BBF09",
+  "route": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+  "amountRaw": "715255737304",
+  "broadcastOk": true,
+  "complete": true,
+  "txHash": "0x78719485e6ea5fb73cc35cd5a56bf651f6299f387635bb1a09878b2103155483",
+  "sourceReport": "contract/robinhood-testnet/DEX/deployments/evidence/20260907T204504739Z-35232_robinhoodTestnet-robinhood-v4-flash-normal-probe/report.json"
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "robinhood-testnet-route-capture-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "generatedAt": "2026-09-12T10:22:00Z",
+  "latestQuoteReview": {
+    "reviewedAt": "2026-09-12T10:22:00Z",
+    "blockNumber": 118022639,
+    "quoteBlockSource": "latest_fallback_missing_trigger",
+    "route": "TZ -> TB -> TA -> TZ",
+    "borrowInputAmount": "0.01 TZ",
+    "status": "live_verified",
+    "readyForTransactionPreflight": true,
+    "allHopsQuoted": true,
+    "allHopsWithinPriceImpactLimit": true,
+    "routeClosed": true,
+    "tokenContinuity": true,
+    "profitableAfterCosts": true,
+    "finalOutputAmount": 0.0990929790093855,
+    "netProfitAmount": 0.0890879790093855,
+    "netProfitSymbol": "TZ",
+    "maxHopPriceImpactBps": 0.3152689441537622,
+    "blockers": []
+  },
+  "mode": "full_index_recent_swaps_live_quote_review",
+  "routeCount": 12,
+  "completeStaticQuoteCount": 12,
+  "liveProfitableRouteCount": 1,
+  "bestLiveNetProfitUsd": null,
+  "bestLiveNetProfitToken": {
+    "symbol": "TZ",
+    "amount": 0.0890879790093855
+  },
+  "activeLiquidityPoolCount": 110,
+  "activeTriangleRouteCount": 6,
+  "blockingReasons": [],
+  "nextRequiredActions": [
+    "rebuild_chain_test_package_for_captured_route",
+    "run_fork_staticcall_and_predeploy_readiness"
+  ],
+  "broadcastEnabled": false
+}

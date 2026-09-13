@@ -7,6 +7,7 @@ def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
     """Keep only the hop evidence needed to rebuild quote-route inputs."""
     keys = (
         "pool",
+        "poolId",
         "direction",
         "anchorSymbol",
         "anchorAddress",
@@ -29,10 +30,25 @@ def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
         "liquidity",
         "token0",
         "token1",
+        "token0Decimals",
+        "token1Decimals",
+        "token0_decimals",
+        "token1_decimals",
+        "token0Amount",
+        "token1Amount",
+        "token0Usd",
+        "token1Usd",
         "token0Symbol",
         "token1Symbol",
         "pairSymbol",
         "pairAddress",
+        "poolManager",
+        "pool_manager",
+        "poolKey",
+        "pool_key",
+        "tickSpacing",
+        "tick_spacing",
+        "hooks",
         "source",
         "evidence",
     )
@@ -144,6 +160,17 @@ def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
         for step in route_pools
         if _text(step.get("pairSymbol") or " -> ".join(step.get("routeSymbols") or ""))
     ]
+    route_addresses = [_text(address) for address in sequence.get("routeAddresses") or [] if _text(address)]
+    if not route_addresses:
+        for step in route_pools:
+            step_addresses = [_text(address) for address in step.get("routeAddresses") or [] if _text(address)]
+            if len(step_addresses) < 2:
+                continue
+            if not route_addresses:
+                route_addresses.append(step_addresses[0])
+            route_addresses.append(step_addresses[1])
+    if len(route_addresses) > len(sequence.get("pathSymbols") or []):
+        route_addresses = route_addresses[: len(sequence.get("pathSymbols") or [])]
     return {
         "routeKey": "|".join(
             [
@@ -161,6 +188,8 @@ def _overview_route_summary(sequence: dict[str, Any]) -> dict[str, Any]:
         "poolIds": pool_ids,
         "pairSymbols": pair_symbols,
         "anchorAddresses": list(sequence.get("anchorAddresses") or []),
+        "routeAddresses": route_addresses,
+        "routePools": [_compact_route_pool(step) for step in route_pools],
         "observationRef": "observation.json",
     }
 

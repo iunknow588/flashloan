@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from core.chain_data_registry import chain_data_files, chain_flow_spec_by_chain_id
+from core.chain_data_registry import chain_data_file_path, chain_data_files, chain_flow_spec_by_chain_id
 from market.binance_market.candidate_pool_cache import candidate_pool_cache_paths
 from market.binance_market.pool_candidate_constants import DEX_POOL_PROTOCOLS
 from market.binance_market.pool_candidate_normalization import (
@@ -382,7 +382,7 @@ def _candidate_pool_source_available(chain_id: int) -> bool:
         return True
     files = chain_data_files(chain_id=chain_id)
     for key in data_keys:
-        path = files.get(key)
+        path = chain_data_file_path(None, key, chain_id=chain_id) or files.get(key)
         if path and Path(path).exists():
             return True
     return False

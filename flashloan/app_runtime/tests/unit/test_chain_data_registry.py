@@ -130,6 +130,7 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
         "predeploy_readiness",
         "v4_pool_index",
         "v4_pool_liquidity",
+        "v4_token_allowlist",
     ]
     assert data_independence["flow_data_file_keys"] == [
         "chain_test",
@@ -204,11 +205,14 @@ def test_flow_allowed_protocols_are_subsets_of_chain_supported_protocols():
 def test_chain_data_file_path_resolves_from_chain_owner_file():
     path = chain_data_file_path("robinhood-testnet", "lending_liquidity")
     v4_path = chain_data_file_path("robinhood-testnet", "v4_pool_liquidity")
+    allowlist_path = chain_data_file_path("robinhood-testnet", "v4_token_allowlist")
 
     assert path is not None
     assert path.as_posix().endswith("flashloan/src/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json")
     assert v4_path is not None
     assert v4_path.as_posix().endswith("flashloan/src/runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json")
+    assert allowlist_path is not None
+    assert allowlist_path.as_posix().endswith("flashloan/src/chains/robinhood-testnet/v4_token_allowlist.json")
 
 
 def test_chain_data_audit_enforces_robinhood_testnet_isolation():

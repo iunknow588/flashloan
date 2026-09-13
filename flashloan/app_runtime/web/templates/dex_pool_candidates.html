@@ -115,11 +115,14 @@
       <label class="page-status" for="pageInput">跳至</label>
       <input id="pageInput" type="number" min="1" step="1" value="1">
       <select id="pageSizeSelect">
-        <option value="1" selected>每页 1 个 X</option>
+        <option value="1">每页 1 个 X</option>
         <option value="2">每页 2 个 X</option>
         <option value="5">每页 5 个 X</option>
         <option value="10">每页 10 个 X</option>
-        <option value="20">每页 20 个 X</option>
+        <option value="20" selected>每页 20 个 X</option>
+        <option value="50">每页 50 个 X</option>
+        <option value="100">每页 100 个 X</option>
+        <option value="1000">显示全部候选组</option>
       </select>
     </div>
     <section id="groupList"></section>
@@ -131,7 +134,7 @@
     const uiError = value => {
       const text = String(value || "请求失败");
       if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
-      if (/FileNotFoundError|No such file or directory|WinError|Errno 2|系统找不到指定的文件|src_bot/.test(text)) {
+      if (/FileNotFoundError|No such file or directory|WinError|Errno 2|系统找不到指定的文件/.test(text)) {
         return "候选池数据文件缺失或缓存路径失效，请先执行全量刷新重建缓存";
       }
       if (/[\u4e00-\u9fff]/.test(text)) return text;
@@ -161,7 +164,7 @@
     let latestPayload = null;
     let refreshInFlight = false;
     let candidatePage = Math.max(1, Number(new URLSearchParams(window.location.search).get("page") || 1) || 1);
-    let candidatePageSize = Math.max(1, Math.min(20, Number(new URLSearchParams(window.location.search).get("page_size") || 1) || 1));
+    let candidatePageSize = Math.max(1, Math.min(1000, Number(new URLSearchParams(window.location.search).get("page_size") || 20) || 20));
     let searchTimer = null;
 
     function syncInitialControls() {
@@ -179,7 +182,7 @@
       const next = new URL(window.location.href);
       Object.entries(updates).forEach(([key, value]) => {
         const text = String(value ?? "").trim();
-        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "1") || (key === "quality" && text === "all")) {
+        if (!text || (key === "page" && text === "1") || (key === "page_size" && text === "20") || (key === "quality" && text === "all")) {
           next.searchParams.delete(key);
         } else {
           next.searchParams.set(key, text);
@@ -355,7 +358,7 @@
     function renderPager(payload) {
       const pagination = payload?.pagination?.candidate_groups || { page: 1, page_size: 1, page_count: 1, total_count: 0, unfiltered_count: 0 };
       candidatePage = Number(pagination.page || 1);
-      candidatePageSize = Number(pagination.page_size || 1);
+      candidatePageSize = Number(pagination.page_size || 20);
       $("pageInput").value = String(candidatePage);
       $("pageInput").max = String(pagination.page_count || 1);
       if ([...$("pageSizeSelect").options].some(option => Number(option.value) === candidatePageSize)) {
@@ -481,7 +484,7 @@
     };
     $("pageSizeSelect").onchange = () => {
       candidatePage = 1;
-      candidatePageSize = Math.max(1, Math.min(20, Number($("pageSizeSelect").value || 1) || 1));
+      candidatePageSize = Math.max(1, Math.min(1000, Number($("pageSizeSelect").value || 20) || 20));
       replaceUrlParams({ page: candidatePage, page_size: candidatePageSize });
       load();
     };

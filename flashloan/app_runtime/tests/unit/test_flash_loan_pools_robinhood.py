@@ -731,6 +731,38 @@ def test_robinhood_testnet_v4_pool_liquidity_builds_from_local_contract_evidence
     assert payload["pools"][0]["depthStatus"] == "unpriced_poolid_only"
 
 
+def test_robinhood_testnet_v4_known_token_pool_ids_read_static_allowlist(tmp_path, monkeypatch):
+    from dex.intent_trade.chains.robinhood_testnet import v4_pool_liquidity
+
+    allowlist_path = tmp_path / "v4_token_allowlist.json"
+    allowlist_address = "0x1111111111111111111111111111111111111111"
+    _write_json(
+        allowlist_path,
+        {
+            "network": "robinhood-testnet",
+            "tokens": {
+                "fake": {
+                    "symbol": "FAKE",
+                    "address": allowlist_address,
+                    "decimals": 18,
+                }
+            },
+        },
+    )
+
+    def fake_chain_data_file_path(network, key, **kwargs):
+        if key == "v4_token_allowlist":
+            return allowlist_path
+        return None
+
+    monkeypatch.setattr(v4_pool_liquidity, "chain_data_file_path", fake_chain_data_file_path)
+
+    known = v4_pool_liquidity._known_token_pool_ids()
+
+    assert allowlist_address.lower() in known
+    assert "v4-token-allowlist.fake" in known[allowlist_address.lower()]
+
+
 def test_flash_loan_pools_filters_providers_to_chain_supported_protocols(monkeypatch):
     monkeypatch.setattr(
         flash_loan_pools,

@@ -88,6 +88,9 @@ Robinhood Chain and Robinhood Testnet are separate chain data owners:
 - `chains/robinhood-testnet/chain.json`: chain ID `46630`, isolated Uniswap V4
   PoolManager flash-accounting tests only. It does not declare Aave or Morpho
   lending liquidity.
+- `chains/robinhood-testnet/v4_token_allowlist.json`: static allowlist for V4
+  pool display and balance scanning. Default refresh uses active pools plus
+  this allowlist instead of a full initialized pool scan.
 
 Evidence and sample loading must pass scope checks for `network`, `chain_id`,
 and, when available, `market_id`. Missing Robinhood Testnet evidence should
@@ -107,6 +110,14 @@ python flashloan/src/market/tools/analyze_thresholds.py --hours 2 --window-secon
 python -m pytest flashloan/app_runtime/tests
 ```
 
+需要把服务日志统一写入 `flashloan/app_runtime/runtime/logs/` 时，使用：
+
+```powershell
+python flashloan/app_runtime/start_server.py --port 5000
+```
+
+`start_server.py` 会把 stdout/stderr 写到 `runtime/logs/server_<port>_stdout.log` 和 `server_<port>_stderr.log`，避免在仓库根目录或 `app_runtime/` 下散落外部日志文件。
+
 The main entry is the control panel at `http://127.0.0.1:5000/`. The `/healthz` route stays available for liveness checks only.
 Liquidation accounts are stored in Postgres when `DATABASE_URL` is set. The control panel can keep either 30 days or 365 days of discovery data, and on startup it backfills the latest window first before doing incremental discovery.
 Environment precedence is process environment first, then the nearest `.env`, then parent-directory `.env` files.
@@ -114,7 +125,7 @@ Environment precedence is process environment first, then the nearest `.env`, th
 ## Runtime Files
 
 - `runtime/state/`: latest JSON snapshots such as `latest_arbitrage.json`, `latest_extremes.json`, and `latest_executable_signal.json`.
-- `runtime/logs/`: observer/control-panel logs produced by manual runs.
+- `runtime/logs/`: observer/control-panel/server logs produced by manual runs.
 - `runtime/cache/`: Aave reserve cache and other low-frequency chain metadata.
 - `runtime/config/`: mutable local strategy config.
 

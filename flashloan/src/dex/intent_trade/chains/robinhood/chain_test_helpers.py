@@ -19,7 +19,7 @@ from dex.intent_trade.chains.robinhood.chain_test_policy import (
 from market.binance_market.dex_surfaces import DEFAULT_GAS_RESERVE_USD
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
-ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT = SRC_ROOT / "runtime" / "cache" / "dex_opportunity_snapshot.json"
+ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT = SRC_ROOT / "dex" / "runtime" / "cache" / "dex_opportunity_snapshot.json"
 _TOKEN_DECIMALS_FALLBACK = {
     "ETH": 18,
     "WETH": 18,

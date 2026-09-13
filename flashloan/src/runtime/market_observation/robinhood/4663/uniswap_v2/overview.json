@@ -1,6 +1,7 @@
 {
   "borrowableSymbols": [
-    "USDG"
+    "USDG",
+    "WETH"
   ],
   "chainSpecificObservationPairs": [],
   "chain_id": 4663,
@@ -75,27 +76,38 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-09T05:59:18.481235Z",
+  "generated_at": "2026-09-11T00:00:04.129711Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "borrowableSymbols": 1,
+    "borrowableSymbols": 2,
     "chainSpecificObservationPairs": 0,
     "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 1
+    "observationAnchorSymbols": 2
   },
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [
-    "USDG"
+    "USDG",
+    "WETH"
   ],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\observation.json",
   "ok": true,
   "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\overview.json",
   "poolStaticTable": {
+    "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
     "chainId": 4663,
-    "exists": false,
+    "exists": true,
+    "factory": null,
+    "generatedAt": "2026-08-22T09:32:07.635581+00:00",
+    "generatedBlockNumber": null,
+    "mode": "robinhood-candidate-cache-v1",
     "network": "robinhood",
-    "path": null
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
+    "quoter": null,
+    "router": null,
+    "sourceDiscoveryBlockNumber": null,
+    "sourceDiscoveryFetchedAt": null,
+    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\robinhood_dex_market_pools.json"
   },
   "processing": {
     "allowed_protocols": [
@@ -132,18 +144,18 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 1,
+    "borrowableTokenCount": 2,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
     "candidateObservationDirectCount": 0,
-    "candidateObservationGroupCount": 0,
+    "candidateObservationGroupCount": 3,
     "candidateObservationPoolCount": 0,
     "candidateObservationSequenceCount": 0,
     "chainSpecificObservationSequenceCount": 0,
     "closedLoopRouteCount": 0,
     "directClosedLoopCount": 0,
-    "directPairCount": 0,
+    "directPairCount": 2,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
     "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
     "fundAnchorPairObservationAssociatedPairCount": 0,
@@ -155,8 +167,8 @@
     "nonEthPairFirstAssociatedPairCount": 0,
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
-    "observableTokenCount": 0,
-    "observationAnchorCount": 1,
+    "observableTokenCount": 3,
+    "observationAnchorCount": 2,
     "observationSequenceAnchorCount": 0,
     "observationSequenceCount": 0,
     "observationSequencePoolCount": 0,

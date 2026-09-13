@@ -24,7 +24,10 @@ def test_route_error_stack_reuses_child_error_stack():
         status="live_quote_failed",
         evidence={"errorStack": child},
     )
-    assert rows == child
+    assert rows == [
+        {"module": "DEX", "code": int(ErrorCode.DEX_LIVE_QUOTE_FAILED), "message": "live_quote_failed"},
+        child[0],
+    ]
 
 
 def test_route_error_stack_maps_candidate_pair_missing_to_route_invalid():
@@ -45,7 +48,7 @@ def test_route_error_stack_builds_hop_focus_message():
         },
     )
     assert rows[0]["code"] == int(ErrorCode.DEX_LIVE_QUOTE_FAILED)
-    assert "hop 2 ETH->USDC: PoolNotInitialized()" in rows[0]["message"]
+    assert rows[0]["message"] == "live_quote_failed"
 
 
 def test_stack_from_dex_payload_normalizes_route_status():
@@ -57,7 +60,8 @@ def test_stack_from_dex_payload_normalizes_route_status():
         }
     )
     assert rows[0]["code"] == int(ErrorCode.DEX_POOL_NOT_INITIALIZED)
-    assert rows[0]["message"] == "V4 pool missing"
+    assert rows[0]["message"] == "V4 pool is not initialized or cannot be quoted"
+    assert rows[1]["message"] == "V4 pool missing"
 
 
 def test_stack_from_dex_payload_returns_ok_when_no_status_error():
@@ -90,8 +94,43 @@ def test_route_error_stack_prefers_hop_child_over_generic_evidence_stack():
             ],
         },
     )
-    assert rows[0]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
-    assert "NotEnoughLiquidity" in rows[0]["message"]
+    assert rows[0]["code"] == int(ErrorCode.DEX_GATE_NOT_READY)
+    assert rows[0]["message"] == "requires_live_quoter"
+    assert rows[1]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
+    assert "NotEnoughLiquidity" in rows[1]["message"]
+
+
+def test_route_error_stack_keeps_hop_error_chain_in_order():
+    rows = route_error_stack(
+        status="live_quote_failed",
+        evidence={
+            "hops": [
+                {
+                    "hop": 2,
+                    "fromSymbol": "0XA",
+                    "toSymbol": "0XB",
+                    "status": "not_enough_liquidity",
+                    "liveQuoteError": "robinhood mainnet v4 quoter reverted: UnexpectedRevertBytes(bytes)",
+                    "errorStack": [
+                        {
+                            "module": "DEX",
+                            "code": int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY),
+                            "message": "robinhood mainnet v4 quoter reverted: UnexpectedRevertBytes(bytes)",
+                        },
+                        {
+                            "module": "DEX",
+                            "code": int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY),
+                            "message": "hop 2 0XA->0XB verification failed: NotEnoughLiquidity(bytes32)",
+                        },
+                    ],
+                }
+            ],
+        },
+    )
+    assert len(rows) == 3
+    assert rows[0]["code"] == int(ErrorCode.DEX_LIVE_QUOTE_FAILED)
+    assert "UnexpectedRevertBytes" in rows[1]["message"]
+    assert "NotEnoughLiquidity" in rows[2]["message"]
 
 
 def test_hop_error_stack_maps_not_enough_liquidity():
@@ -105,4 +144,5 @@ def test_hop_error_stack_maps_not_enough_liquidity():
         }
     )
     assert rows[0]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
-    assert "NotEnoughLiquidity" in rows[0]["message"]
+    assert "hop 2 0XA->0XB verification failed" in rows[0]["message"]
+    assert any("NotEnoughLiquidity" in row["message"] for row in rows)

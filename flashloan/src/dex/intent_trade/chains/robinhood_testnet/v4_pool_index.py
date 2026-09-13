@@ -12,7 +12,6 @@ from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
     ERC20_ABI,
     ROBINHOOD_TESTNET_CHAIN_ID,
     ROBINHOOD_TESTNET_NETWORK,
-    ROBINHOOD_TESTNET_RPC_URL,
     ROBINHOOD_TESTNET_V4_POOL_MANAGER,
     V4_INITIALIZE_TOPIC,
     V4_SWAP_TOPIC,
@@ -228,7 +227,7 @@ def build_v4_pool_index_from_initialize_logs(
     mark_recent_swaps: bool = True,
     recent_swap_lookback_blocks: int = 20_000,
 ) -> dict[str, Any]:
-    resolved_rpc_url = rpc_url or _rpc_url_from_env_or_default() or ROBINHOOD_TESTNET_RPC_URL
+    resolved_rpc_url = rpc_url or _rpc_url_from_env_or_default()
     resolved_pool_manager = pool_manager or _chain_contract_address("v4_pool_manager", ROBINHOOD_TESTNET_V4_POOL_MANAGER)
     w3 = _web3(resolved_rpc_url)
     chain_id = int(w3.eth.chain_id)

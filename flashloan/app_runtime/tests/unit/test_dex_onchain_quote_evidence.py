@@ -108,14 +108,15 @@ def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
         trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
     )
 
-    assert evidence["status"] == "live_quote_failed"
+    assert evidence["status"] == "adapter_required"
     assert evidence["trustedForExecution"] is False
     assert evidence["readyForTransactionPreflight"] is False
     assert evidence["executionTrust"] == "static_reference_only"
     assert len(evidence["hops"]) == 1
-    assert evidence["hops"][0]["status"] == "live_quote_failed"
-    assert evidence["hops"][0]["executionTrust"] == "live_quote_failed"
+    assert evidence["hops"][0]["status"] == "adapter_required"
+    assert evidence["hops"][0]["executionTrust"] == "adapter_required"
     assert evidence["hops"][0]["amountOutRaw"] is None
+    assert evidence["validation"]["adapterRequired"] is True
     assert any("quote adapter is required" in blocker.lower() for blocker in evidence["blockers"])
     hop_stamp = evidence["hops"][0]["errorStack"][0]
     assert set(hop_stamp.keys()) == {"module", "code", "message"}
@@ -124,6 +125,78 @@ def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
     evidence_stamp = evidence["errorStack"][0]
     assert set(evidence_stamp.keys()) == {"module", "code", "message"}
     assert evidence_stamp["module"] == "DEX"
+
+
+def test_v4_route_reports_not_enough_liquidity_as_business_result(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", lambda: (FakeW3(), "https://rpc.example"))
+
+    def fake_quote_hop_provider(*, w3, quoter, step, pool, amount_in_raw, block_number, token_cache):
+        raise RuntimeError("robinhood testnet v4 quoter reverted: NotEnoughLiquidity(bytes32)")
+
+    route = {
+        "symbolPair": "USDG -> STONKBROKER",
+        "routeSymbols": ["USDG", "STONKBROKER"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "dex": "uniswap_v4",
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "USDG",
+                    "token0": "0x" + "2" * 40,
+                    "token0Decimals": 6,
+                    "token1Symbol": "STONKBROKER",
+                    "token1": "0x" + "3" * 40,
+                    "token1Decimals": 6,
+                    "network": "robinhood",
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "USDG",
+                    "toSymbol": "STONKBROKER",
+                    "protocol": "uniswap_v4",
+                    "pool": "0x" + "1" * 40,
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood", "chainId": 4663}},
+        chain_id=4663,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=fake_quote_hop_provider,
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["trustedForExecution"] is False
+    assert evidence["readyForTransactionPreflight"] is False
+    assert evidence["executionTrust"] == "static_reference_only"
+    assert len(evidence["hops"]) == 1
+    assert evidence["hops"][0]["status"] == "not_enough_liquidity"
+    assert evidence["hops"][0]["executionTrust"] == "not_enough_liquidity"
+    assert evidence["hops"][0]["amountOutRaw"] is None
+    assert evidence["validation"]["allHopsQuoted"] is False
+    assert evidence["validation"]["notEnoughLiquidity"] is True
+    assert any("not enough liquidity" in blocker.lower() for blocker in evidence["blockers"])
+    assert evidence["hops"][0]["errorStack"][0]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
@@ -447,6 +520,53 @@ def test_robinhood_testnet_route_execution_probe_ignores_impact_limit_when_profi
     assert attempted == [100, 200, 400, 800, 1600, 3200, 6400]
 
 
+def test_route_execution_probe_halves_on_not_enough_liquidity(monkeypatch):
+    attempted = []
+
+    def fake_build_route_onchain_evidence(*args, **kwargs):
+        amount_raw = int(kwargs["borrow_input_amount_override_raw"])
+        attempted.append(amount_raw)
+        if amount_raw > 60:
+            return {
+                "status": "live_quote_failed",
+                "validation": {
+                    "allHopsQuoted": False,
+                    "routeClosed": True,
+                    "tokenContinuity": True,
+                    "profitableAfterCosts": False,
+                },
+                "blockers": ["hop 2 verification failed: NotEnoughLiquidity(bytes32)"],
+            }
+        return {
+            "status": "live_verified",
+            "validation": {
+                "allHopsQuoted": True,
+                "routeClosed": True,
+                "tokenContinuity": True,
+                "profitableAfterCosts": True,
+            },
+            "costModel": {"netProfitAmount": "1"},
+        }
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "build_route_onchain_evidence", fake_build_route_onchain_evidence)
+    probe = dex_onchain_quote_evidence._probe_robinhood_testnet_route_execution_size(
+        {},
+        payload={},
+        chain_id=46630,
+        observed_at="2026-09-02T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123},
+        quote_hop_provider=None,
+        requested_amount_raw=100,
+        max_attempts=24,
+    )
+
+    assert probe["status"] == "route_execution_size_probe_complete"
+    assert probe["maxExecutableAmountRaw"] == "60"
+    assert probe["firstFailureAmountRaw"] == "61"
+    assert attempted[0] == 100
+    assert 50 in attempted
+
+
 def test_route_execution_probe_expands_profitable_starting_amount(monkeypatch):
     attempted = []
 
@@ -662,7 +782,7 @@ def test_robinhood_testnet_v4_pool_index_adapter_uses_live_pool_state(monkeypatc
     monkeypatch.setattr(
         v4_quote_adapter,
         "_pool_rows",
-        lambda: [
+        lambda *args, **kwargs: [
             {
                 "poolId": "0x" + "1" * 64,
                 "token0": "0x" + "2" * 40,
@@ -726,7 +846,7 @@ def test_robinhood_testnet_v4_pool_index_adapter_normalizes_raw_v4_fee_units(mon
     monkeypatch.setattr(
         v4_quote_adapter,
         "_pool_rows",
-        lambda: [
+        lambda *args, **kwargs: [
             {
                 "poolId": "0x" + "1" * 64,
                 "token0": "0x" + "2" * 40,

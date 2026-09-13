@@ -23,6 +23,12 @@ from dex.runtime.dex_opportunity_scanner import (
     ensure_dex_opportunity_scanner_running,
     run_dex_opportunity_scan_now,
 )
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+)
 from web import control_panel_data_routes as shared
 from market.binance_market.dex_strategy_config import dex_strategy_state, write_dex_strategy_config
 from web.data_routes import dex_surface_orchestration as dex_surface_orchestration
@@ -32,6 +38,7 @@ from web.data_routes.dex_surface_orchestration import (
     _finalize_market_observation_payload,
     _market_observation_page_payload,
     _refresh_robinhood_testnet_v4_sources,
+    _refresh_v4_sources,
     _refresh_state_summary,
     _submission_review_framework_payload,
 )
@@ -359,11 +366,17 @@ def register_dex_surface_routes(app, panel) -> None:
             if full_refresh:
                 chain_row = chain_data_by_chain_id(selected_chain_id) if selected_chain_id is not None else None
                 network = str((chain_selection or {}).get("network") or (chain_row or {}).get("network") or "").strip().lower()
-                if network == "robinhood-testnet" or selected_chain_id == 46630:
+                if network == ROBINHOOD_TESTNET_NETWORK or selected_chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
                     refresh_state = {
                         **refresh_state,
                         **_refresh_robinhood_testnet_v4_sources(),
                         "scope": "robinhood-testnet-v4",
+                    }
+                elif network == ROBINHOOD_NETWORK or selected_chain_id == ROBINHOOD_CHAIN_ID:
+                    refresh_state = {
+                        **refresh_state,
+                        **_refresh_v4_sources(chain_id=selected_chain_id, network=network),
+                        "scope": "robinhood-mainnet-v4",
                     }
             payload = dex_pool_candidates_payload(
                 chain_id=selected_chain_id,

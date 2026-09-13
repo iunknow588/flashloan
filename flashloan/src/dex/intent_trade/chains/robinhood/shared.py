@@ -1,23 +1,43 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from core.chain_data_registry import chain_contracts, chain_data_by_network
 
 
-ROBINHOOD_CHAIN_ID = 4663
 ROBINHOOD_NETWORK = "robinhood"
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
 ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
+
+
+def _configured_chain_id(network: str, env_name: str, fallback: int) -> int:
+    raw = str(os.getenv(env_name, "")).strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError as exc:
+            raise ValueError(f"{env_name} must be an integer") from exc
+    try:
+        row = chain_data_by_network(network) or {}
+        value = int(row.get("chain_id"))
+        if value > 0:
+            return value
+    except (TypeError, ValueError, KeyError):
+        pass
+    return int(fallback)
+
+
+ROBINHOOD_CHAIN_ID = _configured_chain_id("robinhood", "ROBINHOOD_CHAIN_ID", 4663)
+ROBINHOOD_TESTNET_CHAIN_ID = _configured_chain_id("robinhood-testnet", "ROBINHOOD_TESTNET_CHAIN_ID", 46630)
 
 _ROBINHOOD_ALIASES = {
     "robinhood": ROBINHOOD_NETWORK,
     "robinhood-chain": ROBINHOOD_NETWORK,
     "robinhood-mainnet": ROBINHOOD_NETWORK,
-    "4663": ROBINHOOD_NETWORK,
+    str(ROBINHOOD_CHAIN_ID): ROBINHOOD_NETWORK,
     "robinhood-testnet": ROBINHOOD_TESTNET_NETWORK,
     "robinhood-sepolia": ROBINHOOD_TESTNET_NETWORK,
-    "46630": ROBINHOOD_TESTNET_NETWORK,
+    str(ROBINHOOD_TESTNET_CHAIN_ID): ROBINHOOD_TESTNET_NETWORK,
 }
 
 

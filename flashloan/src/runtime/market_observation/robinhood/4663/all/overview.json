@@ -1,11 +1,597 @@
 {
   "borrowableSymbols": [
-    "USDG"
+    "USDG",
+    "WETH"
   ],
   "chainSpecificObservationPairs": [],
   "chain_id": 4663,
   "chain_key": "robinhood:4663:all",
-  "closedLoopRouteSummaries": [],
+  "closedLoopRouteSummaries": [
+    {
+      "anchorAddresses": [
+        "0x45f82ac5d507e988f7406935da8eefe495a360e0",
+        "0xc9d915979684cddd9ab4d0980f914edd6d8d928f"
+      ],
+      "anchorSymbol": "BRODIE",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "USDG",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BRODIE -> WETH",
+        "WETH -> USDG",
+        "USDG -> BRODIE"
+      ],
+      "pathSymbols": [
+        "BRODIE",
+        "WETH",
+        "USDG",
+        "BRODIE"
+      ],
+      "pathText": "BRODIE -> WETH -> USDG -> BRODIE",
+      "poolIds": [
+        "0x9870c395bfa68c9f23d7c232fa5a37bf063aae35",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b"
+      ],
+      "routeKey": "BRODIE -> WETH -> USDG -> BRODIE|0x9870c395bfa68c9f23d7c232fa5a37bf063aae35|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x45f82ac5d507e988f7406935da8eefe495a360e0",
+        "0xc9d915979684cddd9ab4d0980f914edd6d8d928f"
+      ],
+      "anchorSymbol": "BRODIE",
+      "bridgeSymbol": "USDG",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BRODIE -> USDG",
+        "USDG -> WETH",
+        "WETH -> BRODIE"
+      ],
+      "pathSymbols": [
+        "BRODIE",
+        "USDG",
+        "WETH",
+        "BRODIE"
+      ],
+      "pathText": "BRODIE -> USDG -> WETH -> BRODIE",
+      "poolIds": [
+        "0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x9870c395bfa68c9f23d7c232fa5a37bf063aae35"
+      ],
+      "routeKey": "BRODIE -> USDG -> WETH -> BRODIE|0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x9870c395bfa68c9f23d7c232fa5a37bf063aae35",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7195e2088f3dfcca56e6a71d129051963ed9657a"
+      ],
+      "anchorSymbol": "CATS",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "USDG",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "CATS -> WETH",
+        "WETH -> USDG",
+        "USDG -> CATS"
+      ],
+      "pathSymbols": [
+        "CATS",
+        "WETH",
+        "USDG",
+        "CATS"
+      ],
+      "pathText": "CATS -> WETH -> USDG -> CATS",
+      "poolIds": [
+        "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8"
+      ],
+      "routeKey": "CATS -> WETH -> USDG -> CATS|0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7195e2088f3dfcca56e6a71d129051963ed9657a"
+      ],
+      "anchorSymbol": "CATS",
+      "bridgeSymbol": "USDG",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "CATS -> USDG",
+        "USDG -> WETH",
+        "WETH -> CATS"
+      ],
+      "pathSymbols": [
+        "CATS",
+        "USDG",
+        "WETH",
+        "CATS"
+      ],
+      "pathText": "CATS -> USDG -> WETH -> CATS",
+      "poolIds": [
+        "0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018"
+      ],
+      "routeKey": "CATS -> USDG -> WETH -> CATS|0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xec680b4160dd30a35a30b412e1677ceae82417f1"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "USDG",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> WETH",
+        "WETH -> USDG",
+        "USDG -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "WETH",
+        "USDG",
+        "ETH"
+      ],
+      "pathText": "ETH -> WETH -> USDG -> ETH",
+      "poolIds": [
+        "0xac3e07600b81b9590bca625a456e777fb68b09c3",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32"
+      ],
+      "routeKey": "ETH -> WETH -> USDG -> ETH|0xac3e07600b81b9590bca625a456e777fb68b09c3|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0000000000000000000000000000000000000000",
+        "0xec680b4160dd30a35a30b412e1677ceae82417f1"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "USDG",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> USDG",
+        "USDG -> WETH",
+        "WETH -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "USDG",
+        "WETH",
+        "ETH"
+      ],
+      "pathText": "ETH -> USDG -> WETH -> ETH",
+      "poolIds": [
+        "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0xac3e07600b81b9590bca625a456e777fb68b09c3"
+      ],
+      "routeKey": "ETH -> USDG -> WETH -> ETH|0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0xac3e07600b81b9590bca625a456e777fb68b09c3",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "BRODIE",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> WETH",
+        "WETH -> BRODIE",
+        "BRODIE -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "WETH",
+        "BRODIE",
+        "USDG"
+      ],
+      "pathText": "USDG -> WETH -> BRODIE -> USDG",
+      "poolIds": [
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x9870c395bfa68c9f23d7c232fa5a37bf063aae35",
+        "0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b"
+      ],
+      "routeKey": "USDG -> WETH -> BRODIE -> USDG|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x9870c395bfa68c9f23d7c232fa5a37bf063aae35|0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "CATS",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> WETH",
+        "WETH -> CATS",
+        "CATS -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "WETH",
+        "CATS",
+        "USDG"
+      ],
+      "pathText": "USDG -> WETH -> CATS -> USDG",
+      "poolIds": [
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+        "0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8"
+      ],
+      "routeKey": "USDG -> WETH -> CATS -> USDG|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018|0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> WETH",
+        "WETH -> ETH",
+        "ETH -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "WETH",
+        "ETH",
+        "USDG"
+      ],
+      "pathText": "USDG -> WETH -> ETH -> USDG",
+      "poolIds": [
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0xac3e07600b81b9590bca625a456e777fb68b09c3",
+        "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32"
+      ],
+      "routeKey": "USDG -> WETH -> ETH -> USDG|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0xac3e07600b81b9590bca625a456e777fb68b09c3|0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "WALLET",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> WETH",
+        "WETH -> WALLET",
+        "WALLET -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "WETH",
+        "WALLET",
+        "USDG"
+      ],
+      "pathText": "USDG -> WETH -> WALLET -> USDG",
+      "poolIds": [
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x9501a20bedb8bea0798fe5d4c411f5e270965d49",
+        "0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331"
+      ],
+      "routeKey": "USDG -> WETH -> WALLET -> USDG|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x9501a20bedb8bea0798fe5d4c411f5e270965d49|0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "WALLET",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> WALLET",
+        "WALLET -> WETH",
+        "WETH -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "WALLET",
+        "WETH",
+        "USDG"
+      ],
+      "pathText": "USDG -> WALLET -> WETH -> USDG",
+      "poolIds": [
+        "0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331",
+        "0x9501a20bedb8bea0798fe5d4c411f5e270965d49",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+      ],
+      "routeKey": "USDG -> WALLET -> WETH -> USDG|0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331|0x9501a20bedb8bea0798fe5d4c411f5e270965d49|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "BRODIE",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> BRODIE",
+        "BRODIE -> WETH",
+        "WETH -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "BRODIE",
+        "WETH",
+        "USDG"
+      ],
+      "pathText": "USDG -> BRODIE -> WETH -> USDG",
+      "poolIds": [
+        "0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b",
+        "0x9870c395bfa68c9f23d7c232fa5a37bf063aae35",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+      ],
+      "routeKey": "USDG -> BRODIE -> WETH -> USDG|0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b|0x9870c395bfa68c9f23d7c232fa5a37bf063aae35|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> ETH",
+        "ETH -> WETH",
+        "WETH -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "ETH",
+        "WETH",
+        "USDG"
+      ],
+      "pathText": "USDG -> ETH -> WETH -> USDG",
+      "poolIds": [
+        "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+        "0xac3e07600b81b9590bca625a456e777fb68b09c3",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+      ],
+      "routeKey": "USDG -> ETH -> WETH -> USDG|0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32|0xac3e07600b81b9590bca625a456e777fb68b09c3|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x5fc5360d0400a0fd4f2af552add042d716f1d168"
+      ],
+      "anchorSymbol": "USDG",
+      "bridgeSymbol": "CATS",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDG -> CATS",
+        "CATS -> WETH",
+        "WETH -> USDG"
+      ],
+      "pathSymbols": [
+        "USDG",
+        "CATS",
+        "WETH",
+        "USDG"
+      ],
+      "pathText": "USDG -> CATS -> WETH -> USDG",
+      "poolIds": [
+        "0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8",
+        "0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+      ],
+      "routeKey": "USDG -> CATS -> WETH -> USDG|0x04d3635f9ea2e7c8aded46129ed1df4657ceddd4eaaa202465c97dbbc0d822f8|0xd4b1d1d31abd1d2cf0c1788c0af4681e8bbda243c10a549a5bd56b8e7feff018|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0339f5459fc690ac85f1782e15782a151b4a9e1b"
+      ],
+      "anchorSymbol": "WALLET",
+      "bridgeSymbol": "WETH",
+      "counterSymbol": "USDG",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WALLET -> WETH",
+        "WETH -> USDG",
+        "USDG -> WALLET"
+      ],
+      "pathSymbols": [
+        "WALLET",
+        "WETH",
+        "USDG",
+        "WALLET"
+      ],
+      "pathText": "WALLET -> WETH -> USDG -> WALLET",
+      "poolIds": [
+        "0x9501a20bedb8bea0798fe5d4c411f5e270965d49",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331"
+      ],
+      "routeKey": "WALLET -> WETH -> USDG -> WALLET|0x9501a20bedb8bea0798fe5d4c411f5e270965d49|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0339f5459fc690ac85f1782e15782a151b4a9e1b"
+      ],
+      "anchorSymbol": "WALLET",
+      "bridgeSymbol": "USDG",
+      "counterSymbol": "WETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WALLET -> USDG",
+        "USDG -> WETH",
+        "WETH -> WALLET"
+      ],
+      "pathSymbols": [
+        "WALLET",
+        "USDG",
+        "WETH",
+        "WALLET"
+      ],
+      "pathText": "WALLET -> USDG -> WETH -> WALLET",
+      "poolIds": [
+        "0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x9501a20bedb8bea0798fe5d4c411f5e270965d49"
+      ],
+      "routeKey": "WALLET -> USDG -> WETH -> WALLET|0x89f2e48df227a2cbd85f599b2dcfb6a6d21404b9b44a8a52b9abf01a1c9b3331|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x9501a20bedb8bea0798fe5d4c411f5e270965d49",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "anchorSymbol": "WETH",
+      "bridgeSymbol": "USDG",
+      "counterSymbol": "BRODIE",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WETH -> USDG",
+        "USDG -> BRODIE",
+        "BRODIE -> WETH"
+      ],
+      "pathSymbols": [
+        "WETH",
+        "USDG",
+        "BRODIE",
+        "WETH"
+      ],
+      "pathText": "WETH -> USDG -> BRODIE -> WETH",
+      "poolIds": [
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b",
+        "0x9870c395bfa68c9f23d7c232fa5a37bf063aae35"
+      ],
+      "routeKey": "WETH -> USDG -> BRODIE -> WETH|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b|0x9870c395bfa68c9f23d7c232fa5a37bf063aae35",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "anchorSymbol": "WETH",
+      "bridgeSymbol": "USDG",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WETH -> USDG",
+        "USDG -> ETH",
+        "ETH -> WETH"
+      ],
+      "pathSymbols": [
+        "WETH",
+        "USDG",
+        "ETH",
+        "WETH"
+      ],
+      "pathText": "WETH -> USDG -> ETH -> WETH",
+      "poolIds": [
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+        "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+        "0xac3e07600b81b9590bca625a456e777fb68b09c3"
+      ],
+      "routeKey": "WETH -> USDG -> ETH -> WETH|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca|0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32|0xac3e07600b81b9590bca625a456e777fb68b09c3",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "anchorSymbol": "WETH",
+      "bridgeSymbol": "BRODIE",
+      "counterSymbol": "USDG",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WETH -> BRODIE",
+        "BRODIE -> USDG",
+        "USDG -> WETH"
+      ],
+      "pathSymbols": [
+        "WETH",
+        "BRODIE",
+        "USDG",
+        "WETH"
+      ],
+      "pathText": "WETH -> BRODIE -> USDG -> WETH",
+      "poolIds": [
+        "0x9870c395bfa68c9f23d7c232fa5a37bf063aae35",
+        "0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+      ],
+      "routeKey": "WETH -> BRODIE -> USDG -> WETH|0x9870c395bfa68c9f23d7c232fa5a37bf063aae35|0x0f5e36c463b7a254fea1092ac61b4c2bff1e3f629f240c91f24f2156e5436e5b|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x0bd7d308f8e1639fab988df18a8011f41eacad73"
+      ],
+      "anchorSymbol": "WETH",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "USDG",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WETH -> ETH",
+        "ETH -> USDG",
+        "USDG -> WETH"
+      ],
+      "pathSymbols": [
+        "WETH",
+        "ETH",
+        "USDG",
+        "WETH"
+      ],
+      "pathText": "WETH -> ETH -> USDG -> WETH",
+      "poolIds": [
+        "0xac3e07600b81b9590bca625a456e777fb68b09c3",
+        "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+        "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca"
+      ],
+      "routeKey": "WETH -> ETH -> USDG -> WETH|0xac3e07600b81b9590bca625a456e777fb68b09c3|0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32|0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca",
+      "source": "market_observation"
+    }
+  ],
   "dexSettlement": {
     "arbitrage_integration": {
       "can_combine_with_flashloan": true,
@@ -75,27 +661,38 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-09T05:59:18.188939Z",
+  "generated_at": "2026-09-11T00:00:03.257450Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "borrowableSymbols": 1,
+    "borrowableSymbols": 2,
     "chainSpecificObservationPairs": 0,
-    "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 1
+    "closedLoopRouteSummaries": 20,
+    "observationAnchorSymbols": 2
   },
   "mode": "dex_market_observation",
   "network": "robinhood",
   "observationAnchorSymbols": [
-    "USDG"
+    "USDG",
+    "WETH"
   ],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\all\\observation.json",
   "ok": true,
   "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\all\\overview.json",
   "poolStaticTable": {
+    "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
     "chainId": 4663,
-    "exists": false,
+    "exists": true,
+    "factory": null,
+    "generatedAt": "2026-08-22T09:32:07.635581+00:00",
+    "generatedBlockNumber": null,
+    "mode": "robinhood-candidate-cache-v1",
     "network": "robinhood",
-    "path": null
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
+    "quoter": null,
+    "router": null,
+    "sourceDiscoveryBlockNumber": null,
+    "sourceDiscoveryFetchedAt": null,
+    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\robinhood_dex_market_pools.json"
   },
   "processing": {
     "allowed_protocols": [
@@ -128,34 +725,34 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 1,
+    "borrowableTokenCount": 2,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
-    "candidateObservationBridgeCount": 0,
+    "candidateObservationBridgeCount": 24,
     "candidateObservationDirectCount": 0,
-    "candidateObservationGroupCount": 0,
-    "candidateObservationPoolCount": 0,
-    "candidateObservationSequenceCount": 0,
+    "candidateObservationGroupCount": 45,
+    "candidateObservationPoolCount": 9,
+    "candidateObservationSequenceCount": 20,
     "chainSpecificObservationSequenceCount": 0,
-    "closedLoopRouteCount": 0,
+    "closedLoopRouteCount": 24,
     "directClosedLoopCount": 0,
-    "directPairCount": 0,
+    "directPairCount": 50,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
     "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
     "fundAnchorPairObservationAssociatedPairCount": 0,
     "fundAnchorPairObservationPoolCount": 0,
     "fundAnchorPairObservationRouteCount": 0,
-    "indirectRouteCount": 0,
+    "indirectRouteCount": 24,
     "nonEthPairFirstAssociatedObservationPoolCount": 0,
     "nonEthPairFirstAssociatedObservationTokenCount": 0,
     "nonEthPairFirstAssociatedPairCount": 0,
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
-    "observableTokenCount": 0,
-    "observationAnchorCount": 1,
-    "observationSequenceAnchorCount": 0,
-    "observationSequenceCount": 0,
-    "observationSequencePoolCount": 0,
+    "observableTokenCount": 45,
+    "observationAnchorCount": 2,
+    "observationSequenceAnchorCount": 6,
+    "observationSequenceCount": 20,
+    "observationSequencePoolCount": 9,
     "unmatchedPairCount": 0
   },
   "surface": "dex_market_observation"

@@ -6,7 +6,10 @@ from core.chain_flow_dispatcher import ChainFlowRequest
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet.v4_flash_accounting_sources import v4_flash_accounting_source_rows
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import load_robinhood_testnet_v4_pool_index
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import load_robinhood_testnet_v4_pool_liquidity
+from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
+    _known_token_pool_ids,
+    load_robinhood_testnet_v4_pool_liquidity,
+)
 
 
 STABLE_SYMBOLS = {
@@ -205,6 +208,22 @@ def _active_pool_ids(liquidity: dict[str, Any]) -> set[str]:
     }
 
 
+def _known_v4_pool_ids() -> set[str]:
+    """Known V4 pool ids from allowlist/manifest/test-chain evidence.
+
+    These are stable trading-pool identities used for local test fixtures and
+    explicit observability.  They are not a closed-loop declaration: the
+    candidate stage still only returns pools that can be reached from X.
+    """
+    known_pool_ids: set[str] = set()
+    for keys in _known_token_pool_ids().values():
+        for key in keys:
+            text = str(key or "").strip().lower()
+            if text.startswith("0x") and len(text) == 66:
+                known_pool_ids.add(text)
+    return known_pool_ids
+
+
 def _flash_accounting_assets(liquidity: dict[str, Any], pool_manager: str) -> tuple[list[str], set[str]]:
     rows = v4_flash_accounting_source_rows(liquidity, pool_manager=pool_manager)
     symbols = sorted(
@@ -232,10 +251,16 @@ def _candidate_source_pools(pool_index: dict[str, Any], liquidity: dict[str, Any
     active_ids = _active_pool_ids(liquidity)
     indexed_pools = [pool for pool in pool_index.get("pools") or [] if isinstance(pool, dict)]
     liquidity_pools = [pool for pool in liquidity.get("pools") or [] if isinstance(pool, dict)]
+    known_pool_ids = _known_v4_pool_ids()
+    known_pools = [
+        pool
+        for pool in indexed_pools
+        if _pool_id(pool) in known_pool_ids and _pool_id(pool) not in active_ids
+    ]
     if pool_index.get("ok") and active_ids:
         matched = [pool for pool in indexed_pools if _pool_id(pool) in active_ids]
         if matched:
-            return matched + [
+            return matched + known_pools + [
                 pool for pool in liquidity_pools
                 if _pool_id(pool) not in {_pool_id(item) for item in matched}
             ], "robinhood_testnet_v4_pool_sources_merged", pool_index.get("source")

@@ -21,6 +21,7 @@ from market.binance_market.dex_surface_observation_chain import (
     ROBINHOOD_TESTNET_CHAIN_ID,
     _chain_network_name,
 )
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 
 
@@ -73,22 +74,42 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
             continue
         anchor = _norm_symbol(summary.get("anchorSymbol") or path_symbols[0])
         target = _norm_symbol(summary.get("counterSymbol") or (path_symbols[-2] if len(path_symbols) > 2 else path_symbols[-1]))
+        route_addresses = [str(address or "").strip() for address in summary.get("routeAddresses") or [] if str(address or "").strip()]
+        if not route_addresses:
+            route_addresses = list(summary.get("anchorAddresses") or [])
+        route_pools = [
+            dict(pool)
+            for pool in summary.get("routePools") or []
+            if isinstance(pool, dict)
+        ]
+        route_tokens = [
+            {
+                "symbol": symbol,
+                "address": route_addresses[index] if index < len(route_addresses) else "",
+            }
+            for index, symbol in enumerate(path_symbols)
+        ]
         kind = "direct_anchor_pair" if len(path_symbols) <= 3 else "bridge_pair"
         paths.append(
             {
                 "symbolPair": path_text,
                 "routeSymbols": path_symbols,
-                "routeAddresses": list(summary.get("anchorAddresses") or []),
-                "routeTokenPath": [{"symbol": symbol, "address": ""} for symbol in path_symbols],
+                "routeAddresses": route_addresses,
+                "routeTokenPath": route_tokens,
                 "tokenXSymbol": anchor,
                 "tokenYSymbol": target,
-                "executionPools": [],
+                "executionPools": route_pools,
+                "preferredPools": route_pools,
+                "strictQualityPools": route_pools,
+                "routePools": route_pools,
                 "overviewRoute": {
                     "kind": kind,
                     "anchorBorrowSymbol": anchor,
                     "targetSymbol": target,
                     "bridgeSymbols": path_symbols[1:-1],
                     "pathSymbols": path_symbols,
+                    "pathTokens": route_tokens,
+                    "pathAddresses": route_addresses,
                     "pathText": path_text,
                     "candidatePairSymbols": list(summary.get("pairSymbols") or []),
                     "analysisStage": "market_observation_closed_loop",
@@ -104,8 +125,8 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                     ),
                     "borrow_symbols": [anchor] if anchor else [],
                     "route_symbols": path_symbols,
-                    "route_addresses": list(summary.get("anchorAddresses") or []),
-                    "ready_for_atomic_arbitrage": False,
+                    "route_addresses": route_addresses,
+                    "ready_for_atomic_arbitrage": bool(route_pools),
                 },
                 "overviewProfit": {
                     "method": "static_overview_summary",
@@ -152,7 +173,7 @@ def _route_with_overview_profit(
 
 
 def _route_execution_size_probe(route_analysis: dict[str, Any], *, chain_id: int | None = None) -> dict[str, Any] | None:
-    if chain_id != ROBINHOOD_TESTNET_CHAIN_ID or not _v4_execution_size_probe_enabled():
+    if chain_id not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} or not _v4_execution_size_probe_enabled():
         return None
     steps = [
         step
@@ -164,10 +185,12 @@ def _route_execution_size_probe(route_analysis: dict[str, Any], *, chain_id: int
     network = _chain_network_name(chain_id)
     if not network:
         return None
-    probe_module = __import__(
-        "dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter",
-        fromlist=["probe_v4_executable_amount_from_pool_index"],
+    module_name = (
+        "dex.intent_trade.chains.robinhood.v4_quote_adapter"
+        if chain_id == ROBINHOOD_CHAIN_ID
+        else "dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter"
     )
+    probe_module = __import__(module_name, fromlist=["probe_v4_executable_amount_from_pool_index"])
     probe_v4_executable_amount_from_pool_index = probe_module.probe_v4_executable_amount_from_pool_index
     max_probe_attempts = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_ATTEMPTS", "24") or 24))
     max_probe_multiplier = max(1, int(os.getenv("DEX_V4_EXECUTION_SIZE_MAX_PROBE_MULTIPLIER", "64") or 64))

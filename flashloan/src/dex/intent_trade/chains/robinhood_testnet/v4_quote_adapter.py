@@ -14,7 +14,9 @@ from web3 import Web3
 from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
 from core.chain_data_registry import chain_data_file_path
 from dex.intent_trade.chains.robinhood import config as robinhood
-from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_NETWORK
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_TESTNET_NETWORK,
+)
 
 
 getcontext().prec = 80
@@ -97,8 +99,13 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _pool_index_path() -> Path | None:
-    path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_index")
+def _pool_index_path(network: str | None = None, chain_id: int | None = None) -> Path | None:
+    normalized = str(network or "").strip().lower()
+    if int(chain_id or 0) not in (robinhood.TESTNET_CHAIN_ID, None):
+        raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve chain_id={chain_id}")
+    if normalized not in (ROBINHOOD_TESTNET_NETWORK, ""):
+        raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve network={network}")
+    path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_index", chain_id=robinhood.TESTNET_CHAIN_ID)
     if path is not None:
         return path
     fallback = Path(__file__).resolve().parents[3] / "runtime" / "evidence" / ROBINHOOD_TESTNET_NETWORK / "v4_pool_index" / "latest.json"
@@ -126,10 +133,10 @@ def _chain_row(network: str | None, chain_id: int | None) -> dict[str, Any]:
 def _chain_rpc_urls(network: str | None, chain_id: int | None) -> tuple[str, ...]:
     normalized = _text(network).lower()
     urls: list[str] = []
-    if int(chain_id or 0) == 46630 or normalized == ROBINHOOD_TESTNET_NETWORK:
+    if int(chain_id or 0) == robinhood.TESTNET_CHAIN_ID or normalized == ROBINHOOD_TESTNET_NETWORK or normalized == "":
         urls.extend(robinhood.testnet_rpc_urls_from_env())
-    elif int(chain_id or 0) == 4663 or normalized == "robinhood":
-        urls.extend(robinhood.rpc_urls_from_env())
+    else:
+        raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve network={normalized}")
     row = _chain_row(network, chain_id)
     rpc_url = _text(row.get("rpc_url") or row.get("rpcUrl"))
     if rpc_url:
@@ -139,6 +146,10 @@ def _chain_rpc_urls(network: str | None, chain_id: int | None) -> tuple[str, ...
         if url and url not in deduped:
             deduped.append(url)
     return tuple(deduped)
+
+
+def _chain_label(network: str | None, chain_id: int | None) -> str:
+    return "robinhood testnet v4"
 
 
 def _connect_chain_rpc(network: str | None, chain_id: int | None) -> tuple[Any, str]:
@@ -232,9 +243,9 @@ def _read_live_pool_state_with_w3(
     lp_fee = (slot0_value >> 208) & 0xFFFFFF
     liquidity = int.from_bytes(bytes(liquidity_raw), "big") & ((1 << 128) - 1)
     if sqrt_price_x96 <= 0:
-        raise ValueError("robinhood testnet v4 pool manager live slot0 missing sqrtPriceX96")
+        raise ValueError(f"{_chain_label(network, chain_id)} pool manager live slot0 missing sqrtPriceX96")
     if liquidity <= 0:
-        raise ValueError("robinhood testnet v4 pool manager live liquidity is zero")
+        raise ValueError(f"{_chain_label(network, chain_id)} pool manager live liquidity is zero")
     return {
         "source": "pool_manager_extsload_live_state",
         "poolManager": Web3.to_checksum_address(pool_manager),
@@ -250,8 +261,8 @@ def _read_live_pool_state_with_w3(
     }
 
 
-def _pool_rows() -> list[dict[str, Any]]:
-    path = _pool_index_path()
+def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[dict[str, Any]]:
+    path = _pool_index_path(network, chain_id)
     if path is None:
         return []
     payload = _read_json(path)
@@ -278,10 +289,27 @@ def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
     return None
 
 
-def _pool_lookup(pool_address: str) -> dict[str, Any]:
+def _pool_lookup(pool_address: str, network: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
     wanted = _normalize_pool_id(pool_address)
-    for pool in _pool_rows():
+    for pool in _pool_rows(network, chain_id):
         if _normalize_pool_id(pool.get("pool")) == wanted or _normalize_pool_id(pool.get("poolId")) == wanted:
+            return pool
+    return {}
+
+
+def _pool_lookup_by_tokens(
+    token_in: object,
+    token_out: object,
+    network: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, Any]:
+    wanted = {_normalize_address(token_in), _normalize_address(token_out)}
+    if not all(wanted):
+        return {}
+    for pool in _pool_rows(network, chain_id):
+        pool_token0 = _normalize_address(pool.get("token0"))
+        pool_token1 = _normalize_address(pool.get("token1"))
+        if pool_token0 and pool_token1 and {pool_token0, pool_token1} == wanted:
             return pool
     return {}
 
@@ -305,29 +333,47 @@ def _request_pool_state(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
-    pool = _pool_lookup(request.get("pool"))
-    if not pool:
-        pool = _request_pool_state(request)
-    if not pool:
-        raise ValueError("robinhood testnet v4 pool index missing requested pool")
-
-    token_in = _normalize_address(request.get("tokenIn")) or _normalize_address(pool.get("token0"))
-    token_out = _normalize_address(request.get("tokenOut")) or _normalize_address(pool.get("token1"))
-    pool_token0 = _normalize_address(pool.get("token0"))
-    pool_token1 = _normalize_address(pool.get("token1"))
-    if {token_in, token_out} != {pool_token0, pool_token1}:
-        raise ValueError("requested hop tokens do not match robinhood testnet v4 pool index")
-
-    pool_id = _normalize_pool_id(pool.get("poolId") or pool.get("pool"))
-    if not pool_id:
-        raise ValueError("robinhood testnet v4 pool index missing poolId")
-
-    network = _text(request.get("network") or pool.get("network") or ROBINHOOD_TESTNET_NETWORK).lower()
-    chain_id = request.get("chainId")
+    pool_state = request.get("poolState") if isinstance(request.get("poolState"), dict) else {}
+    network = _text(request.get("network") or pool_state.get("network") or ROBINHOOD_TESTNET_NETWORK).lower()
+    chain_id = request.get("chainId") or request.get("chain_id")
     try:
         chain_id = int(chain_id) if chain_id not in (None, "") else None
     except (TypeError, ValueError):
         chain_id = None
+    pool = _pool_lookup(request.get("pool"), network, chain_id)
+    if not pool:
+        pool = _request_pool_state(request)
+    if not pool:
+        raise ValueError(f"{_chain_label(network, chain_id)} pool index missing requested pool")
+
+    indexed_pool = _pool_lookup(request.get("pool"), network, chain_id)
+    if indexed_pool:
+        pool = indexed_pool
+    requested_token_in = _normalize_address(request.get("tokenIn"))
+    requested_token_out = _normalize_address(request.get("tokenOut"))
+    pool_token0 = _normalize_address(pool.get("token0"))
+    pool_token1 = _normalize_address(pool.get("token1"))
+    if requested_token_in or requested_token_out:
+        matched_pool = _pool_lookup_by_tokens(requested_token_in, requested_token_out, network, chain_id)
+        if matched_pool:
+            pool = matched_pool
+            pool_token0 = _normalize_address(pool.get("token0"))
+            pool_token1 = _normalize_address(pool.get("token1"))
+        elif requested_token_in and requested_token_out and {requested_token_in, requested_token_out} != {pool_token0, pool_token1}:
+            raise ValueError(f"requested hop tokens do not match {_chain_label(network, chain_id)} pool index")
+        elif requested_token_in and requested_token_in not in {pool_token0, pool_token1}:
+            raise ValueError(f"requested hop tokens do not match {_chain_label(network, chain_id)} pool index")
+        elif requested_token_out and requested_token_out not in {pool_token0, pool_token1}:
+            raise ValueError(f"requested hop tokens do not match {_chain_label(network, chain_id)} pool index")
+    token_in = requested_token_in if requested_token_in in {pool_token0, pool_token1} else pool_token0
+    token_out = requested_token_out if requested_token_out in {pool_token0, pool_token1} else pool_token1
+    if not token_in or not token_out or {token_in, token_out} != {pool_token0, pool_token1}:
+        raise ValueError(f"requested hop tokens do not match {_chain_label(network, chain_id)} pool index")
+
+    pool_id = _normalize_pool_id(pool.get("poolId") or pool.get("pool"))
+    if not pool_id:
+        raise ValueError(f"{_chain_label(network, chain_id)} pool index missing poolId")
+
     try:
         block_number = int(request.get("blockNumber")) if request.get("blockNumber") not in (None, "") else None
     except (TypeError, ValueError):
@@ -337,10 +383,10 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
 
     pool_manager = _pool_manager_address(network, chain_id, pool)
     if not pool_manager:
-        raise ValueError("robinhood testnet v4 pool manager address missing")
+        raise ValueError(f"{_chain_label(network, chain_id)} pool manager address missing")
     quoter_address = _quoter_address(network, chain_id, pool)
     if not quoter_address:
-        raise ValueError("robinhood testnet v4 quoter address missing")
+        raise ValueError(f"{_chain_label(network, chain_id)} quoter address missing")
 
     try:
         w3, rpc_url = _connect_chain_rpc(network, chain_id)
@@ -367,7 +413,7 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
     hook_data = _hook_data_bytes(request.get("hookData") or pool.get("hookData") or pool.get("hook_data"))
     zero_for_one = token_in == pool_token0 and token_out == pool_token1
     if not zero_for_one and not (token_in == pool_token1 and token_out == pool_token0):
-        raise ValueError("requested hop direction does not match robinhood testnet v4 pool index")
+        raise ValueError(f"requested hop direction does not match {_chain_label(network, chain_id)} pool index")
     pool_key = (
         Web3.to_checksum_address(pool_token0),
         Web3.to_checksum_address(pool_token1),
@@ -503,7 +549,8 @@ def _quote_v4_exact_input_single(
         data = _extract_revert_data(exc)
         summary = _summarize_v4_revert_data(data)
         if summary:
-            raise RuntimeError(f"robinhood testnet v4 quoter reverted: {summary}") from exc
+            label = _chain_label(network, chain_id)
+            raise RuntimeError(f"{label} quoter reverted: {summary}") from exc
         raise
     return int(amount_out), int(gas_estimate)
 
@@ -524,9 +571,11 @@ def quote_v4_exact_input_single_from_pool_index(request: dict[str, Any]) -> dict
             block_number=context.get("blockNumber"),
         )
     except Exception as exc:
-        raise RuntimeError(f"robinhood testnet v4 quoter exact-input call failed; {exc}") from exc
+        label = _chain_label(context["network"], context["chainId"])
+        raise RuntimeError(f"{label} quoter exact-input call failed; {exc}") from exc
     if amount_out_raw <= 0:
-        raise RuntimeError("robinhood testnet v4 quoter returned a non-positive amountOut")
+        label = _chain_label(context["network"], context["chainId"])
+        raise RuntimeError(f"{label} quoter returned a non-positive amountOut")
 
     return {
         "status": "quoted",
@@ -628,7 +677,8 @@ def probe_v4_executable_amount_from_pool_index(request: dict[str, Any]) -> dict[
             block_number=context.get("blockNumber"),
         )
         if amount_out_raw <= 0:
-            raise RuntimeError("robinhood testnet v4 quoter returned a non-positive amountOut")
+            label = _chain_label(context["network"], context["chainId"])
+            raise RuntimeError(f"{label} quoter returned a non-positive amountOut")
         return {
             "status": "quoted",
             "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",

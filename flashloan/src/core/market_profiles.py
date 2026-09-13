@@ -2,7 +2,52 @@
 
 from typing import Any
 
+import os
+
+from core.chain_data_registry import chain_contracts, chain_data_by_network
 from core.market_identity import FEATURE_LIQUIDATION, market_key_from_summary
+
+
+def _chain_int_value(network: str, env_name: str, fallback: int) -> int:
+    raw = str(os.getenv(env_name, "")).strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError as exc:
+            raise ValueError(f"{env_name} must be an integer") from exc
+    try:
+        value = int((chain_data_by_network(network) or {}).get("chain_id"))
+        if value > 0:
+            return value
+    except (TypeError, ValueError, KeyError):
+        pass
+    return int(fallback)
+
+
+def _chain_value(
+    network: str,
+    key: str,
+    env_names: tuple[str, ...],
+    fallback: str,
+) -> str:
+    for name in env_names:
+        value = str(os.getenv(name, "")).strip()
+        if value:
+            return value
+    try:
+        value = str((chain_data_by_network(network) or {}).get(key) or "").strip()
+        if value:
+            return value
+    except Exception:
+        pass
+    try:
+        value = str((chain_contracts(network) or {}).get(key) or "").strip()
+        if value:
+            return value
+    except Exception:
+        pass
+    return fallback
+
 
 LEGACY_AVALANCHE_MARKET_ID = "avalanche-aave-v3"
 DEFAULT_AVALANCHE_MARKET_ID = "liquidation-43114-aave-v3"
@@ -35,19 +80,80 @@ LEGACY_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
 DEFAULT_ROBINHOOD_DEX_MARKET_ID = "dex-arbitrage-4663-uniswap-v3"
 LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID = "robinhood-testnet-dex-paused"
 DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
-DEFAULT_ROBINHOOD_CHAIN_ID = 4663
-DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID = 46630
-DEFAULT_ROBINHOOD_WETH_ADDRESS = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
-DEFAULT_ROBINHOOD_MULTICALL_ADDRESS = "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
-DEFAULT_ROBINHOOD_EXPLORER_URL = "https://robinhoodchain.blockscout.com"
-DEFAULT_ROBINHOOD_TESTNET_EXPLORER_URL = "https://explorer.testnet.chain.robinhood.com"
-DEFAULT_ROBINHOOD_TESTNET_RPC_URL = "https://rpc.testnet.chain.robinhood.com"
+DEFAULT_ROBINHOOD_CHAIN_ID = _chain_int_value("robinhood", "ROBINHOOD_CHAIN_ID", 4663)
+DEFAULT_ROBINHOOD_TESTNET_CHAIN_ID = _chain_int_value(
+    "robinhood-testnet",
+    "ROBINHOOD_TESTNET_CHAIN_ID",
+    46630,
+)
+DEFAULT_ROBINHOOD_WETH_ADDRESS = _chain_value(
+    "robinhood",
+    "wrapped_native",
+    ("ROBINHOOD_WETH_ADDRESS", "ROBINHOOD_WRAPPED_NATIVE"),
+    "",
+)
+DEFAULT_ROBINHOOD_MULTICALL_ADDRESS = _chain_value(
+    "robinhood",
+    "multicall3",
+    ("ROBINHOOD_MULTICALL_ADDRESS",),
+    "",
+)
+DEFAULT_ROBINHOOD_EXPLORER_URL = _chain_value(
+    "robinhood",
+    "explorer_url",
+    ("ROBINHOOD_EXPLORER_URL",),
+    "",
+)
+DEFAULT_ROBINHOOD_TESTNET_EXPLORER_URL = _chain_value(
+    "robinhood-testnet",
+    "explorer_url",
+    ("ROBINHOOD_TESTNET_EXPLORER_URL",),
+    "",
+)
+DEFAULT_ROBINHOOD_RPC_URL = _chain_value(
+    "robinhood",
+    "rpc_url",
+    (
+        "ROBINHOOD_RPC_URL",
+        "ROBINHOOD_RPC",
+        "ROBINHOOD_MAINNET_RPC_URL",
+        "ROBINHOOD_MAINNET_RPC",
+    ),
+    "",
+)
+DEFAULT_ROBINHOOD_TESTNET_RPC_URL = _chain_value(
+    "robinhood-testnet",
+    "rpc_url",
+    (
+        "ROBINHOOD_TESTNET_RPC_URL",
+        "ROBINHOOD_TESTNET_RPC",
+        "ROBINHOOD_TESTNET_RPC_URLS",
+        "ROBINHOOD_TESTNET_RPCS",
+    ),
+    "",
+)
+DEFAULT_ROBINHOOD_TESTNET_WETH_ADDRESS = _chain_value(
+    "robinhood-testnet",
+    "wrapped_native",
+    ("ROBINHOOD_TESTNET_WETH_ADDRESS", "ROBINHOOD_TESTNET_WRAPPED_NATIVE"),
+    "",
+)
 LEGACY_ROBINHOOD_MORPHO_MARKET_ID = "robinhood-morpho-blue-flash"
 DEFAULT_ROBINHOOD_MORPHO_MARKET_ID = "liquidation-4663-morpho-blue"
 LEGACY_ROBINHOOD_DEX_MORPHO_MARKET_ID = "robinhood-dex-morpho-blue-flash"
 DEFAULT_ROBINHOOD_DEX_MORPHO_MARKET_ID = "dex-arbitrage-4663-morpho-blue"
-DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS = "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
-DEFAULT_ROBINHOOD_UNISWAP_V2_FACTORY_ADDRESS = "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
+DEFAULT_ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS = _chain_value(
+    "robinhood",
+    "morpho_blue_core",
+    ("ROBINHOOD_MORPHO_BLUE_CORE_ADDRESS",),
+    "",
+)
+DEFAULT_ROBINHOOD_UNISWAP_V2_FACTORY_ADDRESS = _chain_value(
+    "robinhood",
+    "v2_factory",
+    ("ROBINHOOD_UNISWAP_V2_FACTORY_ADDRESS",),
+    "",
+)
 
 MARKET_TYPE_NATIVE_CHAIN = "native_chain"
 MARKET_TYPE_SHADOW_CHAIN = "shadow_chain"
@@ -334,7 +440,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
     "dex-arbitrage-4663-uniswap-v4": {
         "legacy_market_id": "robinhood-dex-v4-shadow",
         "feature": "dex_arbitrage",
-        "display_name": "Robinhood Uniswap V4 Shadow",
+        "display_name": "Robinhood Uniswap V4",
         "network": "robinhood",
         "chain_id": DEFAULT_ROBINHOOD_CHAIN_ID,
         "native_symbol": "ETH",
@@ -344,9 +450,9 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "multicall3_address": DEFAULT_ROBINHOOD_MULTICALL_ADDRESS,
         "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
         "observation_only": True,
-        "protocol_supported": False,
+        "protocol_supported": True,
         "market_type": MARKET_TYPE_SHADOW_CHAIN,
-        "migration_type": "robinhood_mainnet_v4_ui_prepared_contract_deploy_deferred",
+        "migration_type": "robinhood_mainnet_v4_read_only_quote_supported_execution_deferred",
     },
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID: {
         "legacy_market_id": LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID,

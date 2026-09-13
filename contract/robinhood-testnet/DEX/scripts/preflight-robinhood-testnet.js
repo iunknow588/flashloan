@@ -179,8 +179,9 @@ async function inspectV4FlashAccountingPools(addressInfo, options = {}) {
     report.error = "pool_manager_address_missing";
     return report;
   }
-  report.attempted = true;
+    report.attempted = true;
   try {
+    const activePoolIdLimit = Number(envNumber("ROBINHOOD_TESTNET_ACTIVE_POOL_ID_LIMIT", 0));
     const latestBlock = await hre.ethers.provider.getBlockNumber();
     const fromBlock = Math.max(0, latestBlock - Math.max(1, lookbackBlocks));
     const [logs, nativeBalance] = await Promise.all([
@@ -207,7 +208,8 @@ async function inspectV4FlashAccountingPools(addressInfo, options = {}) {
     report.fromBlock = fromBlock;
     report.toBlock = latestBlock;
     report.swapLogCount = logs.length;
-    report.activePoolIds = Array.from(activePoolIds).sort().slice(0, 25);
+    report.activePoolIdLimit = activePoolIdLimit;
+    report.activePoolIds = Array.from(activePoolIds).sort().slice(0, activePoolIdLimit > 0 ? activePoolIdLimit : undefined);
     report.usableFlashAccountingPoolCount = activePoolIds.size;
     report.nativeBalanceWei = nativeBalance.toString();
     report.ok = activePoolIds.size >= minUsablePools;

@@ -1,0 +1,124 @@
+{
+  "audit": {
+    "errorCount": 0,
+    "issues": [],
+    "ok": true,
+    "warningCount": 0
+  },
+  "blockingReasons": [
+    "net_profit_not_positive_after_costs",
+    "min_profit_threshold_not_met",
+    "chain_test_plan_not_ready_for_transaction_preflight",
+    "fork_staticcall_gate_not_ready",
+    "preflight_status_not_ready_for_fork_staticcall",
+    "fork_staticcall_not_passed"
+  ],
+  "broadcastAttempted": false,
+  "chainId": 46630,
+  "chainKey": "chain:46630",
+  "evidence": {
+    "candidatePoolSupply": null,
+    "chainTestPlan": "flashloan/src/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+    "lendingLiquidity": "flashloan/src/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "normalTestnetProbe": "contract/robinhood-testnet/DEX/deployments/evidence/20260907T204504739Z-35232_robinhoodTestnet-robinhood-v4-flash-normal-probe/report.json",
+    "pausedRedeployPlan": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
+    "predeployReadiness": "flashloan/src/runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
+    "readback": "contract/robinhood-testnet/DEX/deployments/evidence/20260829T112029944Z-1592_robinhoodTestnet-robinhood-paused-readback/report.json",
+    "resolvedNormalTestnetProbe": {
+      "amount": {
+        "amount": "10000000000000000",
+        "decimals": 18,
+        "human": "0.01",
+        "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"
+      },
+      "blockingReasons": [],
+      "borrowableLiquidity": {
+        "human": "1016.928152002278132509",
+        "raw": "1016928152002278132509",
+        "ready": true,
+        "source": "nativePoolManagerBalanceWei;decoded_pool_key_metadata"
+      },
+      "chainId": 46630,
+      "measurementReady": true,
+      "network": "robinhood-testnet",
+      "poolManager": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+      "probe": {
+        "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+        "deploymentFile": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+        "source": "contracts_metadata.normalTestnetProbe.address"
+      },
+      "readyForNormalBroadcast": true,
+      "route": {
+        "closed": true,
+        "hopCount": 3,
+        "pathText": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH"
+      },
+      "schemaVersion": "robinhood-normal-test-probe-config-v1",
+      "sourceFiles": {
+        "chainTestPlan": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+        "probeDeployment": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+        "v4PoolLiquidity": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_liquidity\\latest.json"
+      },
+      "token": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "decimals": 18,
+        "poolManagerBalance": "1016.928152002278132509",
+        "poolManagerBalanceRaw": "1016928152002278132509",
+        "poolManagerSource": "nativePoolManagerBalanceWei;decoded_pool_key_metadata",
+        "source": "chain_test_plan.preflightSpec.repaymentConstraint",
+        "symbol": "ETH"
+      }
+    },
+    "stageFreezePredeploy": "contract/robinhood-testnet/DEX/deployments/evidence/20260827T014904709Z-2392_robinhoodTestnet-robinhood-stage-freeze-predeploy/report.json"
+  },
+  "gates": {
+    "aaveOrMorphoFlashLoansNotClaimedWithoutLiquidity": true,
+    "auditOk": true,
+    "broadcastDisabled": true,
+    "candidatePoolSupplyEvidenceUnset": true,
+    "chainTestPlanEvidenceScoped": true,
+    "chainTestPlanScopeOk": true,
+    "forkStaticcallPassed": false,
+    "lendingLiquidityEvidenceScoped": true,
+    "metadataEvidenceScopeOk": true,
+    "normalOnlyOnchainTesting": true,
+    "normalTestnetProbeAddressReady": true,
+    "normalTestnetProbeInputsReady": true,
+    "predeployReadinessEvidenceScoped": true,
+    "readyForDeploymentDiscussion": false,
+    "readyForForkStaticcall": false,
+    "readyForPausedRedeploy": false,
+    "stageFreezeApproved": true,
+    "stagePredeployReady": true,
+    "testnetV4ExecutionReady": true,
+    "testnetV4UsablePoolVerified": true
+  },
+  "marketId": "robinhood-testnet-dex-paused",
+  "nextRequiredActions": [
+    "capture_fresh_closed_opportunity_meeting_min_profit",
+    "keep_testnet_deployment_deferred"
+  ],
+  "opportunity": {
+    "blockNumber": 113728916,
+    "canBroadcast": false,
+    "canRunForkPreflight": false,
+    "meetsMinProfitThreshold": false,
+    "netPositiveAfterCosts": false,
+    "readyForTransactionPreflight": false,
+    "status": "pool_insufficient_for_profitable_execution",
+    "triggerBlockNumber": 113728916,
+    "trustedForExecution": false
+  },
+  "readyForDeploymentDiscussion": false,
+  "readyForForkStaticcall": false,
+  "readyForPausedRedeploy": false,
+  "route": {
+    "chainId": 46630,
+    "closed": true,
+    "hopCount": 3,
+    "network": "robinhood-testnet",
+    "pathText": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+    "tokenContinuous": true
+  },
+  "schemaVersion": "robinhood-predeploy-readiness-v1"
+}

@@ -5,6 +5,11 @@
   "display_name": "Robinhood Testnet",
   "native_symbol": "ETH",
   "rpc_url": "https://rpc.testnet.chain.robinhood.com",
+  "rpc_urls": [
+    "https://rpc.testnet.chain.robinhood.com/rpc",
+    "https://robinhood-sepolia-rpc.publicnode.com",
+    "https://rpc.testnet.chain.robinhood.com"
+  ],
   "explorer_url": "https://explorer.testnet.chain.robinhood.com",
   "defaults": {
     "flash_loan_pool_page": true,
@@ -34,6 +39,7 @@
     "lending_liquidity": "runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
     "v4_pool_liquidity": "runtime/evidence/robinhood-testnet/v4_pool_liquidity/latest.json",
     "v4_pool_index": "runtime/evidence/robinhood-testnet/v4_pool_index/latest.json",
+    "v4_token_allowlist": "chains/robinhood-testnet/v4_token_allowlist.json",
     "market_observation": "runtime/market_observation/robinhood-testnet/46630/uniswap_v4/observation.json",
     "normal_testnet_probe": "runtime/evidence/robinhood-testnet/normal_testnet_probe/latest.json",
     "predeploy_readiness": "runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",

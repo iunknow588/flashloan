@@ -11,14 +11,16 @@ from urllib.parse import quote
 
 from core.chain_data_registry import chain_data_by_chain_id
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
+)
 from core.market_observation_store import (
     load_market_observation_overview_static,
     load_market_observation_static,
     observation_payload_from_static,
 )
 from bot.execution.uniswap_v4 import build_v4_quote_request
-from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import probe_v4_executable_amount_from_pool_index
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import _load_token_balance_scan_cache
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 from market.binance_market.dex_quote_surface import (
     build_quote_request_payload as build_dex_quote_request_payload,
@@ -164,8 +166,8 @@ QUOTE_PROBE_NOTIONAL_USD = 1000.0
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
 DEFAULT_AMM_FEE_BPS = 30.0
-ROBINHOOD_CHAIN_ID = 4663
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
+ROBINHOOD_CHAIN_ID = _ROBINHOOD_CHAIN_ID
+ROBINHOOD_TESTNET_CHAIN_ID = _ROBINHOOD_TESTNET_CHAIN_ID
 _ROBINHOOD_CHAIN_IDS = {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
 ERC20_DECIMALS_ABI = [
     {
@@ -207,8 +209,9 @@ def _robinhood_static_scope_protocols(
     not cause the UI to show generated route combinations that did not come from
     that closed-loop observation set.
     """
-    if use_static_observation and int(chain_id or 0) in _ROBINHOOD_CHAIN_IDS:
-        return []
+    # Keep the requested protocol scope when a protocol-specific snapshot is
+    # available. Returning an empty scope here silently selected the `all`
+    # snapshot and could detach V4 quotes from the V4 closed-loop overview.
     return list(protocols or [])
 
 
@@ -664,8 +667,6 @@ def _quote_routes_payload_for_robinhood_family(
     use_static_observation: bool,
     price_map: dict[str, float],
 ) -> dict[str, Any]:
-    if use_static_observation and chain_id in _ROBINHOOD_CHAIN_IDS:
-        protocols = []
     observation = _cached_framework_surface_payload(
         "dex_market_observation",
         chain_id=chain_id,

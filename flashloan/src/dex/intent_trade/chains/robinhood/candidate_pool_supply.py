@@ -187,7 +187,7 @@ def summarize_robinhood_candidate_pool_supply(
             "executionEnabled": False,
             "broadcastEnabled": False,
             "blockingReasons": ["robinhood_mainnet_scope_required"],
-            "nextRequiredActions": ["use_robinhood_testnet_pool_evidence_gate_for_chain_46630"],
+            "nextRequiredActions": ["configure_robinhood_mainnet_pool_evidence_gate_for_chain_4663"],
         }
     market = _market_pool_supply(market_cache)
     static = _static_pool_supply(static_table or {})
@@ -225,7 +225,7 @@ def summarize_robinhood_candidate_pool_supply(
     return {
         "schemaVersion": "robinhood-candidate-pool-supply-v1",
         "network": market_cache.get("network") or "robinhood",
-        "chainId": market_cache.get("chainId") or 4663,
+        "chainId": market_cache.get("chainId") or ROBINHOOD_CHAIN_ID,
         "scope": scope,
         "thresholds": limits,
         "market": market,

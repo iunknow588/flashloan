@@ -100,10 +100,36 @@ def _cached_framework_surface_payload(
     return None
 
 
+def _clear_dex_surface_cache(
+    *,
+    chain_id: int | None = None,
+    protocols: list[str] | None = None,
+    use_static_observation: bool | None = None,
+    surface: str | None = None,
+) -> int:
+    protocol_key = _protocols_key(protocols)
+    removed = 0
+    with _DEX_SURFACE_CACHE_LOCK:
+        for key in list(_DEX_SURFACE_CACHE):
+            key_surface, key_chain_id, key_protocols, key_static = key
+            if surface is not None and key_surface != surface:
+                continue
+            if chain_id is not None and key_chain_id != int(chain_id):
+                continue
+            if protocols is not None and key_protocols != protocol_key:
+                continue
+            if use_static_observation is not None and key_static != bool(use_static_observation):
+                continue
+            _DEX_SURFACE_CACHE.pop(key, None)
+            removed += 1
+    return removed
+
+
 __all__ = [
     "_DEX_SURFACE_CACHE",
     "_DEX_SURFACE_CACHE_LOCK",
     "_cache_surface_payload",
+    "_clear_dex_surface_cache",
     "_cached_framework_surface_payload",
     "_cached_surface_payload",
     "_protocols_key",

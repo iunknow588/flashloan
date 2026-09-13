@@ -41,6 +41,18 @@ def _base_chain_metadata():
             "hasVerifiedBorrowableLiquidity": False,
             "supportsAaveOrMorphoFlashLoans": False,
         },
+        "normalTestnetProbeLive": {
+            "complete": True,
+            "broadcastOk": True,
+            "txHash": "0x" + "1" * 64,
+            "evidence": "flashloan/src/runtime/evidence/robinhood-testnet/normal_testnet_probe_live/latest.json",
+        },
+        "profitableRouteLiveTest": {
+            "complete": False,
+            "broadcastOk": False,
+            "txHash": None,
+            "evidence": "flashloan/src/runtime/evidence/robinhood-testnet/profitable_route_live_test/latest.json",
+        },
         "stageFreezePredeploy": {
             "readyForStageFreeze": True,
             "stageFreezeApproved": True,
@@ -145,8 +157,15 @@ def test_live_testing_readiness_does_not_suggest_broadcast_before_chain_test_rea
 
 
 def test_live_testing_readiness_allows_live_test_only_when_every_gate_is_open():
+    chain_metadata = _base_chain_metadata()
+    chain_metadata["profitableRouteLiveTest"] = {
+        "complete": True,
+        "broadcastOk": True,
+        "txHash": "0x" + "2" * 64,
+        "evidence": "profitable/latest.json",
+    }
     report = summarize_robinhood_testnet_live_testing_readiness(
-        chain_metadata=_base_chain_metadata(),
+        chain_metadata=chain_metadata,
         contracts_metadata=_base_contracts_metadata(),
         chain_test_plan=_live_ready_plan(),
     )
@@ -154,13 +173,45 @@ def test_live_testing_readiness_allows_live_test_only_when_every_gate_is_open():
     assert report["chainTestReady"] is True
     assert report["gates"]["normalTestnetProbeReady"] is True
     assert report["gates"]["normalTestnetProbeMeasurementReady"] is True
+    assert report["gates"]["normalProbeLiveTestComplete"] is True
+    assert report["gates"]["profitableRouteLiveTestComplete"] is True
     assert report["readyForLiveTest"] is True
     assert report["blockingReasons"] == []
+
+
+def test_live_testing_readiness_allows_closed_broadcast_after_both_live_tests():
+    chain_metadata = {**_base_chain_metadata(), "broadcastEnabled": False}
+    chain_metadata["profitableRouteLiveTest"] = {
+        "complete": True,
+        "broadcastOk": True,
+        "txHash": "0x" + "3" * 64,
+        "evidence": "profitable/latest.json",
+    }
+    contracts_metadata = {**_base_contracts_metadata(), "broadcastEnabled": False}
+
+    report = summarize_robinhood_testnet_live_testing_readiness(
+        chain_metadata=chain_metadata,
+        contracts_metadata=contracts_metadata,
+        chain_test_plan=_live_ready_plan(),
+    )
+
+    assert report["gates"]["normalProbeLiveTestComplete"] is True
+    assert report["gates"]["profitableRouteLiveTestComplete"] is True
+    assert report["broadcastEnabled"] is False
+    assert report["readyForLiveTest"] is True
+    assert "broadcast_gate_closed" not in report["blockingReasons"]
 
 
 def test_live_testing_readiness_rejects_ready_plan_when_new_snapshot_has_no_live_profit():
     plan = _live_ready_plan()
     plan["generatedAt"] = "2026-08-31T08:08:32.710541+00:00"
+    chain_metadata = _base_chain_metadata()
+    chain_metadata["profitableRouteLiveTest"] = {
+        "complete": True,
+        "broadcastOk": True,
+        "txHash": "0x" + "2" * 64,
+        "evidence": "profitable/latest.json",
+    }
     snapshot = {
         "updated_at": "2026-09-03T00:16:06.002936+00:00",
         "snapshots": {
@@ -175,7 +226,7 @@ def test_live_testing_readiness_rejects_ready_plan_when_new_snapshot_has_no_live
     }
 
     report = summarize_robinhood_testnet_live_testing_readiness(
-        chain_metadata=_base_chain_metadata(),
+        chain_metadata=chain_metadata,
         contracts_metadata=_base_contracts_metadata(),
         chain_test_plan=plan,
         current_opportunity_snapshot=snapshot,
@@ -190,13 +241,36 @@ def test_live_testing_readiness_rejects_ready_plan_when_new_snapshot_has_no_live
 
 
 def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
+    chain_metadata = _base_chain_metadata()
+    chain_metadata["profitableRouteLiveTest"] = {
+        "complete": True,
+        "broadcastOk": True,
+        "txHash": "0x" + "2" * 64,
+        "evidence": "profitable/latest.json",
+    }
     chain_path = tmp_path / "contract" / "robinhood-testnet" / "DEX" / "config" / "chain.json"
     contracts_path = tmp_path / "contract" / "robinhood-testnet" / "DEX" / "config" / "contracts.json"
     plan_path = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "chain_test" / "latest" / "plan.json"
     output_dir = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "live_testing_readiness"
-    _write_json(chain_path, _base_chain_metadata())
+    snapshot_path = tmp_path / "runtime" / "cache" / "dex_opportunity_snapshot.json"
+    _write_json(chain_path, chain_metadata)
     _write_json(contracts_path, _base_contracts_metadata())
     _write_json(plan_path, _live_ready_plan())
+    _write_json(
+        snapshot_path,
+        {
+            "updated_at": "2026-09-03T00:16:06.002936+00:00",
+            "snapshots": {
+                "46630": {
+                    "updated_at": "2026-09-03T00:16:06.002936+00:00",
+                    "summary": {
+                        "live_profitable_route_count": 1,
+                        "live_verified_route_count": 3,
+                    },
+                }
+            },
+        },
+    )
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -207,6 +281,8 @@ def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
             str(contracts_path),
             "--plan-json",
             str(plan_path),
+            "--snapshot-json",
+            str(snapshot_path),
             "--output-dir",
             str(output_dir),
         ],
@@ -219,3 +295,4 @@ def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
     assert latest["readyForLiveTest"] is True
     assert latest["broadcastEnabled"] is True
     assert latest["gates"]["normalTestnetProbeReady"] is True
+    assert latest["gates"]["profitableRouteLiveTestComplete"] is True

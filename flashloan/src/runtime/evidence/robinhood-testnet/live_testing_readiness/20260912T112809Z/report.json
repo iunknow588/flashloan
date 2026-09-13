@@ -1,0 +1,92 @@
+{
+  "blockingReasons": [
+    "current_opportunity_snapshot_has_no_live_profitable_route"
+  ],
+  "broadcastEnabled": false,
+  "chainId": 46630,
+  "chainKey": "chain:46630",
+  "chainTestReady": true,
+  "evidence": {
+    "candidatePoolSupply": null,
+    "chainTestPlan": "flashloan/src/runtime/evidence/robinhood-testnet/chain_test/latest/plan.json",
+    "chainTestPlanGeneratedAt": "2026-09-12T11:26:45.009552+00:00",
+    "currentLiveProfitableRouteCount": 0,
+    "currentOpportunitySnapshotUpdatedAt": "2026-09-12T11:17:04.791993+00:00",
+    "lendingLiquidity": "flashloan/src/runtime/evidence/robinhood-testnet/lending_liquidity/latest.json",
+    "normalTestnetProbe": "contract/robinhood-testnet/DEX/deployments/evidence/20260907T204504739Z-35232_robinhoodTestnet-robinhood-v4-flash-normal-probe/report.json",
+    "normalTestnetProbeLive": "flashloan/src/runtime/evidence/robinhood-testnet/normal_testnet_probe_live/latest.json",
+    "pausedRedeployPlan": "contract/robinhood-testnet/DEX/deployments/evidence/20260825T143620366Z-34324_robinhoodTestnet-robinhood-paused-redeploy-plan/report.json",
+    "predeployReadiness": "flashloan/src/runtime/evidence/robinhood-testnet/predeploy_readiness/latest.json",
+    "profitableRouteLiveTest": "flashloan/src/runtime/evidence/robinhood-testnet/profitable_route_live_test/latest.json"
+  },
+  "gates": {
+    "broadcastEnabled": false,
+    "candidatePoolSupplyEvidenceUnset": true,
+    "chainBroadcastEnabled": false,
+    "chainTestPlanEvidenceScoped": true,
+    "chainTestReady": true,
+    "contractBroadcastEnabled": false,
+    "currentSnapshotHasNoLiveProfitableRoute": true,
+    "lendingLiquidityEvidenceScoped": true,
+    "normalProbeLiveTestComplete": true,
+    "normalTestnetProbeMeasurementReady": true,
+    "normalTestnetProbeReady": true,
+    "opportunitySnapshotNewerThanPlan": false,
+    "predeployReadinessEvidenceScoped": true,
+    "profitableRouteLiveTestComplete": true,
+    "stageFreezeApproved": true
+  },
+  "marketId": "robinhood-testnet-dex-paused",
+  "nextRequiredActions": [],
+  "normalProbeLiveTestComplete": true,
+  "normalProbeLiveTestTxHash": "0x78719485e6ea5fb73cc35cd5a56bf651f6299f387635bb1a09878b2103155483",
+  "normalTestnetProbe": {
+    "amount": {
+      "amount": "100000000000000",
+      "decimals": 18,
+      "human": "0.0001",
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint.borrowAmountRaw"
+    },
+    "blockingReasons": [],
+    "borrowableLiquidity": {
+      "human": "7.627149522434301723",
+      "raw": "7627149522434301723",
+      "ready": true,
+      "source": "v4_pool_index_full_index_recent_swaps_token_balanceOf_poolmanager"
+    },
+    "chainId": 46630,
+    "measurementReady": true,
+    "network": "robinhood-testnet",
+    "poolManager": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+    "probe": {
+      "address": "0x02a0bacc642d501422af804a462f98335b2bbf09",
+      "deploymentFile": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+      "source": "contracts_metadata.normalTestnetProbe.address"
+    },
+    "readyForNormalBroadcast": true,
+    "route": {
+      "closed": true,
+      "hopCount": 3,
+      "pathText": "TZ -> TB -> TA -> TZ"
+    },
+    "schemaVersion": "robinhood-normal-test-probe-config-v1",
+    "sourceFiles": {
+      "chainTestPlan": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\chain_test\\latest\\plan.json",
+      "probeDeployment": "contract/robinhood-testnet/DEX/deployments/robinhood-v4-flash-normal-probe-robinhoodTestnet.json",
+      "v4PoolLiquidity": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_liquidity\\latest.json"
+    },
+    "token": {
+      "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "decimals": 18,
+      "poolManagerBalance": "7.627149522434301723",
+      "poolManagerBalanceRaw": "7627149522434301723",
+      "poolManagerSource": "v4_pool_index_full_index_recent_swaps_token_balanceOf_poolmanager",
+      "source": "chain_test_plan.preflightSpec.repaymentConstraint",
+      "symbol": "TZ"
+    }
+  },
+  "profitableRouteLiveTestComplete": true,
+  "profitableRouteLiveTestTxHash": "0x50430f33c2fba9f2f982c2cecec879b445b6e1b9d51ea237b35e247f25e0c9b4",
+  "readyForLiveTest": false,
+  "schemaVersion": "robinhood-testnet-live-testing-readiness-v2"
+}

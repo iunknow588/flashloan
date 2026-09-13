@@ -15,14 +15,14 @@
     "routeExecutionMode": "pool_manager_direct_swap_settle_take",
     "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
     "status": "planned",
-    "usesNativeBorrow": true
+    "usesNativeBorrow": false
   },
   "executionRequest": {
-    "amount": "10000000000000000",
-    "borrowTokenIsNative": true,
+    "amount": "100000000000000",
+    "borrowTokenIsNative": false,
     "calldataStatus": "pending",
     "executorContract": "RobinhoodPausedFlashLoanExecutor",
-    "finalToken": "0x0000000000000000000000000000000000000000",
+    "finalToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
     "function": "requestV4FlashLoan",
     "gasReserve": "0",
     "minProfit": "1",
@@ -40,7 +40,7 @@
       "routeExecutionMode": "pool_manager_direct_swap_settle_take",
       "routeExecutionModeLabel": "pool_manager_direct_swap_settle_take",
       "status": "planned",
-      "usesNativeBorrow": true
+      "usesNativeBorrow": false
     },
     "struct": "V4FlashAccountingRequest",
     "swapValues": [
@@ -48,7 +48,7 @@
       "0",
       "0"
     ],
-    "token": "0x0000000000000000000000000000000000000000",
+    "token": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
     "transactionValueRaw": "0"
   },
   "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
@@ -58,20 +58,20 @@
   "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
   "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "repaymentConstraint": {
-    "borrowAmountRaw": "10000000000000000",
-    "borrowSymbol": "ETH",
-    "borrowToken": "0x0000000000000000000000000000000000000000",
-    "finalAmountRaw": "295369155315853212",
-    "finalSymbol": "ETH",
-    "finalToken": "0x0000000000000000000000000000000000000000",
+    "borrowAmountRaw": "100000000000000",
+    "borrowSymbol": "TZ",
+    "borrowToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    "finalAmountRaw": "991022300317058",
+    "finalSymbol": "TZ",
+    "finalToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
     "flashLoanFeeBps": 5.0,
     "gasReserveRaw": "0",
     "minProfitRaw": "1",
     "minProfitRule": "positive_x_profit_min_raw_unit",
     "profitBasis": "borrow_token",
-    "repayAmountRaw": "10005000000000000"
+    "repayAmountRaw": "100050000000000"
   },
-  "routePreflightStatus": "blocked_route_execution_size_probe",
+  "routePreflightStatus": "ready_for_fork_staticcall",
   "scope": "robinhood_testnet_46630_only",
   "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904"

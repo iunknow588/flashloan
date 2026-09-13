@@ -6,6 +6,10 @@ from flask import request
 
 from core.chain_flow_dispatcher import ChainFlowDispatchError, chain_flow_request
 from core.market_observation_store import market_observation_static_table, write_market_observation_static
+from market.binance_market.dex_surface_cache import _clear_dex_surface_cache
+from dex.intent_trade.chains.robinhood.v4_pool_index import (
+    write_v4_pool_index_from_observation_pool_ids as write_robinhood_mainnet_v4_pool_index,
+)
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import write_v4_pool_index_from_initialize_logs
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import write_v4_pool_liquidity_from_contract_evidence
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
@@ -15,14 +19,20 @@ from market.binance_market.dex_surfaces import (
     dex_quote_routes_payload,
 )
 from core.dex_provenance import build_route_framework_payload, framework_label
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_NETWORK,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+    ROBINHOOD_TESTNET_NETWORK,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def _friendly_oserror(prefix: str, exc: Exception) -> str:
     text = str(exc or "").lower()
-    if "filenotfounderror" in text or "no such file" in text or "winerror" in text or "errno 2" in text or "src_bot" in text:
-        return "Robinhood testnet 候选池源文件缺失或缓存路径失效，请先执行全量刷新重建本地证据缓存"
+    if "filenotfounderror" in text or "no such file" in text or "winerror" in text or "errno 2" in text:
+        return "Robinhood Chain 候选池源文件缺失或缓存路径失效，请先执行全量刷新重建本地证据缓存"
     return f"{prefix}"
 
 
@@ -141,6 +151,10 @@ def _finalize_market_observation_payload(
         protocols=protocols,
         refresh_mode=refresh_mode,
     )
+    _clear_dex_surface_cache(
+        chain_id=chain_id,
+        use_static_observation=True,
+    )
     payload["marketObservationStaticTable"] = _market_observation_static_metadata(stored)
     payload["marketObservationSource"] = generated_source
     payload["marketObservationSourceStage"] = generated_source
@@ -180,11 +194,26 @@ def _attach_chain_flow_processing(
     return payload
 
 
-def _refresh_robinhood_testnet_v4_sources() -> dict:
+def _refresh_v4_sources(*, chain_id: int | None = None, network: str = "") -> dict:
+    network = str(network or "").strip().lower()
+    chain_id = int(chain_id) if chain_id is not None else None
+    is_mainnet = chain_id == ROBINHOOD_CHAIN_ID or network == ROBINHOOD_NETWORK
+    is_testnet = chain_id == ROBINHOOD_TESTNET_CHAIN_ID or network == ROBINHOOD_TESTNET_NETWORK
+    if not is_mainnet and not is_testnet:
+        return {
+            "ok": False,
+            "source": "v4_rebuild_unsupported_chain",
+            "steps": [{"source": "v4_pool_index", "ok": False, "error": "V4 pool index refresh is only enabled for Robinhood mainnet or testnet"}],
+            "errors": ["V4 pool index refresh is only enabled for Robinhood mainnet or testnet"],
+            "message": "V4 pool index refresh is only enabled for Robinhood mainnet or testnet",
+        }
     steps: list[dict] = []
     errors: list[str] = []
     try:
-        index_result = write_v4_pool_index_from_initialize_logs()
+        if is_mainnet:
+            index_result = write_robinhood_mainnet_v4_pool_index()
+        else:
+            index_result = write_v4_pool_index_from_initialize_logs()
         steps.append(
             {
                 "source": "v4_pool_index",
@@ -200,11 +229,23 @@ def _refresh_robinhood_testnet_v4_sources() -> dict:
         steps.append({"source": "v4_pool_index", "ok": False, "error": message})
 
     try:
-        liquidity_result = write_v4_pool_liquidity_from_contract_evidence(
-            token_balance_scan_scope="active_plus_known",
-            multicall_chunk_size=200,
-            max_token_balance_scan_seconds=None,
-        )
+        liquidity_result = {}
+        if is_testnet:
+            liquidity_result = write_v4_pool_liquidity_from_contract_evidence(
+                token_balance_scan_scope="active_plus_known",
+                multicall_chunk_size=200,
+                max_token_balance_scan_seconds=None,
+            )
+        else:
+            liquidity_result = {
+                "ok": True,
+                "poolCount": 0,
+                "pool_keys": [],
+                "tokenBalanceScanComplete": False,
+                "tokenBalanceScanCount": 0,
+                "tokenBalancePendingCount": 0,
+                "message": "Robinhood mainnet V4 pool liquidity evidence comes after pool index generation",
+            }
         steps.append(
             {
                 "source": "v4_pool_liquidity",
@@ -224,11 +265,15 @@ def _refresh_robinhood_testnet_v4_sources() -> dict:
 
     return {
         "ok": not errors,
-        "source": "robinhood_testnet_v4_rebuild",
+        "source": "robinhood_v4_rebuild",
         "steps": steps,
         "errors": errors,
-        "message": "Robinhood Testnet V4 source files rebuilt" if not errors else "Robinhood Testnet V4 rebuild completed with errors",
+        "message": "Robinhood V4 source files rebuilt" if not errors else "Robinhood V4 rebuild completed with errors",
     }
+
+
+def _refresh_robinhood_testnet_v4_sources() -> dict:
+    return _refresh_v4_sources(chain_id=ROBINHOOD_TESTNET_CHAIN_ID, network=ROBINHOOD_TESTNET_NETWORK)
 
 
 def _refresh_state_summary(payload: dict, refresh_state: dict) -> dict:
@@ -272,6 +317,7 @@ __all__ = [
     "_market_observation_page_payload",
     "_market_observation_static_metadata",
     "_refresh_robinhood_testnet_v4_sources",
+    "_refresh_v4_sources",
     "_refresh_state_summary",
     "_submission_review_framework_payload",
 ]

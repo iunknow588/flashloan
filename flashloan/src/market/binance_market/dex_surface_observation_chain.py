@@ -2,9 +2,10 @@ from importlib import import_module
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID
 
 
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
+ROBINHOOD_TESTNET_CHAIN_ID = _ROBINHOOD_TESTNET_CHAIN_ID
 
 
 def _chain_observation_module(chain_id: int | None):

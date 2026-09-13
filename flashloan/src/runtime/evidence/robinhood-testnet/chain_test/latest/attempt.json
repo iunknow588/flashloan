@@ -1,1637 +1,219 @@
 {
-  "blocked_reasons": [
-    "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-    "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-    "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-  ],
   "chain_id": 46630,
-  "market_state": {
-    "price_source": "dex_static_quote_probe",
-    "trigger_block_number": 113728916,
-    "trigger_context": {
-      "available": true,
-      "blockNumber": 113728916,
-      "blockTimestamp": 1788647299,
-      "chainId": 46630,
-      "confirmations": 2,
-      "error": null,
-      "evidencePath": null,
-      "headBlockNumber": 113728918,
-      "network": "robinhood-testnet",
-      "observedAt": "2026-09-05T22:27:38.248681+00:00",
-      "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
-      "source": "scan_trigger_chain_head_confirmed",
-      "triggerBlockNumber": 113728916
-    }
-  },
+  "created_at": "2026-09-12T10:22:00Z",
   "network": "robinhood-testnet",
-  "observed_at": "2026-09-05T22:27:38.248681+00:00",
-  "pair": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
+  "observed_at": "2026-09-12T10:22:00Z",
+  "pair": "TZ -> TB -> TA -> TZ",
+  "pair_rank": 1,
+  "path": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
+  ],
   "precheck": {
-    "ready_for_transaction_preflight": false,
-    "reasons": [
-      "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-      "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-      "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-    ],
-    "status": "pool_insufficient_for_profitable_execution"
+    "network": "robinhood-testnet",
+    "onchain_evidence": {
+      "chainId": 46630,
+      "network": "robinhood-testnet",
+      "readyForTransactionPreflight": true,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "status": "live_verified",
+      "trustedForExecution": false
+    },
+    "ready_for_transaction_preflight": true,
+    "reasons": [],
+    "requires_live_quoter": false,
+    "status": "live_verified"
   },
   "quote": {
-    "analysis": {
-      "adapterRequired": false,
-      "borrowAssetClass": "non_stable",
-      "borrowAssetIsStable": false,
-      "chainSubmissionCandidate": false,
-      "chainSubmissionMinProfitAmount": 0.0,
-      "chainSubmissionMinProfitSymbol": "ETH",
-      "chainSubmissionPolicy": "requires_positive_x_profit",
-      "complete": true,
-      "executableCandidate": false,
-      "finalOutputUsd": null,
-      "flashLoanFeeBps": 5.0,
-      "flashLoanFeeUsd": 0.5,
-      "gasReserveUsd": 1.0,
-      "grossProfitUsd": null,
-      "inputSymbol": "ETH",
-      "livePriceVerified": true,
-      "live_onchain_evidence": {
-        "blockNumber": 113728916,
-        "blockTimestamp": 1788647299,
-        "blockers": [
-          "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-          "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-          "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-        ],
-        "chainId": 46630,
-        "costModel": {
-          "borrowInputAmount": 0.01,
-          "borrowInputSymbol": "ETH",
-          "finalOutputAmount": 0.2953691553158532,
-          "finalOutputSymbol": "ETH",
-          "finalOutputUsd": null,
-          "flashLoanFeeAmount": 5e-06,
-          "flashLoanFeeBps": 5.0,
-          "flashLoanFeeUsd": 0.5,
-          "gasReserveUsd": 1.0,
-          "grossProfitAmount": 0.2853691553158532,
-          "grossProfitUsd": null,
-          "hopPriceImpactLimitBps": 10,
-          "maxHopPriceImpactBps": 9999.840904296489,
-          "minProfitUsd": 6.0,
-          "netProfitAmount": 0.2853641553158532,
-          "netProfitAmountBps": 285364.1553158532,
-          "netProfitAmountSymbol": "ETH",
-          "netProfitBps": 285364.1553158532,
-          "netProfitUsd": null,
-          "notionalUsd": 1000.0,
-          "offchainMinProfitUsd": 6.0,
-          "offchainNetProfitUsd": null,
-          "priceImpactIssues": [
-            {
-              "error": null,
-              "fromSymbol": "ETH",
-              "hop": 1,
-              "limitBps": 10,
-              "priceImpactBps": 9999.840904296489,
-              "toSymbol": "0XC9F9C8"
-            },
-            {
-              "error": null,
-              "fromSymbol": "0XC9F9C8",
-              "hop": 2,
-              "limitBps": 10,
-              "priceImpactBps": 135.19203965211824,
-              "toSymbol": "0X71178B"
-            },
-            {
-              "error": null,
-              "fromSymbol": "0X71178B",
-              "hop": 3,
-              "limitBps": 10,
-              "priceImpactBps": 9986.541549332853,
-              "toSymbol": "ETH"
-            }
-          ],
-          "profitBasis": "borrow_token",
-          "requestedBorrowInputAmount": 0.01,
-          "requestedBorrowInputAmountRaw": 10000000000000000,
-          "selectedBorrowInputAmount": 0.01,
-          "selectedBorrowInputAmountRaw": 10000000000000000,
-          "submissionMinProfitUsd": 0.5,
-          "submissionNetProfitAmount": 0.2853641553158532,
-          "submissionNetProfitUsd": null,
-          "tokenGasExcluded": true
-        },
-        "evidenceVersion": 1,
-        "executionSizeProbe": {
-          "attempts": [
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "10000000000000000",
-              "attempt": 1,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.2853641553158532,
-              "netProfitAmountBps": 285364.1553158532,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "5000000000000000",
-              "attempt": 2,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.29036664907696386,
-              "netProfitAmountBps": 580733.2981539277,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "2500000000000000",
-              "attempt": 3,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.2928678865991859,
-              "netProfitAmountBps": 1171471.5463967435,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "1250000000000000",
-              "attempt": 4,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.2941184866436331,
-              "netProfitAmountBps": 2352947.893149065,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "625000000000000",
-              "attempt": 5,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.2947437492325402,
-              "netProfitAmountBps": 4715899.987720643,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "312500000000000",
-              "attempt": 6,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.29505630566040497,
-              "netProfitAmountBps": 9441801.781132959,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "156250000000000",
-              "attempt": 7,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.295212434141337,
-              "netProfitAmountBps": 18893595.785045568,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "78125000000000",
-              "attempt": 8,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.2952901989165107,
-              "netProfitAmountBps": 37797145.46131337,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "39062500000000",
-              "attempt": 9,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.2953284823763467,
-              "netProfitAmountBps": 75604091.48834474,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            },
-            {
-              "allHopsQuoted": true,
-              "allHopsWithinPriceImpactLimit": false,
-              "amountRaw": "19531250000000",
-              "attempt": 10,
-              "blockers": [
-                "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-                "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-              ],
-              "failureReason": "price_impact_limit_exceeded",
-              "netProfitAmount": 0.29534642626209784,
-              "netProfitAmountBps": 151217370.2461941,
-              "profitableAfterCosts": false,
-              "status": "quoted_but_not_eligible"
-            }
-          ],
-          "failureReason": "after up to 10 half-size attempts, no amount passed live quote, 10 bps per-hop impact, and positive net-profit gates",
-          "firstFailureAmountRaw": "10000000000000000",
-          "maxExecutableAmountRaw": null,
-          "maxProbeAttempts": 10,
-          "probeAttempts": 10,
-          "requestedAmountRaw": "10000000000000000",
-          "searchStatus": "pool_insufficient_for_profitable_execution",
-          "selectedProfitableAmountRaw": null,
-          "status": "route_execution_size_probe_unexecutable"
-        },
-        "executionTrust": "live_quoter_verified_readonly",
-        "hops": [
-          {
-            "amountIn": "0.01",
-            "amountInRaw": "10000000000000000",
-            "amountOut": "1.006155055850042086",
-            "amountOutRaw": "1006155055850042086",
-            "expectedAmountOutAfterFeeRaw": "63242126195003899136472",
-            "fee": 500,
-            "feeBps": 5,
-            "fromSymbol": "ETH",
-            "hop": 1,
-            "inputDecimals": 18,
-            "outputDecimals": 18,
-            "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-            "poolState": {
-              "blockNumber": 113728916,
-              "fee": 500,
-              "liquidity": "400000000000000",
-              "lpFee": 500,
-              "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-              "poolId": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-              "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-              "protocol": "uniswap_v4",
-              "protocolFee": 0,
-              "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
-              "source": "pool_manager_extsload_live_state",
-              "sqrtPriceX96": "199292711360001457915779093644535",
-              "tick": 156611,
-              "tickSpacing": 10,
-              "token0": "0x0000000000000000000000000000000000000000",
-              "token0Decimals": 18,
-              "token0Symbol": "ETH",
-              "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-              "token1Decimals": 18,
-              "token1Symbol": "0XC9F9C8"
-            },
-            "priceImpactBps": 9999.840904296489,
-            "priceImpactFeeExcluded": true,
-            "priceImpactLimitBps": 10,
-            "priceImpactSource": "live_pool_spot_price_excluding_lp_fee",
-            "priceImpactWithinLimit": false,
-            "protocol": "uniswap_v4",
-            "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
-            "quoteMode": "uniswap_v4_sdk_exact_input_single",
-            "quoterGasEstimate": 508816,
-            "sdkAdapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-            "spotAmountOutRaw": "63273763076542170221583",
-            "staticQuote": {
-              "executionTrust": "sdk_adapter_required",
-              "outputAmount": "1.006155055850042086",
-              "outputUsd": null,
-              "quoteSource": "uniswap_v4_sdk_adapter_required"
-            },
-            "status": "live_verified",
-            "toSymbol": "0XC9F9C8",
-            "tokenIn": "0x0000000000000000000000000000000000000000",
-            "tokenOut": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E"
-          },
-          {
-            "amountIn": "1.006155055850042086",
-            "amountInRaw": "1006155055850042086",
-            "amountOut": "0.50683292470144161",
-            "amountOutRaw": "506832924701441610",
-            "expectedAmountOutAfterFeeRaw": "513778805161421695",
-            "fee": 3000,
-            "feeBps": 30,
-            "fromSymbol": "0XC9F9C8",
-            "hop": 2,
-            "inputDecimals": 18,
-            "outputDecimals": 18,
-            "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-            "poolState": {
-              "blockNumber": 113728916,
-              "fee": 3000,
-              "liquidity": "52384842578262139617",
-              "lpFee": 3000,
-              "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-              "poolId": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-              "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-              "protocol": "uniswap_v4",
-              "protocolFee": 0,
-              "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
-              "source": "pool_manager_extsload_live_state",
-              "sqrtPriceX96": "110706093900986049752547400345",
-              "tick": 6691,
-              "tickSpacing": 60,
-              "token0": "0x71178bac73cbeb415514eb542a8995b82669778d",
-              "token0Decimals": 18,
-              "token0Symbol": "0X71178B",
-              "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-              "token1Decimals": 18,
-              "token1Symbol": "0XC9F9C8"
-            },
-            "priceImpactBps": 135.19203965211824,
-            "priceImpactFeeExcluded": true,
-            "priceImpactLimitBps": 10,
-            "priceImpactSource": "live_pool_spot_price_excluding_lp_fee",
-            "priceImpactWithinLimit": false,
-            "protocol": "uniswap_v4",
-            "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
-            "quoteMode": "uniswap_v4_sdk_exact_input_single",
-            "quoterGasEstimate": 53333,
-            "sdkAdapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-            "spotAmountOutRaw": "515324779499921460",
-            "staticQuote": {
-              "executionTrust": "sdk_adapter_required",
-              "outputAmount": "0.50683292470144161",
-              "outputUsd": null,
-              "quoteSource": "uniswap_v4_sdk_adapter_required"
-            },
-            "status": "live_verified",
-            "toSymbol": "0X71178B",
-            "tokenIn": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-            "tokenOut": "0x71178BAc73cBeb415514eB542a8995b82669778d"
-          },
-          {
-            "amountIn": "0.50683292470144161",
-            "amountInRaw": "506832924701441610",
-            "amountOut": "0.295369155315853212",
-            "amountOutRaw": "295369155315853212",
-            "expectedAmountOutAfterFeeRaw": "219467428027864678305",
-            "fee": 10000,
-            "feeBps": 100,
-            "fromSymbol": "0X71178B",
-            "hop": 3,
-            "inputDecimals": 18,
-            "outputDecimals": 18,
-            "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-            "poolState": {
-              "blockNumber": 113728916,
-              "fee": 10000,
-              "liquidity": "14142135623730950",
-              "lpFee": 10000,
-              "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-              "poolId": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-              "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-              "protocol": "uniswap_v4",
-              "protocolFee": 0,
-              "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
-              "source": "pool_manager_extsload_live_state",
-              "sqrtPriceX96": "3788301655602371544650197071",
-              "tick": -60812,
-              "tickSpacing": 200,
-              "token0": "0x0000000000000000000000000000000000000000",
-              "token0Decimals": 18,
-              "token0Symbol": "ETH",
-              "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
-              "token1Decimals": 18,
-              "token1Symbol": "0X71178B"
-            },
-            "priceImpactBps": 9986.541549332853,
-            "priceImpactFeeExcluded": true,
-            "priceImpactLimitBps": 10,
-            "priceImpactSource": "live_pool_spot_price_excluding_lp_fee",
-            "priceImpactWithinLimit": false,
-            "protocol": "uniswap_v4",
-            "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
-            "quoteMode": "uniswap_v4_sdk_exact_input_single",
-            "quoterGasEstimate": 53677,
-            "sdkAdapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-            "spotAmountOutRaw": "221684270735216846773",
-            "staticQuote": {
-              "executionTrust": "sdk_adapter_required",
-              "outputAmount": "0.295369155315853212",
-              "outputUsd": null,
-              "quoteSource": "uniswap_v4_sdk_adapter_required"
-            },
-            "status": "live_verified",
-            "toSymbol": "ETH",
-            "tokenIn": "0x71178BAc73cBeb415514eB542a8995b82669778d",
-            "tokenOut": "0x0000000000000000000000000000000000000000"
-          }
-        ],
-        "livePriceVerified": true,
-        "network": "robinhood-testnet",
-        "observedAt": "2026-09-05T22:27:38.248681+00:00",
-        "priceEvidenceMode": "live_verified",
-        "priceEvidenceSource": "chain_live_quote",
-        "quoteBlockSource": "trigger_block",
-        "quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
-        "readyForTransactionPreflight": false,
-        "requestedBorrowInputAmountRaw": "10000000000000000",
-        "routeAddresses": [
-          "0x0000000000000000000000000000000000000000",
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "0x0000000000000000000000000000000000000000"
-        ],
-        "routeSymbols": [
-          "ETH",
-          "0XC9F9C8",
-          "0X71178B",
-          "ETH"
-        ],
-        "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
-        "selectedBorrowInputAmountRaw": "10000000000000000",
-        "status": "pool_insufficient_for_profitable_execution",
-        "transactionDevelopment": {
-          "blockers": [
-            "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-            "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-            "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-          ],
-          "executionEnabled": false,
-          "status": "blocked_before_transaction_development"
-        },
-        "triggerBlockNumber": 113728916,
-        "triggerContext": {
-          "available": true,
-          "blockNumber": 113728916,
-          "blockTimestamp": 1788647299,
-          "chainId": 46630,
-          "confirmations": 2,
-          "error": null,
-          "evidencePath": null,
-          "headBlockNumber": 113728918,
-          "network": "robinhood-testnet",
-          "observedAt": "2026-09-05T22:27:38.248681+00:00",
-          "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
-          "source": "scan_trigger_chain_head_confirmed",
-          "triggerBlockNumber": 113728916
-        },
-        "trustedForExecution": false,
-        "validation": {
-          "allHopsQuoted": true,
-          "allHopsWithinPriceImpactLimit": false,
-          "borrowAssetClass": "non_stable",
-          "borrowAssetIsStable": false,
-          "borrowInputAmount": 0.01,
-          "borrowInputSymbol": "ETH",
-          "executionSizeSearchStatus": "pool_insufficient_for_profitable_execution",
-          "finalOutputAmount": 0.2953691553158532,
-          "finalOutputDecimals": 18,
-          "finalOutputSymbol": "ETH",
-          "hopPriceImpactLimitBps": 10,
-          "meetsMinProfitThreshold": false,
-          "meetsOffchainProfitThreshold": false,
-          "meetsSubmissionProfitThreshold": false,
-          "netPositiveAfterCosts": false,
-          "netProfitAmount": 0.2853641553158532,
-          "netProfitAmountSymbol": "ETH",
-          "nonStablePositiveXProfitPolicy": true,
-          "poolInsufficientForProfitableExecution": true,
-          "priceImpactIssues": [
-            {
-              "error": null,
-              "fromSymbol": "ETH",
-              "hop": 1,
-              "limitBps": 10,
-              "priceImpactBps": 9999.840904296489,
-              "toSymbol": "0XC9F9C8"
-            },
-            {
-              "error": null,
-              "fromSymbol": "0XC9F9C8",
-              "hop": 2,
-              "limitBps": 10,
-              "priceImpactBps": 135.19203965211824,
-              "toSymbol": "0X71178B"
-            },
-            {
-              "error": null,
-              "fromSymbol": "0X71178B",
-              "hop": 3,
-              "limitBps": 10,
-              "priceImpactBps": 9986.541549332853,
-              "toSymbol": "ETH"
-            }
-          ],
-          "profitableAfterCosts": false,
-          "requestedBorrowInputAmount": 0.01,
-          "routeClosed": true,
-          "tokenContinuity": true,
-          "tokenContinuityIssues": []
-        }
-      },
-      "maxStaticDepthImpactBps": null,
-      "method": "static_amm_depth_probe",
-      "minProfitUsd": 6.0,
-      "netProfitBps": 285364.1553158532,
-      "netProfitUsd": null,
-      "notionalUsd": 1000.0,
-      "offchainMinProfitUsd": 6.0,
-      "offchainNetProfitUsd": null,
-      "onchainEvidenceStatus": "pool_insufficient_for_profitable_execution",
-      "outputSymbol": "ETH",
-      "priceEvidenceMode": "live_verified",
-      "priceEvidenceModeLabel": "需要链上复核",
-      "priceEvidenceSource": "chain_live_quote",
-      "priceEvidenceSourceLabel": "链上实时复核",
-      "profitable": false,
-      "quote_verified": true,
-      "recommendation": {
-        "action": "链上复核完成，当前未满足交易提交条件",
-        "level": "pool_insufficient_for_profitable_execution",
-        "reasons": [
-          "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-          "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-          "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-        ]
-      },
-      "referenceFinalOutputAmount": 0.2953691553158532,
-      "referenceFinalOutputSymbol": "ETH",
-      "referenceFinalOutputUsd": null,
-      "referenceFlashLoanFeeAmount": 5e-06,
-      "referenceGasExcluded": true,
-      "referenceGrossProfitAmount": -0.009999013463515,
-      "referenceGrossProfitUsd": null,
-      "referenceGrossReturnBps": -9999.013463514999,
-      "referenceInputAmount": 0.01,
-      "referenceInputSymbol": "ETH",
-      "referenceNetProfitAmount": 0.2853641553158532,
-      "referenceNetProfitBps": null,
-      "referenceNetProfitUsd": null,
-      "referenceNetReturnBps": 285364.1553158532,
-      "referenceReturnBasis": "borrow_token",
-      "referenceReturnTrusted": true,
-      "requiresLiveQuoter": false,
-      "routeFrameworkSource": "market_observation",
-      "sdkAdapterRequiredStepCount": 3,
-      "staticDepthAvailable": false,
-      "staticDepthImpactLimitBps": 10.0,
-      "staticDepthStatus": "unavailable",
-      "stepCount": 3,
-      "steps": [
-        {
-          "adapterRequired": true,
-          "depthBand": {
-            "label": "indexed V4 PoolKey",
-            "level": "indexed"
-          },
-          "dex": "uniswap_v4",
-          "effectiveRate": null,
-          "executionTrust": "sdk_adapter_required",
-          "fee": 500,
-          "feeBps": 5.0,
-          "fromSymbol": "ETH",
-          "hop": 1,
-          "inputAmount": "0.01",
-          "inputUsd": 1000.0,
-          "liveQuoteError": null,
-          "outputAmount": "1.006155055850042086",
-          "outputUsd": null,
-          "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-          "priceImpactBps": null,
-          "priceImpactLimitBps": 10.0,
-          "protocol": "uniswap_v4",
-          "quoteMode": "uniswap_v4_sdk_exact_input_single",
-          "quoteSource": "uniswap_v4_sdk_adapter_required",
-          "referenceEffectiveRate": 0.9995,
-          "referenceOutputAmount": 0.009995,
-          "referenceOutputUsd": 999.5,
-          "referenceUsdMode": "fee_only_without_trusted_output_usd_price",
-          "reserveInUsd": null,
-          "reserveOutUsd": null,
-          "staticDepthAvailable": false,
-          "status": "quoted",
-          "toSymbol": "0XC9F9C8",
-          "tokenDecimalAssumption": null,
-          "tokenDecimalsTrusted": true,
-          "tokenIn": "0x0000000000000000000000000000000000000000",
-          "tokenOut": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "trustedUsdPrice": false,
-          "warning": "uniswap_v4_sdk_adapter_required"
-        },
-        {
-          "adapterRequired": true,
-          "depthBand": {
-            "label": "indexed V4 PoolKey",
-            "level": "indexed"
-          },
-          "dex": "uniswap_v4",
-          "effectiveRate": null,
-          "executionTrust": "sdk_adapter_required",
-          "fee": 3000,
-          "feeBps": 30.0,
-          "fromSymbol": "0XC9F9C8",
-          "hop": 2,
-          "inputAmount": "1.006155055850042086",
-          "inputUsd": 999.5,
-          "liveQuoteError": null,
-          "outputAmount": "0.50683292470144161",
-          "outputUsd": null,
-          "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-          "priceImpactBps": null,
-          "priceImpactLimitBps": 10.0,
-          "protocol": "uniswap_v4",
-          "quoteMode": "uniswap_v4_sdk_exact_input_single",
-          "quoteSource": "uniswap_v4_sdk_adapter_required",
-          "referenceEffectiveRate": 0.4985,
-          "referenceOutputAmount": 0.0049825075,
-          "referenceOutputUsd": 996.5015,
-          "referenceUsdMode": "fee_only_without_trusted_output_usd_price",
-          "reserveInUsd": null,
-          "reserveOutUsd": null,
-          "staticDepthAvailable": false,
-          "status": "quoted",
-          "toSymbol": "0X71178B",
-          "tokenDecimalAssumption": null,
-          "tokenDecimalsTrusted": true,
-          "tokenIn": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "tokenOut": "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "trustedUsdPrice": false,
-          "warning": "uniswap_v4_sdk_adapter_required"
-        },
-        {
-          "adapterRequired": true,
-          "depthBand": {
-            "label": "indexed V4 PoolKey",
-            "level": "indexed"
-          },
-          "dex": "uniswap_v4",
-          "effectiveRate": null,
-          "executionTrust": "sdk_adapter_required",
-          "fee": 10000,
-          "feeBps": 100.0,
-          "fromSymbol": "0X71178B",
-          "hop": 3,
-          "inputAmount": "0.50683292470144161",
-          "inputUsd": 996.5015,
-          "liveQuoteError": null,
-          "outputAmount": "0.295369155315853212",
-          "outputUsd": null,
-          "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-          "priceImpactBps": null,
-          "priceImpactLimitBps": 10.0,
-          "protocol": "uniswap_v4",
-          "quoteMode": "uniswap_v4_sdk_exact_input_single",
-          "quoteSource": "uniswap_v4_sdk_adapter_required",
-          "referenceEffectiveRate": 0.00019800000000000002,
-          "referenceOutputAmount": 9.86536485e-07,
-          "referenceOutputUsd": 986.536485,
-          "referenceUsdMode": "fee_only_without_trusted_output_usd_price",
-          "reserveInUsd": null,
-          "reserveOutUsd": null,
-          "staticDepthAvailable": false,
-          "status": "quoted",
-          "toSymbol": "ETH",
-          "tokenDecimalAssumption": null,
-          "tokenDecimalsTrusted": true,
-          "tokenIn": "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "tokenOut": "0x0000000000000000000000000000000000000000",
-          "trustedUsdPrice": false,
-          "warning": "uniswap_v4_sdk_adapter_required"
-        }
-      ],
-      "submissionMinProfitUsd": 0.5,
-      "submissionNetProfitUsd": null,
-      "tokenBasisProfitable": false,
-      "tokenBasisReferenceProfitable": false,
-      "tokenDecimalsTrusted": true,
-      "trustedUsdReference": false,
-      "warnings": [
-        "hop_1_reference_quote_requires_live_quoter",
-        "hop_2_reference_quote_requires_live_quoter",
-        "hop_3_reference_quote_requires_live_quoter",
-        "reference_price_step_requires_live_quoter",
-        "reference_usd_price_missing_or_untrusted",
-        "static_depth_evidence_unavailable",
-        "robinhood_testnet_live_price_only_enforced"
-      ]
-    },
     "candidate_pools": [
       {
-        "anchorAddress": "0x0000000000000000000000000000000000000000",
-        "anchorSymbol": "ETH",
-        "balances": {
-          "tvlUsd": 0
-        },
-        "classification": {},
-        "counterAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "counterSymbol": "0XC9F9C8",
-        "depthBand": {
-          "label": "indexed V4 PoolKey",
-          "level": "indexed"
-        },
-        "dex": "uniswap_v4",
-        "direction": "yc",
-        "evidence": {
-          "bridgeOnly": true,
-          "initializeBlockNumber": 91563588,
-          "initializeTransactionHash": "0x50472b64ce5678d633aed2f2b7edda87ca5012c995be86d96f01ccd0ebc94fc0",
-          "poolKeyDecoded": true,
-          "source": "v4_pool_index"
-        },
-        "fee": 500,
-        "liquidity": "",
-        "pairAddress": "0x0000000000000000000000000000000000000000:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "pairSymbol": "ETH:0XC9F9C8",
-        "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-        "poolIdentityMode": "v4_pool_id",
-        "protocol": "uniswap_v4",
-        "quality": null,
-        "quoteSummary": {},
-        "routeAddresses": [
-          "0x0000000000000000000000000000000000000000",
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e"
-        ],
-        "routeSymbols": [
-          "ETH",
-          "0XC9F9C8"
-        ],
-        "routeText": "ETH -> 0XC9F9C8",
-        "source": "v4_pool_index_fund_anchor_pair_observation",
-        "sqrtPriceX96": "79228162514264337593543950336",
-        "tick": 0,
-        "token0": "0x0000000000000000000000000000000000000000",
-        "token0Symbol": "ETH",
-        "token1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-        "token1Symbol": "0XC9F9C8"
-      },
-      {
-        "anchorAddress": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "anchorSymbol": "0XC9F9C8",
-        "balances": {
-          "tvlUsd": 0
-        },
-        "classification": {},
-        "counterAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
-        "counterSymbol": "0X71178B",
-        "depthBand": {
-          "label": "indexed V4 PoolKey",
-          "level": "indexed"
-        },
-        "dex": "uniswap_v4",
-        "direction": "bridge",
-        "evidence": {
-          "bridgeOnly": true,
-          "initializeBlockNumber": 107785129,
-          "initializeTransactionHash": "0xf3422295fc314196bf3627c16d66ed7696aca990c1bc2636c162e2bd28472640",
-          "poolKeyDecoded": true,
-          "source": "v4_pool_index"
-        },
         "fee": 3000,
-        "liquidity": "",
-        "pairAddress": "0x71178bac73cbeb415514eb542a8995b82669778d:0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "pairSymbol": "0X71178B:0XC9F9C8",
-        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-        "poolIdentityMode": "v4_pool_id",
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
         "protocol": "uniswap_v4",
-        "quality": null,
-        "quoteSummary": {},
-        "routeAddresses": [
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "0x71178bac73cbeb415514eb542a8995b82669778d"
-        ],
-        "routeSymbols": [
-          "0XC9F9C8",
-          "0X71178B"
-        ],
-        "routeText": "0XC9F9C8 -> 0X71178B",
-        "source": "v4_pool_index_fund_anchor_pair_observation",
-        "sqrtPriceX96": "112045541949572279837463876454",
-        "tick": 6931,
-        "token0": "0x71178BAc73cBeb415514eB542a8995b82669778d",
-        "token0Symbol": "0X71178B",
-        "token1": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-        "token1Symbol": "0XC9F9C8"
+        "token0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "token0Decimals": 18,
+        "token0Symbol": "TZ",
+        "token1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "token1Decimals": 18,
+        "token1Symbol": "TB"
       },
       {
-        "anchorAddress": "0x71178bac73cbeb415514eb542a8995b82669778d",
-        "anchorSymbol": "0X71178B",
-        "balances": {
-          "tvlUsd": 0
-        },
-        "classification": {},
-        "counterAddress": "0x0000000000000000000000000000000000000000",
-        "counterSymbol": "ETH",
-        "depthBand": {
-          "label": "indexed V4 PoolKey",
-          "level": "indexed"
-        },
-        "dex": "uniswap_v4",
-        "direction": "zc",
-        "evidence": {
-          "bridgeOnly": true,
-          "initializeBlockNumber": 91000224,
-          "initializeTransactionHash": "0x69dde5d3f1b4f5912b8571318dd8275dd5c8f55393c390df0586794a7cc8843d",
-          "poolKeyDecoded": true,
-          "source": "v4_pool_index"
-        },
-        "fee": 10000,
-        "liquidity": "",
-        "pairAddress": "0x0000000000000000000000000000000000000000:0x71178bac73cbeb415514eb542a8995b82669778d",
-        "pairSymbol": "ETH:0X71178B",
-        "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-        "poolIdentityMode": "v4_pool_id",
+        "fee": 3000,
+        "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "poolId": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
         "protocol": "uniswap_v4",
-        "quality": null,
-        "quoteSummary": {},
-        "routeAddresses": [
-          "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "0x0000000000000000000000000000000000000000"
-        ],
-        "routeSymbols": [
-          "0X71178B",
-          "ETH"
-        ],
-        "routeText": "0X71178B -> ETH",
-        "source": "v4_pool_index_fund_anchor_pair_observation",
-        "sqrtPriceX96": "5602277097478613991873193822745",
-        "tick": 85176,
-        "token0": "0x0000000000000000000000000000000000000000",
-        "token0Symbol": "ETH",
-        "token1": "0x71178BAc73cBeb415514eB542a8995b82669778d",
-        "token1Symbol": "0X71178B"
+        "token0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "token0Decimals": 18,
+        "token0Symbol": "TB",
+        "token1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "token1Decimals": 18,
+        "token1Symbol": "TA"
+      },
+      {
+        "fee": 3000,
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "protocol": "uniswap_v4",
+        "token0": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "token0Decimals": 18,
+        "token0Symbol": "TA",
+        "token1": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "token1Decimals": 18,
+        "token1Symbol": "TZ"
       }
     ],
+    "hops": [
+      {
+        "amountIn": "0.0001",
+        "amountInRaw": 100000000000000,
+        "amountOut": "0.000996998428340939",
+        "amountOutRaw": 996998428340939,
+        "fee": 3000,
+        "fromSymbol": "TZ",
+        "hop": 1,
+        "inputDecimals": 18,
+        "outputDecimals": 18,
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "toSymbol": "TB",
+        "tokenIn": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "tokenOut": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      },
+      {
+        "amountIn": "0.000996998428340939",
+        "amountInRaw": 996998428340939,
+        "amountOut": "0.000099400587080588",
+        "amountOutRaw": 99400587080588,
+        "fee": 3000,
+        "fromSymbol": "TB",
+        "hop": 2,
+        "inputDecimals": 18,
+        "outputDecimals": 18,
+        "pool": "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "toSymbol": "TA",
+        "tokenIn": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "tokenOut": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      },
+      {
+        "amountIn": "0.000099400587080588",
+        "amountInRaw": 99400587080588,
+        "amountOut": "0.000991022300317058",
+        "amountOutRaw": 991022300317058,
+        "fee": 3000,
+        "fromSymbol": "TA",
+        "hop": 3,
+        "inputDecimals": 18,
+        "outputDecimals": 18,
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "protocol": "uniswap_v4",
+        "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
+        "toSymbol": "TZ",
+        "tokenIn": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "tokenOut": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      }
+    ],
+    "inputAmount": 0.0001,
+    "inputSymbol": "TZ",
+    "input_amount": 0.0001,
+    "input_symbol": "TZ",
     "live_onchain_evidence": {
-      "blockNumber": 113728916,
-      "blockTimestamp": 1788647299,
-      "blockers": [
-        "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-        "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-        "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-      ],
+      "blockNumber": 118022639,
+      "blockers": [],
       "chainId": 46630,
       "costModel": {
-        "borrowInputAmount": 0.01,
-        "borrowInputSymbol": "ETH",
-        "finalOutputAmount": 0.2953691553158532,
-        "finalOutputSymbol": "ETH",
+        "borrowInputAmount": 0.0001,
+        "borrowInputSymbol": "TZ",
+        "finalOutputAmount": 0.000991022300317058,
+        "finalOutputSymbol": "TZ",
         "finalOutputUsd": null,
-        "flashLoanFeeAmount": 5e-06,
+        "flashLoanFeeAmount": 5e-08,
         "flashLoanFeeBps": 5.0,
-        "flashLoanFeeUsd": 0.5,
         "gasReserveUsd": 1.0,
-        "grossProfitAmount": 0.2853691553158532,
+        "grossProfitAmount": 0.000891022300317058,
         "grossProfitUsd": null,
-        "hopPriceImpactLimitBps": 10,
-        "maxHopPriceImpactBps": 9999.840904296489,
         "minProfitUsd": 6.0,
-        "netProfitAmount": 0.2853641553158532,
-        "netProfitAmountBps": 285364.1553158532,
-        "netProfitAmountSymbol": "ETH",
-        "netProfitBps": 285364.1553158532,
+        "netProfitAmount": 0.000890972300317058,
+        "netProfitAmountBps": 8909.72300317058,
+        "netProfitAmountSymbol": "TZ",
         "netProfitUsd": null,
-        "notionalUsd": 1000.0,
+        "notionalUsd": 0.0001,
         "offchainMinProfitUsd": 6.0,
         "offchainNetProfitUsd": null,
-        "priceImpactIssues": [
-          {
-            "error": null,
-            "fromSymbol": "ETH",
-            "hop": 1,
-            "limitBps": 10,
-            "priceImpactBps": 9999.840904296489,
-            "toSymbol": "0XC9F9C8"
-          },
-          {
-            "error": null,
-            "fromSymbol": "0XC9F9C8",
-            "hop": 2,
-            "limitBps": 10,
-            "priceImpactBps": 135.19203965211824,
-            "toSymbol": "0X71178B"
-          },
-          {
-            "error": null,
-            "fromSymbol": "0X71178B",
-            "hop": 3,
-            "limitBps": 10,
-            "priceImpactBps": 9986.541549332853,
-            "toSymbol": "ETH"
-          }
-        ],
         "profitBasis": "borrow_token",
-        "requestedBorrowInputAmount": 0.01,
-        "requestedBorrowInputAmountRaw": 10000000000000000,
-        "selectedBorrowInputAmount": 0.01,
-        "selectedBorrowInputAmountRaw": 10000000000000000,
-        "submissionMinProfitUsd": 0.5,
-        "submissionNetProfitAmount": 0.2853641553158532,
+        "submissionMinProfitUsd": 5e-08,
+        "submissionNetProfitAmount": 0.000890972300317058,
         "submissionNetProfitUsd": null,
         "tokenGasExcluded": true
       },
       "evidenceVersion": 1,
-      "executionSizeProbe": {
-        "attempts": [
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "10000000000000000",
-            "attempt": 1,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.2853641553158532,
-            "netProfitAmountBps": 285364.1553158532,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "5000000000000000",
-            "attempt": 2,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.29036664907696386,
-            "netProfitAmountBps": 580733.2981539277,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "2500000000000000",
-            "attempt": 3,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.2928678865991859,
-            "netProfitAmountBps": 1171471.5463967435,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "1250000000000000",
-            "attempt": 4,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.2941184866436331,
-            "netProfitAmountBps": 2352947.893149065,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "625000000000000",
-            "attempt": 5,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.2947437492325402,
-            "netProfitAmountBps": 4715899.987720643,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "312500000000000",
-            "attempt": 6,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.29505630566040497,
-            "netProfitAmountBps": 9441801.781132959,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "156250000000000",
-            "attempt": 7,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.295212434141337,
-            "netProfitAmountBps": 18893595.785045568,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "78125000000000",
-            "attempt": 8,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.2952901989165107,
-            "netProfitAmountBps": 37797145.46131337,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "39062500000000",
-            "attempt": 9,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.2953284823763467,
-            "netProfitAmountBps": 75604091.48834474,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          },
-          {
-            "allHopsQuoted": true,
-            "allHopsWithinPriceImpactLimit": false,
-            "amountRaw": "19531250000000",
-            "attempt": 10,
-            "blockers": [
-              "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-              "链上核算扣除闪电贷费用后仍未转正，不能进入预检。"
-            ],
-            "failureReason": "price_impact_limit_exceeded",
-            "netProfitAmount": 0.29534642626209784,
-            "netProfitAmountBps": 151217370.2461941,
-            "profitableAfterCosts": false,
-            "status": "quoted_but_not_eligible"
-          }
-        ],
-        "failureReason": "after up to 10 half-size attempts, no amount passed live quote, 10 bps per-hop impact, and positive net-profit gates",
-        "firstFailureAmountRaw": "10000000000000000",
-        "maxExecutableAmountRaw": null,
-        "maxProbeAttempts": 10,
-        "probeAttempts": 10,
-        "requestedAmountRaw": "10000000000000000",
-        "searchStatus": "pool_insufficient_for_profitable_execution",
-        "selectedProfitableAmountRaw": null,
-        "status": "route_execution_size_probe_unexecutable"
-      },
       "executionTrust": "live_quoter_verified_readonly",
-      "hops": [
-        {
-          "amountIn": "0.01",
-          "amountInRaw": "10000000000000000",
-          "amountOut": "1.006155055850042086",
-          "amountOutRaw": "1006155055850042086",
-          "expectedAmountOutAfterFeeRaw": "63242126195003899136472",
-          "fee": 500,
-          "feeBps": 5,
-          "fromSymbol": "ETH",
-          "hop": 1,
-          "inputDecimals": 18,
-          "outputDecimals": 18,
-          "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-          "poolState": {
-            "blockNumber": 113728916,
-            "fee": 500,
-            "liquidity": "400000000000000",
-            "lpFee": 500,
-            "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-            "poolId": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-            "protocol": "uniswap_v4",
-            "protocolFee": 0,
-            "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
-            "source": "pool_manager_extsload_live_state",
-            "sqrtPriceX96": "199292711360001457915779093644535",
-            "tick": 156611,
-            "tickSpacing": 10,
-            "token0": "0x0000000000000000000000000000000000000000",
-            "token0Decimals": 18,
-            "token0Symbol": "ETH",
-            "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-            "token1Decimals": 18,
-            "token1Symbol": "0XC9F9C8"
-          },
-          "priceImpactBps": 9999.840904296489,
-          "priceImpactFeeExcluded": true,
-          "priceImpactLimitBps": 10,
-          "priceImpactSource": "live_pool_spot_price_excluding_lp_fee",
-          "priceImpactWithinLimit": false,
-          "protocol": "uniswap_v4",
-          "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
-          "quoteMode": "uniswap_v4_sdk_exact_input_single",
-          "quoterGasEstimate": 508816,
-          "sdkAdapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-          "spotAmountOutRaw": "63273763076542170221583",
-          "staticQuote": {
-            "executionTrust": "sdk_adapter_required",
-            "outputAmount": "1.006155055850042086",
-            "outputUsd": null,
-            "quoteSource": "uniswap_v4_sdk_adapter_required"
-          },
-          "status": "live_verified",
-          "toSymbol": "0XC9F9C8",
-          "tokenIn": "0x0000000000000000000000000000000000000000",
-          "tokenOut": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E"
-        },
-        {
-          "amountIn": "1.006155055850042086",
-          "amountInRaw": "1006155055850042086",
-          "amountOut": "0.50683292470144161",
-          "amountOutRaw": "506832924701441610",
-          "expectedAmountOutAfterFeeRaw": "513778805161421695",
-          "fee": 3000,
-          "feeBps": 30,
-          "fromSymbol": "0XC9F9C8",
-          "hop": 2,
-          "inputDecimals": 18,
-          "outputDecimals": 18,
-          "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-          "poolState": {
-            "blockNumber": 113728916,
-            "fee": 3000,
-            "liquidity": "52384842578262139617",
-            "lpFee": 3000,
-            "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-            "poolId": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-            "protocol": "uniswap_v4",
-            "protocolFee": 0,
-            "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
-            "source": "pool_manager_extsload_live_state",
-            "sqrtPriceX96": "110706093900986049752547400345",
-            "tick": 6691,
-            "tickSpacing": 60,
-            "token0": "0x71178bac73cbeb415514eb542a8995b82669778d",
-            "token0Decimals": 18,
-            "token0Symbol": "0X71178B",
-            "token1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-            "token1Decimals": 18,
-            "token1Symbol": "0XC9F9C8"
-          },
-          "priceImpactBps": 135.19203965211824,
-          "priceImpactFeeExcluded": true,
-          "priceImpactLimitBps": 10,
-          "priceImpactSource": "live_pool_spot_price_excluding_lp_fee",
-          "priceImpactWithinLimit": false,
-          "protocol": "uniswap_v4",
-          "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
-          "quoteMode": "uniswap_v4_sdk_exact_input_single",
-          "quoterGasEstimate": 53333,
-          "sdkAdapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-          "spotAmountOutRaw": "515324779499921460",
-          "staticQuote": {
-            "executionTrust": "sdk_adapter_required",
-            "outputAmount": "0.50683292470144161",
-            "outputUsd": null,
-            "quoteSource": "uniswap_v4_sdk_adapter_required"
-          },
-          "status": "live_verified",
-          "toSymbol": "0X71178B",
-          "tokenIn": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-          "tokenOut": "0x71178BAc73cBeb415514eB542a8995b82669778d"
-        },
-        {
-          "amountIn": "0.50683292470144161",
-          "amountInRaw": "506832924701441610",
-          "amountOut": "0.295369155315853212",
-          "amountOutRaw": "295369155315853212",
-          "expectedAmountOutAfterFeeRaw": "219467428027864678305",
-          "fee": 10000,
-          "feeBps": 100,
-          "fromSymbol": "0X71178B",
-          "hop": 3,
-          "inputDecimals": 18,
-          "outputDecimals": 18,
-          "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-          "poolState": {
-            "blockNumber": 113728916,
-            "fee": 10000,
-            "liquidity": "14142135623730950",
-            "lpFee": 10000,
-            "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-            "poolId": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-            "protocol": "uniswap_v4",
-            "protocolFee": 0,
-            "quoter": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
-            "source": "pool_manager_extsload_live_state",
-            "sqrtPriceX96": "3788301655602371544650197071",
-            "tick": -60812,
-            "tickSpacing": 200,
-            "token0": "0x0000000000000000000000000000000000000000",
-            "token0Decimals": 18,
-            "token0Symbol": "ETH",
-            "token1": "0x71178bac73cbeb415514eb542a8995b82669778d",
-            "token1Decimals": 18,
-            "token1Symbol": "0X71178B"
-          },
-          "priceImpactBps": 9986.541549332853,
-          "priceImpactFeeExcluded": true,
-          "priceImpactLimitBps": 10,
-          "priceImpactSource": "live_pool_spot_price_excluding_lp_fee",
-          "priceImpactWithinLimit": false,
-          "protocol": "uniswap_v4",
-          "quoteMethod": "robinhood_testnet_v4_quoter_quoteExactInputSingle_eth_call",
-          "quoteMode": "uniswap_v4_sdk_exact_input_single",
-          "quoterGasEstimate": 53677,
-          "sdkAdapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-          "spotAmountOutRaw": "221684270735216846773",
-          "staticQuote": {
-            "executionTrust": "sdk_adapter_required",
-            "outputAmount": "0.295369155315853212",
-            "outputUsd": null,
-            "quoteSource": "uniswap_v4_sdk_adapter_required"
-          },
-          "status": "live_verified",
-          "toSymbol": "ETH",
-          "tokenIn": "0x71178BAc73cBeb415514eB542a8995b82669778d",
-          "tokenOut": "0x0000000000000000000000000000000000000000"
-        }
-      ],
-      "livePriceVerified": true,
       "network": "robinhood-testnet",
-      "observedAt": "2026-09-05T22:27:38.248681+00:00",
-      "priceEvidenceMode": "live_verified",
-      "priceEvidenceSource": "chain_live_quote",
-      "quoteBlockSource": "trigger_block",
-      "quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
-      "readyForTransactionPreflight": false,
-      "requestedBorrowInputAmountRaw": "10000000000000000",
+      "observedAt": "2026-09-12T10:22:00Z",
+      "quoteBlockSource": "latest_fallback_missing_trigger",
+      "readyForTransactionPreflight": true,
+      "requestedBorrowInputAmountRaw": 100000000000000,
       "routeAddresses": [
-        "0x0000000000000000000000000000000000000000",
-        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "0x71178bac73cbeb415514eb542a8995b82669778d",
-        "0x0000000000000000000000000000000000000000"
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
       ],
       "routeSymbols": [
-        "ETH",
-        "0XC9F9C8",
-        "0X71178B",
-        "ETH"
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
       ],
-      "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
-      "selectedBorrowInputAmountRaw": "10000000000000000",
-      "status": "pool_insufficient_for_profitable_execution",
-      "transactionDevelopment": {
-        "blockers": [
-          "至少一跳价格影响无法确认或超过 10 bps，不能进入交易预检。",
-          "链上核算扣除闪电贷费用后仍未转正，不能进入预检。",
-          "当前池子深度不足以支持满足单跳 10 bps 限制且扣除闪电贷费用后盈利的借贷规模。"
-        ],
-        "executionEnabled": false,
-        "status": "blocked_before_transaction_development"
-      },
-      "triggerBlockNumber": 113728916,
-      "triggerContext": {
-        "available": true,
-        "blockNumber": 113728916,
-        "blockTimestamp": 1788647299,
-        "chainId": 46630,
-        "confirmations": 2,
-        "error": null,
-        "evidencePath": null,
-        "headBlockNumber": 113728918,
-        "network": "robinhood-testnet",
-        "observedAt": "2026-09-05T22:27:38.248681+00:00",
-        "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
-        "source": "scan_trigger_chain_head_confirmed",
-        "triggerBlockNumber": 113728916
-      },
+      "selectedBorrowInputAmountRaw": 100000000000000,
+      "status": "live_verified",
+      "triggerBlockNumber": 118022639,
       "trustedForExecution": false,
       "validation": {
         "allHopsQuoted": true,
-        "allHopsWithinPriceImpactLimit": false,
-        "borrowAssetClass": "non_stable",
-        "borrowAssetIsStable": false,
-        "borrowInputAmount": 0.01,
-        "borrowInputSymbol": "ETH",
-        "executionSizeSearchStatus": "pool_insufficient_for_profitable_execution",
-        "finalOutputAmount": 0.2953691553158532,
-        "finalOutputDecimals": 18,
-        "finalOutputSymbol": "ETH",
-        "hopPriceImpactLimitBps": 10,
-        "meetsMinProfitThreshold": false,
-        "meetsOffchainProfitThreshold": false,
-        "meetsSubmissionProfitThreshold": false,
-        "netPositiveAfterCosts": false,
-        "netProfitAmount": 0.2853641553158532,
-        "netProfitAmountSymbol": "ETH",
-        "nonStablePositiveXProfitPolicy": true,
-        "poolInsufficientForProfitableExecution": true,
-        "priceImpactIssues": [
-          {
-            "error": null,
-            "fromSymbol": "ETH",
-            "hop": 1,
-            "limitBps": 10,
-            "priceImpactBps": 9999.840904296489,
-            "toSymbol": "0XC9F9C8"
-          },
-          {
-            "error": null,
-            "fromSymbol": "0XC9F9C8",
-            "hop": 2,
-            "limitBps": 10,
-            "priceImpactBps": 135.19203965211824,
-            "toSymbol": "0X71178B"
-          },
-          {
-            "error": null,
-            "fromSymbol": "0X71178B",
-            "hop": 3,
-            "limitBps": 10,
-            "priceImpactBps": 9986.541549332853,
-            "toSymbol": "ETH"
-          }
-        ],
-        "profitableAfterCosts": false,
-        "requestedBorrowInputAmount": 0.01,
+        "allHopsWithinPriceImpactLimit": true,
+        "finalOutputSymbol": "TZ",
+        "maxHopPriceImpactBps": 0.3152689441537622,
+        "meetsMinProfitThreshold": true,
+        "meetsOffchainProfitThreshold": true,
+        "meetsSubmissionProfitThreshold": true,
+        "netPositiveAfterCosts": true,
+        "profitableAfterCosts": true,
         "routeClosed": true,
         "tokenContinuity": true,
         "tokenContinuityIssues": []
       }
     },
-    "pair": "ETH -> 0XC9F9C8 -> 0X71178B -> ETH",
-    "path": [
-      "ETH",
-      "0XC9F9C8",
-      "0X71178B",
-      "ETH"
-    ],
-    "quote_requests": [
-      {
-        "fee": 500,
-        "pool": "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-        "protocol": "uniswap_v4",
-        "quoteMode": "pool_exact_input_probe",
-        "quoteRequestUrl": "/api/dex/quote-request?pair=ETH%20-%3E%200XC9F9C8%20-%3E%200X71178B%20-%3E%20ETH&venue=amm_pool",
-        "routeAddresses": [
-          "0x0000000000000000000000000000000000000000",
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "0x0000000000000000000000000000000000000000"
-        ],
-        "routeSymbols": [
-          "ETH",
-          "0XC9F9C8",
-          "0X71178B",
-          "ETH"
-        ],
-        "routeTokenPath": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          },
-          {
-            "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-            "symbol": "0XC9F9C8"
-          },
-          {
-            "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
-            "symbol": "0X71178B"
-          },
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          }
-        ],
-        "status": "requires_live_quoter",
-        "venue": "amm_pool"
-      },
-      {
-        "fee": 3000,
-        "pool": "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-        "protocol": "uniswap_v4",
-        "quoteMode": "pool_exact_input_probe",
-        "quoteRequestUrl": "/api/dex/quote-request?pair=ETH%20-%3E%200XC9F9C8%20-%3E%200X71178B%20-%3E%20ETH&venue=amm_pool",
-        "routeAddresses": [
-          "0x0000000000000000000000000000000000000000",
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "0x0000000000000000000000000000000000000000"
-        ],
-        "routeSymbols": [
-          "ETH",
-          "0XC9F9C8",
-          "0X71178B",
-          "ETH"
-        ],
-        "routeTokenPath": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          },
-          {
-            "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-            "symbol": "0XC9F9C8"
-          },
-          {
-            "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
-            "symbol": "0X71178B"
-          },
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          }
-        ],
-        "status": "requires_live_quoter",
-        "venue": "amm_pool"
-      },
-      {
-        "fee": 10000,
-        "pool": "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8",
-        "protocol": "uniswap_v4",
-        "quoteMode": "pool_exact_input_probe",
-        "quoteRequestUrl": "/api/dex/quote-request?pair=ETH%20-%3E%200XC9F9C8%20-%3E%200X71178B%20-%3E%20ETH&venue=amm_pool",
-        "routeAddresses": [
-          "0x0000000000000000000000000000000000000000",
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "0x0000000000000000000000000000000000000000"
-        ],
-        "routeSymbols": [
-          "ETH",
-          "0XC9F9C8",
-          "0X71178B",
-          "ETH"
-        ],
-        "routeTokenPath": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          },
-          {
-            "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-            "symbol": "0XC9F9C8"
-          },
-          {
-            "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
-            "symbol": "0X71178B"
-          },
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          }
-        ],
-        "status": "requires_live_quoter",
-        "venue": "amm_pool"
-      },
-      {
-        "adapterHints": [
-          "pool_manager_state_required",
-          "hook_aware_quote_required",
-          "multi_hop_path_must_follow_market_observation_route",
-          "sdk_or_adapter_must_return_amount_out_raw"
-        ],
-        "chainId": 46630,
-        "pools": [
-          "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
-          "0x767901e9dce6ebd2df6cdaa31bdd77626ce1086d36ab0fb55543a599d68c8c6f",
-          "0xb8153b22310c84eb2f20f0c8ef9189cf97e706bc449384cd4f87adc556d589f8"
-        ],
-        "quoteMode": "uniswap_v4_sdk_exact_input_route",
-        "quoteRequestUrl": "/api/dex/quote-request?pair=ETH%20-%3E%200XC9F9C8%20-%3E%200X71178B%20-%3E%20ETH&venue=uniswap_v4",
-        "routeAddresses": [
-          "0x0000000000000000000000000000000000000000",
-          "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-          "0x71178bac73cbeb415514eb542a8995b82669778d",
-          "0x0000000000000000000000000000000000000000"
-        ],
-        "routeSymbols": [
-          "ETH",
-          "0XC9F9C8",
-          "0X71178B",
-          "ETH"
-        ],
-        "routeTokenPath": [
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          },
-          {
-            "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-            "symbol": "0XC9F9C8"
-          },
-          {
-            "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
-            "symbol": "0X71178B"
-          },
-          {
-            "address": "0x0000000000000000000000000000000000000000",
-            "symbol": "ETH"
-          }
-        ],
-        "status": "sdk_adapter_required",
-        "venue": "uniswap_v4"
-      }
-    ],
-    "route_addresses": [
-      "0x0000000000000000000000000000000000000000",
-      "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-      "0x71178bac73cbeb415514eb542a8995b82669778d",
-      "0x0000000000000000000000000000000000000000"
-    ],
-    "route_token_path": [
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "symbol": "ETH"
-      },
-      {
-        "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-        "symbol": "0XC9F9C8"
-      },
-      {
-        "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
-        "symbol": "0X71178B"
-      },
-      {
-        "address": "0x0000000000000000000000000000000000000000",
-        "symbol": "ETH"
-      }
-    ]
+    "network": "robinhood-testnet",
+    "pair": "TZ -> TB -> TA -> TZ"
   },
-  "route_addresses": [
-    "0x0000000000000000000000000000000000000000",
-    "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-    "0x71178bac73cbeb415514eb542a8995b82669778d",
-    "0x0000000000000000000000000000000000000000"
-  ],
   "route_path": [
-    "ETH",
-    "0XC9F9C8",
-    "0X71178B",
-    "ETH"
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
   ],
-  "route_token_path": [
-    {
-      "address": "0x0000000000000000000000000000000000000000",
-      "symbol": "ETH"
-    },
-    {
-      "address": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
-      "symbol": "0XC9F9C8"
-    },
-    {
-      "address": "0x71178bac73cbeb415514eb542a8995b82669778d",
-      "symbol": "0X71178B"
-    },
-    {
-      "address": "0x0000000000000000000000000000000000000000",
-      "symbol": "ETH"
-    }
+  "route_symbols": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
   ],
-  "state": "pool_insufficient_for_profitable_execution"
+  "state": "live_verified"
 }

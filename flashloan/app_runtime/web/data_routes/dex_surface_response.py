@@ -24,6 +24,8 @@ DEX_QUOTE_PROTOCOLS = {
     "curve",
 }
 
+MAX_CANDIDATE_PAGE_SIZE = 1000
+
 
 def _number_like(value: object) -> int:
     try:
@@ -149,7 +151,12 @@ def paginate_candidate_payload(payload: dict, *, page: int, page_size: int, quer
 
 def candidate_pagination_args() -> tuple[int, int, str, str]:
     page = shared.request_int_arg("page", 1, minimum=1)
-    page_size = shared.request_int_arg("page_size", 1, minimum=1, maximum=20)
+    page_size = shared.request_int_arg(
+        "page_size",
+        20,
+        minimum=1,
+        maximum=MAX_CANDIDATE_PAGE_SIZE,
+    )
     query = request.args.get("q", "").strip().lower()
     quality = request.args.get("quality", "all").strip().lower()
     if quality not in {"all", "with_data", "empty"}:

@@ -8,10 +8,12 @@ from dex.intent_trade.chains.robinhood_testnet.v4_flash_accounting_sources impor
 )
 from dex.intent_trade.chains.common.dex_candidate_tables import pair_symbol_universe
 from dex.intent_trade.chains.robinhood_testnet.v4_pool_index import load_robinhood_testnet_v4_pool_index
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import load_robinhood_testnet_v4_pool_liquidity
-
-
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
+from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import (
+    _known_token_pool_ids,
+    _load_token_balance_scan_cache,
+    load_robinhood_testnet_v4_pool_liquidity,
+)
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
 
 
 def _symbol(value: object) -> str:
@@ -474,6 +476,57 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
 
     index = pool_index_loader()
     liquidity = pool_liquidity_loader()
+    # The liquidity document is intentionally scoped to active flash sources.
+    # Reuse the balance scan cache only for allowlisted/trade-demand tokens so
+    # cold pools remain visible without dragging the whole historical cache in.
+    cached_liquidity = dict(liquidity)
+    cached_payload = dict(liquidity.get("payload") or {})
+    cache = _load_token_balance_scan_cache(
+        pool_manager=str(
+            liquidity.get("pool_manager")
+            or (liquidity.get("payload") or {}).get("poolManager")
+            or ""
+        )
+    )
+    cached_entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
+    configured_sources = list(
+        cached_payload.get("flashAccountingSources")
+        or cached_payload.get("flash_accounting_sources")
+        or liquidity.get("flashAccountingSources")
+        or []
+    )
+    configured_addresses = {
+        str(row.get("address") or "").lower()
+        for row in configured_sources
+        if isinstance(row, dict)
+    }
+    known_token_addresses = set(_known_token_pool_ids().keys())
+    for address, entry in cached_entries.items():
+        if not isinstance(entry, dict) or str(address).lower() in configured_addresses:
+            continue
+        if str(address).lower() not in known_token_addresses:
+            continue
+        try:
+            balance_raw = int(str(entry.get("balanceRaw") or "0"))
+        except (TypeError, ValueError):
+            balance_raw = 0
+        if balance_raw <= 0:
+            continue
+        configured_sources.append(
+            {
+                "address": entry.get("address") or address,
+                "symbol": entry.get("symbol"),
+                "decimals": entry.get("decimals"),
+                "poolManagerBalanceRaw": str(balance_raw),
+                "poolManagerBalance": balance_raw / 10 ** int(entry.get("decimals") or 18),
+                "poolIds": entry.get("poolIds") or [],
+                "source": "token_balance_scan_cache",
+            }
+        )
+    cached_payload["flashAccountingSources"] = configured_sources
+    cached_liquidity["payload"] = cached_payload
+    cached_liquidity["flashAccountingSources"] = configured_sources
+    liquidity = cached_liquidity
     liquidity_payload = liquidity.get("payload") if isinstance(liquidity.get("payload"), dict) else {}
     index_payload = index.get("payload") if isinstance(index.get("payload"), dict) else {}
     pool_manager = str(

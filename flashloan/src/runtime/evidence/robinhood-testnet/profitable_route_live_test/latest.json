@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "robinhood-testnet-profitable-route-live-evidence-v1",
+  "network": "robinhood-testnet",
+  "chainId": 46630,
+  "complete": true,
+  "broadcastOk": true,
+  "txHash": "0x50430f33c2fba9f2f982c2cecec879b445b6e1b9d51ea237b35e247f25e0c9b4",
+  "arbitrageContract": "0x08897B67746ffcE1d121cC3012a81562920Edb22",
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "route": {
+    "symbols": ["TZ", "TB", "TA", "TZ"],
+    "addresses": [
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+    ]
+  },
+  "borrowInputAmountRaw": "100000000000000",
+  "borrowInputSymbol": "TZ",
+  "finalOutputAmountRaw": "991024169388451",
+  "profitRaw": "891024169388451",
+  "gasUsed": "270392",
+  "receiptStatus": 1,
+  "flashDebtCleared": true,
+  "broadcastWasExplicitlyEnabled": true,
+  "checkedAt": "2026-09-12T10:30:00Z",
+  "onchainQuoteReview": {
+    "reviewedAt": "2026-09-12T10:22:00Z",
+    "blockNumber": 118022639,
+    "quoteBlockSource": "latest_fallback_missing_trigger",
+    "status": "live_verified",
+    "readyForTransactionPreflight": true,
+    "allHopsQuoted": true,
+    "allHopsWithinPriceImpactLimit": true,
+    "routeClosed": true,
+    "tokenContinuity": true,
+    "profitableAfterCosts": true,
+    "netProfitAmount": 0.0890879790093855,
+    "netProfitAmountSymbol": "TZ",
+    "maxHopPriceImpactBps": 0.3152689441537622
+  }
+}

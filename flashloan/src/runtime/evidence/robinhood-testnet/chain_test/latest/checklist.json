@@ -1,6 +1,6 @@
 [
   {
-    "detail": "锁定 ETH -> 0XC9F9C8 -> 0X71178B -> ETH / 触发区块 113728916",
+    "detail": "锁定 TZ -> TB -> TA -> TZ / 触发区块 118022639",
     "done": true,
     "id": "freeze_snapshot",
     "status": "done",
@@ -31,7 +31,7 @@
     "detail": "只读 Quoter 已复核后仍需本地仿真",
     "done": false,
     "id": "fork_staticcall",
-    "status": "blocked",
+    "status": "pending",
     "title": "执行 fork/static-call 仿真"
   },
   {

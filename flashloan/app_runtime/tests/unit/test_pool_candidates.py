@@ -1,12 +1,18 @@
 import pytest
+from flask import Flask
 
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
+from market.binance_market import pool_candidate_filtering
+from market.binance_market.pool_candidate_filtering import _candidate_pool_source_available
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
+from core.chain_data_registry import chain_data_by_chain_id
 from market.strategy.arbitrage import ArbitrageConfig
+from market.binance_market.dex_surface_v4 import _static_depth_available
+from web.data_routes import dex_surface_response
 
 
 def _write_json(path, payload):
@@ -42,6 +48,51 @@ def _pool(pool_id: str, token0_symbol: str, token1_symbol: str, token0: str, tok
     }
 
 
+def test_robinhood_testnet_candidate_pagination_defaults_to_20_rows(monkeypatch):
+    app = Flask(__name__)
+    with app.test_request_context("/api/dex-pools/candidates?chain_id=46630"):
+        page, page_size, query, quality = dex_surface_response.candidate_pagination_args()
+        assert page == 1
+        assert page_size == 20
+        assert query == ""
+        assert quality == "all"
+
+
+def test_non_testnet_candidate_pagination_keeps_legacy_default(monkeypatch):
+    app = Flask(__name__)
+    with app.test_request_context("/api/dex-pools/candidates?chain_id=4663"):
+        _, page_size, _, _ = dex_surface_response.candidate_pagination_args()
+        assert page_size == 20
+
+
+def test_candidate_pagination_allows_larger_page_size_when_requested(monkeypatch):
+    app = Flask(__name__)
+    with app.test_request_context("/api/dex-pools/candidates?chain_id=46630&page_size=1000"):
+        _, page_size, _, _ = dex_surface_response.candidate_pagination_args()
+        assert page_size == 1000
+
+
+def test_robinhood_mainnet_static_quote_routes_keep_protocol_scope():
+    assert dex_surfaces._robinhood_static_scope_protocols(
+        chain_id=4663,
+        protocols=["uniswap_v3", "uniswap_v4"],
+        use_static_observation=True,
+    ) == ["uniswap_v3", "uniswap_v4"]
+    assert dex_surfaces._robinhood_static_scope_protocols(
+        chain_id=4663,
+        protocols=["uniswap_v3"],
+        use_static_observation=True,
+    ) == ["uniswap_v3"]
+
+
+def test_robinhood_testnet_static_quote_routes_keep_protocol_scope():
+    assert dex_surfaces._robinhood_static_scope_protocols(
+        chain_id=46630,
+        protocols=["uniswap_v3", "uniswap_v4"],
+        use_static_observation=True,
+    ) == ["uniswap_v3", "uniswap_v4"]
+
+
 def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
     monkeypatch.setattr(
         quote_service,
@@ -63,6 +114,32 @@ def test_build_binance_market_state_uses_shared_pool_candidates(monkeypatch):
     )
 
     assert payload["pool_candidates"]["mode"] == "stub_pool_candidates"
+
+
+def test_robinhood_mainnet_candidate_source_available_with_relative_data_file(monkeypatch, tmp_path):
+    fake_path = tmp_path / "robinhood_dex_candidates.json"
+    fake_path.write_text("{}", encoding="utf-8")
+
+    def fake_chain_data_file_path(network, key, *, chain_id=None, root=None):
+        assert key == "dex_candidates"
+        assert chain_id == 4663
+        return fake_path
+
+    monkeypatch.setattr(pool_candidate_filtering, "chain_data_file_path", fake_chain_data_file_path)
+
+    assert _candidate_pool_source_available(4663) is True
+
+
+def test_robinhood_v4_pool_manager_address_is_same_on_mainnet_and_testnet():
+    mainnet = chain_data_by_chain_id(4663) or {}
+    testnet = chain_data_by_chain_id(46630) or {}
+    mainnet_contracts = mainnet.get("contracts") or {}
+    testnet_contracts = testnet.get("contracts") or {}
+
+    for key in ("v4_pool_manager", "v4_quoter", "position_manager", "permit2", "universal_router"):
+        assert str(mainnet_contracts.get(key) or "").lower()
+        assert str(mainnet_contracts.get(key) or "").lower() == str(testnet_contracts.get(key) or "").lower(), key
+    assert str(mainnet_contracts.get("v4_pool_manager") or "").lower() == "0x8366a39cc670b4001a1121b8f6a443a643e40951"
 
 
 def test_anchor_candidate_groups_split_yc_and_zc_by_anchor():
@@ -234,7 +311,7 @@ def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
     assert int(payload["summary"]["anchorGroupCount"]) <= int(payload["summary"]["flashAccountingAssetCount"])
     assert payload["summary"]["candidateSetStorageMode"] == "shared_yc_zc_pool_set"
     assert int(payload["summary"]["ycZcSameSetGroupCount"]) > 0
-    assert 0 < int(payload["summary"]["candidateRouteCount"]) <= int(payload["summary"]["v4ActivePoolCount"])
+    assert 0 < int(payload["summary"]["candidateRouteCount"]) <= int(payload["summary"]["v4IndexedPoolCount"])
     assert payload["pairs"][0]["identityMode"] == "pool_key"
     assert payload["pairs"][0]["preferredPools"][0]["poolIdentityMode"] == "pool_id"
     assert payload["pairs"][0]["preferredPools"][0]["protocol"] == "uniswap_v4"
@@ -259,6 +336,55 @@ def test_robinhood_testnet_v4_pool_candidates_merge_disjoint_index_and_liquidity
     assert [pool["poolId"] for pool in pools] == ["0x01", "0x02"]
     assert mode == "robinhood_testnet_v4_pool_sources_merged"
     assert source == "index.json"
+
+
+def test_robinhood_testnet_v4_pool_candidates_include_known_cold_pool_ids(monkeypatch):
+    from dex.intent_trade.chains.robinhood_testnet import dex_pool_candidates
+
+    active_id = "0x" + "c" * 64
+    known_id = "0x" + "a" * 64
+    monkeypatch.setattr(
+        dex_pool_candidates,
+        "_known_token_pool_ids",
+        lambda: {"0xknown": [f"testnet-v4-amm-manifest.tz", known_id]},
+    )
+    indexed = {
+        "ok": True,
+        "source": "index.json",
+        "pools": [
+            {"poolId": active_id, "token0": "0xactive0", "token1": "0xactive1"},
+            {"poolId": known_id, "token0": "0xtz", "token1": "0xta"},
+        ],
+    }
+    liquidity = {
+        "ok": True,
+        "source": "liquidity.json",
+        "pools": [{"poolId": active_id, "token0": "0xactive0", "token1": "0xactive1"}],
+    }
+
+    pools, mode, _ = dex_pool_candidates._candidate_source_pools(indexed, liquidity)
+
+    assert {pool["poolId"] for pool in pools} == {active_id, known_id}
+    assert mode == "robinhood_testnet_v4_pool_sources_merged"
+
+
+def test_v4_static_depth_available_for_indexed_sqrt_price_pool():
+    assert _static_depth_available(
+        {
+            "protocol": "uniswap_v4",
+            "liquidity": "",
+            "tvlUsd": 0,
+            "sqrtPriceX96": "25054144837438405210904448839",
+        }
+    ) is True
+    assert _static_depth_available(
+        {
+            "protocol": "uniswap_v4",
+            "liquidity": "",
+            "tvlUsd": 0,
+            "sqrtPriceX96": "",
+        }
+    ) is False
 
 
 def test_dex_pool_candidates_classifies_stable_and_non_stable_pools(tmp_path, monkeypatch):

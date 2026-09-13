@@ -25,7 +25,7 @@ from dex.intent_trade.chains.robinhood import config as robinhood
 DEFAULT_RESEARCH_MARKET: dict[str, Any] = {
     "network": robinhood.NETWORK,
     "chainId": robinhood.CHAIN_ID,
-    "rpcUrl": robinhood.DEFAULT_RPC_URLS[0],
+    "rpcUrl": (robinhood.DEFAULT_RPC_URLS or ("https://rpc.mainnet.chain.robinhood.com",))[0],
     "factory": "0x1f7d7550b1b028f7571e69a784071F0205FD2EfA",
     "quoter": robinhood.default_v3_quoter_address("0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7"),
     "router": "0xCaf681a66D020601342297493863E78C959E5cb2",

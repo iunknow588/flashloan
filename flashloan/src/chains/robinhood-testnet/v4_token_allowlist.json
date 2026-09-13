@@ -1,0 +1,225 @@
+{
+  "schema_version": "robinhood-testnet-v4-token-allowlist-v1",
+  "network": "robinhood-testnet",
+  "chain_id": 46630,
+  "description": "Static token allowlist for Robinhood Testnet V4 pool scanning and observability. Default scans use this list plus active pool currencies instead of full initialized PoolManager discovery.",
+  "tokens": {
+    "tz": {
+      "symbol": "TZ",
+      "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "decimals": 18,
+      "category": "test_fixture",
+      "source": "test-token_create/config/testnet-v4-amm/manifest.json"
+    },
+    "ta": {
+      "symbol": "TA",
+      "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "decimals": 18,
+      "category": "test_fixture",
+      "source": "test-token_create/config/testnet-v4-amm/manifest.json"
+    },
+    "tb": {
+      "symbol": "TB",
+      "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "decimals": 18,
+      "category": "test_fixture",
+      "source": "test-token_create/config/testnet-v4-amm/manifest.json"
+    },
+    "weth": {
+      "symbol": "WETH",
+      "address": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+      "decimals": 18,
+      "category": "wrapped_native",
+      "source": "chain.json.contracts.wrapped_native"
+    },
+    "weth_alt": {
+      "symbol": "WETH",
+      "address": "0x33e4191705c386532ba27cBF171Db86919200B94",
+      "decimals": 18,
+      "category": "wrapped_native",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "bonk": {
+      "symbol": "BONK",
+      "address": "0xc865c16d62821123Af3075fe7ed0582cBd537B7a",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "1000x": {
+      "symbol": "1000X",
+      "address": "0x1Bb88a7EEefEdA21673D4177804050A042d3E6E9",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "bpepe": {
+      "symbol": "BPEPE",
+      "address": "0x2f3b25c2ad43313347b475D761bBf0BB489021B9",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "aeth": {
+      "symbol": "AETH",
+      "address": "0xc16A60868BB741a4f18D07C594DDa40aA3C04870",
+      "decimals": 18,
+      "category": "wrapped_native",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "usdc": {
+      "symbol": "USDC",
+      "address": "0x58cF1f9aa413aD044109aE6eCAc2AA473218b554",
+      "decimals": 6,
+      "category": "stablecoin",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "usdt": {
+      "symbol": "USDT",
+      "address": "0x80134dF477DeC046b8F4656Ce75e1eBb18718896",
+      "decimals": 18,
+      "category": "stablecoin",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "tusd": {
+      "symbol": "TUSD",
+      "address": "0x4F3b01AD7Ac6D1639069Ce7CFB1116bFc0152896",
+      "decimals": 18,
+      "category": "stablecoin",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "wbtc": {
+      "symbol": "WBTC",
+      "address": "0xAf10804164F5f28935ee616afe6F9CEaf437Ff2b",
+      "decimals": 18,
+      "category": "asset",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "link": {
+      "symbol": "LINK",
+      "address": "0x99bd8F31D42db7f50b82ac6B04a026b804615EeB",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "aave": {
+      "symbol": "AAVE",
+      "address": "0xF675ca0E424FBA17BC9995d83992786D82944cca",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "uni": {
+      "symbol": "UNI",
+      "address": "0x2925EaC44CCEF1f91A2660dfBAbb7f3239Ba2d6E",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "arb": {
+      "symbol": "ARB",
+      "address": "0x6e96923114362874bdF128fF27e8FB2F5e63f95d",
+      "decimals": 18,
+      "category": "l2",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "op": {
+      "symbol": "OP",
+      "address": "0x3A1B75CC948e61eaFd12724986EcF0D050442fC1",
+      "decimals": 18,
+      "category": "l2",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "doge": {
+      "symbol": "DOGE",
+      "address": "0x2353A261A9498113b18014aF68f7d35A49f79999",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "shib": {
+      "symbol": "SHIB",
+      "address": "0x020B43Ee82662e433b7f3D9d05D45a2b6723E41F",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "pepe": {
+      "symbol": "PEPE",
+      "address": "0xD69947bA2EbDC38f3414797945c737C9F3C4f031",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "sol": {
+      "symbol": "SOL",
+      "address": "0x22caD1d1Ad43f2fA2db4c36955E5c52e68e1D401",
+      "decimals": 18,
+      "category": "asset",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "bnb": {
+      "symbol": "BNB",
+      "address": "0x250c0133EfbA678B0394292B47428150E56EfA02",
+      "decimals": 18,
+      "category": "asset",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "crv": {
+      "symbol": "CRV",
+      "address": "0xaBC9dE3769CcF242DAd0822199025c5fFc5a89Db",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "mkr": {
+      "symbol": "MKR",
+      "address": "0x1fF5dC0B6AB7227218AFA6C0109929d2d293A25c",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "frax": {
+      "symbol": "FRAX",
+      "address": "0x3BfADb358FDbFA63a3Fad9C267759a462AF2cE0f",
+      "decimals": 18,
+      "category": "stablecoin",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "grt": {
+      "symbol": "GRT",
+      "address": "0xF6ba2550914178692064569027C5afA9FDfCBF18",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "ldo": {
+      "symbol": "LDO",
+      "address": "0xaB1c6d1883C7455c7028b078B3236ebdFDfffF1a",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "sushi": {
+      "symbol": "SUSHI",
+      "address": "0x653b47e7E4B763558588A2eeaBa943C674CFB015",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "pol": {
+      "symbol": "POL",
+      "address": "0xE0AA675dDd6E73B5bF01e7ff82B226C805fb2c6B",
+      "decimals": 18,
+      "category": "asset",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
+    "1inch": {
+      "symbol": "1INCH",
+      "address": "0xA2217348a757E5DF5e3DC1Fe7a3F97A98Be46F02",
+      "decimals": 18,
+      "category": "defi",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    }
+  }
+}

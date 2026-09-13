@@ -1,0 +1,74 @@
+{
+  "tz": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+  "ta": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+  "tb": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+  "tokenTotal": "10000000000000000000000000",
+  "amm": "0xccdDb88018115603BB06D2995EE112D7F1A142Ac",
+  "arb": "0xCc8F29C9f5bC84B64062Ec293692c211D5a05660",
+  "lastLiveTest": {
+    "txHash": "0x63016dd913be043ad0c7d5bf423ecd9aea693d167c8835fb3a8d88ac1deef829",
+    "runAt": "2026-09-12T05:05:03.013Z",
+    "amountIn": "100000000000000000000",
+    "outTb": "999000999000999000999",
+    "outTa": "99800399201596806387",
+    "outTz": "997008973080757726817",
+    "profit": "897008973080757726817",
+    "metricBefore": "10",
+    "metricAfter": "9.94026892403547"
+  },
+  "officialV4": {
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "positionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "txHash": "0x913c8b12bb538834bfb874facb81825c18e12897840bfd221d39976a91f86c64",
+    "runAt": "2026-09-12T06:01:42.212Z",
+    "arb": "0x08897B67746ffcE1d121cC3012a81562920Edb22",
+    "lastArbLiveTest": {
+      "txHash": "0x50430f33c2fba9f2f982c2cecec879b445b6e1b9d51ea237b35e247f25e0c9b4",
+      "runAt": "2026-09-12T09:44:03.366Z",
+      "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+      "arb": "0x08897B67746ffcE1d121cC3012a81562920Edb22",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "amountIn": "100000000000000",
+      "outTb": "996999057006240",
+      "outTa": "99400712248179",
+      "outTz": "991024169388451",
+      "profit": "891024169388451",
+      "gasUsed": "270392",
+      "route": {
+        "keys": [
+          {
+            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000"
+          },
+          {
+            "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000"
+          },
+          {
+            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000"
+          }
+        ],
+        "directions": [
+          true,
+          true,
+          false
+        ]
+      },
+      "retainedAtLeast80Percent": true
+    }
+  }
+}

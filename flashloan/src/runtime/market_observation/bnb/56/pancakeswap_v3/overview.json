@@ -1,9 +1,1231 @@
 {
-  "borrowableSymbols": [],
+  "borrowableSymbols": [
+    "USDC",
+    "USDT"
+  ],
   "chainSpecificObservationPairs": [],
   "chain_id": 56,
   "chain_key": "bnb:56:pancakeswap_v3",
-  "closedLoopRouteSummaries": [],
+  "closedLoopRouteSummaries": [
+    {
+      "anchorAddresses": [
+        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
+      ],
+      "anchorSymbol": "BTCB",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BTCB -> USDT",
+        "USDT -> ETH",
+        "ETH -> BTCB"
+      ],
+      "pathSymbols": [
+        "BTCB",
+        "USDT",
+        "ETH",
+        "BTCB"
+      ],
+      "pathText": "BTCB -> USDT -> ETH -> BTCB",
+      "poolIds": [
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6"
+      ],
+      "routeKey": "BTCB -> USDT -> ETH -> BTCB|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
+      ],
+      "anchorSymbol": "BTCB",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BTCB -> WBNB",
+        "WBNB -> ETH",
+        "ETH -> BTCB"
+      ],
+      "pathSymbols": [
+        "BTCB",
+        "WBNB",
+        "ETH",
+        "BTCB"
+      ],
+      "pathText": "BTCB -> WBNB -> ETH -> BTCB",
+      "poolIds": [
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6"
+      ],
+      "routeKey": "BTCB -> WBNB -> ETH -> BTCB|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
+      ],
+      "anchorSymbol": "BTCB",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BTCB -> WBNB",
+        "WBNB -> USDT",
+        "USDT -> BTCB"
+      ],
+      "pathSymbols": [
+        "BTCB",
+        "WBNB",
+        "USDT",
+        "BTCB"
+      ],
+      "pathText": "BTCB -> WBNB -> USDT -> BTCB",
+      "poolIds": [
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4"
+      ],
+      "routeKey": "BTCB -> WBNB -> USDT -> BTCB|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0x172fcd41e0913e95784454622d1c3724f546f849|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
+      ],
+      "anchorSymbol": "BTCB",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BTCB -> ETH",
+        "ETH -> USDT",
+        "USDT -> BTCB"
+      ],
+      "pathSymbols": [
+        "BTCB",
+        "ETH",
+        "USDT",
+        "BTCB"
+      ],
+      "pathText": "BTCB -> ETH -> USDT -> BTCB",
+      "poolIds": [
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4"
+      ],
+      "routeKey": "BTCB -> ETH -> USDT -> BTCB|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
+      ],
+      "anchorSymbol": "BTCB",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BTCB -> USDT",
+        "USDT -> WBNB",
+        "WBNB -> BTCB"
+      ],
+      "pathSymbols": [
+        "BTCB",
+        "USDT",
+        "WBNB",
+        "BTCB"
+      ],
+      "pathText": "BTCB -> USDT -> WBNB -> BTCB",
+      "poolIds": [
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636"
+      ],
+      "routeKey": "BTCB -> USDT -> WBNB -> BTCB|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0x172fcd41e0913e95784454622d1c3724f546f849|0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
+      ],
+      "anchorSymbol": "BTCB",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "BTCB -> ETH",
+        "ETH -> WBNB",
+        "WBNB -> BTCB"
+      ],
+      "pathSymbols": [
+        "BTCB",
+        "ETH",
+        "WBNB",
+        "BTCB"
+      ],
+      "pathText": "BTCB -> ETH -> WBNB -> BTCB",
+      "poolIds": [
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636"
+      ],
+      "routeKey": "BTCB -> ETH -> WBNB -> BTCB|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "BTCB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> USDT",
+        "USDT -> BTCB",
+        "BTCB -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "USDT",
+        "BTCB",
+        "ETH"
+      ],
+      "pathText": "ETH -> USDT -> BTCB -> ETH",
+      "poolIds": [
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6"
+      ],
+      "routeKey": "ETH -> USDT -> BTCB -> ETH|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "BTCB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> WBNB",
+        "WBNB -> BTCB",
+        "BTCB -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "WBNB",
+        "BTCB",
+        "ETH"
+      ],
+      "pathText": "ETH -> WBNB -> BTCB -> ETH",
+      "poolIds": [
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6"
+      ],
+      "routeKey": "ETH -> WBNB -> BTCB -> ETH|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "USDC",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> USDT",
+        "USDT -> USDC",
+        "USDC -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "USDT",
+        "USDC",
+        "ETH"
+      ],
+      "pathText": "ETH -> USDT -> USDC -> ETH",
+      "poolIds": [
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664"
+      ],
+      "routeKey": "ETH -> USDT -> USDC -> ETH|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x4f31fa980a675570939b737ebdde0471a4be40eb|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "USDC",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> WBNB",
+        "WBNB -> USDC",
+        "USDC -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "WBNB",
+        "USDC",
+        "ETH"
+      ],
+      "pathText": "ETH -> WBNB -> USDC -> ETH",
+      "poolIds": [
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664"
+      ],
+      "routeKey": "ETH -> WBNB -> USDC -> ETH|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0xf2688fb5b81049dfb7703ada5e770543770612c4|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> WBNB",
+        "WBNB -> USDT",
+        "USDT -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "WBNB",
+        "USDT",
+        "ETH"
+      ],
+      "pathText": "ETH -> WBNB -> USDT -> ETH",
+      "poolIds": [
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5"
+      ],
+      "routeKey": "ETH -> WBNB -> USDT -> ETH|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x172fcd41e0913e95784454622d1c3724f546f849|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "BTCB",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> BTCB",
+        "BTCB -> USDT",
+        "USDT -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "BTCB",
+        "USDT",
+        "ETH"
+      ],
+      "pathText": "ETH -> BTCB -> USDT -> ETH",
+      "poolIds": [
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5"
+      ],
+      "routeKey": "ETH -> BTCB -> USDT -> ETH|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "USDC",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> USDC",
+        "USDC -> USDT",
+        "USDT -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "USDC",
+        "USDT",
+        "ETH"
+      ],
+      "pathText": "ETH -> USDC -> USDT -> ETH",
+      "poolIds": [
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5"
+      ],
+      "routeKey": "ETH -> USDC -> USDT -> ETH|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0x4f31fa980a675570939b737ebdde0471a4be40eb|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> USDT",
+        "USDT -> WBNB",
+        "WBNB -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "USDT",
+        "WBNB",
+        "ETH"
+      ],
+      "pathText": "ETH -> USDT -> WBNB -> ETH",
+      "poolIds": [
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba"
+      ],
+      "routeKey": "ETH -> USDT -> WBNB -> ETH|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x172fcd41e0913e95784454622d1c3724f546f849|0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "BTCB",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> BTCB",
+        "BTCB -> WBNB",
+        "WBNB -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "BTCB",
+        "WBNB",
+        "ETH"
+      ],
+      "pathText": "ETH -> BTCB -> WBNB -> ETH",
+      "poolIds": [
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba"
+      ],
+      "routeKey": "ETH -> BTCB -> WBNB -> ETH|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
+      ],
+      "anchorSymbol": "ETH",
+      "bridgeSymbol": "USDC",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "ETH -> USDC",
+        "USDC -> WBNB",
+        "WBNB -> ETH"
+      ],
+      "pathSymbols": [
+        "ETH",
+        "USDC",
+        "WBNB",
+        "ETH"
+      ],
+      "pathText": "ETH -> USDC -> WBNB -> ETH",
+      "poolIds": [
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba"
+      ],
+      "routeKey": "ETH -> USDC -> WBNB -> ETH|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0xf2688fb5b81049dfb7703ada5e770543770612c4|0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+      ],
+      "anchorSymbol": "USDC",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDC -> USDT",
+        "USDT -> ETH",
+        "ETH -> USDC"
+      ],
+      "pathSymbols": [
+        "USDC",
+        "USDT",
+        "ETH",
+        "USDC"
+      ],
+      "pathText": "USDC -> USDT -> ETH -> USDC",
+      "poolIds": [
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664"
+      ],
+      "routeKey": "USDC -> USDT -> ETH -> USDC|0x4f31fa980a675570939b737ebdde0471a4be40eb|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+      ],
+      "anchorSymbol": "USDC",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDC -> WBNB",
+        "WBNB -> ETH",
+        "ETH -> USDC"
+      ],
+      "pathSymbols": [
+        "USDC",
+        "WBNB",
+        "ETH",
+        "USDC"
+      ],
+      "pathText": "USDC -> WBNB -> ETH -> USDC",
+      "poolIds": [
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664"
+      ],
+      "routeKey": "USDC -> WBNB -> ETH -> USDC|0xf2688fb5b81049dfb7703ada5e770543770612c4|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+      ],
+      "anchorSymbol": "USDC",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDC -> WBNB",
+        "WBNB -> USDT",
+        "USDT -> USDC"
+      ],
+      "pathSymbols": [
+        "USDC",
+        "WBNB",
+        "USDT",
+        "USDC"
+      ],
+      "pathText": "USDC -> WBNB -> USDT -> USDC",
+      "poolIds": [
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb"
+      ],
+      "routeKey": "USDC -> WBNB -> USDT -> USDC|0xf2688fb5b81049dfb7703ada5e770543770612c4|0x172fcd41e0913e95784454622d1c3724f546f849|0x4f31fa980a675570939b737ebdde0471a4be40eb",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+      ],
+      "anchorSymbol": "USDC",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDC -> ETH",
+        "ETH -> USDT",
+        "USDT -> USDC"
+      ],
+      "pathSymbols": [
+        "USDC",
+        "ETH",
+        "USDT",
+        "USDC"
+      ],
+      "pathText": "USDC -> ETH -> USDT -> USDC",
+      "poolIds": [
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb"
+      ],
+      "routeKey": "USDC -> ETH -> USDT -> USDC|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x4f31fa980a675570939b737ebdde0471a4be40eb",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+      ],
+      "anchorSymbol": "USDC",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDC -> USDT",
+        "USDT -> WBNB",
+        "WBNB -> USDC"
+      ],
+      "pathSymbols": [
+        "USDC",
+        "USDT",
+        "WBNB",
+        "USDC"
+      ],
+      "pathText": "USDC -> USDT -> WBNB -> USDC",
+      "poolIds": [
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4"
+      ],
+      "routeKey": "USDC -> USDT -> WBNB -> USDC|0x4f31fa980a675570939b737ebdde0471a4be40eb|0x172fcd41e0913e95784454622d1c3724f546f849|0xf2688fb5b81049dfb7703ada5e770543770612c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
+      ],
+      "anchorSymbol": "USDC",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDC -> ETH",
+        "ETH -> WBNB",
+        "WBNB -> USDC"
+      ],
+      "pathSymbols": [
+        "USDC",
+        "ETH",
+        "WBNB",
+        "USDC"
+      ],
+      "pathText": "USDC -> ETH -> WBNB -> USDC",
+      "poolIds": [
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4"
+      ],
+      "routeKey": "USDC -> ETH -> WBNB -> USDC|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0xf2688fb5b81049dfb7703ada5e770543770612c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "BTCB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> ETH",
+        "ETH -> BTCB",
+        "BTCB -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "ETH",
+        "BTCB",
+        "USDT"
+      ],
+      "pathText": "USDT -> ETH -> BTCB -> USDT",
+      "poolIds": [
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4"
+      ],
+      "routeKey": "USDT -> ETH -> BTCB -> USDT|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "BTCB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> WBNB",
+        "WBNB -> BTCB",
+        "BTCB -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "WBNB",
+        "BTCB",
+        "USDT"
+      ],
+      "pathText": "USDT -> WBNB -> BTCB -> USDT",
+      "poolIds": [
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4"
+      ],
+      "routeKey": "USDT -> WBNB -> BTCB -> USDT|0x172fcd41e0913e95784454622d1c3724f546f849|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "BTCB",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> BTCB",
+        "BTCB -> ETH",
+        "ETH -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "BTCB",
+        "ETH",
+        "USDT"
+      ],
+      "pathText": "USDT -> BTCB -> ETH -> USDT",
+      "poolIds": [
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5"
+      ],
+      "routeKey": "USDT -> BTCB -> ETH -> USDT|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "USDC",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> USDC",
+        "USDC -> ETH",
+        "ETH -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "USDC",
+        "ETH",
+        "USDT"
+      ],
+      "pathText": "USDT -> USDC -> ETH -> USDT",
+      "poolIds": [
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5"
+      ],
+      "routeKey": "USDT -> USDC -> ETH -> USDT|0x4f31fa980a675570939b737ebdde0471a4be40eb|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> WBNB",
+        "WBNB -> ETH",
+        "ETH -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "WBNB",
+        "ETH",
+        "USDT"
+      ],
+      "pathText": "USDT -> WBNB -> ETH -> USDT",
+      "poolIds": [
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5"
+      ],
+      "routeKey": "USDT -> WBNB -> ETH -> USDT|0x172fcd41e0913e95784454622d1c3724f546f849|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "USDC",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> ETH",
+        "ETH -> USDC",
+        "USDC -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "ETH",
+        "USDC",
+        "USDT"
+      ],
+      "pathText": "USDT -> ETH -> USDC -> USDT",
+      "poolIds": [
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb"
+      ],
+      "routeKey": "USDT -> ETH -> USDC -> USDT|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0x4f31fa980a675570939b737ebdde0471a4be40eb",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "WBNB",
+      "counterSymbol": "USDC",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> WBNB",
+        "WBNB -> USDC",
+        "USDC -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "WBNB",
+        "USDC",
+        "USDT"
+      ],
+      "pathText": "USDT -> WBNB -> USDC -> USDT",
+      "poolIds": [
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb"
+      ],
+      "routeKey": "USDT -> WBNB -> USDC -> USDT|0x172fcd41e0913e95784454622d1c3724f546f849|0xf2688fb5b81049dfb7703ada5e770543770612c4|0x4f31fa980a675570939b737ebdde0471a4be40eb",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "BTCB",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> BTCB",
+        "BTCB -> WBNB",
+        "WBNB -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "BTCB",
+        "WBNB",
+        "USDT"
+      ],
+      "pathText": "USDT -> BTCB -> WBNB -> USDT",
+      "poolIds": [
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0x172fcd41e0913e95784454622d1c3724f546f849"
+      ],
+      "routeKey": "USDT -> BTCB -> WBNB -> USDT|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0x172fcd41e0913e95784454622d1c3724f546f849",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> ETH",
+        "ETH -> WBNB",
+        "WBNB -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "ETH",
+        "WBNB",
+        "USDT"
+      ],
+      "pathText": "USDT -> ETH -> WBNB -> USDT",
+      "poolIds": [
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x172fcd41e0913e95784454622d1c3724f546f849"
+      ],
+      "routeKey": "USDT -> ETH -> WBNB -> USDT|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x172fcd41e0913e95784454622d1c3724f546f849",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0x55d398326f99059ff775485246999027b3197955"
+      ],
+      "anchorSymbol": "USDT",
+      "bridgeSymbol": "USDC",
+      "counterSymbol": "WBNB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "USDT -> USDC",
+        "USDC -> WBNB",
+        "WBNB -> USDT"
+      ],
+      "pathSymbols": [
+        "USDT",
+        "USDC",
+        "WBNB",
+        "USDT"
+      ],
+      "pathText": "USDT -> USDC -> WBNB -> USDT",
+      "poolIds": [
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0x172fcd41e0913e95784454622d1c3724f546f849"
+      ],
+      "routeKey": "USDT -> USDC -> WBNB -> USDT|0x4f31fa980a675570939b737ebdde0471a4be40eb|0xf2688fb5b81049dfb7703ada5e770543770612c4|0x172fcd41e0913e95784454622d1c3724f546f849",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "BTCB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> USDT",
+        "USDT -> BTCB",
+        "BTCB -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "USDT",
+        "BTCB",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> USDT -> BTCB -> WBNB",
+      "poolIds": [
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636"
+      ],
+      "routeKey": "WBNB -> USDT -> BTCB -> WBNB|0x172fcd41e0913e95784454622d1c3724f546f849|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "BTCB",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> ETH",
+        "ETH -> BTCB",
+        "BTCB -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "ETH",
+        "BTCB",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> ETH -> BTCB -> WBNB",
+      "poolIds": [
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636"
+      ],
+      "routeKey": "WBNB -> ETH -> BTCB -> WBNB|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "BTCB",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> BTCB",
+        "BTCB -> ETH",
+        "ETH -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "BTCB",
+        "ETH",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> BTCB -> ETH -> WBNB",
+      "poolIds": [
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0x4bba1018b967e59220b22ca03f68821a3276c9a6",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba"
+      ],
+      "routeKey": "WBNB -> BTCB -> ETH -> WBNB|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0x4bba1018b967e59220b22ca03f68821a3276c9a6|0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "USDC",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> USDC",
+        "USDC -> ETH",
+        "ETH -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "USDC",
+        "ETH",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> USDC -> ETH -> WBNB",
+      "poolIds": [
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba"
+      ],
+      "routeKey": "WBNB -> USDC -> ETH -> WBNB|0xf2688fb5b81049dfb7703ada5e770543770612c4|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "ETH",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> USDT",
+        "USDT -> ETH",
+        "ETH -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "USDT",
+        "ETH",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> USDT -> ETH -> WBNB",
+      "poolIds": [
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba"
+      ],
+      "routeKey": "WBNB -> USDT -> ETH -> WBNB|0x172fcd41e0913e95784454622d1c3724f546f849|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "USDT",
+      "counterSymbol": "USDC",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> USDT",
+        "USDT -> USDC",
+        "USDC -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "USDT",
+        "USDC",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> USDT -> USDC -> WBNB",
+      "poolIds": [
+        "0x172fcd41e0913e95784454622d1c3724f546f849",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4"
+      ],
+      "routeKey": "WBNB -> USDT -> USDC -> WBNB|0x172fcd41e0913e95784454622d1c3724f546f849|0x4f31fa980a675570939b737ebdde0471a4be40eb|0xf2688fb5b81049dfb7703ada5e770543770612c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "USDC",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> ETH",
+        "ETH -> USDC",
+        "USDC -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "ETH",
+        "USDC",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> ETH -> USDC -> WBNB",
+      "poolIds": [
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664",
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4"
+      ],
+      "routeKey": "WBNB -> ETH -> USDC -> WBNB|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0x539e0ebfffd39e54a0f7e5f8fec40ade7933a664|0xf2688fb5b81049dfb7703ada5e770543770612c4",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "BTCB",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> BTCB",
+        "BTCB -> USDT",
+        "USDT -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "BTCB",
+        "USDT",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> BTCB -> USDT -> WBNB",
+      "poolIds": [
+        "0x6bbc40579ad1bbd243895ca0acb086bb6300d636",
+        "0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4",
+        "0x172fcd41e0913e95784454622d1c3724f546f849"
+      ],
+      "routeKey": "WBNB -> BTCB -> USDT -> WBNB|0x6bbc40579ad1bbd243895ca0acb086bb6300d636|0x46cf1cf8c69595804ba91dfdd8d6b960c9b0a7c4|0x172fcd41e0913e95784454622d1c3724f546f849",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "USDC",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> USDC",
+        "USDC -> USDT",
+        "USDT -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "USDC",
+        "USDT",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> USDC -> USDT -> WBNB",
+      "poolIds": [
+        "0xf2688fb5b81049dfb7703ada5e770543770612c4",
+        "0x4f31fa980a675570939b737ebdde0471a4be40eb",
+        "0x172fcd41e0913e95784454622d1c3724f546f849"
+      ],
+      "routeKey": "WBNB -> USDC -> USDT -> WBNB|0xf2688fb5b81049dfb7703ada5e770543770612c4|0x4f31fa980a675570939b737ebdde0471a4be40eb|0x172fcd41e0913e95784454622d1c3724f546f849",
+      "source": "market_observation"
+    },
+    {
+      "anchorAddresses": [
+        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
+      ],
+      "anchorSymbol": "WBNB",
+      "bridgeSymbol": "ETH",
+      "counterSymbol": "USDT",
+      "kind": "anchor_closed_loop_token_bridge",
+      "observationRef": "observation.json",
+      "pairSymbols": [
+        "WBNB -> ETH",
+        "ETH -> USDT",
+        "USDT -> WBNB"
+      ],
+      "pathSymbols": [
+        "WBNB",
+        "ETH",
+        "USDT",
+        "WBNB"
+      ],
+      "pathText": "WBNB -> ETH -> USDT -> WBNB",
+      "poolIds": [
+        "0xd0e226f674bbf064f54ab47f42473ff80db98cba",
+        "0xbe141893e4c6ad9272e8c04bab7e6a10604501a5",
+        "0x172fcd41e0913e95784454622d1c3724f546f849"
+      ],
+      "routeKey": "WBNB -> ETH -> USDT -> WBNB|0xd0e226f674bbf064f54ab47f42473ff80db98cba|0xbe141893e4c6ad9272e8c04bab7e6a10604501a5|0x172fcd41e0913e95784454622d1c3724f546f849",
+      "source": "market_observation"
+    }
+  ],
   "dexSettlement": {
     "arbitrage_integration": {
       "can_combine_with_flashloan": true,
@@ -73,25 +1295,38 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "dex_market_observation",
-  "generated_at": "2026-09-09T05:56:39.515652Z",
+  "generated_at": "2026-09-10T23:57:23.125543Z",
   "handler": null,
   "list_counts": {
-    "borrowableSymbols": 0,
+    "borrowableSymbols": 2,
     "chainSpecificObservationPairs": 0,
-    "closedLoopRouteSummaries": 0,
-    "observationAnchorSymbols": 0
+    "closedLoopRouteSummaries": 42,
+    "observationAnchorSymbols": 2
   },
   "mode": "dex_market_observation",
   "network": "bnb",
-  "observationAnchorSymbols": [],
+  "observationAnchorSymbols": [
+    "USDC",
+    "USDT"
+  ],
   "observationSnapshotPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\bnb\\56\\pancakeswap_v3\\observation.json",
   "ok": true,
   "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\bnb\\56\\pancakeswap_v3\\overview.json",
   "poolStaticTable": {
+    "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\bnb\\chain-56\\snapshot.json",
     "chainId": 56,
-    "exists": false,
+    "exists": true,
+    "factory": null,
+    "generatedAt": "2026-08-15T06:35:58Z",
+    "generatedBlockNumber": null,
+    "mode": "bnb_static_pool_table",
     "network": "bnb",
-    "path": null
+    "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\bnb\\chain-56\\snapshot.json",
+    "quoter": null,
+    "router": null,
+    "sourceDiscoveryBlockNumber": null,
+    "sourceDiscoveryFetchedAt": null,
+    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\bnb_arbitrage_pool_static_table.json"
   },
   "protocol_key": "pancakeswap_v3",
   "protocols": [
@@ -107,35 +1342,35 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 0,
+    "borrowableTokenCount": 2,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
-    "candidateObservationBridgeCount": 0,
+    "candidateObservationBridgeCount": 58,
     "candidateObservationDirectCount": 0,
-    "candidateObservationGroupCount": 0,
-    "candidateObservationPoolCount": 0,
-    "candidateObservationSequenceCount": 0,
+    "candidateObservationGroupCount": 6,
+    "candidateObservationPoolCount": 9,
+    "candidateObservationSequenceCount": 42,
     "chainSpecificObservationSequenceCount": 0,
-    "closedLoopRouteCount": 0,
+    "closedLoopRouteCount": 58,
     "directClosedLoopCount": 0,
-    "directPairCount": 0,
+    "directPairCount": 6,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
     "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
     "fundAnchorPairObservationAssociatedPairCount": 0,
     "fundAnchorPairObservationPoolCount": 0,
     "fundAnchorPairObservationRouteCount": 0,
-    "indirectRouteCount": 0,
+    "indirectRouteCount": 58,
     "nonEthPairFirstAssociatedObservationPoolCount": 0,
     "nonEthPairFirstAssociatedObservationTokenCount": 0,
     "nonEthPairFirstAssociatedPairCount": 0,
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
-    "observableTokenCount": 0,
-    "observationAnchorCount": 0,
-    "observationSequenceAnchorCount": 0,
-    "observationSequenceCount": 0,
-    "observationSequencePoolCount": 0,
-    "unmatchedPairCount": 0
+    "observableTokenCount": 6,
+    "observationAnchorCount": 2,
+    "observationSequenceAnchorCount": 5,
+    "observationSequenceCount": 42,
+    "observationSequencePoolCount": 9,
+    "unmatchedPairCount": 1
   },
   "surface": "dex_market_observation"
 }

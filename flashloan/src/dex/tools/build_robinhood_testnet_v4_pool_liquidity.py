@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = Path(__file__).resolve().parents[2]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
@@ -22,6 +22,11 @@ def main() -> int:
     parser.add_argument("--preflight-report", default="", help="Optional preflight report.json path.")
     parser.add_argument("--output", default="", help="Optional output path; defaults to chain-owned v4_pool_liquidity file.")
     parser.add_argument("--pool-limit", type=int, default=80)
+    parser.add_argument(
+        "--token-balance-scan-scope",
+        default="active_plus_known",
+        help="PoolIndex balance scan scope: full_index, active_plus_known, or none. Defaults to active_plus_known with the static token allowlist so cold pools are visible without a full initialized pool scan.",
+    )
     parser.add_argument("--rpc-url", default="", help="Optional Robinhood Testnet RPC URL override.")
     parser.add_argument("--skip-rpc-decode", action="store_true", help="Keep poolId-only rows without PoolKey/token metadata.")
     args = parser.parse_args()
@@ -31,6 +36,7 @@ def main() -> int:
         contract_metadata_path=Path(args.contract_metadata) if args.contract_metadata else None,
         preflight_report_path=Path(args.preflight_report) if args.preflight_report else None,
         pool_limit=args.pool_limit,
+        token_balance_scan_scope=args.token_balance_scan_scope,
         decode_pool_keys=not args.skip_rpc_decode,
         rpc_url=args.rpc_url or None,
     )

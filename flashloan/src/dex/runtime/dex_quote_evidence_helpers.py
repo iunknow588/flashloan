@@ -5,6 +5,8 @@ from decimal import Decimal, InvalidOperation
 import importlib
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
 from web3 import Web3
@@ -80,7 +82,14 @@ def _text(value: object) -> str:
 
 def _is_missing_historical_state_error(exc: BaseException) -> bool:
     message = _text(exc).lower()
-    return "missing trie node" in message or "state is not available" in message or "state .* not found" in message
+    return (
+        "missing trie node" in message
+        or "metadata is not found" in message
+        or ("historical state" in message and "is not available" in message)
+        or "state is not available" in message
+        or ("state is not" in message and "available" in message)
+        or "state .* not found" in message
+    )
 
 
 def _is_pool_not_initialized_error(exc: BaseException) -> bool:
@@ -91,9 +100,35 @@ def _is_pool_not_initialized_error(exc: BaseException) -> bool:
     return bool(cause is not None and _is_pool_not_initialized_error(cause))
 
 
+def _is_missing_v4_adapter_error(exc: BaseException) -> bool:
+    message = _text(exc).lower()
+    if any(
+        marker in message
+        for marker in (
+            "quote adapter is required",
+            "adapter_required",
+            "adapter required",
+            "v4 pool manager address missing",
+            "v4 quoter address missing",
+            "v4 pool index missing",
+            "pool index missing requested pool",
+            "pool index data file",
+            "pool key decode",
+            "requested hop tokens do not match",
+        )
+    ):
+        return True
+    cause = getattr(exc, "__cause__", None)
+    return bool(cause is not None and _is_missing_v4_adapter_error(cause))
+
+
 def _is_not_enough_liquidity_error(exc: BaseException) -> bool:
     message = _text(exc).lower()
-    if "notenoughliquidity" in message.replace("_", "").replace("(", "").replace(")", "") or "not enough liquidity" in message:
+    if (
+        "notenoughliquidity" in message.replace("_", "").replace("(", "").replace(")", "")
+        or "not enough liquidity" in message
+        or "insufficient liquidity" in message
+    ):
         return True
     cause = getattr(exc, "__cause__", None)
     return bool(cause is not None and _is_not_enough_liquidity_error(cause))
@@ -109,18 +144,26 @@ DEX_STATUS_ERROR_KEYS = {
     "live_quote_failed": "DEX.QUOTE.LIVE_QUOTE_FAILED",
     "pool_not_initialized": "DEX.ONCHAIN.HOP_QUOTE.POOL_NOT_INITIALIZED",
     "not_enough_liquidity": "DEX.ONCHAIN.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY",
+    "rpc_verification_failed": "DEX.ONCHAIN.RPC_FAILED",
+    "adapter_required": "DEX.ONCHAIN.ADAPTER_REQUIRED",
+    "missing_trigger_block": "DEX.ONCHAIN.TRIGGER_BLOCK_MISSING",
     "not_profitable_after_costs": "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS",
     "route_unprofitable": "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS",
     "pool_insufficient_for_profitable_execution": "DEX.GATE.NOT_READY",
     "slippage_limit_exceeded": "DEX.GATE.NOT_READY",
     "live_evidence_deferred": "DEX.GATE.NOT_READY",
     "live_quote_reference_only": "DEX.GATE.NOT_READY",
+    "missing_effective_pool": "DEX.GATE.NOT_READY",
+    "depth_insufficient": "DEX.GATE.NOT_READY",
 }
 
 DEX_ERROR_KEY_CODES = {
     "DEX.QUOTE.LIVE_QUOTE_FAILED": ErrorCode.DEX_LIVE_QUOTE_FAILED,
     "DEX.ONCHAIN.HOP_QUOTE.POOL_NOT_INITIALIZED": ErrorCode.DEX_POOL_NOT_INITIALIZED,
     "DEX.ONCHAIN.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY": ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY,
+    "DEX.ONCHAIN.RPC_FAILED": ErrorCode.DEX_RPC_FAILED,
+    "DEX.ONCHAIN.ADAPTER_REQUIRED": ErrorCode.DEX_GATE_NOT_READY,
+    "DEX.ONCHAIN.TRIGGER_BLOCK_MISSING": ErrorCode.DEX_GATE_NOT_READY,
     "DEX.SIZE_PROBE.POOL_NOT_INITIALIZED": ErrorCode.DEX_SIZE_POOL_NOT_INITIALIZED,
     "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS": ErrorCode.DEX_SIZE_NOT_PROFITABLE,
     "DEX.GATE.NOT_READY": ErrorCode.DEX_GATE_NOT_READY,
@@ -186,27 +229,67 @@ def _dex_error_stack_from_hop(hop: dict[str, Any], *, index: int = 0, flow: str 
         if _is_not_enough_liquidity_error(ValueError(str(raw)))
         else "pool_not_initialized"
         if _is_pool_not_initialized_error(ValueError(str(raw)))
+        else "adapter_required"
+        if _is_missing_v4_adapter_error(ValueError(str(raw)))
         else status,
         "DEX.QUOTE.LIVE_QUOTE_FAILED" if status in {"live_quote_failed", "quote_failed"} else "CORE.OK",
     )
     stack = None
-    if status in {"live_quote_failed", "quote_failed", "live_evidence_deferred", "pool_not_initialized", "not_enough_liquidity"}:
+    if status in {"live_quote_failed", "quote_failed", "live_evidence_deferred", "pool_not_initialized", "not_enough_liquidity", "adapter_required"}:
         stack = ErrorStack()
         hop_num = hop.get("hop") or index
         symbols = f"{_norm_symbol(hop.get('fromSymbol'))}->{_norm_symbol(hop.get('toSymbol'))}"
-        reason = str(message or key)
+        code = int(DEX_ERROR_KEY_CODES.get(key, ErrorCode.DEX_LIVE_QUOTE_FAILED))
         stack.push(
             ModuleError(
                 module="DEX",
-                code=int(DEX_ERROR_KEY_CODES.get(key, ErrorCode.DEX_LIVE_QUOTE_FAILED)),
-                message=f"hop {hop_num} {symbols}: {reason}",
+                code=code,
+                message=f"hop {hop_num} {symbols} verification failed",
             )
         )
+        raw_text = str(message or "").strip()
+        if raw_text.startswith(f"hop {hop_num} {symbols}:"):
+            raw_text = raw_text.split(":", 1)[1].strip()
+        layers: list[str] = []
+        for segment in raw_text.split(";"):
+            segment = segment.strip()
+            if not segment:
+                continue
+            lowered = segment.lower()
+            if "reverted" in lowered and not segment.endswith("reverted"):
+                before, after = segment.split("reverted", 1)
+                layers.append((before + "reverted").strip())
+                if after.lstrip(": ").strip():
+                    layers.extend(part.strip() for part in after.lstrip(": ").split("->") if part.strip())
+            elif "exact-input call failed" in lowered or "reverted" in lowered:
+                layers.append(segment)
+            else:
+                layers.extend(part.strip() for part in segment.split("->") if part.strip())
+        for layer in layers:
+            if layer.startswith("hop ") and "verification failed" in layer.lower():
+                continue
+            stack.push(
+                ModuleError(
+                    module="DEX",
+                    code=code,
+                    message=layer,
+                )
+            )
     return stack.as_list() if stack is not None else []
 
 
 def _as_dict(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _has_not_enough_liquidity_blocker(evidence: dict[str, Any]) -> bool:
+    hops = evidence.get("hops") or []
+    if any(_text(hop.get("status")).lower() == "not_enough_liquidity" for hop in hops if isinstance(hop, dict)):
+        return True
+    blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
+    if not blockers:
+        return False
+    return _is_not_enough_liquidity_error(ValueError(" ".join(blockers)))
 
 
 def _number(value: object) -> float | None:
@@ -305,12 +388,41 @@ def _pool_for_step(step: dict[str, Any], pools: dict[str, dict[str, Any]]) -> di
 
 
 def _load_v4_quote_adapter(*, network: str | None = None, chain_id: int | None = None) -> Any | None:
-    reference = (
-        os.getenv("UNISWAP_V4_QUOTE_ADAPTER")
-        or os.getenv("DEX_V4_QUOTE_ADAPTER")
-        or os.getenv("ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER")
-        or os.getenv("ROBINHOOD_V4_QUOTE_ADAPTER")
+    normalized_network = _text(network).strip().lower()
+    is_testnet = bool(
+        normalized_network in {ROBINHOOD_TESTNET_NETWORK, "robinhood_sepolia", "robinhood_testnet"}
+        or int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID
     )
+    is_mainnet = bool(
+        normalized_network in {"robinhood", "robinhood-mainnet", "robinhood_mainnet"}
+        or int(chain_id or 0) == robinhood.CHAIN_ID
+    )
+    if is_testnet:
+        preferred_names = (
+            "ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER",
+            "ROBINHOOD_V4_QUOTE_ADAPTER",
+            "UNISWAP_V4_QUOTE_ADAPTER",
+            "DEX_V4_QUOTE_ADAPTER",
+        )
+    elif is_mainnet:
+        preferred_names = (
+            "ROBINHOOD_MAINNET_V4_QUOTE_ADAPTER",
+            "ROBINHOOD_V4_QUOTE_ADAPTER",
+            "UNISWAP_V4_QUOTE_ADAPTER",
+            "DEX_V4_QUOTE_ADAPTER",
+        )
+    else:
+        preferred_names = (
+            "ROBINHOOD_V4_QUOTE_ADAPTER",
+            "UNISWAP_V4_QUOTE_ADAPTER",
+            "DEX_V4_QUOTE_ADAPTER",
+        )
+    reference = ""
+    for name in preferred_names:
+        candidate = str(os.getenv(name) or "").strip()
+        if candidate:
+            reference = candidate
+            break
     if reference:
         module_name, separator, attr_path = str(reference).strip().partition(":")
         if not module_name or not separator or not attr_path:
@@ -528,8 +640,14 @@ def _quote_v4_hop(
         "liquidity": pool.get("liquidity"),
     }
     adapter_loader = _evidence_attr_or_default("_load_v4_quote_adapter", _load_v4_quote_adapter)
+    adapter = adapter_loader(network=network, chain_id=chain_id)
+    if adapter is None:
+        chain_label = network or (_text(chain_id) or "robinhood")
+        raise RuntimeError(
+            f"{chain_label} V4 quote adapter is required; missing pool manager/quoter configuration"
+        )
     quote = quote_v4_exact_input_single(
-        adapter=adapter_loader(network=network, chain_id=chain_id),
+        adapter=adapter,
         request=request,
     )
     amount_out = int(quote["amountOutRaw"])
@@ -560,28 +678,85 @@ def _quote_v4_hop(
 
 def _connect_robinhood() -> tuple[Any, str]:
     failures: list[str] = []
-    for url in robinhood.rpc_urls_from_env():
-        w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "6") or 6)}))
+    timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12)
+    urls = robinhood.rpc_urls_from_env()
+    if not urls:
+        raise RuntimeError("Robinhood RPC unavailable: no RPC URLs configured")
+
+    def _probe(url: str) -> tuple[Any, str]:
+        w3 = Web3(
+            Web3.HTTPProvider(
+                url,
+                request_kwargs={
+                    "timeout": timeout,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "User-Agent": "flashloan-robinhood-mainnet/1.1",
+                        "Connection": "close",
+                    },
+                },
+            )
+        )
+        if not w3.is_connected():
+            raise RuntimeError("HTTP endpoint did not answer")
+        actual_chain_id = int(w3.eth.chain_id)
+        if actual_chain_id != robinhood.CHAIN_ID:
+            raise RuntimeError(f"wrong chain id {actual_chain_id}, expected {robinhood.CHAIN_ID}")
+        return w3, url
+
+    if len(urls) == 1:
         try:
-            if w3.is_connected() and int(w3.eth.chain_id) == robinhood.CHAIN_ID:
-                return w3, url
+            return _probe(urls[0])
         except Exception as exc:
-            failures.append(f"{url}: {exc}")
-    raise RuntimeError("Robinhood RPC 涓嶅彲鐢? " + "; ".join(failures[:3]))
+            raise RuntimeError("Robinhood RPC unavailable: " + str(exc))
+    with ThreadPoolExecutor(max_workers=len(urls)) as executor:
+        future_to_url = {executor.submit(_probe, url): url for url in urls}
+        try:
+            for future in as_completed(future_to_url):
+                try:
+                    return future.result()
+                except Exception as exc:
+                    failures.append(f"{future_to_url[future]}: {exc}")
+                    continue
+        finally:
+            for future in list(future_to_url):
+                future.cancel()
+    raise RuntimeError("Robinhood RPC unavailable: " + "; ".join(failures[:3]))
 
 
 def _connect_robinhood_family(chain_id: int | None, network: str) -> tuple[Any, str]:
     normalized_network = _text(network).lower()
     if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID or normalized_network == ROBINHOOD_TESTNET_NETWORK:
         failures: list[str] = []
-        timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "6") or 6)
+        timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12)
+        attempts_per_url = max(1, int(os.getenv("DEX_ONCHAIN_RPC_CONNECT_ATTEMPTS", "3") or 3))
         for url in robinhood.testnet_rpc_urls_from_env():
-            w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": timeout}))
-            try:
-                if w3.is_connected() and int(w3.eth.chain_id) == ROBINHOOD_TESTNET_CHAIN_ID:
-                    return w3, url
-            except Exception as exc:
-                failures.append(f"{url}: {exc}")
+            for attempt in range(attempts_per_url):
+                w3 = Web3(
+                    Web3.HTTPProvider(
+                        url,
+                        request_kwargs={
+                            "timeout": timeout,
+                            "headers": {
+                                "Content-Type": "application/json",
+                                "User-Agent": "flashloan-robinhood-testnet/1.1",
+                                "Connection": "close",
+                            },
+                        },
+                    )
+                )
+                try:
+                    if not w3.is_connected():
+                        failures.append(f"{url} attempt={attempt + 1}: not connected")
+                    else:
+                        actual_chain_id = int(w3.eth.chain_id)
+                        if actual_chain_id == ROBINHOOD_TESTNET_CHAIN_ID:
+                            return w3, url
+                        failures.append(f"{url} attempt={attempt + 1}: chain_id mismatch {actual_chain_id}, expected {ROBINHOOD_TESTNET_CHAIN_ID}")
+                except Exception as exc:
+                    failures.append(f"{url} attempt={attempt + 1}: {exc}")
+                if attempt + 1 < attempts_per_url:
+                    time.sleep(0.75 * (attempt + 1))
         raise RuntimeError("Robinhood Testnet RPC unavailable: " + "; ".join(failures[:3]))
     connect_robinhood = _evidence_attr_or_default("_connect_robinhood", _connect_robinhood)
     return connect_robinhood()
@@ -1108,19 +1283,22 @@ def _probe_robinhood_testnet_route_execution_size(
                 break
             last_failure_reason = reason
             if reason not in {"not_profitable_after_costs"}:
-                return _stop_without_size(reason or "not_eligible")
+                if reason == "not_enough_liquidity" or (reason == "live_quote_failed" and _has_not_enough_liquidity_blocker(evidence)):
+                    first_ineligible_amount_raw = probe
+                else:
+                    return _stop_without_size(reason or "not_eligible")
             if reason == "not_profitable_after_costs":
                 # A route that is unprofitable after all hops and costs cannot
                 # be made profitable by lowering the borrow size.
                 return _stop_without_size(reason)
             first_ineligible_amount_raw = probe
         except Exception as exc:
-            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
+            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed")
             candidate_rows.append(
                 {
                     "attempt": attempts,
                     "amountRaw": str(probe),
-                    "status": "quote_failed",
+                    "status": quote_failure_reason,
                     "error": str(exc),
                     "errorStack": _dex_error_stack_from_status(
                         quote_failure_reason,
@@ -1132,7 +1310,11 @@ def _probe_robinhood_testnet_route_execution_size(
                     ),
                 }
             )
-            return _stop_without_size(quote_failure_reason, raw_error=str(exc))
+            if quote_failure_reason in {"live_quote_failed", "not_enough_liquidity"} and _is_not_enough_liquidity_error(exc):
+                first_ineligible_amount_raw = probe
+                last_failure_reason = quote_failure_reason
+            else:
+                return _stop_without_size(quote_failure_reason, raw_error=str(exc))
         if lower_bound is not None:
             break
         next_probe = max(min_probe_amount_raw, probe // 2)
@@ -1146,6 +1328,8 @@ def _probe_robinhood_testnet_route_execution_size(
             if last_failure_reason == "not_profitable_after_costs"
             else "pool_not_initialized"
             if last_failure_reason == "pool_not_initialized"
+            else "not_enough_liquidity"
+            if last_failure_reason == "not_enough_liquidity"
             else "live_quote_failed"
         )
         return {
@@ -1169,6 +1353,9 @@ def _probe_robinhood_testnet_route_execution_size(
             ),
         }
 
+    if upper_bound is None and first_ineligible_amount_raw is not None and first_ineligible_amount_raw > lower_bound:
+        upper_bound = first_ineligible_amount_raw
+
     probe = min(max_probe_amount_raw, max(lower_bound * 2, lower_bound + 1))
     while attempts < max_attempts and probe <= max_probe_amount_raw:
         try:
@@ -1185,15 +1372,18 @@ def _probe_robinhood_testnet_route_execution_size(
                 continue
             first_ineligible_amount_raw = probe
             expansion_stop_reason = reason or "not_eligible"
-            upper_bound = None
+            if reason == "not_enough_liquidity" or (reason == "live_quote_failed" and _has_not_enough_liquidity_blocker(evidence)):
+                upper_bound = probe
+            else:
+                upper_bound = None
             break
         except Exception as exc:
-            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
+            quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed")
             candidate_rows.append(
                 {
                     "attempt": attempts,
                     "amountRaw": str(probe),
-                    "status": "quote_failed",
+                    "status": quote_failure_reason,
                     "error": str(exc),
                     "errorStack": _dex_error_stack_from_status(
                         quote_failure_reason,
@@ -1207,7 +1397,10 @@ def _probe_robinhood_testnet_route_execution_size(
             )
             first_ineligible_amount_raw = probe
             expansion_stop_reason = quote_failure_reason
-            upper_bound = None
+            if quote_failure_reason in {"live_quote_failed", "not_enough_liquidity"} and _is_not_enough_liquidity_error(exc):
+                upper_bound = probe
+            else:
+                upper_bound = None
             break
 
     if upper_bound is not None and lower_bound is not None:
@@ -1221,12 +1414,12 @@ def _probe_robinhood_testnet_route_execution_size(
                 else:
                     upper_bound = mid
             except Exception as exc:
-                quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else "live_quote_failed"
+                quote_failure_reason = "pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed")
                 candidate_rows.append(
                     {
                         "attempt": attempts,
                         "amountRaw": str(mid),
-                        "status": "quote_failed",
+                        "status": quote_failure_reason,
                         "error": str(exc),
                         "errorStack": _dex_error_stack_from_status(
                             quote_failure_reason,

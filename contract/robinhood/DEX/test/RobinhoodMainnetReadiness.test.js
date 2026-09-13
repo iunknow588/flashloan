@@ -17,11 +17,11 @@ describe("Robinhood mainnet contract package readiness", function () {
     expect(contractsJson.deploymentGate).to.contain("blocked");
   });
 
-  it("marks mainnet V4 addresses as missing placeholders", function () {
-    expect(String(chainJson.defaultV4PoolManager || "").trim()).to.equal("");
-    expect(String(chainJson.defaultV4Quoter || "").trim()).to.equal("");
-    expect(String(contractsJson.v4UniversalRouter || "").trim()).to.equal("");
-    expect(String(contractsJson.permit2 || "").trim()).to.equal("");
+  it("fills mainnet V4 addresses for preflight and readiness", function () {
+    expect(String(chainJson.defaultV4PoolManager || "").trim()).to.not.equal("");
+    expect(String(chainJson.defaultV4Quoter || "").trim()).to.not.equal("");
+    expect(String(contractsJson.v4UniversalRouter || contractsJson.defaultV4UniversalRouter || "").trim()).to.not.equal("");
+    expect(String(contractsJson.permit2 || contractsJson.defaultPermit2 || "").trim()).to.not.equal("");
   });
 
   it("normalizes empty and valid addresses without throwing", function () {

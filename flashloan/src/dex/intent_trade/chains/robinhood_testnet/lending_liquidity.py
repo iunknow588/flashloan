@@ -7,17 +7,27 @@ from typing import Any
 from core.chain_flow_dispatcher import ChainFlowRequest
 from core.chain_data_registry import chain_contracts, chain_data_by_network
 from dex.intent_trade.chains.robinhood.chain_health import JsonRpcTransport, _rpc_call
+from dex.intent_trade.chains.robinhood.config import (
+    MORPHO_BLUE_CORE_ADDRESS,
+    TESTNET_MULTICALL_ADDRESS,
+    TESTNET_PERMIT2_ADDRESS,
+    TESTNET_POSITION_MANAGER_ADDRESS,
+    TESTNET_V4_POOL_MANAGER_ADDRESS,
+    TESTNET_V4_QUOTER_ADDRESS,
+    TESTNET_V4_UNIVERSAL_ROUTER_ADDRESS,
+    TESTNET_WETH_ADDRESS,
+    testnet_rpc_urls_from_env,
+)
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID, ROBINHOOD_TESTNET_NETWORK
-from core.market_config import DEFAULT_ROBINHOOD_TESTNET_RPC_URL
 
 
-POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
-POSITION_MANAGER = "0x58DaEC3116AAe6D93017BaaEA7749052E8a04fa7"
-PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
-UNIVERSAL_ROUTER = "0x8876789976dEcBfCbBbe364623C63652db8C0904"
-TESTNET_WETH = "0x7943e237c7F95DA44E0301572D358911207852Fa"
-TESTNET_MULTICALL3 = "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8"
-MAINNET_MORPHO_BLUE_NOT_TESTNET = "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010"
+MAINNET_MORPHO_BLUE_NOT_TESTNET = MORPHO_BLUE_CORE_ADDRESS
+POOL_MANAGER = TESTNET_V4_POOL_MANAGER_ADDRESS
+POSITION_MANAGER = TESTNET_POSITION_MANAGER_ADDRESS
+PERMIT2 = TESTNET_PERMIT2_ADDRESS
+UNIVERSAL_ROUTER = TESTNET_V4_UNIVERSAL_ROUTER_ADDRESS
+TESTNET_WETH = TESTNET_WETH_ADDRESS
+TESTNET_MULTICALL3 = TESTNET_MULTICALL_ADDRESS
 AAVE_POOL_ENV_NAMES = (
     "ROBINHOOD_TESTNET_AAVE_POOL",
     "ROBINHOOD_TESTNET_AAVE_V3_POOL",
@@ -43,21 +53,19 @@ def _testnet_contracts() -> dict[str, str]:
     except Exception:
         configured = {}
     return {
-        "v4PoolManager": configured.get("v4_pool_manager") or POOL_MANAGER,
-        "positionManager": configured.get("position_manager") or POSITION_MANAGER,
-        "permit2": configured.get("permit2") or PERMIT2,
-        "universalRouter": configured.get("universal_router") or UNIVERSAL_ROUTER,
-        "wrappedNative": configured.get("wrapped_native") or TESTNET_WETH,
-        "multicall3": configured.get("multicall3") or TESTNET_MULTICALL3,
+        "v4PoolManager": configured.get("v4_pool_manager") or TESTNET_V4_POOL_MANAGER_ADDRESS,
+        "v4Quoter": configured.get("v4_quoter") or TESTNET_V4_QUOTER_ADDRESS,
+        "positionManager": configured.get("position_manager") or TESTNET_POSITION_MANAGER_ADDRESS,
+        "permit2": configured.get("permit2") or TESTNET_PERMIT2_ADDRESS,
+        "universalRouter": configured.get("universal_router") or TESTNET_V4_UNIVERSAL_ROUTER_ADDRESS,
+        "wrappedNative": configured.get("wrapped_native") or TESTNET_WETH_ADDRESS,
+        "multicall3": configured.get("multicall3") or TESTNET_MULTICALL_ADDRESS,
     }
 
 
 def _testnet_rpc_url() -> str:
-    try:
-        row = chain_data_by_network(ROBINHOOD_TESTNET_NETWORK) or {}
-    except Exception:
-        row = {}
-    return _text(row.get("rpc_url")) or DEFAULT_ROBINHOOD_TESTNET_RPC_URL
+    urls = testnet_rpc_urls_from_env()
+    return urls[0] if urls else ""
 
 
 def _utc_now_iso() -> str:
@@ -255,7 +263,7 @@ def summarize_robinhood_testnet_lending_liquidity(
         for name, address in configured_contracts.items()
     }
     mainnet_morpho_negative_control: dict[str, Any] = {
-        "address": MAINNET_MORPHO_BLUE_NOT_TESTNET,
+        "address": MORPHO_BLUE_CORE_ADDRESS,
         "expected": "no_code_on_robinhood_testnet",
         "hasCode": False,
     }
@@ -284,7 +292,7 @@ def summarize_robinhood_testnet_lending_liquidity(
                 **mainnet_morpho_negative_control,
                 **_code_status(
                     rpc_url,
-                    MAINNET_MORPHO_BLUE_NOT_TESTNET,
+                    MORPHO_BLUE_CORE_ADDRESS,
                     timeout_seconds=timeout_seconds,
                     transport=transport,
                 ),

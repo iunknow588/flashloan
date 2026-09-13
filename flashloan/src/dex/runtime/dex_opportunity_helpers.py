@@ -9,9 +9,19 @@ from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
 from dex.runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
+from dex.runtime.dex_onchain_quote_evidence import _complete_route_steps, _pool_map
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+TERMINAL_DEPTH_STATUSES = {
+    "missing_effective_pool",
+    "depth_insufficient",
+    "pool_not_initialized",
+    "not_enough_liquidity",
+    "pool_insufficient_for_profitable_execution",
+}
 
 
 def _chain_key(chain_id: int | None) -> str:
@@ -89,6 +99,8 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "route_unprofitable",
             "slippage_limit_exceeded",
             "pool_insufficient_for_profitable_execution",
+            "missing_effective_pool",
+            "depth_insufficient",
         }
         for status in statuses
     )
@@ -238,6 +250,9 @@ def _select_recordable_routes(
     testnet_full_scan: bool = False,
 ) -> list[tuple[int, dict[str, Any], dict[str, Any]]]:
     selected = list(routes)
+    # Robinhood testnet keeps the full static candidate universe for review,
+    # but callers can opt out with DEX_OPPORTUNITY_TESTNET_FULL_SCAN=0 when a
+    # targeted scan should only work on the highest-priority candidates.
     if not testnet_full_scan and max_routes is not None and max_routes >= 0:
         selected.sort(key=lambda item: _route_priority_key(item[1], original_index=item[0]))
         selected = selected[:max_routes]
@@ -410,6 +425,7 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
     ready_for_preflight = bool(evidence.get("readyForTransactionPreflight"))
     blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    terminal_depth_status = evidence_status in TERMINAL_DEPTH_STATUSES
     if ready_for_preflight and not blockers:
         blockers = ["on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting"]
     live_percent = _live_profit_percent(evidence)
@@ -417,7 +433,7 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
         {
             "live_onchain_evidence": evidence,
             "quote_verified": evidence_status == "live_verified",
-            "quote_required": not ready_for_preflight,
+            "quote_required": not ready_for_preflight and not terminal_depth_status,
             "viable": False,
             "readonly_viable": ready_for_preflight,
             "live_profit_percent": live_percent,
@@ -433,8 +449,8 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
             "status": "transaction_development_required" if ready_for_preflight else evidence_status,
             "checks_passed": False,
             "can_submit_order": False,
-            "quote_required": not ready_for_preflight,
-            "requires_live_quoter": not ready_for_preflight,
+            "quote_required": not ready_for_preflight and not terminal_depth_status,
+            "requires_live_quoter": not ready_for_preflight and not terminal_depth_status,
             "live_onchain_evidence_status": evidence_status,
             "ready_for_transaction_preflight": ready_for_preflight,
             "live_profit_percent": live_percent,
@@ -480,6 +496,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     analysis = deepcopy(analysis)
     status = str(evidence.get("status") or "not_live_verified")
     live_verified = bool(evidence.get("livePriceVerified")) or status == "live_verified"
+    terminal_depth_status = status in TERMINAL_DEPTH_STATUSES
     validation = evidence.get("validation") if isinstance(evidence.get("validation"), dict) else {}
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
     blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
@@ -522,7 +539,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "livePriceVerified": live_verified,
             "priceEvidenceMode": evidence.get("priceEvidenceMode") or ("live_verified" if live_verified else "live_required"),
             "priceEvidenceSource": evidence.get("priceEvidenceSource") or ("chain_live_quote" if live_verified else "chain_live_quote_required"),
-            "requiresLiveQuoter": not live_verified,
+            "requiresLiveQuoter": not live_verified and not terminal_depth_status,
             "adapterRequired": False if status != "live_evidence_deferred" else bool(analysis.get("adapterRequired")),
             "quote_verified": live_verified,
             "executableCandidate": bool(evidence.get("readyForTransactionPreflight")),
@@ -546,6 +563,8 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "action": (
                 "historic block state unavailable; deferred on-chain reverify"
                 if status == "live_evidence_deferred"
+                else "on-chain reverify complete; missing effective trading pool"
+                if status in {"missing_effective_pool", "pool_not_initialized", "not_enough_liquidity", "pool_insufficient_for_profitable_execution", "depth_insufficient"}
                 else "on-chain step-by-step reverify failed; blocking transaction preflight"
                 if not live_verified
                 else "on-chain reverify complete; current state does not satisfy transaction submission conditions"
@@ -554,29 +573,100 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
         }
 
     static_steps = analysis.get("steps") if isinstance(analysis.get("steps"), list) else []
+    route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
+    route_addresses = [str(item) for item in route.get("routeAddresses") or [] if str(item).strip()]
+    if static_steps:
+        static_steps = _complete_route_steps(
+            route_symbols,
+            route_addresses,
+            static_steps,
+            _pool_map(route),
+        )
     live_hops = evidence.get("hops") if isinstance(evidence.get("hops"), list) else []
-    if live_hops:
+    if live_hops or static_steps:
         merged_steps = []
-        for index, hop in enumerate(live_hops):
-            base = deepcopy(static_steps[index]) if index < len(static_steps) and isinstance(static_steps[index], dict) else {}
-            if isinstance(hop, dict):
-                base.update(
+        live_by_hop: dict[int, dict[str, Any]] = {}
+        live_tail: list[dict[str, Any]] = []
+        for hop in live_hops:
+            if not isinstance(hop, dict):
+                continue
+            hop_number = int(hop.get("hop") or len(live_by_hop) + 1)
+            live_by_hop[hop_number] = hop
+        previous_output_amount: float | None = None
+        previous_output_symbol: str | None = None
+        previous_output_text: str | None = None
+        for index, base in enumerate(static_steps, start=1):
+            if not isinstance(base, dict):
+                continue
+            merged = deepcopy(base)
+            hop_number = int(merged.get("hop") or index)
+            live = live_by_hop.get(hop_number)
+            if isinstance(live, dict):
+                live_amount_in = live.get("amountIn")
+                if live_amount_in not in (None, ""):
+                    try:
+                        live_amount_in = float(live_amount_in)
+                    except (TypeError, ValueError):
+                        live_amount_in = None
+                if live_amount_in in (None, ""):
+                    if live.get("amountInRaw") is not None:
+                        try:
+                            live_amount_in = float(int(live["amountInRaw"]) / (10 ** int(live.get("inputDecimals") or merged.get("inputDecimals") or 18)))
+                        except (TypeError, ValueError):
+                            live_amount_in = None
+                    elif previous_output_symbol and previous_output_symbol == str(merged.get("fromSymbol") or "").upper():
+                        live_amount_in = previous_output_amount
+                if live.get("amountIn") in (None, "") and live_amount_in is not None:
+                    live["amountIn"] = (
+                        previous_output_text
+                        if previous_output_text is not None
+                        and live_amount_in == previous_output_amount
+                        else str(live_amount_in)
+                    )
+                if live.get("inputAmount") in (None, "") and live_amount_in is not None:
+                    live["inputAmount"] = live_amount_in
+                merged.update(
                     {
-                        "hop": hop.get("hop", base.get("hop", index + 1)),
-                        "fromSymbol": hop.get("fromSymbol", base.get("fromSymbol")),
-                        "toSymbol": hop.get("toSymbol", base.get("toSymbol")),
-                        "protocol": hop.get("protocol", base.get("protocol")),
-                        "pool": hop.get("pool", base.get("pool")),
-                        "quoteSource": hop.get("quoteSource", base.get("quoteSource")),
-                        "executionTrust": hop.get("executionTrust", base.get("executionTrust")),
-                        "liveQuoteError": hop.get("liveQuoteError"),
-                        "inputAmount": hop.get("amountIn", base.get("inputAmount")),
-                        "outputAmount": hop.get("amountOut") if hop.get("amountOut") is not None else None,
-                        "outputUsd": None if hop.get("amountOutRaw") is None else base.get("outputUsd"),
-                        "effectiveRate": None if hop.get("amountOutRaw") is None else base.get("effectiveRate"),
+                        "hop": live.get("hop", merged.get("hop", index)),
+                        "fromSymbol": live.get("fromSymbol", merged.get("fromSymbol")),
+                        "toSymbol": live.get("toSymbol", merged.get("toSymbol")),
+                        "protocol": live.get("protocol", merged.get("protocol")),
+                        "pool": live.get("pool", merged.get("pool")),
+                        "quoteSource": live.get("quoteSource", merged.get("quoteSource")),
+                        "executionTrust": live.get("executionTrust", merged.get("executionTrust")),
+                        "liveQuoteError": live.get("liveQuoteError"),
+                        "inputAmount": live_amount_in if live_amount_in is not None else merged.get("inputAmount"),
+                        "outputAmount": live.get("amountOut") if live.get("amountOut") is not None else merged.get("outputAmount", merged.get("referenceOutputAmount")),
+                        "outputUsd": base.get("outputUsd") if live.get("amountOutRaw") is None else live.get("outputUsd", base.get("outputUsd")),
+                        "effectiveRate": live.get("effectiveRate") if live.get("amountOutRaw") is not None else merged.get("effectiveRate", merged.get("referenceEffectiveRate")),
+                        "priceImpactBps": live.get("priceImpactBps", merged.get("priceImpactBps")),
                     }
                 )
-            merged_steps.append(base)
+                if live.get("amountOut") not in (None, ""):
+                    previous_output_amount = float(live["amountOut"])
+                    previous_output_symbol = str(live.get("toSymbol") or "").upper()
+                    previous_output_text = str(live["amountOut"])
+                elif live.get("amountOutRaw") is not None:
+                    try:
+                        previous_output_amount = float(int(live["amountOutRaw"]) / (10 ** int(live.get("outputDecimals") or merged.get("outputDecimals") or 18)))
+                    except (TypeError, ValueError):
+                        previous_output_amount = None
+                    previous_output_symbol = str(live.get("toSymbol") or "").upper()
+                    if previous_output_amount is not None:
+                        try:
+                            previous_output_text = _human_from_raw(
+                                int(live["amountOutRaw"]),
+                                int(live.get("outputDecimals") or merged.get("outputDecimals") or 18),
+                            )
+                        except (TypeError, ValueError):
+                            previous_output_text = None
+                    else:
+                        previous_output_text = None
+            merged_steps.append(merged)
+            live_by_hop.pop(hop_number, None)
+        for live in live_by_hop.values():
+            if isinstance(live, dict):
+                merged_steps.append(deepcopy(live))
         analysis["steps"] = merged_steps
 
     verification = dict(route.get("quoteVerification") or {})
@@ -584,7 +674,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
         {
             "status": status,
             "livePriceVerified": live_verified,
-            "requiresLiveQuoter": not live_verified,
+            "requiresLiveQuoter": not live_verified and not terminal_depth_status,
             "adapterRequired": False if status != "live_evidence_deferred" else bool(verification.get("adapterRequired")),
             "executableCandidate": bool(evidence.get("readyForTransactionPreflight")),
             "chainSubmissionCandidate": bool(evidence.get("readyForTransactionPreflight")),
@@ -601,6 +691,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     route["onchainEvidenceStatus"] = status
     route["quoteVerification"] = verification
     route["quoteStatus"] = status
+    route["errorStack"] = deepcopy(evidence.get("errorStack") or [])
     route["priceEvidenceSource"] = analysis["priceEvidenceSource"]
     route["priceEvidenceMode"] = analysis["priceEvidenceMode"]
     return route

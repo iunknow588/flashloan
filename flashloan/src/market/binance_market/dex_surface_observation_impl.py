@@ -59,9 +59,6 @@ from market.binance_market.dex_surface_observation_chain import (
 )
 from market.binance_market.pool_candidates import dex_pool_candidates_payload
 
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
-
-
 def query_flash_loan_pool_discovery(*args: Any, **kwargs: Any):
     compatibility = None
     try:
@@ -209,10 +206,16 @@ def _route_step_row(
         "tick": pool.get("tick"),
         "sqrtPriceX96": pool.get("sqrtPriceX96"),
         "liquidity": pool.get("liquidity"),
+        "poolManager": pool.get("poolManager") or pool.get("pool_manager"),
+        "poolKey": pool.get("poolKey") or pool.get("pool_key"),
+        "tickSpacing": pool.get("tickSpacing") or pool.get("tick_spacing"),
+        "hooks": pool.get("hooks") or "",
         "token0": pool.get("token0"),
         "token1": pool.get("token1"),
         "token0Symbol": pool.get("token0Symbol"),
         "token1Symbol": pool.get("token1Symbol"),
+        "token0Decimals": pool.get("token0Decimals") or pool.get("token0_decimals"),
+        "token1Decimals": pool.get("token1Decimals") or pool.get("token1_decimals"),
         "pairSymbol": pool.get("symbolPair") or "",
         "pairAddress": pool.get("addressPair") or "",
         "source": pool.get("source") or "",

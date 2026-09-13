@@ -13,6 +13,7 @@ from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_TESTNET_NETWORK,
     robinhood_chain_config,
 )
+from dex.intent_trade.chains.robinhood.config import TESTNET_V4_POOL_MANAGER_ADDRESS
 from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _cache_identities,
     _cache_identity,
@@ -21,7 +22,7 @@ from dex.intent_trade.flows.flash_loan_pools.presenter import (
     _pool_view_capabilities,
 )
 ROBINHOOD_TESTNET_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
-ROBINHOOD_TESTNET_V4_POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+ROBINHOOD_TESTNET_V4_POOL_MANAGER = TESTNET_V4_POOL_MANAGER_ADDRESS
 
 
 def is_robinhood_testnet_flash_scope(chain_id: int | None) -> bool:

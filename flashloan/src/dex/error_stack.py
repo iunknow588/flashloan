@@ -16,6 +16,9 @@ from core.error_stack import ErrorStack, ModuleError
 _STATUS_CODES = {
     "live_quote_failed": ErrorCode.DEX_LIVE_QUOTE_FAILED,
     "quote_failed": ErrorCode.DEX_LIVE_QUOTE_FAILED,
+    "rpc_verification_failed": ErrorCode.DEX_RPC_FAILED,
+    "adapter_required": ErrorCode.DEX_GATE_NOT_READY,
+    "missing_trigger_block": ErrorCode.DEX_GATE_NOT_READY,
     "pool_not_initialized": ErrorCode.DEX_POOL_NOT_INITIALIZED,
     "not_enough_liquidity": ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY,
     "route_unprofitable": ErrorCode.DEX_SIZE_NOT_PROFITABLE,
@@ -59,19 +62,20 @@ def _first_child_error(evidence: Mapping[str, Any] | None) -> list[dict[str, Any
                 "quote_failed",
                 "pool_not_initialized",
                 "not_enough_liquidity",
+                "adapter_required",
                 "live_evidence_deferred",
             }:
                 errors = _error_rows(hop.get("errorStack"))
                 if errors:
-                    return errors[:1]
+                    return errors
     direct = _error_rows(evidence.get("errorStack"))
     if direct:
-        return direct[:1]
+        return direct
     for hop in evidence.get("hops") or []:
         if isinstance(hop, Mapping):
             errors = _error_rows(hop.get("errorStack"))
             if errors:
-                return errors[:1]
+                return errors
     return []
 
 
@@ -90,14 +94,6 @@ def route_error_stack(
     single DEX OK element; internal successful hops are never appended.
     """
 
-    child_errors = _first_child_error(evidence)
-    if child_errors:
-        return child_errors
-
-    inherited_errors = _error_rows(existing)
-    if inherited_errors:
-        return inherited_errors
-
     status_text = str(status or "").strip().lower()
     stack = ErrorStack()
     if status_text in {"", "live_verified", "quoted", "complete", "profitable_amount_found"}:
@@ -114,7 +110,14 @@ def route_error_stack(
                 and (
                     hop.get("liveQuoteError")
                     or str(hop.get("status") or "").strip().lower()
-                    in {"live_quote_failed", "quote_failed", "pool_not_initialized", "live_evidence_deferred"}
+                    in {
+                        "live_quote_failed",
+                        "quote_failed",
+                        "pool_not_initialized",
+                        "live_evidence_deferred",
+                        "not_enough_liquidity",
+                        "adapter_required",
+                    }
                 )
             ),
             None,
@@ -122,8 +125,10 @@ def route_error_stack(
     if isinstance(failed_hop, Mapping):
         hop = failed_hop.get("hop") or "?"
         pair = f"{failed_hop.get('fromSymbol') or '?'}->{failed_hop.get('toSymbol') or '?'}"
-        reason = str(failed_hop.get("liveQuoteError") or message or status_text or "DEX route failed")
-        text = f"hop {hop} {pair}: {reason}"
+        reason = next((item for item in blockers or [] if str(item).strip()), None)
+        if not reason:
+            reason = str(message or status_text or "DEX route failed")
+        text = reason
     else:
         reason = message
         if reason in (None, "") and blockers:
@@ -137,6 +142,29 @@ def route_error_stack(
             message=text,
         )
     )
+
+    child_errors = _first_child_error(evidence)
+    if child_errors:
+        for row in child_errors:
+            stack.push(
+                ModuleError(
+                    module=str(row.get("module") or "DEX"),
+                    code=int(row.get("code") or ErrorCode.DEX_INTERNAL),
+                    message=str(row.get("message") or "DEX child error"),
+                )
+            )
+        return stack.as_list()
+
+    inherited_errors = _error_rows(existing)
+    if inherited_errors:
+        for row in inherited_errors:
+            stack.push(
+                ModuleError(
+                    module=str(row.get("module") or "DEX"),
+                    code=int(row.get("code") or ErrorCode.DEX_INTERNAL),
+                    message=str(row.get("message") or "DEX existing error"),
+                )
+            )
     return stack.as_list()
 
 

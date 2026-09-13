@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "robinhood-testnet-official-v4-arb-live-evidence-v1",
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "arb": "0x6D18426A138fF5E96992D89579e276bC1eAD5b5F",
+  "route": {
+    "tokenIn": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+    "hops": [
+      "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E -> 0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4 -> 0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8 -> 0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E"
+    ],
+    "fee": 3000,
+    "tickSpacing": 60,
+    "hooks": "0x0000000000000000000000000000000000000000"
+  },
+  "amountInRaw": "100000000000000",
+  "outTzRaw": "991026038465133",
+  "profitRaw": "891026038465133",
+  "gasUsed": "306242",
+  "txHash": "0x4815b5f3fdff687c0444b8c0bb0869ebb825f228f22773f18ffe5443bc666b35",
+  "receiptStatus": 1,
+  "flashDebtCleared": true,
+  "retainedAtLeast80Percent": true,
+  "broadcastWasExplicitlyEnabled": true,
+  "broadcastCompletedAt": "2026-09-12T07:52:10.357Z"
+}

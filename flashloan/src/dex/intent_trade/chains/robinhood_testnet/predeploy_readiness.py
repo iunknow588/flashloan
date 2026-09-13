@@ -181,9 +181,9 @@ def summarize_robinhood_predeploy_readiness(
     normal_probe_address_ready = bool(_as_dict(normal_probe.get("probe")).get("address"))
 
     blockers: list[str] = []
-    if chain_metadata.get("chainId") != 46630:
+    if chain_metadata.get("chainId") != ROBINHOOD_TESTNET_CHAIN_ID:
         blockers.append("testnet_chain_metadata_not_46630")
-    if chain_metadata.get("chainKey") != "chain:46630":
+    if chain_metadata.get("chainKey") != f"chain:{ROBINHOOD_TESTNET_CHAIN_ID}":
         blockers.append("testnet_chain_key_not_chain_46630")
     if chain_metadata.get("defaultDexChainSelector") is not False:
         blockers.append("robinhood_testnet_must_not_be_default_dex_selector")

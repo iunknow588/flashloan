@@ -1,0 +1,84 @@
+{
+  "tz": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+  "ta": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+  "tb": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+  "tokenTotal": "10000000000000000000000000",
+  "tzInjectionHook": "0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040",
+  "amm": "0xccdDb88018115603BB06D2995EE112D7F1A142Ac",
+  "arb": "0xCc8F29C9f5bC84B64062Ec293692c211D5a05660",
+  "lastLiveTest": {
+    "txHash": "0x63016dd913be043ad0c7d5bf423ecd9aea693d167c8835fb3a8d88ac1deef829",
+    "runAt": "2026-09-12T05:05:03.013Z",
+    "amountIn": "100000000000000000000",
+    "outTb": "999000999000999000999",
+    "outTa": "99800399201596806387",
+    "outTz": "997008973080757726817",
+    "profit": "897008973080757726817",
+    "metricBefore": "10",
+    "metricAfter": "9.94026892403547"
+  },
+  "officialV4": {
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "positionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "hooks": "0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040",
+    "txHash": "0xd9e5061dc3310dc9efdaf04f5af0101d11ece170b1bc5183786c2b3cbbdd271d",
+    "runAt": "2026-09-13T00:22:48.011Z",
+    "arb": "0x34098425DD9f5CFD7788f51273B3c8ee8e9543B7",
+    "lastArbLiveTest": {
+      "txHash": "0xef490fd5a323930369e5559544f65f61e057f243d15180ded4911a22db9e69cd",
+      "runAt": "2026-09-13T01:31:07.101Z",
+      "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+      "arb": "0x34098425DD9f5CFD7788f51273B3c8ee8e9543B7",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "amountIn": "100000000000000",
+      "outTb": "996999057006240",
+      "outTa": "99400712248179",
+      "outTz": "991024169388451",
+      "profit": "891024169388451",
+      "gasUsed": "284680",
+      "route": {
+        "keys": [
+          {
+            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040"
+          },
+          {
+            "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040"
+          },
+          {
+            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040"
+          }
+        ],
+        "directions": [
+          true,
+          true,
+          false
+        ]
+      },
+      "retainedAtLeast80Percent": true
+    },
+    "imbalanceMaker": "0xd08f675D799ba1788e77ed9F7D2aE6c7536E25C5",
+    "lastReplenish": {
+      "txHash": "0x772f49d78dae7521d1b902ba9636af1e551eec39cd3e2dd686d1e100e7357d6c",
+      "gasUsed": "648613",
+      "runAt": "2026-09-13T02:34:35.065Z",
+      "liquidityToAdd": "100000000000000000000"
+    }
+  },
+  "tzInjectionSalt": "0x0000000000000000000000000000000000000000000000000000000000001802",
+  "create2Factory": "0x5e711716B54541D551c3Acb1F44b2e9d9C343b0c"
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "robinhood-executor-v4-flash-offchain-normal-v1",
+  "runAt": "2026-09-11T22:03:56.364Z",
+  "network": "hardhat",
+  "policy": {
+    "mode": "normal_only",
+    "tokenConservation": true,
+    "abnormalCases": "deferred"
+  },
+  "localArtifact": {
+    "contract": "RobinhoodPausedFlashLoanExecutor",
+    "available": true,
+    "codeBytes": 21131,
+    "codeHash": "0x76462e1b798aa127d5a585681b871e0906f55ffd2a4efe7d80d0e3483e6faee4"
+  },
+  "contracts": {
+    "token": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "poolManager": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "router": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "executor": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+  },
+  "amount": "1000",
+  "nativeAmount": "1000",
+  "nativeMinProfit": "1",
+  "receipt": {
+    "hash": "0x39244afc1b4322d2bd930ef002c0b1ff0006b1551f4d34cf015d4ff8826ec489",
+    "gasUsed": "213085"
+  },
+  "nativeReceipt": {
+    "hash": "0xaa40548b311ae604fd7c88a57736b6d7613003d72f1dacd1e0a9435b8f0129ee",
+    "gasUsed": "173084"
+  },
+  "route": {
+    "hopCount": 1,
+    "routerEventCount": 2,
+    "nativeExecutionFunction": "requestV4FlashLoanWithValues",
+    "nativeSwapValues": [
+      "1000"
+    ],
+    "nativePoolManagerAddress": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+    "nativeRouterAddress": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    "nativeExecutorAddress": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
+  },
+  "balances": {
+    "poolManager": "1000",
+    "executor": "0",
+    "nativeExecutor": "1"
+  },
+  "debt": "0",
+  "nativeDebt": "0",
+  "readyForPausedRedeploy": true,
+  "readyForTestnetExecutorNormalProbe": true,
+  "blockingReasons": []
+}

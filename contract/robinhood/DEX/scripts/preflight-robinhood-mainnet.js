@@ -90,7 +90,7 @@ async function codeStatus(label, addressInfo, { required = false } = {}) {
 async function buildRobinhoodMainnetPreflight() {
   const chainConfig = readJson(MAINNET_CHAIN_JSON);
   const contractsConfig = readJson(CONTRACTS_JSON);
-  const requireV3Adapter = envBool("ROBINHOOD_MAINNET_REQUIRE_V3", true);
+  const requireV3Adapter = envBool("ROBINHOOD_MAINNET_REQUIRE_V3", false);
   const flashSourceKind = Number(process.env.ROBINHOOD_MAINNET_FLASH_SOURCE_KIND || chainConfig.defaultFlashSourceKind || contractsConfig.defaultFlashSourceKind || 4);
   const report = {
     schemaVersion: "robinhood-mainnet-preflight-v1",
@@ -178,7 +178,8 @@ async function buildRobinhoodMainnetPreflight() {
           configured: true,
           address: deployer.address,
           balanceWei: balance.toString(),
-          ok: true,
+          minBalanceWei: "0",
+          ok: balance > 0n,
           error: null,
         };
       }
@@ -203,6 +204,9 @@ async function buildRobinhoodMainnetPreflight() {
     else if (adapter.required && !adapter.hasCode) report.blockingReasons.push(`${adapter.label}_code_not_verified`);
   }
   report.blockingReasons.push("mainnet_broadcast_gate_closed");
+  if (report.deployer.ok === false) {
+    report.blockingReasons.push("deployer_balance_insufficient");
+  }
   report.readyForPausedDeploy = false;
   report.blockingReasons = Array.from(new Set(report.blockingReasons));
   return report;

@@ -186,6 +186,50 @@ def test_quote_routes_payload_from_overview_keeps_surface_and_analysis_aligned()
     assert route["quoteInputs"]["quoteRequests"]
 
 
+def test_static_quote_route_fills_multi_hop_steps_on_mainnet(monkeypatch):
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT", "0")
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> TK1 -> TK2 -> ETH",
+                "routeSymbols": ["ETH", "TK1", "TK2", "ETH"],
+                "routeAddresses": ["0x0", "0x1", "0x2", "0x0"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "TK2"}, {"symbol": "ETH"}],
+                "routePools": [
+                    {"pool": "0x10", "protocol": "uniswap_v4", "fee": 0, "routeSymbols": ["ETH", "TK1"]},
+                    {"pool": "0x11", "protocol": "uniswap_v4", "fee": 0, "routeSymbols": ["TK1", "TK2"]},
+                    {"pool": "0x12", "protocol": "uniswap_v4", "fee": 0, "routeSymbols": ["TK2", "ETH"]},
+                ],
+                "overviewRoute": {
+                    "pathSymbols": ["ETH", "TK1", "TK2", "ETH"],
+                    "pathAddresses": ["0x0", "0x1", "0x2", "0x0"],
+                    "pathTokens": [{"symbol": "ETH"}, {"symbol": "TK1"}, {"symbol": "TK2"}, {"symbol": "ETH"}],
+                },
+            }
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda *_args, **_kwargs: {},
+        route_size_analysis_fn=lambda *_args, **_kwargs: {},
+    )
+
+    steps = payload["routes"][0]["quoteAnalysis"]["steps"]
+    assert len(steps) == 3
+    assert [step["fromSymbol"] for step in steps] == ["ETH", "TK1", "TK2"]
+    assert [step["toSymbol"] for step in steps] == ["TK1", "TK2", "ETH"]
+    assert [step["hop"] for step in steps] == [1, 2, 3]
+    assert all(step["protocol"] == "uniswap_v4" for step in steps)
+
+
 def test_offchain_size_ladder_emits_recommended_raw_borrow_amount():
     route = {
         "routeSymbols": ["ETH", "TK1", "ETH"],

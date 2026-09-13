@@ -55,6 +55,10 @@ module.exports = {
   },
   networks: {
     hardhat: {},
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      chainId: 31337,
+    },
     robinhood: {
       url: ROBINHOOD_RPC_URL || DEFAULT_ROBINHOOD_RPC_URL,
       accounts: DEPLOYER_KEYS,

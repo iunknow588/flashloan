@@ -1,0 +1,402 @@
+﻿{
+  "activePoolIdCount": 25,
+  "blockingReasons": [
+    "active_pool_id_list_truncated_by_preflight_report",
+    "v4_poolmanager_token_balance_scan_errors_present"
+  ],
+  "borrowAssetDiscoveryStrategy": "known_stable_assets_plus_active_non_stable_pool_assets",
+  "chainId": 46630,
+  "decodeErrors": [],
+  "decodedPoolKeyCount": 0,
+  "discoveryMethod": "local_preflight_poolmanager_swap_logs",
+  "flashAccountingSourceCount": 1,
+  "flashAccountingSources": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "decimals": 18,
+      "poolIds": [],
+      "poolManagerBalance": 1016.1329586537468,
+      "poolManagerBalanceRaw": "1016132958653746712869",
+      "source": "nativePoolManagerBalanceWei",
+      "symbol": "ETH"
+    }
+  ],
+  "generatedAt": "2026-09-11T22:05:37.799Z",
+  "generatedBlockNumber": 117706281,
+  "lookbackBlocks": 20000,
+  "nativePoolManagerBalanceWei": "1016132958653746712869",
+  "network": "robinhood-testnet",
+  "notes": [
+    "Borrowable V4 flash-accounting assets are currencies with positive PoolManager balance.",
+    "Default balance scan is strategic: known configured stable assets plus active PoolKey currencies; full_index expands discovery to every initialized PoolManager currency.",
+    "PoolKey rows are trading-pool evidence and do not by themselves prove flash-accounting borrowable funds."
+  ],
+  "outputPath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_liquidity\\latest.json",
+  "poolKeys": [
+    {
+      "poolId": "0x03b165866cf7830581bf1ec0be93f95c6880df31c6818089a6d2d2e80621feb4",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x04e47ee6aa2432084cf863f2dbac69f184f7882b6facdf14250c802147929a6f",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x086fa61384de0eac1f099dcdf4e47d781a9cda3aaf214c2be8cb2d499fb423fc",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x0f4cfba7e8fd0b3ac78d4d9675c024abb2a1bf234524653a9a883230e133c62b",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x124c651424aeb8d473b1dc4aa208d7a05a49c8ae19798417cca2a6e5d69082e7",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x139b0f52c122c023b80ef0699acc60c899cbb972cfac6978cb88284c363b5c28",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x13e9b477c670df28ee2768200e1ab6dc91234aff6f3f5031799b0ca3aa0f53f9",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x18adcdeb4c2a383c1fc5ee2c8f42c146053f3cacd809d08427ce452ef3853fde",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x18ae3dfefd058193a25870d65c6a59af0dd3919d10e5f7a0794eb051446f4c82",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x18db3d499c4e6a3e296f81105dd0b8108926e814fa4ace2fba48ae680e65ea33",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x1d8fc2c727b809f4ebd5be126cf24e8bca787c0da8628137220aa509eb88b004",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x1e807371b52e1d8929fa90170dc5d760e20ea3da418a85a68263a4c271247698",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x1ffb1169270794f15d7ac40283906ac095c2666d8d191649b75fe4ac0573c802",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x20a37b5a6faff10281b8f3dd254ff4433db7bfccf79f3bbf087c1987ba1b003d",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x221cd4698f81b8eb10e2abfd681fddcd369e72dcb4bf84f77a140c084e06d72e",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x231c05a1fad0a28ab2b5fd73e90364d56201ee54808acd5136c41977899125f5",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x24f25eff83d687d73894933398d83d6c9fc1d1fba75d6188a7c645bacd0e5841",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x26076f840e00e84f7dc8ffeb8cf02b09c3e86e408dfb62616cdfa9a47e8e4994",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x2c58dd26c2631341ba962d3acd02cc3684912c6446e15ceb58448295dea3b4af",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x2cad2f36920b23e4e650fe3031fcc3852efc50f163c817ae4725922f113c1aab",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x328cb3ac4ff249419470ba5d0896a8f2c6bc6790325050fa53a0eb57bbe2504b",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x32f62b7f9bdf93b704701d1dff8a1bb4c06317eb88a09348bca5c3423c5cb6c2",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x33bac301238b9b8ac0f7382c886d77a154543440d1f1ee877d98312b86e85cb4",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x33f8591940de6ea14a7f397bb5096f1a208cc02ee8af9d6eb2d377f35075a4d1",
+      "poolKeyDecoded": false
+    },
+    {
+      "poolId": "0x34e2ef35adb810a04531e4f3eba9c93738e0a2864305ee8bdb50603df64a69de",
+      "poolKeyDecoded": false
+    }
+  ],
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "pools": [
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x03b165866cf7830581bf1ec0be93f95c6880df31c6818089a6d2d2e80621feb4",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:03b16586",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x04e47ee6aa2432084cf863f2dbac69f184f7882b6facdf14250c802147929a6f",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:04e47ee6",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x086fa61384de0eac1f099dcdf4e47d781a9cda3aaf214c2be8cb2d499fb423fc",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:086fa613",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x0f4cfba7e8fd0b3ac78d4d9675c024abb2a1bf234524653a9a883230e133c62b",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:0f4cfba7",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x124c651424aeb8d473b1dc4aa208d7a05a49c8ae19798417cca2a6e5d69082e7",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:124c6514",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x139b0f52c122c023b80ef0699acc60c899cbb972cfac6978cb88284c363b5c28",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:139b0f52",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x13e9b477c670df28ee2768200e1ab6dc91234aff6f3f5031799b0ca3aa0f53f9",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:13e9b477",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x18adcdeb4c2a383c1fc5ee2c8f42c146053f3cacd809d08427ce452ef3853fde",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:18adcdeb",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x18ae3dfefd058193a25870d65c6a59af0dd3919d10e5f7a0794eb051446f4c82",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:18ae3dfe",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x18db3d499c4e6a3e296f81105dd0b8108926e814fa4ace2fba48ae680e65ea33",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:18db3d49",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x1d8fc2c727b809f4ebd5be126cf24e8bca787c0da8628137220aa509eb88b004",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:1d8fc2c7",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x1e807371b52e1d8929fa90170dc5d760e20ea3da418a85a68263a4c271247698",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:1e807371",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x1ffb1169270794f15d7ac40283906ac095c2666d8d191649b75fe4ac0573c802",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:1ffb1169",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x20a37b5a6faff10281b8f3dd254ff4433db7bfccf79f3bbf087c1987ba1b003d",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:20a37b5a",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x221cd4698f81b8eb10e2abfd681fddcd369e72dcb4bf84f77a140c084e06d72e",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:221cd469",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x231c05a1fad0a28ab2b5fd73e90364d56201ee54808acd5136c41977899125f5",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:231c05a1",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x24f25eff83d687d73894933398d83d6c9fc1d1fba75d6188a7c645bacd0e5841",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:24f25eff",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x26076f840e00e84f7dc8ffeb8cf02b09c3e86e408dfb62616cdfa9a47e8e4994",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:26076f84",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x2c58dd26c2631341ba962d3acd02cc3684912c6446e15ceb58448295dea3b4af",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:2c58dd26",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x2cad2f36920b23e4e650fe3031fcc3852efc50f163c817ae4725922f113c1aab",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:2cad2f36",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x328cb3ac4ff249419470ba5d0896a8f2c6bc6790325050fa53a0eb57bbe2504b",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:328cb3ac",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x32f62b7f9bdf93b704701d1dff8a1bb4c06317eb88a09348bca5c3423c5cb6c2",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:32f62b7f",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x33bac301238b9b8ac0f7382c886d77a154543440d1f1ee877d98312b86e85cb4",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:33bac301",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x33f8591940de6ea14a7f397bb5096f1a208cc02ee8af9d6eb2d377f35075a4d1",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:33f85919",
+      "tvlUsd": 0
+    },
+    {
+      "depthStatus": "unpriced_poolid_only",
+      "poolId": "0x34e2ef35adb810a04531e4f3eba9c93738e0a2864305ee8bdb50603df64a69de",
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "source": "preflight_flashAccountingLiquidity.activePoolIds",
+      "status": "observable_poolid_nonzero_liquidity_swap",
+      "symbolPair": "poolId:34e2ef35",
+      "tvlUsd": 0
+    }
+  ],
+  "rpcUrl": "https://rpc.testnet.chain.robinhood.com/rpc",
+  "schemaVersion": "robinhood-testnet-v4-pool-liquidity-v1",
+  "sourceContractMetadata": "E:\\2026OPC大赛\\flashLoan\\contract\\robinhood-testnet\\DEX\\config\\contracts.json",
+  "sourceEvidence": "E:\\2026OPC大赛\\flashLoan\\contract\\robinhood-testnet\\DEX\\deployments\\evidence\\20260911T220543929Z-59336_robinhoodTestnet-robinhood-testnet-preflight\\report.json",
+  "swapLogCount": 465,
+  "tokenAddressCount": 0,
+  "tokenAddresses": [],
+  "tokenBalanceScanErrors": [
+    "HTTPSConnectionPool(host='rpc.testnet.chain.robinhood.com', port=443): Max retries exceeded with url: /rpc (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in viola"
+  ],
+  "tokenBalanceScanScope": "full_index",
+  "usableFlashAccountingPoolCount": 110
+}

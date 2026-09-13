@@ -8,7 +8,7 @@ import os
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
-from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import _load_token_balance_scan_cache
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_types import (
     _norm_symbol,
     _number,
@@ -56,14 +56,22 @@ def _pool_manager_address(pool: dict[str, Any], chain_id: int | None = None) -> 
         if text.startswith("0x") and len(text) == 42:
             return text.lower()
     return ""
-def _v4_token_metadata_cache(pool_manager: str) -> dict[str, dict[str, Any]]:
+def _v4_token_metadata_cache(pool_manager: str, *, chain_id: int | None = None) -> dict[str, dict[str, Any]]:
     normalized_pool_manager = _text(pool_manager).lower()
     if not normalized_pool_manager:
         return {}
-    try:
-        cache = _load_token_balance_scan_cache(pool_manager=normalized_pool_manager)
-    except Exception:
-        return {}
+    if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID:
+        try:
+            from dex.intent_trade.chains.robinhood_testnet.v4_pool_liquidity import _load_token_balance_scan_cache
+
+            cache = _load_token_balance_scan_cache(pool_manager=normalized_pool_manager)
+        except Exception:
+            return {}
+    else:
+        # Mainnet V4 does not inherit testnet token-balance evidence. Pool keys
+        # from the mainnet observation snapshot carry decimals when available;
+        # otherwise live ERC20 decimal reads can be enabled explicitly.
+        cache = {}
     entries = cache.get("entries") if isinstance(cache.get("entries"), dict) else {}
     metadata: dict[str, dict[str, Any]] = {}
     for address, entry in entries.items():
@@ -103,7 +111,7 @@ def _v4_pool_token_metadata(pool: dict[str, Any], index: int, *, chain_id: int |
             "source": "native_currency",
         }
     if address:
-        cached = _v4_token_metadata_cache(_pool_manager_address(pool, chain_id)).get(address.lower())
+        cached = _v4_token_metadata_cache(_pool_manager_address(pool, chain_id), chain_id=chain_id).get(address.lower())
         if cached:
             symbol = symbol or _norm_symbol(cached.get("symbol"))
             if decimals is None:
@@ -299,7 +307,14 @@ def _v4_static_depth_impact_bps(
 def _static_depth_available(pool: dict[str, Any]) -> bool:
     protocol = _pool_protocol(pool)
     if protocol == "uniswap_v4":
-        return _optional_number(pool.get("liquidity")) not in (None, 0) and _pool_tvl_usd(pool) > 0
+        liquidity_available = _optional_number(pool.get("liquidity")) not in (None, 0)
+        tvl_available = _pool_tvl_usd(pool) > 0
+        # Indexed V4 pools often lack a liquidity field until a swap refreshes
+        # the liquidity cache.  A decoded PoolKey with sqrtPriceX96 remains a
+        # valid quote candidate: the on-chain quoter will verify whether
+        # enough liquidity exists, instead of treating the route as missing.
+        pool_state_available = bool(pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96"))
+        return liquidity_available or tvl_available or pool_state_available
     return (
         _pool_reserve_amount(pool, 0) is not None and _pool_reserve_amount(pool, 1) is not None
     ) or (

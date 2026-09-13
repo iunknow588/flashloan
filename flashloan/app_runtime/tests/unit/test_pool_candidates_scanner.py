@@ -629,6 +629,57 @@ def test_dex_opportunity_scanner_keeps_robinhood_testnet_candidates_but_bounds_l
     assert payload["routes"][1]["quoteAnalysis"]["live_onchain_evidence"]["status"] == "live_evidence_deferred"
 
 
+def test_dex_opportunity_scanner_marks_unreviewed_route_without_pool_depth_as_missing_effective_pool():
+    from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
+
+    payload = {
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "routes": [
+            {
+                "symbolPair": "ETH -> TOKEN -> ETH",
+                "routeSymbols": ["ETH", "TOKEN", "ETH"],
+                "routeAddresses": ["0x1", "0x2", "0x1"],
+                "quoteStatus": "requires_live_quoter",
+                "quoteAnalysis": {
+                    "complete": True,
+                    "requiresLiveQuoter": True,
+                    "staticDepthAvailable": False,
+                    "staticDepthStatus": "unavailable",
+                    "warnings": [],
+                },
+                "quoteInputs": {
+                    "candidatePools": [
+                        {
+                            "pool": "0xabc",
+                            "pairSymbol": "ETH:TOKEN",
+                            "balances": {"tvlUsd": 0},
+                            "liquidity": "",
+                        }
+                    ],
+                    "quoteRequests": [{}],
+                },
+            }
+        ],
+    }
+
+    attempts = build_dex_opportunity_attempts(
+        payload,
+        chain_id=46630,
+        observed_at="2026-08-29T00:00:00Z",
+        max_onchain_evidence_routes=0,
+        max_recordable_routes=1,
+    )
+
+    assert len(attempts) == 1
+    evidence = attempts[0]["quote"]["live_onchain_evidence"]
+    assert evidence["status"] == "missing_effective_pool"
+    assert "missing effective trading pool" in evidence["blockers"][0]
+    assert attempts[0]["quote"]["quote_required"] is False
+    assert attempts[0]["precheck"]["requires_live_quoter"] is False
+    assert payload["routes"][0]["quoteAnalysis"]["requiresLiveQuoter"] is False
+    assert payload["routes"][0]["quoteAnalysis"]["live_onchain_evidence"]["status"] == "missing_effective_pool"
+
+
 def test_dex_opportunity_scanner_writes_failed_onchain_evidence_into_snapshot_route():
     from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
 
@@ -682,7 +733,13 @@ def test_dex_opportunity_scanner_writes_failed_onchain_evidence_into_snapshot_ro
     assert attempts[0]["quote"]["live_onchain_evidence"]["status"] == "live_quote_failed"
     assert route["live_onchain_evidence"]["status"] == "live_quote_failed"
     assert route["quoteVerification"]["blockNumber"] == 456
-    assert route["quoteAnalysis"]["steps"][0]["liveQuoteError"] == "NotEnoughLiquidity"
+    failed_steps = [
+        step
+        for step in route["quoteAnalysis"]["steps"]
+        if isinstance(step, dict) and step.get("liveQuoteError") == "NotEnoughLiquidity"
+    ]
+    assert len(failed_steps) == 1
+    assert failed_steps[0]["hop"] == 2
     assert route["quoteAnalysis"]["netProfitUsd"] is None
 
 

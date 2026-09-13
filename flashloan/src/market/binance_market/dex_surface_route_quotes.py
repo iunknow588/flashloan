@@ -10,7 +10,10 @@ from bot.execution.uniswap_v4 import (
 )
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter as _default_load_v4_sdk_adapter
 from core.chain_data_registry import chain_data_by_chain_id
-from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import probe_v4_executable_amount_from_pool_index
+from dex.intent_trade.chains.robinhood.shared import (
+    ROBINHOOD_CHAIN_ID as _ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
+)
 from market.binance_market.dex_surface_graph import (
     _pool_matches_edge,
     _route_addresses_from_tokens,
@@ -50,8 +53,8 @@ from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 DEFAULT_FLASH_LOAN_FEE_BPS = 5.0
 DEFAULT_GAS_RESERVE_USD = 1.0
-ROBINHOOD_CHAIN_ID = 4663
-ROBINHOOD_TESTNET_CHAIN_ID = 46630
+ROBINHOOD_CHAIN_ID = _ROBINHOOD_CHAIN_ID
+ROBINHOOD_TESTNET_CHAIN_ID = _ROBINHOOD_TESTNET_CHAIN_ID
 _ROBINHOOD_CHAIN_IDS = {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}
 
 
@@ -532,6 +535,8 @@ def _route_quote_analysis(
             break
         quote["hop"] = index
         quote["status"] = "quoted"
+        quote.setdefault("tokenIn", from_address)
+        quote.setdefault("tokenOut", to_address)
         steps.append(quote)
         trust = str(quote.get("executionTrust") or "").strip().lower()
         has_reference_output = quote.get("referenceOutputUsd") is not None or quote.get("referenceOutputAmount") is not None
@@ -709,7 +714,7 @@ def _route_quote_analysis(
         )
         if strict_live_price_only:
             reasons = live_quote_failures or [
-                "Robinhood Testnet 强制链上实时价格，静态参考价已禁用",
+                "Robinhood Chain 强制链上实时价格，静态参考价已禁用",
                 "路由框架可以保留，但任何价格、收益和 bps 都必须来自 live quoter / onchain evidence",
             ]
         if depth_status == "unavailable":

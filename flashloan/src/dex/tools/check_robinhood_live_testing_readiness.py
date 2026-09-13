@@ -57,8 +57,14 @@ def main() -> int:
     parser.add_argument(
         "--snapshot-json",
         type=Path,
-        default=SRC_ROOT / "runtime" / "cache" / "dex_opportunity_snapshot.json",
+        default=SRC_ROOT / "dex" / "runtime" / "cache" / "dex_opportunity_snapshot.json",
         help="Current opportunity snapshot used to reject stale chain-test plans.",
+    )
+    parser.add_argument(
+        "--route-capture-json",
+        type=Path,
+        default=SRC_ROOT / "runtime" / "evidence" / "robinhood-testnet" / "route_capture" / "latest.json",
+        help="Route capture evidence used as a live-profitable-route fallback.",
     )
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument(
@@ -85,6 +91,7 @@ def main() -> int:
         else:
             plan = _read_json(args.plan_json)
         current_opportunity_snapshot = _read_json(args.snapshot_json) if args.snapshot_json.exists() else None
+        route_capture = _read_json(args.route_capture_json) if args.route_capture_json.exists() else None
         if plan_missing and not args.no_write:
             _write_json(args.plan_json, plan)
         audit = audit_robinhood_chain_test_plan(plan)
@@ -94,6 +101,7 @@ def main() -> int:
             chain_test_plan=plan,
             chain_test_audit=audit,
             current_opportunity_snapshot=current_opportunity_snapshot,
+            route_capture=route_capture,
         )
         if plan_missing and plan.get("evidence", {}).get("status") == "chain_test_plan_missing":
             report = report | {"missingChainTestPlanPath": str(args.plan_json)}

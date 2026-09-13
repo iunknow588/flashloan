@@ -23,6 +23,20 @@ from dex.intent_trade.chains.robinhood.chain_test_policy import (
     ROBINHOOD_TESTNET_NETWORK,
     robinhood_chain_test_scope,
 )
+from dex.intent_trade.chains.robinhood.config import (
+    MULTICALL_ADDRESS,
+    PERMIT2_ADDRESS,
+    TESTNET_PERMIT2_ADDRESS,
+    TESTNET_V4_POOL_MANAGER_ADDRESS,
+    TESTNET_V4_QUOTER_ADDRESS,
+    TESTNET_V4_UNIVERSAL_ROUTER_ADDRESS,
+    UNISWAP_V2_POOL_ADDRESS,
+    V3_QUOTER_ADDRESS,
+    V4_POOL_MANAGER_ADDRESS,
+    V4_QUOTER_ADDRESS,
+    V4_UNIVERSAL_ROUTER_ADDRESS,
+    WETH_ADDRESS,
+)
 from dex.intent_trade.chains.robinhood.chain_test_helpers import (
     ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT,
     _as_dict,
@@ -539,10 +553,10 @@ def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
             **common,
             "scope": "robinhood_testnet_46630_only",
             "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
-            "v4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-            "defaultV4Quoter": "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
-            "v4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
-            "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+            "v4PoolManager": TESTNET_V4_POOL_MANAGER_ADDRESS,
+            "defaultV4Quoter": TESTNET_V4_QUOTER_ADDRESS,
+            "v4UniversalRouter": TESTNET_V4_UNIVERSAL_ROUTER_ADDRESS,
+            "permit2": TESTNET_PERMIT2_ADDRESS,
             "candidatePoolSupplyEvidence": None,
             "morphoBlueStatus": "not_publicly_verified_on_testnet_46630",
             "aaveStatus": "not_publicly_verified_on_testnet_46630",
@@ -550,10 +564,14 @@ def _chain_contract_handoff_metadata(plan: dict[str, Any]) -> dict[str, Any]:
     return {
         **common,
         "scope": "robinhood_mainnet_4663_only",
-        "wrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-        "multicall3": "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1",
-        "uniswapV2Pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
-        "v3Quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",
+        "wrappedNative": WETH_ADDRESS,
+        "multicall3": MULTICALL_ADDRESS,
+        "uniswapV2Pool": UNISWAP_V2_POOL_ADDRESS,
+        "v3Quoter": V3_QUOTER_ADDRESS,
+        "v4PoolManager": V4_POOL_MANAGER_ADDRESS,
+        "defaultV4Quoter": V4_QUOTER_ADDRESS,
+        "v4UniversalRouter": V4_UNIVERSAL_ROUTER_ADDRESS,
+        "permit2": PERMIT2_ADDRESS,
     }
 
 

@@ -6,6 +6,7 @@ from typing import Any, Callable, Mapping
 
 from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
 from bot.execution.uniswap_v4 import quote_v4_exact_input_single
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID
 
 
 V4QuoteAdapter = Callable[[dict[str, Any]], dict[str, Any]]
@@ -91,25 +92,69 @@ def load_v4_sdk_adapter(
     chain_id: int | None = None,
 ) -> V4QuoteAdapter | None:
     values = env or os.environ
-    reference = str(
-        values.get("UNISWAP_V4_SDK_ADAPTER")
-        or values.get("DEX_V4_SDK_ADAPTER")
-        or values.get("ROBINHOOD_TESTNET_UNISWAP_V4_SDK_ADAPTER")
-        or values.get("ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER")
-        or values.get("ROBINHOOD_V4_QUOTE_ADAPTER")
-        or values.get("ROBINHOOD_V4_SDK_ADAPTER")
-        or _chain_default_reference(network, chain_id)
-        or ""
-    ).strip()
+    try:
+        network_chain_id = int(chain_id)
+    except (TypeError, ValueError):
+        network_chain_id = None
+    if network_chain_id is not None:
+        try:
+            row = chain_data_by_chain_id(network_chain_id) or {}
+        except Exception:
+            row = {}
+        if not str(row.get("network") or "").strip().lower():
+            network_chain_id = None
+    if network_chain_id is None and network:
+        try:
+            row = chain_data_by_network(str(network).strip().lower()) or {}
+        except Exception:
+            row = {}
+        try:
+            network_chain_id = int(row["chain_id"])
+        except (TypeError, ValueError):
+            network_chain_id = None
+
+    env_candidates: list[str] = [
+        "UNISWAP_V4_SDK_ADAPTER",
+        "DEX_V4_SDK_ADAPTER",
+    ]
+    if network_chain_id == ROBINHOOD_CHAIN_ID or str(network or "").strip().lower() == "robinhood":
+        env_candidates = [
+            "ROBINHOOD_MAINNET_V4_QUOTE_ADAPTER",
+            "ROBINHOOD_MAINNET_V4_SDK_ADAPTER",
+            "ROBINHOOD_V4_QUOTE_ADAPTER",
+            "ROBINHOOD_V4_SDK_ADAPTER",
+            "UNISWAP_V4_SDK_ADAPTER",
+            "DEX_V4_SDK_ADAPTER",
+        ]
+    if network_chain_id == ROBINHOOD_TESTNET_CHAIN_ID or str(network or "").strip().lower() in {
+        "robinhood-testnet",
+        "robinhood_testnet",
+    }:
+        env_candidates = [
+            "ROBINHOOD_TESTNET_UNISWAP_V4_SDK_ADAPTER",
+            "ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER",
+            "ROBINHOOD_TESTNET_V4_SDK_ADAPTER",
+            "ROBINHOOD_V4_QUOTE_ADAPTER",
+            "ROBINHOOD_V4_SDK_ADAPTER",
+            "UNISWAP_V4_SDK_ADAPTER",
+            "DEX_V4_SDK_ADAPTER",
+        ]
+    reference = str(next((values.get(name) for name in env_candidates if values.get(name)), "")).strip()
+    if not reference:
+        reference = _chain_default_reference(network, chain_id)
     if not reference:
         return None
     target = _resolve_callable(reference)
     if not callable(target):
         raise TypeError("UNISWAP_V4_SDK_ADAPTER must resolve to a callable")
-    normalized_network = str(network or "").strip().lower()
-    if int(chain_id or 0) == 46630 or normalized_network == "robinhood-testnet":
+    if network_chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} or str(network or "").strip().lower() in {
+        "robinhood",
+        "robinhood-testnet",
+        "robinhood_testnet",
+    }:
         if _is_reference_quote_adapter(target):
-            raise RuntimeError("Robinhood Testnet requires a real V4 quote adapter")
+            label = "Robinhood mainnet" if network_chain_id == ROBINHOOD_CHAIN_ID or str(network or "").strip().lower() == "robinhood" else "Robinhood Testnet"
+            raise RuntimeError(f"{label} requires a real V4 quote adapter")
     return target
 
 

@@ -78,13 +78,27 @@ def require_dependencies() -> None:
 
 def read_port() -> int:
     raw_port = os.getenv("PORT", "5000").strip()
+    return _coerce_port(raw_port, source="PORT")
+
+
+def read_port_override() -> int | None:
+    if "--port" not in sys.argv:
+        return None
+    try:
+        raw_port = sys.argv[sys.argv.index("--port") + 1]
+    except IndexError as exc:
+        raise RuntimeError("--port requires a value, e.g. --port 5002") from exc
+    return _coerce_port(raw_port, source="--port")
+
+
+def _coerce_port(raw_port: str, *, source: str) -> int:
     try:
         port = int(raw_port)
     except ValueError as exc:
-        raise RuntimeError(f"PORT must be an integer, got {raw_port!r}") from exc
+        raise RuntimeError(f"{source} must be an integer, got {raw_port!r}") from exc
 
     if not 1 <= port <= 65535:
-        raise RuntimeError(f"PORT must be between 1 and 65535, got {port}")
+        raise RuntimeError(f"{source} must be between 1 and 65535, got {port}")
     return port
 
 
@@ -97,7 +111,7 @@ def main() -> int:
 
     with _runtime_environment():
         try:
-            port = read_port()
+            port = read_port_override() or read_port()
 
             from web.control_panel import app, initialize_cow_arbitrage_runtime, initialize_liquidation_runtime
             from dex.runtime.cow_submission_pause import disable_cow_submission_for_startup

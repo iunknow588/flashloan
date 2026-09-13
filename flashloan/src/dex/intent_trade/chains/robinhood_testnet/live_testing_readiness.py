@@ -7,6 +7,7 @@ from typing import Any
 
 from dex.intent_trade.chains.robinhood.chain_test_audit import audit_robinhood_chain_test_plan
 from dex.intent_trade.chains.robinhood_testnet.normal_flash_probe import resolve_robinhood_testnet_normal_flash_probe
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
 from dex.intent_trade.chains.robinhood_testnet.predeploy_readiness import (
     _as_dict,
     _as_list,
@@ -28,11 +29,34 @@ def summarize_robinhood_testnet_live_testing_readiness(
     chain_test_plan: dict[str, Any],
     chain_test_audit: dict[str, Any] | None = None,
     current_opportunity_snapshot: dict[str, Any] | None = None,
+    route_capture: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     audit = chain_test_audit or audit_robinhood_chain_test_plan(chain_test_plan)
     stage = _as_dict(chain_metadata.get("stageFreezePredeploy"))
     policy = _as_dict(chain_metadata.get("onchainTestPolicy"))
     live_testing = _as_dict(chain_metadata.get("liveTesting"))
+    normal_probe_live = _as_dict(contracts_metadata.get("normalTestnetProbeLive")) or _as_dict(
+        chain_metadata.get("normalTestnetProbeLive")
+    )
+    normal_probe_live_tx_hash = _text(normal_probe_live.get("txHash"))
+    normal_probe_live_test_complete = _bool(normal_probe_live.get("complete")) or (
+        _bool(normal_probe_live.get("broadcastOk")) and bool(normal_probe_live_tx_hash)
+    )
+    normal_probe_live_test_evidence = _text(normal_probe_live.get("evidence")) or _text(
+        contracts_metadata.get("lastNormalTestnetProbeLiveEvidence")
+        or chain_metadata.get("lastNormalTestnetProbeLiveEvidence")
+    )
+    profitable_route_live = _as_dict(contracts_metadata.get("profitableRouteLiveTest")) or _as_dict(
+        chain_metadata.get("profitableRouteLiveTest")
+    )
+    profitable_route_live_tx_hash = _text(profitable_route_live.get("txHash"))
+    profitable_route_live_test_complete = _bool(profitable_route_live.get("complete")) or (
+        _bool(profitable_route_live.get("broadcastOk")) and bool(profitable_route_live_tx_hash)
+    )
+    profitable_route_live_test_evidence = _text(profitable_route_live.get("evidence")) or _text(
+        contracts_metadata.get("lastProfitableRouteLiveTestEvidence")
+        or chain_metadata.get("lastProfitableRouteLiveTestEvidence")
+    )
     testnet_v4_pool = _as_dict(chain_metadata.get("testnetV4PoolEvidence"))
     lending_liquidity = _as_dict(chain_metadata.get("lendingLiquidity"))
     plan_evidence = _as_dict(chain_test_plan.get("evidence"))
@@ -73,6 +97,10 @@ def summarize_robinhood_testnet_live_testing_readiness(
     current_live_profitable_route_count = _int(snapshot_summary.get("live_profitable_route_count"))
     if current_live_profitable_route_count == 0:
         current_live_profitable_route_count = _int(snapshot_summary.get("liveProfitableRouteCount"))
+    route_capture = _as_dict(route_capture)
+    route_capture_live_profitable_route_count = _int(route_capture.get("liveProfitableRouteCount"))
+    if current_live_profitable_route_count == 0 and route_capture_live_profitable_route_count > 0:
+        current_live_profitable_route_count = route_capture_live_profitable_route_count
     current_snapshot_has_no_live_profitable_route = bool(
         snapshot_chain and current_live_profitable_route_count == 0
     )
@@ -116,9 +144,9 @@ def summarize_robinhood_testnet_live_testing_readiness(
     )
 
     blockers: list[str] = []
-    if chain_metadata.get("chainId") != 46630:
+    if chain_metadata.get("chainId") != ROBINHOOD_TESTNET_CHAIN_ID:
         blockers.append("testnet_chain_metadata_not_46630")
-    if chain_metadata.get("chainKey") != "chain:46630":
+    if chain_metadata.get("chainKey") != f"chain:{ROBINHOOD_TESTNET_CHAIN_ID}":
         blockers.append("testnet_chain_key_not_chain_46630")
     if chain_metadata.get("defaultDexChainSelector") is not False:
         blockers.append("robinhood_testnet_must_not_be_default_dex_selector")
@@ -141,7 +169,14 @@ def summarize_robinhood_testnet_live_testing_readiness(
         blockers.append("chain_test_plan_stale_against_current_opportunity_snapshot")
     if snapshot_is_newer_than_plan and current_snapshot_has_no_live_profitable_route:
         blockers.append("current_opportunity_snapshot_has_no_live_profitable_route")
-    if not broadcast_enabled:
+    if not normal_probe_live_test_complete:
+        blockers.append("normal_probe_live_test_not_recorded")
+    if not profitable_route_live_test_complete:
+        blockers.append("profitable_route_live_test_not_complete")
+    elif snapshot_chain and current_live_profitable_route_count == 0:
+        blockers.append("current_opportunity_snapshot_has_no_live_profitable_route")
+    live_tests_complete = normal_probe_live_test_complete and profitable_route_live_test_complete
+    if not broadcast_enabled and not live_tests_complete:
         blockers.append("broadcast_gate_closed")
     if not normal_probe_ready:
         blockers.append("normal_testnet_probe_not_ready")
@@ -153,7 +188,7 @@ def summarize_robinhood_testnet_live_testing_readiness(
         blockers.append("abnormal_onchain_tests_not_deferred")
     if stage_approved is not True:
         blockers.append("stage_freeze_not_approved")
-    if contracts_metadata.get("chainId") not in (None, 46630):
+    if contracts_metadata.get("chainId") not in (None, ROBINHOOD_TESTNET_CHAIN_ID):
         blockers.append("contracts_chain_id_not_robinhood_testnet")
     if not audit_ok and not _as_list(audit.get("issues")):
         blockers.append("chain_test_audit_failed")
@@ -164,16 +199,22 @@ def summarize_robinhood_testnet_live_testing_readiness(
 
     ready_for_live_test = not blockers
     return {
-        "schemaVersion": "robinhood-testnet-live-testing-readiness-v1",
+        "schemaVersion": "robinhood-testnet-live-testing-readiness-v2",
         "chainId": chain_metadata.get("chainId"),
         "chainKey": chain_metadata.get("chainKey"),
         "marketId": chain_metadata.get("marketId"),
         "readyForLiveTest": ready_for_live_test,
         "broadcastEnabled": broadcast_enabled,
         "chainTestReady": chain_test_ready,
+        "normalProbeLiveTestComplete": normal_probe_live_test_complete,
+        "normalProbeLiveTestTxHash": normal_probe_live_tx_hash,
+        "profitableRouteLiveTestComplete": profitable_route_live_test_complete,
+        "profitableRouteLiveTestTxHash": profitable_route_live_tx_hash,
         "normalTestnetProbe": normal_probe,
         "gates": {
             "chainTestReady": chain_test_ready,
+            "normalProbeLiveTestComplete": normal_probe_live_test_complete,
+            "profitableRouteLiveTestComplete": profitable_route_live_test_complete,
             "chainBroadcastEnabled": chain_broadcast_enabled,
             "contractBroadcastEnabled": contract_broadcast_enabled,
             "broadcastEnabled": broadcast_enabled,
@@ -191,8 +232,17 @@ def summarize_robinhood_testnet_live_testing_readiness(
             "chainTestPlan": chain_metadata.get("lastChainTestPlanEvidence"),
             "predeployReadiness": chain_metadata.get("lastPredeployReadinessEvidence"),
             "lendingLiquidity": chain_metadata.get("lastLendingLiquidityEvidence"),
+            "routeCapture": (
+                route_capture.get("evidencePath")
+                or route_capture.get("path")
+                or "flashloan/src/runtime/evidence/robinhood-testnet/route_capture/latest.json"
+            )
+            if route_capture
+            else None,
             "candidatePoolSupply": chain_metadata.get("lastCandidatePoolSupplyEvidence"),
             "normalTestnetProbe": chain_metadata.get("lastNormalTestnetProbeEvidence"),
+            "normalTestnetProbeLive": normal_probe_live_test_evidence,
+            "profitableRouteLiveTest": profitable_route_live_test_evidence,
             "pausedRedeployPlan": chain_metadata.get("lastPausedRedeployPlanEvidence"),
             "currentOpportunitySnapshotUpdatedAt": snapshot_updated_at or None,
             "chainTestPlanGeneratedAt": plan_generated_at or None,
@@ -209,7 +259,15 @@ def summarize_robinhood_testnet_live_testing_readiness(
                     "normal_testnet_probe_measurement_not_ready" in blockers,
                 ),
                 ("finish_chain_test_readiness", "chain_test_readiness_not_ready_for_live_testing" in blockers),
-                ("run_small_notional_testnet_transaction", ready_for_live_test),
+                ("run_normal_probe_live_test_and_record_evidence", not normal_probe_live_test_complete),
+                (
+                    "capture_profitable_route_live_test",
+                    normal_probe_live_test_complete and not profitable_route_live_test_complete,
+                ),
+                (
+                    "complete_profitable_route_live_test_evidence",
+                    ready_for_live_test and profitable_route_live_test_complete,
+                ),
             ]
             if needed
         ],

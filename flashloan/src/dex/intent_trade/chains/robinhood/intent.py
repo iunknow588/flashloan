@@ -25,10 +25,10 @@ def normalize_network(value: Any) -> str:
         "robinhood": "robinhood",
         "robinhood-chain": "robinhood",
         "robinhood-mainnet": "robinhood",
-        "4663": "robinhood",
+        str(robinhood.CHAIN_ID): "robinhood",
         "robinhood-testnet": "robinhood-testnet",
         "robinhood-sepolia": "robinhood-testnet",
-        "46630": "robinhood-testnet",
+        str(robinhood.TESTNET_CHAIN_ID): "robinhood-testnet",
     }
     return aliases.get(key, key)
 
