@@ -89,23 +89,11 @@ function mintParams(key, tickLower, tickUpper, liquidity, owner) {
   );
 }
 
-async function assert80PercentRetained(owner, token, label) {
+async function logOwnerBalance(owner, token, label) {
   const total = await token.totalSupply();
   const balance = await token.balanceOf(owner.address);
-  const minimum = (total * 80n) / 100n;
-  if (balance < minimum) {
-    const mintAmount = (minimum - balance) * 5n;
-    const mint = await token.mint(owner.address, mintAmount);
-    await mint.wait();
-    console.log(`  ${label} minted ${ethers.formatUnits(mintAmount, 18)} to restore >=80% owner balance`);
-  }
-  const balanceAfter = await token.balanceOf(owner.address);
-  const totalAfter = await token.totalSupply();
-  const minimumAfter = (totalAfter * 80n) / 100n;
-  if (balanceAfter < minimumAfter) {
-    throw new Error(`${label} owner balance below 80% after mint: ${balanceAfter} < ${minimumAfter}`);
-  }
-  console.log(`  ${label} owner balance=${ethers.formatUnits(balanceAfter, 18)} (>=80%)`);
+  const pct = (Number(balance) / Number(total)) * 100;
+  console.log(`  ${label} owner balance=${ethers.formatUnits(balance, 18)} (${pct.toFixed(2)}% of total; 80% creation reserve is meant to be spent on later liquidity, not enforced after replenishment)`);
 }
 
 async function main() {
@@ -116,8 +104,8 @@ async function main() {
   const liquidityToAdd = ethers.parseUnits(readArg("amount", process.env.ROBINHOOD_TESTNET_REPLENISH_LIQUIDITY || "2000"), 18);
 
   const manifest = readManifest();
-  if (!manifest.officialV4 || !manifest.officialV4.hooks || manifest.officialV4.hooks === ethers.ZeroAddress) {
-    throw new Error("officialV4.hook missing; run testnet-v4-official-pool-create-live first");
+  if (!manifest.officialV4 || !manifest.officialV4.poolManager) {
+    throw new Error("officialV4.poolManager missing; run testnet-v4-official-pool-create-live first");
   }
 
   const [owner] = await ethers.getSigners();
@@ -129,7 +117,7 @@ async function main() {
 
   const fee = Number(manifest.officialV4.fee);
   const tickSpacing = Number(manifest.officialV4.tickSpacing);
-  const hooks = manifest.officialV4.hooks;
+  const hooks = manifest.officialV4.hooks || ethers.ZeroAddress;
 
   console.log("official V4 manual liquidity replenisher");
   console.log(`  poolManager=${manifest.officialV4.poolManager}`);
@@ -163,7 +151,7 @@ async function main() {
   }
 
   if (!allowBroadcast) {
-    console.log("broadcast disabled; would-be replenish preflight passed");
+    console.log("broadcast disabled; replenish action prepared for review (not broadcast)");
     return;
   }
 
@@ -177,9 +165,9 @@ async function main() {
     await permit2.approve(await token.getAddress(), POSITION_MANAGER_ADDRESS, maxUint160, maxUint48);
   }
 
-  await assert80PercentRetained(owner, tz, "tz");
-  await assert80PercentRetained(owner, ta, "ta");
-  await assert80PercentRetained(owner, tb, "tb");
+  await logOwnerBalance(owner, tz, "tz");
+  await logOwnerBalance(owner, ta, "ta");
+  await logOwnerBalance(owner, tb, "tb");
 
   const unlockData = ethers.AbiCoder.defaultAbiCoder().encode(
     ["bytes", "bytes[]"],

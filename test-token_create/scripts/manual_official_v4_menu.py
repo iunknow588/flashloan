@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
 REPLENISH_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-inject-liquidity-live.js"
 MAKE_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-make-arb-opportunity-live.js"
+DIAGNOSE_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-diagnose-live.js"
 
 
 CHOICES = [
@@ -41,19 +42,15 @@ CHOICES = [
     },
     {
         "id": 3,
-        "label": "增加流动性 100（仅预检）",
-        "script": REPLENISH_SCRIPT,
-        "amount": "100",
-        "broadcast": False,
-        "env_gate": "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST",
+        "label": "检测深度（只读/不广播）",
+        "script": DIAGNOSE_SCRIPT,
+        "mode": "depth",
     },
     {
         "id": 4,
-        "label": "增加流动性 500（仅预检）",
-        "script": REPLENISH_SCRIPT,
-        "amount": "500",
-        "broadcast": False,
-        "env_gate": "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST",
+        "label": "检测三角平衡（只读/不广播）",
+        "script": DIAGNOSE_SCRIPT,
+        "mode": "balance",
     },
     {
         "id": 5,
@@ -73,19 +70,9 @@ CHOICES = [
     },
     {
         "id": 7,
-        "label": "增加 TZ 不平衡性 100（仅预检）",
-        "script": MAKE_ARB_SCRIPT,
-        "amount": "100",
-        "broadcast": False,
-        "env_gate": "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_MAKE_ARB_BROADCAST",
-    },
-    {
-        "id": 8,
-        "label": "增加 TZ 不平衡性 500（仅预检）",
-        "script": MAKE_ARB_SCRIPT,
-        "amount": "500",
-        "broadcast": False,
-        "env_gate": "ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_MAKE_ARB_BROADCAST",
+        "label": "检测深度与三角平衡（只读/不广播）",
+        "script": DIAGNOSE_SCRIPT,
+        "mode": "all",
     },
 ]
 
@@ -98,21 +85,22 @@ def print_menu():
 
 
 def run_choice(choice, rpc_url):
-    node_args = [
-        str(choice["script"]),
-        "--amount",
-        choice["amount"],
-    ]
-    if choice["broadcast"]:
+    node_args = [str(choice["script"])]
+    if choice.get("amount"):
+        node_args.extend(["--amount", choice["amount"]])
+    if choice.get("mode"):
+        node_args.extend(["--mode", choice["mode"]])
+    if choice.get("broadcast"):
         node_args.append("--broadcast")
 
     env = os.environ.copy()
     env["HARDHAT_NETWORK"] = "robinhoodTestnet"
     env["ROBINHOOD_TESTNET_RPC_URL"] = rpc_url
-    env[choice["env_gate"]] = "true" if choice["broadcast"] else "false"
+    if choice.get("env_gate"):
+        env[choice["env_gate"]] = "true" if choice.get("broadcast") else "false"
 
     print(f"\n>>> {choice['label']}")
-    print(f">>> {'广播' if choice['broadcast'] else '预检'} 模式，RPC={rpc_url}\n")
+    print(f">>> {'广播' if choice.get('broadcast') else '只读/不广播'} 模式，RPC={rpc_url}\n")
     return subprocess.run(
         [os.environ.get("NODE", "node"), *node_args],
         cwd=DEX_DIR,

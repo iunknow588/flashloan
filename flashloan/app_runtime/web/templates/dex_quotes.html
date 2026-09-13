@@ -333,12 +333,12 @@
           }
           return merged;
         })(),
-        recommendation: lines(evidence.blockers).length ? {
-          level: evidence.status,
-          action: live
-            ? (evidence.readyForTransactionPreflight ? "链上验证完成；仍需交易预检" : "链上验证通过，但执行门禁未放行")
+        recommendation: lines(evidence.blockers).length || live ? {
+            level: evidence.status || (live ? "live_verified" : ""),
+            action: live
+              ? (evidence.readyForTransactionPreflight ? "链上验证完成；仍需交易预检" : "链上验证通过，但执行门禁未放行")
             : (base.requiresLiveQuoter && base.referenceNetProfitAmount != null ? "链上报价未完成，当前为静态参考收益" : "等待链上报价与复核"),
-          reasons: evidence.blockers,
+            reasons: evidence.blockers,
         } : base.recommendation,
       };
     };

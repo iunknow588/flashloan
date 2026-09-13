@@ -473,3 +473,61 @@ def test_quote_routes_payload_skips_live_refresh_when_cached_framework_steps_exi
     assert calls["quote"] == 1
     assert calls["size"] == 2
     assert refreshed["routes"][0]["quoteAnalysis"]["priceEvidenceSource"] == "chain_live_quote"
+
+
+def test_quote_routes_payload_reviews_robinhood_testnet_by_default(monkeypatch):
+    overview = {
+        "arbitragePaths": [
+            {
+                "symbolPair": "TZ -> TB -> TA -> TZ",
+                "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+                "routeAddresses": ["0x0", "0x1", "0x2", "0x0"],
+                "routeTokenPath": [{"symbol": "TZ"}, {"symbol": "TB"}, {"symbol": "TA"}, {"symbol": "TZ"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {
+                    "pathSymbols": ["TZ", "TB", "TA", "TZ"],
+                    "pathAddresses": ["0x0", "0x1", "0x2", "0x0"],
+                    "pathTokens": [{"symbol": "TZ"}, {"symbol": "TB"}, {"symbol": "TA"}, {"symbol": "TZ"}],
+                },
+            }
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+    calls = {"quote": 0, "size": 0}
+
+    def route_quote_analysis_fn(route, price_map, chain_id):
+        calls["quote"] += 1
+        return {
+            "steps": [{"fromSymbol": "TZ", "toSymbol": "TB"}],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "livePriceVerified": True,
+            "priceEvidenceSource": "chain_live_quote",
+            "priceEvidenceMode": "live_verified",
+            "executableCandidate": False,
+            "chainSubmissionCandidate": False,
+            "chainSubmissionPolicy": "live_framework_reuse",
+            "netProfitUsd": None,
+        }
+
+    def route_size_analysis_fn(route, price_map, chain_id):
+        calls["size"] += 1
+        return {"rows": [{"size": 1}]}
+
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    payload = build_quote_routes_payload_from_overview(
+        overview,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+    )
+
+    assert calls["quote"] == 1
+    assert calls["size"] == 1
+    assert payload["routes"][0]["quoteAnalysis"]["priceEvidenceMode"] == "live_verified"
+    assert payload["routes"][0]["quoteStatus"] == "live_verified"

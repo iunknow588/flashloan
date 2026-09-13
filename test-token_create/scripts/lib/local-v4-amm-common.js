@@ -64,15 +64,17 @@ async function injectInitialLiquidity(owner, tz, ta, tb, amm) {
   await ensurePool(amm, ta, tb);
   await ensurePool(amm, tb, tz);
 
-  if (await keepsAtLeast80Percent(owner, tz, MILLION) && await keepsAtLeast80Percent(owner, ta, toToken(100_000))) {
-    await amm.addLiquidity(await tz.getAddress(), await ta.getAddress(), MILLION, toToken(100_000));
-  }
-  if (await keepsAtLeast80Percent(owner, ta, toToken(100_000)) && await keepsAtLeast80Percent(owner, tb, MILLION)) {
-    await amm.addLiquidity(await ta.getAddress(), await tb.getAddress(), toToken(100_000), MILLION);
-  }
-  if (await keepsAtLeast80Percent(owner, tb, MILLION) && await keepsAtLeast80Percent(owner, tz, toToken(100_000))) {
-    await amm.addLiquidity(await tb.getAddress(), await tz.getAddress(), MILLION, toToken(100_000));
-  }
+  await ensureOwnerHasEnough(owner, tz, MILLION);
+  await ensureOwnerHasEnough(owner, ta, toToken(100_000));
+  await amm.addLiquidity(await tz.getAddress(), await ta.getAddress(), MILLION, toToken(100_000));
+
+  await ensureOwnerHasEnough(owner, ta, toToken(100_000));
+  await ensureOwnerHasEnough(owner, tb, MILLION);
+  await amm.addLiquidity(await ta.getAddress(), await tb.getAddress(), toToken(100_000), MILLION);
+
+  await ensureOwnerHasEnough(owner, tb, MILLION);
+  await ensureOwnerHasEnough(owner, tz, toToken(100_000));
+  await amm.addLiquidity(await tb.getAddress(), await tz.getAddress(), MILLION, toToken(100_000));
 }
 
 async function injectArbitrageOpportunityLiquidity(owner, tz, ta, tb, amm) {
@@ -101,15 +103,7 @@ async function injectArbitrageOpportunityLiquidity(owner, tz, ta, tb, amm) {
     [ta, requiredTa],
     [tb, requiredTb],
   ]) {
-    await topUpOwnerToKeep80Percent(owner, token, amount);
-  }
-
-  if (
-    !(await keepsAtLeast80Percent(owner, tz, requiredTz)) ||
-    !(await keepsAtLeast80Percent(owner, ta, requiredTa)) ||
-    !(await keepsAtLeast80Percent(owner, tb, requiredTb))
-  ) {
-    throw new Error("cannot inject arbitrage-opportunity liquidity while keeping at least 80% of each token in owner");
+    await ensureOwnerHasEnough(owner, token, amount);
   }
 
   await amm.addLiquidity(await tz.getAddress(), await ta.getAddress(), tzTaA, tzTaB);
@@ -123,23 +117,19 @@ async function injectArbitrageOpportunityLiquidity(owner, tz, ta, tb, amm) {
   };
 }
 
-async function topUpOwnerToKeep80Percent(owner, token, amount) {
-  const totalSupply = await token.totalSupply();
+async function ownerHasEnough(owner, token, amount) {
   const balance = await token.balanceOf(owner.address);
-  // Need balance + minted - amount >= 80% of (totalSupply + minted).
-  let needed = (80n * totalSupply - 100n * balance + 100n * amount) / 20n;
-  if (needed > 0n) {
-    needed += 1n;
-    await token.connect(owner).mint(owner.address, needed);
-    console.log(`top-up minted ${ethers.formatUnits(needed, 18)} ${await token.symbol()} to keep owner above 80%`);
-  }
+  return balance >= amount;
 }
 
-async function keepsAtLeast80Percent(owner, token, amount) {
-  const totalSupply = await token.totalSupply();
+async function ensureOwnerHasEnough(owner, token, amount) {
   const balance = await token.balanceOf(owner.address);
-  const minRetained = (totalSupply * 80n) / 100n;
-  return balance >= amount + minRetained;
+  if (balance >= amount) return;
+  const totalSupply = await token.totalSupply();
+  const symbol = await token.symbol();
+  throw new Error(
+    `${symbol} owner balance ${ethers.formatUnits(balance, 18)} is below required ${ethers.formatUnits(amount, 18)} (total ${ethers.formatUnits(totalSupply, 18)}); the 80% creation reserve has been spent and should be replenished before more liquidity injection`
+  );
 }
 
 async function triangularMetric(amm, tz, ta, tb) {
@@ -169,6 +159,7 @@ module.exports = {
   ensurePool,
   injectInitialLiquidity,
   injectArbitrageOpportunityLiquidity,
-  keepsAtLeast80Percent,
+  ownerHasEnough,
+  ensureOwnerHasEnough,
   triangularMetric,
 };

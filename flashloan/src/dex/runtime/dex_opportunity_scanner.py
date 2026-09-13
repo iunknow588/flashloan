@@ -713,7 +713,7 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                 ),
                 max_recordable_routes=int(_env_float("DEX_OPPORTUNITY_SCAN_ROUTE_LIMIT", 5.0, minimum=1.0, maximum=20.0)),
                 testnet_max_onchain_evidence_routes=int(
-                    _env_float("DEX_OPPORTUNITY_TESTNET_ONCHAIN_EVIDENCE_ROUTES", 4.0, minimum=0.0, maximum=10.0)
+                    _env_float("DEX_OPPORTUNITY_TESTNET_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=0.0, maximum=10.0)
                 ),
             )
         return _SCANNER

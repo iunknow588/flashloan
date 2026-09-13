@@ -54,7 +54,7 @@ ta/tb: +10,000 ta : +100,000 tb
 tb/tz: +100,000 tb : +10,000 tz
 ```
 
-如果 owner 余额不足以在追加流动性后仍保留至少 80% 的每种代币，脚本会先给 owner 补充性 mint 测试代币，再执行注入。manifest 会写入 `arbOpportunity.injected`；重复执行不会重复注入，需要再次制造机会时设置：
+如果 owner 余额不足以支付本次追加流动性所需的代币，脚本会直接报错，不会为了保住 80% 而额外 mint。80% 是创建时预留的后续补流动性储备，不是注入后的余额红线。manifest 会写入 `arbOpportunity.injected`；重复执行不会重复注入，需要再次制造机会时设置：
 
 ```powershell
 $env:ROBINHOOD_LOCAL_ARB_OPP_FORCE="true"
@@ -104,6 +104,8 @@ npm run test:robinhood:tz-injection-hook
 
 当前测试网启用成功的延迟记录模式 hook 为 `0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040`，最近一笔带 hook 的官方 V4 小额实盘广播为 `0x39692d41d3d608dff33b3de0564d5d6ac80372ba817f9c8c97767e2f4204b70d`。
 
+`officialV4.hooks` 必须和实际部署的 PoolKey 一致。如果当前池子按普通零 hooks 方式创建，脚本也会使用 `0x0000000000000000000000000000000000000000`，不会强制要求非零 hook。诊断脚本会打印当前 manifest 使用到的三个池子 ID，可对照路由/扫描页面确认。
+
 ## 延迟注入流动性
 
 新增独立脚本不会在 swap 回调里做重活；只有 `pendingReplenishAmount` 达到阈值且距离上次注入超过冷却时间时才广播一笔 `PositionManager.modifyLiquidities` 增加 LP 深度：
@@ -139,7 +141,7 @@ python test-token_create/scripts/manual_official_v4_replenish.py --amount 100 --
 
 ## 制作套利机会
 
-“补充 LP 深度”和“制造套利机会”拆成两个独立脚本。制造套利机会脚本通过 `OfficialV4ImbalanceMaker` 执行一次小额的逆向闭环 swap，主动让池子偏离平衡，使后续 `TZ -> TB -> TA -> TZ` 出现可执行机会；同样有阈值和冷却时间控制，默认金额 `0.001 TZ`：
+“补充 LP 深度”和“制造套利机会”拆成两个独立脚本。制造套利机会脚本通过 `OfficialV4ImbalanceMaker` 执行一次小额的逆向闭环 swap，主动让池子偏离平衡，使后续 `TZ -> TB -> TA -> TZ` 出现可执行机会；这是独立的手动/主观操作，不读取链上套利程序的运行状态，也不由流动性深度兜底。默认金额 `0.001 TZ`：
 
 ```powershell
 npm run testnet:v4-official-make-arb:preflight
@@ -158,7 +160,7 @@ $env:HARDHAT_NETWORK="robinhoodTestnet"
 node ..\..\..\test-token_create\scripts\testnet-v4-official-make-arb-opportunity-live.js --amount 100 --broadcast
 ```
 
-`--amount` 传的是 TZ 数量，默认 `0.001`；当池子深度不足时，`100 TZ` 可能会 revert，建议先注入 LP 深度再用较小金额。
+`--amount` 传的是 TZ 数量，默认 `0.001`，是制造失衡时的主观参数；不依赖链上套利程序是否运行，也不会要求先注入 LP 深度来兜底。若真实池子不接受该金额，请调整该参数后再试。
 
 Python 入口：
 
@@ -166,9 +168,34 @@ Python 入口：
 python test-token_create/scripts/manual_official_v4_make_arb.py --amount 100 --broadcast
 ```
 
+## 路由页面验证不平衡与执行套利
+
+制造失衡后，可以启动 Web 控制台并打开路由页面，让后台扫描器用链上实时报价复核闭环路由：
+
+```powershell
+python flashloan/app_runtime/run.py --port 5050
+```
+
+然后访问：
+
+```text
+http://127.0.0.1:5050/dex/quotes?chain_id=46630&protocols=uniswap_v4
+```
+
+页面会调用 `/api/dex/opportunity-scanner/snapshot`。第一轮扫描需要真实调用 `eth_call` / V4 Quoter，可能耗时较久；快照完成后，如果 `TZ -> TB -> TA -> TZ` 显示 `live_verified` 且净利润为正，说明链上已确认不平衡。
+
+确认后执行套利：
+
+```powershell
+cd contract/robinhood-testnet/DEX
+npm run testnet:v4-official-arb:live
+```
+
+脚本会先 staticCall，检测到正利润后再广播一笔闭环闪贷套利，并把 `lastArbLiveTest` 写入 manifest。
+
 ## 代币与流动性说明
 
-默认创建三个 18 decimals 测试代币：`tz`、`ta`、`tb`，初始每个总量 `10,000,000`。每次注入流动性都会优先保证部署账户至少保留 80% 的代币，避免把全部测试代币锁进池子。
+默认创建三个 18 decimals 测试代币：`tz`、`ta`、`tb`，初始每个总量 `10,000,000`。创建时在 owner 账户预留 80%，是为了之后补充流动性时有代币可用；每次注入会正常消耗这笔预留，不要求注入后 owner 仍保留 80%。
 
 本地 mock 池基础配置：
 
@@ -186,7 +213,7 @@ tb/tz: 1,000,000 tb : 100,000 tz
 - `currencyDebt(arb, tz/ta/tb)` 全部为 0，闪电贷债务已归还。
 - 套利利润大于 0，利润保留在套利合约中。
 - 三角价格指标在套利后下降，池子向平衡方向修正。
-- owner 每种代币仍保留至少 80%。
+- 注入前从创建预留中消耗代币，不要求注入后 owner 每种代币仍保留 80%。
 
 ## 常见问题
 
@@ -207,13 +234,23 @@ python test-token_create/scripts/manual_official_v4_menu.py
 ```text
 1. 增加流动性 100（广播）
 2. 增加流动性 500（广播）
-3. 增加流动性 100（仅预检）
-4. 增加流动性 500（仅预检）
+3. 检测深度（只读/不广播）
+4. 检测三角平衡（只读/不广播）
 5. 增加 TZ 不平衡性 100（广播）
 6. 增加 TZ 不平衡性 500（广播）
-7. 增加 TZ 不平衡性 100（仅预检）
-8. 增加 TZ 不平衡性 500（仅预检）
+7. 检测深度与三角平衡（只读/不广播）
 0. 退出
+```
+
+`只读/不广播`：只读取链上状态或执行 `staticCall`，不发送链上交易。诊断会先列出 manifest 中已知的代币和池子，再检测深度或三角平衡。`广播`：允许脚本真正发送链上交易。
+
+也可以直接运行只读诊断脚本：
+
+```powershell
+cd contract/robinhood-testnet/DEX
+npm run testnet:v4-official-diagnose:depth
+npm run testnet:v4-official-diagnose:balance
+npm run testnet:v4-official-diagnose
 ```
 
 也可以非交互指定编号执行：

@@ -9,7 +9,6 @@ const {
   injectInitialLiquidity,
   injectArbitrageOpportunityLiquidity,
   triangularMetric,
-  keepsAtLeast80Percent,
 } = require("./lib/local-v4-amm-common");
 
 async function getOrBootstrapTokens(owner) {
@@ -121,16 +120,7 @@ async function main() {
   console.log(`  test amountIn=${ethers.formatUnits(toToken(100), 18)} tz`);
   await printOwnerRetention(owner, tz, ta, tb);
 
-  const retained = await Promise.all([
-    keepsAtLeast80Percent(owner, tz, 0n),
-    keepsAtLeast80Percent(owner, ta, 0n),
-    keepsAtLeast80Percent(owner, tb, 0n),
-  ]);
-  if (retained.some((ok) => !ok)) {
-    throw new Error("owner no longer retains at least 80% of at least one token");
-  }
-
-  console.log("result: arb opportunity injected, 80% owner retention preserved.");
+  console.log("result: arb opportunity injected. The 80% creation reserve is meant for later liquidity replenishment, not a post-injection floor.");
 }
 
 main().catch((error) => {

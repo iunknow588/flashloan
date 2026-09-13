@@ -75,8 +75,8 @@ def test_v4_sqrt_price_reference_quote_completes_static_measurement():
     assert analysis["adapterRequired"] is True
     assert analysis["finalOutputUsd"] is None
     assert analysis["referenceFinalOutputUsd"] == 1000.0
-    assert analysis["staticDepthStatus"] == "unavailable"
-    assert "static_depth_evidence_unavailable" in analysis["warnings"]
+    assert analysis["staticDepthStatus"] == "available"
+    assert "static_depth_evidence_unavailable" not in analysis["warnings"]
     assert analysis["referenceGrossProfitUsd"] == 0.0
     assert analysis["referenceNetProfitUsd"] == -1.5
     assert len(analysis["steps"]) == 2
@@ -243,7 +243,7 @@ def test_robinhood_testnet_requires_live_quoter_before_submission_candidate(monk
     assert analysis["chainSubmissionCandidate"] is True
     assert analysis["executableCandidate"] is False
     assert analysis["tokenBasisReferenceProfitable"] is True
-    assert analysis["staticDepthStatus"] == "unavailable"
+    assert analysis["staticDepthStatus"] == "available"
 
 
 def test_robinhood_testnet_static_reference_survives_missing_token_decimals(monkeypatch):

@@ -66,8 +66,8 @@ async function main() {
   const amountIn = ethers.parseUnits(readArg("amount", process.env.ROBINHOOD_TESTNET_MAKE_ARB_AMOUNT || "0.001"), 18);
 
   const manifest = readManifest();
-  if (!manifest.officialV4 || !manifest.officialV4.hooks || manifest.officialV4.hooks === ethers.ZeroAddress) {
-    throw new Error("officialV4.hook missing; run testnet-v4-official-pool-create-live first");
+  if (!manifest.officialV4 || !manifest.officialV4.poolManager) {
+    throw new Error("officialV4.poolManager missing; run testnet-v4-official-pool-create-live first");
   }
 
   const [owner] = await ethers.getSigners();
@@ -76,7 +76,7 @@ async function main() {
   const tb = manifest.tb;
   const fee = Number(manifest.officialV4.fee);
   const tickSpacing = Number(manifest.officialV4.tickSpacing);
-  const hooks = manifest.officialV4.hooks;
+  const hooks = manifest.officialV4.hooks || ethers.ZeroAddress;
   const poolManagerAddress = manifest.officialV4.poolManager;
 
   const erc = (address) => new ethers.Contract(address, ERC20_ABI, owner);
@@ -106,7 +106,7 @@ async function main() {
   console.log(`  directions=${directions.join(",")}`);
 
   if (!allowBroadcast) {
-    console.log("broadcast disabled; arbitrage opportunity maker should-run preflight passed");
+    console.log("broadcast disabled; imbalance maker action prepared for review (not broadcast)");
     return;
   }
 

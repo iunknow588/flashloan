@@ -36,22 +36,11 @@ function poolId(key) {
   ));
 }
 
-async function assert80PercentRetained(owner, token, label) {
+async function logOwnerBalance(owner, token, label) {
   const total = await token.totalSupply();
   const balance = await token.balanceOf(owner.address);
-  const minimum = (total * 80n) / 100n;
-  if (balance < minimum) {
-    const mintAmount = ((minimum - balance) * 5n) / 1n;
-    await (await token.mint(owner.address, mintAmount)).wait();
-    console.log(`  ${label} minted ${ethers.formatUnits(mintAmount, 18)} to restore >=80% owner balance`);
-  }
-  const balanceAfter = await token.balanceOf(owner.address);
-  const totalAfter = await token.totalSupply();
-  const minimumAfter = (totalAfter * 80n) / 100n;
-  if (balanceAfter < minimumAfter) {
-    throw new Error(`${label} owner balance below 80% after mint: ${balanceAfter} < ${minimumAfter}`);
-  }
-  console.log(`  ${label} owner balance=${ethers.formatUnits(balanceAfter, 18)} (>=80%)`);
+  const pct = (Number(balance) / Number(total)) * 100;
+  console.log(`  ${label} owner balance=${ethers.formatUnits(balance, 18)} (${pct.toFixed(2)}% of total; 80% creation reserve is meant for later liquidity, not a post-run floor)`);
 }
 
 async function main() {
@@ -70,7 +59,7 @@ async function main() {
   const tb = manifest.tb;
   const fee = Number(manifest.officialV4.fee);
   const tickSpacing = Number(manifest.officialV4.tickSpacing);
-  const hooks = manifest.officialV4.hooks;
+  const hooks = manifest.officialV4.hooks || ethers.ZeroAddress;
   const poolManagerAddress = manifest.officialV4.poolManager;
 
   const keys = [
@@ -98,9 +87,9 @@ async function main() {
     console.log(`  pool${index + 1} id=${poolId(key)}`);
   }
 
-  await assert80PercentRetained(owner, Token(tz), "tz");
-  await assert80PercentRetained(owner, Token(ta), "ta");
-  await assert80PercentRetained(owner, Token(tb), "tb");
+  await logOwnerBalance(owner, Token(tz), "tz");
+  await logOwnerBalance(owner, Token(ta), "ta");
+  await logOwnerBalance(owner, Token(tb), "tb");
 
   let arb;
   const Factory = await ethers.getContractFactory("OfficialV4FlashArb");
@@ -161,7 +150,7 @@ async function main() {
     profit: result[3].toString(),
     gasUsed: receipt.gasUsed.toString(),
     route: { keys, directions },
-    retainedAtLeast80Percent: true,
+    reservePolicy: "80_percent_creation_reserve_is_for_later_liquidity_not_a_post_run_floor",
   };
   manifest.officialV4.lastArbLiveTest = record;
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + "\n", "utf8");

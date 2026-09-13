@@ -158,22 +158,21 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_amount = None
     best_token_basis_bps = None
     force_live_refresh = str(os.getenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
-    # Page requests should not turn into a blocking live Quoter sweep when the
-    # chain RPC is slow. The opportunity scanner can use the same route payload
-    # and then run bounded on-chain evidence per selected route. Operators can
-    # opt into live route refresh for the first N routes with this env var.
-    # Keep page requests fast for the Robinhood family too. The background
-    # scanner enables bounded live on-chain evidence separately.
-    mainnet_fast_page = bool(chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID})
+    # Robinhood Chain/Testnet route pages are quote/review-first: run live
+    # Quoter/eth_call by default so routes do not sit in "requires live quoter"
+    # before the background scanner snapshot arrives. Operators can set
+    # DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT=0 to keep a static fast page.
     live_route_env = os.getenv("DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT")
     live_route_limit = (
         max(0, int(live_route_env))
         if live_route_env not in (None, "")
-        # Keep page scans fast on mainnet; live evidence is produced by the
-        # background opportunity scanner, not by the synchronous page route.
-        # Operators can force live page routes with DEX_QUOTE_ROUTE_FORCE_REFRESH.
-        else (0 if mainnet_fast_page else 999)
+        # Robinhood Chain and Robinhood Testnet are quote/review-first surfaces.
+        # Run their live Quoter/eth_call route quote by default so the page does
+        # not stall in "requires live quoter" when no scanner snapshot exists.
+        # Operators can keep a static fast page with DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT=0.
+        else 999
     )
+    mainnet_fast_page = bool(chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID})
     size_probe_env = os.getenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT")
     size_probe_limit = (
         max(0, int(size_probe_env))

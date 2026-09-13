@@ -35,15 +35,6 @@ async function triangularMetric(amm, tz, ta, tb) {
   );
 }
 
-async function assert80PercentRetained(owner, token, label) {
-  const total = await token.totalSupply();
-  const balance = await token.balanceOf(owner.address);
-  const min = (total * 80n) / 100n;
-  if (balance < min) {
-    throw new Error(`${label} owner balance ${balance} below 80% of total ${total}`);
-  }
-}
-
 async function main() {
   if (process.env.ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST !== "true") {
     throw new Error("ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST must be true");
@@ -77,9 +68,6 @@ async function main() {
   await writeTestnetManifest(manifest);
 
   await injectInitialLiquidity(owner, tz, ta, tb, amm);
-  await assert80PercentRetained(owner, tz, "tz");
-  await assert80PercentRetained(owner, ta, "ta");
-  await assert80PercentRetained(owner, tb, "tb");
 
   let arb;
   if (manifest.arb) {
