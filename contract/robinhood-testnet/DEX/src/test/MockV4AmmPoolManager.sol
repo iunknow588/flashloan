@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 带 flash accounting 的 V4 AMM PoolManager Mock，用于本地测试 unlock/take/settle。
+
 interface IERC20MockV4Amm {
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 value) external returns (bool);

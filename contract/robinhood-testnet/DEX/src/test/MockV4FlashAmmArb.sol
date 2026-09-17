@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice V4 flash AMM 套利路径的 Mock 合约，用于本地验证 flash accounting 套利闭环。
+
 interface IERC20MockV4AmmArb {
     function approve(address spender, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);

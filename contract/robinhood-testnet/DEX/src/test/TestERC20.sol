@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 测试用 ERC20，提供 mint/burn/transfer 等基础能力。
+
 contract TestERC20 {
     string public name;
     string public symbol;

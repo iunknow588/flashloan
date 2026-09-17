@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice Create2 确定性部署测试辅助合约。
+
 /// @notice Minimal CREATE2 deployer for deterministic hook addresses.
 contract Create2Deployer {
     event Deployed(address indexed addr, bytes32 salt, bytes initCode);

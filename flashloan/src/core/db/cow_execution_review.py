@@ -164,6 +164,28 @@ def _review_route_addresses_from_list(value: Any) -> list[str]:
     return [address for address in addresses if address]
 
 
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = {
+    "ETH": "0x0000000000000000000000000000000000000000",
+    "WETH": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    "TZ": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+    "TA": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+    "TB": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+    "0XC9F9C8": "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+}
+
+
+def _review_route_addresses_from_symbols(route_symbols: list[str]) -> list[str]:
+    addresses: list[str] = []
+    if not route_symbols:
+        return []
+    for symbol in route_symbols:
+        address = _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES.get(str(symbol).upper())
+        if not address:
+            return []
+        addresses.append(address)
+    return addresses
+
+
 def _review_route_addresses_from_hops(hops: list[dict[str, Any]]) -> list[str]:
     if not hops:
         return []
@@ -232,6 +254,11 @@ def _review_route_identity(row: dict[str, Any], quote: dict[str, Any], live_evid
     )
     hops = _review_hops_from_attempt(row, quote, live_evidence)
     route_addresses, address_source = _review_route_addresses_from_attempt(row, quote, live_evidence, hops)
+    if not route_addresses:
+        symbol_addresses = _review_route_addresses_from_symbols(route_symbols)
+        if symbol_addresses:
+            route_addresses = symbol_addresses
+            address_source = "robinhood_testnet_symbol_allowlist"
     issues = []
     for index in range(1, len(hops)):
         previous = hops[index - 1]
@@ -309,19 +336,32 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
     live_costs = live_evidence.get("costModel") if isinstance(live_evidence.get("costModel"), dict) else {}
     live_validation = live_evidence.get("validation") if isinstance(live_evidence.get("validation"), dict) else {}
     trigger_context = live_evidence.get("triggerContext") if isinstance(live_evidence.get("triggerContext"), dict) else {}
+    evidence_status = live_evidence.get("status") or quote.get("quote_status") or quote.get("execution_trust")
+    execution_trust = live_evidence.get("executionTrust") or quote.get("execution_trust") or evidence_status
+    business_blockers: list[str] = []
+    business_failure_statuses = {
+        "not_enough_liquidity": "池当前没有 LP 流动性",
+        "pool_not_initialized": "池未初始化",
+        "rpc_verification_failed": "链上复核失败：RPC 不可用",
+        "rpc_verification_timeout": "链上复核失败：RPC 不可用",
+        "live_quote_failed": "链上报价未完成",
+        "missing_trigger_block": "缺失复核区块",
+    }
+    if evidence_status in business_failure_statuses:
+        business_blockers.append(business_failure_statuses[evidence_status])
     plan = quote.get("binance_execution_plan") if isinstance(quote.get("binance_execution_plan"), dict) else {}
     error_info = _review_error_summary(quote.get("error") or row.get("error"))
     route_identity = _review_route_identity(row, quote, live_evidence)
+    live_blockers = [
+        str(item)
+        for item in [*business_blockers, *(live_evidence.get("blockers") or [])]
+        if str(item or "").strip()
+    ]
     identity_blockers = []
     if route_identity["status"] == "token_discontinuity":
         identity_blockers.append("链上复核跳间 token 地址不连续：存在同名不同合约地址，必须按地址拆分路线后重新复核。")
-    elif route_identity["status"] in {"symbol_only", "address_partial"}:
+    elif route_identity["status"] in {"symbol_only", "address_partial"} and not live_blockers:
         identity_blockers.append("路线缺少完整 token 地址身份：symbol 只能用于展示，不能作为链上测试或交易依据。")
-    live_blockers = [
-        str(item)
-        for item in (live_evidence.get("blockers") or [])
-        if str(item or "").strip()
-    ]
     blockers = [*live_blockers, *[item for item in identity_blockers if item not in live_blockers]]
     identity_ok = route_identity["status"] == "ok"
     net_positive_after_costs = _review_net_positive_after_costs(live_validation, live_costs)
@@ -363,9 +403,9 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
         },
         "onchain_evidence": {
             "available": bool(live_evidence),
-            "status": live_evidence.get("status"),
-            "execution_trust": live_evidence.get("executionTrust"),
-            "executionTrust": live_evidence.get("executionTrust"),
+            "status": evidence_status,
+            "execution_trust": execution_trust,
+            "executionTrust": execution_trust,
             "trusted_for_execution": bool(live_evidence.get("trustedForExecution")) and identity_ok,
             "trustedForExecution": bool(live_evidence.get("trustedForExecution")) and identity_ok,
             "ready_for_transaction_preflight": bool(live_evidence.get("readyForTransactionPreflight")) and identity_ok,
@@ -396,7 +436,7 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
             "route_identity": route_identity,
             "routeIdentity": route_identity,
             "hop_count": route_identity["hop_count"],
-            "hops": live_evidence.get("hops") or [],
+            "hops": live_evidence.get("hops") or quote.get("hops") or [],
             "all_hops_quoted": bool(live_validation.get("allHopsQuoted")),
             "profitable_after_costs": bool(live_validation.get("profitableAfterCosts")),
             "net_positive_after_costs": net_positive_after_costs,

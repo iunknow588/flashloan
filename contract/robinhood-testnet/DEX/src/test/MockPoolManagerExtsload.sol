@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 模拟 PoolManager extload 读取的测试辅助合约。
+
 contract MockPoolManagerExtsload {
     mapping(bytes32 => bytes32) public slots;
 

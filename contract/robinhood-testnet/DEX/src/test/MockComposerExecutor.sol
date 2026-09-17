@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice composer 测试用的 Mock 执行器，模拟真实执行器的调用边界。
+
 contract MockComposerExecutor {
     uint256 public calls;
     bool public shouldRevert;

@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import "./RobinhoodPausedFlashLoanExecutorInterfaces.sol";
 
 abstract contract RobinhoodPausedFlashLoanExecutorTypes {
+    /// @notice Robinhood Testnet 专用执行器的类型/事件/常量定义，便于统一维护接口契约。
+
     error NotOwner();
     error Paused();
     error InvalidRequest();
@@ -39,6 +41,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
     uint8 internal constant FLASH_EXECUTION_V4_ACCOUNTING = 4;
     uint8 internal constant FLASH_EXECUTION_V4_ACCOUNTING_WITH_VALUES = 5;
 
+    /// @notice flash source 适配器配置；kind=1 Morpho，kind=4 V4 PoolManager。
     struct FlashSourceAdapter {
         bool enabled;
         uint8 kind;
@@ -47,6 +50,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         bytes32 metadataHash;
     }
 
+    /// @notice Uniswap V4 适配器配置。
     struct UniswapV4Adapter {
         bool enabled;
         address universalRouter;
@@ -55,6 +59,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         bytes32 metadataHash;
     }
 
+    /// @notice Uniswap V3 适配器配置。
     struct UniswapV3Adapter {
         bool enabled;
         address swapRouter;
@@ -63,6 +68,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         bytes32 metadataHash;
     }
 
+    /// @notice 还款守卫配置。
     struct RepaymentGuard {
         uint256 minProfit;
         uint256 gasReserve;
@@ -70,6 +76,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         bool enforceBalance;
     }
 
+    /// @notice Uniswap V4 PoolKey。
     struct PoolKey {
         address currency0;
         address currency1;
@@ -78,6 +85,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         address hooks;
     }
 
+    /// @notice V4 exact-input-single 参数。
     struct V4ExactInputSingle {
         PoolKey poolKey;
         bool zeroForOne;
@@ -86,6 +94,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         bytes hookData;
     }
 
+    /// @notice V3 exact-input-single 参数。
     struct V3ExactInputSingle {
         address tokenIn;
         address tokenOut;
@@ -95,12 +104,14 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         uint160 sqrtPriceLimitX96;
     }
 
+    /// @notice V3/V4 混合路由单跳。
     struct MixedRouteHop {
         uint8 adapterKind;
         V3ExactInputSingle v3;
         V4ExactInputSingle v4;
     }
 
+    /// @notice Morpho 单笔 flash loan 请求。
     struct FlashRequest {
         address token;
         uint256 amount;
@@ -110,6 +121,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         uint256 gasReserve;
     }
 
+    /// @notice Morpho 顺序路由请求。
     struct FlashRouteRequest {
         address token;
         uint256 amount;
@@ -120,6 +132,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         uint256 gasReserve;
     }
 
+    /// @notice V4 Flash Accounting 请求。
     struct V4FlashAccountingRequest {
         address token;
         uint256 amount;
@@ -130,6 +143,7 @@ abstract contract RobinhoodPausedFlashLoanExecutorTypes {
         uint256 gasReserve;
     }
 
+    /// @notice V4 Flash Accounting 请求，带每跳 swapValues。
     struct V4FlashAccountingValueRequest {
         address token;
         uint256 amount;

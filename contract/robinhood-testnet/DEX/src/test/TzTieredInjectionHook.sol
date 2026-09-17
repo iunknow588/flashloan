@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice Tiered liquidity injection hook 测试合约，用于本地构造 V4 池价格失衡场景。
+
 interface IERC20TzInjectionHook {
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 value) external returns (bool);

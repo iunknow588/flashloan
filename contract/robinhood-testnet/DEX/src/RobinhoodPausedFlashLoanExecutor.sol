@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @title RobinhoodPausedFlashLoanExecutor
+/// @notice Robinhood Testnet 专用暂停版 flash loan 套利执行器主合约。
+/// 默认使用 Uniswap V4 PoolManager flash accounting（kind=4），支持 V3/V4 mixed route、
+/// 路由连续性校验、还款守卫和 paused 测试网演练。禁止在生产广播开启前作为真实执行器使用。
+
 interface IERC20RobinhoodMinimal {
     function approve(address spender, uint256 value) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
@@ -67,6 +72,10 @@ interface IMorphoBlueFlashLoanCallback {
 }
 
 contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
+    /// @notice Robinhood Testnet 专用暂停版 flash loan 套利执行器变量定义。
+    /// 默认构造函数后为 paused 状态，防止未配置完成前被调用。
+    /// 主要目标：复用 Uniswap V4 PoolManager flash accounting 完成借款、交易和还款的测试网演练。
+
     error NotOwner();
     error Paused();
     error InvalidRequest();
@@ -102,6 +111,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     uint8 private constant FLASH_EXECUTION_V4_ACCOUNTING = 4;
     uint8 private constant FLASH_EXECUTION_V4_ACCOUNTING_WITH_VALUES = 5;
 
+    /// @notice flash source 适配器配置。kind=1 为 Morpho 兼容，kind=4 为 V4 PoolManager flash accounting。
     struct FlashSourceAdapter {
         bool enabled;
         uint8 kind;
@@ -110,6 +120,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         bytes32 metadataHash;
     }
 
+    /// @notice Uniswap V4 适配器配置，包含 Universal Router、PoolManager 和 Permit2。
     struct UniswapV4Adapter {
         bool enabled;
         address universalRouter;
@@ -118,6 +129,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         bytes32 metadataHash;
     }
 
+    /// @notice Uniswap V3 适配器配置，可选启用，用于包含 V3 hop 的路由。
     struct UniswapV3Adapter {
         bool enabled;
         address swapRouter;
@@ -126,6 +138,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         bytes32 metadataHash;
     }
 
+    /// @notice 还款守卫配置，控制最低利润、Gas 预留、最大 flash fee 和余额强制校验。
     struct RepaymentGuard {
         uint256 minProfit;
         uint256 gasReserve;
@@ -133,6 +146,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         bool enforceBalance;
     }
 
+    /// @notice Uniswap V4 PoolKey 结构，用于直接构造 PoolManager::swap calldata。
     struct PoolKey {
         address currency0;
         address currency1;
@@ -141,6 +155,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         address hooks;
     }
 
+    /// @notice V4 exact-input-single 单跳参数。
     struct V4ExactInputSingle {
         PoolKey poolKey;
         bool zeroForOne;
@@ -149,6 +164,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         bytes hookData;
     }
 
+    /// @notice V3 exact-input-single 单跳参数。
     struct V3ExactInputSingle {
         address tokenIn;
         address tokenOut;
@@ -158,12 +174,14 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint160 sqrtPriceLimitX96;
     }
 
+    /// @notice V3/V4 混合路由单跳，adapterKind 决定使用 V3 或 V4 结构。
     struct MixedRouteHop {
         uint8 adapterKind;
         V3ExactInputSingle v3;
         V4ExactInputSingle v4;
     }
 
+    /// @notice Morpho 兼容的单笔 flash loan 请求。
     struct FlashRequest {
         address token;
         uint256 amount;
@@ -173,6 +191,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint256 gasReserve;
     }
 
+    /// @notice Morpho 兼容的顺序多跳路由请求。
     struct FlashRouteRequest {
         address token;
         uint256 amount;
@@ -183,6 +202,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint256 gasReserve;
     }
 
+    /// @notice V4 Flash Accounting 请求：执行 unlock/take/settle 路径。
     struct V4FlashAccountingRequest {
         address token;
         uint256 amount;
@@ -193,6 +213,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         uint256 gasReserve;
     }
 
+    /// @notice V4 Flash Accounting 请求，额外提供每跳原生 ETH value。
     struct V4FlashAccountingValueRequest {
         address token;
         uint256 amount;
@@ -246,26 +267,34 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
     event RobinhoodV4FlashAccountingBorrowed(address indexed token, uint256 amount, uint256 balanceAfterTake);
     event RobinhoodV4FlashAccountingSettled(address indexed token, uint256 requiredRepay, uint256 paid);
 
+    /// @notice 仅 owner 可操作的管理权限。
     address public owner;
+    /// @notice paused=true 时所有 flash 请求入口会被拦截。
     bool public paused;
+    /// @notice 重入锁。
     bool private locked;
+    /// @notice 当前活跃 flash 执行类型，用于回调阶段鉴权。
     uint8 private activeFlashExecutionKind;
+    /// @notice 当前活跃回调数据的哈希，防止陌生调用方伪造回调。
     bytes32 private activeFlashHash;
     FlashSourceAdapter public flashSourceAdapter;
     UniswapV4Adapter public uniswapV4Adapter;
     UniswapV3Adapter public uniswapV3Adapter;
     RepaymentGuard public repaymentGuard;
 
+    /// @notice 只允许 owner 调用的修饰器。
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
         _;
     }
 
+    /// @notice paused 状态下禁止执行 flash 请求或回调。
     modifier whenNotPaused() {
         if (paused) revert Paused();
         _;
     }
 
+    /// @notice 进入函数时锁定，防止跨外部调用重入。
     modifier nonReentrantEntry() {
         if (locked) revert Reentrancy();
         locked = true;
@@ -284,17 +313,20 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
 
     receive() external payable {}
 
+    /// @notice 转移 owner；新 owner 不能为地址 0。
     function transferOwnership(address newOwner) external onlyOwner {
         if (newOwner == address(0)) revert InvalidRequest();
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
     }
 
+    /// @notice 设置 paused 开关；测试网部署后默认 paused=true。
     function setPaused(bool value) external onlyOwner {
         paused = value;
         emit PausedSet(value);
     }
 
+    /// @notice 设置 flash source 适配器；Robinhood Testnet 实际使用 kind=4。
     function setFlashSourceAdapter(
         uint8 kind,
         bool enabled,
@@ -316,6 +348,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit FlashSourceAdapterSet(kind, enabled, source, feeBps, metadataHash);
     }
 
+    /// @notice 设置 Uniswap V4 适配器，包括 Universal Router、PoolManager、Permit2。
     function setUniswapV4Adapter(
         bool enabled,
         address universalRouter,
@@ -336,6 +369,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit UniswapV4AdapterSet(enabled, universalRouter, poolManager, permit2, metadataHash);
     }
 
+    /// @notice 设置 Uniswap V3 适配器；仅当冻结路由包含 V3 hop 时需要启用。
     function setUniswapV3Adapter(
         bool enabled,
         address swapRouter,
@@ -354,6 +388,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit UniswapV3AdapterSet(enabled, swapRouter, factory, quoter, metadataHash);
     }
 
+    /// @notice 设置还款守卫参数。
     function setRepaymentGuard(
         uint256 minProfit,
         uint256 gasReserve,
@@ -369,6 +404,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RepaymentGuardSet(minProfit, gasReserve, maxFlashFeeBps, enforceBalance);
     }
 
+    /// @notice 只读预览一笔 flash loan 至少需要偿还的本息和守卫余额。
     function previewRequiredBalance(uint256 amount, uint16 feeBps, uint256 minProfit, uint256 gasReserve)
         external
         view
@@ -379,6 +415,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         requiredBalance = requiredRepay + _max(minProfit, guard.minProfit) + _max(gasReserve, guard.gasReserve);
     }
 
+    /// @notice 为指定 token 设置 Permit2 授权，使 Universal Router 可拉取代币。
     function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration)
         external
         onlyOwner
@@ -391,6 +428,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit Permit2ApprovalSet(token, amount, expiration);
     }
 
+    /// @notice 构建单笔 V4 exact-input-single 的 Universal Router calldata。
     function buildV4ExactInputSingleCalldata(V4ExactInputSingle calldata swap, uint256 deadline)
         external
         view
@@ -417,6 +455,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         data = abi.encodeWithSelector(IUniversalRouterRobinhood.execute.selector, commands, inputs, deadline);
     }
 
+    /// @notice 构建多跳 V4 Universal Router 路由 calldata，并校验 hop 代币连续性。
     function buildV4ExactInputRouteCalldata(V4ExactInputSingle[] calldata swaps, uint256 deadline)
         external
         view
@@ -445,6 +484,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 构建直接调用 PoolManager::swap 的多跳 calldata，绕过 Universal Router 嵌套 unlock 限制。
     function buildV4PoolManagerExactInputRouteCalldata(V4ExactInputSingle[] calldata swaps, uint256 deadline)
         external
         view
@@ -473,6 +513,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 构建 V3/V4 混合路由 calldata，用于兼容包含 V3 hop 的路由。
     function buildV3V4MixedRouteCalldata(MixedRouteHop[] calldata hops, uint256 deadline)
         external
         view
@@ -499,6 +540,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice Morpho 兼容的单笔 flash loan 请求入口；Robinhood Testnet 当前默认不启用该来源。
     function requestMorphoFlashLoan(FlashRequest calldata request)
         external
         onlyOwner
@@ -523,6 +565,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RobinhoodFlashRequested(request.token, request.amount, source.source);
     }
 
+    /// @notice Morpho 兼容的顺序路由 flash loan 请求入口。
     function requestMorphoFlashLoanRoute(FlashRouteRequest calldata request)
         external
         onlyOwner
@@ -544,6 +587,8 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RobinhoodRouteFlashRequested(request.token, request.amount, source.source, request.swapTargets.length);
     }
 
+    /// @notice Uniswap V4 PoolManager flash accounting 路由请求入口。
+    /// PoolManager 内 unlock 时会回调本合约 unlockCallback。
     function requestV4FlashLoan(V4FlashAccountingRequest calldata request)
         external
         onlyOwner
@@ -573,6 +618,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RobinhoodV4FlashAccountingRequested(request.token, request.amount, adapter.poolManager, request.swapTargets.length);
     }
 
+    /// @notice V4 Flash Accounting 请求入口，额外支持每跳 swapValues 的原生 ETH 价值传递。
     function requestV4FlashLoanWithValues(V4FlashAccountingValueRequest calldata request)
         external
         payable
@@ -603,6 +649,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RobinhoodV4FlashAccountingRequested(request.token, request.amount, adapter.poolManager, request.swapTargets.length);
     }
 
+    /// @notice Morpho flashLoan 回调；仅允许配置的 flash source 调用，并按执行类型处理单笔或顺序路由。
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external override {
         if (paused) revert Paused();
         FlashSourceAdapter memory source = flashSourceAdapter;
@@ -616,6 +663,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice Uniswap V4 PoolManager unlock 回调；仅允许配置的 PoolManager 调用并校验回调数据哈希。
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (paused) revert Paused();
         FlashSourceAdapter memory source = flashSourceAdapter;
@@ -666,6 +714,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         );
     }
 
+    /// @notice V4 Flash Accounting 核心处理：take 借款、执行路由、计算还款、settle 归还。
     function _handleV4FlashAccountingCallback(
         address tokenAddress,
         uint256 amount,
@@ -730,6 +779,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         return abi.encode(tokenAddress, amount, requiredRepay, paid);
     }
 
+    /// @notice 直接调用 PoolManager::swap 的逐跳执行器，并结算每跳输入 delta、take 输出 delta。
     function _executeV4DirectRouteSwaps(
         address[] memory swapTargets,
         bytes[] memory swapCalldatas,
@@ -748,6 +798,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 当直接 PoolManager swap 请求输入超过当前余额时，改用实际 spendable 余额作为 amountSpecified。
     function _v4DirectSwapCalldataWithSpendableInput(bytes memory data) private view returns (bytes memory) {
         (PoolKey memory key, IV4PoolManagerSwapRobinhood.SwapParams memory params, bytes memory hookData) =
             _decodeV4PoolManagerSwap(data);
@@ -774,6 +825,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         );
     }
 
+    /// @notice 校验 V4 exact-input-single 参数是否合法。
     function _validateV4ExactInputSingle(V4ExactInputSingle calldata swap, uint256 deadline) private view {
         if (deadline <= block.timestamp || swap.amountIn == 0 || swap.amountOutMinimum == 0) revert InvalidRequest();
         if (swap.poolKey.currency0 == swap.poolKey.currency1) revert InvalidRequest();
@@ -784,6 +836,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         if (swap.poolKey.tickSpacing <= 0) revert InvalidRequest();
     }
 
+    /// @notice 内部构建 Universal Router V4 exact-input-single calldata。
     function _buildV4ExactInputSingle(
         address universalRouter,
         V4ExactInputSingle calldata swap,
@@ -806,6 +859,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         data = abi.encodeWithSelector(IUniversalRouterRobinhood.execute.selector, commands, inputs, deadline);
     }
 
+    /// @notice 内部构建直接 PoolManager::swap 的 exact-input-single calldata。
     function _buildV4PoolManagerExactInputSingle(address poolManager, V4ExactInputSingle calldata swap)
         private
         pure
@@ -831,6 +885,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         );
     }
 
+    /// @notice 内部构建 V3 exact-input-single calldata。
     function _buildV3ExactInputSingle(V3ExactInputSingle calldata swap, uint256 deadline)
         private
         view
@@ -865,6 +920,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         tokenOut = swap.tokenOut;
     }
 
+    /// @notice 根据 hop.adapterKind 构建 V3 或 V4 单跳 calldata。
     function _buildMixedRouteHopCalldata(MixedRouteHop calldata hop, uint256 deadline)
         private
         view
@@ -885,6 +941,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         revert InvalidRequest();
     }
 
+    /// @notice 校验 Morpho 顺序路由请求的 token、finalToken、hop 数量和 calldata。
     function _validateFlashRouteRequest(FlashRouteRequest calldata request) private view {
         if (request.token == address(0) || request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -894,6 +951,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 处理 Morpho 单笔回调：校验借款金额并执行单个 swap。
     function _handleSingleFlashCallback(
         uint256 assets,
         bytes calldata data,
@@ -910,6 +968,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         _enforceRepayment(request.token, request.amount, request.minProfit, request.gasReserve, source);
     }
 
+    /// @notice 处理 Morpho 顺序路由回调：按序执行所有 swap 后强制还款。
     function _handleRouteFlashCallback(
         uint256 assets,
         bytes calldata data,
@@ -924,6 +983,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         _enforceRepayment(request.token, request.amount, request.minProfit, request.gasReserve, source);
     }
 
+    /// @notice memory 版本的顺序路由校验，用于 callback 内解码后的再次校验。
     function _validateFlashRouteRequestMemory(FlashRouteRequest memory request) private view {
         if (request.token == address(0) || request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -933,6 +993,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 校验 V4 Flash Accounting 请求结构。
     function _validateV4FlashAccountingRequest(V4FlashAccountingRequest calldata request) private view {
         if (request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -942,6 +1003,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice memory 版本的 V4 Flash Accounting 请求校验。
     function _validateV4FlashAccountingRequestMemory(V4FlashAccountingRequest memory request) private view {
         if (request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -951,6 +1013,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 校验带 swapValues 的 V4 请求，并确保数组长度一致。
     function _validateV4FlashAccountingValueRequest(V4FlashAccountingValueRequest calldata request) private view {
         if (request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -966,6 +1029,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice memory 版本的带值 V4 请求校验。
     function _validateV4FlashAccountingValueRequestMemory(V4FlashAccountingValueRequest memory request) private view {
         if (request.amount == 0 || request.finalToken != request.token) revert InvalidRequest();
         uint256 hopCount = request.swapTargets.length;
@@ -981,6 +1045,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 仅允许调用已配置的 PoolManager、Universal Router 或 V3 SwapRouter。
     function _isAllowedSwapTarget(address target) private view returns (bool) {
         if (target == address(0)) return false;
         UniswapV4Adapter memory v4 = uniswapV4Adapter;
@@ -991,6 +1056,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         return false;
     }
 
+    /// @notice 对 swap target 发起调用；失败时提取 revert selector 用于链下诊断。
     function _executeSwap(address target, bytes memory data, uint256 value, uint256 hopIndex)
         private
         returns (int256 amount0, int256 amount1)
@@ -1007,6 +1073,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 对直接 PoolManager swap 返回的 delta 做结算：输入为负则 settle，输出为正则 take。
     function _settleV4SwapDelta(
         bytes memory data,
         int256 amount0,
@@ -1033,6 +1100,7 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         }
     }
 
+    /// @notice 去掉 selector 后解码 PoolManager swap calldata，还原 PoolKey、SwapParams、hookData。
     function _decodeV4PoolManagerSwap(bytes memory data)
         private
         pure
@@ -1046,11 +1114,13 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         (key, params, hookData) = abi.decode(payload, (PoolKey, IV4PoolManagerSwapRobinhood.SwapParams, bytes));
     }
 
+    /// @notice 读取当前合约在指定 currency 上的余额；address(0) 表示原生 ETH。
     function _currencyBalance(address currency) private view returns (uint256) {
         if (currency == address(0)) return address(this).balance;
         return IERC20RobinhoodMinimal(currency).balanceOf(address(this));
     }
 
+    /// @notice 通用还款守卫：计算 requiredBalance，校验余额，并为 flash source 授权还款。
     function _enforceRepayment(
         address token,
         uint256 amount,
@@ -1080,32 +1150,39 @@ contract RobinhoodPausedFlashLoanExecutor is IMorphoBlueFlashLoanCallback {
         emit RobinhoodFlashRepaid(token, requiredRepay, requiredBalance);
     }
 
+    /// @notice 根据 zeroForOne 返回输入代币。
     function _currencyIn(V4ExactInputSingle calldata swap) private pure returns (address) {
         return swap.zeroForOne ? swap.poolKey.currency0 : swap.poolKey.currency1;
     }
 
+    /// @notice 根据 zeroForOne 返回输出代币。
     function _currencyOut(V4ExactInputSingle calldata swap) private pure returns (address) {
         return swap.zeroForOne ? swap.poolKey.currency1 : swap.poolKey.currency0;
     }
 
+    /// @notice 按 bps 向上取整计算 flash fee。
     function _fee(uint256 amount, uint16 feeBps) private pure returns (uint256) {
         if (feeBps == 0) return 0;
         return (amount * uint256(feeBps) + 9999) / 10000;
     }
 
+    /// @notice 计算应还本金加手续费。
     function _requiredRepay(uint256 amount, uint16 feeBps) private pure returns (uint256) {
         return amount + _fee(amount, feeBps);
     }
 
+    /// @notice 返回两者中的较大值。
     function _max(uint256 left, uint256 right) private pure returns (uint256) {
         return left >= right ? left : right;
     }
 
+    /// @notice 强制先 approve 0 再 approve 目标金额，兼容旧式 ERC20。
     function _forceApprove(address token, address spender, uint256 amount) private {
         if (!IERC20RobinhoodMinimal(token).approve(spender, 0)) revert ApproveFailed();
         if (amount > 0 && !IERC20RobinhoodMinimal(token).approve(spender, amount)) revert ApproveFailed();
     }
 
+    /// @notice 从 revert data 中提取 selector。
     function _revertSelector(bytes memory reason) private pure returns (bytes4 selector) {
         if (reason.length < 4) return bytes4(0);
         assembly {

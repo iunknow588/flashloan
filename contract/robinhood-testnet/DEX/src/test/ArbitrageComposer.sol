@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 本地套利 composer 测试合约，用于组织多跳路由并在本地 AMM 环境验证套利路径。
+
 import {ContractDexErrorCodes} from "../ContractDexErrorCodes.sol";
 
 interface IPoolManagerExtsload {

@@ -18,6 +18,22 @@ OFFICIAL_DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
 
 OFFICIAL_TRIANGLE_SYMBOLS = {"TZ", "TA", "TB"}
 
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = {
+    "ETH": "0x0000000000000000000000000000000000000000",
+    "WETH": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    "TZ": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+    "TA": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+    "TB": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+    "0XC9F9C8": "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+}
+
+
+def _official_route_addresses(route_symbols: list[str]) -> list[str]:
+    normalized = [symbol.upper() for symbol in route_symbols]
+    if not normalized or any(symbol not in _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES for symbol in normalized):
+        return []
+    return [_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES[symbol] for symbol in normalized]
+
 
 def _quote_failure_status(error: object) -> str:
     message = str(error or "").lower()
@@ -133,6 +149,8 @@ def _step_payload(step: dict[str, Any] | None) -> dict[str, Any] | None:
         "feeBps": step.get("feeBps"),
         "inputAmount": step.get("inputAmount"),
         "outputAmount": step.get("outputAmount"),
+        "tokenIn": step.get("tokenIn") or step.get("fromAddress"),
+        "tokenOut": step.get("tokenOut") or step.get("toAddress"),
         "referenceOutputAmount": step.get("referenceOutputAmount"),
         "effectiveRate": step.get("effectiveRate"),
         "referenceEffectiveRate": step.get("referenceEffectiveRate"),
@@ -175,6 +193,9 @@ def estimate_route_live_quote(
         chain_id=chain_id,
         token_basis_input_amount=amount,
     )
+    route_addresses = [str(item) for item in analysis.get("routeAddresses") or [] if str(item).strip()]
+    if not route_addresses:
+        route_addresses = _official_route_addresses(route_symbols)
     steps = [step for step in (analysis.get("steps") or []) if isinstance(step, dict)]
     full_steps = [int(step.get("hop") or 0) for step in steps]
     complete = bool(steps) and full_steps == list(range(1, max(1, len(route_symbols))))
@@ -216,6 +237,7 @@ def estimate_route_live_quote(
         "mode": "dex_route_live_estimate",
         "chain_id": chain_id,
         "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
         "amount": amount,
         "amountSymbol": route_symbols[0] if route_symbols else None,
         "complete": complete,
@@ -225,6 +247,7 @@ def estimate_route_live_quote(
         "executionTrust": execution_trust,
         "steps": [_step_payload(step) for step in steps],
         "analysis": {
+            "routeAddresses": route_addresses,
             "referenceInputSymbol": analysis.get("referenceInputSymbol") or (route_symbols[0] if route_symbols else None),
             "referenceFinalOutputAmount": analysis.get("referenceFinalOutputAmount"),
             "referenceFinalOutputSymbol": analysis.get("referenceFinalOutputSymbol"),
@@ -321,6 +344,7 @@ def run_official_v4_arb_route_test(
         "ok": result.returncode == 0 and parsed.get("ok") is not False,
         "mode": "dex_route_broadcast_test",
         "routeSymbols": route_symbols,
+        "routeAddresses": _official_route_addresses(route_symbols),
         "amount": amount,
         "broadcast": broadcast,
         "exitCode": result.returncode,

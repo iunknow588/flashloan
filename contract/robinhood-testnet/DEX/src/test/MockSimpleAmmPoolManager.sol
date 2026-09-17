@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 简单 AMM PoolManager Mock，用于本地构造失衡池和套利机会。
+
 interface IERC20MockSimpleAmm {
     function transfer(address to, uint256 value) external returns (bool);
     function transferFrom(address from, address to, uint256 value) external returns (bool);

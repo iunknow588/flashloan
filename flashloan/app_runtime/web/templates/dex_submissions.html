@@ -207,11 +207,21 @@
       const status = String(ev.status || "").toLowerCase();
       const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || routeIdentity(row).status || "").toLowerCase();
       if (identityStatus === "token_discontinuity") return '<span class="badge fail">token 地址不连续</span>';
-      if (identityStatus === "symbol_only" || identityStatus === "address_partial") return '<span class="badge fail">地址身份不完整</span>';
+      const failureLabels = {
+        not_enough_liquidity: "池当前没有 LP 流动性",
+        pool_not_initialized: "池未初始化",
+        rpc_verification_failed: "链上复核失败：RPC 不可用",
+        rpc_verification_timeout: "链上复核失败：RPC 不可用",
+        live_quote_failed: "链上报价未完成",
+        missing_trigger_block: "缺失复核区块",
+        not_live_verified: "未通过链上复核"
+      };
+      if (failureLabels[status]) return `<span class="badge fail">${failureLabels[status]}</span>`;
       if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可执行复核通过</span>';
       if (status === "live_verified") return '<span class="badge live">链上报价已复核</span>';
       if (status === "not_live_verified") return '<span class="badge fail">未通过链上复核</span>';
       if (status && status !== "not_live_verified") return `<span class="badge fail">${esc(status)}</span>`;
+      if (identityStatus === "symbol_only" || identityStatus === "address_partial") return '<span class="badge fail">地址身份不完整</span>';
       return '<span class="badge static">静态观察</span>';
     }
     function reasonText(row) {

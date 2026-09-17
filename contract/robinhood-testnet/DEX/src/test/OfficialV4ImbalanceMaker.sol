@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 官方风格 V4 失衡池制造合约，用于本地生成套利机会。
+
 interface IERC20ImbalanceMaker {
     function transfer(address to, uint256 value) external returns (bool);
     function balanceOf(address account) external view returns (uint256);

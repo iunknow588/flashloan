@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice 官方风格 V4 flash 套利路径测试合约，用于本地模拟真实 PoolManager 套利。
+
 import {ContractDexErrorCodes} from "../ContractDexErrorCodes.sol";
 
 interface IERC20OfficialV4Arb {

@@ -34,6 +34,8 @@ def record_dex_route_test_attempt(
         error = str(payload.get("error") or payload.get("detail") or "").strip()
         detail = str(payload.get("detail") or "").strip()
         error_detail = str(payload.get("errorDetail") or "").strip()
+        quote_status = str(payload.get("quoteStatus") or "").strip()
+        execution_trust = str(payload.get("executionTrust") or "").strip()
         reasons = []
         if detail:
             reasons.append(detail)
@@ -41,6 +43,18 @@ def record_dex_route_test_attempt(
             reasons.append(error)
         if error_detail and error_detail != detail:
             reasons.append(error_detail)
+        if quote_status == "not_enough_liquidity":
+            reason = "池当前没有 LP 流动性"
+        elif quote_status in {"rpc_verification_failed", "rpc_verification_timeout"}:
+            reason = "链上复核失败：RPC 不可用"
+        elif quote_status in {"live_quote_failed", "live_quote_error"}:
+            reason = "链上报价未完成：" + (execution_trust or quote_status)
+        elif execution_trust:
+            reason = "链上报价状态：" + (quote_status or execution_trust)
+        else:
+            reason = None
+        if reason and reason not in reasons:
+            reasons.append(reason)
         if broadcast:
             state = "submitted_success" if ok and tx_hash else ("submission_failed" if not ok else "quote_verified")
             execution_phase = "order_submission" if ok else "submission"
@@ -51,6 +65,21 @@ def record_dex_route_test_attempt(
                 else ("quote_failed" if not ok else "quote_required")
             )
             execution_phase = "quote_precheck"
+        route_addresses = [
+            str(item).strip()
+            for item in payload.get("routeAddresses") or payload.get("route_addresses") or []
+            if str(item).strip()
+        ]
+        steps = [dict(step) for step in payload.get("steps") or [] if isinstance(step, dict)]
+        raw_evidence = payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
+        live_onchain_evidence = {
+            **raw_evidence,
+            "status": quote_status or raw_evidence.get("status"),
+            "executionTrust": execution_trust or raw_evidence.get("executionTrust"),
+            "routeSymbols": route_symbols or raw_evidence.get("routeSymbols"),
+            "routeAddresses": route_addresses or raw_evidence.get("routeAddresses") or [],
+            "hops": steps or raw_evidence.get("hops") or [],
+        }
         quote = {
             "pair": " -> ".join(route_symbols),
             "path": route_symbols,
@@ -60,10 +89,12 @@ def record_dex_route_test_attempt(
             "quote_verified": ok and str(payload.get("quoteStatus") or "").lower() == "live_verified",
             "quote_status": payload.get("quoteStatus"),
             "execution_trust": payload.get("executionTrust"),
-            "hops": [dict(step) for step in payload.get("steps") or [] if isinstance(step, dict)],
-            "steps": [dict(step) for step in payload.get("steps") or [] if isinstance(step, dict)],
+            "routeAddresses": route_addresses,
+            "route_addresses": route_addresses,
+            "hops": steps,
+            "steps": steps,
             "analysis": payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {},
-            "live_onchain_evidence": payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {},
+            "live_onchain_evidence": live_onchain_evidence,
             "tx_hash": tx_hash,
             "error": error or None,
             "detail": detail or None,
@@ -87,6 +118,7 @@ def record_dex_route_test_attempt(
             "chain_id": chain_id,
             "pair": " -> ".join(route_symbols),
             "route_path": route_symbols,
+            "route_addresses": route_addresses,
             "state": state,
             "execution_phase": execution_phase,
             "checks_passed": ok,

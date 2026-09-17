@@ -1,4 +1,5 @@
 from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
+from core.db.cow_execution_review import _build_review_summary, _review_route_identity
 
 
 def _attempt_with_route_addresses(route_addresses):
@@ -146,3 +147,109 @@ def test_jsonl_append_rejects_contradictory_nested_scope(tmp_path):
     path = tmp_path / "cow_execution_attempts.jsonl"
     assert append_cow_execution_attempts_jsonl(path, [attempt]) == 0
     assert load_recent_cow_execution_attempts_jsonl(path, limit=10) == []
+
+
+def test_review_route_identity_resolves_known_robinhood_symbols():
+    row = {
+        "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+    }
+    quote = {
+        "path": row["route_path"],
+        "hops": [
+            {"hop": 1, "fromSymbol": "WETH", "toSymbol": "ETH"},
+            {"hop": 2, "fromSymbol": "ETH", "toSymbol": "0XC9F9C8"},
+            {"hop": 3, "fromSymbol": "0XC9F9C8", "toSymbol": "WETH"},
+        ],
+    }
+    identity = _review_route_identity(row, quote, {})
+
+    assert identity["status"] == "ok"
+    assert identity["route_addresses"] == [
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        "0x0000000000000000000000000000000000000000",
+        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    ]
+
+
+def test_review_summary_prefers_quote_business_status_over_identity_warning():
+    row = {
+        "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+    }
+    quote = {
+        "path": row["route_path"],
+        "quote_status": "not_enough_liquidity",
+        "execution_trust": "not_enough_liquidity",
+        "hops": [
+            {"hop": 1, "fromSymbol": "WETH", "toSymbol": "ETH"},
+            {"hop": 2, "fromSymbol": "ETH", "toSymbol": "0XC9F9C8"},
+            {"hop": 3, "fromSymbol": "0XC9F9C8", "toSymbol": "WETH"},
+        ],
+        "live_onchain_evidence": {},
+    }
+    row["quote"] = quote
+    evidence = _build_review_summary(row)["onchain_evidence"]
+
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["route_identity_status"] == "ok"
+    assert any("LP" in blocker for blocker in evidence["blockers"])
+    assert not any("地址身份" in blocker for blocker in evidence["blockers"])
+
+
+def test_route_test_recorder_persists_quote_evidence_and_addresses(tmp_path, monkeypatch):
+    from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
+
+    log_path = tmp_path / "attempts.jsonl"
+    monkeypatch.setattr(
+        "dex.runtime.dex_route_test_recorder.cow_execution_attempt_log_path",
+        lambda **kwargs: log_path,
+    )
+    route_symbols = ["WETH", "ETH", "0XC9F9C8", "WETH"]
+    route_addresses = [
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        "0x0000000000000000000000000000000000000000",
+        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    ]
+    payload = {
+        "ok": True,
+        "quoteStatus": "not_enough_liquidity",
+        "executionTrust": "not_enough_liquidity",
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "steps": [
+            {
+                "hop": 1,
+                "fromSymbol": "WETH",
+                "toSymbol": "ETH",
+                "tokenIn": route_addresses[0],
+                "tokenOut": route_addresses[1],
+            }
+        ],
+        "analysis": {},
+    }
+    recorded = record_dex_route_test_attempt(
+        payload,
+        chain_id=46630,
+        route_symbols=route_symbols,
+        amount=1000.0,
+        amount_source="requested",
+        mode="estimate",
+        broadcast=False,
+        fallback_networks=["robinhood-testnet"],
+    )
+
+    assert recorded["recorded"] == 1
+    rows = load_recent_cow_execution_attempts_jsonl(
+        log_path,
+        limit=1,
+        networks=["robinhood-testnet"],
+        chain_ids=[46630],
+    )
+    assert len(rows) == 1
+    evidence = rows[0]["quote"]["live_onchain_evidence"]
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["routeAddresses"] == route_addresses
+    summary_evidence = rows[0]["review_summary"]["onchain_evidence"]
+    assert summary_evidence["status"] == "not_enough_liquidity"
+    assert summary_evidence["route_identity_status"] == "ok"

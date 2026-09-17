@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/// @notice Mock Robinhood Universal Router，用于本地验证 V4 exact-input-single calldata。
+
 interface IERC20MockRobinhoodUniversalRouter {
     function transfer(address to, uint256 value) external returns (bool);
 }
