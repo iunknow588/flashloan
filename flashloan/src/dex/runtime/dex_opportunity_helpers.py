@@ -21,6 +21,8 @@ TERMINAL_DEPTH_STATUSES = {
     "pool_not_initialized",
     "not_enough_liquidity",
     "pool_insufficient_for_profitable_execution",
+    "rpc_verification_failed",
+    "rpc_verification_timeout",
 }
 
 
@@ -101,11 +103,14 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "pool_insufficient_for_profitable_execution",
             "missing_effective_pool",
             "depth_insufficient",
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
         }
         for status in statuses
     )
     deferred_count = sum(status == "live_evidence_deferred" for status in statuses)
-    failed_count = sum(status == "live_quote_failed" for status in statuses)
+    not_reviewed_count = sum(status == "not_reviewed_this_scan" for status in statuses)
+    failed_count = sum(status in {"live_quote_failed", "rpc_verification_failed", "rpc_verification_timeout"} for status in statuses)
     unreviewed_count = sum(not evidence for evidence in evidence_rows)
     ready_count = sum(bool(row.get("readyForTransactionPreflight")) for row in evidence_rows)
     adapter_count = sum(
@@ -133,9 +138,10 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
         summary.setdefault("staticSdkAdapterRequiredCount", summary.get("sdkAdapterRequiredCount"))
         summary["onchainEvidenceReviewedRouteCount"] = reviewed_count
         summary["onchainEvidenceDeferredRouteCount"] = deferred_count
+        summary["onchainEvidenceNotReviewedRouteCount"] = not_reviewed_count
         summary["onchainEvidenceFailedRouteCount"] = failed_count
-        summary["onchainEvidencePendingRouteCount"] = deferred_count + unreviewed_count
-        summary["liveQuoterRequiredCount"] = deferred_count + unreviewed_count
+        summary["onchainEvidencePendingRouteCount"] = deferred_count + not_reviewed_count + unreviewed_count
+        summary["liveQuoterRequiredCount"] = deferred_count + not_reviewed_count + unreviewed_count
         summary["executableCandidateCount"] = ready_count
         summary["chainSubmissionCandidateCount"] = ready_count
         summary["sdkAdapterRequiredCount"] = adapter_count
@@ -250,9 +256,9 @@ def _select_recordable_routes(
     testnet_full_scan: bool = False,
 ) -> list[tuple[int, dict[str, Any], dict[str, Any]]]:
     selected = list(routes)
-    # Robinhood testnet keeps the full static candidate universe for review,
-    # but callers can opt out with DEX_OPPORTUNITY_TESTNET_FULL_SCAN=0 when a
-    # targeted scan should only work on the highest-priority candidates.
+    # The production scanner passes None and reviews every eligible route.
+    # An explicit max_routes value remains available for isolated callers and
+    # tests; it is not an environment-controlled production review budget.
     if not testnet_full_scan and max_routes is not None and max_routes >= 0:
         selected.sort(key=lambda item: _route_priority_key(item[1], original_index=item[0]))
         selected = selected[:max_routes]
@@ -496,6 +502,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     analysis = deepcopy(analysis)
     status = str(evidence.get("status") or "not_live_verified")
     live_verified = bool(evidence.get("livePriceVerified")) or status == "live_verified"
+    is_deferred = status in {"live_evidence_deferred", "not_reviewed_this_scan"}
     terminal_depth_status = status in TERMINAL_DEPTH_STATUSES
     validation = evidence.get("validation") if isinstance(evidence.get("validation"), dict) else {}
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
@@ -518,7 +525,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
         "robinhood_live_price_only_enforced",
         "v4_token_decimals_missing_or_assumed",
     }
-    has_live_evidence = bool(evidence.get("hops")) or (status and status != "live_evidence_deferred")
+    has_live_evidence = bool(evidence.get("hops")) or (status and status not in {"live_evidence_deferred", "not_reviewed_this_scan"})
     if has_live_evidence:
         analysis["warnings"] = [
             warning
@@ -532,13 +539,38 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             )
         ]
 
+    reference_final_output_amount = (
+        costs.get("finalOutputAmount")
+        if live_verified
+        else (analysis.get("referenceFinalOutputAmount") if is_deferred else None)
+    )
+    reference_final_output_symbol = (
+        costs.get("finalOutputSymbol") or validation.get("finalOutputSymbol")
+        if live_verified
+        else (analysis.get("referenceFinalOutputSymbol") if is_deferred else None)
+    )
+    reference_net_profit_amount = (
+        costs.get("netProfitAmount")
+        if live_verified
+        else (analysis.get("referenceNetProfitAmount") if is_deferred else None)
+    )
+    reference_net_return_bps = (
+        costs.get("netProfitAmountBps")
+        if live_verified
+        else (analysis.get("referenceNetReturnBps") if is_deferred else None)
+    )
+    reference_input_symbol = (
+        costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol")
+        if live_verified
+        else analysis.get("referenceInputSymbol")
+    )
     analysis.update(
         {
             "live_onchain_evidence": deepcopy(evidence),
             "onchainEvidenceStatus": status,
             "livePriceVerified": live_verified,
-            "priceEvidenceMode": evidence.get("priceEvidenceMode") or ("live_verified" if live_verified else "live_required"),
-            "priceEvidenceSource": evidence.get("priceEvidenceSource") or ("chain_live_quote" if live_verified else "chain_live_quote_required"),
+            "priceEvidenceMode": evidence.get("priceEvidenceMode") or ("live_verified" if live_verified else ("live_required" if not is_deferred else "static_reference_pending_live_review")),
+            "priceEvidenceSource": evidence.get("priceEvidenceSource") or ("chain_live_quote" if live_verified else ("chain_live_quote_required" if not is_deferred else "static_reference_pending_live_review")),
             "requiresLiveQuoter": not live_verified and not terminal_depth_status,
             "adapterRequired": False if status != "live_evidence_deferred" else bool(analysis.get("adapterRequired")),
             "quote_verified": live_verified,
@@ -548,11 +580,11 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "grossProfitUsd": costs.get("grossProfitUsd") if live_verified else None,
             "netProfitUsd": costs.get("netProfitUsd") if live_verified else None,
             "netProfitBps": costs.get("netProfitBps") if live_verified else None,
-            "referenceFinalOutputAmount": costs.get("finalOutputAmount") if live_verified else None,
-            "referenceFinalOutputSymbol": costs.get("finalOutputSymbol") or validation.get("finalOutputSymbol"),
-            "referenceNetProfitAmount": costs.get("netProfitAmount") if live_verified else None,
-            "referenceNetReturnBps": costs.get("netProfitAmountBps") if live_verified else None,
-            "referenceInputSymbol": costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol"),
+            "referenceFinalOutputAmount": reference_final_output_amount,
+            "referenceFinalOutputSymbol": reference_final_output_symbol,
+            "referenceNetProfitAmount": reference_net_profit_amount,
+            "referenceNetReturnBps": reference_net_return_bps,
+            "referenceInputSymbol": reference_input_symbol,
             "referenceReturnBasis": costs.get("profitBasis") or analysis.get("referenceReturnBasis"),
             "referenceReturnTrusted": live_verified,
         }

@@ -41,6 +41,8 @@ run_server*.log
 server*.log
 server*.out.log
 server*.err.log
+run_server*.pid
+*.pid
 run_server*_pid.txt
 flashloan/run_server*.log
 runtime_port*.log

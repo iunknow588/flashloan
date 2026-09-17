@@ -3,6 +3,7 @@ import pytest
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
+from market.binance_market import dex_quote_surface
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
@@ -220,6 +221,57 @@ def test_dex_opportunity_scanner_reconciles_live_summary_after_review(tmp_path):
     assert summary["liveVerifiedRouteCount"] == 1
     assert summary["bestLiveNetProfitUsd"] == -1.25
     assert result["scanner"]["testnet_max_onchain_evidence_routes"] == 2
+
+
+def test_scanner_does_not_mutate_quote_routes_payload_for_page_surface(tmp_path):
+    from runtime.dex_opportunity_scanner import DexOpportunityScanner
+
+    evidence = {
+        "status": "live_quote_failed",
+        "executionTrust": "static_reference_only",
+        "trustedForExecution": False,
+        "blockNumber": 12345,
+        "hops": [],
+        "costModel": {},
+        "blockers": ["test quote failure"],
+    }
+
+    def quote_payload_provider(*, chain_id=None, protocols=None):
+        return {
+            "poolStaticTable": {"network": "robinhood-testnet", "chainId": chain_id},
+            "routes": [
+                {
+                    "symbolPair": "WOOP -> TOKEN -> WOOP",
+                    "routeSymbols": ["WOOP", "TOKEN", "WOOP"],
+                    "quoteStatus": "requires_live_quoter",
+                    "quoteAnalysis": {
+                        "complete": True,
+                        "requiresLiveQuoter": True,
+                        "referenceNetProfitUsd": 10.0,
+                        "steps": [
+                            {"hop": 1, "fromSymbol": "WOOP", "toSymbol": "TOKEN"},
+                            {"hop": 2, "fromSymbol": "TOKEN", "toSymbol": "WOOP"},
+                        ],
+                    },
+                }
+            ],
+        }
+
+    source_payload = quote_payload_provider(chain_id=46630, protocols=["uniswap_v4"])
+    scanner = DexOpportunityScanner(
+        quote_payload_provider=quote_payload_provider,
+        onchain_evidence_provider=lambda route, **kwargs: evidence,
+        trigger_context_provider=lambda **kwargs: {"triggerBlockNumber": 12345},
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        record_opportunities=False,
+        max_onchain_evidence_routes=0,
+    )
+
+    scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
+
+    assert "live_onchain_evidence" not in source_payload["routes"][0]
+    snapshot_route = scanner.snapshot(chain_id=46630)["snapshot"]["payload"]["routes"][0]
+    assert snapshot_route["live_onchain_evidence"]["status"] == "live_quote_failed"
 
 
 def test_dex_opportunity_scanner_uses_registry_network_for_testnet(tmp_path):
@@ -526,7 +578,7 @@ def test_dex_opportunity_scanner_limits_routes_to_top_candidates_on_non_testnet(
     assert {attempt["pair"] for attempt in attempts} == {"B -> C -> B", "C -> D -> C"}
 
 
-def test_dex_opportunity_scanner_keeps_robinhood_testnet_candidates_but_bounds_live_review():
+def test_dex_opportunity_scanner_reviews_all_robinhood_testnet_candidates_each_scan():
     from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
 
     calls = {"count": 0}
@@ -618,15 +670,65 @@ def test_dex_opportunity_scanner_keeps_robinhood_testnet_candidates_but_bounds_l
     )
 
     assert len(attempts) == 3
-    assert calls["count"] == 1
+    assert calls["count"] == 3
     assert [attempt["pair"] for attempt in attempts] == ["A -> B -> A", "B -> C -> B", "C -> D -> C"]
     assert attempts[0]["quote"]["live_onchain_evidence"]["status"] == "live_verified"
-    assert all(
-        attempt["quote"]["live_onchain_evidence"]["status"] == "live_evidence_deferred"
-        for attempt in attempts[1:]
-    )
+    assert all(attempt["quote"]["live_onchain_evidence"]["status"] == "live_verified" for attempt in attempts[1:])
     assert payload["routes"][0]["live_onchain_evidence"]["status"] == "live_verified"
-    assert payload["routes"][1]["quoteAnalysis"]["live_onchain_evidence"]["status"] == "live_evidence_deferred"
+    assert payload["routes"][1]["quoteAnalysis"]["live_onchain_evidence"]["status"] == "live_verified"
+    assert payload["routes"][2]["quoteAnalysis"]["live_onchain_evidence"]["status"] == "live_verified"
+
+
+def test_dex_opportunity_scanner_reviews_large_candidate_set_without_deferred_states():
+    from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
+
+    calls = {"count": 0}
+    routes = []
+    for index in range(40):
+        token = f"T{index:02d}"
+        routes.append(
+            {
+                "symbolPair": f"T00 -> {token} -> T00",
+                "routeSymbols": ["T00", token, "T00"],
+                "routeAddresses": ["0x00", f"0x{index:040x}", "0x00"],
+                "quoteStatus": "quote_required",
+                "quoteAnalysis": {
+                    "complete": True,
+                    "requiresLiveQuoter": True,
+                },
+            }
+        )
+    payload = {
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "routes": routes,
+    }
+
+    def onchain_evidence_provider(route, **kwargs):
+        calls["count"] += 1
+        return {
+            "evidenceVersion": 1,
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "status": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "trustedForExecution": False,
+            "blockNumber": 12345,
+            "hops": [],
+            "costModel": {},
+            "blockers": [],
+        }
+
+    attempts = build_dex_opportunity_attempts(
+        payload,
+        chain_id=46630,
+        observed_at="2026-08-29T00:00:00Z",
+        onchain_evidence_provider=onchain_evidence_provider,
+        max_onchain_evidence_routes=0,
+    )
+
+    assert len(attempts) == 40
+    assert calls["count"] == 40
+    assert all(attempt["quote"]["live_onchain_evidence"]["status"] == "live_verified" for attempt in attempts)
 
 
 def test_dex_opportunity_scanner_marks_unreviewed_route_without_pool_depth_as_missing_effective_pool():
@@ -662,11 +764,25 @@ def test_dex_opportunity_scanner_marks_unreviewed_route_without_pool_depth_as_mi
         ],
     }
 
+    def onchain_evidence_provider(route, **kwargs):
+        return {
+            "evidenceVersion": 1,
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "status": "missing_effective_pool",
+            "executionTrust": "static_reference_only",
+            "trustedForExecution": False,
+            "blockNumber": 12345,
+            "hops": [],
+            "costModel": {},
+            "blockers": ["on-chain reverify complete; missing effective trading pool"],
+        }
+
     attempts = build_dex_opportunity_attempts(
         payload,
         chain_id=46630,
         observed_at="2026-08-29T00:00:00Z",
-        max_onchain_evidence_routes=0,
+        onchain_evidence_provider=onchain_evidence_provider,
         max_recordable_routes=1,
     )
 
@@ -678,6 +794,207 @@ def test_dex_opportunity_scanner_marks_unreviewed_route_without_pool_depth_as_mi
     assert attempts[0]["precheck"]["requires_live_quoter"] is False
     assert payload["routes"][0]["quoteAnalysis"]["requiresLiveQuoter"] is False
     assert payload["routes"][0]["quoteAnalysis"]["live_onchain_evidence"]["status"] == "missing_effective_pool"
+
+
+def test_dex_opportunity_scanner_does_not_mark_observed_v4_pool_with_live_price_as_missing():
+    from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
+
+    payload = {
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "routes": [
+            {
+                "symbolPair": "TZ -> TA -> TB -> TZ",
+                "routeSymbols": ["TZ", "TA", "TB", "TZ"],
+                "routeAddresses": ["0x53", "0xab", "0xaa", "0x53"],
+                "quoteStatus": "requires_live_quoter",
+                "quoteAnalysis": {
+                    "complete": True,
+                    "requiresLiveQuoter": True,
+                    "staticDepthAvailable": False,
+                    "staticDepthStatus": "unavailable",
+                    "warnings": [],
+                },
+                "quoteInputs": {
+                    "candidatePools": [
+                        {
+                            "pool": "0xcdef",
+                            "protocol": "uniswap_v4",
+                            "balances": {"tvlUsd": 0},
+                            "liquidity": "",
+                            "poolKey": {
+                                "poolId": "0xcdef",
+                                "sqrtPriceX96": "25054144837438405210904448839",
+                            },
+                        }
+                    ],
+                    "quoteRequests": [{}],
+                },
+            }
+        ],
+    }
+
+    attempts = build_dex_opportunity_attempts(
+        payload,
+        chain_id=46630,
+        observed_at="2026-08-29T00:00:00Z",
+        max_onchain_evidence_routes=0,
+        max_recordable_routes=1,
+    )
+
+    assert len(attempts) == 1
+    evidence = attempts[0]["quote"]["live_onchain_evidence"]
+    assert evidence["status"] != "missing_effective_pool"
+
+
+def test_dex_opportunity_scanner_uses_route_level_v4_pool_when_candidate_pool_is_shallow():
+    from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
+
+    payload = {
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "routes": [
+            {
+                "symbolPair": "TA -> TB -> TZ -> TA",
+                "routeSymbols": ["TA", "TB", "TZ", "TA"],
+                "routeAddresses": ["0xab", "0xcd", "0xef", "0xab"],
+                "quoteStatus": "requires_live_quoter",
+                "quoteAnalysis": {
+                    "complete": True,
+                    "requiresLiveQuoter": True,
+                    "staticDepthAvailable": False,
+                    "staticDepthStatus": "unavailable",
+                    "warnings": [],
+                },
+                "quoteInputs": {
+                    "candidatePools": [
+                        {
+                            "pool": "0xcdef",
+                            "balances": {"tvlUsd": 0},
+                            "liquidity": "",
+                        }
+                    ],
+                    "quoteRequests": [{}],
+                },
+                "routePools": [
+                    {
+                        "pool": "0xcdef",
+                        "protocol": "uniswap_v4",
+                        "balances": {"tvlUsd": 0},
+                        "liquidity": "",
+                        "poolKey": {
+                            "poolId": "0xcdef",
+                            "sqrtPriceX96": "25054144837438405210904448839",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+    attempts = build_dex_opportunity_attempts(
+        payload,
+        chain_id=46630,
+        observed_at="2026-08-29T00:00:00Z",
+        max_onchain_evidence_routes=0,
+        max_recordable_routes=1,
+    )
+
+    assert len(attempts) == 1
+    evidence = attempts[0]["quote"]["live_onchain_evidence"]
+    assert evidence["status"] != "missing_effective_pool"
+
+
+def test_robinhood_testnet_route_step_preserves_pool_key_fields():
+    from dex.intent_trade.chains.robinhood_testnet.market_observation import _step_row
+
+    pool = {
+        "pool": "0x1111",
+        "poolIdentityMode": "v4_pool_id",
+        "poolManager": "0xPoolManager",
+        "poolKey": {"poolId": "0x1111", "sqrtPriceX96": "250541"},
+        "quoter": "0xQuoter",
+        "token0": "0x00",
+        "token1": "0x01",
+        "token0Symbol": "TA",
+        "token1Symbol": "TB",
+        "token0Decimals": 18,
+        "token1Decimals": 6,
+        "tickSpacing": 60,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "sqrtPriceX96": "250541",
+        "liquidity": "1000",
+    }
+    row = _step_row(pool, from_token={"symbol": "TA", "address": "0x00"}, to_token={"symbol": "TB", "address": "0x01"}, direction="bridge")
+
+    assert row["pool"] == "0x1111"
+    assert row["poolId"] == "0x1111"
+    assert row["poolManager"] == "0xPoolManager"
+    assert row["poolKey"] == {"poolId": "0x1111", "sqrtPriceX96": "250541"}
+    assert row["quoter"] == "0xQuoter"
+    assert row["token0Decimals"] == 18
+    assert row["token1Decimals"] == 6
+    assert row["tickSpacing"] == 60
+
+
+def test_framework_route_pools_merges_shallow_candidate_with_full_route_pool():
+    merged = dex_quote_surface._framework_route_pools(
+        {
+            "routePools": [
+                {
+                    "pool": "0xcdef",
+                    "protocol": "uniswap_v4",
+                    "poolKey": {"poolId": "0xcdef", "sqrtPriceX96": "1"},
+                    "poolManager": "0xPoolManager",
+                    "token0Decimals": 18,
+                    "token1Decimals": 6,
+                }
+            ],
+            "quoteInputs": {
+                "candidatePools": [
+                    {
+                        "pool": "0xcdef",
+                        "balances": {"tvlUsd": 0},
+                        "liquidity": "",
+                    }
+                ]
+            },
+        }
+    )
+
+    assert len(merged) == 1
+    assert merged[0]["protocol"] == "uniswap_v4"
+    assert merged[0]["poolKey"] == {"poolId": "0xcdef", "sqrtPriceX96": "1"}
+    assert merged[0]["poolManager"] == "0xPoolManager"
+    assert merged[0]["token0Decimals"] == 18
+    assert merged[0]["balances"] == {"tvlUsd": 0}
+
+
+def test_framework_route_pools_enriches_stale_shallow_pool_from_v4_index_lookup():
+    enriched = dex_quote_surface._enrich_route_pools_from_index(
+        [
+            {
+                "pool": "0xabcd",
+                "protocol": "uniswap_v4",
+                "sqrtPriceX96": "1",
+                "token0": "0x00",
+                "token1": "0x01",
+            }
+        ],
+        index_by_pool={
+            "0xabcd": {
+                "poolId": "0xabcd",
+                "poolManager": "0xPoolManager",
+                "poolKey": {"poolId": "0xabcd", "sqrtPriceX96": "1"},
+                "token0Decimals": 18,
+                "token1Decimals": 6,
+            }
+        },
+    )
+
+    assert len(enriched) == 1
+    assert enriched[0]["poolManager"] == "0xPoolManager"
+    assert enriched[0]["poolKey"] == {"poolId": "0xabcd", "sqrtPriceX96": "1"}
+    assert enriched[0]["token0Decimals"] == 18
+    assert enriched[0]["token1Decimals"] == 6
 
 
 def test_dex_opportunity_scanner_writes_failed_onchain_evidence_into_snapshot_route():
@@ -759,5 +1076,24 @@ def test_dex_submission_review_counts_recorded_opportunities_as_blocked():
     assert payload["summary"]["attemptCount"] == 1
     assert payload["summary"]["blockedCount"] == 1
     assert payload["attempts"][0]["pair"] == "USDG -> WETH -> TEST -> WETH -> USDG"
+
+
+def test_evidence_provider_runs_synchronously():
+    import time
+
+    from dex.runtime.dex_opportunity_scanner import _evidence_provider_with_timeout
+
+    def slow_provider(route, **kwargs):
+        time.sleep(1.0)
+        return {"status": "live_verified"}
+
+    evidence = _evidence_provider_with_timeout(
+        slow_provider,
+        0.05,
+        {"routeSymbols": ["TZ", "TB", "TZ"]},
+        chain_id=46630,
+    )
+
+    assert evidence["status"] == "live_verified"
 
 

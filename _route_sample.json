@@ -1,0 +1,2228 @@
+{
+  "borrowSymbols": [
+    "TZ"
+  ],
+  "errorStack": [
+    {
+      "code": "rpc_verification_timeout",
+      "message": "on-chain evidence timed out after 5.0s",
+      "module": "DEX"
+    }
+  ],
+  "executionPools": [
+    {
+      "anchorAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "anchorSymbol": "TZ",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "counterSymbol": "TB",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "yc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891427,
+      "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency1Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "250541448375711810263784873880",
+        "tick": 23027,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token1Decimals": null,
+        "token1Symbol": "0x28cc9a"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB"
+      ],
+      "routeText": "TZ -> TB",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "250541448375711810263784873880",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0x28cc9a",
+      "tick": "23027",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token1Decimals": 18,
+      "token1Symbol": "TB",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "anchorSymbol": "TB",
+      "balances": {
+        "tvlUsd": 0
+      },
+      "classification": {},
+      "counterAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "counterSymbol": "TA",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "bridge",
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolKeyDecoded": true,
+        "source": "v4_pool_index"
+      },
+      "fee": 3000,
+      "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+      "initializeBlockNumber": 118415841,
+      "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+      "liquidity": "",
+      "pairAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "pairSymbol": "TB:TA",
+      "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency0Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token0Decimals": null,
+        "token0Symbol": "0x28cc9a",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      ],
+      "routeSymbols": [
+        "TB",
+        "TA"
+      ],
+      "routeText": "TB -> TA",
+      "source": "v4_pool_index_bridge_pool",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x28cc9a:0xB169FE",
+      "tick": -23028,
+      "tickSpacing": 60,
+      "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token0Decimals": null,
+      "token0Symbol": "TB",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": null,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "anchorSymbol": "TA",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "counterSymbol": "TZ",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "zc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891347,
+      "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TA",
+        "TZ"
+      ],
+      "routeText": "TA -> TZ",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0xB169FE",
+      "tick": "-23028",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": 18,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    }
+  ],
+  "live_onchain_evidence": {
+    "blockNumber": null,
+    "blockers": [
+      "on-chain evidence timed out after 5.0s"
+    ],
+    "chainId": 46630,
+    "costModel": {},
+    "errorStack": [
+      {
+        "code": "rpc_verification_timeout",
+        "message": "on-chain evidence timed out after 5.0s",
+        "module": "DEX"
+      }
+    ],
+    "evidenceVersion": 1,
+    "executionTrust": "rpc_verification_failed",
+    "hops": [],
+    "network": "robinhood-testnet",
+    "observedAt": "2026-09-15T03:07:40.692489+00:00",
+    "quoteBlockSource": "timeout",
+    "routeAddresses": [
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+    ],
+    "routeSymbols": [
+      "TZ",
+      "TB",
+      "TA",
+      "TZ"
+    ],
+    "status": "rpc_verification_failed",
+    "transactionDevelopment": {
+      "blockers": [
+        "on-chain evidence timed out after 5.0s"
+      ],
+      "executionEnabled": false,
+      "status": "blocked_before_transaction_development"
+    },
+    "trustedForExecution": false
+  },
+  "onchainEvidenceStatus": "rpc_verification_failed",
+  "overviewRoute": {
+    "analysisStage": "market_observation_closed_loop",
+    "anchorBorrowSymbol": "TZ",
+    "bridgeSymbols": [
+      "TB",
+      "TA"
+    ],
+    "candidatePairAddresses": [],
+    "candidatePairSymbols": [
+      "TZ -> TB",
+      "TB:TA",
+      "TA -> TZ"
+    ],
+    "kind": "bridge_pair",
+    "marketObservationRoute": true,
+    "nextStep": "quotes_and_route_analysis",
+    "observationSource": "yc_zc_bridge_observation",
+    "pathAddressText": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e -> 0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4 -> 0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8 -> 0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    "pathAddresses": [
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+    ],
+    "pathSymbols": [
+      "TZ",
+      "TB",
+      "TA",
+      "TZ"
+    ],
+    "pathText": "TZ -> TB -> TA -> TZ",
+    "pathTokens": [
+      {
+        "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "symbol": "TZ"
+      },
+      {
+        "address": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "symbol": "TB"
+      },
+      {
+        "address": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "symbol": "TA"
+      },
+      {
+        "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "symbol": "TZ"
+      }
+    ],
+    "targetSymbol": "TA"
+  },
+  "pathSource": "market_observation",
+  "poolCount": 3,
+  "preferredPools": [
+    {
+      "anchorAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "anchorSymbol": "TZ",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "counterSymbol": "TB",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "yc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891427,
+      "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency1Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "250541448375711810263784873880",
+        "tick": 23027,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token1Decimals": null,
+        "token1Symbol": "0x28cc9a"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB"
+      ],
+      "routeText": "TZ -> TB",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "250541448375711810263784873880",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0x28cc9a",
+      "tick": "23027",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token1Decimals": 18,
+      "token1Symbol": "TB",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "anchorSymbol": "TB",
+      "balances": {
+        "tvlUsd": 0
+      },
+      "classification": {},
+      "counterAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "counterSymbol": "TA",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "bridge",
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolKeyDecoded": true,
+        "source": "v4_pool_index"
+      },
+      "fee": 3000,
+      "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+      "initializeBlockNumber": 118415841,
+      "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+      "liquidity": "",
+      "pairAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "pairSymbol": "TB:TA",
+      "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency0Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token0Decimals": null,
+        "token0Symbol": "0x28cc9a",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      ],
+      "routeSymbols": [
+        "TB",
+        "TA"
+      ],
+      "routeText": "TB -> TA",
+      "source": "v4_pool_index_bridge_pool",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x28cc9a:0xB169FE",
+      "tick": -23028,
+      "tickSpacing": 60,
+      "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token0Decimals": null,
+      "token0Symbol": "TB",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": null,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "anchorSymbol": "TA",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "counterSymbol": "TZ",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "zc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891347,
+      "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TA",
+        "TZ"
+      ],
+      "routeText": "TA -> TZ",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0xB169FE",
+      "tick": "-23028",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": 18,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    }
+  ],
+  "priceEvidenceMode": "live_required",
+  "priceEvidenceModeLabel": "静态框架复核",
+  "priceEvidenceSource": "chain_live_quote_required",
+  "priceEvidenceSourceLabel": "静态框架 + 实时复核",
+  "quoteAnalysis": {
+    "adapterRequired": false,
+    "chainSubmissionCandidate": false,
+    "chainSubmissionPolicy": "live_framework_reuse",
+    "complete": true,
+    "executableCandidate": false,
+    "finalOutputUsd": null,
+    "grossProfitUsd": null,
+    "livePriceVerified": false,
+    "live_onchain_evidence": {
+      "blockNumber": null,
+      "blockers": [
+        "on-chain evidence timed out after 5.0s"
+      ],
+      "chainId": 46630,
+      "costModel": {},
+      "errorStack": [
+        {
+          "code": "rpc_verification_timeout",
+          "message": "on-chain evidence timed out after 5.0s",
+          "module": "DEX"
+        }
+      ],
+      "evidenceVersion": 1,
+      "executionTrust": "rpc_verification_failed",
+      "hops": [],
+      "network": "robinhood-testnet",
+      "observedAt": "2026-09-15T03:07:40.692489+00:00",
+      "quoteBlockSource": "timeout",
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB",
+        "TA",
+        "TZ"
+      ],
+      "status": "rpc_verification_failed",
+      "transactionDevelopment": {
+        "blockers": [
+          "on-chain evidence timed out after 5.0s"
+        ],
+        "executionEnabled": false,
+        "status": "blocked_before_transaction_development"
+      },
+      "trustedForExecution": false
+    },
+    "method": "overview_route_snapshot",
+    "netProfitBps": null,
+    "netProfitUsd": null,
+    "notionalUsd": 1000.0,
+    "onchainEvidenceStatus": "rpc_verification_failed",
+    "priceEvidenceMode": "live_required",
+    "priceEvidenceModeLabel": "静态框架复核",
+    "priceEvidenceSource": "chain_live_quote_required",
+    "priceEvidenceSourceLabel": "静态框架 + 实时复核",
+    "profitable": false,
+    "quote_verified": false,
+    "recommendation": {
+      "action": "on-chain step-by-step reverify failed; blocking transaction preflight",
+      "level": "rpc_verification_failed",
+      "reasons": [
+        "on-chain evidence timed out after 5.0s"
+      ]
+    },
+    "referenceFinalOutputAmount": null,
+    "referenceFinalOutputSymbol": null,
+    "referenceFinalOutputUsd": null,
+    "referenceGrossProfitUsd": null,
+    "referenceInputSymbol": null,
+    "referenceNetProfitAmount": null,
+    "referenceNetProfitUsd": null,
+    "referenceNetReturnBps": null,
+    "referenceReturnBasis": null,
+    "referenceReturnTrusted": false,
+    "requiresLiveQuoter": false,
+    "steps": [
+      {
+        "effectiveRate": null,
+        "feeBps": null,
+        "fromAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "fromSymbol": "TZ",
+        "hop": 1,
+        "inputAmount": null,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v4",
+        "quoteSource": "market_observation_static_pool_route",
+        "referenceOutputAmount": null,
+        "referenceOutputUsd": null,
+        "status": "static_reference_pending_live_quote",
+        "toAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "toSymbol": "TB",
+        "tokenIn": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "tokenOut": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      },
+      {
+        "effectiveRate": null,
+        "feeBps": null,
+        "fromAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "fromSymbol": "TB",
+        "hop": 2,
+        "inputAmount": null,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v4",
+        "quoteSource": "market_observation_static_pool_route",
+        "referenceOutputAmount": null,
+        "referenceOutputUsd": null,
+        "status": "static_reference_pending_live_quote",
+        "toAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "toSymbol": "TA",
+        "tokenIn": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "tokenOut": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      },
+      {
+        "effectiveRate": null,
+        "feeBps": null,
+        "fromAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "fromSymbol": "TA",
+        "hop": 3,
+        "inputAmount": null,
+        "outputAmount": null,
+        "outputUsd": null,
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "priceImpactBps": null,
+        "protocol": "uniswap_v4",
+        "quoteSource": "market_observation_static_pool_route",
+        "referenceOutputAmount": null,
+        "referenceOutputUsd": null,
+        "status": "static_reference_pending_live_quote",
+        "toAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "toSymbol": "TZ",
+        "tokenIn": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "tokenOut": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      }
+    ],
+    "warnings": []
+  },
+  "quoteInputs": {
+    "candidatePools": [
+      {
+        "anchorAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "anchorSymbol": "TZ",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": null
+        },
+        "classification": {},
+        "counterAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "counterSymbol": "TB",
+        "depthBand": {
+          "label": "poolId and PoolKey observed",
+          "level": "observed"
+        },
+        "depthStatus": "initialized_unpriced",
+        "dex": "uniswap_v4",
+        "direction": "yc",
+        "evidence": {
+          "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+          "initializeBlockNumber": 117891427,
+          "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+          "poolKeyDecoded": true
+        },
+        "fee": "3000",
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "liquidity": "",
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolIdentityMode": "pool_id",
+        "poolKey": {
+          "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "currency0Metadata": {
+            "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x05a31b"
+          },
+          "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "currency1Metadata": {
+            "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x28cc9a"
+          },
+          "fee": 3000,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891427,
+          "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+          "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "poolKeyDecoded": true,
+          "sqrtPriceX96": "250541448375711810263784873880",
+          "tick": 23027,
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "token0Decimals": null,
+          "token0Symbol": "0x05a31b",
+          "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "token1Decimals": null,
+          "token1Symbol": "0x28cc9a"
+        },
+        "poolKeyDecoded": true,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {},
+        "recentSwapActive": false,
+        "routeAddresses": [
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TB"
+        ],
+        "routeText": "TZ -> TB",
+        "source": "poolmanager_initialize_logs",
+        "sqrtPriceX96": "250541448375711810263784873880",
+        "status": "initialized_pool",
+        "symbolPair": "0x05a31b:0x28cc9a",
+        "tick": "23027",
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": 18,
+        "token0Symbol": "TZ",
+        "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token1Decimals": 18,
+        "token1Symbol": "TB",
+        "tvlUsd": 0
+      },
+      {
+        "anchorAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "anchorSymbol": "TB",
+        "balances": {
+          "tvlUsd": 0
+        },
+        "classification": {},
+        "counterAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "counterSymbol": "TA",
+        "depthBand": {
+          "label": "indexed V4 PoolKey",
+          "level": "indexed"
+        },
+        "depthStatus": "initialized_unpriced",
+        "dex": "uniswap_v4",
+        "direction": "bridge",
+        "evidence": {
+          "bridgeOnly": true,
+          "initializeBlockNumber": 118415841,
+          "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+          "poolKeyDecoded": true,
+          "source": "v4_pool_index"
+        },
+        "fee": 3000,
+        "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "liquidity": "",
+        "pairAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "pairSymbol": "TB:TA",
+        "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolIdentityMode": "v4_pool_id",
+        "poolKey": {
+          "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "currency0Metadata": {
+            "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x28cc9a"
+          },
+          "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "currency1Metadata": {
+            "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0xB169FE"
+          },
+          "fee": 3000,
+          "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+          "initializeBlockNumber": 118415841,
+          "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+          "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+          "poolKeyDecoded": true,
+          "sqrtPriceX96": "25054144837438405210904448839",
+          "tick": -23028,
+          "tickSpacing": 60,
+          "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "token0Decimals": null,
+          "token0Symbol": "0x28cc9a",
+          "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "token1Decimals": null,
+          "token1Symbol": "0xB169FE"
+        },
+        "poolKeyDecoded": true,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "protocol": "uniswap_v4",
+        "quality": null,
+        "quoteSummary": {},
+        "recentSwapActive": false,
+        "routeAddresses": [
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        ],
+        "routeSymbols": [
+          "TB",
+          "TA"
+        ],
+        "routeText": "TB -> TA",
+        "source": "v4_pool_index_bridge_pool",
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "status": "initialized_pool",
+        "symbolPair": "0x28cc9a:0xB169FE",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token0Decimals": null,
+        "token0Symbol": "TB",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "TA",
+        "tvlUsd": 0
+      },
+      {
+        "anchorAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "anchorSymbol": "TA",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": null
+        },
+        "classification": {},
+        "counterAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "counterSymbol": "TZ",
+        "depthBand": {
+          "label": "poolId and PoolKey observed",
+          "level": "observed"
+        },
+        "depthStatus": "initialized_unpriced",
+        "dex": "uniswap_v4",
+        "direction": "zc",
+        "evidence": {
+          "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+          "initializeBlockNumber": 117891347,
+          "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+          "poolKeyDecoded": true
+        },
+        "fee": "3000",
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "liquidity": "",
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolIdentityMode": "pool_id",
+        "poolKey": {
+          "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "currency0Metadata": {
+            "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x05a31b"
+          },
+          "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "currency1Metadata": {
+            "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0xB169FE"
+          },
+          "fee": 3000,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891347,
+          "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+          "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "poolKeyDecoded": true,
+          "sqrtPriceX96": "25054144837438405210904448839",
+          "tick": -23028,
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "token0Decimals": null,
+          "token0Symbol": "0x05a31b",
+          "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "token1Decimals": null,
+          "token1Symbol": "0xB169FE"
+        },
+        "poolKeyDecoded": true,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {},
+        "recentSwapActive": false,
+        "routeAddresses": [
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+        ],
+        "routeSymbols": [
+          "TA",
+          "TZ"
+        ],
+        "routeText": "TA -> TZ",
+        "source": "poolmanager_initialize_logs",
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "status": "initialized_pool",
+        "symbolPair": "0x05a31b:0xB169FE",
+        "tick": "-23028",
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": 18,
+        "token0Symbol": "TZ",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": 18,
+        "token1Symbol": "TA",
+        "tvlUsd": 0
+      }
+    ],
+    "conditions": [
+      "候选池必须保持可执行深度，不能只依赖静态池子列表。",
+      "路径来源必须与市场观察页面展示的闭环路径一致。",
+      "AMM 报价必须通过滑点、gas、闪电贷费用和最小利润阈值检查。",
+      "UniswapX 需要意图报价请求，并确认求解器或填单方可用后才能执行。"
+    ],
+    "quoteRequests": [
+      {
+        "fee": "3000",
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "protocol": "uniswap_v4",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=TZ%20-%3E%20TB%20-%3E%20TA%20-%3E%20TZ&venue=amm_pool",
+        "routeAddresses": [
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TB",
+          "TA",
+          "TZ"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          },
+          {
+            "address": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "symbol": "TB"
+          },
+          {
+            "address": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "symbol": "TA"
+          },
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "fee": 3000,
+        "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "protocol": "uniswap_v4",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=TZ%20-%3E%20TB%20-%3E%20TA%20-%3E%20TZ&venue=amm_pool",
+        "routeAddresses": [
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TB",
+          "TA",
+          "TZ"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          },
+          {
+            "address": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "symbol": "TB"
+          },
+          {
+            "address": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "symbol": "TA"
+          },
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "fee": "3000",
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "protocol": "uniswap_v4",
+        "quoteMode": "pool_exact_input_probe",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=TZ%20-%3E%20TB%20-%3E%20TA%20-%3E%20TZ&venue=amm_pool",
+        "routeAddresses": [
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TB",
+          "TA",
+          "TZ"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          },
+          {
+            "address": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "symbol": "TB"
+          },
+          {
+            "address": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "symbol": "TA"
+          },
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          }
+        ],
+        "status": "requires_live_quoter",
+        "venue": "amm_pool"
+      },
+      {
+        "adapterHints": [
+          "pool_manager_state_required",
+          "hook_aware_quote_required",
+          "multi_hop_path_must_follow_market_observation_route",
+          "sdk_or_adapter_must_return_amount_out_raw"
+        ],
+        "chainId": 46630,
+        "pools": [
+          "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+          "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157"
+        ],
+        "quoteMode": "uniswap_v4_sdk_exact_input_route",
+        "quoteRequestUrl": "/api/dex/quote-request?pair=TZ%20-%3E%20TB%20-%3E%20TA%20-%3E%20TZ&venue=uniswap_v4",
+        "routeAddresses": [
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TB",
+          "TA",
+          "TZ"
+        ],
+        "routeTokenPath": [
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          },
+          {
+            "address": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "symbol": "TB"
+          },
+          {
+            "address": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "symbol": "TA"
+          },
+          {
+            "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "symbol": "TZ"
+          }
+        ],
+        "status": "sdk_adapter_required",
+        "venue": "uniswap_v4"
+      }
+    ],
+    "routePools": [
+      {
+        "anchorAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "anchorSymbol": "TZ",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": null
+        },
+        "classification": {},
+        "counterAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "counterSymbol": "TB",
+        "depthBand": {
+          "label": "poolId and PoolKey observed",
+          "level": "observed"
+        },
+        "depthStatus": "initialized_unpriced",
+        "dex": "uniswap_v4",
+        "direction": "yc",
+        "evidence": {
+          "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+          "initializeBlockNumber": 117891427,
+          "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+          "poolKeyDecoded": true
+        },
+        "fee": "3000",
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "liquidity": "",
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolIdentityMode": "pool_id",
+        "poolKey": {
+          "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "currency0Metadata": {
+            "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x05a31b"
+          },
+          "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "currency1Metadata": {
+            "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x28cc9a"
+          },
+          "fee": 3000,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891427,
+          "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+          "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+          "poolKeyDecoded": true,
+          "sqrtPriceX96": "250541448375711810263784873880",
+          "tick": 23027,
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "token0Decimals": null,
+          "token0Symbol": "0x05a31b",
+          "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "token1Decimals": null,
+          "token1Symbol": "0x28cc9a"
+        },
+        "poolKeyDecoded": true,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {},
+        "recentSwapActive": false,
+        "routeAddresses": [
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+        ],
+        "routeSymbols": [
+          "TZ",
+          "TB"
+        ],
+        "routeText": "TZ -> TB",
+        "source": "poolmanager_initialize_logs",
+        "sqrtPriceX96": "250541448375711810263784873880",
+        "status": "initialized_pool",
+        "symbolPair": "0x05a31b:0x28cc9a",
+        "tick": "23027",
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": 18,
+        "token0Symbol": "TZ",
+        "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token1Decimals": 18,
+        "token1Symbol": "TB",
+        "tvlUsd": 0
+      },
+      {
+        "anchorAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "anchorSymbol": "TB",
+        "balances": {
+          "tvlUsd": 0
+        },
+        "classification": {},
+        "counterAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "counterSymbol": "TA",
+        "depthBand": {
+          "label": "indexed V4 PoolKey",
+          "level": "indexed"
+        },
+        "depthStatus": "initialized_unpriced",
+        "dex": "uniswap_v4",
+        "direction": "bridge",
+        "evidence": {
+          "bridgeOnly": true,
+          "initializeBlockNumber": 118415841,
+          "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+          "poolKeyDecoded": true,
+          "source": "v4_pool_index"
+        },
+        "fee": 3000,
+        "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "liquidity": "",
+        "pairAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "pairSymbol": "TB:TA",
+        "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolIdentityMode": "v4_pool_id",
+        "poolKey": {
+          "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "currency0Metadata": {
+            "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x28cc9a"
+          },
+          "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "currency1Metadata": {
+            "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0xB169FE"
+          },
+          "fee": 3000,
+          "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+          "initializeBlockNumber": 118415841,
+          "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+          "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+          "poolKeyDecoded": true,
+          "sqrtPriceX96": "25054144837438405210904448839",
+          "tick": -23028,
+          "tickSpacing": 60,
+          "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "token0Decimals": null,
+          "token0Symbol": "0x28cc9a",
+          "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "token1Decimals": null,
+          "token1Symbol": "0xB169FE"
+        },
+        "poolKeyDecoded": true,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "protocol": "uniswap_v4",
+        "quality": null,
+        "quoteSummary": {},
+        "recentSwapActive": false,
+        "routeAddresses": [
+          "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+        ],
+        "routeSymbols": [
+          "TB",
+          "TA"
+        ],
+        "routeText": "TB -> TA",
+        "source": "v4_pool_index_bridge_pool",
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "status": "initialized_pool",
+        "symbolPair": "0x28cc9a:0xB169FE",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token0Decimals": null,
+        "token0Symbol": "TB",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "TA",
+        "tvlUsd": 0
+      },
+      {
+        "anchorAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "anchorSymbol": "TA",
+        "balances": {
+          "token0": null,
+          "token0Usd": null,
+          "token1": null,
+          "token1Usd": null,
+          "tvlUsd": null
+        },
+        "classification": {},
+        "counterAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "counterSymbol": "TZ",
+        "depthBand": {
+          "label": "poolId and PoolKey observed",
+          "level": "observed"
+        },
+        "depthStatus": "initialized_unpriced",
+        "dex": "uniswap_v4",
+        "direction": "zc",
+        "evidence": {
+          "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+          "initializeBlockNumber": 117891347,
+          "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+          "poolKeyDecoded": true
+        },
+        "fee": "3000",
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "liquidity": "",
+        "pairAddress": "",
+        "pairSymbol": "",
+        "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolIdentityMode": "pool_id",
+        "poolKey": {
+          "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "currency0Metadata": {
+            "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0x05a31b"
+          },
+          "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "currency1Metadata": {
+            "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "decimals": null,
+            "metadataOk": false,
+            "symbol": "0xB169FE"
+          },
+          "fee": 3000,
+          "hooks": "0x0000000000000000000000000000000000000000",
+          "initializeBlockNumber": 117891347,
+          "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+          "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+          "poolKeyDecoded": true,
+          "sqrtPriceX96": "25054144837438405210904448839",
+          "tick": -23028,
+          "tickSpacing": 60,
+          "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "token0Decimals": null,
+          "token0Symbol": "0x05a31b",
+          "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "token1Decimals": null,
+          "token1Symbol": "0xB169FE"
+        },
+        "poolKeyDecoded": true,
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "protocol": "uniswap_v4",
+        "quality": "pass",
+        "quoteSummary": {},
+        "recentSwapActive": false,
+        "routeAddresses": [
+          "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+          "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+        ],
+        "routeSymbols": [
+          "TA",
+          "TZ"
+        ],
+        "routeText": "TA -> TZ",
+        "source": "poolmanager_initialize_logs",
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "status": "initialized_pool",
+        "symbolPair": "0x05a31b:0xB169FE",
+        "tick": "-23028",
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": 18,
+        "token0Symbol": "TZ",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": 18,
+        "token1Symbol": "TA",
+        "tvlUsd": 0
+      }
+    ],
+    "triggerContext": {
+      "available": true,
+      "blockNumber": 119692895,
+      "blockTimestamp": 1789441690,
+      "chainId": 46630,
+      "confirmations": 2,
+      "error": null,
+      "evidencePath": null,
+      "headBlockNumber": 119692897,
+      "network": "robinhood-testnet",
+      "observedAt": "2026-09-15T03:07:25.082918+00:00",
+      "rpcUrl": "https://rpc.testnet.chain.robinhood.com/rpc",
+      "source": "scan_trigger_chain_head_confirmed",
+      "triggerBlockNumber": 119692895
+    }
+  },
+  "quoteStatus": "rpc_verification_failed",
+  "quoteVenueCount": 4,
+  "quoteVerification": {
+    "adapterRequired": false,
+    "blockNumber": null,
+    "blockers": [
+      "on-chain evidence timed out after 5.0s"
+    ],
+    "chainSubmissionCandidate": false,
+    "executableCandidate": false,
+    "executionTrust": "rpc_verification_failed",
+    "livePriceVerified": false,
+    "priceEvidenceMode": "framework_reused_live_confirmation",
+    "priceEvidenceModeLabel": "静态框架复核",
+    "priceEvidenceSource": "cached_framework_live_confirmation",
+    "priceEvidenceSourceLabel": "静态框架 + 实时复核",
+    "readyForTransactionPreflight": false,
+    "requiresLiveQuoter": false,
+    "status": "rpc_verification_failed",
+    "triggerBlockNumber": null,
+    "trustedForExecution": false
+  },
+  "routeAddresses": [
+    "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+    "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+    "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+  ],
+  "routeFrameworkSource": "market_observation",
+  "routePools": [
+    {
+      "anchorAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "anchorSymbol": "TZ",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "counterSymbol": "TB",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "yc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891427,
+      "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency1Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "250541448375711810263784873880",
+        "tick": 23027,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token1Decimals": null,
+        "token1Symbol": "0x28cc9a"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB"
+      ],
+      "routeText": "TZ -> TB",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "250541448375711810263784873880",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0x28cc9a",
+      "tick": "23027",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token1Decimals": 18,
+      "token1Symbol": "TB",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "anchorSymbol": "TB",
+      "balances": {
+        "tvlUsd": 0
+      },
+      "classification": {},
+      "counterAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "counterSymbol": "TA",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "bridge",
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolKeyDecoded": true,
+        "source": "v4_pool_index"
+      },
+      "fee": 3000,
+      "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+      "initializeBlockNumber": 118415841,
+      "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+      "liquidity": "",
+      "pairAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "pairSymbol": "TB:TA",
+      "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency0Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token0Decimals": null,
+        "token0Symbol": "0x28cc9a",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      ],
+      "routeSymbols": [
+        "TB",
+        "TA"
+      ],
+      "routeText": "TB -> TA",
+      "source": "v4_pool_index_bridge_pool",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x28cc9a:0xB169FE",
+      "tick": -23028,
+      "tickSpacing": 60,
+      "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token0Decimals": null,
+      "token0Symbol": "TB",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": null,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "anchorSymbol": "TA",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "counterSymbol": "TZ",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "zc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891347,
+      "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TA",
+        "TZ"
+      ],
+      "routeText": "TA -> TZ",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0xB169FE",
+      "tick": "-23028",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": 18,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    }
+  ],
+  "routeSymbols": [
+    "TZ",
+    "TB",
+    "TA",
+    "TZ"
+  ],
+  "routeTokenPath": [
+    {
+      "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "symbol": "TZ"
+    },
+    {
+      "address": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "symbol": "TB"
+    },
+    {
+      "address": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "symbol": "TA"
+    },
+    {
+      "address": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "symbol": "TZ"
+    }
+  ],
+  "settlementRails": [],
+  "sizeAnalysis": {},
+  "strategy": "robinhood_testnet_market_observation_closed_loop",
+  "strictQualityPools": [
+    {
+      "anchorAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "anchorSymbol": "TZ",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "counterSymbol": "TB",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "yc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891427,
+      "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency1Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891427,
+        "initializeTransactionHash": "0x10a76e3e2d9558961fb976951b30a1cc9779f7caac91ff0426d524d8091fca31",
+        "poolId": "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "250541448375711810263784873880",
+        "tick": 23027,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token1Decimals": null,
+        "token1Symbol": "0x28cc9a"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+      ],
+      "routeSymbols": [
+        "TZ",
+        "TB"
+      ],
+      "routeText": "TZ -> TB",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "250541448375711810263784873880",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0x28cc9a",
+      "tick": "23027",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token1Decimals": 18,
+      "token1Symbol": "TB",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+      "anchorSymbol": "TB",
+      "balances": {
+        "tvlUsd": 0
+      },
+      "classification": {},
+      "counterAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "counterSymbol": "TA",
+      "depthBand": {
+        "label": "indexed V4 PoolKey",
+        "level": "indexed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "bridge",
+      "evidence": {
+        "bridgeOnly": true,
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolKeyDecoded": true,
+        "source": "v4_pool_index"
+      },
+      "fee": 3000,
+      "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+      "initializeBlockNumber": 118415841,
+      "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+      "liquidity": "",
+      "pairAddress": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4:0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "pairSymbol": "TB:TA",
+      "pool": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+      "poolIdentityMode": "v4_pool_id",
+      "poolKey": {
+        "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "currency0Metadata": {
+          "address": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x28cc9a"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+        "initializeBlockNumber": 118415841,
+        "initializeTransactionHash": "0x8a34cea54ecb06301a7130a70c9b602aef1cbb677526de75390b4d23addaaa13",
+        "poolId": "0xd59e54d5c9ae7fa97f594f41542f2f513c899c87b8b7d1b7d2cbd30e11f3f3b7",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "token0Decimals": null,
+        "token0Symbol": "0x28cc9a",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": null,
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8"
+      ],
+      "routeSymbols": [
+        "TB",
+        "TA"
+      ],
+      "routeText": "TB -> TA",
+      "source": "v4_pool_index_bridge_pool",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x28cc9a:0xB169FE",
+      "tick": -23028,
+      "tickSpacing": 60,
+      "token0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+      "token0Decimals": null,
+      "token0Symbol": "TB",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": null,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    },
+    {
+      "anchorAddress": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+      "anchorSymbol": "TA",
+      "balances": {
+        "token0": null,
+        "token0Usd": null,
+        "token1": null,
+        "token1Usd": null,
+        "tvlUsd": null
+      },
+      "classification": {},
+      "counterAddress": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+      "counterSymbol": "TZ",
+      "depthBand": {
+        "label": "poolId and PoolKey observed",
+        "level": "observed"
+      },
+      "depthStatus": "initialized_unpriced",
+      "dex": "uniswap_v4",
+      "direction": "zc",
+      "evidence": {
+        "discoveryMethod": "robinhood_testnet_v4_pool_liquidity_cache",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolKeyDecoded": true
+      },
+      "fee": "3000",
+      "hooks": "0x0000000000000000000000000000000000000000",
+      "initializeBlockNumber": 117891347,
+      "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+      "liquidity": "",
+      "pairAddress": "",
+      "pairSymbol": "",
+      "pool": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+      "poolIdentityMode": "pool_id",
+      "poolKey": {
+        "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "currency0Metadata": {
+          "address": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0x05a31b"
+        },
+        "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "currency1Metadata": {
+          "address": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+          "decimals": null,
+          "metadataOk": false,
+          "symbol": "0xB169FE"
+        },
+        "fee": 3000,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "initializeBlockNumber": 117891347,
+        "initializeTransactionHash": "0xc7294000d336f0300569840efd38269d3d1b87e1a81c5079576e6548ac441101",
+        "poolId": "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157",
+        "poolKeyDecoded": true,
+        "sqrtPriceX96": "25054144837438405210904448839",
+        "tick": -23028,
+        "tickSpacing": 60,
+        "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "token0Decimals": null,
+        "token0Symbol": "0x05a31b",
+        "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "token1Decimals": null,
+        "token1Symbol": "0xB169FE"
+      },
+      "poolKeyDecoded": true,
+      "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "protocol": "uniswap_v4",
+      "quality": "pass",
+      "quoteSummary": {},
+      "recentSwapActive": false,
+      "routeAddresses": [
+        "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+      ],
+      "routeSymbols": [
+        "TA",
+        "TZ"
+      ],
+      "routeText": "TA -> TZ",
+      "source": "poolmanager_initialize_logs",
+      "sqrtPriceX96": "25054144837438405210904448839",
+      "status": "initialized_pool",
+      "symbolPair": "0x05a31b:0xB169FE",
+      "tick": "-23028",
+      "tickSpacing": 60,
+      "token0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+      "token0Decimals": 18,
+      "token0Symbol": "TZ",
+      "token1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+      "token1Decimals": 18,
+      "token1Symbol": "TA",
+      "tvlUsd": 0
+    }
+  ],
+  "symbolPair": "TZ -> TB -> TA -> TZ"
+}

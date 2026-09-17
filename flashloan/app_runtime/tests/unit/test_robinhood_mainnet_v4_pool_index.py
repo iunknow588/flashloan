@@ -64,7 +64,7 @@ def test_mainnet_v4_quote_adapter_rejects_mismatched_token_without_rpc_call():
     request = {
         "network": "robinhood",
         "chainId": 4663,
-        "pool": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+        "pool": "0x1111111111111111111111111111111111111111",
         "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
         "tokenOut": "0x5fc5360D7Ff5E7E4762b0B8d0Db54B4D77b9dfFA",
         "amountInRaw": "1000000000000000",
@@ -81,14 +81,14 @@ def test_mainnet_v4_quote_context_uses_static_pool_state_when_available(monkeypa
     request = {
         "network": "robinhood",
         "chainId": 4663,
-        "pool": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+        "pool": "0x1111111111111111111111111111111111111111",
         "tokenIn": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
         "tokenOut": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
         "amountInRaw": "1000000000000000",
         "fee": 200,
         "poolState": {
-            "pool": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
-            "poolId": "0x84bd4e2d8be11aeb0afc1195b38f587b61e90068548f1063fdbe448fb8cad0b6",
+            "pool": "0x1111111111111111111111111111111111111111",
+            "poolId": "0x1111111111111111111111111111111111111111",
             "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
             "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
             "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",

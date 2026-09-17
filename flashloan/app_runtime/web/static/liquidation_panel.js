@@ -226,7 +226,7 @@
         quote_failed: "报价失败",
         network_error: "网络错误",
         insufficient_balance: "余额不足",
-        not_enough_liquidity: "流动性不足",
+        not_enough_liquidity: "池当前没有 LP 流动性",
         "NotEnoughLiquidity(bytes32)": "流动性不足(bytes32)",
         execution_reverted: "链上回滚",
         slippage_exceeded: "滑点超限",

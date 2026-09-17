@@ -57,6 +57,8 @@ API_RESPONSE_REQUIRED_KEYS = {
     "/api/dex/overview": ("summary",),
     "/api/dex/market-observation": ("summary",),
     "/api/dex/quote-routes": ("routes",),
+    "/api/dex/closed-loop-groups": ("ok", "groups", "summary"),
+    "/api/dex/quote-route/test": ("ok", "routeSymbols", "amount", "record"),
     "/api/dex-pools/candidates": ("pairs",),
     "/api/opportunity-health": ("rows",),
     "/api/velocity-summary": ("points",),

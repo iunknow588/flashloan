@@ -1,0 +1,1 @@
+{"network": "bnb", "chainId": 56, "pools": [{"pool": "0x5555555555555555555555555555555555555555", "symbolPair": "USDC:WBNB", "dex": "pancakeswap_v2", "protocol": "v2", "token0Symbol": "USDC", "token1Symbol": "WBNB", "token0Usd": 600000, "token1Usd": 610000, "tvlUsd": 1210000, "status": "recommended"}]}

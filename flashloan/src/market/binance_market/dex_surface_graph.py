@@ -101,6 +101,30 @@ def _price_map_from_pairs(pairs: list[dict[str, Any]]) -> dict[str, float]:
         _propagate_price_aliases(price_map)
         if not changed:
             break
+    # Infer missing testnet/odd token prices from Uniswap V4 pool reserves too.
+    # This is a reference-only USD map for display/size probes; execution still
+    # uses the on-chain Quoter/eth_call path and never trusts these prices.
+    v4_pools = [pool for pool in pools if _pool_protocol(pool) == "uniswap_v4"]
+    for _ in range(4):
+        changed = False
+        for pool in v4_pools:
+            symbols = _pool_symbols(pool)
+            if len(symbols) < 2:
+                continue
+            amounts = [_pool_reserve_amount(pool, 0), _pool_reserve_amount(pool, 1)]
+            for known_index, missing_index in ((0, 1), (1, 0)):
+                known_symbol = symbols[known_index]
+                missing_symbol = symbols[missing_index]
+                if price_map.get(missing_symbol) or not price_map.get(known_symbol):
+                    continue
+                if amounts[known_index] and amounts[missing_index]:
+                    price_map[missing_symbol] = (
+                        price_map[known_symbol] * amounts[known_index] / amounts[missing_index]
+                    )
+                    changed = True
+        _propagate_price_aliases(price_map)
+        if not changed:
+            break
     return {symbol: price for symbol, price in price_map.items() if price > 0}
 
 def _unique_symbols(rows: list[dict[str, Any]]) -> list[str]:

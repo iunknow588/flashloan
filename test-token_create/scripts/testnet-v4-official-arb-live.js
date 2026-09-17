@@ -16,8 +16,60 @@ function readManifest() {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
 }
 
+function readArg(name, fallback) {
+  const idx = process.argv.indexOf(`--${name}`);
+  if (idx >= 0) return process.argv[idx + 1];
+  return fallback;
+}
+
+function parseRouteSymbols(value) {
+  return String(value || "")
+    .toUpperCase()
+    .split(/\s*->\s*|\s*,\s*|[\s;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function sortPair(a, b) {
   return BigInt(a.toLowerCase()) < BigInt(b.toLowerCase()) ? [a, b] : [b, a];
+}
+
+function decodeRevertData(rawData) {
+  const data = String(rawData || "");
+  if (!data.startsWith("0x") || data.length < 10) {
+    return { data, selector: data, errorDetail: data || "no_revert_data" };
+  }
+  const selector = data.slice(0, 10).toLowerCase();
+  const knownSelectors = {
+    "0x16301234": { name: "ArbitrageNotProfitable(received, required)", decode: true },
+    "0xb20c2204": { name: "SwapNotResolved()" },
+    "0x90b8ec18": { name: "TransferFailed()" },
+    "0xa87726a1": { name: "BadPoolManagerCallback()" },
+    "0x41abc801": { name: "InvalidRequest()" },
+    "0xab143c06": { name: "Reentrancy()" },
+    "0x4f422847": { name: "NoProfitableRoute()" },
+    "0x5f9d6142": { name: "DexError(uint256)" },
+  };
+  const known = knownSelectors[selector];
+  if (!known) {
+    return { data, selector, errorDetail: `revert selector ${selector}` };
+  }
+  if (known.decode && data.length >= 10 + 64) {
+    try {
+      const [received, required] = ethers.AbiCoder.defaultAbiCoder().decode(
+        ["uint256", "uint256"],
+        "0x" + data.slice(10)
+      );
+      return {
+        data,
+        selector,
+        errorDetail: `${known.name} received=${ethers.formatUnits(received, 18)} required=${ethers.formatUnits(required, 18)}`,
+      };
+    } catch (error) {
+      return { data, selector, errorDetail: known.name };
+    }
+  }
+  return { data, selector, errorDetail: known.name };
 }
 
 function makeKey(a, b, fee, tickSpacing, hooks) {
@@ -62,12 +114,29 @@ async function main() {
   const hooks = manifest.officialV4.hooks || ethers.ZeroAddress;
   const poolManagerAddress = manifest.officialV4.poolManager;
 
+  const routeText = readArg("route", process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_ROUTE || "TZ -> TB -> TA -> TZ");
+  const symbols = parseRouteSymbols(routeText);
+  const symbolAddress = { TZ: tz, TA: ta, TB: tb };
+  const routeAddresses = symbols.map((symbol) => {
+    const address = symbolAddress[symbol];
+    if (!address) {
+      throw new Error(`official V4 arb route contains unsupported symbol ${symbol}; expected TA/TB/TZ`);
+    }
+    return address;
+  });
+  if (routeAddresses.length !== 4 || routeAddresses[0].toLowerCase() !== routeAddresses[3].toLowerCase()) {
+    throw new Error("official V4 arb route must be a 4-symbol closed triangle, e.g. TZ -> TB -> TA -> TZ");
+  }
   const keys = [
-    makeKey(tz, tb, fee, tickSpacing, hooks),
-    makeKey(tb, ta, fee, tickSpacing, hooks),
-    makeKey(ta, tz, fee, tickSpacing, hooks),
+    makeKey(routeAddresses[0], routeAddresses[1], fee, tickSpacing, hooks),
+    makeKey(routeAddresses[1], routeAddresses[2], fee, tickSpacing, hooks),
+    makeKey(routeAddresses[2], routeAddresses[3], fee, tickSpacing, hooks),
   ];
-  const directions = [zeroForOne(keys[0], tz), zeroForOne(keys[1], tb), zeroForOne(keys[2], ta)];
+  const directions = [
+    zeroForOne(keys[0], routeAddresses[0]),
+    zeroForOne(keys[1], routeAddresses[1]),
+    zeroForOne(keys[2], routeAddresses[2]),
+  ];
 
   const poolManager = new ethers.Contract(poolManagerAddress, [], owner);
   console.log("official V4 route:");
@@ -75,13 +144,17 @@ async function main() {
   console.log(`  tz=${tz}`);
   console.log(`  ta=${ta}`);
   console.log(`  tb=${tb}`);
+  console.log(`  route=${symbols.join(" -> ")}`);
   console.log(`  directions=${directions.join(",")}`);
 
   const Token = (address) => new ethers.Contract(address, ERC20_ABI, owner);
-  for (const [label, address] of [["tz", tz], ["ta", ta], ["tb", tb]]) {
+  const uniqueRouteTokens = Array.from(new Set(routeAddresses.map((address) => address.toLowerCase()))).map(
+    (address) => routeAddresses.find((item) => item.toLowerCase() === address)
+  );
+  for (const [index, address] of uniqueRouteTokens.entries()) {
     const poolBalance = await Token(address).balanceOf(poolManagerAddress);
-    console.log(`  ${label} PoolManager balance=${ethers.formatUnits(poolBalance, 18)}`);
-    if (poolBalance === 0n) throw new Error(`${label} PoolManager balance is zero`);
+    console.log(`  token${index} PoolManager balance=${ethers.formatUnits(poolBalance, 18)}`);
+    if (poolBalance === 0n) throw new Error(`token${index} PoolManager balance is zero`);
   }
   for (const [index, key] of keys.entries()) {
     console.log(`  pool${index + 1} id=${poolId(key)}`);
@@ -110,31 +183,92 @@ async function main() {
     console.log(`deployed OfficialV4FlashArb=${manifest.officialV4.arb}`);
   }
 
-  const amountIn = BigInt(process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT || "100000000000000");
+  const amountText = readArg("amount", process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT || "0.0001");
+  const amountIn = ethers.parseUnits(amountText, 18);
   const minProfit = BigInt(process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_MIN_PROFIT || "1");
+  const reverseKeys = [keys[2], keys[1], keys[0]];
+  const reverseDirections = [!directions[2], !directions[1], !directions[0]];
+  const keysets = [keys, reverseKeys];
+  const directionsets = [directions, reverseDirections];
   let result;
   try {
-    result = await arb.runArbitrage.staticCall(tz, keys, directions, amountIn, minProfit);
+    result = await arb.runArbitrageBest.staticCall(routeAddresses[0], keysets, directionsets, amountIn, minProfit);
   } catch (error) {
-    console.error("official V4 static arbitrage reverted");
+    const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+    console.log(
+      "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+        JSON.stringify({
+          ok: false,
+          error: "static_arb_call_reverted",
+          detail: revertInfo.errorDetail || error.shortMessage || error.reason || error.message || error,
+          errorData: revertInfo.data,
+          errorSelector: revertInfo.selector,
+          errorDetail: revertInfo.errorDetail,
+          routeSymbols: symbols,
+          amount: amountText,
+          staticCall: "reverted",
+          method: "runArbitrageBest",
+        })
+    );
+    console.error("official V4 static arbitrageBest reverted");
     console.error(`  shortMessage=${error.shortMessage || ""}`);
-    console.error(`  data=${error.data || error.info?.error?.data || ""}`);
+    console.error(`  data=${revertInfo.data}`);
+    console.error(`  errorDetail=${revertInfo.errorDetail}`);
     console.error(`  reason=${error.reason || error.message || error}`);
     throw error;
   }
-  console.log("official V4 static arbitrage result:");
+  const routeIndex = Number(result[4]);
+  const selectedSymbols = routeIndex === 0 ? symbols : [symbols[0], symbols[2], symbols[1], symbols[0]];
+  console.log("official V4 static arbitrageBest result:");
+  console.log(`  selected routeIndex=${routeIndex}`);
+  console.log(`  selected route=${selectedSymbols.join(" -> ")}`);
   console.log(`  outTb=${ethers.formatUnits(result[0], 18)}`);
   console.log(`  outTa=${ethers.formatUnits(result[1], 18)}`);
-  console.log(`  outTz=${ethers.formatUnits(result[2], 18)}`);
-  console.log(`  profit=${ethers.formatUnits(result[3], 18)} tz`);
-  if (result[3] <= 0n) throw new Error("official V4 static arbitrage is not profitable");
-
-  if (process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST !== "true") {
-    console.log("broadcast disabled; static preflight passed");
+  console.log(`  out${symbols[0]}=${ethers.formatUnits(result[2], 18)}`);
+  console.log(`  profit=${ethers.formatUnits(result[3], 18)} ${symbols[0]}`);
+  const staticOk = result[3] > 0n;
+  console.log(
+    "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+      JSON.stringify({
+        ok: staticOk,
+        error: staticOk ? undefined : "static_arb_not_profitable",
+        detail: staticOk ? "static_call_ok" : "static arbitrage is not profitable",
+        routeSymbols: symbols,
+        selectedRouteSymbols: selectedSymbols,
+        amount: amountText,
+        staticCall: staticOk ? "ok" : "not_profitable",
+        method: "runArbitrageBest",
+        routeIndex,
+        profit: result[3].toString(),
+        outAmount: result[2].toString(),
+      })
+  );
+  if (!staticOk) {
+    process.exitCode = 1;
     return;
   }
 
-  const tx = await arb.runArbitrage(tz, keys, directions, amountIn, minProfit);
+  if (process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST !== "true") {
+    console.log(
+      "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+        JSON.stringify({
+          ok: true,
+          detail: "broadcast disabled; static preflight passed",
+          routeSymbols: symbols,
+          selectedRouteSymbols: selectedSymbols,
+          amount: amountText,
+          staticCall: "ok",
+          broadcastDisabled: true,
+          method: "runArbitrageBest",
+          routeIndex,
+          profit: result[3].toString(),
+          outAmount: result[2].toString(),
+        })
+    );
+    return;
+  }
+
+  const tx = await arb.runArbitrageBest(routeAddresses[0], keysets, directionsets, amountIn, minProfit);
   const receipt = await tx.wait();
   const txHash = receipt.hash;
   const record = {
@@ -150,14 +284,34 @@ async function main() {
     profit: result[3].toString(),
     gasUsed: receipt.gasUsed.toString(),
     route: { keys, directions },
+    bestRoute: { keysets, directionsets, routeIndex },
+    selectedRouteSymbols: selectedSymbols,
     reservePolicy: "80_percent_creation_reserve_is_for_later_liquidity_not_a_post_run_floor",
   };
   manifest.officialV4.lastArbLiveTest = record;
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + "\n", "utf8");
-  console.log("official V4 live arbitrage broadcast:");
+  console.log("official V4 live arbitrageBest broadcast:");
   console.log(`  txHash=${txHash}`);
   console.log(`  gasUsed=${receipt.gasUsed}`);
-  console.log(`  profit=${ethers.formatUnits(result[3], 18)} tz`);
+  console.log(`  routeIndex=${routeIndex}`);
+  console.log(`  selected route=${selectedSymbols.join(" -> ")}`);
+  console.log(`  profit=${ethers.formatUnits(result[3], 18)} ${symbols[0]}`);
+  console.log(
+    "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+      JSON.stringify({
+        ok: true,
+        detail: "broadcast_complete",
+        routeSymbols: symbols,
+        selectedRouteSymbols: selectedSymbols,
+        amount: amountText,
+        broadcast: true,
+        txHash,
+        method: "runArbitrageBest",
+        routeIndex,
+        profit: result[3].toString(),
+        outAmount: result[2].toString(),
+      })
+  );
 }
 
 main().catch((error) => {

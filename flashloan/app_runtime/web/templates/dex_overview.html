@@ -193,6 +193,49 @@
       const funds = list(row?.associatedFundSymbols).join(", ");
       return `<span class="badge" title="${esc(row?.addressPair || "")}">${esc(label)}${funds ? ` / X=${esc(funds)}` : ""}</span>`;
     }
+    function overviewPathGroupKey(path) {
+      const route = path?.overviewRoute || {};
+      const linkage = path?.flashLoanLinkage || {};
+      const borrowSymbols = list(linkage?.borrow_symbols);
+      const routeSymbols = list(path?.routeSymbols);
+      return String(route?.anchorBorrowSymbol || borrowSymbols[0] || routeSymbols[0] || "-").toUpperCase();
+    }
+    function buildOverviewGroups(paths) {
+      const groups = new Map();
+      paths.forEach(path => {
+        const key = overviewPathGroupKey(path);
+        if (!key || key === "-") return;
+        if (!groups.has(key)) groups.set(key, {flashLoanToken: {symbol: key}, startToken: {symbol: key}, endToken: {symbol: key}, paths: [], poolDependencies: []});
+        const group = groups.get(key);
+        group.paths.push(path);
+        list(path?.executionPools || path?.preferredPools).forEach(pool => {
+          const id = String(pool?.pool || pool?.poolId || pool?.pairAddress || "").toLowerCase();
+          if (id && !group.poolDependencies.some(item => String(item?.pool || item?.poolId || item?.pairAddress || "").toLowerCase() === id)) {
+            group.poolDependencies.push(pool);
+          }
+        });
+      });
+      return Array.from(groups.values()).sort((left, right) => String(left.flashLoanToken.symbol || "").localeCompare(String(right.flashLoanToken.symbol || "")));
+    }
+    function renderOverviewGroups(groups) {
+      if (!groups.length) return '<div class="empty">当前选择下没有满足闪电贷衔接条件的套利路径。</div>';
+      return groups.map(group => {
+        const token = group.flashLoanToken || group.startToken || {};
+        const poolDeps = list(group.poolDependencies || group.pools);
+        const poolHtml = poolDeps.slice(0, 8).map(pool => `<span class="badge" title="${esc(pool?.pool || pool?.pairAddress || "-")}">${esc(pool?.pool || pool?.pairSymbol || pool?.symbolPair || "-")}</span>`).join("") || '<span class="badge">无池明细</span>';
+        return `<section class="panel" style="margin-bottom:14px">
+          <div class="path-head">
+            <div>
+              <h2>${esc(token.symbol || "-")} 资金池目录</h2>
+              <div class="muted">按可借贷资金 ${esc(token.symbol || "-")} 分组的闭环套利路径</div>
+            </div>
+            <div class="badges"><span class="badge">${esc(group.paths?.length || 0)} 条路径</span><span class="badge">${esc(poolDeps.length)} 个池</span></div>
+          </div>
+          <div class="badges">${poolHtml}</div>
+          <div>${(group.paths || []).map(pairHtml).join("") || '<div class="empty">暂无路径</div>'}</div>
+        </section>`;
+      }).join("");
+    }
     let refreshGeneration = 0;
     let refreshController = null;
     let renderedScopeSignature = "";
@@ -249,7 +292,7 @@
         marketObservationSourceStage = data.marketObservationSourceStage || data.marketObservationSource || "computed";
         $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
         const anchors = data.summary?.closedLoopAnchorSymbols || data.summary?.anchorBorrowSymbols || [];
-        $("pathMeta").textContent = `${frameworkLabel(data.summary?.pathSource || "market_observation")} ${data.summary?.directAnchorPathCount ?? 0} | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
+        $("pathMeta").textContent = `${frameworkLabel(data.summary?.pathSource || "market_observation")} ${data.summary?.overviewPathGroupCount ?? 0} 个资金池 | ${data.summary?.directAnchorPathCount ?? 0} | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
         $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
         $("watchMeta").textContent = `链路观察 ${data.summary?.marketObservationRouteCount ?? 0} 条 | 专用交易对 ${data.summary?.chainSpecificObservationPairCount ?? 0}`;
         $("profitCount").textContent = `${data.summary?.overviewProfitableRouteCount ?? 0}/${data.summary?.overviewProbeCompleteCount ?? 0}`;
@@ -261,7 +304,8 @@
         $("sourceNetwork").textContent = source.network || "-";
         $("sourceMeta").textContent = source.exists === false ? "当前链没有静态池表" : (source.generatedAt || "-");
         $("watchList").innerHTML = list(data.watchPairs).map(watchHtml).join("") || '<span class="badge">暂无关联 Y-Z 交易对</span>';
-        $("pathList").innerHTML = (data.arbitragePaths || []).map(pairHtml).join("") || '<div class="empty">当前选择下没有满足闪电贷衔接条件的套利路径。</div>';
+        const groups = list(data.arbitragePathGroups || buildOverviewGroups(data.arbitragePaths || []));
+        $("pathList").innerHTML = renderOverviewGroups(groups);
         $("message").textContent = "已更新";
       } catch (error) {
         if (generation !== refreshGeneration || error.name === "AbortError") return;

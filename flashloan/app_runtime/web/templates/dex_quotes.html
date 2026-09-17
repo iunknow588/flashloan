@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -19,11 +19,20 @@
     .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
     .metric, .route { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .group-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .group-card { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 12px; }
+    .group-card h3 { margin: 0 0 6px; font-size: 15px; }
+    .group-card small { color: #667085; }
+    .group-card strong { display: block; margin-top: 6px; font-size: 13px; }
     .metric small { display: block; color: #667085; margin-bottom: 7px; }
     .metric strong { display: block; font-size: 18px; }
     .metric span, .muted { color: #667085; font-size: 13px; }
     .route { margin-bottom: 12px; }
     .route-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .route-test { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; padding: 10px; border: 1px solid #e4e7ec; border-radius: 6px; background: #fafafa; }
+    .route-test input { min-height: 36px; width: 160px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 0 10px; font-size: 13px; }
+    .route-test button { min-height: 32px; font-size: 12px; }
+    .route-test-result { flex: 1 1 100%; overflow-wrap: anywhere; color: #667085; font-size: 12px; }
     .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #eef6f4; color: #0f766e; font-weight: 700; font-size: 12px; }
     .badge.good { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
@@ -46,7 +55,22 @@
     .error-chain li { margin: 2px 0; overflow-wrap: anywhere; }
     ol { margin: 8px 0 0 18px; padding: 0; color: #344054; line-height: 1.55; }
     .empty { padding: 18px; color: #667085; background: #fff; border: 1px solid #d9dee7; border-radius: 8px; }
-    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .route-head { display: block; } }
+    .pool-group { margin-bottom: 18px; border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 12px; }
+    .pool-group > header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .pool-group h2 { margin: 0; font-size: 15px; }
+    .pool-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .pool-chip { border: 1px solid #d9dee7; border-radius: 6px; background: #f8fafc; padding: 4px 8px; font-size: 12px; color: #344054; }
+    .pool-chip small { display: block; color: #667085; }
+    .route-in-group { border-top: 1px solid #e4e7ec; padding: 10px 0; }
+    .route-in-group + .route-in-group { margin-top: 8px; }
+    .route-in-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .route-in-summary .path-text { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+    .route-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .route-actions input { min-height: 30px; width: 110px; border: 1px solid #d0d5dd; border-radius: 6px; padding: 0 8px; font-size: 12px; }
+    .route-actions button { min-height: 30px; font-size: 12px; padding: 0 10px; }
+    .route-hop-line { margin-top: 6px; color: #344054; font-size: 12px; overflow-wrap: anywhere; }
+    .route-metric-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; color: #667085; font-size: 12px; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } .route-head { display: block; } .pool-group > header { display: block; } }
   </style>
 </head>
 <body data-dex-surface-template="quotes">
@@ -73,6 +97,7 @@
       <div class="metric"><small>预检候选</small><strong id="readyCount">-</strong><span id="profitMeta">已扣除闪电贷和 Gas 成本</span></div>
       <div class="metric"><small>结算</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
     </section>
+    <section id="groupList" class="group-panel"></section>
     <section id="routeList"></section>
   </main>
   <script>
@@ -97,18 +122,21 @@
     };
     const labelMap = {
       live_verified: "链上价格已验证",
-      not_live_verified: "等待链上复核",
+      not_live_verified: "尚未完成链上复核",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
+      rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       adapter_required: "链上复核失败：缺少报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块",
+      missing_effective_pool: "链上复核：缺少有效池，无法报价",
       live_quote_failed: "链上报价失败",
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-      not_enough_liquidity: "流动性不足",
+      not_enough_liquidity: "池当前没有 LP 流动性",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
+      not_reviewed_this_scan: "本轮未复核",
       requires_live_quoter: "需要链上报价器",
       sdk_adapter_required: "需要 V4 SDK 适配器",
       uniswap_v4_sdk_exact_input_single: "V4 SDK 单步精确输入",
@@ -118,9 +146,17 @@
     const label = value => labelMap[value] || value || "-";
     const executionTrustText = value => ({
       static_reference_only: "静态参考",
-      live_quoter_verified_readonly: "实时报价器验证（只读）",
-      live_verified: "链上已验证",
       static_reference: "静态参考",
+      live_quoter_verified_readonly: "实时报价器验证（只读）",
+      static_live_quoter_estimate: "静态+实时报价器估算",
+      live_quote_reference_only: "参考报价",
+      live_verified: "链上已验证",
+      live: "链上已验证",
+      not_enough_liquidity: "链上复核：池当前没有 LP 流动性",
+      pool_not_initialized: "链上复核：池未初始化",
+      live_quote_failed: "链上报价失败",
+      rpc_verification_failed: "链上复核失败：RPC 不可用",
+      rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       deferred: "已延迟",
     }[String(value || "")] || value || "-");
     const quoteBlockLabel = value => {
@@ -275,16 +311,46 @@
       return translated;
     };
     const routeEvidence = route => route?.live_onchain_evidence || route?.quoteAnalysis?.live_onchain_evidence || route?.quote?.live_onchain_evidence || {};
+    const routeKey = route => {
+      const symbols = Array.isArray(route?.routeSymbols) ? route.routeSymbols : [];
+      return String(route?.symbolPair || (symbols.length ? symbols.join(" -> ") : "") || "").toUpperCase();
+    };
+    const routesToRender = (scannerRoutes, quoteRoutesPayload) => {
+      const quoteSnapshot = quoteRoutesPayload?.snapshot?.payload || {};
+      const quoteList = Array.isArray(quoteRoutesPayload?.routes)
+        ? quoteRoutesPayload.routes
+        : Array.isArray(quoteSnapshot.routes)
+          ? quoteSnapshot.routes
+          : [];
+      const scannerList = Array.isArray(scannerRoutes) ? scannerRoutes : [];
+      if (!quoteList.length) return scannerList;
+      const scannerByKey = new Map(scannerList.map(route => [routeKey(route), route]));
+      const quoteByKey = new Map(quoteList.map(route => [routeKey(route), route]));
+      const merged = quoteList.map(route => {
+        const quoteStatus = route.live_onchain_evidence?.status;
+        const quoteImproved = Boolean(quoteStatus) && !["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(quoteStatus).toLowerCase());
+        const base = scannerByKey.get(routeKey(route));
+        const baseEvidence = (base?.live_onchain_evidence || base?.quoteAnalysis?.live_onchain_evidence) || {};
+        const scannerHasEvidence = Object.keys(baseEvidence).length > 0;
+        return quoteImproved || (!scannerHasEvidence && Boolean(route?.quoteAnalysis?.steps?.length)) ? route : base;
+      });
+      for (const route of scannerList) {
+        if (!quoteByKey.has(routeKey(route))) merged.push(route);
+      }
+      return merged;
+    };
     const routeAnalysis = route => {
       const base = {...(route?.quoteAnalysis || {})};
       const evidence = routeEvidence(route);
       if (!Object.keys(evidence).length) return base;
       const costs = evidence.costModel || {};
       const live = Boolean(evidence.livePriceVerified || evidence.status === "live_verified");
+      const chainAttempted = Boolean(evidence.status);
       return {
         ...base,
         live_onchain_evidence: evidence,
         livePriceVerified: live,
+        chainReviewed: chainAttempted,
         priceEvidenceMode: live ? "live_verified" : "live_required",
         priceEvidenceSource: evidence.priceEvidenceSource || (live ? "chain_live_quote" : "chain_live_quote_required"),
         finalOutputUsd: live ? costs.finalOutputUsd : null,
@@ -337,7 +403,7 @@
             level: evidence.status || (live ? "live_verified" : ""),
             action: live
               ? (evidence.readyForTransactionPreflight ? "链上验证完成；仍需交易预检" : "链上验证通过，但执行门禁未放行")
-            : (base.requiresLiveQuoter && base.referenceNetProfitAmount != null ? "链上报价未完成，当前为静态参考收益" : "等待链上报价与复核"),
+            : (base.requiresLiveQuoter && base.referenceNetProfitAmount != null ? "链上报价未完成，当前为静态参考收益" : "链上报价未完成"),
             reasons: evidence.blockers,
         } : base.recommendation,
       };
@@ -348,14 +414,16 @@
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-      not_enough_liquidity: "链上复核：流动性不足",
+      not_enough_liquidity: "链上复核：池当前没有 LP 流动性",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
       live_evidence_deferred: "链上验证已延后",
+      not_reviewed_this_scan: "链上复核未覆盖本轮预算",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
+      rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       adapter_required: "链上复核失败：缺少 V4 报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块上下文",
-    }[String(status || "").toLowerCase()] || "等待链上复核");
+    }[String(status || "").toLowerCase()] || "链上复核状态未确认");
     const evidenceStatusEx = status => {
       const value = String(status || "").toLowerCase();
       const blocked = {
@@ -364,8 +432,10 @@
         pool_insufficient_for_profitable_execution: "链上已验证，池深度不足",
         pool_not_initialized: "链上复核失败：V4 池未初始化",
         rpc_verification_failed: "链上复核失败：RPC 不可用",
+        rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
         adapter_required: "链上复核失败：缺少报价适配器",
         missing_trigger_block: "链上复核未执行：缺少触发区块",
+        missing_effective_pool: "链上复核：缺少有效池，无法报价",
         live_quote_failed: "链上单跳验证失败",
         live_verified: "链上验证通过",
       };
@@ -374,7 +444,7 @@
     function onchainEvidenceHtml(evidence, route) {
       if (!evidence || !Object.keys(evidence).length) return "";
       const status = String(evidence.status || "").toLowerCase();
-      const failed = (evidence.hops || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failed = (evidence.hops || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required"].includes(String(hop?.status || "").toLowerCase()));
       const focusFailed = failed[0] || null;
       const stackTop = focusFailed?.errorStack?.[0] || evidence.errorStack?.[0] || route?.errorStack?.[0] || null;
       const blockersToShow = focusFailed ? [] : lines(evidence.blockers);
@@ -467,7 +537,7 @@
       const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified");
       const steps = analysis.steps || [];
       const costs = evidence.costModel || {};
-      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : steps).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : steps).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required"].includes(String(hop?.status || "").toLowerCase()));
       const failedHop = failedHops[0] || null;
       const failedStep = failedHop ? steps.find(step => Number(step?.hop) === Number(failedHop.hop)) : null;
       const focusOnError = Boolean(failedHop);
@@ -478,7 +548,7 @@
       const requests = route.quoteInputs?.quoteRequests || [];
       const pools = route.quoteInputs?.candidatePools || [];
       const displayedSteps = focusSteps.length ? focusSteps : steps.filter(Boolean);
-      const isFailedStep = step => Boolean(step?.liveQuoteError) || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_evidence_deferred"].includes(String(step?.status || "").toLowerCase());
+      const isFailedStep = step => Boolean(step?.liveQuoteError) || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required"].includes(String(step?.status || "").toLowerCase());
       const stepRows = displayedSteps.map(step => `<tr><td>${esc(step.hop)}</td><td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td><td>${esc(step.protocol || step.dex || "-")}</td><td>${esc(label(step.quoteSource))}${step.liveQuoteError ? `<div class="evidence-error">${errorStackHtml(step.errorStack, step.liveQuoteError)}</div>` : ""}</td><td>${esc(step.pool || "-")}</td><td>${numeric(step.feeBps, 2)}</td><td>${numeric(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td><td>${isFailedStep(step) ? "报价失败" : (live ? `${numeric(step.outputAmount, 8)} ${esc(step.toSymbol)}` : `${numeric(step.referenceOutputAmount, 8)} ${esc(step.toSymbol)} (ref)`)}</td><td>${isFailedStep(step) ? "-" : (live ? numeric(step.effectiveRate, 8) : numeric(step.referenceEffectiveRate, 8))}</td><td>${isFailedStep(step) ? "-" : (step.priceImpactBps == null ? "-" : `${numeric(step.priceImpactBps, 2)} / ${numeric(step.priceImpactLimitBps ?? evidence.validation?.hopPriceImpactLimitBps ?? 10, 0)} bps`)}</td></tr>`).join("");
       const finalOutputUsd = live ? costs.finalOutputUsd : analysis.referenceFinalOutputUsd;
       const finalOutputAmount = live ? costs.finalOutputAmount : analysis.referenceFinalOutputAmount;
@@ -499,7 +569,7 @@
       const depthStatus = String(analysis.staticDepthStatus || "unavailable").toLowerCase();
       const depthKnown = live || depthStatus === "available";
       const failedIsLiquidity = focusOnError && String(failedHop.status || "").toLowerCase() === "not_enough_liquidity";
-      const failedIsDeferred = focusOnError && String(failedHop.status || "").toLowerCase() === "live_evidence_deferred";
+      const failedIsDeferred = focusOnError && ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(failedHop.status || "").toLowerCase());
       const failedIsAdapter = focusOnError && String(failedHop.status || "").toLowerCase() === "adapter_required";
       const failedInputAmount = failedHop?.amountIn ?? failedHop?.inputAmount ?? failedStep?.inputAmount ?? null;
       const failedInputSymbol = failedHop?.fromSymbol || "";
@@ -516,22 +586,31 @@
       const analysisHtml = focusOnError
         ? `<div class="analysis focus-error"><div><small>错误定位</small><strong>第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)}</strong></div><div><small>链上错误</small>${errorStackHtml(failedHop.errorStack, failedHop.liveQuoteError || "")}</div>${stackTop && !failedHop?.liveQuoteError ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div>` : ""}</div>`
         : `<div class="analysis"><div><small>${live ? "最终输出" : "最终输出（参考）"}</small><strong>${depthKnown ? esc(finalOutputDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? esc(grossProfitDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>初始探测金额</small><strong>${routeSizeAmount(initialProbeValue, route, analysis)}</strong></div><div><small>最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div></div>`;
-      const depthLabel = failedIsLiquidity ? "流动性不足，已停止继续估算" : failedIsDeferred ? "链上复核延后，不判定为路线失败" : focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
-      const recClass = ["pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_quote_failed", "live_evidence_deferred", "pool_insufficient_for_profitable_execution", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (live ? "good" : "warn");
+      const depthLabel = live ? "链上实时深度已验证" : failedIsLiquidity ? "流动性不足，已停止继续估算" : failedIsDeferred ? "链上复核延后，不判定为路线失败" : focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
+      const recClass = ["pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_quote_failed", "pool_insufficient_for_profitable_execution", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase()) ? "warn" : (live ? "good" : "warn"));
+      const isDeferred = ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase());
       const actionText = focusOnError
         ? failedAction
-        : (live && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase())
+        : live && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase())
           ? "链上验证通过，但执行门禁未放行"
-          : recommendationAction(recommendation.action || label(route.quoteStatus)));
-      const referenceBadge = !live && analysis.requiresLiveQuoter ? `<span class="badge warn">静态参考（待链上报价）</span>` : "";
+          : isDeferred && (steps.length || Object.keys(evidence).length)
+            ? "本轮未集中复核；可使用链下估算"
+            : recommendationAction(recommendation.action || label(route.quoteStatus));
+      const referenceBadge = !live && !analysis.chainReviewed && analysis.requiresLiveQuoter ? `<span class="badge warn">静态候选（待链上报价）</span>` : "";
+      const deferredReviewBadge = isDeferred ? `<span class="badge warn">可点击链下估算立即复核</span>` : "";
+      const priceReviewBadge = live ? "链上价格已验证" : (analysis.chainReviewed ? `链上复核已返回：${esc(evidenceStatusEx(evidence.status || ""))}` : "链上价格复核未完成");
+      const autoAmount = autoRouteAmount(route);
+      const routeTestAmountSymbol = analysis.referenceInputSymbol || inputSymbol(route, analysis) || (route.routeSymbols || [])[0] || "";
       return `<article class="route"><div class="route-head"><div><h2>${esc(route.symbolPair || route.routeSymbols?.join(" -> ") || "路线")}</h2><div class="badges">
         <span class="badge ${recClass}">${esc(actionText)}</span>
         ${referenceBadge}
+        ${deferredReviewBadge}
         <span class="badge">路径 ${esc((route.routeSymbols || []).join(" -> "))}</span>
-        <span class="badge ${live ? "good" : "warn"}">${live ? "链上价格已验证" : "等待链上价格复核"}</span>
+        <span class="badge ${live ? "good" : "warn"}">${priceReviewBadge}</span>
         <span class="badge ${Object.keys(evidence).length && evidence.status !== "live_verified" ? "bad" : "good"}">${esc(evidenceStatusEx(evidence.status || ""))}</span>
-        <span class="badge ${depthStatus === "available" ? "good" : "warn"}">${esc(depthLabel)}</span>
+        <span class="badge ${live || depthStatus === "available" ? "good" : "warn"}">${esc(depthLabel)}</span>
       </div></div><button class="copy-btn" type="button" data-copy-route="${index}">复制本组</button></div>
+        <div class="route-test"><span class="muted">链上金额 ${numeric(autoAmount, 8)} ${esc(routeTestAmountSymbol)}</span><button type="button" data-route-live-estimate="${index}">链下估算</button><button type="button" data-route-static-call="${index}">链上估算</button><button type="button" data-route-broadcast="${index}">实际执行</button><span class="route-test-result" data-route-test-result="${index}"></span></div>
         ${onchainEvidenceHtml(evidence, route)}
       ${analysisHtml}
       <div class="table-wrap"><table><thead><tr><th>跳</th><th>兑换</th><th>协议</th><th>报价来源</th><th>池</th><th>手续费 bps</th><th>输入</th><th>输出</th><th>汇率</th><th>价格影响 / 上限</th></tr></thead><tbody>${stepRows || '<tr><td colspan="10">暂无单跳报价数据</td></tr>'}</tbody></table></div>
@@ -547,6 +626,93 @@
         return `<article class="route"><div class="route-head"><h2>${esc(name)}</h2></div><div class="recommendation"><strong>建议：该路由渲染已跳过异常展示</strong><div class="muted">接口返回了不完整的路线数据，请等待下一次扫描刷新。</div></div></article>`;
       }
     }
+    function autoRouteAmount(route) {
+      const size = route?.sizeAnalysis || {};
+      const costs = route?.quoteCosts || {};
+      const analysis = route?.quoteAnalysis || {};
+      const candidate = size.recommendedBorrowInputAmount ?? size.tokenAmountSteps?.[0] ?? costs.requestedBorrowInputAmount ?? costs.selectedBorrowInputAmount ?? analysis.referenceInputAmount ?? 1000;
+      const parsed = Number(candidate);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 1000;
+    }
+    function autoRouteAmountSymbol(route) {
+      return String(route?.sizeAnalysis?.recommendedBorrowInputAmountBasis || route?.quoteAnalysis?.referenceInputSymbol || route?.quoteCosts?.borrowInputSymbol || (route?.routeSymbols || [])[0] || "token");
+    }
+    function routeSummaryHtml(rawRoute, index) {
+      try {
+        const route = normalizeRouteForRender(rawRoute);
+        const evidence = routeEvidence(route);
+        const analysis = routeAnalysis(route);
+        const display = value => value === null || value === undefined || value === "" ? "-" : String(value);
+        const path = route.symbolPair || (route.routeSymbols || []).join(" -> ") || "-";
+        const status = route.quoteStatus || evidence.status || analysis.onchainEvidenceStatus || "quote_required";
+        const evStatus = evidenceStatusEx(evidence.status);
+        const trust = executionTrustText(evidence.executionTrust || analysis.executionTrust || "-");
+        const block = evidence.blockNumber || evidence.triggerBlockNumber || "-";
+        const hops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(Boolean).map(step => `hop ${step.hop || "?"}: ${display(step.fromSymbol)} -> ${display(step.toSymbol)}`).join(" | ");
+        const netProfit = analysis.netProfitUsd != null
+          ? money(analysis.netProfitUsd)
+          : (analysis.referenceNetProfitAmount != null ? amount(analysis.referenceNetProfitAmount, analysis.referenceInputSymbol || "") : "-");
+        const routeAmount = autoRouteAmount(route);
+        const routeAmountSymbol = autoRouteAmountSymbol(route);
+        const metrics = [
+          `quote=${label(status)}`,
+          `evidence=${evStatus}`,
+          `block=${display(block)}`,
+          `trust=${trust}`,
+          `net=${netProfit}`,
+          `amount=${numeric(routeAmount, 8)} ${display(routeAmountSymbol)}`,
+        ];
+        return `<div class="route-in-group"><div class="route-in-summary"><div class="path-text">${esc(path)}</div><div class="route-actions route-test"><span class="muted">链上金额 ${numeric(routeAmount, 8)} ${esc(routeAmountSymbol)}</span><button class="copy-btn" data-copy-route="${index}" type="button">复制</button><button data-route-live-estimate="${index}" type="button">链下估算</button><button data-route-static-call="${index}" type="button">链上估算</button><button data-route-broadcast="${index}" type="button">实际执行</button></div></div><div class="route-metric-line">${metrics.map(esc).join(" | ")}</div>${hops ? `<div class="route-hop-line">${esc(hops)}</div>` : ""}<div data-route-test-result="${index}" class="route-test-result"></div></div>`;
+      } catch (error) {
+        const name = rawRoute?.symbolPair || (rawRoute?.routeSymbols || []).join(" -> ") || "路线";
+        return `<div class="route-in-group">${esc(name)}（渲染跳过）</div>`;
+      }
+    }
+    const routePoolsOf = route => {
+      const pools = Array.isArray(route?.routePools)
+        ? route.routePools
+        : Array.isArray(route?.quoteInputs?.candidatePools)
+          ? route.quoteInputs.candidatePools
+          : [];
+      return pools.filter(pool => pool && (pool.pool || pool.poolId || pool.pairSymbol || pool.symbolPair));
+    };
+    const poolDirectoryId = pool => String(pool?.pool || pool?.poolId || pool?.pairAddress || pool?.pairSymbol || pool?.symbolPair || `${pool?.token0 || ""}${pool?.token1 || ""}`).toLowerCase();
+    const routeGroupKey = route => {
+      const start = String(route?.routeSymbols?.[0] || route?.overviewRoute?.anchorBorrowSymbol || route?.borrowSymbols?.[0] || "token").toUpperCase();
+      return start;
+    };
+    const renderPoolDirectories = routes => {
+      const groups = new Map();
+      routes.forEach((route, index) => {
+        if (!route) return;
+        const key = routeGroupKey(route);
+        if (!groups.has(key)) {
+          groups.set(key, {key, routes: [], pools: [], start: key});
+        }
+        groups.get(key).routes.push({route, index});
+      });
+      const html = Array.from(groups.values()).map(group => {
+        const seenPools = new Set();
+        const groupPools = [];
+        group.routes.forEach(({route}) => {
+          routePoolsOf(route).forEach(pool => {
+            const id = poolDirectoryId(pool);
+            if (id && seenPools.has(id)) return;
+            if (id) seenPools.add(id);
+            groupPools.push(pool);
+          });
+        });
+        const poolRows = groupPools.map(pool => {
+          const label = pool.symbolPair || pool.pairSymbol || pool.routeText || pool.pool || "-";
+          const fee = pool.fee == null ? "" : `fee ${numeric(pool.fee, 0)}`;
+          const depth = pool.depthStatus || pool.status || "";
+          return `<div class="pool-chip">${esc(label)}${fee ? `<small>${esc(fee)}</small>` : ""}${depth ? `<small>${esc(depth)}</small>` : ""}</div>`;
+        }).join("");
+        const routeHtml = group.routes.map(({route, index}) => routeSummaryHtml(route, index)).join("");
+        return `<section class="pool-group"><header><h2>${esc(group.start)} 可借贷资金池目录</h2><span>${esc(group.routes.length)} 条闭环路径</span></header><div class="pool-list">${poolRows || `<span class="muted">未携带池明细</span>`}</div>${routeHtml}</section>`;
+      }).join("");
+      return html || '<div class="empty">暂无可供报价复核的路由。</div>';
+    };
     const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
     const scanIntervalMs = 3000;
     const defaultRefreshIntervalSeconds = 180;
@@ -578,7 +744,22 @@
       if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     }
-    function renderScannerResponse(response) {
+    async function fetchJsonWithTimeout(path, timeoutMs = 12000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(apiPath(path), {cache: "no-cache", signal: controller.signal, headers: {Accept: "application/json"}});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
+        return data;
+      } catch (error) {
+        if (error && error.name === "AbortError") throw new Error("请求超时，已停止等待数据");
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    function renderScannerResponse(response, quoteRoutesPayload) {
       const responseChainId = response?.chain_id ?? response?.snapshot?.chain_id ?? "";
       const activeChainId = new URLSearchParams(window.location.search).get("chain_id") || "";
       if (responseChainId && activeChainId && String(responseChainId) !== activeChainId) return;
@@ -595,27 +776,67 @@
       const uniswapx = data.dexSettlement?.uniswapx || {};
       $("settlement").textContent = uniswapx.supported ? "UniswapX 可用" : "优先 AMM";
       $("settlementMeta").textContent = uniswapx.supported ? "意图报价通道已开启" : "当前链未启用 UniswapX 结算";
-      latestRoutes = Array.isArray(data.routes) ? data.routes : [];
-    $("routeList").innerHTML = latestRoutes.map(routeHtmlSafe).join("") || '<div class="empty">暂无可供报价复核的路由。</div>';
+      const scannerRoutes = Array.isArray(data.routes) ? data.routes : [];
+      latestRoutes = routesToRender(scannerRoutes, quoteRoutesPayload);
+      if (latestRoutes.length > scannerRoutes.length) {
+        const quoteSummary = (quoteRoutesPayload && (quoteRoutesPayload.summary || quoteRoutesPayload.snapshot?.payload?.summary)) || {};
+        $("routeCount").textContent = latestRoutes.length;
+        $("routeSourceMeta").textContent = `${quoteSummary.pathSource || summary.pathSource || "market_observation"} | 观察路线 ${quoteSummary.marketObservationRouteCount ?? summary.marketObservationRouteCount ?? 0}`;
+      }
+      $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
+      if (quoteRoutesPayload && Array.isArray(quoteRoutesPayload.closedLoopGroups)) {
+        renderClosedLoopGroups({groups: quoteRoutesPayload.closedLoopGroups});
+      }
       const duration = scanner.last_duration_ms == null ? "-" : `${scanner.last_duration_ms} ms`;
       $("message").textContent = `${scanner.running ? "扫描器运行中" : "扫描器已停止"} | ${duration} | 扫描次数 ${scanner.scan_count ?? 0}${snapshot.error ? ` | ${snapshot.error}` : ""}`;
+    }
+    function renderClosedLoopGroups(payload) {
+      const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+      if (!groups.length) {
+        $("groupList").innerHTML = "";
+        return;
+      }
+      const groupHtml = groups.map(group => {
+        const token = group.flashLoanToken || group.startToken || {};
+        const address = token.address ? `<small>${esc(token.address)}</small>` : "";
+        const borrowable = group.borrowable ? "" : " <small>(not borrowable)</small>";
+        return `<div class="group-card"><h3>${esc(token.symbol || "-")}${borrowable}</h3>${address}<strong>${esc(group.routeCount || 0)} routes / ${esc(group.poolDependencyCount || 0)} pools</strong></div>`;
+      }).join("");
+      $("groupList").innerHTML = groupHtml;
+    }
+    async function refreshClosedLoopGroups() {
+      try {
+        const payload = await fetchJsonWithTimeout("/api/dex/closed-loop-groups", 5000);
+        renderClosedLoopGroups(payload);
+      } catch (error) {
+        if (!document.querySelector("#groupList .group-card")) {
+          $("groupList").innerHTML = `<div class="group-card"><h3>闭环分组暂不可用</h3><small>${esc(uiError(error.message))}</small></div>`;
+        }
+      }
     }
     async function refreshSnapshot() {
       if (snapshotRefreshing || refreshInFlight) return; snapshotRefreshing = true; refreshInFlight = true;
       const generation = selectionGeneration; const signature = activeSelectionSignature;
-      try { const response = await fetchJson("/api/dex/opportunity-scanner/snapshot"); if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response); }
+      try {
+        refreshClosedLoopGroups();
+        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
+        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
+        let quoteRoutesPayload = null;
+        try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
+        if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(response, quoteRoutesPayload);
+      }
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
       finally { snapshotRefreshing = false; refreshInFlight = false; }
     }
     async function startScanner() {
       const generation = selectionGeneration; const signature = activeSelectionSignature;
       try {
-        await fetchJson("/api/dex/opportunity-scanner/start");
-        const response = await fetchJson("/api/dex/opportunity-scanner/snapshot");
+        await fetchJsonWithTimeout("/api/dex/opportunity-scanner/start", 8000);
+        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
         if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
         if (!scanNowInFlight) {
           scanNowInFlight = true;
-          fetchJson("/api/dex/opportunity-scanner/scan-now")
+          fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now", 5000)
             .then(scanResponse => {
               if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse);
             })
@@ -630,13 +851,17 @@
     async function refresh() {
       const generation = selectionGeneration; const signature = activeSelectionSignature; $("message").textContent = "正在后台扫描当前链，先显示当前快照...";
       try {
-        const snapshot = await fetchJson("/api/dex/opportunity-scanner/snapshot");
+        refreshClosedLoopGroups();
+        const snapshot = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
         if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(snapshot);
+        let quoteRoutesPayload = null;
+        try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
+        if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(snapshot, quoteRoutesPayload);
         if (scanNowInFlight) return;
         scanNowInFlight = true;
-        fetchJson("/api/dex/opportunity-scanner/scan-now")
+        fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now", 5000)
           .then(scanResponse => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse);
+            if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse, quoteRoutesPayload);
           })
           .catch(error => {
             if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
@@ -656,7 +881,7 @@
       const gateBlocked = Object.keys(evidence).length > 0
         && live
         && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase());
-      const hasLiveEvidence = Object.keys(evidence).length > 0 && String(evidence.status || "") !== "live_evidence_deferred";
+      const hasLiveEvidence = Object.keys(evidence).length > 0 && !["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase());
       const staleWarningCodes = [
         "hop_1_reference_quote_requires_live_quoter",
         "hop_2_reference_quote_requires_live_quoter",
@@ -673,12 +898,12 @@
         "v4_token_decimals_missing_or_assumed",
       ];
       const copiedWarnings = (sourceAnalysis.warnings || []).filter(warning => !hasLiveEvidence || !staleWarningCodes.some(code => String(warning).startsWith(code))).map(warningText);
-      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "live_evidence_deferred"].includes(String(hop?.status || "").toLowerCase()));
+      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity"].includes(String(hop?.status || "").toLowerCase()));
       const failedHop = failedHops[0] || null;
       const failedStep = failedHop ? (analysis.steps || []).find(step => Number(step?.hop) === Number(failedHop.hop)) : null;
       const focusOnError = Boolean(failedHop);
       const failedIsLiquidity = focusOnError && String(failedHop.status || "").toLowerCase() === "not_enough_liquidity";
-      const failedIsDeferred = focusOnError && String(failedHop.status || "").toLowerCase() === "live_evidence_deferred";
+      const failedIsDeferred = focusOnError && ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(failedHop.status || "").toLowerCase());
       const stackTop = failedHop?.errorStack?.[0] || route.errorStack?.[0] || evidence.errorStack?.[0] || null;
       const focusErrorText = failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : (stackTop?.message ? blockerText(stackTop.message) : "链上单跳报价失败");
       if (focusOnError) {
@@ -718,6 +943,10 @@
       const initialProbeValue = size.recommendedBorrowInputAmount ?? size.tokenAmountSteps?.[0] ?? costs.requestedBorrowInputAmount ?? costs.selectedBorrowInputAmount ?? sourceAnalysis.referenceInputAmount;
       const initialProbeSymbol = size.recommendedBorrowInputAmountBasis || sourceAnalysis.referenceInputSymbol || costs.borrowInputSymbol || "token";
       const rows = Array.isArray(size.rows) ? size.rows : [];
+      const liveDepthImpacts = (sourceAnalysis.steps || [])
+        .map(step => Number(step.priceImpactBps))
+        .filter(value => Number.isFinite(value));
+      const liveMaxDepthImpactBps = liveDepthImpacts.length ? Math.max(...liveDepthImpacts) : null;
       const hopLines = (sourceAnalysis.steps || []).filter(Boolean).map((step, index) => {
         const output = step.outputAmount ?? step.referenceOutputAmount;
         const rate = step.effectiveRate ?? step.referenceEffectiveRate;
@@ -737,9 +966,9 @@
         `referenceNetProfit=${display(sourceAnalysis.referenceNetProfitAmount)} ${display(sourceAnalysis.referenceInputSymbol)}`,
         `referenceNetReturnBps=${display(sourceAnalysis.referenceNetReturnBps)}`,
         `netProfit=${live ? `${display(netProfit)} ${netProfitSymbol}` : "-"}`,
-        `depthStatus=${display(sourceAnalysis.staticDepthStatus)}`,
-        `maxStaticDepthImpactBps=${display(sourceAnalysis.maxStaticDepthImpactBps)}`,
-        `depthImpactLimitBps=${display(sourceAnalysis.staticDepthImpactLimitBps || size.depthImpactLimitBps || 10)}`,
+        `depthStatus=${display(live ? "链上实时深度已验证" : sourceAnalysis.staticDepthStatus)}`,
+        `maxStaticDepthImpactBps=${display(live ? liveMaxDepthImpactBps : sourceAnalysis.maxStaticDepthImpactBps)}`,
+        `depthImpactLimitBps=${display(live ? "不适用：已使用链上实时报价" : (sourceAnalysis.staticDepthImpactLimitBps || size.depthImpactLimitBps || 10))}`,
         `建议=${display(gateBlocked ? "链上验证通过，但执行门禁未放行" : recommendationAction((sourceAnalysis.recommendation || {}).action))}`,
         ...hopLines,
         ...ladderLines,
@@ -749,11 +978,84 @@
       try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
     }
     $("refreshBtn").onclick = refresh;
-    $("routeList").addEventListener("click", event => { const button = event.target.closest("[data-copy-route]"); if (button) copyRoute(latestRoutes[Number(button.dataset.copyRoute)], button); });
-    window.addEventListener("chainselectionchanged", event => { if (String(event?.detail?.selected?.feature || "").toLowerCase() !== "dex_arbitrage") return; beginSelectionRefresh("正在加载选中的链..."); startScanner().then(refreshSnapshot); });
-    window.addEventListener("chainselectionprotocolschanged", () => { beginSelectionRefresh("正在加载选中的 DEX..."); startScanner().then(refreshSnapshot); });
+    async function postJson(path, payload) {
+      const response = await fetch(apiPath(path), {
+        method: "POST",
+        cache: "no-cache",
+        headers: {"Content-Type": "application/json", Accept: "application/json"},
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok && data?.ok !== true) {
+        const detail = data?.detail || data?.error || `请求失败（HTTP ${response.status}）`;
+        throw new Error(detail);
+      }
+      return data;
+    }
+    function routeTestSymbols(route) {
+      if (route?.routeSymbols?.length) return route.routeSymbols;
+      if (route?.quoteAnalysis?.routeSymbols?.length) return route.quoteAnalysis.routeSymbols;
+      const steps = (route?.quoteAnalysis?.steps || []).filter(step => step && step.fromSymbol);
+      if (!steps.length) return [];
+      const symbols = steps.map(step => step.fromSymbol);
+      const last = steps[steps.length - 1]?.toSymbol;
+      if (last && (symbols.length === 0 || last === symbols[0])) symbols.push(last);
+      return symbols;
+    }
+    function routeTestSummary(result) {
+      if (result?.txHash) return `实际执行成功：${result.txHash}`;
+      if (result?.detail && !result?.steps) return String(result.detail);
+      if (result?.steps && result.steps.length) {
+        const hopText = result.steps.map(step => `${step.hop}: ${step.fromSymbol} -> ${step.toSymbol} ${numeric(step.inputAmount, 8)} -> ${numeric(step.outputAmount ?? step.referenceOutputAmount, 8)}`).join(" | ");
+        const analysis = result.analysis || {};
+        const profitText = analysis.referenceNetProfitAmount == null ? "" : `净收益 ${numeric(analysis.referenceNetProfitAmount, 8)} ${analysis.referenceInputSymbol || result.amountSymbol || ""}`;
+        return `${hopText}${profitText ? ` | ${profitText}` : ""}`;
+      }
+      return "完成";
+    }
+    async function runRouteTest(route, button, mode, resultElement) {
+      const amount = autoRouteAmount(route);
+      const symbols = routeTestSymbols(route);
+      const broadcast = mode === "broadcast";
+      if (broadcast && !window.confirm("确认实际执行这笔测试网上链交易？金额使用系统推荐值。")) return;
+      const requestMode = mode === "estimate" ? "estimate" : (mode === "static_call" ? "static_call" : "auto");
+      const old = button.textContent;
+      button.disabled = true;
+      const oldMessage = $("message").textContent;
+      $("message").textContent = `正在执行 ${mode === "broadcast" ? "实际执行" : mode === "static_call" ? "链上估算" : "链下估算"}...`;
+      if (resultElement) resultElement.textContent = "处理中...";
+      try {
+        const payload = await postJson("/api/dex/quote-route/test", {
+          routeSymbols: symbols,
+          amount,
+          mode: requestMode,
+          broadcast,
+        });
+        if (resultElement) resultElement.textContent = routeTestSummary(payload);
+        $("message").textContent = `${payload?.broadcast ? "实际执行" : payload?.mode || "测试"}完成`;
+      } catch (error) {
+        if (resultElement) resultElement.textContent = uiError(error.message);
+        $("message").textContent = uiError(error.message);
+      } finally {
+        button.textContent = old;
+        button.disabled = false;
+        if (!resultElement?.textContent) $("message").textContent = oldMessage;
+      }
+    }
+    $("routeList").addEventListener("click", event => {
+      const copyButton = event.target.closest("[data-copy-route]");
+      if (copyButton) copyRoute(latestRoutes[Number(copyButton.dataset.copyRoute)], copyButton);
+      const button = event.target.closest("[data-route-live-estimate], [data-route-static-call], [data-route-broadcast]");
+      if (!button) return;
+      const index = Number(button.dataset.routeIndex ?? button.dataset.routeLiveEstimate ?? button.dataset.routeStaticCall ?? button.dataset.routeBroadcast);
+      const mode = button.hasAttribute("data-route-broadcast") ? "broadcast" : button.hasAttribute("data-route-static-call") ? "static_call" : "estimate";
+      const resultElement = document.querySelector(`[data-route-test-result="${index}"]`);
+      return runRouteTest(latestRoutes[index], button, mode, resultElement);
+    });
+    window.addEventListener("chainselectionchanged", event => { if (String(event?.detail?.selected?.feature || "").toLowerCase() !== "dex_arbitrage") return; beginSelectionRefresh("正在加载选中的链..."); refreshSnapshot(); });
+    window.addEventListener("chainselectionprotocolschanged", () => { beginSelectionRefresh("正在加载选中的 DEX..."); refreshSnapshot(); });
     beginSelectionRefresh("正在加载当前选择...");
-    startScanner().then(refreshSnapshot);
+    refreshSnapshot();
     function normalizeRefreshInterval(value) {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? Math.min(3600, Math.max(10, Math.floor(parsed))) : defaultRefreshIntervalSeconds;

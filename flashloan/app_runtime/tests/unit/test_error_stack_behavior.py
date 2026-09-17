@@ -1,5 +1,5 @@
 from core.api_response_contract import error_response, success_response
-from core.error_registry import ErrorCode
+from core.error_registry import ErrorCode, contract_dex_error_codes
 from core.error_stack import ErrorStack, ModuleError
 from core.errors import error_payload
 from bot.execution.revert_parser import parse_revert_reason
@@ -80,3 +80,19 @@ def test_bot_revert_parser_exposes_global_error_key():
     assert parsed["module"] == "BOT.revert_parser"
     assert parsed["message"] == "利润不足（swap后收益低于minProfitAmount）"
     assert isinstance(parsed["code"], int)
+
+
+def test_contract_revert_reason_maps_to_contract_dex_error_key():
+    parsed = parse_revert_reason("execution reverted: V4AdapterMissing()")
+    assert parsed["error_key"] == "CONTRACT.DEX.QUOTE.ADAPTER_MISSING"
+    assert parsed["module"] == "CONTRACT.DEX"
+    assert parsed["code"] == contract_dex_error_codes()["CONTRACT.DEX.QUOTE.ADAPTER_MISSING"]
+
+
+def test_contract_coded_error_reverse_maps_to_unique_node():
+    code = contract_dex_error_codes()["CONTRACT.DEX.EXECUTION.ROUTER_CALL_FAILED"]
+    parsed = parse_revert_reason(f"CodedError({code})")
+    assert parsed["category"] == "coded_error"
+    assert parsed["error_key"] == "CONTRACT.DEX.EXECUTION.ROUTER_CALL_FAILED"
+    assert parsed["flow"] == "execution"
+    assert parsed["node_id"] == "swap_execute"

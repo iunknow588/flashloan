@@ -25,6 +25,13 @@ from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 
 
+def _closed_loop_dedup_key(anchor: str, route_symbols: list[str]) -> tuple[str, tuple[str, ...]]:
+    mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
+    if mids and tuple(reversed(mids)) < mids:
+        mids = tuple(reversed(mids))
+    return (anchor, mids)
+
+
 def _compat_module():
     try:
         from market.binance_market import dex_surfaces
@@ -57,8 +64,75 @@ def _overview_pool_payload_from_static_observation(observation: dict[str, Any]) 
     }
 
 
+def group_overview_paths_by_flash_loan_token(
+    overview_paths: list[dict[str, Any]],
+    *,
+    borrowable_symbols: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Group overview routes by their closed-loop borrowable anchor token."""
+
+    borrowable = {
+        _norm_symbol(value)
+        for value in borrowable_symbols or []
+        if _norm_symbol(value)
+    }
+    groups: dict[str, dict[str, Any]] = {}
+    seen_routes: set[tuple[str, tuple[str, ...]]] = set()
+    for path in overview_paths:
+        if not isinstance(path, dict):
+            continue
+        overview_route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
+        linkage = path.get("flashLoanLinkage") if isinstance(path.get("flashLoanLinkage"), dict) else {}
+        route_symbols = [_norm_symbol(value) for value in path.get("routeSymbols") or [] if _norm_symbol(value)]
+        anchor = _norm_symbol(overview_route.get("anchorBorrowSymbol"))
+        if not anchor:
+            borrow_symbols = [_norm_symbol(value) for value in linkage.get("borrow_symbols") or [] if _norm_symbol(value)]
+            anchor = borrow_symbols[0] if borrow_symbols else (route_symbols[0] if route_symbols else "")
+        if not anchor:
+            continue
+        dedup_key = _closed_loop_dedup_key(anchor, route_symbols)
+        is_duplicate = dedup_key in seen_routes
+        seen_routes.add(dedup_key)
+        group = groups.setdefault(
+            anchor,
+            {
+                "flashLoanToken": {"symbol": anchor},
+                "startToken": {"symbol": anchor},
+                "endToken": {"symbol": anchor},
+                "borrowable": anchor in borrowable,
+                "pathCount": 0,
+                "poolDependencyCount": 0,
+                "paths": [],
+                "poolDependencies": [],
+                "poolDependencyIndex": {},
+            },
+        )
+        if not is_duplicate:
+            group["paths"].append(path)
+            group["pathCount"] += 1
+        for pool in path.get("executionPools") or path.get("preferredPools") or []:
+            if not isinstance(pool, dict):
+                continue
+            pool_id = str(pool.get("pool") or pool.get("poolId") or pool.get("pairAddress") or "").strip().lower()
+            if pool_id and pool_id not in group["poolDependencyIndex"]:
+                group["poolDependencyIndex"][pool_id] = True
+                group["poolDependencies"].append(pool)
+        group["poolDependencyCount"] = len(group["poolDependencies"])
+
+    result = []
+    ordered = sorted(
+        groups.items(),
+        key=lambda item: (0 if item[1]["borrowable"] else 1, item[0]),
+    )
+    for _, group in ordered:
+        group.pop("poolDependencyIndex", None)
+        result.append(group)
+    return result
+
+
 def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: int | None) -> list[dict[str, Any]]:
     paths: list[dict[str, Any]] = []
+    seen_routes: set[tuple[str, tuple[str, ...]]] = set()
     for summary in snapshot.get("closedLoopRouteSummaries") or []:
         if not isinstance(summary, dict):
             continue
@@ -73,6 +147,10 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
         if len(path_symbols) < 2 or not path_text:
             continue
         anchor = _norm_symbol(summary.get("anchorSymbol") or path_symbols[0])
+        dedup_key = _closed_loop_dedup_key(anchor, path_symbols)
+        if dedup_key in seen_routes:
+            continue
+        seen_routes.add(dedup_key)
         target = _norm_symbol(summary.get("counterSymbol") or (path_symbols[-2] if len(path_symbols) > 2 else path_symbols[-1]))
         route_addresses = [str(address or "").strip() for address in summary.get("routeAddresses") or [] if str(address or "").strip()]
         if not route_addresses:

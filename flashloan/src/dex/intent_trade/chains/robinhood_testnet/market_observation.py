@@ -113,6 +113,9 @@ def _pool_row(pool: dict[str, Any], metadata_by_address: dict[str, dict[str, Any
         "fee": pool.get("fee"),
         "tickSpacing": pool.get("tickSpacing"),
         "hooks": pool.get("hooks"),
+        "poolManager": pool.get("poolManager") or pool.get("pool_manager"),
+        "poolKey": pool.get("poolKey") or pool.get("pool_key"),
+        "quoter": pool.get("quoter") or pool.get("v4Quoter") or pool.get("v4_quoter"),
         "token0": pool.get("token0") or pool.get("currency0"),
         "token1": pool.get("token1") or pool.get("currency1"),
         "token0Symbol": token0["symbol"],
@@ -124,6 +127,7 @@ def _pool_row(pool: dict[str, Any], metadata_by_address: dict[str, dict[str, Any
         "liquidity": pool.get("liquidity") or "",
         "balances": pool.get("balances") or {"tvlUsd": pool.get("tvlUsd") or 0},
         "depthBand": pool.get("depthBand") or {"level": "indexed", "label": "indexed V4 PoolKey"},
+        "depthStatus": pool.get("depthStatus") or "",
         "symbolPair": f"{token0['symbol']}:{token1['symbol']}",
         "addressPair": f"{token0['address']}:{token1['address']}",
         "source": source,
@@ -309,6 +313,7 @@ def _step_row(pool: dict[str, Any], *, from_token: dict[str, Any], to_token: dic
     to_address = _address(to_token.get("address"))
     return {
         "pool": _pool_id(pool),
+        "poolId": _pool_id(pool),
         "direction": direction,
         "anchorSymbol": from_symbol,
         "anchorAddress": from_address,
@@ -321,10 +326,16 @@ def _step_row(pool: dict[str, Any], *, from_token: dict[str, Any], to_token: dic
         "protocol": pool.get("protocol") or pool.get("dex") or "",
         "dex": pool.get("dex") or pool.get("protocol") or "",
         "fee": pool.get("fee"),
+        "tickSpacing": pool.get("tickSpacing") or pool.get("tick_spacing"),
+        "hooks": pool.get("hooks") or "",
+        "poolManager": pool.get("poolManager") or pool.get("pool_manager"),
+        "poolKey": pool.get("poolKey") or pool.get("pool_key"),
+        "quoter": pool.get("quoter") or pool.get("v4Quoter") or pool.get("v4_quoter"),
         "quality": pool.get("quality"),
         "classification": pool.get("classification") or {},
         "balances": pool.get("balances") or {},
         "depthBand": pool.get("depthBand") or {},
+        "depthStatus": pool.get("depthStatus") or "",
         "quoteSummary": pool.get("quoteSummary") or {},
         "tick": pool.get("tick"),
         "sqrtPriceX96": pool.get("sqrtPriceX96"),
@@ -333,6 +344,8 @@ def _step_row(pool: dict[str, Any], *, from_token: dict[str, Any], to_token: dic
         "token1": pool.get("token1"),
         "token0Symbol": pool.get("token0Symbol"),
         "token1Symbol": pool.get("token1Symbol"),
+        "token0Decimals": pool.get("token0Decimals") or pool.get("token0_decimals"),
+        "token1Decimals": pool.get("token1Decimals") or pool.get("token1_decimals"),
         "pairSymbol": pool.get("symbolPair") or "",
         "pairAddress": pool.get("addressPair") or "",
         "source": pool.get("source") or "",
@@ -601,6 +614,27 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
         if ZERO_ADDRESS.lower() not in edge:
             non_eth_pair_count += 1
 
+    # The testnet pool index may contain more initialized AMM pairs than the
+    # flash-source allowlist. Promote known/system-owned tokens that actually
+    # appear in the pool graph so route discovery is not limited to tz/ta/tb
+    # only, without treating every unrelated initialized currency as a flash
+    # anchor.
+    for address in sorted(set(_known_token_pool_ids().keys())):
+        token = token_by_address.get(address)
+        if token is None or address in funds_by_address:
+            continue
+        if not _route_symbol_allowed(token.get("symbol")):
+            continue
+        funds_by_address[address] = {
+            "symbol": token["symbol"],
+            "address": address,
+            "executorSupported": False,
+            "poolManagerBalance": None,
+            "poolManagerBalanceRaw": None,
+        }
+    fund_addresses = set(funds_by_address)
+    funds = sorted(funds_by_address.values(), key=lambda row: (str(row.get("symbol") or ""), str(row.get("address") or "")))
+
     associated_observation_edges: set[tuple[str, str]] = set()
     for edge, bridge_pools in sorted(pools_by_edge.items()):
         left_address, right_address = edge
@@ -623,68 +657,75 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
     sequences: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str, str, str]] = set()
     closed_loop_fund_anchor_edges: set[tuple[str, str]] = set()
-    for edge, bridge_pools in sorted(pools_by_edge.items()):
-        y_address, z_address = edge
-        for anchor in funds:
-            x_address = anchor["address"]
-            if x_address in edge:
-                continue
-            xy_pool = _best_pool(pools_by_edge.get(tuple(sorted((x_address, y_address)))) or [])
-            zx_pool = _best_pool(pools_by_edge.get(tuple(sorted((z_address, x_address)))) or [])
-            yz_pool = _best_pool(bridge_pools)
-            if xy_pool is None or yz_pool is None or zx_pool is None:
-                continue
-            for first_address, second_address, first_pool, third_pool in (
-                (y_address, z_address, xy_pool, zx_pool),
-                (z_address, y_address, zx_pool, xy_pool),
-            ):
-                first_token = token_by_address.get(first_address)
-                second_token = token_by_address.get(second_address)
-                if first_token is None or second_token is None:
+
+    def _append_route(
+        *,
+        anchor: dict[str, Any],
+        y_address: str,
+        z_address: str,
+        yz_pool: dict[str, Any],
+    ) -> bool:
+        xy_pool = _best_pool(pools_by_edge.get(tuple(sorted((anchor["address"], y_address)))) or [])
+        zx_pool = _best_pool(pools_by_edge.get(tuple(sorted((z_address, anchor["address"])))) or [])
+        if xy_pool is None or zx_pool is None:
+            return False
+        first_token = token_by_address.get(y_address)
+        second_token = token_by_address.get(z_address)
+        if first_token is None or second_token is None:
+            return False
+        key = (
+            anchor["address"],
+            y_address,
+            z_address,
+            _pool_id(xy_pool).lower(),
+            _pool_id(yz_pool).lower(),
+            _pool_id(zx_pool).lower(),
+        )
+        if key in seen:
+            return False
+        seen.add(key)
+        closed_loop_fund_anchor_edges.add(tuple(sorted((y_address, z_address))))
+        route_rows = [
+            _step_row(xy_pool, from_token=anchor, to_token=first_token, direction="yc"),
+            _step_row(yz_pool, from_token=first_token, to_token=second_token, direction="bridge"),
+            _step_row(zx_pool, from_token=second_token, to_token=anchor, direction="zc"),
+        ]
+        path_symbols = [anchor["symbol"], first_token["symbol"], second_token["symbol"], anchor["symbol"]]
+        sequences.append(
+            {
+                "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
+                "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
+                "anchorSymbol": anchor["symbol"],
+                "anchorAddress": anchor["address"],
+                "counterSymbol": second_token["symbol"],
+                "bridgeSymbol": first_token["symbol"],
+                "pathSymbols": path_symbols,
+                "pathText": " -> ".join(path_symbols),
+                "pool": _pool_id(yz_pool),
+                "ycPool": route_rows[0],
+                "bridgePool": route_rows[1],
+                "zcPool": route_rows[2],
+                "routePools": route_rows,
+                "candidatePoolCount": "3",
+                "matchedPoolCount": "3",
+                "anchorAddresses": [anchor["address"]],
+                "counterTokenCount": "2",
+                "executorSupported": anchor["executorSupported"],
+                "poolManagerBalance": anchor.get("poolManagerBalance"),
+                "poolManagerBalanceRaw": anchor.get("poolManagerBalanceRaw"),
+            }
+        )
+        return len(sequences) >= route_limit
+
+    for anchor in funds:
+        for y_address in sorted(neighbors_by_address.get(anchor["address"]) or []):
+            for z_address in sorted(neighbors_by_address.get(y_address) or []):
+                if z_address == anchor["address"] or z_address == y_address:
                     continue
-                key = (
-                    x_address,
-                    first_address,
-                    second_address,
-                    _pool_id(first_pool).lower(),
-                    _pool_id(yz_pool).lower(),
-                    _pool_id(third_pool).lower(),
-                )
-                if key in seen:
+                yz_pool = _best_pool(pools_by_edge.get(tuple(sorted((y_address, z_address)))) or [])
+                if yz_pool is None:
                     continue
-                seen.add(key)
-                closed_loop_fund_anchor_edges.add(edge)
-                route_rows = [
-                    _step_row(first_pool, from_token=anchor, to_token=first_token, direction="yc"),
-                    _step_row(yz_pool, from_token=first_token, to_token=second_token, direction="bridge"),
-                    _step_row(third_pool, from_token=second_token, to_token=anchor, direction="zc"),
-                ]
-                path_symbols = [anchor["symbol"], first_token["symbol"], second_token["symbol"], anchor["symbol"]]
-                sequences.append(
-                    {
-                        "kind": "robinhood_testnet_v4_fund_anchor_pair_observation",
-                        "source": "robinhood_testnet_v4_fund_anchor_pair_observation",
-                        "anchorSymbol": anchor["symbol"],
-                        "anchorAddress": x_address,
-                        "counterSymbol": second_token["symbol"],
-                        "bridgeSymbol": first_token["symbol"],
-                        "pathSymbols": path_symbols,
-                        "pathText": " -> ".join(path_symbols),
-                        "pool": _pool_id(yz_pool),
-                        "ycPool": route_rows[0],
-                        "bridgePool": route_rows[1],
-                        "zcPool": route_rows[2],
-                        "routePools": route_rows,
-                        "candidatePoolCount": "3",
-                        "matchedPoolCount": "3",
-                        "anchorAddresses": [x_address],
-                        "counterTokenCount": "2",
-                        "executorSupported": anchor["executorSupported"],
-                        "poolManagerBalance": anchor.get("poolManagerBalance"),
-                        "poolManagerBalanceRaw": anchor.get("poolManagerBalanceRaw"),
-                    }
-                )
-                if len(sequences) >= route_limit:
+                if _append_route(anchor=anchor, y_address=y_address, z_address=z_address, yz_pool=yz_pool):
                     break
             if len(sequences) >= route_limit:
                 break

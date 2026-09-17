@@ -79,6 +79,19 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
+def _canonical_testnet_network(network: object = None, chain_id: object = None) -> str:
+    normalized = str(network or "").strip().lower()
+    parsed_chain_id = int(chain_id) if chain_id is not None and str(chain_id).strip() else None
+    if parsed_chain_id == robinhood.TESTNET_CHAIN_ID or normalized in {
+        ROBINHOOD_TESTNET_NETWORK,
+        "robinhood_testnet",
+        "robinhood-sepolia",
+        "chain_46630",
+    }:
+        return ROBINHOOD_TESTNET_NETWORK
+    return normalized
+
+
 def _normalize_address(value: object) -> str:
     text = _text(value)
     return text.lower() if text.startswith("0x") and len(text) == 42 else ""
@@ -100,7 +113,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _pool_index_path(network: str | None = None, chain_id: int | None = None) -> Path | None:
-    normalized = str(network or "").strip().lower()
+    normalized = _canonical_testnet_network(network, chain_id)
     if int(chain_id or 0) not in (robinhood.TESTNET_CHAIN_ID, None):
         raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve chain_id={chain_id}")
     if normalized not in (ROBINHOOD_TESTNET_NETWORK, ""):
@@ -131,7 +144,7 @@ def _chain_row(network: str | None, chain_id: int | None) -> dict[str, Any]:
 
 
 def _chain_rpc_urls(network: str | None, chain_id: int | None) -> tuple[str, ...]:
-    normalized = _text(network).lower()
+    normalized = _canonical_testnet_network(network, chain_id)
     urls: list[str] = []
     if int(chain_id or 0) == robinhood.TESTNET_CHAIN_ID or normalized == ROBINHOOD_TESTNET_NETWORK or normalized == "":
         urls.extend(robinhood.testnet_rpc_urls_from_env())
@@ -214,6 +227,8 @@ def _read_live_pool_state(
         pool_manager=pool_manager,
         pool_id=pool_id,
         block_number=block_number,
+        network=network,
+        chain_id=chain_id,
     )
 
 
@@ -224,6 +239,8 @@ def _read_live_pool_state_with_w3(
     pool_manager: str,
     pool_id: str,
     block_number: int | None = None,
+    network: str | None = None,
+    chain_id: int | None = None,
 ) -> dict[str, Any]:
     contract = w3.eth.contract(address=Web3.to_checksum_address(pool_manager), abi=_V4_POOL_MANAGER_EXTSLOAD_ABI)
     pool_id_bytes = bytes.fromhex(_normalize_pool_id(pool_id)[2:])
@@ -334,12 +351,13 @@ def _request_pool_state(request: dict[str, Any]) -> dict[str, Any]:
 
 def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
     pool_state = request.get("poolState") if isinstance(request.get("poolState"), dict) else {}
-    network = _text(request.get("network") or pool_state.get("network") or ROBINHOOD_TESTNET_NETWORK).lower()
+    raw_network = _text(request.get("network") or pool_state.get("network") or ROBINHOOD_TESTNET_NETWORK).lower()
     chain_id = request.get("chainId") or request.get("chain_id")
     try:
         chain_id = int(chain_id) if chain_id not in (None, "") else None
     except (TypeError, ValueError):
         chain_id = None
+    network = _canonical_testnet_network(raw_network, chain_id)
     pool = _pool_lookup(request.get("pool"), network, chain_id)
     if not pool:
         pool = _request_pool_state(request)

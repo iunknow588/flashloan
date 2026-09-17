@@ -65,6 +65,20 @@ def _chain_network_name(chain_id: int | None) -> str:
     return str(row.get("network") or "").strip().lower()
 
 
+def _quote_failure_status(error: object) -> str:
+    message = str(error or "").lower()
+    markers = (
+        "not enough liquidity",
+        "insufficient liquidity",
+        "notenoughliquidity",
+        "liquidity is zero",
+        "live liquidity is zero",
+    )
+    if any(marker in message for marker in markers):
+        return "not_enough_liquidity"
+    return "live_quote_failed"
+
+
 def _v4_live_quote_enabled(chain_id: int | None = None) -> bool:
     try:
         from market.binance_market import dex_surfaces
@@ -253,12 +267,16 @@ def _edge_quote(
                     }
                 quote.update(
                     {
-                        "quoteSource": "uniswap_v4_live_quote_failed",
-                        "executionTrust": "live_quote_failed",
+                        "quoteSource": "uniswap_v4_live_quote_not_enough_liquidity"
+                        if _quote_failure_status(live_quote_error) == "not_enough_liquidity"
+                        else "uniswap_v4_live_quote_failed",
+                        "executionTrust": _quote_failure_status(live_quote_error),
                         "quoteMode": "uniswap_v4_sdk_exact_input_single",
                         "adapterRequired": False,
                         "liveQuoteError": live_quote_error,
-                        "warning": "uniswap_v4_live_quote_failed",
+                        "warning": "uniswap_v4_live_quote_not_enough_liquidity"
+                        if _quote_failure_status(live_quote_error) == "not_enough_liquidity"
+                        else "uniswap_v4_live_quote_failed",
                     }
                 )
                 return quote
@@ -540,11 +558,15 @@ def _route_quote_analysis(
         steps.append(quote)
         trust = str(quote.get("executionTrust") or "").strip().lower()
         has_reference_output = quote.get("referenceOutputUsd") is not None or quote.get("referenceOutputAmount") is not None
-        if trust == "live_quote_failed":
-            warnings.append(f"hop_{index}_live_quote_failed")
+        if trust in {"live_quote_failed", "not_enough_liquidity"}:
+            warnings.append(
+                f"hop_{index}_not_enough_liquidity"
+                if trust == "not_enough_liquidity"
+                else f"hop_{index}_live_quote_failed"
+            )
             if quote.get("liveQuoteError"):
                 warnings.append(f"hop_{index}_live_quote_error:{quote['liveQuoteError']}")
-            warnings.append(f"route_truncated_at_hop_{index}_live_quote_failed")
+            warnings.append(f"route_truncated_at_hop_{index}_{trust}")
             break
         if trust in {"reference_only", "sdk_adapter_required"} and not has_reference_output:
             warnings.append(f"hop_{index}_requires_live_quoter")
@@ -570,7 +592,7 @@ def _route_quote_analysis(
             break
     complete = len(steps) == max(0, len(route_symbols) - 1) and all(step.get("status") == "quoted" for step in steps)
     requires_live_quoter = any(
-        step.get("executionTrust") in {"reference_only", "live_quote_failed"}
+        step.get("executionTrust") in {"reference_only", "live_quote_failed", "not_enough_liquidity"}
         for step in steps
     )
     adapter_required = any(step.get("executionTrust") == "sdk_adapter_required" for step in steps)
@@ -680,9 +702,9 @@ def _route_quote_analysis(
         for step in steps
     )
     live_quote_failures = [
-        f"第 {step.get('hop') or '?'} 跳链上 Quoter 失败：{step.get('liveQuoteError')}"
+        f"第 {step.get('hop') or '?'} 跳链上报价失败（流动性不足或 Quoter 错误）：{step.get('liveQuoteError')}"
         for step in steps
-        if step.get("executionTrust") == "live_quote_failed" and step.get("liveQuoteError")
+        if step.get("executionTrust") in {"live_quote_failed", "not_enough_liquidity"} and step.get("liveQuoteError")
     ]
     if not complete:
         action = "等待真实报价"

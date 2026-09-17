@@ -84,6 +84,31 @@ def test_v4_sqrt_price_reference_quote_completes_static_measurement():
     assert all(step["quoteSource"] == "uniswap_v4_sdk_adapter_required" for step in analysis["steps"])
 
 
+def test_v4_price_map_infers_unknown_token_from_usd_anchor_pool():
+    usdt = "0x" + "1" * 40
+    token = "0x" + "2" * 40
+    pool = {
+        "pool": "0x" + "9" * 64,
+        "dex": "uniswap_v4",
+        "protocol": "uniswap_v4",
+        "fee": "0",
+        "token0": usdt,
+        "token1": token,
+        "token0Symbol": "USDT",
+        "token1Symbol": "NGK",
+        "token0Decimals": 18,
+        "token1Decimals": 18,
+        "sqrtPriceX96": str(2**96),
+        "balances": {"token0": 1000.0, "token1": 2000.0, "tvlUsd": 3000.0},
+    }
+    pairs = [{"symbolPair": "USDT:NGK", "preferredPools": [pool]}]
+
+    price_map = dex_surfaces._price_map_from_pairs(pairs)
+
+    assert price_map["USDT"] == 1.0
+    assert price_map["NGK"] == pytest.approx(0.5)
+
+
 def test_v4_reference_route_without_usd_anchor_does_not_create_fake_profit():
     eth = "0x" + "0" * 40
     token_y = "0x71178bac73cbeb415514eb542a8995b82669778d"
@@ -397,9 +422,9 @@ def test_robinhood_testnet_v4_liquidity_failure_preserves_quoter_error(monkeypat
     assert analysis["stepCount"] == 2
     assert analysis["requiresLiveQuoter"] is True
     assert analysis["adapterRequired"] is False
-    assert analysis["steps"][-1]["executionTrust"] == "live_quote_failed"
+    assert analysis["steps"][-1]["executionTrust"] == "not_enough_liquidity"
     assert "NotEnoughLiquidity" in analysis["steps"][-1]["liveQuoteError"]
-    assert "hop_2_live_quote_failed" in analysis["warnings"]
+    assert "hop_2_not_enough_liquidity" in analysis["warnings"]
     assert any("NotEnoughLiquidity" in reason for reason in analysis["recommendation"]["reasons"])
 
 

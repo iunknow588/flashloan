@@ -519,6 +519,7 @@ def test_quote_routes_payload_reviews_robinhood_testnet_by_default(monkeypatch):
         return {"rows": [{"size": 1}]}
 
     monkeypatch.setenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT", "0")
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT", "999")
     payload = build_quote_routes_payload_from_overview(
         overview,
         chain_id=46630,

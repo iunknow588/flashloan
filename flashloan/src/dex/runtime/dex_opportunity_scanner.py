@@ -1,11 +1,11 @@
 ﻿from __future__ import annotations
 
+from collections import deque
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import threading
 import time
@@ -24,7 +24,6 @@ from dex.runtime.dex_opportunity_helpers import (
     _merge_onchain_evidence_into_route,
     _network_for_chain_id,
     _now_iso,
-    _number_or_none,
     _recordable_route,
     _refresh_payload_summary,
     _route_attempt,
@@ -58,10 +57,13 @@ def _is_robinhood_family_network(chain_id: int | None) -> bool:
 
 
 def _scanner_onchain_evidence_provider(*args, **kwargs):
-    # The UI review needs per-hop live Quoter/eth_call confirmation fast.
-    # Full execution-size binary probing is kept available for dedicated
-    # sizing flows, but is too heavy to run by default inside a page scan.
-    kwargs.setdefault("skip_execution_size_probe", True)
+    # Robinhood closed-loop routes are used for live route review. Keep the
+    # page scanner fast by skipping the full execution-size search on the
+    # background scan; the on-chain quoter still verifies each hop with a
+    # conservative 0.1-token starting amount when no reference amount exists.
+    # Dedicated sizing flows can still opt in with an env flag.
+    skip_size_probe = str(os.getenv("DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE", "1")).strip().lower() in {"1", "true", "yes", "on"}
+    kwargs.setdefault("skip_execution_size_probe", skip_size_probe)
     evidence = build_route_onchain_evidence(*args, **kwargs)
     if str(evidence.get("status") or "").lower() == "rpc_verification_failed":
         # A testnet RPC can briefly refuse a new connection during parallel
@@ -139,66 +141,29 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
         latest_trigger["observedAt"] = latest_trigger.get("observedAt") or kwargs.get("observed_at")
         retry_kwargs = {key: value for key, value in kwargs.items() if key != "trigger_context"}
         evidence = build_route_onchain_evidence(*args, trigger_context=latest_trigger, **retry_kwargs)
+        if str(evidence.get("status") or "").lower() == "live_evidence_deferred":
+            evidence = dict(evidence)
+            evidence["status"] = "live_quote_failed"
+            evidence["executionTrust"] = "live_quote_failed"
+            evidence["trustedForExecution"] = False
+            evidence["blockers"] = list(evidence.get("blockers") or []) + [
+                "historical state unavailable after retry; on-chain verification failed instead of being deferred"
+            ]
+            evidence["errorStack"] = list(evidence.get("errorStack") or []) + [{
+                "module": "DEX",
+                "code": "historical_state_unavailable",
+                "message": "historical state unavailable after retry; on-chain verification failed instead of being deferred",
+            }]
     return evidence
 
 
-_MISSING_EFFECTIVE_POOL_STATUS = "missing_effective_pool"
-_DEPTH_INSUFFICIENT_STATUS = "depth_insufficient"
-_MISSING_EFFECTIVE_POOL_REASON = "on-chain reverify complete; missing effective trading pool"
+def _evidence_provider_with_timeout(evidence_provider, timeout_seconds: float, *args, **kwargs):
+    """Run one on-chain evidence pass synchronously.
 
-
-def _number_or_none(value: object) -> float | None:
-    try:
-        parsed = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
-    if parsed != parsed or parsed in (float("inf"), float("-inf")):
-        return None
-    return parsed
-
-
-def _pool_has_usable_depth(pool: dict[str, Any]) -> bool:
-    balances = pool.get("balances") if isinstance(pool.get("balances"), dict) else {}
-    tvl = _number_or_none(balances.get("tvlUsd"))
-    if tvl is not None and tvl > 0:
-        return True
-    for token_balance in ("token0", "token1"):
-        token_value = _number_or_none(balances.get(token_balance))
-        if token_value is not None and token_value > 0:
-            return True
-    liquidity = str(pool.get("liquidity") or "").strip()
-    if liquidity and liquidity != "0":
-        return True
-    return False
-
-
-def _unreviewed_route_evidence_state(route: dict[str, Any], *, deferred_reason: str) -> tuple[str, str]:
-    """Return a reviewed summary for routes that did not consume on-chain budget.
-
-    When static pool evidence already proves there is no effective tradable pool
-    or the route truncates at a zero-output hop, reporting a permanent deferral
-    hides the real reason. Use a reviewed terminal state instead.
+    Route/quote work must stay single-threaded.  RPC-side timeouts are handled
+    by the Web3/quoter layers instead of a watchdog thread.
     """
-    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
-    quote_inputs = route.get("quoteInputs") if isinstance(route.get("quoteInputs"), dict) else {}
-    candidate_pools = quote_inputs.get("candidatePools") or []
-    if isinstance(candidate_pools, list) and candidate_pools and not any(
-        _pool_has_usable_depth(pool) for pool in candidate_pools if isinstance(pool, dict)
-    ):
-        return _MISSING_EFFECTIVE_POOL_STATUS, _MISSING_EFFECTIVE_POOL_REASON
-    steps = analysis.get("steps") if isinstance(analysis.get("steps"), list) else []
-    warnings = analysis.get("warnings") or []
-    truncated_or_zero = any(
-        "zero_output" in str(warning).lower() or "truncated" in str(warning).lower()
-        for warning in warnings
-    ) or any(
-        str(step.get("outputAmount") or "").strip().lower() in {"0", "0.0"}
-        for step in steps
-        if isinstance(step, dict)
-    )
-    if truncated_or_zero:
-        return _DEPTH_INSUFFICIENT_STATUS, "on-chain reverify complete; insufficient pool depth"
-    return "live_evidence_deferred", deferred_reason
+    return evidence_provider(*args, **kwargs)
 
 
 def _reference_only_quote_payload(**kwargs):
@@ -248,7 +213,8 @@ def build_dex_opportunity_attempts(
     observed_at: str,
     onchain_evidence_provider: OnchainEvidenceProvider | None = None,
     max_onchain_evidence_routes: int | None = None,
-    max_recordable_routes: int | None = 5,
+    max_recordable_routes: int | None = None,
+    testnet_max_recordable_routes: int | None = None,
     onchain_evidence_offset: int = 0,
     evidence_workers: int = 1,
     trigger_context: dict[str, Any] | None = None,
@@ -277,9 +243,13 @@ def build_dex_opportunity_attempts(
             )
     if not recordable_routes:
         return []
+    # Every Robinhood-family network is a full-scan review target. The
+    # deprecated DEX_OPPORTUNITY_TESTNET_FULL_SCAN switch no longer controls
+    # scanner behavior; all eligible recordable closed-loop routes must be
+    # chain-reviewed in the current scan.
     robinhood_full_scan = _chain_network(payload, chain_id) in {"robinhood", "robinhood-testnet"}
-    if os.getenv("DEX_OPPORTUNITY_TESTNET_FULL_SCAN", "1").strip().lower() in {"0", "false", "no"}:
-        robinhood_full_scan = False
+    if robinhood_full_scan and testnet_max_recordable_routes is not None:
+        recordable_routes = recordable_routes[: max(0, int(testnet_max_recordable_routes))]
     selected_routes = _select_recordable_routes(
         recordable_routes,
         max_routes=max_recordable_routes,
@@ -289,91 +259,42 @@ def build_dex_opportunity_attempts(
     raw_attempts = [attempt for _, _, attempt in selected_routes]
     payload_routes = payload.get("routes") if isinstance(payload.get("routes"), list) else []
     evidence_provider = onchain_evidence_provider or _scanner_onchain_evidence_provider
-    # Keep the testnet candidate universe broad, but bound live RPC work per scan.
-    # A full static candidate scan must not turn into an unbounded Quoter scan.
-    budget = (
-        len(raw_attempts)
-        if max_onchain_evidence_routes is None
-        else max(0, min(len(raw_attempts), int(max_onchain_evidence_routes)))
-    )
-    selected_indexes: set[int] = set()
-    if budget:
-        start = int(onchain_evidence_offset or 0) % len(raw_attempts)
-        selected_indexes = {(start + offset) % len(raw_attempts) for offset in range(budget)}
+    # Every recordable closed-loop route is reviewed in this scan.  The old
+    # rotating route budget silently converted ordinary candidates into
+    # ``live_evidence_deferred`` records, although no product requirement
+    # authorized postponing their chain review.
+    selected_indexes: set[int] = set(range(len(raw_attempts)))
     attempts = []
-    deferred_reason = "reached on-chain reverify budget; deferred to next idle scan"
     evidence_results: dict[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]] = {}
     if selected_indexes:
-        evidence_workers = max(0, int(os.getenv("DEX_SCAN_WORKERS") or os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_WORKERS") or evidence_workers))
-        if evidence_workers > 1 and len(selected_indexes) > 1:
-            futures = {}
-            with ThreadPoolExecutor(max_workers=min(evidence_workers, len(selected_indexes))) as executor:
-                for attempt_index, (original_index, route, attempt) in enumerate(selected_routes):
-                    if attempt_index not in selected_indexes:
-                        continue
-                    future = executor.submit(
-                        evidence_provider,
-                        route,
-                        payload=payload,
-                        chain_id=chain_id,
-                        observed_at=observed_at,
-                        trigger_context=trigger_context or {},
-                    )
-                    futures[future] = (attempt_index, original_index, route, attempt)
-                for future in as_completed(futures):
-                    attempt_index, original_index, route, attempt = futures[future]
-                    evidence_results[attempt_index] = (
-                        future.result(),
-                        route,
-                        attempt,
-                        original_index,
-                    )
+        evidence_timeout_seconds = max(0.0, float(os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "45") or 45))
+        for attempt_index, (original_index, route, attempt) in enumerate(selected_routes):
+            if attempt_index not in selected_indexes:
+                continue
+            evidence = _evidence_provider_with_timeout(
+                evidence_provider,
+                evidence_timeout_seconds,
+                route,
+                payload=payload,
+                chain_id=chain_id,
+                observed_at=observed_at,
+                trigger_context=trigger_context or {},
+            )
+            evidence_results[attempt_index] = (evidence, route, attempt, original_index)
     for attempt_index, (original_index, route, attempt) in enumerate(selected_routes):
         if attempt_index in selected_indexes:
             if attempt_index in evidence_results:
                 evidence, route, attempt, original_index = evidence_results[attempt_index]
             else:
-                evidence = evidence_provider(
+                evidence = _evidence_provider_with_timeout(
+                    evidence_provider,
+                    evidence_timeout_seconds,
                     route,
                     payload=payload,
                     chain_id=chain_id,
                     observed_at=observed_at,
                     trigger_context=trigger_context or {},
                 )
-            _merge_onchain_evidence_into_route(route, evidence)
-            attempts.append(_apply_onchain_evidence_to_attempt(attempt, evidence))
-        else:
-            evidence = {
-                "evidenceVersion": 1,
-                "observedAt": observed_at,
-                "network": _chain_network(payload, chain_id),
-                "chainId": chain_id,
-                "status": "live_evidence_deferred",
-                "executionTrust": "static_reference_only",
-                "trustedForExecution": False,
-                "blockNumber": None,
-                "triggerContext": trigger_context or {},
-                "triggerBlockNumber": (trigger_context or {}).get("triggerBlockNumber") or (trigger_context or {}).get("blockNumber"),
-                "quoteBlockSource": "deferred",
-                "routeSymbols": route.get("routeSymbols") or [],
-                "routeAddresses": route.get("routeAddresses") or [],
-                "hops": [],
-                "costModel": {},
-                "blockers": [deferred_reason],
-                "transactionDevelopment": {
-                    "status": "blocked_before_transaction_development",
-                    "executionEnabled": False,
-                    "blockers": [deferred_reason],
-                },
-            }
-            unreviewed_status, unreviewed_reason = _unreviewed_route_evidence_state(
-                route,
-                deferred_reason=deferred_reason,
-            )
-            evidence["status"] = unreviewed_status
-            evidence["quoteBlockSource"] = "deferred" if unreviewed_status == "live_evidence_deferred" else "static_depth_review"
-            evidence["blockers"] = [unreviewed_reason]
-            evidence["transactionDevelopment"]["blockers"] = [unreviewed_reason]
             _merge_onchain_evidence_into_route(route, evidence)
             attempts.append(_apply_onchain_evidence_to_attempt(attempt, evidence))
         if 0 < original_index <= len(payload_routes) and isinstance(payload_routes[original_index - 1], dict):
@@ -405,11 +326,14 @@ class DexOpportunityScanner:
         cache_path: Path | None = CACHE_PATH,
         record_opportunities: bool = True,
         max_onchain_evidence_routes: int = 5,
-        max_recordable_routes: int = 5,
+        max_recordable_routes: int | None = None,
         testnet_max_onchain_evidence_routes: int | None = None,
         evidence_workers: int = 1,
+        periodic_scan_enabled: bool = False,
     ) -> None:
         self.interval_seconds = max(0.5, float(interval_seconds))
+        self.periodic_scan_enabled = bool(periodic_scan_enabled)
+        self._queue_poll_seconds = max(0.25, min(1.0, self.interval_seconds / 4.0))
         self.record_cooldown_seconds = max(0.0, float(record_cooldown_seconds))
         self.quote_payload_provider = quote_payload_provider or default_quote_payload_provider
         self.record_attempts = record_attempts or default_record_attempts
@@ -418,19 +342,20 @@ class DexOpportunityScanner:
         self.cache_path = cache_path
         self.record_opportunities = bool(record_opportunities)
         self.max_onchain_evidence_routes = max(0, int(max_onchain_evidence_routes))
-        self.max_recordable_routes = max(0, int(max_recordable_routes))
+        self.max_recordable_routes = None if max_recordable_routes is None else max(0, int(max_recordable_routes))
         self.evidence_workers = max(0, int(evidence_workers))
         self.testnet_max_onchain_evidence_routes = (
             None
             if testnet_max_onchain_evidence_routes is None
             else max(0, int(testnet_max_onchain_evidence_routes))
         )
-        self._evidence_cursor: dict[str, int] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._scan_lock = threading.Lock()
         self._watched: dict[str, tuple[int | None, tuple[str, ...]]] = {}
+        self._queued_scans: deque[tuple[int | None, tuple[str, ...]]] = deque()
+        self._last_periodic_scan_at: dict[str, float] = {}
         self._snapshots: dict[str, dict[str, Any]] = {}
         self._recorded_signatures: dict[tuple[Any, ...], float] = {}
         self._last_recording: dict[str, Any] = {"recorded": 0, "source": "empty", "error": None}
@@ -440,6 +365,33 @@ class DexOpportunityScanner:
         self._last_scan_started_at: str | None = None
         self._last_scan_finished_at: str | None = None
         self._last_duration_ms: int | None = None
+        self._load_cache()
+
+    def _load_cache(self) -> None:
+        if self.cache_path is None or not self.cache_path.exists():
+            return
+        try:
+            data = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(data, dict):
+            return
+        snapshots = data.get("snapshots")
+        if isinstance(snapshots, dict):
+            with self._lock:
+                self._snapshots.update(snapshots)
+        scanner = data.get("scanner")
+        if isinstance(scanner, dict):
+            with self._lock:
+                self._scan_count = int(scanner.get("scan_count") or 0)
+                self._recorded_attempt_count = int(scanner.get("recorded_attempt_count") or 0)
+                self._last_error = scanner.get("last_error")
+                self._last_scan_started_at = scanner.get("last_scan_started_at")
+                self._last_scan_finished_at = scanner.get("last_scan_finished_at")
+                self._last_duration_ms = scanner.get("last_duration_ms")
+                last_recording = scanner.get("last_recording")
+                if isinstance(last_recording, dict):
+                    self._last_recording = last_recording
 
     def start(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> None:
         self.watch(chain_id=chain_id, protocols=protocols)
@@ -462,6 +414,7 @@ class DexOpportunityScanner:
         thread = self._thread
         with self._lock:
             watched_keys = sorted(self._watched)
+            queued_count = len(self._queued_scans)
             snapshot = deepcopy(self._snapshots.get(_chain_key(chain_id))) if chain_id is not None else None
             scan_count = self._scan_count
             last_error = self._last_error
@@ -475,9 +428,12 @@ class DexOpportunityScanner:
             "interval_seconds": self.interval_seconds,
             "record_cooldown_seconds": self.record_cooldown_seconds,
             "max_onchain_evidence_routes": self.max_onchain_evidence_routes,
+            "max_recordable_routes": self.max_recordable_routes,
             "testnet_max_onchain_evidence_routes": self.testnet_max_onchain_evidence_routes,
             "evidence_workers": self.evidence_workers,
+            "periodic_scan_enabled": self.periodic_scan_enabled,
             "watched_chain_keys": watched_keys,
+            "queued_scan_count": queued_count,
             "chain_id": chain_id,
             "scan_count": scan_count,
             "recorded_attempt_count": recorded_attempt_count,
@@ -505,17 +461,54 @@ class DexOpportunityScanner:
 
     def run_forever(self) -> None:
         while not self._stop.is_set():
+            queued = self._pop_queued_scan()
+            if queued is not None:
+                chain_id, protocols = queued
+                self._scan_one(chain_id=chain_id, protocols=list(protocols))
+                continue
             watched = self._watched_items()
+            if not watched:
+                self._stop.wait(self._queue_poll_seconds)
+                continue
+            if not self.periodic_scan_enabled:
+                self._stop.wait(self._queue_poll_seconds)
+                continue
             for chain_id, protocols in watched:
                 if self._stop.is_set():
                     break
+                key = _chain_key(chain_id)
+                now = time.monotonic()
+                with self._lock:
+                    last_periodic_at = self._last_periodic_scan_at.get(key)
+                if last_periodic_at is not None and now - last_periodic_at < self.interval_seconds:
+                    continue
                 self._scan_one(chain_id=chain_id, protocols=list(protocols))
-            self._stop.wait(self.interval_seconds)
+                with self._lock:
+                    self._last_periodic_scan_at[key] = time.monotonic()
+            if not self._stop.is_set():
+                self._stop.wait(self._queue_poll_seconds)
 
     def scan_now(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
         self.watch(chain_id=chain_id, protocols=protocols)
         self._scan_one(chain_id=chain_id, protocols=protocols or [])
         return self.snapshot(chain_id=chain_id)
+
+    def scan_async(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
+        self.watch(chain_id=chain_id, protocols=protocols)
+        with self._lock:
+            scan_key = (chain_id, tuple(str(item).strip().lower() for item in (protocols or []) if str(item).strip()))
+            if scan_key not in self._queued_scans:
+                self._queued_scans.append(scan_key)
+        self.start(chain_id=chain_id, protocols=protocols)
+        snapshot = self.snapshot(chain_id=chain_id)
+        snapshot["queued"] = True
+        return snapshot
+
+    def _pop_queued_scan(self) -> tuple[int | None, tuple[str, ...]] | None:
+        with self._lock:
+            if not self._queued_scans:
+                return None
+            return self._queued_scans.popleft()
 
     def _watched_items(self) -> list[tuple[int | None, tuple[str, ...]]]:
         with self._lock:
@@ -552,12 +545,13 @@ class DexOpportunityScanner:
         with self._scan_lock:
             try:
                 payload = self.quote_payload_provider(chain_id=chain_id, protocols=protocols)
-                recording = self._record_opportunities(payload, chain_id=chain_id, observed_at=started_at, trigger_context=trigger_context)
-                _refresh_payload_summary(payload)
+                working_payload = deepcopy(payload)
+                recording = self._record_opportunities(working_payload, chain_id=chain_id, observed_at=started_at, trigger_context=trigger_context)
+                _refresh_payload_summary(working_payload)
                 snapshot = {
                     "chain_id": chain_id,
-                    "payload": payload,
-                    "summary": _snapshot_summary(payload),
+                    "payload": working_payload,
+                    "summary": _snapshot_summary(working_payload),
                     "trigger_context": trigger_context,
                     "updated_at": _now_iso(),
                     "error": None,
@@ -598,7 +592,9 @@ class DexOpportunityScanner:
                 "running": bool(thread and thread.is_alive()),
                 "interval_seconds": self.interval_seconds,
                 "record_cooldown_seconds": self.record_cooldown_seconds,
+                "periodic_scan_enabled": self.periodic_scan_enabled,
                 "watched_chain_keys": sorted(self._watched),
+                "queued_scan_count": len(self._queued_scans),
                 "chain_id": None,
                 "scan_count": self._scan_count,
                 "recorded_attempt_count": self._recorded_attempt_count,
@@ -630,27 +626,16 @@ class DexOpportunityScanner:
         observed_at: str,
         trigger_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        max_onchain_evidence_routes = self.max_onchain_evidence_routes
-        if (
-            self.testnet_max_onchain_evidence_routes is not None
-            and _chain_network(payload, chain_id) == "robinhood-testnet"
-        ):
-            max_onchain_evidence_routes = self.testnet_max_onchain_evidence_routes
         attempts = build_dex_opportunity_attempts(
             payload,
             chain_id=chain_id,
             observed_at=observed_at,
-            onchain_evidence_provider=self.onchain_evidence_provider,
-            max_onchain_evidence_routes=max_onchain_evidence_routes,
-            max_recordable_routes=self.max_recordable_routes,
-            onchain_evidence_offset=self._evidence_cursor.get(_chain_key(chain_id), 0),
-            evidence_workers=self.evidence_workers,
-            trigger_context=trigger_context,
-        )
-        if attempts and max_onchain_evidence_routes > 0:
-            self._evidence_cursor[_chain_key(chain_id)] = (
-                self._evidence_cursor.get(_chain_key(chain_id), 0) + max_onchain_evidence_routes
-            ) % len(attempts)
+        onchain_evidence_provider=self.onchain_evidence_provider,
+        max_recordable_routes=self.max_recordable_routes,
+        testnet_max_recordable_routes=self.testnet_max_onchain_evidence_routes,
+        evidence_workers=self.evidence_workers,
+        trigger_context=trigger_context,
+    )
         if not attempts:
             recording = {"candidate_count": 0, "recorded": 0, "source": "empty", "error": None}
             with self._lock:
@@ -708,13 +693,16 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                     maximum=3600.0,
                 ),
                 record_opportunities=not local_only,
-                max_onchain_evidence_routes=int(
-                    _env_float("DEX_OPPORTUNITY_ONCHAIN_EVIDENCE_ROUTES", 1.0, minimum=0.0, maximum=10.0)
+                evidence_workers=int(
+                    _env_float("DEX_OPPORTUNITY_SCANNER_EVIDENCE_WORKERS", 1.0, minimum=1.0, maximum=1.0)
                 ),
-                max_recordable_routes=int(_env_float("DEX_OPPORTUNITY_SCAN_ROUTE_LIMIT", 5.0, minimum=1.0, maximum=20.0)),
                 testnet_max_onchain_evidence_routes=int(
-                    _env_float("DEX_OPPORTUNITY_TESTNET_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=0.0, maximum=10.0)
+                    _env_float("DEX_OPPORTUNITY_TESTNET_MAX_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=1.0, maximum=1000.0)
                 ),
+                periodic_scan_enabled=str(
+                    os.getenv("DEX_OPPORTUNITY_PERIODIC_SCAN_ENABLED", "false")
+                ).strip().lower()
+                in {"1", "true", "yes", "on"},
             )
         return _SCANNER
 
@@ -756,8 +744,7 @@ def ensure_dex_opportunity_scanner_running(
 
 def run_dex_opportunity_scan_now(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
     scanner = get_dex_opportunity_scanner()
-    scanner.watch(chain_id=chain_id, protocols=protocols)
-    return scanner.scan_now(chain_id=chain_id, protocols=protocols)
+    return scanner.scan_async(chain_id=chain_id, protocols=protocols)
 
 
 def dex_opportunity_snapshot(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:

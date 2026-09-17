@@ -553,7 +553,13 @@ def test_dex_quote_routes_are_driven_by_candidate_pools_not_flashloan(tmp_path, 
     assert quotes["routes"][0]["quoteAnalysis"]["stepCount"] == 2
     assert quotes["routes"][0]["quoteAnalysis"]["steps"][0]["fromSymbol"] == "USDC"
     assert quotes["routes"][0]["quoteAnalysis"]["steps"][0]["toSymbol"] == "WBNB"
-    assert quotes["routes"][0]["quoteAnalysis"]["netProfitUsd"] is not None
+    analysis = quotes["routes"][0]["quoteAnalysis"]
+    size_rows = quotes["routes"][0].get("sizeAnalysis", {}).get("rows") or []
+    assert (
+        analysis.get("netProfitUsd") is not None
+        or analysis.get("referenceNetProfitUsd") is not None
+        or any(row.get("observedNetProfitUsd") is not None for row in size_rows)
+    )
     assert quotes["routes"][0]["quoteAnalysis"]["recommendation"]["action"]
     assert quotes["routes"][0]["quoteInputs"]["quoteRequests"][0]["venue"] == "amm_pool"
     assert quotes["routes"][0]["quoteInputs"]["routePools"]

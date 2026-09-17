@@ -8,7 +8,6 @@ import json
 import os
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from eth_abi import decode as abi_decode
 from eth_utils import keccak
@@ -204,21 +203,15 @@ def _connect_chain_rpc(network: str | None, chain_id: int | None) -> tuple[Any, 
                 _RPC_CONNECTION_CACHE[cache_key] = connection
             return connection
     else:
-        with ThreadPoolExecutor(max_workers=len(urls)) as executor:
-            future_to_url = {executor.submit(_probe_one, url): url for url in urls}
+        for url in urls:
             try:
-                for future in as_completed(future_to_url):
-                    try:
-                        connection = future.result()
-                    except Exception as exc:
-                        failures.append(f"{future_to_url[future]}: {exc}")
-                        continue
-                    with _RPC_CONNECTION_CACHE_LOCK:
-                        _RPC_CONNECTION_CACHE[cache_key] = connection
-                    return connection
-            finally:
-                for future in list(future_to_url):
-                    future.cancel()
+                connection = _probe_one(url)
+            except Exception as exc:
+                failures.append(f"{url}: {exc}")
+                continue
+            with _RPC_CONNECTION_CACHE_LOCK:
+                _RPC_CONNECTION_CACHE[cache_key] = connection
+            return connection
     raise RuntimeError("Robinhood RPC unavailable: " + "; ".join(failures[:3]))
 
 
@@ -271,6 +264,8 @@ def _read_live_pool_state(
         pool_manager=pool_manager,
         pool_id=pool_id,
         block_number=block_number,
+        network=network,
+        chain_id=chain_id,
     )
 
 
@@ -281,6 +276,8 @@ def _read_live_pool_state_with_w3(
     pool_manager: str,
     pool_id: str,
     block_number: int | None = None,
+    network: str | None = None,
+    chain_id: int | None = None,
 ) -> dict[str, Any]:
     contract = w3.eth.contract(address=Web3.to_checksum_address(pool_manager), abi=_V4_POOL_MANAGER_EXTSLOAD_ABI)
     pool_id_bytes = bytes.fromhex(_normalize_pool_id(pool_id)[2:])

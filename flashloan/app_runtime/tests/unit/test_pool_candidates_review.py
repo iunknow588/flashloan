@@ -3,6 +3,7 @@ import pytest
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
+from market.binance_market.dex_surface_observation_impl import _path_candidates_from_market_observation
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
@@ -40,6 +41,50 @@ def _pool(pool_id: str, token0_symbol: str, token1_symbol: str, token0: str, tok
         "market": {"priceNative": price_native, "priceUsd": "1"},
         "depthBand": {"level": "deep", "label": "deep"},
     }
+
+
+def _obs_route(symbols, addresses):
+    return {
+        "kind": "bridge_closed_loop",
+        "anchorSymbol": symbols[0],
+        "targetSymbol": symbols[1],
+        "closedLoop": True,
+        "pathSymbols": symbols,
+        "pathText": " -> ".join(symbols),
+        "routeTokenPath": [
+            {"symbol": symbol, "address": address}
+            for symbol, address in zip(symbols, addresses)
+        ],
+        "routeAddresses": addresses,
+        "routePools": [
+            {
+                "pool": "0x" + str(index + 1) * 40,
+                "protocol": "uniswap_v4",
+                "fee": 3000,
+                "routeSymbols": [symbols[index], symbols[index + 1]],
+                "routeAddresses": [addresses[index], addresses[index + 1]],
+            }
+            for index in range(len(symbols) - 1)
+        ],
+        "routePairs": [],
+    }
+
+
+def test_path_candidates_dedupe_reverse_closed_loop_directions():
+    usdc = "0x" + "1" * 40
+    weth = "0x" + "2" * 40
+    dai = "0x" + "3" * 40
+    observation = {
+        "closedLoopRoutes": [
+            _obs_route(["USDC", "WETH", "DAI", "USDC"], [usdc, weth, dai, usdc]),
+            _obs_route(["USDC", "DAI", "WETH", "USDC"], [usdc, dai, weth, usdc]),
+        ]
+    }
+    candidates = _path_candidates_from_market_observation(observation, chain_id=46630)
+    assert len(candidates) == 1
+    selected_symbols = candidates[0]["overviewRoute"]["pathSymbols"]
+    assert selected_symbols[0] == "USDC"
+    assert set(selected_symbols) == {"USDC", "WETH", "DAI"}
 
 
 def test_clear_cow_execution_attempts_jsonl_filters_by_network(tmp_path):

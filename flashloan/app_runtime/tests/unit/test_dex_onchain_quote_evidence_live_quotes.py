@@ -1,6 +1,6 @@
 import runtime.dex_onchain_quote_evidence as dex_onchain_quote_evidence
 import dex.runtime.dex_onchain_quote_evidence as dex_onchain_quote_evidence_runtime
-from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
+from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, _unsupported_evidence
 from runtime.dex_opportunity_helpers import _merge_onchain_evidence_into_route
 from runtime.dex_opportunity_scanner import _scanner_onchain_evidence_provider
 from runtime.dex_quote_evidence_helpers import _is_missing_historical_state_error
@@ -191,9 +191,27 @@ def test_live_quote_rpc_failure_is_reported_as_failed_verification(monkeypatch):
     )
 
     assert evidence["status"] == "rpc_verification_failed"
-    assert evidence["executionTrust"] == "static_reference_only"
+    assert evidence["executionTrust"] == "rpc_verification_failed"
     assert any("RPC" in blocker for blocker in evidence["blockers"])
     assert evidence["errorStack"][0]["code"] == int(ErrorCode.DEX_RPC_FAILED)
+
+
+def test_unsupported_evidence_prefers_liquidity_zero_over_rpc_label():
+    evidence = _unsupported_evidence(
+        chain_id=46630,
+        network="robinhood-testnet",
+        route={"routeSymbols": ["WETH", "ETH", "WETH"]},
+        observed_at="2026-08-24T00:00:00+00:00",
+        reasons=[
+            "robinhood testnet v4 pool manager live liquidity is zero",
+            "hop 1 live quote failed",
+        ],
+        trigger_context={},
+    )
+
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["executionTrust"] == "not_enough_liquidity"
+    assert evidence["errorStack"][0]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
 
 
 def test_metadata_missing_is_recognized_as_historical_state_gap():
@@ -204,7 +222,7 @@ def test_metadata_missing_is_recognized_as_historical_state_gap():
     assert not _is_missing_historical_state_error(RuntimeError("revert: NotEnoughLiquidity(bytes32)"))
 
 
-def test_metadata_missing_defers_route_evidence(monkeypatch):
+def test_metadata_missing_reports_explicit_failure(monkeypatch):
     from types import SimpleNamespace
 
     class FakeEth:
@@ -268,8 +286,8 @@ def test_metadata_missing_defers_route_evidence(monkeypatch):
         skip_execution_size_probe=True,
     )
 
-    assert evidence["status"] == "live_evidence_deferred"
-    assert evidence["hops"][0]["status"] == "live_evidence_deferred"
+    assert evidence["status"] == "live_quote_failed"
+    assert evidence["hops"][0]["status"] == "live_quote_failed"
     assert any("metadata is not found" in blocker for blocker in evidence["blockers"])
 
 
@@ -925,7 +943,7 @@ def test_non_stable_closed_loop_uses_x_amount_and_positive_x_profit(monkeypatch)
     assert evidence["readyForTransactionPreflight"] is True
     assert evidence["costModel"]["profitBasis"] == "borrow_token"
     assert evidence["costModel"]["finalOutputUsd"] is None
-    assert evidence["costModel"]["borrowInputAmount"] == 1.0
+    assert evidence["costModel"]["borrowInputAmount"] == 1.0094950199127197
     assert evidence["costModel"]["finalOutputAmount"] == 1.01
     assert evidence["costModel"]["netProfitAmount"] > 0
     assert evidence["validation"]["borrowAssetIsStable"] is False

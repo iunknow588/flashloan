@@ -152,6 +152,7 @@ from market.binance_market.dex_surface_types import (
 )
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 from market.binance_market.dex_surface_overview import (
+    group_overview_paths_by_flash_loan_token,
     _overview_paths_from_static_summary,
     _overview_pool_payload_from_static_observation,
     _overview_profit_from_analysis,
@@ -360,6 +361,10 @@ def dex_overview_payload(
     if compact_snapshot.get("exists"):
         if compact_snapshot.get("closedLoopRouteSummaries"):
             overview_paths = _overview_paths_from_static_summary(compact_snapshot, chain_id=chain_id)
+            overview_path_groups = group_overview_paths_by_flash_loan_token(
+                overview_paths,
+                borrowable_symbols=compact_snapshot.get("borrowableSymbols") or [],
+            )
             pool_payload = _overview_pool_payload_from_static_observation(compact_snapshot)
             payload = {
                 "mode": "dex_overview",
@@ -371,6 +376,7 @@ def dex_overview_payload(
                     "candidatePathCount": len(overview_paths),
                     "directAnchorPathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
                     "bridgePathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
+                    "overviewPathGroupCount": len(overview_path_groups),
                     "watchPairCount": len(compact_snapshot.get("chainSpecificObservationPairs") or []),
                     "marketObservationRouteCount": len(overview_paths),
                     "overviewProbeNotionalUsd": QUOTE_PROBE_NOTIONAL_USD,
@@ -393,6 +399,7 @@ def dex_overview_payload(
                 "flashLoanLiquidity": pool_payload.get("flashLoanLiquidity") or {},
                 "dexSettlement": pool_payload.get("dexSettlement") or {},
                 "arbitragePaths": overview_paths,
+                "arbitragePathGroups": overview_path_groups,
                 "watchPairs": compact_snapshot.get("chainSpecificObservationPairs") or [],
             }
             _cache_surface_payload(
@@ -457,6 +464,10 @@ def dex_overview_payload(
     closed_loop_anchor_symbols = list(frame_context["closed_loop_anchor_symbols"])
     observation_anchor_symbols = list(frame_context["observation_anchor_symbols"])
     ready_paths = [_route_with_overview_profit(route, price_map=price_map, chain_id=chain_id) for route in ready_paths]
+    overview_path_groups = group_overview_paths_by_flash_loan_token(
+        ready_paths,
+        borrowable_symbols=anchor_symbols or observation_anchor_symbols or closed_loop_anchor_symbols,
+    )
     overview_profits = [route.get("overviewProfit") or {} for route in ready_paths]
     observed_net_profits = [
         _number(profit.get("observedNetProfitUsd"))
@@ -503,6 +514,7 @@ def dex_overview_payload(
             "candidatePathCount": len(ready_paths),
             "directAnchorPathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
             "bridgePathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
+            "overviewPathGroupCount": len(overview_path_groups),
             "watchPairCount": len(watch_pairs),
             "marketObservationRouteCount": len(observation.get("closedLoopRoutes") or []),
             "marketObservationSequenceCount": _int((observation.get("summary") or {}).get("observationSequenceCount")),
@@ -539,6 +551,7 @@ def dex_overview_payload(
         "flashLoanLiquidity": pool_payload.get("flashLoanLiquidity") or {},
         "dexSettlement": pool_payload.get("dexSettlement") or {},
         "arbitragePaths": ready_paths,
+        "arbitragePathGroups": overview_path_groups,
         "watchPairs": watch_pairs,
     }
     _cache_surface_payload(

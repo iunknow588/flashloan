@@ -1,6 +1,6 @@
 const path = require("path");
 const fs = require("fs");
-const { ethers, artifacts } = require("./lib/hardhat");
+const { ethers } = require("./lib/hardhat");
 
 const MANIFEST_PATH = path.resolve(__dirname, "../config/testnet-v4-amm/manifest.json");
 
@@ -37,17 +37,21 @@ function withinRange(addr) {
   return addr.toLowerCase();
 }
 
-async function deployOrGetMaker(owner, poolManagerAddress) {
+async function deployOrGetMaker(owner, poolManagerAddress, allowBroadcast) {
   const Factory = await ethers.getContractFactory("OfficialV4ImbalanceMaker");
-  const artifact = await artifacts.readArtifact("OfficialV4ImbalanceMaker");
-  const expectedBytecode = String(artifact.deployedBytecode || "").toLowerCase();
   const manifest = readManifest();
   const existing = manifest.officialV4 && manifest.officialV4.imbalanceMaker || "";
   if (existing) {
     const code = String(await ethers.provider.getCode(existing)).toLowerCase();
-    if (code !== "0x" && code === expectedBytecode) {
+    if (code !== "0x") {
       return Factory.attach(existing);
     }
+  }
+  if (!allowBroadcast) {
+    const known = existing || "none";
+    throw new Error(
+      `no compatible OfficialV4ImbalanceMaker available for read-only preflight (found=${known}); run once with --broadcast to deploy/upgrade the maker, then use read-only preflight`
+    );
   }
   const maker = await Factory.deploy(poolManagerAddress);
   await maker.waitForDeployment();
@@ -105,20 +109,63 @@ async function main() {
   console.log(`  keys=${JSON.stringify(keys)}`);
   console.log(`  directions=${directions.join(",")}`);
 
-  if (!allowBroadcast) {
-    console.log("broadcast disabled; imbalance maker action prepared for review (not broadcast)");
-    return;
-  }
-
-  const maker = await deployOrGetMaker(owner, poolManagerAddress);
+  const maker = await deployOrGetMaker(owner, poolManagerAddress, allowBroadcast);
   console.log(`  maker=${maker.target || maker.address}`);
 
   const makerAddress = maker.target || maker.address;
   const balance = await tzToken.balanceOf(makerAddress);
+  if (!allowBroadcast && balance < amountIn) {
+    throw new Error(
+      `preflight cannot simulate because maker balance ${ethers.formatUnits(balance, 18)} TZ is less than requested ${ethers.formatUnits(amountIn, 18)} TZ; run once with --broadcast (or top up the maker contract) before using read-only preflight`
+    );
+  }
   if (balance < amountIn) {
     const fundTx = await tzToken.transfer(makerAddress, amountIn - balance);
     await fundTx.wait();
     console.log(`funded maker ${ethers.formatUnits(amountIn - balance, 18)} tz`);
+  }
+
+  let preflight;
+  try {
+    preflight = await maker.runImbalance.staticCall(tz, keys, directions, amountIn);
+    const preflightSpent = BigInt(preflight.spent);
+    console.log(`imbalance preflight OK outB=${ethers.formatUnits(preflight.outB, 18)} outC=${ethers.formatUnits(preflight.outC, 18)} outZ=${ethers.formatUnits(preflight.outZ, 18)} spent=${ethers.formatUnits(preflightSpent, 18)} tz`);
+    if (preflightSpent <= 0n) {
+      console.error("preflight did not create an imbalance gap: spent=0. The requested amount did not shift the route away from balance; choose a different amount or route.");
+      process.exitCode = 1;
+      return;
+    }
+  } catch (error) {
+    console.error("imbalance preflight failed; no broadcast was attempted.");
+    console.error(`  ${error.shortMessage || error.message || error}`);
+    console.error("  The requested amount is too large for current pool depth, or the route cannot be executed.");
+    const fallbackSizes = ["50", "10", "5", "1", "0.1", "0.01", "0.001", "0.0001"];
+    let largestFeasible = null;
+    for (const sizeText of fallbackSizes) {
+      const candidate = ethers.parseUnits(sizeText, 18);
+      if (candidate >= amountIn) continue;
+      try {
+        const probe = await maker.runImbalance.staticCall(tz, keys, directions, candidate);
+        if (BigInt(probe.spent) > 0n) {
+          largestFeasible = sizeText;
+          break;
+        }
+      } catch (_) {
+        // Try smaller size next.
+      }
+    }
+    if (largestFeasible) {
+      console.error(`  Suggested feasible amount that passes preflight and creates a gap: ${largestFeasible} TZ. Re-run with --amount ${largestFeasible}.`);
+    } else {
+      console.error("  Even 0.0001 TZ cannot pass preflight right now. Add liquidity to the triangle pools first, then retry this operation.");
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!allowBroadcast) {
+    console.log("imbalance preflight OK; broadcast disabled, no on-chain transaction was sent.");
+    return;
   }
 
   const tx = await maker.runImbalance(tz, keys, directions, amountIn);

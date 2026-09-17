@@ -240,6 +240,7 @@ def dex_surface_payload_for_chain(
 def attach_dex_strategy(payload: dict) -> dict:
     mode_by_path = {
         "/api/dex/overview": "dex_overview",
+        "/api/dex/closed-loop-groups": "dex_closed_loop_groups",
         "/api/dex/market-observation": "dex_market_observation",
         "/api/dex/market-observation/refresh": "dex_market_observation",
         "/api/dex/quote-routes": "dex_quote_routes",

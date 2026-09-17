@@ -38,13 +38,13 @@ def _chain_value(
         value = str((chain_data_by_network(network) or {}).get(key) or "").strip()
         if value:
             return value
-    except Exception:
+    except (KeyError, TypeError, ValueError, AttributeError, OSError):
         pass
     try:
         value = str((chain_contracts(network) or {}).get(key) or "").strip()
         if value:
             return value
-    except Exception:
+    except (KeyError, TypeError, ValueError, AttributeError, OSError):
         pass
     return fallback
 

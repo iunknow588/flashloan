@@ -10,6 +10,7 @@ Examples:
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -21,6 +22,7 @@ DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
 REPLENISH_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-inject-liquidity-live.js"
 MAKE_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-make-arb-opportunity-live.js"
 DIAGNOSE_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-diagnose-live.js"
+MANIFEST_PATH = ROOT / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
 
 
 CHOICES = [
@@ -108,6 +110,34 @@ def run_choice(choice, rpc_url):
     ).returncode
 
 
+def print_result_summary(choice_id, rc):
+    print(f"\n[执行完成] 编号={choice_id} 退出码={rc}")
+    try:
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        print("[执行完成] 无法读取 manifest 结果摘要")
+        return
+    official = manifest.get("officialV4") or {}
+    if choice_id in (5, 6):
+        last = official.get("lastMakeArb") or {}
+        if last:
+            print(f"  lastMakeArb.txHash={last.get('txHash')}")
+            print(f"  amountIn={last.get('amountIn')}")
+            print(f"  runAt={last.get('runAt')}")
+            route = last.get("route") or {}
+            if route:
+                print(f"  route.directions={route.get('directions')}")
+                print(f"  route.keysCount={len(route.get('keys') or [])}")
+    elif choice_id in (1, 2):
+        last = official.get("lastReplenish") or {}
+        if last:
+            print(f"  lastReplenish.txHash={last.get('txHash')}")
+            print(f"  liquidityToAdd={last.get('liquidityToAdd')}")
+            print(f"  runAt={last.get('runAt')}")
+    else:
+        print("  只读诊断完成，未广播交易")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--choice", type=int, help="直接执行某个菜单编号，不进入交互菜单")
@@ -127,7 +157,9 @@ def main() -> int:
     if args.choice:
         for choice in CHOICES:
             if choice["id"] == args.choice:
-                return run_choice(choice, args.rpc_url)
+                rc = run_choice(choice, args.rpc_url)
+                print_result_summary(choice["id"], rc)
+                return rc
         print(f"未知菜单编号: {args.choice}", file=sys.stderr)
         return 2
 
@@ -145,7 +177,8 @@ def main() -> int:
         if not matched:
             print("没有这个编号。")
             continue
-        return run_choice(matched[0], args.rpc_url)
+        rc = run_choice(matched[0], args.rpc_url)
+        print_result_summary(matched[0]["id"], rc)
 
 
 if __name__ == "__main__":

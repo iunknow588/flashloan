@@ -6,7 +6,7 @@ from flask import request
 
 from core.chain_flow_dispatcher import ChainFlowDispatchError, chain_flow_request
 from core.market_observation_store import market_observation_static_table, write_market_observation_static
-from market.binance_market.dex_surface_cache import _clear_dex_surface_cache
+from market.binance_market.dex_surface_cache import _cached_framework_surface_payload, _clear_dex_surface_cache
 from dex.intent_trade.chains.robinhood.v4_pool_index import (
     write_v4_pool_index_from_observation_pool_ids as write_robinhood_mainnet_v4_pool_index,
 )
@@ -48,6 +48,16 @@ def _bootstrap_dex_surface_dependencies(
 ) -> None:
     if chain_id is None:
         return
+    if (
+        flow_name in {"dex_quote_routes", "dex_quote_request"}
+        and _cached_framework_surface_payload(
+            "dex_quote_routes",
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        ) is not None
+    ):
+        return
     warmers = {
         "dex_market_observation": (
             lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
@@ -72,7 +82,21 @@ def _bootstrap_dex_surface_dependencies(
             lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
     }
-    for warm in warmers.get(flow_name, ()):
+    warm_surfaces = {
+        "dex_market_observation": [None],
+        "dex_overview": [],
+        "dex_quote_routes": [None, "dex_market_observation", "dex_overview"],
+        "dex_quote_request": [None, "dex_market_observation", "dex_overview", "dex_quote_routes"],
+        "dex_submission_review": [None, "dex_market_observation", "dex_overview"],
+    }
+    for surface, warm in zip(warm_surfaces.get(flow_name, []), warmers.get(flow_name, ())):
+        if surface and _cached_framework_surface_payload(
+            surface,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        ) is not None:
+            continue
         try:
             warm()
         except Exception:

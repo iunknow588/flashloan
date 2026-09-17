@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import importlib
+import locale
 import os
+import socket
+import subprocess
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -102,6 +106,114 @@ def _coerce_port(raw_port: str, *, source: str) -> int:
     return port
 
 
+def _port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("0.0.0.0", port))
+        except OSError:
+            return True
+        return False
+
+
+def _port_process_ids(port: int) -> list[str]:
+    """Return process ids listening on the given TCP port."""
+
+    if os.name == "nt":
+        cmd = ["netstat", "-ano", "-p", "tcp"]
+    else:
+        cmd = ["lsof", "-ti", f"tcp:{port}"]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+    except FileNotFoundError:
+        return []
+    except subprocess.TimeoutExpired:
+        return []
+    stdout_bytes = result.stdout if isinstance(result.stdout, bytes) else b""
+    if result.returncode != 0 and not stdout_bytes:
+        return []
+    try:
+        stdout_text = stdout_bytes.decode(locale.getpreferredencoding(False) or "utf-8", errors="ignore")
+    except Exception:
+        stdout_text = stdout_bytes.decode("utf-8", errors="ignore")
+    if os.name == "nt":
+        pids: list[str] = []
+        seen: set[str] = set()
+        for line in stdout_text.splitlines():
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            if str(parts[0]).upper() != "TCP":
+                continue
+            local_address = str(parts[1])
+            state = str(parts[3]).upper()
+            if not local_address.endswith(f":{port}"):
+                continue
+            if state != "LISTENING":
+                continue
+            pid = parts[4]
+            if pid.isdigit() and pid not in seen and pid != "0":
+                seen.add(pid)
+                pids.append(pid)
+        return pids
+    return stdout_text.splitlines()
+
+
+def _try_close_port_owner(port: int) -> tuple[bool, str]:
+    """Try to stop processes listening on ``port`` so it can be reused."""
+
+    pids = _port_process_ids(port)
+    if not pids:
+        return False, f"port {port} is occupied but no listening pid could be identified"
+    killed: list[str] = []
+    for pid in pids:
+        try:
+            if os.name == "nt":
+                command = ["taskkill", "/F", "/PID", str(pid)]
+            else:
+                command = ["kill", "-9", str(pid)]
+            subprocess.run(
+                command,
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+            killed.append(pid)
+        except Exception:
+            return False, f"port {port} pid {pid} could not be terminated"
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if not _port_in_use(port):
+            return True, ",".join(killed)
+        time.sleep(0.2)
+    return False, f"port {port} processes terminated but port is still not reusable"
+
+
+def resolve_port(preferred: int, *, explicit: bool = False) -> tuple[int, int | None]:
+    """Return the port to bind and the occupied preferred port, if any.
+
+    The launcher first tries to stop the old process that owns the preferred
+    port. If that process cannot be stopped, or the port is still busy, the
+    launcher selects the next free port instead.
+    """
+    if not _port_in_use(preferred):
+        return preferred, None
+    reused, _message = _try_close_port_owner(preferred)
+    if reused and not _port_in_use(preferred):
+        return preferred, None
+    for candidate in range(preferred + 1, min(preferred + 200, 65535) + 1):
+        if not _port_in_use(candidate):
+            return candidate, preferred
+    raise RuntimeError(
+        f"port {preferred} could not be recycled and the next 200 ports are still occupied; "
+        "cannot pick a free port automatically"
+    )
+
+
 def main() -> int:
     try:
         require_dependencies()
@@ -111,7 +223,14 @@ def main() -> int:
 
     with _runtime_environment():
         try:
-            port = read_port_override() or read_port()
+            explicit_port = read_port_override()
+            port, occupied_preferred = resolve_port(explicit_port or read_port(), explicit=explicit_port is not None)
+            if occupied_preferred is not None:
+                print(
+                    f"port {occupied_preferred} is occupied; selected port {port} instead",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
             from web.control_panel import app, initialize_cow_arbitrage_runtime, initialize_liquidation_runtime
             from dex.runtime.cow_submission_pause import disable_cow_submission_for_startup

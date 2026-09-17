@@ -37,8 +37,13 @@ def _cache_surface_payload(
         protocols=protocols,
         use_static_observation=use_static_observation,
     )
+    # Store a private copy so later in-memory consumers can mutate their
+    # working payloads (for example the opportunity scanner attaching live
+    # evidence) without corrupting the cached framework snapshot that the page
+    # will read.
+    snapshot = deepcopy(payload)
     with _DEX_SURFACE_CACHE_LOCK:
-        _DEX_SURFACE_CACHE[key] = deepcopy(payload)
+        _DEX_SURFACE_CACHE[key] = snapshot
 
 
 def _cached_surface_payload(
@@ -56,7 +61,11 @@ def _cached_surface_payload(
     )
     with _DEX_SURFACE_CACHE_LOCK:
         payload = _DEX_SURFACE_CACHE.get(key)
-    return dict(payload) if payload is not None else None
+    # Surface payloads contain nested route/pool dictionaries. Returning only a
+    # shallow copy lets the opportunity scanner attach live evidence to its
+    # working payload and silently mutate the page cache as well. Keep the
+    # cached framework snapshot immutable from callers' perspective.
+    return deepcopy(payload) if payload is not None else None
 
 
 def _surface_payload_has_framework_data(surface: str, payload: dict[str, Any] | None) -> bool:

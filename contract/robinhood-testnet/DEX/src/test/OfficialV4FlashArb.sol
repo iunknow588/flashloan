@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {ContractDexErrorCodes} from "../ContractDexErrorCodes.sol";
+
 interface IERC20OfficialV4Arb {
     function transfer(address to, uint256 value) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
@@ -39,6 +41,8 @@ contract OfficialV4FlashArb {
     error TransferFailed();
     error ArbitrageNotProfitable(uint256 received, uint256 required);
     error Reentrancy();
+    error NoProfitableRoute();
+    error DexError(uint256 code);
 
     uint160 private constant MIN_SQRT_PRICE = 4295128740;
     uint160 private constant MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970341;
@@ -74,6 +78,35 @@ contract OfficialV4FlashArb {
         if (tokenZ == address(0) || amountIn == 0) revert InvalidRequest();
         bytes memory result = poolManager.unlock(abi.encode(tokenZ, amountIn, keys, zeroForOne, minProfit));
         (outTb, outTa, outTz, profit) = abi.decode(result, (uint256, uint256, uint256, uint256));
+    }
+
+    /// @notice Tries a batch of closed-loop route directions in one call.
+    /// @dev Off-chain discovery only enumerates closed-loop opportunities; this
+    /// function lets the chain compute which direction is executable. Each route
+    /// is attempted as an isolated external call so a revert on one direction
+    /// does not undo the next attempt.
+    function runArbitrageBest(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
+        bool[3][] calldata directionsets,
+        uint256 amountIn,
+        uint256 minProfit
+    )
+        external
+        returns (uint256 outTb, uint256 outTa, uint256 outTz, uint256 profit, uint256 routeIndex)
+    {
+        if (tokenZ == address(0) || amountIn == 0) revert InvalidRequest();
+        if (keysets.length == 0 || keysets.length != directionsets.length) {
+            revert DexError(ContractDexErrorCodes.VALIDATION_ROUTE_INVALID);
+        }
+        for (uint256 i = 0; i < keysets.length; i++) {
+            try this.runArbitrage(tokenZ, keysets[i], directionsets[i], amountIn, minProfit)
+                returns (uint256 b, uint256 a, uint256 z, uint256 p)
+            {
+                return (b, a, z, p, i);
+            } catch {}
+        }
+        revert NoProfitableRoute();
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {

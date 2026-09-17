@@ -191,6 +191,8 @@ def build_market_observation_payload(
                     target_symbol = _norm_symbol(target_token.get("symbol"))
                     if not target_symbol or not _route_symbol_allowed(target_symbol):
                         continue
+                    if mid_key >= target_key:
+                        continue
                     route_key = (
                         "triangle",
                         anchor_key,

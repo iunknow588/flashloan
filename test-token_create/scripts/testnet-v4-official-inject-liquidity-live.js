@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const { ethers, artifacts } = require("./lib/hardhat");
+const v4Liquidity = require("./lib/v4-liquidity-common");
 
 const MANIFEST_PATH = path.resolve(__dirname, "../config/testnet-v4-amm/manifest.json");
 
@@ -38,18 +39,24 @@ const PAIRS = [
     name: "tz-ta",
     tokenA: null,
     tokenB: null,
+    reserveA: toToken(1_000_000),
+    reserveB: toToken(100_000),
     fallbackTick: -23028,
   },
   {
     name: "ta-tb",
     tokenA: null,
     tokenB: null,
+    reserveA: toToken(100_000),
+    reserveB: toToken(1_000_000),
     fallbackTick: -23028,
   },
   {
     name: "tb-tz",
     tokenA: null,
     tokenB: null,
+    reserveA: toToken(1_000_000),
+    reserveB: toToken(100_000),
     fallbackTick: 23027,
   },
 ];
@@ -101,7 +108,7 @@ async function main() {
     "broadcast",
     process.env.ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST === "true"
   );
-  const liquidityToAdd = ethers.parseUnits(readArg("amount", process.env.ROBINHOOD_TESTNET_REPLENISH_LIQUIDITY || "2000"), 18);
+  const anchorTokenAmount = ethers.parseUnits(readArg("amount", process.env.ROBINHOOD_TESTNET_REPLENISH_LIQUIDITY || "2000"), 18);
 
   const manifest = readManifest();
   if (!manifest.officialV4 || !manifest.officialV4.poolManager) {
@@ -114,40 +121,65 @@ async function main() {
   const tb = await ethers.getContractAt("TestERC20", manifest.tb);
   const positionManager = await ethers.getContractAt(POSITION_MANAGER_ABI, POSITION_MANAGER_ADDRESS, owner);
   const permit2 = await ethers.getContractAt(PERMIT2_ABI, PERMIT2_ADDRESS, owner);
+  const tokens = [tz, ta, tb];
 
   const fee = Number(manifest.officialV4.fee);
   const tickSpacing = Number(manifest.officialV4.tickSpacing);
   const hooks = manifest.officialV4.hooks || ethers.ZeroAddress;
+  const [fullLower, fullUpper] = v4Liquidity.fullRangeTicks(tickSpacing);
 
   console.log("official V4 manual liquidity replenisher");
   console.log(`  poolManager=${manifest.officialV4.poolManager}`);
   console.log(`  hook=${hooks}`);
-  console.log(`  liquidityToAdd=${ethers.formatUnits(liquidityToAdd, 18)}`);
+  console.log(`  requestedAnchorTokenPerPair=${ethers.formatUnits(anchorTokenAmount, 18)}`);
 
   const actions = [];
   const actionParams = [];
   const ranges = [];
+  const requiredByToken = new Map();
   for (const pair of PAIRS) {
     const tokenA = pair.name === "tz-ta" ? tz : pair.name === "ta-tb" ? ta : tb;
     const tokenB = pair.name === "tz-ta" ? ta : pair.name === "ta-tb" ? tb : tz;
     const addressA = await tokenA.getAddress();
     const addressB = await tokenB.getAddress();
+    let amountA;
+    let amountB;
+    if (pair.reserveA >= pair.reserveB) {
+      amountA = anchorTokenAmount;
+      amountB = (anchorTokenAmount * pair.reserveB) / pair.reserveA;
+    } else {
+      amountA = (anchorTokenAmount * pair.reserveA) / pair.reserveB;
+      amountB = anchorTokenAmount;
+    }
     const [currency0, currency1] = sortPair(addressA, addressB);
+    const reserve0 = currency0 === addressA ? amountA : amountB;
+    const reserve1 = currency0 === addressA ? amountB : amountA;
+    const sqrtPriceX96 = v4Liquidity.sqrtPriceX96ForRatio(reserve0, reserve1);
+    const liquidity = v4Liquidity.fullRangeLiquidityForAmounts(sqrtPriceX96, reserve0, reserve1);
     const key = poolKey(currency0, currency1, fee, tickSpacing, hooks);
-    const tick = pair.fallbackTick;
-    const aligned = Math.floor(tick / tickSpacing) * tickSpacing;
-    const lower = aligned - tickSpacing;
-    const upper = aligned + tickSpacing;
-    ranges.push({ name: pair.name, key, lower, upper });
+    const lower = fullLower;
+    const upper = fullUpper;
+    ranges.push({ name: pair.name, key, lower, upper, targetA: amountA, targetB: amountB, liquidity });
     actions.push(0x02);
-    actionParams.push(mintParams(key, lower, upper, liquidityToAdd, owner.address));
+    actionParams.push(mintParams(key, lower, upper, liquidity, owner.address));
     actions.push(0x0d);
     actionParams.push(ethers.AbiCoder.defaultAbiCoder().encode(["address", "address"], [currency0, currency1]));
+    requiredByToken.set(addressA.toLowerCase(), (requiredByToken.get(addressA.toLowerCase()) || 0n) + amountA);
+    requiredByToken.set(addressB.toLowerCase(), (requiredByToken.get(addressB.toLowerCase()) || 0n) + amountB);
   }
 
   console.log("would add liquidity to official V4 pools:");
   for (const r of ranges) {
-    console.log(`  ${r.name} lower=${r.lower} upper=${r.upper} key=[${r.key.currency0},${r.key.currency1},${r.key.fee},${r.key.tickSpacing},${r.key.hooks}]`);
+    console.log(`  ${r.name} add=${ethers.formatUnits(r.targetA, 18)}+${ethers.formatUnits(r.targetB, 18)} liquidity≈${ethers.formatUnits(r.liquidity, 0)} range=[${r.lower},${r.upper}] key=[${r.key.currency0},${r.key.currency1},${r.key.fee},${r.key.tickSpacing},${r.key.hooks}]`);
+  }
+
+  for (const token of tokens) {
+    const address = await token.getAddress();
+    const required = requiredByToken.get(address.toLowerCase()) || 0n;
+    const balance = await token.balanceOf(owner.address);
+    if (balance < required) {
+      throw new Error(`${await token.symbol()} owner balance ${ethers.formatUnits(balance, 18)} is below required ${ethers.formatUnits(required, 18)}`);
+    }
   }
 
   if (!allowBroadcast) {
@@ -155,7 +187,6 @@ async function main() {
     return;
   }
 
-  const tokens = [tz, ta, tb];
   const maxUint = ethers.MaxUint256;
   const maxUint160 = (1n << 160n) - 1n;
   const maxUint48 = (1n << 48n) - 1n;
@@ -182,7 +213,7 @@ async function main() {
     txHash: receipt.hash,
     gasUsed: receipt.gasUsed.toString(),
     runAt: new Date().toISOString(),
-    liquidityToAdd: liquidityToAdd.toString(),
+    liquidityToAdd: anchorTokenAmount.toString(),
   };
   writeManifest(manifest);
 

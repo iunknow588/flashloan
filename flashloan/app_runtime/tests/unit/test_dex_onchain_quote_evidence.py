@@ -3,6 +3,7 @@ import pytest
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
 from runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
+from runtime.dex_quote_evidence_helpers import _robinhood_network_for_chain_id
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from core.error_registry import ErrorCode
 from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
@@ -38,6 +39,13 @@ def test_robinhood_testnet_trigger_context_uses_confirmed_live_head(monkeypatch)
     assert context["triggerBlockNumber"] == 97
     assert context["headBlockNumber"] == 100
     assert context["blockTimestamp"] == 1_777_777_777
+
+
+def test_robinhood_network_for_chain_id_prefers_testnet_chain_metadata():
+    assert _robinhood_network_for_chain_id(46630, "robinhood") == "robinhood-testnet"
+    assert _robinhood_network_for_chain_id(46630, "chain_46630") == "robinhood-testnet"
+    assert _robinhood_network_for_chain_id(None, "robinhood-testnet") == "robinhood-testnet"
+    assert _robinhood_network_for_chain_id(4663, "robinhood-testnet") == "robinhood"
 
 
 def test_dex_error_stack_from_state_returns_only_module_code_message():
@@ -188,7 +196,7 @@ def test_v4_route_reports_not_enough_liquidity_as_business_result(monkeypatch):
     assert evidence["status"] == "not_enough_liquidity"
     assert evidence["trustedForExecution"] is False
     assert evidence["readyForTransactionPreflight"] is False
-    assert evidence["executionTrust"] == "static_reference_only"
+    assert evidence["executionTrust"] == "not_enough_liquidity"
     assert len(evidence["hops"]) == 1
     assert evidence["hops"][0]["status"] == "not_enough_liquidity"
     assert evidence["hops"][0]["executionTrust"] == "not_enough_liquidity"
@@ -386,6 +394,104 @@ def test_robinhood_testnet_closed_loop_v4_route_probes_size_without_route_metada
     assert evidence["status"] == "live_verified"
 
 
+def test_robinhood_testnet_skip_probe_uses_small_default_amount_without_reference(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    captured_amounts = []
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+
+    def fake_quote_hop_provider(*, step, amount_in_raw, block_number, **kwargs):
+        captured_amounts.append(int(amount_in_raw))
+        amount_out_raw = int(amount_in_raw) + 1
+        return {
+            "status": "live_verified",
+            "quoteMethod": "fake_quote",
+            "pool": step.get("pool"),
+            "tokenIn": step.get("tokenIn"),
+            "tokenOut": step.get("tokenOut"),
+            "fee": step.get("fee") or 0,
+            "amountInRaw": str(amount_in_raw),
+            "amountOutRaw": str(amount_out_raw),
+            "amountIn": "1",
+            "amountOut": "2",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "priceImpactBps": 0,
+        }
+
+    route = {
+        "network": "robinhood-testnet",
+        "routeSymbols": ["ETH", "A", "B", "ETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "protocol": "uniswap_v4",
+                    "token0": "0x0000000000000000000000000000000000000000",
+                    "token1": "0x" + "2" * 40,
+                    "token0Symbol": "ETH",
+                    "token1Symbol": "A",
+                    "token0Decimals": 18,
+                    "token1Decimals": 18,
+                },
+                {
+                    "pool": "0x" + "2" * 40,
+                    "protocol": "uniswap_v4",
+                    "token0": "0x" + "2" * 40,
+                    "token1": "0x" + "3" * 40,
+                    "token0Symbol": "A",
+                    "token1Symbol": "B",
+                    "token0Decimals": 18,
+                    "token1Decimals": 18,
+                },
+                {
+                    "pool": "0x" + "3" * 40,
+                    "protocol": "uniswap_v4",
+                    "token0": "0x" + "3" * 40,
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token0Symbol": "B",
+                    "token1Symbol": "ETH",
+                    "token0Decimals": 18,
+                    "token1Decimals": 18,
+                },
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "inputSymbol": "ETH",
+            "outputSymbol": "ETH",
+            "complete": True,
+            "steps": [
+                {"hop": 1, "fromSymbol": "ETH", "toSymbol": "A", "protocol": "uniswap_v4", "pool": "0x" + "1" * 40, "tokenIn": "0x0000000000000000000000000000000000000000", "tokenOut": "0x" + "2" * 40, "fee": 100},
+                {"hop": 2, "fromSymbol": "A", "toSymbol": "B", "protocol": "uniswap_v4", "pool": "0x" + "2" * 40, "tokenIn": "0x" + "2" * 40, "tokenOut": "0x" + "3" * 40, "fee": 3000},
+                {"hop": 3, "fromSymbol": "B", "toSymbol": "ETH", "protocol": "uniswap_v4", "pool": "0x" + "3" * 40, "tokenIn": "0x" + "3" * 40, "tokenOut": "0x0000000000000000000000000000000000000000", "fee": 500},
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=fake_quote_hop_provider,
+        skip_execution_size_probe=True,
+    )
+
+    assert captured_amounts[0] == 100000000000000000
+    assert evidence["selectedBorrowInputAmountRaw"] == "100000000000000000"
+    assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000000"
+
+
 def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_quote(monkeypatch):
     class FakeEth:
         block_number = 123
@@ -472,9 +578,9 @@ def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_qu
     )
 
     assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000"
-    assert evidence["selectedBorrowInputAmountRaw"] == "1500000000000000000"
-    assert evidence["hops"][0]["amountInRaw"] == "1500000000000000000"
-    assert captured_amounts[-3] == 1500000000000000000
+    assert evidence["selectedBorrowInputAmountRaw"] == "1999000310897827147"
+    assert evidence["hops"][0]["amountInRaw"] == "1999000310897827147"
+    assert captured_amounts[-3] == 1999000310897827147
     assert evidence["status"] == "live_verified"
 
 
@@ -640,7 +746,7 @@ def test_route_size_advice_prefers_offchain_recommended_borrow_amount():
     assert recommended_raw == 250
 
 
-def test_route_execution_probe_stops_after_ten_half_size_attempts_when_never_eligible(monkeypatch):
+def test_route_execution_probe_halves_unprofitable_starting_amounts_until_exhausted(monkeypatch):
     attempted = []
 
     def fake_build_route_onchain_evidence(*args, **kwargs):
@@ -673,11 +779,12 @@ def test_route_execution_probe_stops_after_ten_half_size_attempts_when_never_eli
 
     assert probe["status"] == "route_execution_size_probe_unexecutable"
     assert probe["searchStatus"] == "not_profitable_after_costs"
-    assert probe["probeAttempts"] == 1
-    assert attempted == [10**12]
+    assert probe["probeAttempts"] == 24
+    assert len(attempted) == 24
+    assert attempted[0] == 10**12
 
 
-def test_route_execution_probe_does_not_reduce_low_slippage_unprofitable_amount(monkeypatch):
+def test_route_execution_probe_halves_low_slippage_unprofitable_amount(monkeypatch):
     attempted = []
 
     def fake_build_route_onchain_evidence(*args, **kwargs):
@@ -707,8 +814,47 @@ def test_route_execution_probe_does_not_reduce_low_slippage_unprofitable_amount(
     )
 
     assert probe["searchStatus"] == "not_profitable_after_costs"
-    assert probe["probeAttempts"] == 1
-    assert attempted == [100]
+    assert probe["probeAttempts"] == 7
+    assert attempted == [100, 50, 25, 12, 6, 3, 1]
+
+
+def test_route_execution_probe_finds_smaller_profitable_amount_after_large_unprofitable_probe(monkeypatch):
+    attempted = []
+
+    def fake_build_route_onchain_evidence(*args, **kwargs):
+        amount_raw = int(kwargs["borrow_input_amount_override_raw"])
+        attempted.append(amount_raw)
+        return {
+            "status": "live_verified" if amount_raw <= 50 else "route_unprofitable",
+            "validation": {
+                "allHopsQuoted": True,
+                "routeClosed": True,
+                "tokenContinuity": True,
+                "profitableAfterCosts": amount_raw <= 50,
+                "allHopsWithinPriceImpactLimit": True,
+            },
+            "costModel": {"netProfitAmount": "1" if amount_raw <= 50 else "-1"},
+        }
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "build_route_onchain_evidence", fake_build_route_onchain_evidence)
+    probe = dex_onchain_quote_evidence._probe_robinhood_testnet_route_execution_size(
+        {},
+        payload={},
+        chain_id=46630,
+        observed_at="2026-09-02T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123},
+        quote_hop_provider=None,
+        requested_amount_raw=100,
+        max_attempts=24,
+    )
+
+    assert probe["status"] == "route_execution_size_probe_complete"
+    assert probe["searchStatus"] == "profitable_amount_found"
+    assert probe["selectedProfitableAmountRaw"] == "50"
+    assert probe["maxExecutableAmountRaw"] == "50"
+    assert probe["firstFailureAmountRaw"] == "51"
+    assert attempted[0] == 100
+    assert attempted[1] == 50
 
 
 def test_hop_price_impact_uses_spot_price_and_token_decimals_are_not_compared_as_amounts():
@@ -775,6 +921,35 @@ def test_robinhood_testnet_rejects_reference_v4_adapter_env(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Robinhood Testnet requires a real V4 quote adapter"):
         load_v4_sdk_adapter(network="robinhood-testnet")
+
+
+def test_robinhood_testnet_v4_live_state_failure_uses_network_label():
+    class FakeExtsload:
+        def __init__(self, slot):
+            self.slot = slot
+
+        def call(self, **kwargs):
+            return b"\x00" * 32
+
+    class FakeFunctions:
+        extsload = FakeExtsload
+
+    class FakeEth:
+        def contract(self, **kwargs):
+            return type("FakeContract", (), {"functions": FakeFunctions()})()
+
+    class FakeW3:
+        eth = FakeEth()
+
+    with pytest.raises(ValueError, match="pool manager live slot0 missing sqrtPriceX96"):
+        v4_quote_adapter._read_live_pool_state_with_w3(
+            w3=FakeW3(),
+            rpc_url="rpc",
+            pool_manager="0x" + "4" * 40,
+            pool_id="0x" + "1" * 64,
+            network="robinhood-testnet",
+            chain_id=46630,
+        )
 
 
 def test_robinhood_testnet_v4_pool_index_adapter_uses_live_pool_state(monkeypatch):

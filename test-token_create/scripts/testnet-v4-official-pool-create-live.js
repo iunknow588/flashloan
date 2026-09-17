@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const { ethers, artifacts } = require("./lib/hardhat");
+const v4Liquidity = require("./lib/v4-liquidity-common");
 
 const POOL_MANAGER_ADDRESS = ethers.getAddress("0x8366a39cc670b4001a1121b8f6a443a643e40951");
 const POSITION_MANAGER_ADDRESS = ethers.getAddress("0x58daec3116aae6d93017baaea7749052e8a04fa7");
@@ -207,6 +208,7 @@ async function main() {
 
   const fee = 3000;
   const tickSpacing = 60;
+  const [fullLower, fullUpper] = v4Liquidity.fullRangeTicks(tickSpacing);
   const rangeForTick = (tick) => {
     const aligned = Math.floor(Number(tick) / tickSpacing) * tickSpacing;
     return [aligned - tickSpacing, aligned + tickSpacing];
@@ -231,22 +233,28 @@ async function main() {
     }
 
     const key = poolKey(currency0, currency1, fee, tickSpacing, hooks);
+    const amount0 = currency0 === addressA ? pair.reserveA : pair.reserveB;
+    const amount1 = currency0 === addressA ? pair.reserveB : pair.reserveA;
+    const liquidity = v4Liquidity.fullRangeLiquidityForAmounts(sqrtPriceX96, amount0, amount1);
     try {
       const tick = await poolManager.initialize.staticCall(key, sqrtPriceX96);
       const tx = await poolManager.initialize(key, sqrtPriceX96);
       const receipt = await tx.wait();
-      console.log(`${pair.name} initialized: tick=${tick} tx=${receipt.hash}`);
-      const [lower, upper] = rangeForTick(tick);
+      console.log(`${pair.name} initialized: tick=${tick} tx=${receipt.hash} liquidity≈${ethers.formatUnits(liquidity, 0)}`);
+      const lower = fullLower;
+      const upper = fullUpper;
       actions.push(0x02);
-      actionParams.push(mintParams(key, lower, upper, toToken(1_000), owner.address));
+      actionParams.push(mintParams(key, lower, upper, liquidity, owner.address));
       actions.push(0x0d);
       actionParams.push(ethers.AbiCoder.defaultAbiCoder().encode(["address", "address"], [currency0, currency1]));
     } catch (error) {
       const message = String((error && error.message) || error);
       console.warn(`${pair.name} initialize skipped (${message.slice(0, 80)}), assuming initialized and adding liquidity`);
-      const [lower, upper] = rangeForTick(pair.fallbackTick);
+      console.log(`${pair.name} adding full-range liquidity≈${ethers.formatUnits(liquidity, 0)}`);
+      const lower = fullLower;
+      const upper = fullUpper;
       actions.push(0x02);
-      actionParams.push(mintParams(key, lower, upper, toToken(1_000), owner.address));
+      actionParams.push(mintParams(key, lower, upper, liquidity, owner.address));
       actions.push(0x0d);
       actionParams.push(ethers.AbiCoder.defaultAbiCoder().encode(["address", "address"], [currency0, currency1]));
     }

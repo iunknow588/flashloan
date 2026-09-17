@@ -685,7 +685,32 @@ def _path_candidates_from_market_observation(observation: dict[str, Any], *, cha
     candidates = [_observation_route_to_path_candidate(route, chain_id=chain_id) for route in routes]
     candidates = [candidate for candidate in candidates if candidate.get("routeTokenPath") and _route_pools(candidate)]
     candidates.sort(key=_route_score, reverse=True)
-    return candidates
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    deduped: list[dict[str, Any]] = []
+    for candidate in candidates:
+        key = _route_candidate_dedup_key(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+    deduped.sort(key=_route_score, reverse=True)
+    return deduped
+
+
+def _route_candidate_dedup_key(candidate: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+    overview_route = candidate.get("overviewRoute") if isinstance(candidate.get("overviewRoute"), dict) else {}
+    route_symbols = [
+        _norm_symbol(value)
+        for value in candidate.get("routeSymbols") or overview_route.get("pathSymbols") or []
+        if _norm_symbol(value)
+    ]
+    anchor = _norm_symbol(overview_route.get("anchorBorrowSymbol"))
+    if not anchor and route_symbols:
+        anchor = route_symbols[0]
+    mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
+    if mids and tuple(reversed(mids)) < mids:
+        mids = tuple(reversed(mids))
+    return (anchor, mids)
 
 def _route_framework_context_from_observation(
     observation: dict[str, Any],
@@ -734,6 +759,7 @@ def _overview_path_candidates(
     direct_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     routes: list[dict[str, Any]] = []
     route_keys: set[tuple[str, ...]] = set()
+    seen_loop_keys: set[tuple[str, tuple[str, ...]]] = set()
 
     def _route_key_from_route(route: dict[str, Any], *pair_keys: str) -> tuple[str, ...]:
         path_tokens = route.get("routeTokenPath") or []
@@ -816,6 +842,19 @@ def _overview_path_candidates(
                     key = _route_key_from_route(route, str(pair_xy.get("symbolPair") or ""), str(pair_yz.get("symbolPair") or ""), str(pair_zx.get("symbolPair") or ""))
                     if key in route_keys:
                         continue
+                    loop_symbols = [
+                        _norm_symbol(value)
+                        for value in route.get("routeSymbols") or (route.get("overviewRoute") or {}).get("pathSymbols") or []
+                        if _norm_symbol(value)
+                    ]
+                    loop_anchor = _norm_symbol((route.get("overviewRoute") or {}).get("anchorBorrowSymbol")) or (loop_symbols[0] if loop_symbols else "")
+                    loop_mids = tuple(loop_symbols[1:-1]) if len(loop_symbols) >= 3 and loop_symbols[0] == loop_symbols[-1] else tuple(loop_symbols)
+                    if loop_mids and tuple(reversed(loop_mids)) < loop_mids:
+                        loop_mids = tuple(reversed(loop_mids))
+                    loop_key = (loop_anchor, loop_mids)
+                    if loop_key in seen_loop_keys:
+                        continue
+                    seen_loop_keys.add(loop_key)
                     routes.append(route)
                     route_keys.add(key)
 

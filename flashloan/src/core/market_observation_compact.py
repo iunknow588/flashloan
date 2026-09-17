@@ -224,6 +224,15 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _closed_loop_dedup_key(sequence: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+    symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
+    anchor = symbols[0] if symbols else _text(sequence.get("anchorSymbol")).upper()
+    mids = tuple(symbols[1:-1]) if len(symbols) >= 3 and symbols[0] == symbols[-1] else tuple(symbols)
+    if mids and tuple(reversed(mids)) < mids:
+        mids = tuple(reversed(mids))
+    return (anchor, mids)
+
+
 def _observation_sequences_from_observation(observation: dict[str, Any]) -> list[dict[str, Any]]:
     sequences = [
         _compact_observation_sequence(sequence)
@@ -231,18 +240,28 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
         if isinstance(sequence, dict)
     ]
     if sequences:
-        return sequences
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+        deduped: list[dict[str, Any]] = []
+        for sequence in sequences:
+            identity = _closed_loop_dedup_key(sequence)
+            if not identity:
+                continue
+            if identity in seen:
+                continue
+            seen.add(identity)
+            deduped.append(sequence)
+        return deduped
     routes = [
         route
         for key in ("closedLoopRoutes", "indirectRoutes", "directClosedLoopRoutes")
         for route in observation.get(key) or []
         if isinstance(route, dict)
     ]
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, tuple[str, ...]]] = set()
     recovered: list[dict[str, Any]] = []
     for route in routes:
         sequence = _sequence_from_route(route)
-        identity = (str(sequence.get("pathText") or ""), str(sequence.get("pool") or ""))
+        identity = _closed_loop_dedup_key(sequence)
         if identity in seen:
             continue
         seen.add(identity)
@@ -273,7 +292,12 @@ def _route_pairs_from_sequence(sequence: dict[str, Any]) -> list[dict[str, Any]]
 
 def _closed_routes_from_sequences(sequences: list[dict[str, Any]]) -> list[dict[str, Any]]:
     routes: list[dict[str, Any]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
     for sequence in sequences:
+        identity = _closed_loop_dedup_key(sequence)
+        if identity in seen:
+            continue
+        seen.add(identity)
         route_pairs = _route_pairs_from_sequence(sequence)
         routes.append(
             {

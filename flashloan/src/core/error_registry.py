@@ -55,7 +55,7 @@ class ErrorDefinition:
 
 def _definition(
     key: str,
-    code: ErrorCode,
+    code: int | ErrorCode,
     domain: str,
     flow: str,
     node_id: str,
@@ -71,6 +71,65 @@ def _definition(
         domain=domain,
         flow=flow,
         node_id=node_id,
+        retryable=retryable,
+        max_attempts=max_attempts,
+        backoff_seconds=backoff_seconds,
+        manual_review=manual_review,
+    )
+
+
+CONTRACT_DEX_MODULE_OFFSET = 40_000_000
+
+CONTRACT_DEX_FLOW_CODES: dict[str, int] = {
+    "validation": 1,
+    "quote": 2,
+    "execution": 3,
+    "repayment": 4,
+    "callback": 5,
+    "sweep": 6,
+    "internal": 9,
+}
+
+CONTRACT_DEX_NODE_CODES: dict[str, int] = {
+    "request_validate": 1,
+    "flash_source_resolve": 2,
+    "adapter_resolve": 3,
+    "route_validate": 4,
+    "hop_quote": 5,
+    "swap_execute": 6,
+    "callback_verify": 7,
+    "repayment_check": 8,
+    "transfer": 9,
+    "approve": 10,
+    "reentrancy_guard": 11,
+    "owner_guard": 12,
+    "pool_guard": 13,
+    "initiator_guard": 14,
+    "paused_guard": 15,
+    "internal": 99,
+}
+
+
+def _contract_definition(
+    key: str,
+    flow: str,
+    node_id: str,
+    detail_code: int = 1,
+    *,
+    retryable: bool = False,
+    max_attempts: int = 1,
+    backoff_seconds: float = 0.0,
+    manual_review: bool = False,
+) -> ErrorDefinition:
+    flow_code = CONTRACT_DEX_FLOW_CODES[flow]
+    node_code = CONTRACT_DEX_NODE_CODES[node_id]
+    code = CONTRACT_DEX_MODULE_OFFSET + flow_code * 10_000 + node_code * 100 + detail_code
+    return _definition(
+        key,
+        code,
+        "CONTRACT.DEX",
+        flow,
+        node_id,
         retryable=retryable,
         max_attempts=max_attempts,
         backoff_seconds=backoff_seconds,
@@ -102,6 +161,24 @@ ERROR_REGISTRY: dict[str, ErrorDefinition] = {
     "DEX.ROUTE.INVALID": _definition("DEX.ROUTE.INVALID", ErrorCode.DEX_ROUTE_INVALID, "DEX", "route", "route_validation"),
     "DEX.RPC.FAILED": _definition("DEX.RPC.FAILED", ErrorCode.DEX_RPC_FAILED, "DEX", "rpc", "rpc_call", retryable=True, max_attempts=3, backoff_seconds=0.5),
     "DEX.INTERNAL": _definition("DEX.INTERNAL", ErrorCode.DEX_INTERNAL, "DEX", "system", "internal", manual_review=True),
+    "CONTRACT.DEX.VALIDATION.REQUEST_INVALID": _contract_definition("CONTRACT.DEX.VALIDATION.REQUEST_INVALID", "validation", "request_validate"),
+    "CONTRACT.DEX.VALIDATION.FLASH_SOURCE_MISSING": _contract_definition("CONTRACT.DEX.VALIDATION.FLASH_SOURCE_MISSING", "validation", "flash_source_resolve"),
+    "CONTRACT.DEX.VALIDATION.ROUTE_INVALID": _contract_definition("CONTRACT.DEX.VALIDATION.ROUTE_INVALID", "validation", "route_validate"),
+    "CONTRACT.DEX.QUOTE.ADAPTER_MISSING": _contract_definition("CONTRACT.DEX.QUOTE.ADAPTER_MISSING", "quote", "adapter_resolve"),
+    "CONTRACT.DEX.QUOTE.HOP_QUOTE.POOL_NOT_INITIALIZED": _contract_definition("CONTRACT.DEX.QUOTE.HOP_QUOTE.POOL_NOT_INITIALIZED", "quote", "hop_quote", 1, manual_review=True),
+    "CONTRACT.DEX.QUOTE.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY": _contract_definition("CONTRACT.DEX.QUOTE.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY", "quote", "hop_quote", 2, manual_review=True),
+    "CONTRACT.DEX.QUOTE.HOP_QUOTE.QUOTER_FAILED": _contract_definition("CONTRACT.DEX.QUOTE.HOP_QUOTE.QUOTER_FAILED", "quote", "hop_quote", 3, retryable=True, max_attempts=2, backoff_seconds=1.0),
+    "CONTRACT.DEX.EXECUTION.ROUTER_CALL_FAILED": _contract_definition("CONTRACT.DEX.EXECUTION.ROUTER_CALL_FAILED", "execution", "swap_execute", manual_review=True),
+    "CONTRACT.DEX.EXECUTION.APPROVE_FAILED": _contract_definition("CONTRACT.DEX.EXECUTION.APPROVE_FAILED", "execution", "approve", retryable=True, max_attempts=2, backoff_seconds=0.5),
+    "CONTRACT.DEX.EXECUTION.TRANSFER_FAILED": _contract_definition("CONTRACT.DEX.EXECUTION.TRANSFER_FAILED", "execution", "transfer", manual_review=True),
+    "CONTRACT.DEX.EXECUTION.REENTRANCY": _contract_definition("CONTRACT.DEX.EXECUTION.REENTRANCY", "execution", "reentrancy_guard"),
+    "CONTRACT.DEX.EXECUTION.NOT_OWNER": _contract_definition("CONTRACT.DEX.EXECUTION.NOT_OWNER", "execution", "owner_guard"),
+    "CONTRACT.DEX.EXECUTION.PAUSED": _contract_definition("CONTRACT.DEX.EXECUTION.PAUSED", "execution", "paused_guard"),
+    "CONTRACT.DEX.CALLBACK.BAD_FLASH_CALLBACK": _contract_definition("CONTRACT.DEX.CALLBACK.BAD_FLASH_CALLBACK", "callback", "callback_verify"),
+    "CONTRACT.DEX.CALLBACK.NOT_POOL": _contract_definition("CONTRACT.DEX.CALLBACK.NOT_POOL", "callback", "pool_guard"),
+    "CONTRACT.DEX.CALLBACK.BAD_INITIATOR": _contract_definition("CONTRACT.DEX.CALLBACK.BAD_INITIATOR", "callback", "initiator_guard"),
+    "CONTRACT.DEX.REPAYMENT.INSUFFICIENT": _contract_definition("CONTRACT.DEX.REPAYMENT.INSUFFICIENT", "repayment", "repayment_check", manual_review=True),
+    "CONTRACT.DEX.INTERNAL": _contract_definition("CONTRACT.DEX.INTERNAL", "internal", "internal", manual_review=True),
 }
 
 LEGACY_ERROR_KEYS: dict[str, str] = {
@@ -134,10 +211,22 @@ def resolve_error_definition(error_key: str | None) -> ErrorDefinition:
     return ERROR_REGISTRY[mapped]
 
 
+def contract_dex_error_codes() -> dict[str, int]:
+    return {
+        key: definition.code
+        for key, definition in ERROR_REGISTRY.items()
+        if definition.domain == "CONTRACT.DEX"
+    }
+
+
 __all__ = [
+    "CONTRACT_DEX_MODULE_OFFSET",
+    "CONTRACT_DEX_FLOW_CODES",
+    "CONTRACT_DEX_NODE_CODES",
     "ERROR_REGISTRY",
     "ErrorCode",
     "ErrorDefinition",
     "LEGACY_ERROR_KEYS",
+    "contract_dex_error_codes",
     "resolve_error_definition",
 ]
