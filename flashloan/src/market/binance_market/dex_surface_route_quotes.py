@@ -317,6 +317,8 @@ def _edge_quote(
                 "quoteMode": "uniswap_v4_sdk_exact_input_single",
                 "adapterRequired": True,
                 "warning": "uniswap_v4_sdk_adapter_required",
+                "tokenDecimalsTrusted": False,
+                "tokenDecimalAssumption": "missing_token_decimals_no_assumption",
             }
         quote["quoteSource"] = "uniswap_v4_sdk_adapter_required"
         quote["executionTrust"] = "sdk_adapter_required"
@@ -600,13 +602,13 @@ def _route_quote_analysis(
     adapter_required = any(step.get("executionTrust") == "sdk_adapter_required" for step in steps)
     requires_live_quoter = requires_live_quoter or adapter_required
     untrusted_usd_reference = any(step.get("trustedUsdPrice") is False for step in steps)
-    assumed_token_decimals = any(step.get("tokenDecimalsTrusted") is False for step in steps)
+    assumed_token_decimals = any(step.get("tokenDecimalsTrusted") is not True for step in steps)
     if requires_live_quoter:
         warnings.append("reference_price_step_requires_live_quoter")
     if untrusted_usd_reference:
         warnings.append("reference_usd_price_missing_or_untrusted")
     if assumed_token_decimals:
-        warnings.append("v4_token_decimals_missing_or_assumed")
+        warnings.append("v4_token_decimals_missing_requires_metadata")
     reference_final_output_usd = current_usd if complete and not untrusted_usd_reference else None
     reference_gross_profit_usd = (reference_final_output_usd - notional_usd) if reference_final_output_usd is not None else None
     flash_loan_fee_usd = notional_usd * DEFAULT_FLASH_LOAN_FEE_BPS / 10_000.0
@@ -716,7 +718,7 @@ def _route_quote_analysis(
         action = (
             f"{input_symbol} 本位参考收益为正，待链上复核"
             if untrusted_usd_reference and token_basis_profitable and input_symbol
-            else f"{input_symbol} 本位按 decimals 假设为正，待确认"
+            else f"{input_symbol} 本位收益未确认，缺少精确 decimals，不能按默认值假设"
             if untrusted_usd_reference and token_basis_reference_profitable and assumed_token_decimals and input_symbol
             else f"{input_symbol} 本位参考收益为负，待链上复核"
             if untrusted_usd_reference and token_basis_complete and input_symbol
@@ -764,7 +766,7 @@ def _route_quote_analysis(
             ]
         if assumed_token_decimals:
             reasons = [
-                "部分 V4 token decimals 未在本地 PoolKey 数据中明示，当前 X 本位数量按 18 位 decimals 参考换算",
+                "部分 V4 token decimals 未在本地 PoolKey 数据中明示，当前 X 本位数量不按 18 位默认值换算，必须先补齐精确 decimals",
                 *reasons,
             ]
         if non_stable_chain_submission_candidate:

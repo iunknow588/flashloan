@@ -1,7 +1,8 @@
 {
   "borrowableSymbols": [
     "USDG",
-    "WETH"
+    "WETH",
+    "WETH:USDG"
   ],
   "chainSpecificObservationPairs": [],
   "chain_id": 4663,
@@ -43,10 +44,13 @@
   "exists": true,
   "flashLoanLiquidity": {
     "available_protocols": [
-      "morpho_blue"
+      "morpho_blue",
+      "uniswap_v2"
     ],
     "chain_id": 4663,
-    "flash_swap_protocols": [],
+    "flash_swap_protocols": [
+      "uniswap_v2"
+    ],
     "has_flashloan_liquidity": true,
     "native_flashloan_protocols": [
       "morpho_blue"
@@ -55,11 +59,6 @@
       {
         "display_name": "Aave V3",
         "protocol": "aave_v3",
-        "removed_reason": "protocol_pool_cache_not_available"
-      },
-      {
-        "display_name": "Uniswap V2",
-        "protocol": "uniswap_v2",
         "removed_reason": "protocol_pool_cache_not_available"
       },
       {
@@ -76,10 +75,10 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-11T00:00:04.129711Z",
+  "generated_at": "2026-09-18T12:44:55.391600Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
-    "borrowableSymbols": 2,
+    "borrowableSymbols": 3,
     "chainSpecificObservationPairs": 0,
     "closedLoopRouteSummaries": 0,
     "observationAnchorSymbols": 2
@@ -97,17 +96,13 @@
     "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
     "chainId": 4663,
     "exists": true,
-    "factory": null,
-    "generatedAt": "2026-08-22T09:32:07.635581+00:00",
-    "generatedBlockNumber": null,
-    "mode": "robinhood-candidate-cache-v1",
+    "generatedAt": "2026-09-11T03:28:22.941005Z",
+    "generatedBlockNumber": 59938454,
+    "mode": "robinhood-v4-pool-index-v1",
     "network": "robinhood",
     "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
-    "quoter": null,
-    "router": null,
-    "sourceDiscoveryBlockNumber": null,
-    "sourceDiscoveryFetchedAt": null,
-    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src_bot\\runtime\\cache\\robinhood_dex_market_pools.json"
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "sourcePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood\\v4_pool_index\\latest.json"
   },
   "processing": {
     "allowed_protocols": [
@@ -144,18 +139,18 @@
   "source": "dex_market_observation_payload",
   "storage_root": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation",
   "summary": {
-    "borrowableTokenCount": 2,
+    "borrowableTokenCount": 3,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
     "candidateObservationDirectCount": 0,
-    "candidateObservationGroupCount": 3,
+    "candidateObservationGroupCount": 0,
     "candidateObservationPoolCount": 0,
     "candidateObservationSequenceCount": 0,
     "chainSpecificObservationSequenceCount": 0,
     "closedLoopRouteCount": 0,
     "directClosedLoopCount": 0,
-    "directPairCount": 2,
+    "directPairCount": 0,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
     "fundAnchorPairObservationAssociatedObservationTokenCount": 0,
     "fundAnchorPairObservationAssociatedPairCount": 0,
@@ -167,7 +162,7 @@
     "nonEthPairFirstAssociatedPairCount": 0,
     "nonEthPairFirstPoolCount": 0,
     "nonEthPairFirstRouteCount": 0,
-    "observableTokenCount": 3,
+    "observableTokenCount": 0,
     "observationAnchorCount": 2,
     "observationSequenceAnchorCount": 0,
     "observationSequenceCount": 0,

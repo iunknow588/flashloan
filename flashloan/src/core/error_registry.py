@@ -37,6 +37,7 @@ class ErrorCode(IntEnum):
     DEX_GATE_NOT_READY = 3006
     DEX_ROUTE_INVALID = 3007
     DEX_RPC_FAILED = 3008
+    DEX_RPC_TIMEOUT = 3009
     DEX_INTERNAL = 3099
 
 
@@ -160,6 +161,7 @@ ERROR_REGISTRY: dict[str, ErrorDefinition] = {
     "DEX.GATE.NOT_READY": _definition("DEX.GATE.NOT_READY", ErrorCode.DEX_GATE_NOT_READY, "DEX", "preflight", "execution_gate", manual_review=True),
     "DEX.ROUTE.INVALID": _definition("DEX.ROUTE.INVALID", ErrorCode.DEX_ROUTE_INVALID, "DEX", "route", "route_validation"),
     "DEX.RPC.FAILED": _definition("DEX.RPC.FAILED", ErrorCode.DEX_RPC_FAILED, "DEX", "rpc", "rpc_call", retryable=True, max_attempts=3, backoff_seconds=0.5),
+    "DEX.RPC.TIMEOUT": _definition("DEX.RPC.TIMEOUT", ErrorCode.DEX_RPC_TIMEOUT, "DEX", "rpc", "rpc_timeout", retryable=True, max_attempts=3, backoff_seconds=1.0),
     "DEX.INTERNAL": _definition("DEX.INTERNAL", ErrorCode.DEX_INTERNAL, "DEX", "system", "internal", manual_review=True),
     "CONTRACT.DEX.VALIDATION.REQUEST_INVALID": _contract_definition("CONTRACT.DEX.VALIDATION.REQUEST_INVALID", "validation", "request_validate"),
     "CONTRACT.DEX.VALIDATION.FLASH_SOURCE_MISSING": _contract_definition("CONTRACT.DEX.VALIDATION.FLASH_SOURCE_MISSING", "validation", "flash_source_resolve"),
@@ -199,6 +201,7 @@ LEGACY_ERROR_KEYS: dict[str, str] = {
     "route_unprofitable": "DEX.SIZE_PROBE.NOT_PROFITABLE_AFTER_COSTS",
     "execution_reverted": "BOT.EXECUTION.SUBMISSION_REVERTED",
     "rpc": "DEX.RPC.FAILED",
+    "rpc_timeout": "DEX.RPC.TIMEOUT",
     "risk_blocked": "DEX.GATE.NOT_READY",
 }
 

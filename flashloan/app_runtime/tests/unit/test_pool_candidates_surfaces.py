@@ -3,6 +3,7 @@ import pytest
 from market.binance_market import quote_service
 from market.binance_market import pool_candidates
 from market.binance_market import dex_surfaces
+from market.binance_market.dex_surface_v4 import _v4_spot_rate
 from market.binance_market.candidate_pool_cache import store as candidate_pool_cache_store
 from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_candidate_groups
 from dex.intent_trade.chains.robinhood_testnet import market_observation as robinhood_testnet_market_observation
@@ -13,6 +14,19 @@ def _write_json(path, payload):
     import json
 
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_v4_spot_rate_does_not_assume_missing_token_decimals():
+    pool = {
+        "dex": "uniswap_v4",
+        "protocol": "uniswap_v4",
+        "token0": "0x" + "0" * 40,
+        "token1": "0x" + "2" * 40,
+        "token0Symbol": "ETH",
+        "token1Symbol": "TKN",
+        "sqrtPriceX96": str(2**96),
+    }
+    assert _v4_spot_rate(pool, "ETH", "TKN") is None
 
 
 @pytest.fixture(autouse=True)

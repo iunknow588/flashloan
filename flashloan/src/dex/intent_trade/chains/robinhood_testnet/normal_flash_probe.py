@@ -104,10 +104,6 @@ def _load_plan() -> dict[str, Any]:
     return _read_json(chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "chain_test"))
 
 
-def _load_liquidity() -> dict[str, Any]:
-    return _read_json(chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_liquidity"))
-
-
 def _plan_route_hops(plan: dict[str, Any]) -> list[dict[str, Any]]:
     preflight = _as_dict(plan.get("preflightSpec"))
     return [item for item in _as_list(preflight.get("routeHops")) if isinstance(item, dict)]
@@ -214,7 +210,7 @@ def _resolve_probe_token_and_amount(
         amount_raw = _int(first_hop.get("amountInRaw"))
     if amount_raw is None:
         amount_raw = 0
-    decimals = _int(first_hop.get("inputDecimals")) or _int(first_hop.get("outputDecimals")) or 18
+    decimals = _int(first_hop.get("inputDecimals")) or _int(first_hop.get("outputDecimals")) or None
     source_rows = _source_rows(liquidity, pool_manager=pool_manager)
     source_row = _best_source_row(source_rows, token_address=token_address, token_symbol=token_symbol)
     if not token_address:
@@ -272,7 +268,8 @@ def resolve_robinhood_testnet_normal_flash_probe(
     chain_metadata = chain_metadata or {}
     contracts_metadata = contracts_metadata or {}
     chain_test_plan = chain_test_plan or _load_plan()
-    v4_pool_liquidity = v4_pool_liquidity or _load_liquidity()
+    if v4_pool_liquidity is None:
+        v4_pool_liquidity = {}
     pool_manager = (
         _normalize_address(_as_dict(chain_row.get("contracts")).get("v4_pool_manager"))
         or _normalize_address(_as_dict(chain_metadata.get("contracts")).get("v4_pool_manager"))

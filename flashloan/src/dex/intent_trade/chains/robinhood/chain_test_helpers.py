@@ -20,12 +20,6 @@ from market.binance_market.dex_surfaces import DEFAULT_GAS_RESERVE_USD
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT = SRC_ROOT / "dex" / "runtime" / "cache" / "dex_opportunity_snapshot.json"
-_TOKEN_DECIMALS_FALLBACK = {
-    "ETH": 18,
-    "WETH": 18,
-    "BTC": 8,
-    "WBTC": 8,
-}
 _STABLE_SYMBOLS = {"AUSD", "BUSD", "DAI", "FDUSD", "FRAX", "PYUSD", "RLUSD", "USDC", "USDD", "USDE", "USDG", "USDT"}
 _ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
@@ -82,17 +76,21 @@ def _positive_number(value: object) -> bool | None:
 
 
 def _raw_from_human(value: object, decimals: int | None) -> int | None:
+    if decimals is None:
+        raise ValueError("missing exact token decimals for _raw_from_human")
     parsed = _decimal(value)
     if parsed is None or parsed <= 0:
         return None
-    scale = Decimal(10) ** int(decimals if decimals is not None else 18)
+    scale = Decimal(10) ** int(decimals)
     return int((parsed * scale).to_integral_value())
 
 
 def _human_from_raw(value: int | None, decimals: int | None) -> str:
+    if decimals is None:
+        raise ValueError("missing exact token decimals for _human_from_raw")
     if value is None:
         return ""
-    scale = Decimal(10) ** int(decimals if decimals is not None else 18)
+    scale = Decimal(10) ** int(decimals)
     return format((Decimal(int(value)) / scale).normalize(), "f")
 
 
@@ -109,16 +107,11 @@ def _quote_pool_index(quote: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return mapping
 
 
-def _symbol_decimals(symbol: object, *, network: str) -> int:
-    normalized = _text(symbol).upper()
-    if normalized in _TOKEN_DECIMALS_FALLBACK:
-        return _TOKEN_DECIMALS_FALLBACK[normalized]
-    if normalized in _STABLE_SYMBOLS:
-        return 18 if network == ROBINHOOD_TESTNET_NETWORK else 6
-    return 18
+def _symbol_decimals(symbol: object, *, network: str) -> int | None:
+    return None
 
 
-def _hop_decimals(hop: dict[str, Any], pool: dict[str, Any], *, side: str, network: str) -> int:
+def _hop_decimals(hop: dict[str, Any], pool: dict[str, Any], *, side: str, network: str) -> int | None:
     decimals_key = "inputDecimals" if side == "in" else "outputDecimals"
     direct = hop.get(decimals_key)
     try:
@@ -166,6 +159,11 @@ def _normalized_hop_rows(*, quote: dict[str, Any], evidence: dict[str, Any], net
         pool = pools.get(_text(hop.get("pool")).lower(), {})
         in_decimals = _hop_decimals(hop, pool, side="in", network=network)
         out_decimals = _hop_decimals(hop, pool, side="out", network=network)
+        if in_decimals is None or out_decimals is None:
+            raise ValueError(
+                f"missing exact token decimals for hop {hop.get('hop') or index} "
+                f"{hop.get('fromSymbol')}->{hop.get('toSymbol')}"
+            )
         amount_in_raw = _int_or_none(hop.get("amountInRaw"))
         if amount_in_raw is None:
             amount_in_raw = _raw_from_human(hop.get("inputAmount") or hop.get("amountIn") or hop.get("referenceInputAmount"), in_decimals)
@@ -406,7 +404,7 @@ def _repayment_constraint(
     first_hop = hops[0] if hops and isinstance(hops[0], dict) else {}
     last_hop = hops[-1] if hops and isinstance(hops[-1], dict) else {}
     principal_raw = _int_or_none(first_hop.get("amountInRaw"))
-    decimals = _int_or_none(first_hop.get("inputDecimals")) or 18
+    decimals = _int_or_none(first_hop.get("inputDecimals"))
     borrow_symbol = _text(first_hop.get("fromSymbol"))
     basis = _profit_basis(cost_model, borrow_symbol)
     repay_raw = None
@@ -417,6 +415,8 @@ def _repayment_constraint(
         gas_reserve_raw = 0
         min_profit_rule = "positive_x_profit_min_raw_unit"
     else:
+        if decimals is None:
+            raise ValueError(f"missing exact token decimals for borrow token {borrow_symbol}")
         min_profit_raw = _raw_from_human(
             cost_model.get("minProfitUsd") or DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD,
             decimals,

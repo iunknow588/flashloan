@@ -525,13 +525,19 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
             balance_raw = 0
         if balance_raw <= 0:
             continue
+        entry_decimals = entry.get("decimals")
+        pool_manager_balance = (
+            balance_raw / 10 ** int(entry_decimals)
+            if entry_decimals is not None
+            else None
+        )
         configured_sources.append(
             {
                 "address": entry.get("address") or address,
                 "symbol": entry.get("symbol"),
-                "decimals": entry.get("decimals"),
+                "decimals": entry_decimals,
                 "poolManagerBalanceRaw": str(balance_raw),
-                "poolManagerBalance": balance_raw / 10 ** int(entry.get("decimals") or 18),
+                "poolManagerBalance": pool_manager_balance,
                 "poolIds": entry.get("poolIds") or [],
                 "source": "token_balance_scan_cache",
             }

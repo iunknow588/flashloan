@@ -246,8 +246,22 @@ def _slot_quote(
     token_x, token_y = Web3.to_checksum_address(entry["tokenX"]), Web3.to_checksum_address(entry["tokenY"])
     try:
         snapshot = snapshot_v3_pool(w3, pool)
-        amount_x = usdc_amount if token_x.lower() == Web3.to_checksum_address(str(entry["tokenX"])).lower() and _base_symbol(entry.get("tokenX_symbol")) == "USDC" else 10 ** int(pool_row.get("token0_decimals") if snapshot.token0.lower() == token_x.lower() else pool_row.get("token1_decimals") or 18)
-        amount_y = usdc_amount if _base_symbol(entry.get("tokenY_symbol")) == "USDC" else 10 ** int(pool_row.get("token1_decimals") if snapshot.token1.lower() == token_y.lower() else pool_row.get("token0_decimals") or 18)
+        token_x_is_usdc = token_x.lower() == Web3.to_checksum_address(str(entry["tokenX"])).lower() and _base_symbol(entry.get("tokenX_symbol")) == "USDC"
+        token_y_is_usdc = _base_symbol(entry.get("tokenY_symbol")) == "USDC"
+        if token_x_is_usdc:
+            amount_x = usdc_amount
+        else:
+            token_x_decimals = pool_row.get("token0_decimals") if snapshot.token0.lower() == token_x.lower() else pool_row.get("token1_decimals")
+            if token_x_decimals is None:
+                raise ValueError(f"missing exact token decimals for {_base_symbol(entry.get('tokenX_symbol'))} at {pool}")
+            amount_x = 10 ** int(token_x_decimals)
+        if token_y_is_usdc:
+            amount_y = usdc_amount
+        else:
+            token_y_decimals = pool_row.get("token1_decimals") if snapshot.token1.lower() == token_y.lower() else pool_row.get("token0_decimals")
+            if token_y_decimals is None:
+                raise ValueError(f"missing exact token decimals for {_base_symbol(entry.get('tokenY_symbol'))} at {pool}")
+            amount_y = 10 ** int(token_y_decimals)
         x_to_y, _, _, gas_xy = quote_v3_exact_input_single(w3, quoter, token_x, token_y, snapshot.fee, amount_x)
         y_to_x, _, _, gas_yx = quote_v3_exact_input_single(w3, quoter, token_y, token_x, snapshot.fee, amount_y)
         report.update(

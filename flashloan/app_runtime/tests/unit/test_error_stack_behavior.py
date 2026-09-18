@@ -2,6 +2,7 @@ from core.api_response_contract import error_response, success_response
 from core.error_registry import ErrorCode, contract_dex_error_codes
 from core.error_stack import ErrorStack, ModuleError
 from core.errors import error_payload
+from dex.error_stack import _STATUS_CODES
 from bot.execution.revert_parser import parse_revert_reason
 from bot.liquidation.route_response import classify_liquidation_payload_block
 
@@ -44,6 +45,12 @@ def test_error_payload_preserves_legacy_fields_and_adds_global_stack():
     assert payload["errorStack"][0]["module"] == "DEX"
     assert payload["errorStack"][0]["message"] == "timeout"
     assert payload["retry"]["retryable"] is True
+
+
+def test_rpc_timeout_evidence_status_has_distinct_error_code():
+    assert _STATUS_CODES["rpc_verification_timeout"] == ErrorCode.DEX_RPC_TIMEOUT
+    assert _STATUS_CODES["rpc_verification_failed"] == ErrorCode.DEX_RPC_FAILED
+    assert ErrorCode.DEX_RPC_TIMEOUT != ErrorCode.DEX_RPC_FAILED
 
 
 def test_api_response_contract_accepts_error_stack():

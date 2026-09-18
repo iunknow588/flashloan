@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
@@ -13,6 +14,7 @@ from typing import Any, Callable
 
 from core.chain_data_registry import chain_data_by_chain_id
 from core.env_loader import local_json_only_enabled
+from core.parameter_config import LEGACY_STRATEGY_CONFIG_PATHS, STRATEGY_CONFIG_PATH, read_json_parameter
 from market.binance_market.dex_surfaces import dex_overview_payload, dex_quote_routes_payload
 from dex.runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, capture_onchain_trigger_context
 from dex.runtime.dex_opportunity_helpers import (
@@ -45,6 +47,23 @@ CACHE_PATH = Path(__file__).resolve().parent / "cache" / "dex_opportunity_snapsh
 _SCANNER: DexOpportunityScanner | None = None
 _SCANNER_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
+
+
+def _scanner_snapshot_ttl_seconds() -> float:
+    raw = os.getenv("DEX_OPPORTUNITY_SNAPSHOT_MAX_AGE_SECONDS", "600")
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return 600.0
+
+
+def _scanner_evidence_worker_count() -> int:
+    saved = read_json_parameter(STRATEGY_CONFIG_PATH, legacy_paths=LEGACY_STRATEGY_CONFIG_PATHS) or {}
+    raw = saved.get("DEX_SCAN_WORKERS", 1)
+    try:
+        return max(1, int(float(raw)))
+    except (TypeError, ValueError):
+        return 1
 
 
 def _is_robinhood_family_network(chain_id: int | None) -> bool:
@@ -158,12 +177,45 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
 
 
 def _evidence_provider_with_timeout(evidence_provider, timeout_seconds: float, *args, **kwargs):
-    """Run one on-chain evidence pass synchronously.
+    """Run one on-chain evidence pass with a real watchdog timeout.
 
-    Route/quote work must stay single-threaded.  RPC-side timeouts are handled
-    by the Web3/quoter layers instead of a watchdog thread.
+    The quoter already has its own internal RPC timeouts, but a stuck
+    testnet RPC connection can still outlive the scanner budget.  When that
+    happens we return a structured timeout evidence instead of letting the
+    review hang until a lower layer gives up.
     """
-    return evidence_provider(*args, **kwargs)
+    if timeout_seconds <= 0:
+        return evidence_provider(*args, **kwargs)
+    route = args[0] if args else kwargs.get("route") or {}
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(evidence_provider, *args, **kwargs)
+    timed_out = False
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FutureTimeoutError:
+        timed_out = True
+        return {
+            "status": "rpc_verification_timeout",
+            "executionTrust": "rpc_verification_timeout",
+            "trustedForExecution": False,
+            "blockers": [
+                f"on-chain evidence timed out after {timeout_seconds:.1f}s"
+            ],
+            "routeSymbols": route.get("routeSymbols") or route.get("symbols") or [],
+            "routeAddresses": route.get("routeAddresses") or route.get("addresses") or [],
+            "hops": [],
+            "costModel": {},
+            "transactionDevelopment": {},
+            "errorStack": [
+                {
+                    "module": "DEX",
+                    "code": "rpc_verification_timeout",
+                    "message": f"on-chain evidence timed out after {timeout_seconds:.1f}s",
+                }
+            ],
+        }
+    finally:
+        executor.shutdown(wait=not timed_out)
 
 
 def _reference_only_quote_payload(**kwargs):
@@ -268,9 +320,10 @@ def build_dex_opportunity_attempts(
     evidence_results: dict[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]] = {}
     if selected_indexes:
         evidence_timeout_seconds = max(0.0, float(os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "45") or 45))
-        for attempt_index, (original_index, route, attempt) in enumerate(selected_routes):
-            if attempt_index not in selected_indexes:
-                continue
+        requested_workers = max(1, int(evidence_workers))
+
+        def _review_one(item: tuple[int, dict[str, Any], dict[str, Any], int]) -> tuple[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]]:
+            attempt_index, route, attempt, original_index = item
             evidence = _evidence_provider_with_timeout(
                 evidence_provider,
                 evidence_timeout_seconds,
@@ -280,7 +333,27 @@ def build_dex_opportunity_attempts(
                 observed_at=observed_at,
                 trigger_context=trigger_context or {},
             )
-            evidence_results[attempt_index] = (evidence, route, attempt, original_index)
+            return attempt_index, (evidence, route, attempt, original_index)
+
+        review_items = [
+            (attempt_index, route, attempt, original_index)
+            for attempt_index, (original_index, route, attempt) in enumerate(selected_routes)
+            if attempt_index in selected_indexes
+        ]
+        if requested_workers <= 1:
+            # Default path: keep the current machine serial. This is a global,
+            # user-controlled setting; DEX_SCAN_WORKERS / evidence_workers > 1
+            # can be enabled later when the host is known to tolerate parallel
+            # RPC/quoter review.
+            for item in review_items:
+                attempt_index, result = _review_one(item)
+                evidence_results[attempt_index] = result
+        else:
+            with ThreadPoolExecutor(max_workers=requested_workers) as executor:
+                futures = [executor.submit(_review_one, item) for item in review_items]
+                for future in futures:
+                    attempt_index, result = future.result()
+                    evidence_results[attempt_index] = result
     for attempt_index, (original_index, route, attempt) in enumerate(selected_routes):
         if attempt_index in selected_indexes:
             if attempt_index in evidence_results:
@@ -329,7 +402,7 @@ class DexOpportunityScanner:
         max_recordable_routes: int | None = None,
         testnet_max_onchain_evidence_routes: int | None = None,
         evidence_workers: int = 1,
-        periodic_scan_enabled: bool = False,
+        periodic_scan_enabled: bool = True,
     ) -> None:
         self.interval_seconds = max(0.5, float(interval_seconds))
         self.periodic_scan_enabled = bool(periodic_scan_enabled)
@@ -343,7 +416,7 @@ class DexOpportunityScanner:
         self.record_opportunities = bool(record_opportunities)
         self.max_onchain_evidence_routes = max(0, int(max_onchain_evidence_routes))
         self.max_recordable_routes = None if max_recordable_routes is None else max(0, int(max_recordable_routes))
-        self.evidence_workers = max(0, int(evidence_workers))
+        self.evidence_workers = max(1, int(evidence_workers))
         self.testnet_max_onchain_evidence_routes = (
             None
             if testnet_max_onchain_evidence_routes is None
@@ -378,8 +451,21 @@ class DexOpportunityScanner:
             return
         snapshots = data.get("snapshots")
         if isinstance(snapshots, dict):
+            ttl = _scanner_snapshot_ttl_seconds()
             with self._lock:
-                self._snapshots.update(snapshots)
+                now = time.time()
+                for key, snapshot in snapshots.items():
+                    if not isinstance(snapshot, dict):
+                        continue
+                    updated_at = str(snapshot.get("updated_at") or "")
+                    if ttl > 0 and updated_at:
+                        try:
+                            parsed = datetime.fromisoformat(updated_at.replace("Z", "+00:00")).timestamp()
+                        except ValueError:
+                            parsed = None
+                        if parsed is not None and now - parsed > ttl:
+                            continue
+                    self._snapshots[key] = snapshot
         scanner = data.get("scanner")
         if isinstance(scanner, dict):
             with self._lock:
@@ -693,14 +779,12 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                     maximum=3600.0,
                 ),
                 record_opportunities=not local_only,
-                evidence_workers=int(
-                    _env_float("DEX_OPPORTUNITY_SCANNER_EVIDENCE_WORKERS", 1.0, minimum=1.0, maximum=1.0)
-                ),
+                evidence_workers=_scanner_evidence_worker_count(),
                 testnet_max_onchain_evidence_routes=int(
                     _env_float("DEX_OPPORTUNITY_TESTNET_MAX_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=1.0, maximum=1000.0)
                 ),
                 periodic_scan_enabled=str(
-                    os.getenv("DEX_OPPORTUNITY_PERIODIC_SCAN_ENABLED", "false")
+                    os.getenv("DEX_OPPORTUNITY_PERIODIC_SCAN_ENABLED", "true")
                 ).strip().lower()
                 in {"1", "true", "yes", "on"},
             )
@@ -749,7 +833,7 @@ def run_dex_opportunity_scan_now(*, chain_id: int | None = None, protocols: list
 
 def dex_opportunity_snapshot(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
     scanner = get_dex_opportunity_scanner()
-    scanner.watch(chain_id=chain_id, protocols=protocols)
+    scanner.start(chain_id=chain_id, protocols=protocols)
     return scanner.snapshot(chain_id=chain_id)
 
 

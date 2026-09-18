@@ -115,6 +115,12 @@
       const parsed = Number(value);
       return Number.isFinite(parsed) ? `${parsed < 0 ? "-" : ""}$${Math.abs(parsed).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "-";
     };
+    const snapshotAgeSeconds = (snapshotPayload) => {
+      const updatedAt = snapshotPayload?.snapshot?.updated_at || snapshotPayload?.scanner?.snapshot_updated_at || "";
+      if (!updatedAt) return Number.MAX_SAFE_INTEGER;
+      const parsed = new Date(updatedAt);
+      return Number.isNaN(parsed.getTime()) ? Number.MAX_SAFE_INTEGER : (Date.now() - parsed.getTime()) / 1000;
+    };
     const amount = (value, symbol, digits = 8) => {
       if (value === null || value === undefined || value === "") return "-";
       const parsed = Number(value);
@@ -135,6 +141,7 @@
       not_enough_liquidity: "池当前没有 LP 流动性",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
+      missing_effective_pool: "链上复核：池未初始化或缺少有效池",
       live_evidence_deferred: "链上验证已延后",
       not_reviewed_this_scan: "本轮未复核",
       requires_live_quoter: "需要链上报价器",
@@ -154,6 +161,7 @@
       live: "链上已验证",
       not_enough_liquidity: "链上复核：池当前没有 LP 流动性",
       pool_not_initialized: "链上复核：池未初始化",
+      missing_effective_pool: "链上复核：池未初始化或缺少有效池",
       live_quote_failed: "链上报价失败",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
       rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
@@ -417,6 +425,7 @@
       not_enough_liquidity: "链上复核：池当前没有 LP 流动性",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
+      missing_effective_pool: "链上复核：池未初始化或缺少有效池",
       live_evidence_deferred: "链上验证已延后",
       not_reviewed_this_scan: "链上复核未覆盖本轮预算",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
@@ -788,7 +797,10 @@
         renderClosedLoopGroups({groups: quoteRoutesPayload.closedLoopGroups});
       }
       const duration = scanner.last_duration_ms == null ? "-" : `${scanner.last_duration_ms} ms`;
-      $("message").textContent = `${scanner.running ? "扫描器运行中" : "扫描器已停止"} | ${duration} | 扫描次数 ${scanner.scan_count ?? 0}${snapshot.error ? ` | ${snapshot.error}` : ""}`;
+      const scannerState = quoteRoutesPayload?.scannerState || {};
+      const dataFreshnessLabel = scannerState.status === "stale_refresh_queued" ? " | 数据源待实时刷新" : (scannerState.status === "fresh" ? " | 数据源新鲜" : "");
+      const snapshotUpdatedLabel = scannerState.snapshotUpdatedAt ? ` | 快照 ${esc(scannerState.snapshotUpdatedAt)}` : "";
+      $("message").textContent = `${scanner.running ? "扫描器运行中" : "扫描器已停止"} | ${duration} | 扫描次数 ${scanner.scan_count ?? 0}${snapshot.error ? ` | ${snapshot.error}` : ""}${dataFreshnessLabel}${snapshotUpdatedLabel}`;
     }
     function renderClosedLoopGroups(payload) {
       const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -836,13 +848,15 @@
         if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
         if (!scanNowInFlight) {
           scanNowInFlight = true;
-          fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now", 5000)
-            .then(scanResponse => {
-              if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse);
-            })
-            .catch(error => {
-              if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
-            })
+          (async () => {
+            const rendered = snapshotAgeSeconds(response) <= 600
+              ? response
+              : await fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now?wait=1", 240000);
+            let quoteRoutesPayload = null;
+            try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
+            if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(rendered, quoteRoutesPayload);
+          })()
+            .catch(() => {})
             .finally(() => { scanNowInFlight = false; });
         }
       }
@@ -858,11 +872,17 @@
         try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
         if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(snapshot, quoteRoutesPayload);
         if (scanNowInFlight) return;
+        if (snapshotAgeSeconds(snapshot) <= 600) {
+          $("message").textContent = "当前扫描快照未过期，直接展示实时复核结果";
+          return;
+        }
         scanNowInFlight = true;
-        fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now", 5000)
-          .then(scanResponse => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse, quoteRoutesPayload);
-          })
+        (async () => {
+          const rendered = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now?wait=1", 240000);
+          let refreshedQuoteRoutesPayload = quoteRoutesPayload;
+          try { refreshedQuoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
+          if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(rendered, refreshedQuoteRoutesPayload);
+        })()
           .catch(error => {
             if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
           })
@@ -1052,10 +1072,10 @@
       const resultElement = document.querySelector(`[data-route-test-result="${index}"]`);
       return runRouteTest(latestRoutes[index], button, mode, resultElement);
     });
-    window.addEventListener("chainselectionchanged", event => { if (String(event?.detail?.selected?.feature || "").toLowerCase() !== "dex_arbitrage") return; beginSelectionRefresh("正在加载选中的链..."); refreshSnapshot(); });
-    window.addEventListener("chainselectionprotocolschanged", () => { beginSelectionRefresh("正在加载选中的 DEX..."); refreshSnapshot(); });
+    window.addEventListener("chainselectionchanged", event => { if (String(event?.detail?.selected?.feature || "").toLowerCase() !== "dex_arbitrage") return; beginSelectionRefresh("正在加载选中的链..."); refresh(); });
+    window.addEventListener("chainselectionprotocolschanged", () => { beginSelectionRefresh("正在加载选中的 DEX..."); refresh(); });
     beginSelectionRefresh("正在加载当前选择...");
-    refreshSnapshot();
+    refresh();
     function normalizeRefreshInterval(value) {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? Math.min(3600, Math.max(10, Math.floor(parsed))) : defaultRefreshIntervalSeconds;

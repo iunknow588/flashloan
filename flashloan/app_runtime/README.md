@@ -92,9 +92,48 @@ Robinhood Chain and Robinhood Testnet are separate chain data owners:
   pool display and balance scanning. Default refresh uses active pools plus
   this allowlist instead of a full initialized pool scan.
 
+### Robinhood Testnet DEX Identity And Error Semantics
+
+- Token identity for route tests and pool review must come from
+  `chains/robinhood-testnet/v4_token_allowlist.json`. A symbol is display-only;
+  on-chain quoting and pool matching use the allowlist address.
+- `ETH` means the native token `0x0000000000000000000000000000000000000000`.
+  `WETH` means the ERC20 wrapped token at
+  `0x7943e237c7F95DA44E0301572D358911207852Fa` unless the allowlist records a
+  different test WETH address. They must not be conflated by route builders.
+- Token `decimals` must come from the allowlist, a trusted chain/ERC20 read, or
+  an explicit user-provided token metadata record. Missing or unverified
+  decimals are an error: the code must not silently assume `18`.
+- Evidence failure statuses are distinct: `rpc_verification_failed` means RPC
+  could not be used, `rpc_verification_timeout` means evidence exceeded its
+  review budget, `pool_not_initialized`/`missing_effective_pool` means the pool
+  is absent or not quoteable, and `not_enough_liquidity` means the pool has no
+  LP liquidity for the requested amount.
+- The DEX evidence path checks missing pool identity before RPC, then performs a
+  live PoolManager `slot0`/`liquidity` read after connecting to the testnet RPC.
+  A missing pool or empty LP reports a concrete business error instead of a
+  45 second timeout. Cached liquidity data is not treated as live evidence.
+
+### DEX Scan Concurrency
+
+`DEX_SCAN_WORKERS` is a global user-controlled setting on the control panel,
+defaulting to `1`. It controls how many on-chain evidence review workers the
+DEX opportunity scanner uses. It is not hardcoded per testnet; users may raise
+it on a machine known to tolerate parallel RPC/quoter review.
+
+Runtime PID files should live under `runtime/logs/` or `runtime/state/` instead
+of the repository root. Do not create versioned PID files such as
+`run_server_5001_v2.pid` at the project root.
+
 Evidence and sample loading must pass scope checks for `network`, `chain_id`,
 and, when available, `market_id`. Missing Robinhood Testnet evidence should
 close the gate rather than falling back to Robinhood mainnet or Avalanche data.
+The DEX quote-routes API returns a `scannerState` object: `fresh` when the
+scanner snapshot is current, and `stale_refresh_queued` when a real-time scan
+was requested because the old snapshot was too old. The UI must not present that
+stale snapshot as live evidence. `GET /api/dex/quote-routes?wait=1` synchronously
+waits for one scanner refresh when the snapshot is stale, then returns the new
+snapshot when available or `stale_refresh_queued` after a timeout/failure.
 Run the registry audit after chain-data or flow-spec edits:
 
 ```powershell

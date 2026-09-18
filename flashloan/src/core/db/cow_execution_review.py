@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
+
+from core.chain_data_registry import chain_data_file_path
+
+_ROBINHOOD_TESTNET_NETWORK = "robinhood-testnet"
 
 
 def _market_state_summary(market_state: dict[str, Any]) -> dict[str, Any]:
@@ -164,14 +169,32 @@ def _review_route_addresses_from_list(value: Any) -> list[str]:
     return [address for address in addresses if address]
 
 
-_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = {
-    "ETH": "0x0000000000000000000000000000000000000000",
-    "WETH": "0x7943e237c7F95DA44E0301572D358911207852Fa",
-    "TZ": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-    "TA": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-    "TB": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-    "0XC9F9C8": "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-}
+def _load_robinhood_testnet_symbol_addresses() -> dict[str, str]:
+    """Build symbol->address identity from the chain-owned token allowlist.
+
+    Symbol-only route fixtures must not fall back to guessed addresses. If the
+    allowlist is unavailable, the review result stays symbol-only and cannot be
+    treated as chain-address identity.
+    """
+    mapping: dict[str, str] = {}
+    try:
+        path = chain_data_file_path(_ROBINHOOD_TESTNET_NETWORK, "v4_token_allowlist")
+        if path is None:
+            return mapping
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for item in (data.get("tokens") or {}).values():
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol") or "").strip().upper()
+            address = str(item.get("address") or "").strip()
+            if symbol and address:
+                mapping.setdefault(symbol, address)
+    except Exception:
+        mapping = {}
+    return mapping
+
+
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = _load_robinhood_testnet_symbol_addresses()
 
 
 def _review_route_addresses_from_symbols(route_symbols: list[str]) -> list[str]:
@@ -258,7 +281,7 @@ def _review_route_identity(row: dict[str, Any], quote: dict[str, Any], live_evid
         symbol_addresses = _review_route_addresses_from_symbols(route_symbols)
         if symbol_addresses:
             route_addresses = symbol_addresses
-            address_source = "robinhood_testnet_symbol_allowlist"
+            address_source = "robinhood_testnet_v4_token_allowlist"
     issues = []
     for index in range(1, len(hops)):
         previous = hops[index - 1]
@@ -343,7 +366,7 @@ def _build_review_summary(row: dict[str, Any]) -> dict[str, Any]:
         "not_enough_liquidity": "池当前没有 LP 流动性",
         "pool_not_initialized": "池未初始化",
         "rpc_verification_failed": "链上复核失败：RPC 不可用",
-        "rpc_verification_timeout": "链上复核失败：RPC 不可用",
+        "rpc_verification_timeout": "链上复核超时：RPC 未在期限内返回",
         "live_quote_failed": "链上报价未完成",
         "missing_trigger_block": "缺失复核区块",
     }

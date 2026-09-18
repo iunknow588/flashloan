@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from market.binance_market.dex_route_test import (
+    _official_route_addresses,
     _quote_failure_status,
     _step_failure_status,
     is_official_triangle_route,
@@ -19,6 +20,20 @@ def test_official_triangle_route_validation():
     assert is_official_triangle_route(["TA", "TB", "TZ", "TA"])
     assert not is_official_triangle_route(["WETH", "ETH", "0XC9F9C8", "WETH"])
     assert not is_official_triangle_route(["TZ", "TB", "TA"])
+
+
+def test_official_route_addresses_resolve_from_chain_allowlist():
+    addresses = _official_route_addresses(["WETH", "ETH", "0XC9F9C8", "WETH"])
+    assert addresses == [
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        "0x0000000000000000000000000000000000000000",
+        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    ]
+
+
+def test_official_route_addresses_rejects_unknown_symbol_instead_of_guessing():
+    assert _official_route_addresses(["WETH", "UNKNOWN_BAD_TOKEN", "WETH"]) == []
 
 
 def test_unsupported_route_returns_friendly_blocked_result():

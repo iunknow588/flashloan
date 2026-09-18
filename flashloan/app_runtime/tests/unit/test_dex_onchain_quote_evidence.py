@@ -3,12 +3,17 @@ import pytest
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
 from runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
+from runtime.dex_quote_evidence_helpers import _token_decimals
 from runtime.dex_quote_evidence_helpers import _robinhood_network_for_chain_id
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from core.error_registry import ErrorCode
 from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
+from dex.intent_trade.chains.robinhood_testnet import v4_pool_liquidity
 from dex.intent_trade.chains.robinhood_testnet import trigger_context
 from eth_abi import encode as abi_encode
+
+
+_POOL_ID = "0xea84630b" + "1ccfd69145b791334c55a7d8be1565910cb6e290c489413c977fd9c5"
 
 
 def test_robinhood_testnet_trigger_context_uses_confirmed_live_head(monkeypatch):
@@ -39,6 +44,15 @@ def test_robinhood_testnet_trigger_context_uses_confirmed_live_head(monkeypatch)
     assert context["triggerBlockNumber"] == 97
     assert context["headBlockNumber"] == 100
     assert context["blockTimestamp"] == 1_777_777_777
+
+
+def test_token_decimals_refuses_symbol_only_assumption():
+    with pytest.raises(ValueError, match="missing exact token decimals"):
+        _token_decimals(w3=None, address=None, symbol="USDC", cache={})
+
+
+def test_token_decimals_accepts_native_zero_address_without_rpc():
+    assert _token_decimals(w3=None, address="0x0000000000000000000000000000000000000000", symbol="ETH", cache={}) == 18
 
 
 def test_robinhood_network_for_chain_id_prefers_testnet_chain_metadata():
@@ -139,6 +153,9 @@ def test_v4_route_reports_not_enough_liquidity_as_business_result(monkeypatch):
     class FakeEth:
         block_number = 123
 
+        def contract(self, **kwargs):
+            return None
+
         def get_block(self, block_number):
             return {"timestamp": 1_777_777_777}
 
@@ -205,6 +222,223 @@ def test_v4_route_reports_not_enough_liquidity_as_business_result(monkeypatch):
     assert evidence["validation"]["notEnoughLiquidity"] is True
     assert any("not enough liquidity" in blocker.lower() for blocker in evidence["blockers"])
     assert evidence["hops"][0]["errorStack"][0]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
+
+
+def test_v4_route_short_circuits_no_lp_liquidity_before_rpc_connect(monkeypatch):
+    def unexpected_rpc_connect(*args, **kwargs):
+        raise AssertionError("RPC should not be contacted when liquidity is already known missing")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", unexpected_rpc_connect)
+
+    route = {
+        "symbolPair": "WETH -> ETH -> 0XC9F9C8 -> WETH",
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "dex": "uniswap_v4",
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x" + "2" * 40,
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x" + "3" * 40,
+                    "token1Decimals": 18,
+                    "network": "robinhood",
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "warnings": ["hop_1_not_enough_liquidity"],
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": "0x" + "1" * 40,
+                    "executionTrust": "not_enough_liquidity",
+                    "liveQuoteError": "robinhood testnet v4 pool manager live liquidity is zero",
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["executionTrust"] == "not_enough_liquidity"
+    assert evidence["trustedForExecution"] is False
+    assert any("no LP liquidity" in blocker for blocker in evidence["blockers"])
+
+
+def test_v4_route_short_circuits_warnings_only_no_lp_liquidity_to_business_status(monkeypatch):
+    def unexpected_rpc_connect(*args, **kwargs):
+        raise AssertionError("RPC should not be contacted when route warnings already report zero liquidity")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", unexpected_rpc_connect)
+
+    route = {
+        "symbolPair": "WETH -> ETH -> 0XC9F9C8 -> WETH",
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "dex": "uniswap_v4",
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x" + "2" * 40,
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x" + "3" * 40,
+                    "token1Decimals": 18,
+                    "network": "robinhood",
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "warnings": [
+                "hop_1_not_enough_liquidity",
+                "hop_1_live_quote_error:robinhood testnet v4 pool manager live liquidity is zero",
+                "route_truncated_at_hop_1_not_enough_liquidity",
+            ],
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": "0x" + "1" * 40,
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["executionTrust"] == "not_enough_liquidity"
+    assert any("no LP liquidity" in blocker for blocker in evidence["blockers"])
+
+
+def test_v4_route_cache_missing_pool_does_not_short_circuit_as_no_lp(monkeypatch):
+    def unexpected_rpc_connect(*args, **kwargs):
+        raise RuntimeError("rpc unavailable in test")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", unexpected_rpc_connect)
+    monkeypatch.setattr(
+        v4_pool_liquidity,
+        "load_robinhood_testnet_v4_pool_liquidity",
+        lambda: {
+            "ok": True,
+            "status": "v4_pool_liquidity_cache_available",
+            "pools": [{"poolId": "0x" + "a" * 64}],
+            "pool_keys": [],
+        },
+    )
+
+    route = {
+        "symbolPair": "WETH -> ETH -> 0XC9F9C8 -> WETH",
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": _POOL_ID,
+                    "dex": "uniswap_v4",
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token1Decimals": 18,
+                    "network": "robinhood-testnet",
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": _POOL_ID,
+                }
+            ]
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-09-17T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 120202493, "observedAt": "2026-09-17T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] not in {"not_enough_liquidity", "pool_not_initialized"}
+    assert evidence["executionTrust"] not in {"not_enough_liquidity", "pool_not_initialized"}
+    assert not any("has no LP liquidity in cached evidence" in blocker for blocker in evidence.get("blockers") or [])
+
+
+def test_v4_route_short_circuits_missing_effective_pool_before_rpc_connect(monkeypatch):
+    def unexpected_rpc_connect(*args, **kwargs):
+        raise AssertionError("RPC should not be contacted when a step has no effective pool id")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood", unexpected_rpc_connect)
+
+    route = {
+        "symbolPair": "WETH -> ETH -> 0XC9F9C8 -> WETH",
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "quoteInputs": {
+            "routePools": [],
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-09-17T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 120202493, "observedAt": "2026-09-17T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "pool_not_initialized"
+    assert evidence["executionTrust"] == "pool_not_initialized"
+    assert evidence["trustedForExecution"] is False
+    assert any("missing effective pool" in blocker.lower() for blocker in evidence["blockers"])
 
 
 def test_v4_route_uses_injected_quote_adapter(monkeypatch):
@@ -397,6 +631,9 @@ def test_robinhood_testnet_closed_loop_v4_route_probes_size_without_route_metada
 def test_robinhood_testnet_skip_probe_uses_small_default_amount_without_reference(monkeypatch):
     class FakeEth:
         block_number = 123
+
+        def contract(self, **kwargs):
+            return None
 
         def get_block(self, block_number):
             return {"timestamp": 1_777_777_777}
@@ -626,7 +863,7 @@ def test_robinhood_testnet_route_execution_probe_ignores_impact_limit_when_profi
     assert attempted == [100, 200, 400, 800, 1600, 3200, 6400]
 
 
-def test_route_execution_probe_halves_on_not_enough_liquidity(monkeypatch):
+def test_route_execution_probe_stops_immediately_on_not_enough_liquidity(monkeypatch):
     attempted = []
 
     def fake_build_route_onchain_evidence(*args, **kwargs):
@@ -666,11 +903,12 @@ def test_route_execution_probe_halves_on_not_enough_liquidity(monkeypatch):
         max_attempts=24,
     )
 
-    assert probe["status"] == "route_execution_size_probe_complete"
-    assert probe["maxExecutableAmountRaw"] == "60"
-    assert probe["firstFailureAmountRaw"] == "61"
+    assert probe["status"] == "route_execution_size_probe_unexecutable"
+    assert probe["searchStatus"] == "not_enough_liquidity"
+    assert probe["maxExecutableAmountRaw"] is None
+    assert probe["firstFailureAmountRaw"] == "100"
     assert attempted[0] == 100
-    assert 50 in attempted
+    assert attempted == [100]
 
 
 def test_route_execution_probe_expands_profitable_starting_amount(monkeypatch):
@@ -1229,6 +1467,192 @@ def test_robinhood_testnet_v4_summarize_pool_not_initialized():
         v4_quote_adapter._summarize_v4_revert_data(data)
         == "UnexpectedRevertBytes(bytes) -> PoolNotInitialized()"
     )
+
+
+def test_robinhood_testnet_live_pool_precheck_reports_not_enough_liquidity(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def contract(self, **kwargs):
+            return None
+
+    class FakeW3:
+        eth = FakeEth()
+
+    def fake_live_state(**kwargs):
+        raise ValueError("robinhood testnet v4 pool manager live liquidity is zero")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state_with_w3", fake_live_state)
+
+    route = {
+        "routeSymbols": ["WETH", "ETH", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": _POOL_ID,
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token1Decimals": 18,
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": _POOL_ID,
+                    "tokenIn": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "tokenOut": "0x0000000000000000000000000000000000000000",
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-09-18T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-09-18T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "not_enough_liquidity"
+    assert evidence["executionTrust"] == "not_enough_liquidity"
+    assert any("has no LP liquidity on chain" in blocker for blocker in evidence["blockers"])
+
+
+def test_robinhood_testnet_live_pool_precheck_reports_pool_not_initialized(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def contract(self, **kwargs):
+            return None
+
+    class FakeW3:
+        eth = FakeEth()
+
+    def fake_live_state(**kwargs):
+        raise ValueError("robinhood testnet v4 pool manager live slot0 missing sqrtPriceX96")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state_with_w3", fake_live_state)
+
+    route = {
+        "routeSymbols": ["WETH", "ETH", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": _POOL_ID,
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token1Decimals": 18,
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": _POOL_ID,
+                    "tokenIn": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "tokenOut": "0x0000000000000000000000000000000000000000",
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-09-18T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-09-18T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "pool_not_initialized"
+    assert evidence["executionTrust"] == "pool_not_initialized"
+    assert any("pool is not initialized" in blocker for blocker in evidence["blockers"])
+
+
+def test_robinhood_testnet_live_pool_precheck_reports_rpc_failure(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def contract(self, **kwargs):
+            return None
+
+    class FakeW3:
+        eth = FakeEth()
+
+    def fake_live_state(**kwargs):
+        raise RuntimeError("robinhood testnet v4 pool manager extsload RPC connection timed out")
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state_with_w3", fake_live_state)
+
+    route = {
+        "routeSymbols": ["WETH", "ETH", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": _POOL_ID,
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token1Decimals": 18,
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": _POOL_ID,
+                    "tokenIn": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "tokenOut": "0x0000000000000000000000000000000000000000",
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-09-18T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-09-18T00:00:00+00:00"},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "rpc_verification_failed"
+    assert evidence["executionTrust"] == "rpc_verification_failed"
+    assert any("on-chain live pool state verification failed" in blocker for blocker in evidence["blockers"])
 
 
 def test_robinhood_testnet_v4_liquidity_probe_reports_pool_not_initialized(monkeypatch):

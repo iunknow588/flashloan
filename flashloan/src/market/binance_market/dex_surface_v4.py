@@ -270,8 +270,8 @@ def _v4_spot_rate(pool: dict[str, Any], from_symbol: str, to_symbol: str, *, cha
         return None
     decimals0 = _v4_token_decimals(pool, 0, chain_id=chain_id)
     decimals1 = _v4_token_decimals(pool, 1, chain_id=chain_id)
-    decimals0 = 18 if decimals0 is None else decimals0
-    decimals1 = 18 if decimals1 is None else decimals1
+    if decimals0 is None or decimals1 is None:
+        return None
     raw_price = Decimal(sqrt_price_x96) * Decimal(sqrt_price_x96) / Decimal(2**192)
     human_price = raw_price * (Decimal(10) ** (decimals0 - decimals1))
     if human_price <= 0:
@@ -395,6 +395,6 @@ def _reference_price_quote(
         "referenceUsdMode": reference_usd_mode,
         "trustedUsdPrice": reference_usd_mode == "priced_output",
         "tokenDecimalsTrusted": token_decimals_trusted,
-        "tokenDecimalAssumption": None if token_decimals_trusted else "missing_token_decimals_assumed_18",
+        "tokenDecimalAssumption": None if token_decimals_trusted else "missing_token_decimals_no_assumption",
         "warning": reason,
     }

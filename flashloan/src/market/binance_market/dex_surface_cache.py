@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import os
 import threading
+import time
 from typing import Any
 
 
 _DEX_SURFACE_CACHE: dict[tuple[str, int | None, tuple[str, ...], bool], dict[str, Any]] = {}
 _DEX_SURFACE_CACHE_LOCK = threading.Lock()
+
+
+def _surface_cache_ttl_seconds() -> float:
+    raw = os.getenv("DEX_SURFACE_CACHE_TTL_SECONDS", "600")
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return 600.0
 
 
 def _protocols_key(protocols: list[str] | None) -> tuple[str, ...]:
@@ -41,7 +51,11 @@ def _cache_surface_payload(
     # working payloads (for example the opportunity scanner attaching live
     # evidence) without corrupting the cached framework snapshot that the page
     # will read.
-    snapshot = deepcopy(payload)
+    snapshot = {
+        "cached_at": time.time(),
+        "ttl_seconds": _surface_cache_ttl_seconds(),
+        "payload": deepcopy(payload),
+    }
     with _DEX_SURFACE_CACHE_LOCK:
         _DEX_SURFACE_CACHE[key] = snapshot
 
@@ -60,7 +74,14 @@ def _cached_surface_payload(
         use_static_observation=use_static_observation,
     )
     with _DEX_SURFACE_CACHE_LOCK:
-        payload = _DEX_SURFACE_CACHE.get(key)
+        stored = _DEX_SURFACE_CACHE.get(key)
+    if isinstance(stored, dict) and "payload" in stored and "cached_at" in stored:
+        payload = stored["payload"]
+        ttl = float(stored.get("ttl_seconds") or _surface_cache_ttl_seconds())
+        if ttl > 0 and time.time() - float(stored.get("cached_at") or 0) > ttl:
+            payload = None
+    else:
+        payload = stored
     # Surface payloads contain nested route/pool dictionaries. Returning only a
     # shallow copy lets the opportunity scanner attach live evidence to its
     # working payload and silently mutate the page cache as well. Keep the

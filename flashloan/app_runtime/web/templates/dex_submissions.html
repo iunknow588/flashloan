@@ -210,8 +210,9 @@
       const failureLabels = {
         not_enough_liquidity: "池当前没有 LP 流动性",
         pool_not_initialized: "池未初始化",
+        missing_effective_pool: "池未初始化或缺少有效池",
         rpc_verification_failed: "链上复核失败：RPC 不可用",
-        rpc_verification_timeout: "链上复核失败：RPC 不可用",
+        rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
         live_quote_failed: "链上报价未完成",
         missing_trigger_block: "缺失复核区块",
         not_live_verified: "未通过链上复核"

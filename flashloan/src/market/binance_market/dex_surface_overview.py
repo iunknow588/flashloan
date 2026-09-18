@@ -278,7 +278,12 @@ def _route_execution_size_probe(route_analysis: dict[str, Any], *, chain_id: int
     first_failures: list[int] = []
     total_attempts = 0
     for index, step in enumerate(steps, start=1):
-        input_decimals = _int(step.get("inputDecimals")) or 18
+        input_decimals = _int(step.get("inputDecimals"))
+        if input_decimals is None:
+            raise ValueError(
+                f"missing exact token decimals for step {index} "
+                f"{step.get('fromSymbol')}->{step.get('toSymbol')}"
+            )
         amount_in_raw = _int(step.get("amountInRaw"))
         if amount_in_raw <= 0:
             amount_in_raw = _raw_from_human(step.get("inputAmount") or step.get("amountIn") or step.get("referenceInputAmount"), input_decimals)

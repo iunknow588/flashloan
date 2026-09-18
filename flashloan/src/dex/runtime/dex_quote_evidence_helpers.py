@@ -44,8 +44,6 @@ V2_PAIR_ABI = [
     },
 ]
 
-_STABLE_DECIMALS = {"AUSD", "BUSD", "DAI", "EURC", "FDUSD", "FRAX", "PYUSD", "RLUSD", "USDC", "USDD", "USDE", "USDG", "USDT"}
-_TOKEN_DECIMALS_FALLBACK = {"WETH": 18, "ETH": 18, "WBTC": 8, "BTC": 8, **{symbol: 6 for symbol in _STABLE_DECIMALS}}
 DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS = 10
 DEFAULT_ROUTE_SIZE_PROBE_ATTEMPTS = 24
 
@@ -123,7 +121,13 @@ def _is_missing_historical_state_error(exc: BaseException) -> bool:
 
 def _is_pool_not_initialized_error(exc: BaseException) -> bool:
     message = _text(exc).lower()
-    if "poolnotinitialized" in message.replace("_", "").replace("(", "").replace(")", "") or "pool not initialized" in message:
+    if (
+        "poolnotinitialized" in message.replace("_", "").replace("(", "").replace(")", "")
+        or "pool not initialized" in message
+        or "slot0 missing" in message
+        or "missing sqrtpricex96" in message
+        or "live slot0" in message
+    ):
         return True
     cause = getattr(exc, "__cause__", None)
     return bool(cause is not None and _is_pool_not_initialized_error(cause))
@@ -159,6 +163,7 @@ def _is_not_enough_liquidity_error(exc: BaseException) -> bool:
         or "insufficient liquidity" in message
         or "live liquidity is zero" in message
         or "liquidity is zero" in message
+        or "no lp liquidity" in message
     ):
         return True
     cause = getattr(exc, "__cause__", None)
@@ -194,7 +199,7 @@ DEX_ERROR_KEY_CODES = {
     "DEX.ONCHAIN.HOP_QUOTE.POOL_NOT_INITIALIZED": ErrorCode.DEX_POOL_NOT_INITIALIZED,
     "DEX.ONCHAIN.HOP_QUOTE.NOT_ENOUGH_LIQUIDITY": ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY,
     "DEX.ONCHAIN.RPC_FAILED": ErrorCode.DEX_RPC_FAILED,
-    "DEX.ONCHAIN.RPC_TIMEOUT": ErrorCode.DEX_RPC_FAILED,
+    "DEX.ONCHAIN.RPC_TIMEOUT": ErrorCode.DEX_RPC_TIMEOUT,
     "DEX.ONCHAIN.ADAPTER_REQUIRED": ErrorCode.DEX_GATE_NOT_READY,
     "DEX.ONCHAIN.TRIGGER_BLOCK_MISSING": ErrorCode.DEX_GATE_NOT_READY,
     "DEX.SIZE_PROBE.POOL_NOT_INITIALIZED": ErrorCode.DEX_SIZE_POOL_NOT_INITIALIZED,
@@ -202,6 +207,7 @@ DEX_ERROR_KEY_CODES = {
     "DEX.GATE.NOT_READY": ErrorCode.DEX_GATE_NOT_READY,
     "DEX.ROUTE.INVALID": ErrorCode.DEX_ROUTE_INVALID,
     "DEX.RPC.FAILED": ErrorCode.DEX_RPC_FAILED,
+    "DEX.RPC.TIMEOUT": ErrorCode.DEX_RPC_TIMEOUT,
     "DEX.INTERNAL": ErrorCode.DEX_INTERNAL,
 }
 
@@ -494,15 +500,25 @@ def _token_decimals(w3: Any, address: str | None, symbol: str, cache: dict[str, 
     key = (address or symbol).lower()
     if key in cache:
         return cache[key]
-    if symbol in _TOKEN_DECIMALS_FALLBACK:
-        cache[key] = _TOKEN_DECIMALS_FALLBACK[symbol]
+    normalized_address = _text(address).lower()
+    if normalized_address == "0x0000000000000000000000000000000000000000":
+        cache[key] = 18
         return cache[key]
-    if address:
+    if not normalized_address.startswith("0x") or len(normalized_address) != 42:
+        raise ValueError(
+            f"missing exact token decimals for symbol={symbol}; provide a token address or fetch "
+            "decimals from a trusted on-chain/off-chain source"
+        )
+    try:
         contract = w3.eth.contract(address=_checksum(address), abi=ERC20_ABI)
-        cache[key] = int(contract.functions.decimals().call())
-        return cache[key]
-    cache[key] = 18
-    return cache[key]
+        decimals = int(contract.functions.decimals().call())
+    except Exception as exc:
+        raise ValueError(
+            f"missing exact token decimals for {normalized_address} symbol={symbol}; "
+            f"provide token metadata or fetch decimals from a trusted source ({exc})"
+        ) from exc
+    cache[key] = decimals
+    return decimals
 
 
 def _pool_state_v2(w3: Any, pool_address: str, block_number: int) -> dict[str, Any]:
@@ -1031,7 +1047,9 @@ def _offchain_initial_probe_amount_raw(
             max_in_raw = _int_or_none(probe_row.get("maxExecutableAmountRaw"))
             if max_in_raw is None or max_in_raw <= 0:
                 continue
-            step_input_decimals = int(step.get("inputDecimals") or 18)
+            step_input_decimals = _int_or_none(step.get("inputDecimals"))
+            if step_input_decimals is None:
+                continue
             borrow_equivalent: Decimal | None = Decimal(int(max_in_raw))
             if input_decimals != step_input_decimals:
                 borrow_equivalent *= Decimal(10) ** int(input_decimals - step_input_decimals)
@@ -1226,7 +1244,14 @@ def _probe_robinhood_testnet_route_execution_size(
     def _evaluate(amount_raw: int) -> dict[str, Any]:
         nonlocal attempts
         attempts += 1
-        from dex.runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
+        module = _evidence_module_or_none()
+        build_route_onchain_evidence = (
+            getattr(module, "build_route_onchain_evidence", None)
+            if module is not None
+            else None
+        )
+        if build_route_onchain_evidence is None:
+            from dex.runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
 
         return build_route_onchain_evidence(
             route,
@@ -1315,6 +1340,7 @@ def _probe_robinhood_testnet_route_execution_size(
             if reason not in {"not_profitable_after_costs"}:
                 if reason == "not_enough_liquidity" or (reason == "live_quote_failed" and _has_not_enough_liquidity_blocker(evidence)):
                     first_ineligible_amount_raw = probe
+                    return _stop_without_size("not_enough_liquidity")
                 else:
                     return _stop_without_size(reason or "not_eligible")
             first_ineligible_amount_raw = probe
@@ -1339,6 +1365,7 @@ def _probe_robinhood_testnet_route_execution_size(
             if quote_failure_reason in {"live_quote_failed", "not_enough_liquidity"} and _is_not_enough_liquidity_error(exc):
                 first_ineligible_amount_raw = probe
                 last_failure_reason = quote_failure_reason
+                return _stop_without_size("not_enough_liquidity", raw_error=str(exc))
             else:
                 return _stop_without_size(quote_failure_reason, raw_error=str(exc))
         if lower_bound is not None:

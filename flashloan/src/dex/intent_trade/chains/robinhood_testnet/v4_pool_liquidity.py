@@ -677,19 +677,21 @@ def _pool_index_token_balance_sources(
         symbol = str(metadata_values.get((normalized, "symbol")) or "").strip()
         decimals = metadata_values.get((normalized, "decimals"))
         metadata_ok = bool(symbol and decimals is not None)
-        if decimals is None:
-            decimals = 18
-        try:
-            decimals_int = int(decimals)
-        except (TypeError, ValueError):
-            decimals_int = 18
-            metadata_ok = False
+        decimals_int = None
+        if decimals is not None:
+            try:
+                decimals_int = int(decimals)
+            except (TypeError, ValueError):
+                decimals_int = None
+                metadata_ok = False
         if not symbol:
             symbol = Web3.to_checksum_address(normalized)[:8]
-        try:
-            balance_units = float(raw_balance) / 10**decimals_int
-        except OverflowError:
-            balance_units = None
+        balance_units = None
+        if decimals_int is not None:
+            try:
+                balance_units = float(raw_balance) / 10**decimals_int
+            except OverflowError:
+                balance_units = None
         try:
             sources.append(
                 {

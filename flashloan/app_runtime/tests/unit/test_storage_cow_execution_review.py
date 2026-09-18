@@ -1,3 +1,5 @@
+import core.db.cow_execution_review as cow_execution_review
+
 from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
 from core.db.cow_execution_review import _build_review_summary, _review_route_identity
 
@@ -164,12 +166,55 @@ def test_review_route_identity_resolves_known_robinhood_symbols():
     identity = _review_route_identity(row, quote, {})
 
     assert identity["status"] == "ok"
+    assert identity["address_source"] == "robinhood_testnet_v4_token_allowlist"
     assert identity["route_addresses"] == [
         "0x7943e237c7F95DA44E0301572D358911207852Fa",
         "0x0000000000000000000000000000000000000000",
         "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
         "0x7943e237c7F95DA44E0301572D358911207852Fa",
     ]
+
+
+def test_review_route_identity_unknown_symbol_returns_symbol_only():
+    row = {
+        "route_path": ["WETH", "ETH", "UNKNOWN_SYMBOL", "WETH"],
+    }
+    quote = {
+        "path": row["route_path"],
+        "hops": [
+            {"hop": 1, "fromSymbol": "WETH", "toSymbol": "ETH"},
+            {"hop": 2, "fromSymbol": "ETH", "toSymbol": "UNKNOWN_SYMBOL"},
+            {"hop": 3, "fromSymbol": "UNKNOWN_SYMBOL", "toSymbol": "WETH"},
+        ],
+    }
+    identity = _review_route_identity(row, quote, {})
+
+    assert identity["status"] == "symbol_only"
+    assert identity["identity_mode"] == "symbol_fallback"
+    assert identity["address_source"] is None
+    assert identity["route_addresses"] == []
+    assert identity["routeAddresses"] == []
+
+
+def test_review_route_identity_missing_allowlist_returns_symbol_only(monkeypatch):
+    monkeypatch.setattr(cow_execution_review, "_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES", {})
+    row = {
+        "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+    }
+    quote = {
+        "path": row["route_path"],
+        "hops": [
+            {"hop": 1, "fromSymbol": "WETH", "toSymbol": "ETH"},
+            {"hop": 2, "fromSymbol": "ETH", "toSymbol": "0XC9F9C8"},
+            {"hop": 3, "fromSymbol": "0XC9F9C8", "toSymbol": "WETH"},
+        ],
+    }
+    identity = _review_route_identity(row, quote, {})
+
+    assert identity["status"] == "symbol_only"
+    assert identity["identity_mode"] == "symbol_fallback"
+    assert identity["address_source"] is None
+    assert identity["route_addresses"] == []
 
 
 def test_review_summary_prefers_quote_business_status_over_identity_warning():
@@ -194,6 +239,29 @@ def test_review_summary_prefers_quote_business_status_over_identity_warning():
     assert evidence["route_identity_status"] == "ok"
     assert any("LP" in blocker for blocker in evidence["blockers"])
     assert not any("地址身份" in blocker for blocker in evidence["blockers"])
+
+
+def test_review_summary_maps_rpc_timeout_to_timeout_message():
+    row = {
+        "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+    }
+    quote = {
+        "path": row["route_path"],
+        "quote_status": "rpc_verification_timeout",
+        "execution_trust": "rpc_verification_timeout",
+        "hops": [
+            {"hop": 1, "fromSymbol": "WETH", "toSymbol": "ETH"},
+            {"hop": 2, "fromSymbol": "ETH", "toSymbol": "0XC9F9C8"},
+            {"hop": 3, "fromSymbol": "0XC9F9C8", "toSymbol": "WETH"},
+        ],
+        "live_onchain_evidence": {},
+    }
+    row["quote"] = quote
+    evidence = _build_review_summary(row)["onchain_evidence"]
+
+    assert evidence["status"] == "rpc_verification_timeout"
+    assert any("RPC 未在期限内返回" in blocker for blocker in evidence["blockers"])
+    assert not any("RPC 不可用" in blocker for blocker in evidence["blockers"])
 
 
 def test_route_test_recorder_persists_quote_evidence_and_addresses(tmp_path, monkeypatch):

@@ -397,11 +397,10 @@ python -m uvicorn app_runtime.web.app:app --host 127.0.0.1 --port 5010
 
 ```powershell
 $env:DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS="45"
-$env:DEX_OPPORTUNITY_SCANNER_EVIDENCE_WORKERS="4"
 $env:DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE="1"
 ```
 
-`DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS` 控制每条路线链上复核的最长等待时间；超过后返回明确的 `rpc_verification_failed`，不会转为延后状态。`DEX_OPPORTUNITY_SCANNER_EVIDENCE_WORKERS` 只控制并行复核数量，不影响本轮必须复核全部路线。`DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE=1` 会跳过全量执行规模探测，先快速给出单跳链上报价结论；需要专门做规模探测时再设为 `0`。
+`DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS` 控制每条路线链上复核的最长等待时间；超过后返回明确的 `rpc_verification_failed`，不会转为延后状态。`DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE=1` 会跳过全量执行规模探测，先快速给出单跳链上报价结论；需要专门做规模探测时再设为 `0`。并行复核线程数默认是 `1`，用户可在控制面板左侧“系统配置/系统设置”的“策略参数”中随时修改 `DEX 链上复核并发线程数`；程序自己的 `.env` 可以保留，但不要通过 Windows 系统环境变量来传这个参数。
 
 Robinhood Testnet 的小额测试池没有稳定 USD 深度表，若直接按 `notionalUsd=1000` 报价会把池子整个撞穿，导致绝大多数路线显示为“流动性不足/不盈利”。scanner 在没有参考金额、参考规模和路线规模建议时，默认会从 `0.1` 个基础代币开始链上复核；官方 V4 套利脚本用 `0.0001` 代币验证利润也是同一个思路。这样小池子也能返回真实 Quoter 结果，而不是把所有路线都变成 1000 代币下的假性亏损。
 

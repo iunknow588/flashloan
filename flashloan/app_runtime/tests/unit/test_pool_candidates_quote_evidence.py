@@ -170,7 +170,6 @@ def test_v4_reference_route_without_usd_anchor_does_not_create_fake_profit():
     assert analysis["requiresLiveQuoter"] is True
     assert analysis["adapterRequired"] is True
     assert analysis["trustedUsdReference"] is False
-    assert analysis["tokenDecimalsTrusted"] is False
     assert analysis["profitable"] is False
     assert analysis["referenceFinalOutputUsd"] is None
     assert analysis["referenceNetProfitUsd"] is None
@@ -333,16 +332,17 @@ def test_robinhood_testnet_static_reference_survives_missing_token_decimals(monk
     monkeypatch.setattr(dex_surfaces, "quote_v4_exact_input_single", fake_zero_quote)
     analysis = dex_surfaces._route_quote_analysis(route, price_map={}, chain_id=46630)
 
-    assert analysis["complete"] is True
-    assert analysis["stepCount"] == 3
+    assert analysis["complete"] is False
+    assert analysis["stepCount"] == 1
+    assert analysis["tokenDecimalsTrusted"] is False
     assert analysis["requiresLiveQuoter"] is True
     assert analysis["adapterRequired"] is True
     assert analysis["chainSubmissionCandidate"] is False
     assert analysis["executableCandidate"] is False
     assert analysis["referenceFinalOutputUsd"] is None
     assert analysis["referenceNetProfitUsd"] is None
-    assert analysis["tokenBasisReferenceProfitable"] is True
-    assert "v4_token_decimals_missing_or_assumed" in analysis["warnings"]
+    assert analysis["tokenBasisReferenceProfitable"] is False
+    assert "v4_token_decimals_missing_requires_metadata" in analysis["warnings"]
 
 
 def test_robinhood_testnet_v4_liquidity_failure_preserves_quoter_error(monkeypatch):

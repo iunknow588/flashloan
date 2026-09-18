@@ -17,7 +17,7 @@ _STATUS_CODES = {
     "live_quote_failed": ErrorCode.DEX_LIVE_QUOTE_FAILED,
     "quote_failed": ErrorCode.DEX_LIVE_QUOTE_FAILED,
     "rpc_verification_failed": ErrorCode.DEX_RPC_FAILED,
-    "rpc_verification_timeout": ErrorCode.DEX_RPC_FAILED,
+    "rpc_verification_timeout": ErrorCode.DEX_RPC_TIMEOUT,
     "adapter_required": ErrorCode.DEX_GATE_NOT_READY,
     "missing_trigger_block": ErrorCode.DEX_GATE_NOT_READY,
     "pool_not_initialized": ErrorCode.DEX_POOL_NOT_INITIALIZED,

@@ -74,6 +74,28 @@ def _base_contracts_metadata():
     }
 
 
+def _v4_pool_liquidity_payload():
+    return {
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "payload": {
+            "flashAccountingSources": [
+                {
+                    "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+                    "symbol": "USDG",
+                    "decimals": 6,
+                    "poolManagerBalanceRaw": "2000000000000",
+                    "poolManagerBalance": "2000000",
+                    "poolIds": ["0x" + "1" * 64],
+                    "source": "unit_test_realtime_v4_pool_liquidity",
+                }
+            ],
+            "nativePoolManagerBalanceWei": "0",
+        },
+        "pools": [],
+        "pool_keys": [],
+    }
+
+
 def _live_ready_plan():
     plan = deepcopy(build_robinhood_chain_test_plan(_sample_attempt()))
     plan["network"] = "robinhood-testnet"
@@ -168,6 +190,7 @@ def test_live_testing_readiness_allows_live_test_only_when_every_gate_is_open():
         chain_metadata=chain_metadata,
         contracts_metadata=_base_contracts_metadata(),
         chain_test_plan=_live_ready_plan(),
+        v4_pool_liquidity=_v4_pool_liquidity_payload(),
     )
 
     assert report["chainTestReady"] is True
@@ -193,6 +216,7 @@ def test_live_testing_readiness_allows_closed_broadcast_after_both_live_tests():
         chain_metadata=chain_metadata,
         contracts_metadata=contracts_metadata,
         chain_test_plan=_live_ready_plan(),
+        v4_pool_liquidity=_v4_pool_liquidity_payload(),
     )
 
     assert report["gates"]["normalProbeLiveTestComplete"] is True
@@ -253,9 +277,11 @@ def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
     plan_path = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "chain_test" / "latest" / "plan.json"
     output_dir = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "live_testing_readiness"
     snapshot_path = tmp_path / "runtime" / "cache" / "dex_opportunity_snapshot.json"
+    liquidity_path = tmp_path / "runtime" / "evidence" / "robinhood-testnet" / "v4_pool_liquidity" / "realtime.json"
     _write_json(chain_path, chain_metadata)
     _write_json(contracts_path, _base_contracts_metadata())
     _write_json(plan_path, _live_ready_plan())
+    _write_json(liquidity_path, _v4_pool_liquidity_payload())
     _write_json(
         snapshot_path,
         {
@@ -283,6 +309,8 @@ def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
             str(plan_path),
             "--snapshot-json",
             str(snapshot_path),
+            "--liquidity-json",
+            str(liquidity_path),
             "--output-dir",
             str(output_dir),
         ],

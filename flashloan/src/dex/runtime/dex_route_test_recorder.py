@@ -45,8 +45,10 @@ def record_dex_route_test_attempt(
             reasons.append(error_detail)
         if quote_status == "not_enough_liquidity":
             reason = "池当前没有 LP 流动性"
-        elif quote_status in {"rpc_verification_failed", "rpc_verification_timeout"}:
+        elif quote_status == "rpc_verification_failed":
             reason = "链上复核失败：RPC 不可用"
+        elif quote_status == "rpc_verification_timeout":
+            reason = "链上复核超时：RPC 未在期限内返回"
         elif quote_status in {"live_quote_failed", "live_quote_error"}:
             reason = "链上报价未完成：" + (execution_trust or quote_status)
         elif execution_trust:

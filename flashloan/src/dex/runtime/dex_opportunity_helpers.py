@@ -26,6 +26,37 @@ TERMINAL_DEPTH_STATUSES = {
 }
 
 
+def _evidence_has_cache_source(evidence: dict[str, Any]) -> bool:
+    """Return True when an evidence payload originates from a cache source."""
+    if not isinstance(evidence, dict):
+        return False
+    markers = (
+        "cache",
+        "token_balance_scan_cache",
+        "v4_pool_liquidity_cache",
+        "poolkey_liquidity_cache",
+    )
+
+    def _has_marker(value: object) -> bool:
+        return any(marker in str(value or "").lower() for marker in markers)
+
+    for key in ("source", "priceEvidenceSource", "quoteBlockSource", "liquiditySource"):
+        if _has_marker(evidence.get(key)):
+            return True
+    for hop in evidence.get("hops") or []:
+        if not isinstance(hop, dict):
+            continue
+        for key in ("source", "quoteSource", "liveQuoteError"):
+            if _has_marker(hop.get(key)):
+                return True
+        pool_state = hop.get("poolState")
+        if isinstance(pool_state, dict):
+            for key in ("source", "liquiditySource"):
+                if _has_marker(pool_state.get(key)):
+                    return True
+    return False
+
+
 def _chain_key(chain_id: int | None) -> str:
     return str(int(chain_id)) if chain_id is not None else "default"
 
@@ -501,6 +532,9 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     analysis = deepcopy(analysis)
     status = str(evidence.get("status") or "not_live_verified")
+    if _evidence_has_cache_source(evidence):
+        status = "static_reference_pending_live_review"
+        evidence = {**evidence, "status": status, "executionTrust": "static_reference_pending_live_review"}
     live_verified = bool(evidence.get("livePriceVerified")) or status == "live_verified"
     is_deferred = status in {"live_evidence_deferred", "not_reviewed_this_scan"}
     terminal_depth_status = status in TERMINAL_DEPTH_STATUSES
@@ -523,7 +557,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
         "reference_usd_price_missing_or_untrusted",
         "static_depth_evidence_unavailable",
         "robinhood_live_price_only_enforced",
-        "v4_token_decimals_missing_or_assumed",
+        "v4_token_decimals_missing_requires_metadata",
     }
     has_live_evidence = bool(evidence.get("hops")) or (status and status not in {"live_evidence_deferred", "not_reviewed_this_scan"})
     if has_live_evidence:
@@ -642,12 +676,18 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
                         live_amount_in = None
                 if live_amount_in in (None, ""):
                     if live.get("amountInRaw") is not None:
-                        try:
-                            live_amount_in = float(int(live["amountInRaw"]) / (10 ** int(live.get("inputDecimals") or merged.get("inputDecimals") or 18)))
-                        except (TypeError, ValueError):
+                        decimals = live.get("inputDecimals")
+                        if decimals in (None, ""):
+                            decimals = merged.get("inputDecimals")
+                        if decimals in (None, ""):
                             live_amount_in = None
-                    elif previous_output_symbol and previous_output_symbol == str(merged.get("fromSymbol") or "").upper():
-                        live_amount_in = previous_output_amount
+                        else:
+                            try:
+                                live_amount_in = float(int(live["amountInRaw"]) / (10 ** int(decimals)))
+                            except (TypeError, ValueError):
+                                live_amount_in = None
+                if live_amount_in in (None, "") and previous_output_symbol and previous_output_symbol == str(merged.get("fromSymbol") or "").upper():
+                    live_amount_in = previous_output_amount
                 if live.get("amountIn") in (None, "") and live_amount_in is not None:
                     live["amountIn"] = (
                         previous_output_text
@@ -679,16 +719,22 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
                     previous_output_symbol = str(live.get("toSymbol") or "").upper()
                     previous_output_text = str(live["amountOut"])
                 elif live.get("amountOutRaw") is not None:
-                    try:
-                        previous_output_amount = float(int(live["amountOutRaw"]) / (10 ** int(live.get("outputDecimals") or merged.get("outputDecimals") or 18)))
-                    except (TypeError, ValueError):
+                    output_decimals = live.get("outputDecimals")
+                    if output_decimals in (None, ""):
+                        output_decimals = merged.get("outputDecimals")
+                    if output_decimals in (None, ""):
                         previous_output_amount = None
+                    else:
+                        try:
+                            previous_output_amount = float(int(live["amountOutRaw"]) / (10 ** int(output_decimals)))
+                        except (TypeError, ValueError):
+                            previous_output_amount = None
                     previous_output_symbol = str(live.get("toSymbol") or "").upper()
                     if previous_output_amount is not None:
                         try:
                             previous_output_text = _human_from_raw(
                                 int(live["amountOutRaw"]),
-                                int(live.get("outputDecimals") or merged.get("outputDecimals") or 18),
+                                int(output_decimals),
                             )
                         except (TypeError, ValueError):
                             previous_output_text = None

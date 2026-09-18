@@ -125,6 +125,7 @@ def sanitize_strategy_config(values: dict) -> dict:
     config["ARBITRAGE_BASKET_SIZE"] = max(1, min(int(config["ARBITRAGE_BASKET_SIZE"]), 10))
     config["ARBITRAGE_MIN_PAPER_PROFIT_USD"] = enforce_min_paper_profit_usd(config["ARBITRAGE_MIN_PAPER_PROFIT_USD"])
     config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"] = max(1, int(config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"]))
+    config["DEX_SCAN_WORKERS"] = max(1, min(int(config["DEX_SCAN_WORKERS"]), 64))
     config["EXECUTION_SLIPPAGE_BPS"] = max(0, min(int(config["EXECUTION_SLIPPAGE_BPS"]), 5000))
     config["EXECUTION_PLAN_MAX_AGE_SECONDS"] = max(1, int(config["EXECUTION_PLAN_MAX_AGE_SECONDS"]))
     config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(MIN_SAMPLING_SECONDS, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))

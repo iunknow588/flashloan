@@ -451,7 +451,7 @@ def test_dex_opportunity_scanner_records_discovered_opportunities(tmp_path):
     assert rows[0]["review_summary"]["candidate_basis"] == "dex_opportunity_scanner"
 
 
-def test_dex_opportunity_snapshot_does_not_start_scanner(monkeypatch):
+def test_dex_opportunity_snapshot_starts_scanner_for_fresh_review(monkeypatch):
     from runtime import dex_opportunity_scanner
 
     calls = {"start": 0, "watch": 0, "snapshot": 0}
@@ -472,7 +472,7 @@ def test_dex_opportunity_snapshot_does_not_start_scanner(monkeypatch):
     payload = dex_opportunity_scanner.dex_opportunity_snapshot(chain_id=46630, protocols=["uniswap_v4"])
 
     assert payload["ok"] is True
-    assert calls == {"start": 0, "watch": 1, "snapshot": 1}
+    assert calls == {"start": 1, "watch": 0, "snapshot": 1}
 
 
 def test_ensure_dex_opportunity_scanner_running_populates_first_snapshot(monkeypatch):
@@ -1078,18 +1078,36 @@ def test_dex_submission_review_counts_recorded_opportunities_as_blocked():
     assert payload["attempts"][0]["pair"] == "USDG -> WETH -> TEST -> WETH -> USDG"
 
 
-def test_evidence_provider_runs_synchronously():
+def test_evidence_provider_returns_timeout_when_provider_is_slow():
     import time
 
     from dex.runtime.dex_opportunity_scanner import _evidence_provider_with_timeout
 
     def slow_provider(route, **kwargs):
-        time.sleep(1.0)
+        time.sleep(10.0)
         return {"status": "live_verified"}
 
     evidence = _evidence_provider_with_timeout(
         slow_provider,
         0.05,
+        {"routeSymbols": ["TZ", "TB", "TZ"]},
+        chain_id=46630,
+    )
+
+    assert evidence["status"] == "rpc_verification_timeout"
+    assert evidence["blockers"] == ["on-chain evidence timed out after 0.1s"]
+    assert evidence["routeSymbols"] == ["TZ", "TB", "TZ"]
+
+
+def test_evidence_provider_returns_provider_result_when_fast():
+    from dex.runtime.dex_opportunity_scanner import _evidence_provider_with_timeout
+
+    def fast_provider(route, **kwargs):
+        return {"status": "live_verified"}
+
+    evidence = _evidence_provider_with_timeout(
+        fast_provider,
+        1.0,
         {"routeSymbols": ["TZ", "TB", "TZ"]},
         chain_id=46630,
     )

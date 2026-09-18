@@ -66,6 +66,12 @@ def main() -> int:
         default=SRC_ROOT / "runtime" / "evidence" / "robinhood-testnet" / "route_capture" / "latest.json",
         help="Route capture evidence used as a live-profitable-route fallback.",
     )
+    parser.add_argument(
+        "--liquidity-json",
+        type=Path,
+        default=None,
+        help="Optional realtime V4 pool liquidity payload. When absent, normal probe readiness stays blocked instead of using cached liquidity.",
+    )
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument(
         "--strict-live",
@@ -92,6 +98,7 @@ def main() -> int:
             plan = _read_json(args.plan_json)
         current_opportunity_snapshot = _read_json(args.snapshot_json) if args.snapshot_json.exists() else None
         route_capture = _read_json(args.route_capture_json) if args.route_capture_json.exists() else None
+        v4_pool_liquidity = _read_json(args.liquidity_json) if args.liquidity_json and args.liquidity_json.exists() else None
         if plan_missing and not args.no_write:
             _write_json(args.plan_json, plan)
         audit = audit_robinhood_chain_test_plan(plan)
@@ -99,6 +106,7 @@ def main() -> int:
             chain_metadata=chain_metadata,
             contracts_metadata=contracts_metadata,
             chain_test_plan=plan,
+            v4_pool_liquidity=v4_pool_liquidity,
             chain_test_audit=audit,
             current_opportunity_snapshot=current_opportunity_snapshot,
             route_capture=route_capture,

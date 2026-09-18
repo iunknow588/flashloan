@@ -27,6 +27,7 @@ def summarize_robinhood_testnet_live_testing_readiness(
     chain_metadata: dict[str, Any],
     contracts_metadata: dict[str, Any],
     chain_test_plan: dict[str, Any],
+    v4_pool_liquidity: dict[str, Any] | None = None,
     chain_test_audit: dict[str, Any] | None = None,
     current_opportunity_snapshot: dict[str, Any] | None = None,
     route_capture: dict[str, Any] | None = None,
@@ -66,6 +67,7 @@ def summarize_robinhood_testnet_live_testing_readiness(
         chain_metadata=chain_metadata,
         contracts_metadata=contracts_metadata,
         chain_test_plan=chain_test_plan,
+        v4_pool_liquidity=v4_pool_liquidity,
     )
     chain_broadcast_enabled = _bool(chain_metadata.get("broadcastEnabled"))
     contract_broadcast_enabled = _bool(contracts_metadata.get("broadcastEnabled"))

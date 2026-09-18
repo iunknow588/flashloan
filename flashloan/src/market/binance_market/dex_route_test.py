@@ -15,17 +15,35 @@ from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_NETWORK
 ROOT = Path(__file__).resolve().parents[4]
 OFFICIAL_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-arb-live.js"
 OFFICIAL_DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
+ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = ROOT / "flashloan" / "src" / "chains" / "robinhood-testnet" / "v4_token_allowlist.json"
 
 OFFICIAL_TRIANGLE_SYMBOLS = {"TZ", "TA", "TB"}
 
-_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = {
-    "ETH": "0x0000000000000000000000000000000000000000",
-    "WETH": "0x7943e237c7F95DA44E0301572D358911207852Fa",
-    "TZ": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-    "TA": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-    "TB": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-    "0XC9F9C8": "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-}
+
+def _load_robinhood_testnet_symbol_addresses() -> dict[str, str]:
+    """Build symbol->address identity from the chain-owned token allowlist.
+
+    The allowlist is the single source of truth for Robinhood Testnet token
+    identities. There are intentionally no in-code symbol fallbacks here: a
+    missing identity must surface as an incomplete-address error instead of
+    sending guessed addresses into on-chain review.
+    """
+    mapping: dict[str, str] = {}
+    try:
+        data = json.loads(ROBINHOOD_TESTNET_TOKEN_ALLOWLIST.read_text(encoding="utf-8"))
+        for item in (data.get("tokens") or {}).values():
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol") or "").strip().upper()
+            address = str(item.get("address") or "").strip()
+            if symbol and address:
+                mapping.setdefault(symbol, address)
+    except Exception:
+        mapping = {}
+    return mapping
+
+
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = _load_robinhood_testnet_symbol_addresses()
 
 
 def _official_route_addresses(route_symbols: list[str]) -> list[str]:

@@ -148,9 +148,9 @@
       "liquidityToAdd": "100000000000000000000"
     },
     "lastMakeArb": {
-      "txHash": "0xded160c120991279c2ec816b6af484d8a93b08f18342c17cadc9823a99ba1e5e",
-      "gasUsed": "242222",
-      "runAt": "2026-09-16T23:42:09.965Z",
+      "txHash": "0x9ca578d6d28efbb84949bb5cf1a311be43cf76884c4e51bb453f2d8fbade8281",
+      "gasUsed": "239813",
+      "runAt": "2026-09-18T05:48:39.193Z",
       "amountIn": "500000000000000000000",
       "route": {
         "keys": [

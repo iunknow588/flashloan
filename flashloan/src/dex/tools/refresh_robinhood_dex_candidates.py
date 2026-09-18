@@ -46,8 +46,13 @@ def _token_metadata(w3: Web3, address: str) -> dict[str, object]:
     try:
         decimals = int(contract.functions.decimals().call())
     except Exception:
-        decimals = 18
-    return {"symbol": symbol, "decimals": decimals, "source": "robinhood_chain_observation"}
+        decimals = None
+    return {
+        "symbol": symbol,
+        "decimals": decimals,
+        "metadataOk": bool(symbol and decimals is not None),
+        "source": "robinhood_chain_observation",
+    }
 
 
 def main() -> int:

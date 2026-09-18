@@ -67,6 +67,10 @@ def _compact_observation_sequence(sequence: dict[str, Any]) -> dict[str, Any]:
         if isinstance(step, dict)
     ]
     compact["routePools"] = route_pools
+    path_symbols = list(compact.get("pathSymbols") or [])
+    path_text = compact.get("pathText") or ""
+    if not path_symbols and isinstance(path_text, str) and " -> " in path_text:
+        compact["pathSymbols"] = [part.strip() for part in path_text.split(" -> ") if part.strip()]
     return compact
 
 
@@ -207,14 +211,18 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
             pools = pair.get("pools") or []
             if pools and isinstance(pools[0], dict):
                 route_pools.append(_compact_route_pool(pools[0]))
+    path_symbols = list(route.get("pathSymbols") or [])
+    path_text = route.get("pathText") or ""
+    if not path_symbols and isinstance(path_text, str) and " -> " in path_text:
+        path_symbols = [part.strip() for part in path_text.split(" -> ") if part.strip()]
     return {
         "kind": route.get("kind") or "bridge_closed_loop",
         "source": route.get("source") or "cached_snapshot",
         "anchorSymbol": route.get("anchorSymbol") or route.get("borrowSymbol"),
         "counterSymbol": route.get("targetSymbol") or route.get("counterSymbol"),
         "bridgeSymbol": route.get("bridgeSymbol"),
-        "pathSymbols": list(route.get("pathSymbols") or []),
-        "pathText": route.get("pathText") or "",
+        "pathSymbols": path_symbols,
+        "pathText": path_text,
         "pool": route.get("pool"),
         "routePools": route_pools,
         "candidatePoolCount": route.get("candidatePoolCount") or str(len(route_pools)),

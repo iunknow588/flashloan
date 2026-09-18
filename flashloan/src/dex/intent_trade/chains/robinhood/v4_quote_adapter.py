@@ -394,8 +394,12 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
         chain_id = int(chain_id) if chain_id not in (None, "") else None
     except (TypeError, ValueError):
         chain_id = None
+    requested_token_in = _normalize_address(request.get("tokenIn"))
+    requested_token_out = _normalize_address(request.get("tokenOut"))
     pool = _pool_lookup(request.get("pool"), network, chain_id)
     if not pool:
+        if not pool_state and (requested_token_in or requested_token_out):
+            raise ValueError(f"requested hop tokens do not match {_chain_label(network, chain_id)} pool index")
         pool = _request_pool_state(request)
     if not pool:
         raise ValueError(f"{_chain_label(network, chain_id)} pool index missing requested pool")
@@ -403,8 +407,6 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
     indexed_pool = _pool_lookup(request.get("pool"), network, chain_id)
     if indexed_pool:
         pool = indexed_pool
-    requested_token_in = _normalize_address(request.get("tokenIn"))
-    requested_token_out = _normalize_address(request.get("tokenOut"))
     pool_token0 = _normalize_address(pool.get("token0"))
     pool_token1 = _normalize_address(pool.get("token1"))
     if requested_token_in or requested_token_out:

@@ -25,6 +25,20 @@
       "category": "test_fixture",
       "source": "test-token_create/config/testnet-v4-amm/manifest.json"
     },
+    "eth": {
+      "symbol": "ETH",
+      "address": "0x0000000000000000000000000000000000000000",
+      "decimals": 18,
+      "category": "native",
+      "source": "chain.json.native_symbol"
+    },
+    "c9f9c8": {
+      "symbol": "0XC9F9C8",
+      "address": "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "decimals": 18,
+      "category": "meme",
+      "source": "v4_pool_liquidity/token_balance_scan_cache.json"
+    },
     "weth": {
       "symbol": "WETH",
       "address": "0x7943e237c7F95DA44E0301572D358911207852Fa",
