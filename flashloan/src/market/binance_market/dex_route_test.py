@@ -20,15 +20,17 @@ ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = ROOT / "flashloan" / "src" / "chains" / "rob
 OFFICIAL_TRIANGLE_SYMBOLS = {"TZ", "TA", "TB"}
 
 
-def _load_robinhood_testnet_symbol_addresses() -> dict[str, str]:
+def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]]:
     """Build symbol->address identity from the chain-owned token allowlist.
 
     The allowlist is the single source of truth for Robinhood Testnet token
     identities. There are intentionally no in-code symbol fallbacks here: a
-    missing identity must surface as an incomplete-address error instead of
-    sending guessed addresses into on-chain review.
+    missing identity, or a symbol with multiple distinct addresses, must surface
+    as an incomplete-address error instead of sending guessed addresses into
+    on-chain review.
     """
     mapping: dict[str, str] = {}
+    ambiguous: set[str] = set()
     try:
         data = json.loads(ROBINHOOD_TESTNET_TOKEN_ALLOWLIST.read_text(encoding="utf-8"))
         for item in (data.get("tokens") or {}).values():
@@ -37,18 +39,30 @@ def _load_robinhood_testnet_symbol_addresses() -> dict[str, str]:
             symbol = str(item.get("symbol") or "").strip().upper()
             address = str(item.get("address") or "").strip()
             if symbol and address:
-                mapping.setdefault(symbol, address)
+                existing = mapping.get(symbol)
+                if existing is not None and existing.lower() != address.lower():
+                    ambiguous.add(symbol)
+                    mapping.pop(symbol, None)
+                elif existing is None:
+                    mapping[symbol] = address
     except Exception:
         mapping = {}
-    return mapping
+        ambiguous = set()
+    return mapping, ambiguous
 
 
-_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = _load_robinhood_testnet_symbol_addresses()
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES, _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS = (
+    _load_robinhood_testnet_symbol_addresses()
+)
 
 
 def _official_route_addresses(route_symbols: list[str]) -> list[str]:
     normalized = [symbol.upper() for symbol in route_symbols]
-    if not normalized or any(symbol not in _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES for symbol in normalized):
+    if (
+        not normalized
+        or any(symbol in _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS for symbol in normalized)
+        or any(symbol not in _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES for symbol in normalized)
+    ):
         return []
     return [_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES[symbol] for symbol in normalized]
 

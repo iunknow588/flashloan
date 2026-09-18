@@ -169,18 +169,20 @@ def _review_route_addresses_from_list(value: Any) -> list[str]:
     return [address for address in addresses if address]
 
 
-def _load_robinhood_testnet_symbol_addresses() -> dict[str, str]:
+def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]]:
     """Build symbol->address identity from the chain-owned token allowlist.
 
     Symbol-only route fixtures must not fall back to guessed addresses. If the
-    allowlist is unavailable, the review result stays symbol-only and cannot be
-    treated as chain-address identity.
+    allowlist is unavailable, or a symbol maps to multiple distinct addresses,
+    the review result stays symbol-only and cannot be treated as chain-address
+    identity.
     """
     mapping: dict[str, str] = {}
+    ambiguous: set[str] = set()
     try:
         path = chain_data_file_path(_ROBINHOOD_TESTNET_NETWORK, "v4_token_allowlist")
         if path is None:
-            return mapping
+            return mapping, ambiguous
         data = json.loads(path.read_text(encoding="utf-8"))
         for item in (data.get("tokens") or {}).values():
             if not isinstance(item, dict):
@@ -188,13 +190,21 @@ def _load_robinhood_testnet_symbol_addresses() -> dict[str, str]:
             symbol = str(item.get("symbol") or "").strip().upper()
             address = str(item.get("address") or "").strip()
             if symbol and address:
-                mapping.setdefault(symbol, address)
+                existing = mapping.get(symbol)
+                if existing is not None and existing.lower() != address.lower():
+                    ambiguous.add(symbol)
+                    mapping.pop(symbol, None)
+                elif existing is None:
+                    mapping[symbol] = address
     except Exception:
         mapping = {}
-    return mapping
+        ambiguous = set()
+    return mapping, ambiguous
 
 
-_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES = _load_robinhood_testnet_symbol_addresses()
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES, _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS = (
+    _load_robinhood_testnet_symbol_addresses()
+)
 
 
 def _review_route_addresses_from_symbols(route_symbols: list[str]) -> list[str]:
@@ -202,7 +212,10 @@ def _review_route_addresses_from_symbols(route_symbols: list[str]) -> list[str]:
     if not route_symbols:
         return []
     for symbol in route_symbols:
-        address = _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES.get(str(symbol).upper())
+        normalized_symbol = str(symbol).upper()
+        if normalized_symbol in _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS:
+            return []
+        address = _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES.get(normalized_symbol)
         if not address:
             return []
         addresses.append(address)

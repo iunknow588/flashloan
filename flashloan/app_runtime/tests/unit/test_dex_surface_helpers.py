@@ -23,6 +23,30 @@ def _attempt(route_symbols, *, created_at, status):
     }
 
 
+def test_route_dedup_key_prefers_addresses_over_symbols():
+    route_a = {
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "routeAddresses": [
+            "0x7943e237c7F95DA44E0301572D358911207852Fa",
+            "0x0000000000000000000000000000000000000000",
+            "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+            "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        ],
+    }
+    route_b = {
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "routeAddresses": [
+            "0x33e4191705c386532ba27cBF171Db86919200B94",
+            "0x0000000000000000000000000000000000000000",
+            "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+            "0x33e4191705c386532ba27cBF171Db86919200B94",
+        ],
+    }
+
+    assert dex_surface_helpers._route_dedup_key(route_a) != dex_surface_helpers._route_dedup_key(route_b)
+    assert dex_surface_helpers._route_dedup_key(route_a) == dex_surface_helpers._route_dedup_key(dict(route_a))
+
+
 def test_merge_recent_attempt_evidence_ignores_stale_history(monkeypatch):
     now = datetime.now(timezone.utc)
     old = _attempt(

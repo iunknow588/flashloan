@@ -18,14 +18,40 @@ def _json_key(value: Any) -> str:
     return json.dumps(value if value is not None else [], ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
+def _addresses_from_attempt(attempt: dict[str, Any]) -> list[str]:
+    for key in ("routeAddresses", "route_addresses"):
+        value = attempt.get(key)
+        if isinstance(value, list):
+            addresses = [str(item or "").strip().lower() for item in value if str(item or "").strip()]
+            if addresses:
+                return addresses
+    quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+    for key in ("routeAddresses", "route_addresses"):
+        value = quote.get(key)
+        if isinstance(value, list):
+            addresses = [str(item or "").strip().lower() for item in value if str(item or "").strip()]
+            if addresses:
+                return addresses
+    precheck = attempt.get("precheck") if isinstance(attempt.get("precheck"), dict) else {}
+    for key in ("routeAddresses", "route_addresses"):
+        value = precheck.get(key)
+        if isinstance(value, list):
+            addresses = [str(item or "").strip().lower() for item in value if str(item or "").strip()]
+            if addresses:
+                return addresses
+    return []
+
+
 def candidate_signature(attempt: dict[str, Any]) -> str:
+    route_addresses = _addresses_from_attempt(attempt)
+    route_identity = _json_key(route_addresses if route_addresses else (attempt.get("route_path") or []))
     return "|".join(
         [
             str(attempt.get("network") or "").strip().lower(),
             str(attempt.get("pair") or "").strip().upper(),
             str(attempt.get("pair_rank") or ""),
             str(attempt.get("priority_reason") or ""),
-            _json_key(attempt.get("route_path") or []),
+            route_identity,
         ]
     )
 

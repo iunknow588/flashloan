@@ -62,6 +62,24 @@ def _route_tokens(summary: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _route_address_path(summary: dict[str, Any], route: dict[str, Any]) -> list[str]:
+    for key in ("routeAddresses", "pathAddresses", "anchorAddresses"):
+        value = summary.get(key)
+        if not isinstance(value, list):
+            value = route.get(key)
+        if not isinstance(value, list):
+            continue
+        addresses = [_text(item).lower() for item in value if _text(item)]
+        if addresses:
+            return addresses
+    for pool in route.get("routePools") or []:
+        if isinstance(pool, dict) and pool.get("routeAddresses"):
+            addresses = [_text(item).lower() for item in pool["routeAddresses"] if _text(item)]
+            if addresses:
+                return addresses
+    return []
+
+
 def _closed_loop_route_from_summary(summary: dict[str, Any]) -> dict[str, Any]:
     route_tokens = _route_tokens(summary)
     return {
@@ -99,10 +117,23 @@ def _closed_loop_dedup_key(summary: dict[str, Any], route: dict[str, Any]) -> tu
     anchor = _norm_symbol(summary.get("anchorSymbol") or route.get("anchorSymbol"))
     if not anchor and path_symbols:
         anchor = path_symbols[0]
-    mids = tuple(path_symbols[1:-1]) if len(path_symbols) >= 3 and path_symbols[0] == path_symbols[-1] else tuple(path_symbols)
+    path_addresses = _route_address_path(summary, route)
+    if path_addresses and len(path_addresses) == len(path_symbols):
+        anchor = path_addresses[0]
+        mids = tuple(path_addresses[1:-1]) if len(path_addresses) >= 3 else tuple(path_addresses)
+    else:
+        mids = tuple(path_symbols[1:-1]) if len(path_symbols) >= 3 and path_symbols[0] == path_symbols[-1] else tuple(path_symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
     return (anchor, mids)
+
+
+def _group_key(summary: dict[str, Any], route: dict[str, Any], anchor_symbol: str) -> str:
+    path_addresses = _route_address_path(summary, route)
+    if path_addresses:
+        return path_addresses[0]
+    anchor_address = _first_anchor_address(summary, route, anchor_symbol)
+    return anchor_address.lower() or anchor_symbol
 
 
 def group_closed_loop_routes_by_flash_loan_token(
@@ -136,8 +167,9 @@ def group_closed_loop_routes_by_flash_loan_token(
         is_duplicate_route = dedup_key in seen_routes
         seen_routes.add(dedup_key)
 
+        group_key = _group_key(summary, route, anchor_symbol)
         group = groups.setdefault(
-            anchor_symbol,
+            group_key,
             {
                 "flashLoanToken": {
                     "symbol": anchor_symbol,
@@ -180,7 +212,7 @@ def group_closed_loop_routes_by_flash_loan_token(
         groups.items(),
         key=lambda item: (0 if item[1]["borrowable"] else 1, item[0]),
     )
-    for symbol, group in ordered:
+    for _key, group in ordered:
         group.pop("poolDependencyIndex", None)
         result.append(group)
     return result

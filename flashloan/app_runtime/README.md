@@ -97,10 +97,14 @@ Robinhood Chain and Robinhood Testnet are separate chain data owners:
 - Token identity for route tests and pool review must come from
   `chains/robinhood-testnet/v4_token_allowlist.json`. A symbol is display-only;
   on-chain quoting and pool matching use the allowlist address.
+- Internal route dedup and scanner/evidence merging must prefer exact token
+  addresses over symbols. Symbols can collide (for example multiple WETH
+  addresses), so address path is the unique key whenever it is available.
 - `ETH` means the native token `0x0000000000000000000000000000000000000000`.
-  `WETH` means the ERC20 wrapped token at
-  `0x7943e237c7F95DA44E0301572D358911207852Fa` unless the allowlist records a
-  different test WETH address. They must not be conflated by route builders.
+  `WETH` may have multiple ERC20 wrapped token addresses on this testnet. A
+  symbol-only `WETH` route is rejected as ambiguous; route builders must supply
+  the exact wrapped-token address they intend to test. They must not conflate
+  `ETH` and `WETH`.
 - Token `decimals` must come from the allowlist, a trusted chain/ERC20 read, or
   an explicit user-provided token metadata record. Missing or unverified
   decimals are an error: the code must not silently assume `18`.

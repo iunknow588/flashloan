@@ -49,6 +49,23 @@ _SCANNER_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
+def _attempt_route_identity(attempt: dict[str, Any]) -> tuple[Any, ...]:
+    for key in ("routeAddresses", "route_addresses"):
+        value = attempt.get(key)
+        if isinstance(value, list):
+            addresses = tuple(str(item or "").strip().lower() for item in value if str(item or "").strip())
+            if addresses:
+                return addresses
+    quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+    for key in ("routeAddresses", "route_addresses"):
+        value = quote.get(key)
+        if isinstance(value, list):
+            addresses = tuple(str(item or "").strip().lower() for item in value if str(item or "").strip())
+            if addresses:
+                return addresses
+    return tuple(str(item or "").strip().upper() for item in (attempt.get("route_path") or []) if str(item or "").strip())
+
+
 def _scanner_snapshot_ttl_seconds() -> float:
     raw = os.getenv("DEX_OPPORTUNITY_SNAPSHOT_MAX_AGE_SECONDS", "600")
     try:
@@ -745,7 +762,7 @@ class DexOpportunityScanner:
                     attempt.get("network"),
                     attempt.get("chain_id"),
                     attempt.get("pair"),
-                    tuple(attempt.get("route_path") or []),
+                    _attempt_route_identity(attempt),
                     attempt.get("priority_reason"),
                 )
                 last_recorded_at = self._recorded_signatures.get(signature)

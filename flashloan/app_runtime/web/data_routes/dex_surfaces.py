@@ -68,7 +68,7 @@ from web.data_routes.dex_surface_helpers import (
     _merge_live_route_estimate,
     _merge_recent_attempt_evidence_into_routes,
     _reference_only_live_quote_context,
-    _route_symbol_key,
+    _route_dedup_key,
     _scanner_snapshot_is_stale,
     evict_stale_evidence_from_routes,
 )
@@ -342,7 +342,7 @@ def register_dex_surface_routes(app, panel) -> None:
                     }
                     scanner_routes = [route for route in (scanner_data.get("routes") or []) if isinstance(route, dict)]
                     scanner_by_key = {
-                        " -> ".join(str(symbol).upper() for symbol in (route.get("routeSymbols") or [])): route
+                        _route_dedup_key(route): route
                         for route in scanner_routes
                     }
                     top_routes = scanner_routes
@@ -369,11 +369,11 @@ def register_dex_surface_routes(app, panel) -> None:
                 }
                 scanner_routes = [route for route in (scanner_data.get("routes") or []) if isinstance(route, dict)]
                 scanner_by_key = {
-                    " -> ".join(str(symbol).upper() for symbol in (route.get("routeSymbols") or [])): route
+                    _route_dedup_key(route): route
                     for route in scanner_routes
                 }
             for route in base_routes:
-                key = " -> ".join(str(symbol).upper() for symbol in (route.get("routeSymbols") or []))
+                key = _route_dedup_key(route)
                 scanner_route = scanner_by_key.get(key)
                 if not isinstance(scanner_route, dict):
                     continue
@@ -395,7 +395,7 @@ def register_dex_surface_routes(app, panel) -> None:
         if use_live_estimate_fallback and (snapshot_routes or top_routes):
             scanner_routes = base_routes
             merged_by_key = {
-                " -> ".join(str(s) for s in (route.get("routeSymbols") or [])): route
+                _route_dedup_key(route): route
                 for route in scanner_routes
                 if isinstance(route, dict)
             }
@@ -412,7 +412,7 @@ def register_dex_surface_routes(app, panel) -> None:
             ordered_routes = sorted(base_routes, key=_priority)
             live_count = 0
             for route in ordered_routes:
-                key = " -> ".join(str(s) for s in (route.get("routeSymbols") or []))
+                key = _route_dedup_key(route)
                 if not key or live_count >= 1:
                     continue
                 evidence = route.get("live_onchain_evidence") or {}
@@ -457,9 +457,15 @@ def register_dex_surface_routes(app, panel) -> None:
                 payload["closedLoopGroups"] = groups_payload.get("groups") or []
             else:
                 payload["closedLoopGroups"] = []
-        except Exception:
+        except Exception as exc:
             # The quote-routes surface should remain useful even if the
             # grouped overview payload cannot be built for a chain.
+            logger.warning(
+                "closed-loop groups overview unavailable for chain_id=%s protocols=%s: %s",
+                selected_chain_id,
+                protocols,
+                exc,
+            )
             payload["closedLoopGroups"] = []
         return jsonify(_attach_dex_strategy(payload))
 

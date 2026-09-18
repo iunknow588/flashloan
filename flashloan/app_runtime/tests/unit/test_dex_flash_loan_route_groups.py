@@ -87,6 +87,34 @@ def test_group_closed_loop_routes_by_flash_loan_token_groups_start_end():
     assert ta["poolDependencyCount"] == 6
 
 
+def test_group_key_uses_address_not_just_symbol_for_duplicate_symbols():
+    snapshot = _snapshot()
+    snapshot["closedLoopRouteSummaries"].append(
+        {
+            "routeKey": "route-ta-alt",
+            "anchorSymbol": "TA",
+            "counterSymbol": "TZ",
+            "bridgeSymbol": "TB",
+            "pathText": "TA -> TB -> TZ -> TA",
+            "pathSymbols": ["TA", "TB", "TZ", "TA"],
+            "routeAddresses": ["0xTA_ALT", "0xTB", "0xTZ", "0xTA_ALT"],
+            "pairSymbols": ["TA -> TB", "TB:TZ", "TZ -> TA"],
+            "poolIds": ["pool-ta-alt-tb", "pool-tb-tz", "pool-tz-ta-alt"],
+            "routePools": [
+                _pool("pool-ta-alt-tb", ["TA", "TB"], "yc"),
+                _pool("pool-tb-tz", ["TB", "TZ"], "yc"),
+                _pool("pool-tz-ta-alt", ["TZ", "TA"], "zc"),
+            ],
+        }
+    )
+
+    groups = group_closed_loop_routes_by_flash_loan_token(snapshot)
+    ta_groups = [group for group in groups if group["flashLoanToken"]["symbol"] == "TA"]
+
+    assert len(ta_groups) == 2
+    assert {group["flashLoanToken"]["address"] for group in ta_groups} == {"0xTA", "0xTA_ALT"}
+
+
 def test_group_closed_loop_routes_dedupes_pool_dependencies():
     groups = group_closed_loop_routes_by_flash_loan_token(_snapshot())
     ta = next(group for group in groups if group["flashLoanToken"]["symbol"] == "TA")

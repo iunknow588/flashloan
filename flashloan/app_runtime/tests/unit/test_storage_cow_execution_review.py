@@ -153,6 +153,30 @@ def test_jsonl_append_rejects_contradictory_nested_scope(tmp_path):
 
 def test_review_route_identity_resolves_known_robinhood_symbols():
     row = {
+        "route_path": ["TZ", "TB", "TA", "TZ"],
+    }
+    quote = {
+        "path": row["route_path"],
+        "hops": [
+            {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB"},
+            {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA"},
+            {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ"},
+        ],
+    }
+    identity = _review_route_identity(row, quote, {})
+
+    assert identity["status"] == "ok"
+    assert identity["address_source"] == "robinhood_testnet_v4_token_allowlist"
+    assert identity["route_addresses"] == [
+        "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+    ]
+
+
+def test_review_route_identity_ambiguous_weth_returns_symbol_only():
+    row = {
         "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
     }
     quote = {
@@ -165,14 +189,11 @@ def test_review_route_identity_resolves_known_robinhood_symbols():
     }
     identity = _review_route_identity(row, quote, {})
 
-    assert identity["status"] == "ok"
-    assert identity["address_source"] == "robinhood_testnet_v4_token_allowlist"
-    assert identity["route_addresses"] == [
-        "0x7943e237c7F95DA44E0301572D358911207852Fa",
-        "0x0000000000000000000000000000000000000000",
-        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-        "0x7943e237c7F95DA44E0301572D358911207852Fa",
-    ]
+    assert identity["status"] == "symbol_only"
+    assert identity["identity_mode"] == "symbol_fallback"
+    assert identity["address_source"] is None
+    assert identity["route_addresses"] == []
+    assert identity["routeAddresses"] == []
 
 
 def test_review_route_identity_unknown_symbol_returns_symbol_only():
@@ -219,16 +240,16 @@ def test_review_route_identity_missing_allowlist_returns_symbol_only(monkeypatch
 
 def test_review_summary_prefers_quote_business_status_over_identity_warning():
     row = {
-        "route_path": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "route_path": ["TZ", "TB", "TA", "TZ"],
     }
     quote = {
         "path": row["route_path"],
         "quote_status": "not_enough_liquidity",
         "execution_trust": "not_enough_liquidity",
         "hops": [
-            {"hop": 1, "fromSymbol": "WETH", "toSymbol": "ETH"},
-            {"hop": 2, "fromSymbol": "ETH", "toSymbol": "0XC9F9C8"},
-            {"hop": 3, "fromSymbol": "0XC9F9C8", "toSymbol": "WETH"},
+            {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB"},
+            {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA"},
+            {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ"},
         ],
         "live_onchain_evidence": {},
     }

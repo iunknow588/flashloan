@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import logging
 import os
 import time
 from typing import Any
@@ -13,11 +14,43 @@ from dex.runtime.dex_opportunity_helpers import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def _route_symbol_key(items: object) -> str:
     if isinstance(items, str):
         items = [part for part in items.split(" -> ") if str(part).strip()]
     parts = [str(item).strip().upper() for item in (items or []) if str(item).strip()]
     return " -> ".join(parts)
+
+
+def _route_addresses_from_route(route: dict) -> list[str]:
+    for key in ("routeAddresses", "route_addresses", "addresses"):
+        value = route.get(key)
+        if isinstance(value, list):
+            addresses = [str(item or "").strip().lower() for item in value if str(item or "").strip()]
+            if addresses:
+                return addresses
+    return []
+
+
+def _route_dedup_key(route: dict) -> str:
+    """Return a stable route key that prefers exact token addresses.
+
+    Symbols are display-only and can collide (for example multiple WETH
+    addresses). When addresses are available they become the internal key so
+    scanner/evidence merging does not combine two different token routes that
+    happen to share the same symbol path.
+    """
+    if isinstance(route, dict):
+        addresses = _route_addresses_from_route(route)
+        if addresses:
+            return "addr|" + "|".join(addresses)
+        raw_path = route.get("routeSymbols") or route.get("symbolPair") or route.get("path") or []
+        if not raw_path:
+            return ""
+        return "symbol|" + _route_symbol_key(raw_path)
+    return "symbol|" + _route_symbol_key(route)
 
 
 def _scanner_snapshot_is_stale(scanner_payload: dict, *, max_age_seconds: float = 600.0) -> bool:
@@ -92,7 +125,8 @@ def _merge_recent_attempt_evidence_into_routes(
             limit=max(1, int(recent_attempt_limit)),
             chain_ids=[int(chain_id)],
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("failed to load recent cow execution attempts for quote-routes page: %s", exc)
         return routes
     latest_evidence_by_route = {}
     max_age = _recent_attempt_max_age_seconds() if max_age_seconds is None else float(max_age_seconds)
@@ -105,17 +139,22 @@ def _merge_recent_attempt_evidence_into_routes(
             continue
         quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
         raw_path = attempt.get("route_path") or quote.get("path") or attempt.get("path") or []
-        route_key = _route_symbol_key(raw_path)
-        if not route_key:
-            continue
         evidence = _attempt_route_evidence(attempt)
         if not isinstance(evidence, dict) or not evidence.get("status"):
+            continue
+        route_key = _route_dedup_key(
+            {
+                "routeAddresses": evidence.get("routeAddresses") or evidence.get("route_addresses") or [],
+                "routeSymbols": raw_path,
+            }
+        )
+        if not route_key:
             continue
         latest_evidence_by_route.setdefault(route_key, evidence)
     for route in routes:
         if not isinstance(route, dict):
             continue
-        route_key = _route_symbol_key(route.get("routeSymbols") or route.get("symbolPair") or [])
+        route_key = _route_dedup_key(route)
         evidence = latest_evidence_by_route.get(route_key)
         if not isinstance(evidence, dict) or not evidence:
             continue
@@ -316,7 +355,8 @@ def _live_quote_deferred_route(
         if live.get("ok") is False or not (live.get("steps") or []):
             return _merge_live_route_estimate(route, live)
         return _merge_live_route_estimate(route, live)
-    except Exception:
+    except Exception as exc:
+        logger.warning("live route estimate failed for chain_id=%s protocols=%s: %s", chain_id, protocols, exc)
         return _merge_live_route_estimate(
             route,
             {
@@ -349,6 +389,7 @@ __all__ = [
     "_merge_live_route_estimate",
     "_merge_recent_attempt_evidence_into_routes",
     "_reference_only_live_quote_context",
+    "_route_dedup_key",
     "_route_symbol_key",
     "_scanner_snapshot_is_stale",
 ]

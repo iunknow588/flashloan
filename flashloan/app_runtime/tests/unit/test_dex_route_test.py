@@ -23,13 +23,17 @@ def test_official_triangle_route_validation():
 
 
 def test_official_route_addresses_resolve_from_chain_allowlist():
-    addresses = _official_route_addresses(["WETH", "ETH", "0XC9F9C8", "WETH"])
+    addresses = _official_route_addresses(["TZ", "TB", "TA", "TZ"])
     assert addresses == [
-        "0x7943e237c7F95DA44E0301572D358911207852Fa",
-        "0x0000000000000000000000000000000000000000",
-        "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-        "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+        "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+        "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
     ]
+
+
+def test_official_route_addresses_rejects_ambiguous_weth():
+    assert _official_route_addresses(["WETH", "ETH", "0XC9F9C8", "WETH"]) == []
 
 
 def test_official_route_addresses_rejects_unknown_symbol_instead_of_guessing():

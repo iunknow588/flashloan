@@ -25,11 +25,21 @@ from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
 
 
-def _closed_loop_dedup_key(anchor: str, route_symbols: list[str]) -> tuple[str, tuple[str, ...]]:
-    mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
+def _closed_loop_dedup_key(
+    anchor: str,
+    route_symbols: list[str],
+    route_addresses: list[str] | None = None,
+) -> tuple[str, tuple[str, ...]]:
+    route_addresses = [str(value or "").lower() for value in (route_addresses or []) if str(value or "").strip()]
+    if route_addresses and len(route_addresses) == len(route_symbols):
+        anchor_key = route_addresses[0]
+        mids = tuple(route_addresses[1:-1]) if len(route_addresses) >= 3 else tuple(route_addresses)
+    else:
+        anchor_key = anchor
+        mids = tuple(route_symbols[1:-1]) if len(route_symbols) >= 3 and route_symbols[0] == route_symbols[-1] else tuple(route_symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
-    return (anchor, mids)
+    return (anchor_key, mids)
 
 
 def _compat_module():
@@ -84,21 +94,26 @@ def group_overview_paths_by_flash_loan_token(
         overview_route = path.get("overviewRoute") if isinstance(path.get("overviewRoute"), dict) else {}
         linkage = path.get("flashLoanLinkage") if isinstance(path.get("flashLoanLinkage"), dict) else {}
         route_symbols = [_norm_symbol(value) for value in path.get("routeSymbols") or [] if _norm_symbol(value)]
+        route_addresses = [str(value or "").strip() for value in path.get("routeAddresses") or [] if str(value or "").strip()]
         anchor = _norm_symbol(overview_route.get("anchorBorrowSymbol"))
         if not anchor:
             borrow_symbols = [_norm_symbol(value) for value in linkage.get("borrow_symbols") or [] if _norm_symbol(value)]
             anchor = borrow_symbols[0] if borrow_symbols else (route_symbols[0] if route_symbols else "")
         if not anchor:
             continue
-        dedup_key = _closed_loop_dedup_key(anchor, route_symbols)
+        anchor_address = overview_route.get("anchorBorrowAddress") or overview_route.get("anchorAddress")
+        if not anchor_address and route_addresses:
+            anchor_address = route_addresses[0]
+        dedup_key = _closed_loop_dedup_key(anchor, route_symbols, route_addresses)
         is_duplicate = dedup_key in seen_routes
         seen_routes.add(dedup_key)
+        group_key = str(anchor_address or "").strip().lower() or anchor
         group = groups.setdefault(
-            anchor,
+            group_key,
             {
-                "flashLoanToken": {"symbol": anchor},
-                "startToken": {"symbol": anchor},
-                "endToken": {"symbol": anchor},
+                "flashLoanToken": {"symbol": anchor, "address": str(anchor_address or "").strip()},
+                "startToken": {"symbol": anchor, "address": str(anchor_address or "").strip()},
+                "endToken": {"symbol": anchor, "address": str(anchor_address or "").strip()},
                 "borrowable": anchor in borrowable,
                 "pathCount": 0,
                 "poolDependencyCount": 0,
