@@ -29,7 +29,7 @@ class AccountBackfillRuntime:
 
 def run_account_backfill_once(runtime: AccountBackfillRuntime) -> dict:
     if not runtime.database_url():
-        return {"started": False, "saved": False, "count": 0, "error": "DATABASE_URL is required"}
+        return {"started": False, "saved": False, "count": 0, "error": "local KV store unavailable"}
     if not runtime.auto_discovery_enabled():
         return {"started": False, "saved": False, "count": 0, "error": "auto discovery disabled"}
     if not runtime.lock.acquire(blocking=False):

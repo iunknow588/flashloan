@@ -1,4 +1,3 @@
-﻿
     const $ = id => document.getElementById(id);
     const APP_VERSION = "2026.09.11.07";
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[ch]));
@@ -13,6 +12,12 @@
       const parsed = Number(value);
       return Number.isFinite(parsed) ? `${parsed < 0 ? "-" : ""}$${Math.abs(parsed).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "-";
     };
+    const snapshotAgeSeconds = (snapshotPayload) => {
+      const updatedAt = snapshotPayload?.snapshot?.updated_at || snapshotPayload?.scanner?.snapshot_updated_at || "";
+      if (!updatedAt) return Number.MAX_SAFE_INTEGER;
+      const parsed = new Date(updatedAt);
+      return Number.isNaN(parsed.getTime()) ? Number.MAX_SAFE_INTEGER : (Date.now() - parsed.getTime()) / 1000;
+    };
     const amount = (value, symbol, digits = 8) => {
       if (value === null || value === undefined || value === "") return "-";
       const parsed = Number(value);
@@ -22,6 +27,7 @@
       live_verified: "链上价格已验证",
       not_live_verified: "尚未完成链上复核",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
+      rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       adapter_required: "链上复核失败：缺少报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块",
       missing_effective_pool: "链上复核：缺少有效池，无法报价",
@@ -29,11 +35,13 @@
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-      not_enough_liquidity: "流动性不足",
+      not_enough_liquidity: "池当前没有 LP 流动性",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
+      missing_effective_pool: "链上复核：池未初始化或缺少有效池",
       live_evidence_deferred: "链上验证已延后",
       not_reviewed_this_scan: "本轮未复核",
+      stale_refresh_pending: "快照过期，等待刷新",
       requires_live_quoter: "需要链上报价器",
       sdk_adapter_required: "需要 V4 SDK 适配器",
       uniswap_v4_sdk_exact_input_single: "V4 SDK 单步精确输入",
@@ -45,16 +53,38 @@
       static_reference_only: "静态参考",
       static_reference: "静态参考",
       live_quoter_verified_readonly: "实时报价器验证（只读）",
-      static_live_quoter_estimate: "静态+实时报价器估算",
+      static_live_quoter_estimate: "静态+实时报价器复核",
       live_quote_reference_only: "参考报价",
       live_verified: "链上已验证",
       live: "链上已验证",
-      not_enough_liquidity: "链上复核：流动性不足",
+      not_enough_liquidity: "链上复核：池当前没有 LP 流动性",
       pool_not_initialized: "链上复核：池未初始化",
+      missing_effective_pool: "链上复核：池未初始化或缺少有效池",
       live_quote_failed: "链上报价失败",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
+      rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       deferred: "已延迟",
     }[String(value || "")] || value || "-");
+    const terminalEvidenceStatus = status => {
+      const lower = String(status || "").toLowerCase();
+      return [
+        "route_unprofitable",
+        "slippage_limit_exceeded",
+        "live_quote_failed",
+        "quote_failed",
+        "not_enough_liquidity",
+        "pool_not_initialized",
+        "pool_insufficient_for_profitable_execution",
+        "missing_effective_pool",
+        "missing_route_identity",
+        "route_lacks_complete_token_address_identity",
+        "rpc_verification_failed",
+        "rpc_verification_timeout",
+        "adapter_required",
+        "missing_trigger_block",
+      ].includes(lower);
+    };
+    const estimateStageStatus = value => terminalEvidenceStatus(value) ? evidenceStatusEx(value) : "链下估算完成";
     const quoteBlockLabel = value => {
       const text = String(value || "");
       if (text === "latest_fallback_missing_trigger" || text === "latest_fallback_historical_state_unavailable") return "最新区块回退（历史状态不可用）";
@@ -91,31 +121,33 @@
     const recommendationAction = value => {
       const text = String(value || "");
       const map = {
-        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；正在阻止交易预检",
+        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；正在阻止链上执行",
         "on-chain reverify complete; current state does not satisfy transaction submission conditions": "链上复核完成；当前状态不满足交易提交条件",
-        "On-chain verification complete; preflight still required": "链上验证完成；仍需交易预检",
-        "On-chain verification passed, but execution gates are blocked": "链上验证通过，但执行门禁未放行",
+        "On-chain verification complete; preflight still required": "链上复核完成；仍需要链上复核确认可执行性",
+        "On-chain verification passed, but execution gates are blocked": "链上复核通过，但链上执行条件尚未满足",
         "Pool depth insufficient for profitable execution": "池深度不足以盈利执行",
         "Per-hop price impact exceeds 10 bps": "单跳价格影响超过 10 bps",
         "Route is unprofitable": "路线不盈利",
         "On-chain quote failed": "链上报价失败",
+        "on-chain quote failed; route cannot enter transaction preflight": "链上报价失败，无法进入链上执行",
+        "route cannot enter transaction preflight": "链上报价失败，无法进入链上执行",
         "Reference quote only": "仅参考报价",
         "On-chain verification deferred": "链上验证已延后",
       };
       const extra = {
         "at least one hop price impact cannot be confirmed or exceeds 10 bps": "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-        "on-chain computed profit is not positive after flash loan fees; cannot enter preflight": "链上已验证，但扣除闪电贷费用后尚未转正；不能进入预检",
-        "on-chain verification did not cover all hops; cannot enter preflight": "链上验证未覆盖全部跳数；不能进入预检",
-        "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入预检",
-        "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动交易预检",
+        "on-chain computed profit is not positive after flash loan fees; cannot enter preflight": "链上复核已确认，但扣除闪电贷费用后尚未转正；不能进入链上执行",
+        "on-chain verification did not cover all hops; cannot enter preflight": "链上复核未覆盖全部跳数；不能进入链上执行",
+        "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入链上执行",
+        "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动链上执行",
         "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制并扣除闪电贷费用后仍有盈利的借贷量",
         "on-chain RPC verification failed": "链上 RPC 复核失败",
         "Robinhood Testnet RPC unavailable": "Robinhood 测试网 RPC 不可用",
         "adapter required": "缺少链上报价适配器",
         "missing trigger block context; later latest price cannot replace the trigger-time price.": "缺少触发区块上下文；后续最新价格不能替代触发时点价格",
-        "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行门禁",
+        "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行",
         "historic block state unavailable; deferred on-chain reverify": "历史区块状态不可用；链上复核已延后",
-        "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；提交前仍需交易 calldata、滑点保护、闪电贷返还约束以及 fork/static-call 模拟",
+        "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；当前复核结论已完成",
       };
       return map[text] || extra[text] || text || "-";
     };
@@ -173,14 +205,14 @@
       if (nested) return nested;
       const blockerDirectMap = {
         "at least one hop price impact cannot be confirmed or exceeds 10 bps": "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-        "on-chain computed profit is not positive after flash loan fees; cannot enter preflight": "链上已验证，但扣除闪电贷费用后尚未转正；不能进入预检",
-        "on-chain verification did not cover all hops; cannot enter preflight": "链上验证未覆盖全部跳数；不能进入预检",
-        "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入预检",
-        "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动交易预检",
+        "on-chain computed profit is not positive after flash loan fees; cannot enter preflight": "链上复核已确认，但扣除闪电贷费用后尚未转正；不能进入链上执行",
+        "on-chain verification did not cover all hops; cannot enter preflight": "链上复核未覆盖全部跳数；不能进入链上执行",
+        "stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight": "稳定币路线链上净收益低于 6U 门槛；不能进入链上执行",
+        "final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight": "最终输出不是稳定币或缺少可信 USD 估值；不能进入自动链上执行",
         "current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee": "当前池深度无法支持同时通过 10 bps 滑点限制并扣除闪电贷费用后仍有盈利的借贷量",
-        "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行门禁",
+        "V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate": "V4 池未初始化或无法报价；该路线不能进入链上执行",
         "historic block state unavailable; deferred on-chain reverify": "历史区块状态不可用；链上复核已延后",
-        "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；提交前仍需交易 calldata、滑点保护、闪电贷返还约束以及 fork/static-call 模拟",
+        "on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting": "链上 Quoter 已复核为正收益；当前复核结论已完成",
       };
       if (blockerDirectMap[text]) return blockerDirectMap[text];
       const translated = text
@@ -206,10 +238,37 @@
       if (translated && !/[\u4e00-\u9fff]/.test(translated)) return `原因：${translated}`;
       return translated;
     };
-    const routeEvidence = route => route?.live_onchain_evidence || route?.quoteAnalysis?.live_onchain_evidence || route?.quote?.live_onchain_evidence || {};
+    const pathFromSteps = (steps, fallback = "") => {
+      const rows = Array.isArray(steps) ? steps.filter(step => step && typeof step === "object") : [];
+      if (!rows.length) return fallback || "";
+      const symbols = [];
+      for (const step of rows) {
+        const from = String(step.fromSymbol || step.tokenInSymbol || "").trim().toUpperCase();
+        const to = String(step.toSymbol || step.tokenOutSymbol || "").trim().toUpperCase();
+        if (from && (!symbols.length || symbols[symbols.length - 1] !== from)) symbols.push(from);
+        if (to) symbols.push(to);
+      }
+      return symbols.join(" -> ");
+    };
     const routeKey = route => {
       const symbols = Array.isArray(route?.routeSymbols) ? route.routeSymbols : [];
-      return String(route?.symbolPair || (symbols.length ? symbols.join(" -> ") : "") || "").toUpperCase();
+      const symbolKey = symbols.filter(Boolean).map(item => String(item).trim().toUpperCase()).filter(Boolean);
+      if (symbolKey.length >= 3 && symbolKey[0] === symbolKey[symbolKey.length - 1]) {
+        const middle = symbolKey.slice(1, -1).sort().join("->");
+        return `loop|${symbolKey[0]}|${middle}`;
+      }
+      const raw = route?.symbolPair || (symbolKey.length ? symbolKey.join(" -> ") : "") || "";
+      return `path|${String(raw).toUpperCase()}`;
+    };
+    const routeQuality = route => {
+      const evidence = routeEvidence(route);
+      const status = String(evidence.status || route?.quoteStatus || "").toLowerCase();
+      let score = 0;
+      if (status && status !== "requires_live_quoter" && status !== "live_evidence_deferred" && status !== "not_reviewed_this_scan") score += 10;
+      if (["live_verified", "route_unprofitable", "slippage_limit_exceeded", "pool_insufficient_for_profitable_execution"].includes(status)) score += 25;
+      score += Array.isArray(evidence.hops) ? evidence.hops.length : 0;
+      score += Array.isArray(route?.quoteAnalysis?.steps) ? Math.min(route.quoteAnalysis.steps.length, 5) : 0;
+      return score;
     };
     const routesToRender = (scannerRoutes, quoteRoutesPayload) => {
       const quoteSnapshot = quoteRoutesPayload?.snapshot?.payload || {};
@@ -233,14 +292,24 @@
       for (const route of scannerList) {
         if (!quoteByKey.has(routeKey(route))) merged.push(route);
       }
-      return merged;
+      const deduped = new Map();
+      for (const route of merged) {
+        const key = routeKey(route);
+        const existing = deduped.get(key);
+        if (!existing || routeQuality(route) > routeQuality(existing)) deduped.set(key, route);
+      }
+      return Array.from(deduped.values());
     };
     const routeAnalysis = route => {
       const base = {...(route?.quoteAnalysis || {})};
       const evidence = routeEvidence(route);
       if (!Object.keys(evidence).length) return base;
       const costs = evidence.costModel || {};
-      const live = Boolean(evidence.livePriceVerified || evidence.status === "live_verified");
+      const status = String(evidence.status || "").toLowerCase();
+      const trust = String(evidence.executionTrust || "").toLowerCase();
+      const liveTrust = ["live_v4_adapter", "live_quoter_verified_readonly", "live_verified"].includes(trust);
+      const liveStatus = ["live_verified", "route_unprofitable", "slippage_limit_exceeded", "pool_insufficient_for_profitable_execution"].includes(status);
+      const live = Boolean(evidence.livePriceVerified || liveStatus || liveTrust);
       const chainAttempted = Boolean(evidence.status);
       return {
         ...base,
@@ -253,9 +322,9 @@
         grossProfitUsd: live ? costs.grossProfitUsd : null,
         netProfitUsd: live ? costs.netProfitUsd : null,
         netProfitBps: live ? costs.netProfitBps : null,
-        referenceFinalOutputAmount: live ? costs.finalOutputAmount : base.referenceFinalOutputAmount,
-        referenceNetProfitAmount: live ? costs.netProfitAmount : base.referenceNetProfitAmount,
-        referenceNetReturnBps: live ? costs.netProfitAmountBps : base.referenceNetReturnBps,
+        referenceFinalOutputAmount: costs.finalOutputAmount ?? base.referenceFinalOutputAmount,
+        referenceNetProfitAmount: humanTokenValue(costs.netProfitAmount ?? base.referenceNetProfitAmount),
+        referenceNetReturnBps: costs.netProfitAmountBps ?? base.referenceNetReturnBps,
         referenceFinalOutputSymbol: costs.finalOutputSymbol || base.referenceFinalOutputSymbol,
         referenceInputSymbol: costs.borrowInputSymbol || base.referenceInputSymbol,
         referenceReturnBasis: costs.profitBasis || base.referenceReturnBasis,
@@ -298,7 +367,7 @@
         recommendation: lines(evidence.blockers).length || live ? {
             level: evidence.status || (live ? "live_verified" : ""),
             action: live
-              ? (evidence.readyForTransactionPreflight ? "链上验证完成；仍需交易预检" : "链上验证通过，但执行门禁未放行")
+              ? (evidence.readyForTransactionPreflight ? "链上复核完成；可点击链上执行确认成交" : (String(evidence.status || "").toLowerCase() === "route_unprofitable" ? "链上报价已验证，但净收益未转正；禁止链上执行" : "链上复核通过，但链上执行条件尚未满足"))
             : (base.requiresLiveQuoter && base.referenceNetProfitAmount != null ? "链上报价未完成，当前为静态参考收益" : "链上报价未完成"),
             reasons: evidence.blockers,
         } : base.recommendation,
@@ -310,12 +379,14 @@
       live_quote_reference_only: "仅参考报价",
       route_unprofitable: "路线不盈利",
       slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-      not_enough_liquidity: "链上复核：流动性不足",
+      not_enough_liquidity: "链上复核：池当前没有 LP 流动性",
       pool_insufficient_for_profitable_execution: "池深度不足以盈利执行",
       pool_not_initialized: "V4 池未初始化",
+      missing_effective_pool: "链上复核：池未初始化或缺少有效池",
       live_evidence_deferred: "链上验证已延后",
       not_reviewed_this_scan: "链上复核未覆盖本轮预算",
       rpc_verification_failed: "链上复核失败：RPC 不可用",
+      rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
       adapter_required: "链上复核失败：缺少 V4 报价适配器",
       missing_trigger_block: "链上复核未执行：缺少触发区块上下文",
     }[String(status || "").toLowerCase()] || "链上复核状态未确认");
@@ -323,10 +394,11 @@
       const value = String(status || "").toLowerCase();
       const blocked = {
         slippage_limit_exceeded: "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
-        route_unprofitable: "链上已验证，收益未转正",
+        route_unprofitable: "链上报价已验证，但净收益未转正",
         pool_insufficient_for_profitable_execution: "链上已验证，池深度不足",
         pool_not_initialized: "链上复核失败：V4 池未初始化",
         rpc_verification_failed: "链上复核失败：RPC 不可用",
+        rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
         adapter_required: "链上复核失败：缺少报价适配器",
         missing_trigger_block: "链上复核未执行：缺少触发区块",
         missing_effective_pool: "链上复核：缺少有效池，无法报价",
@@ -373,6 +445,30 @@
     }
     const inputSymbol = (route, analysis) => route?.routeSymbols?.[0] || analysis?.referenceInputSymbol || analysis?.inputSymbol || "";
     const routeSizeAmount = (value, route, analysis) => amount(value, inputSymbol(route, analysis));
+    const tokenDecimalsFor = (route, evidence) => {
+      const value = evidence?.costModel?.borrowInputDecimals
+        ?? evidence?.validation?.borrowInputDecimals
+        ?? route?.quoteAnalysis?.referenceInputDecimals
+        ?? route?.quoteInputs?.routePools?.[0]?.token0Decimals
+        ?? route?.quoteInputs?.routePools?.[0]?.token1Decimals
+        ?? 18;
+      return Number.isFinite(Number(value)) ? Number(value) : 18;
+    };
+    const rawToHumanAmount = (raw, decimals) => {
+      const parsed = Number(raw);
+      const dec = Number(decimals);
+      if (!Number.isFinite(parsed) || !Number.isFinite(dec) || raw === null || raw === undefined || raw === "") return null;
+      return parsed / (10 ** dec);
+    };
+    const offchainProbeAmount = (route, evidence) => rawToHumanAmount(evidence?.offchainInitialProbeAmountRaw, tokenDecimalsFor(route, evidence));
+    const offchainProbeReasonText = reason => ({
+      "stablecoin_usd_1000u_anchor": "按约 1000 USD 等价换算",
+      "one_basic_unit_fallback": "使用 1 个基础代币单位",
+      "onchain_review_best_amount_reused": "使用链上复核确认金额作为初始量",
+      "liquidity_cap_pool_reserve_2pct": "受池子流动性 2% 上限约束",
+      "no_offchain_initial_anchor": "暂无可用价格/流动性锚点",
+      "requested_borrow_amount_fallback": "使用请求量作为初始探测起点（兼容旧数据）",
+    })[String(reason || "")] || reason || "";
     const enrichEvidenceHops = hops => {
       let previousOutputAmount = null;
       let previousOutputSymbol = "";
@@ -428,8 +524,11 @@
     function routeHtml(route, index) {
       const evidence = routeEvidence(route);
       const analysis = routeAnalysis(route);
+      const routeUiState = uiStateOf(route);
+      const routeUiStage = uiStageFromUiState(routeUiState);
       const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified");
       const steps = analysis.steps || [];
+      const actualDirection = pathFromSteps(steps, (route.routeSymbols || []).join(" -> "));
       const costs = evidence.costModel || {};
       const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : steps).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required"].includes(String(hop?.status || "").toLowerCase()));
       const failedHop = failedHops[0] || null;
@@ -443,13 +542,13 @@
       const pools = route.quoteInputs?.candidatePools || [];
       const displayedSteps = focusSteps.length ? focusSteps : steps.filter(Boolean);
       const isFailedStep = step => Boolean(step?.liveQuoteError) || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity", "adapter_required"].includes(String(step?.status || "").toLowerCase());
-      const stepRows = displayedSteps.map(step => `<tr><td>${esc(step.hop)}</td><td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td><td>${esc(step.protocol || step.dex || "-")}</td><td>${esc(label(step.quoteSource))}${step.liveQuoteError ? `<div class="evidence-error">${errorStackHtml(step.errorStack, step.liveQuoteError)}</div>` : ""}</td><td>${esc(step.pool || "-")}</td><td>${numeric(step.feeBps, 2)}</td><td>${numeric(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td><td>${isFailedStep(step) ? "报价失败" : (live ? `${numeric(step.outputAmount, 8)} ${esc(step.toSymbol)}` : `${numeric(step.referenceOutputAmount, 8)} ${esc(step.toSymbol)} (ref)`)}</td><td>${isFailedStep(step) ? "-" : (live ? numeric(step.effectiveRate, 8) : numeric(step.referenceEffectiveRate, 8))}</td><td>${isFailedStep(step) ? "-" : (step.priceImpactBps == null ? "-" : `${numeric(step.priceImpactBps, 2)} / ${numeric(step.priceImpactLimitBps ?? evidence.validation?.hopPriceImpactLimitBps ?? 10, 0)} bps`)}</td></tr>`).join("");
+      const stepRows = displayedSteps.map(step => `<tr><td>${esc(step.hop)}</td><td>${esc(step.fromSymbol)} -> ${esc(step.toSymbol)}</td><td>${esc(step.protocol || step.dex || "-")}</td><td>${esc(label(step.quoteSource))}${step.liveQuoteError ? `<div class="evidence-error">${errorStackHtml(step.errorStack, step.liveQuoteError)}</div>` : ""}</td><td>${esc(step.pool || "-")}</td><td>${numeric(step.feeBps, 2)}</td><td>${numeric(step.inputAmount, 8)} ${esc(step.fromSymbol)}</td><td>${isFailedStep(step) ? "报价失败" : (live ? `${numeric(step.outputAmount, 8)} ${esc(step.toSymbol)}` : `${numeric(step.referenceOutputAmount, 8)} ${esc(step.toSymbol)}（参考）`)}</td><td>${isFailedStep(step) ? "-" : (live ? numeric(step.effectiveRate, 8) : numeric(step.referenceEffectiveRate, 8))}</td><td>${isFailedStep(step) ? "-" : (step.priceImpactBps == null ? "-" : `${numeric(step.priceImpactBps, 2)} / ${numeric(step.priceImpactLimitBps ?? evidence.validation?.hopPriceImpactLimitBps ?? 10, 0)} bps`)}</td></tr>`).join("");
       const finalOutputUsd = live ? costs.finalOutputUsd : analysis.referenceFinalOutputUsd;
       const finalOutputAmount = live ? costs.finalOutputAmount : analysis.referenceFinalOutputAmount;
       const finalOutputSymbol = costs.finalOutputSymbol || analysis.referenceFinalOutputSymbol || analysis.outputSymbol || inputSymbol(route, analysis);
       const grossProfitUsd = live ? costs.grossProfitUsd : analysis.referenceGrossProfitUsd;
       const grossProfitAmount = live ? costs.grossProfitAmount : analysis.referenceGrossProfitAmount;
-      const tokenNetProfitAmount = live ? (costs.netProfitAmount ?? analysis.referenceNetProfitAmount) : analysis.referenceNetProfitAmount;
+      const tokenNetProfitAmount = live ? (costs.netProfitAmount ?? humanTokenValue(analysis.referenceNetProfitAmount)) : humanTokenValue(analysis.referenceNetProfitAmount);
       const tokenNetProfitSymbol = live ? (costs.netProfitAmountSymbol || analysis.referenceInputSymbol || inputSymbol(route, analysis)) : (analysis.referenceInputSymbol || inputSymbol(route, analysis));
       const tokenNetReturnBps = live ? (costs.netProfitAmountBps ?? analysis.referenceNetReturnBps) : analysis.referenceNetReturnBps;
       const profitBasis = (live ? costs.profitBasis : analysis.referenceReturnBasis) || analysis.referenceReturnBasis;
@@ -459,7 +558,23 @@
       const netReturnDisplay = live ? numeric(analysis.netProfitBps ?? tokenNetReturnBps, 2) : numeric(analysis.referenceNetReturnBps, 2);
       const finalOutputDisplay = finalOutputUsd != null ? money(finalOutputUsd) : amount(finalOutputAmount, finalOutputSymbol);
       const grossProfitDisplay = grossProfitUsd != null ? money(grossProfitUsd) : amount(grossProfitAmount, finalOutputSymbol);
-      const initialProbeValue = route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0] ?? costs.requestedBorrowInputAmount ?? costs.selectedBorrowInputAmount ?? analysis.referenceInputAmount;
+      const offchainProbe = offchainProbeAmount(route, evidence);
+      const actionRequested = Number(route.__requestedAmount);
+      const requestedAmountValue = Number.isFinite(actionRequested) && actionRequested > 0
+        ? actionRequested
+        : costs.requestedBorrowInputAmount ?? analysis.referenceInputAmount ?? analysis.requestedAmount ?? analysis.amountOptimizedFrom ?? offchainProbe ?? analysis.referenceInputAmount;
+      const initialProbeValue = Number.isFinite(actionRequested) && actionRequested > 0
+        ? actionRequested
+        : (offchainProbe ?? costs.requestedBorrowInputAmount ?? costs.selectedBorrowInputAmount ?? route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0] ?? analysis.referenceInputAmount);
+      const initialProbeLabel = routeUiStage === "execution" || routeUiStage === "execution_pending" || routeUiStage === "execution_failed"
+        ? "执行初始量/起点"
+        : routeUiStage === "preflight" || routeUiStage === "preflight_failed"
+          ? "初始测试量"
+          : "链下初始探测";
+        const rawBestAmountValue = routeBestAmountPick(route, evidence, analysis);
+      const initialOnlyEstimateValue = offchainProbe ?? analysis.requestedAmount ?? analysis.initialProbeAmount ?? rawBestAmountValue ?? 1;
+      const bestAmountValue = routeUiStage === "estimate" ? initialOnlyEstimateValue : rawBestAmountValue;
+      const bestAmountLabel = bestAmountDisplayLabel({evidence, analysis, stage: routeUiStage});
       const depthStatus = String(analysis.staticDepthStatus || "unavailable").toLowerCase();
       const depthKnown = live || depthStatus === "available";
       const failedIsLiquidity = focusOnError && String(failedHop.status || "").toLowerCase() === "not_enough_liquidity";
@@ -479,22 +594,61 @@
       const recommendationRows = focusOnError ? [`${failedAction}：${esc(focusErrorText)}`] : lines(recommendation.reasons);
       const analysisHtml = focusOnError
         ? `<div class="analysis focus-error"><div><small>错误定位</small><strong>第 ${esc(failedHop.hop)} 步 ${esc(failedHop.fromSymbol)} -> ${esc(failedHop.toSymbol)}</strong></div><div><small>链上错误</small>${errorStackHtml(failedHop.errorStack, failedHop.liveQuoteError || "")}</div>${stackTop && !failedHop?.liveQuoteError ? `<div><small>模块</small><strong>${esc(stackTop.module || "")} | code=${esc(stackTop.code ?? "")}</strong></div>` : ""}</div>`
-        : `<div class="analysis"><div><small>${live ? "最终输出" : "最终输出（参考）"}</small><strong>${depthKnown ? esc(finalOutputDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? esc(grossProfitDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>初始探测金额</small><strong>${routeSizeAmount(initialProbeValue, route, analysis)}</strong></div><div><small>最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div></div>`;
-      const depthLabel = live ? "链上实时深度已验证" : failedIsLiquidity ? "流动性不足，已停止继续估算" : failedIsDeferred ? "链上复核延后，不判定为路线失败" : focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
+        : `<div class="analysis"><div><small>交易方向</small><strong>${esc(actualDirection)}</strong></div><div><small>${bestAmountLabel}</small><strong>${routeSizeAmount(bestAmountValue, route, analysis)}</strong></div><div><small>${live ? "最终输出" : "最终输出（参考）"}</small><strong>${depthKnown ? esc(finalOutputDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "毛利润" : "毛利润（参考）"}</small><strong>${depthKnown ? esc(grossProfitDisplay) : "等待深度探测"}</strong></div><div><small>${live ? "净利润" : "净利润（参考）"}</small><strong>${depthKnown ? esc(netProfitDisplay) : "-"}</strong></div><div><small>${live ? "净回报 bps" : "净回报 bps（参考）"}</small><strong>${depthKnown ? netReturnDisplay : "-"}</strong></div><div><small>${tokenProfitLabel}</small><strong>${depthKnown ? esc(tokenProfit) : "-"}</strong></div><div><small>${initialProbeLabel}</small><strong>${routeSizeAmount(initialProbeValue, route, analysis)}</strong></div><div><small>初始探测依据</small><strong>${esc(offchainProbeReasonText(evidence.offchainInitialProbeReason))}</strong></div><div><small>历史最大可执行金额</small><strong>${routeSizeAmount(route.sizeAnalysis?.maxExecutableAmountRaw, route, analysis)}</strong></div></div>`;
+      const depthLabel = live ? "链上实时深度已验证" : failedIsLiquidity ? "流动性不足，已停止继续复核" : failedIsDeferred ? "链上复核延后，不判定为路线失败" : focusOnError ? "已停止在链上报价" : depthStatus === "available" ? "离线深度可用" : depthStatus === "exceeds_10_bps" ? "请降低金额：滑点超过 10 bps" : "离线深度不可用";
       const recClass = ["pool_not_initialized", "not_enough_liquidity", "adapter_required", "live_quote_failed", "pool_insufficient_for_profitable_execution", "route_unprofitable"].includes(String(evidence.status || "").toLowerCase()) ? "bad" : (["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase()) ? "warn" : (live ? "good" : "warn"));
       const isDeferred = ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase());
-      const actionText = focusOnError
+      const latestBroadcast = latestBroadcastAdvice(route);
+      const baseActionText = focusOnError
         ? failedAction
         : live && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase())
-          ? "链上验证通过，但执行门禁未放行"
+          ? "链上复核通过，但链上执行条件尚未满足"
           : isDeferred && (steps.length || Object.keys(evidence).length)
-            ? "本轮未集中复核；可使用链上估算"
+            ? "本轮未集中复核；可查看链下估算"
             : recommendationAction(recommendation.action || label(route.quoteStatus));
+      const actionText = latestBroadcast?.text || baseActionText;
       const referenceBadge = !live && !analysis.chainReviewed && analysis.requiresLiveQuoter ? `<span class="badge warn">静态候选（待链上报价）</span>` : "";
-      const deferredReviewBadge = isDeferred ? `<span class="badge warn">可点击链上估算立即复核</span>` : "";
-      const priceReviewBadge = live ? "链上价格已验证" : (analysis.chainReviewed ? `链上复核已返回：${esc(evidenceStatusEx(evidence.status || ""))}` : "链上价格复核未完成");
-      const defaultTestAmount = initialProbeValue != null && Number.isFinite(Number(initialProbeValue)) ? Number(initialProbeValue) : 1;
+      const deferredReviewBadge = isDeferred ? `<span class="badge warn">可查看链下估算</span>` : "";
+      const priceReviewBadge = routeUiState === ROUTE_UI_STATE.OFFCHAIN_ESTIMATE
+        ? (live ? "链下估算完成：实时报价器只读" : "链下估算完成：待链上复核")
+        : (routeUiState === ROUTE_UI_STATE.OFFCHAIN_PENDING && !routeHasCompletedOffchainReview(route)
+          ? "链下估算完成：默认初始量已生成"
+          : (live
+            ? "链上复核价格已验证"
+            : (analysis.chainReviewed ? `链上复核已返回：${esc(evidenceStatusEx(evidence.status || ""))}` : "链上复核未完成")));
+      const autoAmount = autoRouteAmount(route);
       const routeTestAmountSymbol = analysis.referenceInputSymbol || inputSymbol(route, analysis) || (route.routeSymbols || [])[0] || "";
+      const bestCalc = analysis.bestAmountCalculation || route.bestAmountCalculation || route.quoteAnalysis?.bestAmountCalculation || {};
+      const calcRowSources = [
+        ...(Array.isArray(bestCalc.probeRecords) ? bestCalc.probeRecords : []),
+        ...(Array.isArray(bestCalc.probe_records) ? bestCalc.probe_records : []),
+        ...(Array.isArray(bestCalc.rows) ? bestCalc.rows : []),
+        ...(Array.isArray(route.sizeAnalysis?.rows) ? route.sizeAnalysis.rows : []),
+        ...(Array.isArray(analysis.probeRecords) ? analysis.probeRecords : []),
+        ...(Array.isArray(analysis.probe_records) ? analysis.probe_records : []),
+      ].filter(row => row && typeof row === "object");
+      const seenCalcAmounts = new Set();
+      const calcRows = calcRowSources
+        .map(row => {
+          const parsedAmount = Number(row.borrowAmount ?? row.amount ?? row.referenceInputAmount ?? row.inputAmount);
+          if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return null;
+          const calcKey = parsedAmount.toFixed(12);
+          if (seenCalcAmounts.has(calcKey)) return null;
+          seenCalcAmounts.add(calcKey);
+          const calcSymbol = row.borrowSymbol || row.referenceInputSymbol || row.symbol || routeTestAmountSymbol;
+          const output = row.referenceFinalOutputAmount ?? row.finalOutputAmount ?? row.outputAmount;
+          const profit = humanTokenValue(row.referenceNetProfitAmount ?? row.netProfitAmount ?? row.profitAmount ?? row.profit);
+          const bps = row.referenceNetReturnBps ?? row.netProfitBps ?? row.observedNetProfitBps ?? row.profitBps;
+          const mark = row.isRecommended ? "推荐" : row.isBest ? "本次最佳" : (Number.isFinite(Number(profit)) && Number(profit) > 0 ? "盈利" : "");
+          return `<tr><td>${numeric(parsedAmount, 8)} ${esc(calcSymbol || "")}</td><td>${output == null || output === "" ? "-" : esc(output)}</td><td>${profit == null || profit === "" ? "-" : esc(profit)}</td><td>${bps == null || bps === "" ? "-" : numeric(bps, 2)}</td><td>${row.executableCandidate ? "可执行" : "不可执行"}</td><td>${esc(row.staticDepthStatus || row.staticDepthAvailable || "-")}</td><td>${mark ? `<span class="badge ${row.isRecommended ? "good" : "warn"}">${esc(mark)}</span>` : "-"}</td></tr>`;
+        })
+        .filter(Boolean);
+      const bestCalcRecommended = bestCalc.recommendedBorrowInputAmount != null
+        ? `推荐量 ${numeric(bestCalc.recommendedBorrowInputAmount, 8)} ${esc(routeTestAmountSymbol || "")}${bestCalc.recommendedBorrowInputAmountReason ? `（${esc(bestCalc.recommendedBorrowInputAmountReason)}）` : ""}`
+        : "";
+      const bestCalcHtml = calcRows.length && routeUiStage !== "estimate"
+        ? `<div class="table-wrap best-amount-calc"><h4>最佳量计算过程</h4>${bestCalcRecommended ? `<div class="muted">${bestCalcRecommended}</div>` : ""}<table><thead><tr><th>金额</th><th>最终输出</th><th>净利</th><th>bps</th><th>可执行</th><th>深度</th><th>标记</th></tr></thead><tbody>${calcRows.join("")}</tbody></table></div>`
+        : "";
       return `<article class="route"><div class="route-head"><div><h2>${esc(route.symbolPair || route.routeSymbols?.join(" -> ") || "路线")}</h2><div class="badges">
         <span class="badge ${recClass}">${esc(actionText)}</span>
         ${referenceBadge}
@@ -504,11 +658,12 @@
         <span class="badge ${Object.keys(evidence).length && evidence.status !== "live_verified" ? "bad" : "good"}">${esc(evidenceStatusEx(evidence.status || ""))}</span>
         <span class="badge ${live || depthStatus === "available" ? "good" : "warn"}">${esc(depthLabel)}</span>
       </div></div><button class="copy-btn" type="button" data-copy-route="${index}">复制本组</button></div>
-        <div class="route-test"><label for="route-test-amount-${index}">链上金额</label><input id="route-test-amount-${index}" type="number" min="0" step="any" inputmode="decimal" value="${esc(defaultTestAmount)}" data-route-test-amount><button type="button" data-route-live-estimate="${index}">链上估算</button><button type="button" data-route-static-call="${index}">只读链上预检</button><button type="button" data-route-broadcast="${index}">广播测试</button><span class="muted">${routeTestAmountSymbol}</span><span class="route-test-result" data-route-test-result="${index}"></span></div>
+        <div class="route-test">${routeActionHtml(route, index)}<span class="route-test-result" data-route-test-result="${index}"></span></div>
         ${onchainEvidenceHtml(evidence, route)}
       ${analysisHtml}
+      ${bestCalcHtml}
       <div class="table-wrap"><table><thead><tr><th>跳</th><th>兑换</th><th>协议</th><th>报价来源</th><th>池</th><th>手续费 bps</th><th>输入</th><th>输出</th><th>汇率</th><th>价格影响 / 上限</th></tr></thead><tbody>${stepRows || '<tr><td colspan="10">暂无单跳报价数据</td></tr>'}</tbody></table></div>
-      <div class="recommendation"><strong>建议：${esc(focusOnError ? actionText : recommendationAction(recommendation.action || "-"))}</strong><ol>${recommendationRows.map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
+      <div class="recommendation" data-route-recommendation="${index}"><strong>建议：${esc(actionText)}</strong>${latestBroadcast?.txHash ? `<div class="muted">最近已执行：${esc(latestBroadcast.txHash)}${latestBroadcast.txHashes?.length > 1 ? ` 等 ${latestBroadcast.txHashes.length} 笔` : ""}</div>` : ""}<ol>${recommendationRows.map(item => `<li>${esc(blockerText(item))}</li>`).join("")}</ol></div>
       <div class="muted">候选池：${esc(pools.map(pool => pool.pool).join(" | ") || "-")}</div><div class="badges">${requests.map(item => `<span class="badge">${esc(label(item.venue))} / ${esc(label(item.quoteMode))} / ${esc(label(item.status))}</span>`).join("")}</div></article>`;
     }
     function routeHtmlSafe(route, index) {
@@ -520,6 +675,78 @@
         return `<article class="route"><div class="route-head"><h2>${esc(name)}</h2></div><div class="recommendation"><strong>建议：该路由渲染已跳过异常展示</strong><div class="muted">接口返回了不完整的路线数据，请等待下一次扫描刷新。</div></div></article>`;
       }
     }
+    function autoRouteAmount(route) {
+      const size = route?.sizeAnalysis || {};
+      const costs = route?.quoteCosts || {};
+      const analysis = route?.quoteAnalysis || {};
+      const probe = offchainProbeAmount(route, routeEvidence(route));
+      // The off-chain initial probe amount is the only real starting point.
+      // If it has not been computed, fall back to a single basic unit instead
+      // of inheriting stale quote/best amount fields from a previous run.
+      const candidate = probe ?? 1;
+      const parsed = Number(candidate);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    }
+    function autoRouteAmountSymbol(route) {
+      return String(route?.sizeAnalysis?.recommendedBorrowInputAmountBasis || route?.quoteAnalysis?.referenceInputSymbol || route?.quoteCosts?.borrowInputSymbol || (route?.routeSymbols || [])[0] || "token");
+    }
+    const numberValue = value => value === null || value === undefined || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
+    const humanTokenValue = value => {
+      const parsed = numberValue(value);
+      if (parsed === null) return null;
+      const abs = Math.abs(parsed);
+      if (abs >= 1e18 && Number.isInteger(parsed)) return parsed / 1e18;
+      return parsed;
+    };
+    const submissionStatusLower = row => String(row?.review_category || row?.category || row?.status || row?.state || row?.submission_status || "").toLowerCase();
+    const submissionIsBroadcastSuccess = row => ["submitted_success", "broadcast_success", "broadcasted", "submission_success", "broadcast_complete", "execution_success", "confirmed_success", "settled", "executed", "success"].includes(submissionStatusLower(row));
+    const submissionRouteKey = row => String(row?.direction || row?.quote?.direction || row?.pair || row?.route_key || (Array.isArray(row?.route_path) ? row.route_path.join(" -> ") : "") || "").toUpperCase();
+    const broadcastSubmissionsForRoute = route => {
+      if (!latestSubmissionRows.length || !route) return [];
+      const routeKey = String(route.symbolPair || (route.routeSymbols || []).join(" -> ") || "").toUpperCase();
+      if (!routeKey) return [];
+      return latestSubmissionRows
+        .filter(row => submissionIsBroadcastSuccess(row) && row.tx_hash && submissionRouteKey(row) === routeKey)
+        .sort((a, b) => String(b.observed_at || b.created_at || b.updated_at || "").localeCompare(String(a.observed_at || a.created_at || a.updated_at || "")) || 0) || [];
+    };
+    const latestBroadcastSubmissionForRoute = route => {
+      const rows = broadcastSubmissionsForRoute(route);
+      return rows[0] || null;
+    };
+    const latestBroadcastAdvice = route => {
+      const rows = broadcastSubmissionsForRoute(route);
+      const row = rows[0] || null;
+      if (!row) return {text: "", txHash: "", txHashes: []};
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const txHashes = row.tx_hash ? [row.tx_hash] : [];
+      const txHash = txHashes[0] || "-";
+      const profit = humanTokenValue(row.profit_amount ?? quote.profit_amount ?? analysis.referenceNetProfitAmount ?? analysis.netProfitAmount);
+      const pct = numberValue(row.profit_percent ?? quote.profit_percent ?? (analysis.referenceNetReturnBps == null ? null : Number(analysis.referenceNetReturnBps) / 100));
+      const symbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
+      const parts = [`已执行链上交易 ${txHash}`];
+      if (profit !== null) parts.push(`盈亏=${profit >= 0 ? "+" : ""}${numeric(profit, 6)} ${symbol || ""}`.trim());
+      if (pct !== null) parts.push(`比例=${pct >= 0 ? "+" : ""}${numeric(pct, 4)}%`);
+      parts.push("请先到提交记录或区块浏览器确认交易结果；后续是否仍有新机会以新的链上复核为准，不需要手动判断当前建议是否仍有效");
+      return {text: parts.join("；"), txHash, txHashes};
+    };
+    const shortHash = value => {
+      const text = String(value || "").trim();
+      return text.length > 18 ? `${text.slice(0, 6)}...${text.slice(-4)}` : text;
+    };
+    const submissionsHref = () => {
+      const base = "/dex/submissions";
+      return window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(base) : base;
+    };
+    const routeActionHtml = (route, index) => {
+      const broadcast = latestBroadcastAdvice(route);
+      if (broadcast?.txHash) {
+        return `<span class="muted">最近已执行：${esc(shortHash(broadcast.txHash))}${broadcast.txHashes?.length > 1 ? `（共${broadcast.txHashes.length}笔）` : ""}</span><a class="copy-btn" href="${esc(submissionsHref())}">查看提交记录</a>`;
+      }
+      const probeAmount = offchainProbeAmount(route, routeEvidence(route));
+      const testAmount = probeAmount ?? autoRouteAmount(route);
+      return `<span class="muted">测试金额 ${numeric(testAmount, 8)} ${esc(autoRouteAmountSymbol(route))}</span><span class="muted">链下估算自动完成</span><button type="button" data-route-static-call="${index}">链上复核</button><button type="button" data-route-broadcast="${index}">链上执行</button>`;
+    };
     function routeSummaryHtml(rawRoute, index) {
       try {
         const route = normalizeRouteForRender(rawRoute);
@@ -527,22 +754,104 @@
         const analysis = routeAnalysis(route);
         const display = value => value === null || value === undefined || value === "" ? "-" : String(value);
         const path = route.symbolPair || (route.routeSymbols || []).join(" -> ") || "-";
+        const actualDirection = pathFromSteps(Array.isArray(evidence.hops) && evidence.hops.length ? evidence.hops : analysis.steps, path);
         const status = route.quoteStatus || evidence.status || analysis.onchainEvidenceStatus || "quote_required";
-        const evStatus = evidenceStatusEx(evidence.status);
+        const pendingReview = uiStateOf(route) === ROUTE_UI_STATE.OFFCHAIN_PENDING && !routeHasCompletedOffchainReview(rawRoute);
         const trust = executionTrustText(evidence.executionTrust || analysis.executionTrust || "-");
         const block = evidence.blockNumber || evidence.triggerBlockNumber || "-";
-        const hops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(Boolean).map(step => `hop ${step.hop || "?"}: ${display(step.fromSymbol)} -> ${display(step.toSymbol)}`).join(" | ");
+        const hops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(Boolean).map(step => `第 ${step.hop || "?"} 步: ${display(step.fromSymbol)} -> ${display(step.toSymbol)}`).join(" | ");
+      const liveSummary = Boolean(evidence.livePriceVerified || evidence.status === "live_verified" || ["route_unprofitable", "slippage_limit_exceeded", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase()) || ["live_v4_adapter", "live_quoter_verified_readonly", "live_verified"].includes(String(evidence.executionTrust || "").toLowerCase()));
+      const recommendation = analysis.recommendation || {};
+      const latestBroadcast = latestBroadcastAdvice(rawRoute);
+      const reviewStage = normalizedReviewStage(route, latestBroadcast);
+      const execPending = reviewStage === "execution_pending";
+      const execFailed = reviewStage === "execution_failed";
+      const preflightFailed = reviewStage === "preflight_failed";
+      const statusLower = String(evidence.status || "").toLowerCase();
+      const negativeEvidence = terminalEvidenceStatus(evidence.status);
+      const evStatus = reviewStage === "execution" || execPending || execFailed
+        ? executionStageResultStatus({failed: execFailed, pending: execPending})
+        : reviewStage === "preflight" || preflightFailed
+          ? preflightStageResultStatus({pending: pendingReview, terminalStatus: preflightFailed ? "preflight_failed" : negativeEvidence, evidenceStatus: evidence.status})
+          : estimateStageResultStatus({pending: pendingReview, terminalStatus: negativeEvidence, evidenceStatus: evidence.status});
+      const recommendationText = latestBroadcast?.text || (execFailed
+          ? (route.__broadcastError ? `链上执行失败/未提交：${route.__broadcastError}` : "链上执行失败/未提交；请检查网络、RPC 或开关后重试。")
+          : execPending
+            ? "链上执行正在提交；请稍候查看本次链上结果。"
+          : reviewStage === "execution"
+            ? "链上执行已提交；请到提交记录或区块浏览器确认交易哈希与链上验证结果"
+          : reviewStage === "preflight"
+            ? "链上复核完成；尚未执行链上交易。当前最佳交易量已通过，若要执行请点击链上执行。"
+            : preflightFailed
+              ? "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。"
+            : pendingReview
+              ? "链下估算完成：默认初始量已生成；链上复核可继续确认当前最佳量"
+                : negativeEvidence
+                  ? recommendationAction(recommendation.action || evidence.conclusion || "链上报价失败，无法进入链上执行")
+                  : liveSummary
+                    ? (analysis.bestAmountConfirmed === true
+                        ? "链下估算完成：当前初始量已生成；最佳量与可执行性需点击链上复核确认。"
+                        : "链下估算完成：当前金额仅作为链上合约初始量，最佳量需由链上复核确认。")
+                    : recommendationAction(recommendation.action || "链上报价未完成"));
         const netProfit = analysis.netProfitUsd != null
           ? money(analysis.netProfitUsd)
           : (analysis.referenceNetProfitAmount != null ? amount(analysis.referenceNetProfitAmount, analysis.referenceInputSymbol || "") : "-");
+        const routeAmount = autoRouteAmount(route);
+        const routeAmountSymbol = autoRouteAmountSymbol(route);
+        const offchainProbe = offchainProbeAmount(rawRoute, evidence);
+        const rawBestRouteAmount = routeBestAmountPick(rawRoute, evidence, analysis);
+        const estimatedInitialAmount = offchainProbe ?? analysis.requestedAmount ?? analysis.initialProbeAmount ?? routeAmount ?? 1;
+        const bestRouteAmount = reviewStage === "estimate"
+          ? estimatedInitialAmount
+          : rawBestRouteAmount;
+        const requestedAmountValue = pendingReview ? (analysis.referenceInputAmount ?? routeAmount) : (evidence.costModel?.requestedBorrowInputAmount ?? analysis.requestedAmount ?? analysis.amountOptimizedFrom ?? analysis.referenceInputAmount ?? offchainProbe ?? bestRouteAmount);
+        const initialProbeAmount = pendingReview
+          ? estimatedInitialAmount
+          : (offchainProbe ?? analysis.requestedAmount ?? analysis.amountOptimizedFrom ?? evidence.costModel?.requestedBorrowInputAmount ?? route.sizeAnalysis?.recommendedBorrowInputAmount ?? route.sizeAnalysis?.tokenAmountSteps?.[0] ?? bestRouteAmount);
+        const amountScaleHint = Number.isFinite(Number(bestRouteAmount))
+          && Number.isFinite(Number(initialProbeAmount))
+          && Number(initialProbeAmount) > 0
+          ? (Math.abs(Number(bestRouteAmount) - Number(initialProbeAmount)) / Number(initialProbeAmount) > 0.01
+              ? bestAmountHint({
+                  evidence,
+                  analysis,
+                  amount: numeric(bestRouteAmount, 8),
+                  symbol: display(routeAmountSymbol),
+                  initialAmount: numeric(initialProbeAmount, 8),
+                  initialSymbol: display(routeAmountSymbol),
+                  executionCount: latestBroadcast?.txHashes?.length || 0,
+                  stage: reviewStage,
+                })
+              : "")
+          : "";
+        const backendAmountHint = analysis.amountOptimizationHint || route.quoteAnalysis?.amountOptimizationHint;
+        const bestAmountLabel = bestAmountDisplayLabel({evidence, analysis, stage: reviewStage});
+        const actionRequested = Number(route.__requestedAmount);
+        const hasActionRequest = Number.isFinite(actionRequested) && actionRequested > 0;
+        const requestedNumber = Number(requestedAmountValue);
+        const probeNumber = Number(initialProbeAmount);
+        const initialAmountsSame = Number.isFinite(requestedNumber)
+          && Number.isFinite(probeNumber)
+          && probeNumber > 0
+          && Math.abs(requestedNumber - probeNumber) <= Math.max(Math.abs(requestedNumber), Math.abs(probeNumber)) * 1e-9;
         const metrics = [
-          `quote=${label(status)}`,
-          `evidence=${evStatus}`,
-          `block=${display(block)}`,
-          `trust=${trust}`,
-          `net=${netProfit}`,
+          `方向=${actualDirection}`,
+          `${bestAmountLabel}=${numeric(bestRouteAmount, 8)} ${display(routeAmountSymbol)}`,
+          `报价=${reviewStage === "execution" || execPending || execFailed
+            ? executionStageQuoteStatus({failed: execFailed, pending: execPending})
+            : reviewStage === "preflight" || preflightFailed
+              ? preflightStageQuoteStatus({pending: pendingReview, terminalStatus: preflightFailed ? "preflight_failed" : negativeEvidence, evidenceStatus: evidence.status})
+              : estimateStageQuoteStatus({pending: pendingReview, terminalStatus: negativeEvidence, evidenceStatus: evidence.status})}`,
+          `状态=${evStatus}`,
+          `区块=${display(block)}`,
+          `依据=${trust}`,
+          `盈亏=${netProfit}`,
+          [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${numeric(initialProbeAmount ?? estimatedInitialAmount, 8)} ${display(routeAmountSymbol)}`],
+          `初始探测依据=${display(offchainProbeReasonText(evidence.offchainInitialProbeReason))}`,
+          ...(amountScaleHint ? [amountScaleHint] : []),
+          ...(backendAmountHint ? [`优化提示=${display(backendAmountHint)}`] : []),
         ];
-        return `<div class="route-in-group"><div class="route-in-summary"><div class="path-text">${esc(path)}</div><div class="route-actions route-test"><input data-route-test-amount value="1" inputmode="numeric"><button class="copy-btn" data-copy-route="${index}" type="button">复制</button><button data-route-live-estimate="${index}" type="button">链上估算</button><button data-route-static-call="${index}" type="button">预检</button><button data-route-broadcast="${index}" type="button">广播</button></div></div><div class="route-metric-line">${metrics.map(esc).join(" | ")}</div>${hops ? `<div class="route-hop-line">${esc(hops)}</div>` : ""}<div data-route-test-result="${index}" class="route-test-result"></div></div>`;
+        return `<div class="route-in-group"><div class="route-in-summary"><div class="path-text">${esc(actualDirection)}</div><div class="route-actions route-test"><button class="copy-btn" data-copy-route="${index}" type="button">复制</button>${routeActionHtml(route, index)}</div></div><div class="route-metric-line">${metrics.map(esc).join(" | ")}</div>${hops ? `<div class="route-hop-line">${esc(hops)}</div>` : ""}<div class="recommendation" data-route-recommendation="${index}"><strong>建议：${esc(recommendationText)}</strong></div><div data-route-test-result="${index}" class="route-test-result"></div></div>`;
       } catch (error) {
         const name = rawRoute?.symbolPair || (rawRoute?.routeSymbols || []).join(" -> ") || "路线";
         return `<div class="route-in-group">${esc(name)}（渲染跳过）</div>`;
@@ -558,10 +867,8 @@
     };
     const poolDirectoryId = pool => String(pool?.pool || pool?.poolId || pool?.pairAddress || pool?.pairSymbol || pool?.symbolPair || `${pool?.token0 || ""}${pool?.token1 || ""}`).toLowerCase();
     const routeGroupKey = route => {
-      const pools = routePoolsOf(route);
-      const poolIds = pools.map(poolDirectoryId).filter(Boolean).sort().join("|");
       const start = String(route?.routeSymbols?.[0] || route?.overviewRoute?.anchorBorrowSymbol || route?.borrowSymbols?.[0] || "token").toUpperCase();
-      return `${start}::${poolIds || "static"}`;
+      return start;
     };
     const renderPoolDirectories = routes => {
       const groups = new Map();
@@ -569,374 +876,29 @@
         if (!route) return;
         const key = routeGroupKey(route);
         if (!groups.has(key)) {
-          groups.set(key, {key, routes: [], pools: routePoolsOf(route), start: String(route?.routeSymbols?.[0] || route?.overviewRoute?.anchorBorrowSymbol || route?.borrowSymbols?.[0] || "token").toUpperCase()});
+          groups.set(key, {key, routes: [], pools: [], start: key});
         }
         groups.get(key).routes.push({route, index});
       });
       const html = Array.from(groups.values()).map(group => {
-        const poolRows = group.pools.map(pool => {
+        const seenPools = new Set();
+        const groupPools = [];
+        group.routes.forEach(({route}) => {
+          routePoolsOf(route).forEach(pool => {
+            const id = poolDirectoryId(pool);
+            if (id && seenPools.has(id)) return;
+            if (id) seenPools.add(id);
+            groupPools.push(pool);
+          });
+        });
+        const poolRows = groupPools.map(pool => {
           const label = pool.symbolPair || pool.pairSymbol || pool.routeText || pool.pool || "-";
           const fee = pool.fee == null ? "" : `fee ${numeric(pool.fee, 0)}`;
           const depth = pool.depthStatus || pool.status || "";
           return `<div class="pool-chip">${esc(label)}${fee ? `<small>${esc(fee)}</small>` : ""}${depth ? `<small>${esc(depth)}</small>` : ""}</div>`;
         }).join("");
         const routeHtml = group.routes.map(({route, index}) => routeSummaryHtml(route, index)).join("");
-        return `<section class="pool-group"><header><h2>${esc(group.start)} 资金池目录</h2><span>${esc(group.routes.length)} 条闭环路径</span></header><div class="pool-list">${poolRows || `<span class="muted">未携带池明细</span>`}</div>${routeHtml}</section>`;
+        return `<section class="pool-group"><header><h2>${esc(group.start)} 可借贷资金池目录</h2><span>${esc(group.routes.length)} 条闭环路径</span></header><div class="pool-list">${poolRows || `<span class="muted">未携带池明细</span>`}</div>${routeHtml}</section>`;
       }).join("");
       return html || '<div class="empty">暂无可供报价复核的路由。</div>';
     };
-    const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
-    const scanIntervalMs = 3000;
-    const defaultRefreshIntervalSeconds = 180;
-    let refreshTimer = null;
-    let refreshInFlight = false;
-    let scanNowInFlight = false;
-    let latestRoutes = [];
-    let snapshotRefreshing = false;
-    let selectionGeneration = 0;
-    let activeSelectionSignature = "";
-    const selectionSignature = () => {
-      const query = window.ChainSelector?.currentQuery ? window.ChainSelector.currentQuery() : new URLSearchParams(window.location.search);
-      return ["chain_id", "market_id", "protocols", "protocol_id", "dex_strategy"].map(key => query.get(key) || "").join("|").toLowerCase();
-    };
-    const beginSelectionRefresh = message => {
-      selectionGeneration += 1; activeSelectionSignature = selectionSignature(); latestRoutes = [];
-      $("routeList").innerHTML = `<div class="empty">${esc(message)}</div>`;
-      ["routeCount", "completeCount", "readyCount"].forEach(id => $(id).textContent = "0");
-    };
-    const apiPath = path => {
-      const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
-      const url = new URL(scoped, window.location.origin);
-      url.searchParams.set("v", APP_VERSION);
-      return url.pathname + url.search;
-    };
-    async function fetchJson(path) {
-      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {Accept: "application/json"}});
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
-      return data;
-    }
-    async function fetchJsonWithTimeout(path, timeoutMs = 12000) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetch(apiPath(path), {cache: "no-cache", signal: controller.signal, headers: {Accept: "application/json"}});
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
-        return data;
-      } catch (error) {
-        if (error && error.name === "AbortError") throw new Error("请求超时，已停止等待数据");
-        throw error;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    function renderScannerResponse(response, quoteRoutesPayload) {
-      const responseChainId = response?.chain_id ?? response?.snapshot?.chain_id ?? "";
-      const activeChainId = new URLSearchParams(window.location.search).get("chain_id") || "";
-      if (responseChainId && activeChainId && String(responseChainId) !== activeChainId) return;
-      const scanner = response.scanner || {}; const snapshot = response.snapshot || {}; const data = snapshot.payload || {}; const summary = data.summary || snapshot.summary || {};
-      $("routeCount").textContent = summary.routeCount ?? summary.route_count ?? 0;
-      $("completeCount").textContent = summary.completeStaticQuoteCount ?? summary.complete_static_quote_count ?? 0;
-      $("readyCount").textContent = summary.executableCandidateCount ?? summary.executable_candidate_count ?? 0;
-      $("routeSourceMeta").textContent = `${summary.pathSource || "market_observation"} | 观察路线 ${summary.marketObservationRouteCount ?? 0}`;
-      const reviewed = summary.onchainEvidenceReviewedRouteCount ?? 0;
-      const deferred = summary.onchainEvidenceDeferredRouteCount ?? summary.liveQuoterRequiredCount ?? 0;
-      const failed = summary.onchainEvidenceFailedRouteCount ?? 0;
-      $("probeMeta").textContent = `探测 ${numeric(summary.probeNotionalUsd ?? 1000, 2)}U | 已链上复核 ${reviewed} | 待处理 ${deferred}`;
-      $("profitMeta").textContent = `预检 ${summary.chainSubmissionCandidateCount ?? 0} | 报价失败 ${failed} | 记录 ${snapshot.recording?.source === "disabled" ? "关闭" : "开启"}`;
-      const uniswapx = data.dexSettlement?.uniswapx || {};
-      $("settlement").textContent = uniswapx.supported ? "UniswapX 可用" : "优先 AMM";
-      $("settlementMeta").textContent = uniswapx.supported ? "意图报价通道已开启" : "当前链未启用 UniswapX 结算";
-      const scannerRoutes = Array.isArray(data.routes) ? data.routes : [];
-      latestRoutes = routesToRender(scannerRoutes, quoteRoutesPayload);
-      if (latestRoutes.length > scannerRoutes.length) {
-        const quoteSummary = (quoteRoutesPayload && (quoteRoutesPayload.summary || quoteRoutesPayload.snapshot?.payload?.summary)) || {};
-        $("routeCount").textContent = latestRoutes.length;
-        $("routeSourceMeta").textContent = `${quoteSummary.pathSource || summary.pathSource || "market_observation"} | 观察路线 ${quoteSummary.marketObservationRouteCount ?? summary.marketObservationRouteCount ?? 0}`;
-      }
-    $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
-      const duration = scanner.last_duration_ms == null ? "-" : `${scanner.last_duration_ms} ms`;
-      $("message").textContent = `${scanner.running ? "扫描器运行中" : "扫描器已停止"} | ${duration} | 扫描次数 ${scanner.scan_count ?? 0}${snapshot.error ? ` | ${snapshot.error}` : ""}`;
-    }
-    function renderClosedLoopGroups(payload) {
-      const groups = Array.isArray(payload?.groups) ? payload.groups : [];
-      if (!groups.length) {
-        $("groupList").innerHTML = "";
-        return;
-      }
-      const groupHtml = groups.map(group => {
-        const token = group.flashLoanToken || group.startToken || {};
-        const address = token.address ? `<small>${esc(token.address)}</small>` : "";
-        const borrowable = group.borrowable ? "" : " <small>(not borrowable)</small>";
-        return `<div class="group-card"><h3>${esc(token.symbol || "-")}${borrowable}</h3>${address}<strong>${esc(group.routeCount || 0)} routes / ${esc(group.poolDependencyCount || 0)} pools</strong></div>`;
-      }).join("");
-      $("groupList").innerHTML = groupHtml;
-    }
-    async function refreshClosedLoopGroups() {
-      try {
-        const payload = await fetchJsonWithTimeout("/api/dex/closed-loop-groups", 5000);
-        renderClosedLoopGroups(payload);
-      } catch (_) {}
-    }
-    async function refreshSnapshot() {
-      if (snapshotRefreshing || refreshInFlight) return; snapshotRefreshing = true; refreshInFlight = true;
-      const generation = selectionGeneration; const signature = activeSelectionSignature;
-      try {
-        refreshClosedLoopGroups();
-        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
-        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
-        let quoteRoutesPayload = null;
-        try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-        if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(response, quoteRoutesPayload);
-      }
-      catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
-      finally { snapshotRefreshing = false; refreshInFlight = false; }
-    }
-    async function startScanner() {
-      const generation = selectionGeneration; const signature = activeSelectionSignature;
-      try {
-        await fetchJsonWithTimeout("/api/dex/opportunity-scanner/start", 8000);
-        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
-        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
-        if (!scanNowInFlight) {
-          scanNowInFlight = true;
-          fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now", 5000)
-            .then(scanResponse => {
-              if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse);
-            })
-            .catch(error => {
-              if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
-            })
-            .finally(() => { scanNowInFlight = false; });
-        }
-      }
-      catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
-    }
-    async function refresh() {
-      const generation = selectionGeneration; const signature = activeSelectionSignature; $("message").textContent = "正在后台扫描当前链，先显示当前快照...";
-      try {
-        refreshClosedLoopGroups();
-        const snapshot = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
-        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(snapshot);
-        let quoteRoutesPayload = null;
-        try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-        if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(snapshot, quoteRoutesPayload);
-        if (scanNowInFlight) return;
-        scanNowInFlight = true;
-        fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now", 5000)
-          .then(scanResponse => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(scanResponse, quoteRoutesPayload);
-          })
-          .catch(error => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
-          })
-          .finally(() => { scanNowInFlight = false; });
-      }
-      catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
-    }
-    async function copyRoute(rawRoute, button) {
-      const route = normalizeRouteForRender(rawRoute);
-      const evidence = routeEvidence(route); const analysis = routeAnalysis(route);
-      const sourceAnalysis = analysis;
-      const size = route?.sizeAnalysis || {};
-      const costs = evidence.costModel || {};
-      const display = value => value === null || value === undefined || value === "" ? "-" : String(value);
-      const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified");
-      const gateBlocked = Object.keys(evidence).length > 0
-        && live
-        && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase());
-      const hasLiveEvidence = Object.keys(evidence).length > 0 && !["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(evidence.status || "").toLowerCase());
-      const staleWarningCodes = [
-        "hop_1_reference_quote_requires_live_quoter",
-        "hop_2_reference_quote_requires_live_quoter",
-        "hop_3_reference_quote_requires_live_quoter",
-        "hop_4_reference_quote_requires_live_quoter",
-        "hop_1_requires_live_quoter",
-        "hop_2_requires_live_quoter",
-        "hop_3_requires_live_quoter",
-        "hop_4_requires_live_quoter",
-        "reference_price_step_requires_live_quoter",
-        "reference_usd_price_missing_or_untrusted",
-        "static_depth_evidence_unavailable",
-        "robinhood_live_price_only_enforced",
-        "v4_token_decimals_missing_or_assumed",
-      ];
-      const copiedWarnings = (sourceAnalysis.warnings || []).filter(warning => !hasLiveEvidence || !staleWarningCodes.some(code => String(warning).startsWith(code))).map(warningText);
-      const failedHops = (Array.isArray(evidence.hops) ? evidence.hops : analysis.steps || []).filter(hop => hop?.liveQuoteError || ["live_quote_failed", "quote_failed", "pool_not_initialized", "not_enough_liquidity"].includes(String(hop?.status || "").toLowerCase()));
-      const failedHop = failedHops[0] || null;
-      const failedStep = failedHop ? (analysis.steps || []).find(step => Number(step?.hop) === Number(failedHop.hop)) : null;
-      const focusOnError = Boolean(failedHop);
-      const failedIsLiquidity = focusOnError && String(failedHop.status || "").toLowerCase() === "not_enough_liquidity";
-      const failedIsDeferred = focusOnError && ["live_evidence_deferred", "not_reviewed_this_scan"].includes(String(failedHop.status || "").toLowerCase());
-      const stackTop = failedHop?.errorStack?.[0] || route.errorStack?.[0] || evidence.errorStack?.[0] || null;
-      const focusErrorText = failedHop?.liveQuoteError ? blockerText(failedHop.liveQuoteError) : (stackTop?.message ? blockerText(stackTop.message) : "链上单跳报价失败");
-      if (focusOnError) {
-        const probe = evidence.executionSizeProbe || null;
-        const probeDecimals = Number(probe?.decimals ?? evidence.costModel?.borrowInputDecimals ?? 18);
-        const probeAmount = raw => {
-          if (raw === null || raw === undefined || raw === "") return null;
-          const parsed = Number(raw);
-          return Number.isFinite(parsed) ? parsed / (10 ** probeDecimals) : null;
-        };
-        const probeLines = Array.isArray(probe?.attempts) ? probe.attempts.filter(Boolean).map(row => {
-          const amountText = numeric(probeAmount(row.amountRaw), 8);
-          const reasonText = row.failureReason ? ` (${row.failureReason})` : "";
-          return `探测 ${amountText} ${display(evidence.costModel?.borrowInputSymbol || "-")} -> ${display(row.status || "-")}${reasonText}`;
-        }) : [];
-        const probeHeader = probe ? [`执行规模探测=${display(probe.searchStatus || probe.status || "-")}${probe.selectedProfitableAmountRaw != null ? `，可用 ${numeric(probeAmount(probe.selectedProfitableAmountRaw), 8)} ${display(evidence.costModel?.borrowInputSymbol || "")}` : ""}`] : [];
-        const text = [
-          `route=${display(route.symbolPair || (route.routeSymbols || []).join(" -> "))}`,
-          `path=${display((route.routeSymbols || []).join(" -> "))}`,
-          `quoteStatus=${display(label(route.quoteStatus))}`,
-          `evidenceStatus=${display(evidenceStatusEx(evidence.status))}`,
-          `block=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
-          `executionTrust=${display(executionTrustText(evidence.executionTrust))}`,
-          `失败输入=${failedIsLiquidity ? `${display(failedHop.amountIn ?? failedHop.inputAmount ?? failedStep?.inputAmount)} ${display(failedHop.fromSymbol)}` : "-"}`,
-          `错误定位=第 ${display(failedHop.hop)} 步 ${display(failedHop.fromSymbol)} -> ${display(failedHop.toSymbol)}`,
-          `链上错误=${display(focusErrorText)}`,
-          `错误分层=\n${display(errorChainText(failedHop.liveQuoteError || focusErrorText))}`,
-          `建议=${failedIsLiquidity ? "流动性不足；降低借贷金额后重试，或标记当前金额不可执行" : failedIsDeferred ? "链上复核延后；后续自动复核，不判定为路线失败" : "链上报价失败，阻止交易预检"}`,
-          ...probeHeader,
-          ...probeLines,
-        ].filter(Boolean).join("\n");
-        try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
-        return;
-      }
-      const netProfit = analysis.netProfitUsd ?? sourceAnalysis.netProfitUsd ?? costs.netProfitUsd ?? sourceAnalysis.referenceNetProfitAmount ?? costs.netProfitAmount;
-      const netProfitSymbol = live && (analysis.netProfitUsd != null || sourceAnalysis.netProfitUsd != null || costs.netProfitUsd != null) ? "USD" : (costs.netProfitAmountSymbol || sourceAnalysis.referenceInputSymbol || "token");
-      const initialProbeValue = size.recommendedBorrowInputAmount ?? size.tokenAmountSteps?.[0] ?? costs.requestedBorrowInputAmount ?? costs.selectedBorrowInputAmount ?? sourceAnalysis.referenceInputAmount;
-      const initialProbeSymbol = size.recommendedBorrowInputAmountBasis || sourceAnalysis.referenceInputSymbol || costs.borrowInputSymbol || "token";
-      const rows = Array.isArray(size.rows) ? size.rows : [];
-      const liveDepthImpacts = (sourceAnalysis.steps || [])
-        .map(step => Number(step.priceImpactBps))
-        .filter(value => Number.isFinite(value));
-      const liveMaxDepthImpactBps = liveDepthImpacts.length ? Math.max(...liveDepthImpacts) : null;
-      const hopLines = (sourceAnalysis.steps || []).filter(Boolean).map((step, index) => {
-        const output = step.outputAmount ?? step.referenceOutputAmount;
-        const rate = step.effectiveRate ?? step.referenceEffectiveRate;
-        return `hop ${step.hop ?? index + 1}: ${display(step.fromSymbol)} -> ${display(step.toSymbol)} | input=${display(step.inputAmount)} ${display(step.fromSymbol)} | output=${display(output)} ${display(step.toSymbol)} | rate=${display(rate)} | feeBps=${display(step.feeBps)} | priceImpactBps=${display(step.priceImpactBps)}`;
-      });
-      const ladderLines = rows.map(row => `探测 ${display(row.borrowAmount)} ${display(row.borrowSymbol || row.borrowBasis)} | 输出=${display(row.referenceFinalOutputAmount)} ${display(row.referenceFinalOutputSymbol)} | 净利=${display(row.referenceNetProfitAmount)} | bps=${display(row.referenceNetReturnBps)} | 深度=${display(row.staticDepthStatus)} | 可执行=${display(row.executableCandidate)}`);
-      const text = [
-        `route=${display(route.symbolPair || (route.routeSymbols || []).join(" -> "))}`,
-        `path=${display((route.routeSymbols || []).join(" -> "))}`,
-        `quoteStatus=${display(label(route.quoteStatus))}`,
-        `evidenceStatus=${display(evidenceStatusEx(evidence.status))}`,
-        `block=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
-        `executionTrust=${display(executionTrustText(evidence.executionTrust))}`,
-        `referenceInput=${display(sourceAnalysis.referenceInputAmount)} ${display(sourceAnalysis.referenceInputSymbol)}`,
-        `初始探测（initialProbe）=${display(initialProbeValue)} ${display(initialProbeSymbol)}`,
-        `referenceOutput=${display(sourceAnalysis.referenceFinalOutputAmount)} ${display(sourceAnalysis.referenceFinalOutputSymbol)}`,
-        `referenceNetProfit=${display(sourceAnalysis.referenceNetProfitAmount)} ${display(sourceAnalysis.referenceInputSymbol)}`,
-        `referenceNetReturnBps=${display(sourceAnalysis.referenceNetReturnBps)}`,
-        `netProfit=${live ? `${display(netProfit)} ${netProfitSymbol}` : "-"}`,
-        `depthStatus=${display(live ? "链上实时深度已验证" : sourceAnalysis.staticDepthStatus)}`,
-        `maxStaticDepthImpactBps=${display(live ? liveMaxDepthImpactBps : sourceAnalysis.maxStaticDepthImpactBps)}`,
-        `depthImpactLimitBps=${display(live ? "不适用：已使用链上实时报价" : (sourceAnalysis.staticDepthImpactLimitBps || size.depthImpactLimitBps || 10))}`,
-        `建议=${display(gateBlocked ? "链上验证通过，但执行门禁未放行" : recommendationAction((sourceAnalysis.recommendation || {}).action))}`,
-        ...hopLines,
-        ...ladderLines,
-        ...(lines(evidence.blockers).map(item => errorChainText(item) || blockerText(item))),
-        ...copiedWarnings,
-      ].filter(Boolean).join("\n");
-      try { await navigator.clipboard.writeText(text); const old = button.textContent; button.textContent = "已复制"; setTimeout(() => button.textContent = old, 1200); } catch (error) { $("message").textContent = uiError(error.message); }
-    }
-    $("refreshBtn").onclick = refresh;
-    async function postJson(path, payload) {
-      const response = await fetch(apiPath(path), {
-        method: "POST",
-        cache: "no-cache",
-        headers: {"Content-Type": "application/json", Accept: "application/json"},
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok && data?.ok !== true) {
-        const detail = data?.detail || data?.error || `请求失败（HTTP ${response.status}）`;
-        throw new Error(detail);
-      }
-      return data;
-    }
-    function routeTestSymbols(route) {
-      if (route?.routeSymbols?.length) return route.routeSymbols;
-      if (route?.quoteAnalysis?.routeSymbols?.length) return route.quoteAnalysis.routeSymbols;
-      const steps = (route?.quoteAnalysis?.steps || []).filter(step => step && step.fromSymbol);
-      if (!steps.length) return [];
-      const symbols = steps.map(step => step.fromSymbol);
-      const last = steps[steps.length - 1]?.toSymbol;
-      if (last && (symbols.length === 0 || last === symbols[0])) symbols.push(last);
-      return symbols;
-    }
-    function routeTestSummary(result) {
-      if (result?.txHash) return `广播成功：${result.txHash}`;
-      if (result?.detail && !result?.steps) return String(result.detail);
-      if (result?.steps && result.steps.length) {
-        const hopText = result.steps.map(step => `${step.hop}: ${step.fromSymbol} -> ${step.toSymbol} ${numeric(step.inputAmount, 8)} -> ${numeric(step.outputAmount ?? step.referenceOutputAmount, 8)}`).join(" | ");
-        const analysis = result.analysis || {};
-        const profitText = analysis.referenceNetProfitAmount == null ? "" : `净收益 ${numeric(analysis.referenceNetProfitAmount, 8)} ${analysis.referenceInputSymbol || result.amountSymbol || ""}`;
-        return `${hopText}${profitText ? ` | ${profitText}` : ""}`;
-      }
-      return "完成";
-    }
-    async function runRouteTest(route, button, mode, resultElement) {
-      const container = button.closest(".route-test");
-      const input = container?.querySelector("[data-route-test-amount]");
-      const amount = input?.value || "1";
-      const symbols = routeTestSymbols(route);
-      const broadcast = mode === "broadcast";
-      if (broadcast && !window.confirm("确认广播这一笔测试网上链交易？金额读取当前输入框。")) return;
-      const requestMode = mode === "estimate" ? "estimate" : (mode === "static_call" ? "auto" : "auto");
-      const old = button.textContent;
-      button.disabled = true;
-      const oldMessage = $("message").textContent;
-      $("message").textContent = `正在执行 ${mode === "broadcast" ? "广播测试" : mode === "static_call" ? "只读链上预检" : "链上估算"}...`;
-      if (resultElement) resultElement.textContent = "处理中...";
-      try {
-        const payload = await postJson("/api/dex/quote-route/test", {
-          routeSymbols: symbols,
-          amount,
-          mode: requestMode,
-          broadcast,
-        });
-        if (resultElement) resultElement.textContent = routeTestSummary(payload);
-        $("message").textContent = `${payload?.broadcast ? "广播" : payload?.mode || "测试"}完成`;
-      } catch (error) {
-        if (resultElement) resultElement.textContent = uiError(error.message);
-        $("message").textContent = uiError(error.message);
-      } finally {
-        button.textContent = old;
-        button.disabled = false;
-        if (!resultElement?.textContent) $("message").textContent = oldMessage;
-      }
-    }
-    $("routeList").addEventListener("click", event => {
-      const copyButton = event.target.closest("[data-copy-route]");
-      if (copyButton) copyRoute(latestRoutes[Number(copyButton.dataset.copyRoute)], copyButton);
-      const button = event.target.closest("[data-route-live-estimate], [data-route-static-call], [data-route-broadcast]");
-      if (!button) return;
-      const index = Number(button.dataset.routeIndex ?? button.dataset.routeLiveEstimate ?? button.dataset.routeStaticCall ?? button.dataset.routeBroadcast);
-      const mode = button.hasAttribute("data-route-broadcast") ? "broadcast" : button.hasAttribute("data-route-static-call") ? "static_call" : "estimate";
-      const resultElement = document.querySelector(`[data-route-test-result="${index}"]`);
-      return runRouteTest(latestRoutes[index], button, mode, resultElement);
-    });
-    window.addEventListener("chainselectionchanged", event => { if (String(event?.detail?.selected?.feature || "").toLowerCase() !== "dex_arbitrage") return; beginSelectionRefresh("正在加载选中的链..."); refreshSnapshot(); });
-    window.addEventListener("chainselectionprotocolschanged", () => { beginSelectionRefresh("正在加载选中的 DEX..."); refreshSnapshot(); });
-    beginSelectionRefresh("正在加载当前选择...");
-    refreshSnapshot();
-    function normalizeRefreshInterval(value) {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? Math.min(3600, Math.max(10, Math.floor(parsed))) : defaultRefreshIntervalSeconds;
-    }
-    function scheduleRefresh() {
-      const seconds = normalizeRefreshInterval($("refreshInterval").value);
-      $("refreshInterval").value = String(seconds);
-      try { window.localStorage.setItem(refreshIntervalKey, String(seconds)); } catch (_) {}
-      if (refreshTimer) clearInterval(refreshTimer);
-      refreshTimer = setInterval(refreshSnapshot, seconds * 1000);
-    }
-    try {
-      $("refreshInterval").value = normalizeRefreshInterval(window.localStorage.getItem(refreshIntervalKey) || defaultRefreshIntervalSeconds);
-    } catch (_) {}
-    $("refreshInterval").addEventListener("change", scheduleRefresh);
-    scheduleRefresh();
-  

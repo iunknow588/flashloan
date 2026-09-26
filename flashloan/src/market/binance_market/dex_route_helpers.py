@@ -1,0 +1,524 @@
+"""Reusable helpers for Robinhood testnet V4 route tests.
+
+The functions here are implementation-level helpers shared by
+``dex_route_test`` and its tests. They are kept in a separate module so the
+route test entrypoint stays focused on orchestration while the address,
+status, symbol, and payload helpers remain independently testable.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import re
+from typing import Any
+
+from market.binance_market.dex_best_amount_snapshots import (
+    _probe_records_from_size_analysis,
+    _row_profit_metric,
+    _safe_float,
+)
+
+
+ROOT = Path(__file__).resolve().parents[4]
+ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = (
+    ROOT
+    / "flashloan"
+    / "src"
+    / "chains"
+    / "robinhood-testnet"
+    / "v4_token_allowlist.json"
+)
+
+def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]]:
+    """Build symbol->address identity from the chain-owned token allowlist.
+
+    The allowlist is the single source of truth for Robinhood Testnet token
+    identities. There are intentionally no in-code symbol fallbacks here: a
+    missing identity, or a symbol with multiple distinct addresses, must surface
+    as an incomplete-address error instead of sending guessed addresses into
+    on-chain review.
+    """
+    mapping: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    try:
+        data = json.loads(ROBINHOOD_TESTNET_TOKEN_ALLOWLIST.read_text(encoding="utf-8"))
+        for item in (data.get("tokens") or {}).values():
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol") or "").strip().upper()
+            address = str(item.get("address") or "").strip()
+            if symbol and address:
+                existing = mapping.get(symbol)
+                if existing is not None and existing.lower() != address.lower():
+                    ambiguous.add(symbol)
+                    mapping.pop(symbol, None)
+                elif existing is None:
+                    mapping[symbol] = address
+    except Exception:
+        mapping = {}
+        ambiguous = set()
+    return mapping, ambiguous
+
+
+_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES, _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS = (
+    _load_robinhood_testnet_symbol_addresses()
+)
+
+
+def _official_route_addresses(route_symbols: list[str]) -> list[str]:
+    normalized = [symbol.upper() for symbol in route_symbols]
+    if (
+        not normalized
+        or any(symbol in _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS for symbol in normalized)
+        or any(symbol not in _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES for symbol in normalized)
+    ):
+        return []
+    return [_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES[symbol] for symbol in normalized]
+
+
+def _quote_failure_status(error: object) -> str:
+    message = str(error or "").lower()
+    markers = (
+        "not enough liquidity",
+        "insufficient liquidity",
+        "notenoughliquidity",
+        "liquidity is zero",
+        "live liquidity is zero",
+    )
+    if any(marker in message for marker in markers):
+        return "not_enough_liquidity"
+    if "und_err_connect_timeout" in message or "connecttimeouterror" in message:
+        return "rpc_verification_timeout"
+    if "winerror 10061" in message or " 10061 " in message or "error code: 1010" in message or "403 forbidden" in message:
+        return "rpc_verification_failed"
+    if "rpc" in message and "unavailable after" in message and "connect attempt" in message:
+        return "rpc_verification_failed"
+    if "rpc" in message and (
+        "unavailable" in message
+        or "failed" in message
+        or "connect" in message
+        or "timeout" in message
+        or "timed out" in message
+    ):
+        return "rpc_verification_timeout" if ("timeout" in message or "timed out" in message) else "rpc_verification_failed"
+    if "pool not initialized" in message or "missing sqrtpricex96" in message or "slot0 missing" in message:
+        return "pool_not_initialized"
+    return "live_quote_failed"
+
+
+def _step_failure_status(step: dict[str, Any]) -> str:
+    trust = str(step.get("executionTrust") or "").strip().lower()
+    if trust == "live_quote_failed" and step.get("liveQuoteError"):
+        return _quote_failure_status(step.get("liveQuoteError"))
+    return trust
+
+
+def _norm_symbols(value: object) -> list[str]:
+    if isinstance(value, str):
+        raw = value.strip()
+        if "->" in raw:
+            return [part.strip().upper() for part in re.split(r"\s*->\s*", raw) if part.strip()]
+        symbols = [part.strip().upper() for part in re.split(r"[\s,;]+", raw) if part.strip()]
+        return symbols
+    if isinstance(value, (list, tuple)):
+        symbols: list[str] = []
+        for item in value:
+            for symbol in _norm_symbols(item):
+                symbols.append(symbol)
+        return symbols
+    return []
+
+
+normalize_route_symbols = _norm_symbols
+
+
+def _route_symbols(route: dict[str, Any]) -> list[str]:
+    symbols = _norm_symbols(route.get("routeSymbols") or route.get("symbolPair") or "")
+    if not symbols:
+        overview_route = route.get("overviewRoute") if isinstance(route.get("overviewRoute"), dict) else {}
+        symbols = _norm_symbols(overview_route.get("pathSymbols") or route.get("routeTokenPath") or [])
+    return [symbol for symbol in symbols if symbol]
+
+
+def _match_route(routes: list[dict[str, Any]], requested_symbols: list[str]) -> dict[str, Any] | None:
+    if not requested_symbols:
+        return None
+    requested = [symbol.upper() for symbol in requested_symbols]
+    for route in routes:
+        existing = _route_symbols(route)
+        if existing and existing == requested:
+            return route
+    return None
+
+
+def _recommended_route_test_amount(route: dict[str, Any] | None) -> float | None:
+    if not isinstance(route, dict):
+        return None
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    size = route.get("sizeAnalysis") if isinstance(route.get("sizeAnalysis"), dict) else {}
+    candidates = [
+        analysis.get("inputAmount"),
+        analysis.get("referenceInputAmount"),
+        size.get("recommendedBorrowInputAmount"),
+    ]
+    token_amount_steps = size.get("tokenAmountSteps")
+    if isinstance(token_amount_steps, list) and token_amount_steps:
+        candidates.append(token_amount_steps[0])
+    for candidate in candidates:
+        try:
+            amount = float(candidate)
+        except (TypeError, ValueError):
+            continue
+        if amount > 0:
+            return amount
+    return None
+
+
+def recommended_route_test_amount(
+    *,
+    route_symbols: list[str],
+    chain_id: int,
+    protocols: list[str],
+) -> float | None:
+    routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
+    route = _match_route(routes_payload.get("routes") or [], route_symbols)
+    return _recommended_route_test_amount(route)
+
+
+def _amount_float(value: object) -> float:
+    try:
+        amount = float(str(value or "").strip())
+    except (TypeError, ValueError):
+        raise ValueError("amount must be a positive number")
+    if amount <= 0:
+        raise ValueError("amount must be greater than 0")
+    return amount
+
+
+def _step_payload(step: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(step, dict):
+        return None
+    return {
+        "hop": step.get("hop"),
+        "fromSymbol": step.get("fromSymbol"),
+        "toSymbol": step.get("toSymbol"),
+        "pool": step.get("pool"),
+        "feeBps": step.get("feeBps"),
+        "inputAmount": step.get("inputAmount"),
+        "outputAmount": step.get("outputAmount"),
+        "tokenIn": step.get("tokenIn") or step.get("fromAddress"),
+        "tokenOut": step.get("tokenOut") or step.get("toAddress"),
+        "referenceOutputAmount": step.get("referenceOutputAmount"),
+        "effectiveRate": step.get("effectiveRate"),
+        "referenceEffectiveRate": step.get("referenceEffectiveRate"),
+        "priceImpactBps": step.get("priceImpactBps"),
+        "executionTrust": step.get("executionTrust"),
+        "quoteSource": step.get("quoteSource"),
+        "liveQuoteError": step.get("liveQuoteError"),
+    }
+
+
+def _routes_payload(*, chain_id: int, protocols: list[str]) -> dict[str, Any]:
+    from market.binance_market.dex_surfaces import dex_quote_routes_payload
+
+    key = "DEX_V4_LIVE_QUOTE_ENABLED"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    try:
+        return dex_quote_routes_payload(
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=True,
+        )
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
+def _probe_record_item(
+    probe_analysis: dict[str, Any],
+    probe_amount: float,
+    route_symbols: list[str],
+) -> dict[str, Any]:
+    symbol = route_symbols[0] if route_symbols else None
+    return {
+        "amount": float(probe_amount),
+        "borrowAmount": float(probe_amount),
+        "symbol": symbol,
+        "borrowSymbol": symbol,
+        "borrowBasis": symbol,
+        "referenceInputSymbol": probe_analysis.get("referenceInputSymbol") or symbol,
+        "referenceFinalOutputAmount": probe_analysis.get("referenceFinalOutputAmount"),
+        "referenceFinalOutputSymbol": probe_analysis.get("referenceFinalOutputSymbol") or symbol,
+        "referenceNetProfitAmount": probe_analysis.get("referenceNetProfitAmount"),
+        "referenceNetReturnBps": probe_analysis.get("referenceNetReturnBps"),
+        "executableCandidate": bool(
+            (probe_analysis.get("referenceNetProfitAmount") or 0)
+            and 0 < float(probe_analysis.get("referenceNetProfitAmount") or 0)
+        ),
+    }
+
+
+def _candidate_amount_ladder(route: dict[str, Any] | None, amount: float, max_attempts: int) -> list[float]:
+    base_amount = float(amount) if amount is not None and amount > 0 else 1.0
+    # Generate a dynamic halving/doubling ladder from the base amount.
+    # The ladder is algorithm-controlled by max_attempts; there is no fixed
+    # multiplier table or static token step list baked into the probe range.
+    halving_steps = max(1, max_attempts // 2)
+    ladder: list[float] = []
+    for index in range(-halving_steps, halving_steps + 1):
+        ladder.append(base_amount * (2 ** index))
+    unique_amounts: dict[float, float] = {}
+    for raw in ladder:
+        key = round(float(raw), 12)
+        if key > 0:
+            unique_amounts[key] = key
+    return list(unique_amounts.values())[:max_attempts]
+
+
+def _optimize_amount_ladder(
+    *,
+    route: dict[str, Any],
+    route_symbols: list[str],
+    price_map: dict[str, float],
+    chain_id: int,
+    amount: float,
+    max_attempts: int,
+    analysis: dict[str, Any],
+    probe_records: list[dict[str, Any]],
+    quote_analysis_fn: Any,
+) -> tuple[dict[str, Any], float, float, list[dict[str, Any]], dict[str, Any]]:
+    def _parse_profit(candidate_analysis: dict[str, Any]) -> float | None:
+        try:
+            return float(candidate_analysis.get("referenceNetProfitAmount"))
+        except (TypeError, ValueError):
+            return None
+
+    best_amount = float(amount) if amount is not None and amount > 0 else 1.0
+    best_profit = _parse_profit(analysis)
+    best_analysis = analysis
+    attempts_used = len(probe_records)
+    # Whether the search found a non-improving neighbor or an unprofitable
+    # upper bound. Without that comparison we only know the maximum scanned
+    # amount, not a best amount.
+    found_upper_neighbor = False
+    refined_around_peak = False
+    scan_reason = "initial_probe"
+    comparison_base_amount = best_amount
+
+    def _probe(candidate_amount: float) -> tuple[dict[str, Any], float | None] | None:
+        nonlocal attempts_used
+        if attempts_used >= max_attempts or candidate_amount <= 0:
+            return None
+        try:
+            candidate_analysis = quote_analysis_fn(
+                route,
+                price_map=price_map,
+                chain_id=chain_id,
+                token_basis_input_amount=candidate_amount,
+            )
+        except Exception:
+            attempts_used += 1
+            return None
+        probe_records.append(_probe_record_item(candidate_analysis, candidate_amount, route_symbols))
+        attempts_used += 1
+        return candidate_analysis, _parse_profit(candidate_analysis)
+
+    lower_amount = best_amount
+    upper_amount = None
+    initial_profitable = best_profit is not None and best_profit > 0
+
+    if not initial_profitable:
+        # Unprofitable at the initial amount: halve until the first profitable
+        # amount is found, then refine between that profitable lower point and
+        # the last unprofitable upper point.
+        test_amount = best_amount / 2.0
+        last_unprofitable_amount = best_amount
+        while attempts_used < max_attempts:
+            probe = _probe(test_amount)
+            if probe is None:
+                break
+            candidate_analysis, candidate_profit = probe
+            if candidate_profit is not None and candidate_profit > 0:
+                best_amount = test_amount
+                best_profit = candidate_profit
+                best_analysis = candidate_analysis
+                lower_amount = test_amount
+                upper_amount = last_unprofitable_amount
+                found_upper_neighbor = True
+                comparison_base_amount = last_unprofitable_amount
+                break
+            last_unprofitable_amount = test_amount
+            test_amount /= 2.0
+    else:
+        # Profitable at the initial amount: double until the next candidate no
+        # longer beats the current best, then refine with the midpoint rule.
+        test_amount = best_amount * 2.0
+        while attempts_used < max_attempts:
+            probe = _probe(test_amount)
+            if probe is None:
+                break
+            candidate_analysis, candidate_profit = probe
+            if candidate_profit is not None and candidate_profit > best_profit:
+                best_amount = test_amount
+                best_profit = candidate_profit
+                best_analysis = candidate_analysis
+                lower_amount = test_amount
+                comparison_base_amount = test_amount
+                upper_amount = None
+                found_upper_neighbor = False
+                test_amount *= 2.0
+                if attempts_used >= max_attempts:
+                    break
+                continue
+            upper_amount = test_amount
+            found_upper_neighbor = True
+            break
+
+    if upper_amount is not None and attempts_used < max_attempts:
+        refined_around_peak = True
+        tolerance = max(abs(float(best_amount)), 1.0) * 1e-9
+        while attempts_used < max_attempts and float(upper_amount) - float(lower_amount) > tolerance:
+            mid_amount = (float(lower_amount) + float(upper_amount)) / 2.0
+            if mid_amount <= 0:
+                break
+            probe = _probe(mid_amount)
+            if probe is None:
+                break
+            candidate_analysis, candidate_profit = probe
+            if candidate_profit is not None and candidate_profit > best_profit:
+                best_amount = mid_amount
+                best_profit = candidate_profit
+                best_analysis = candidate_analysis
+                comparison_base_amount = mid_amount
+                break
+            upper_amount = mid_amount
+    selection_confirmed = bool(found_upper_neighbor)
+    if selection_confirmed:
+        selection_basis = "offchain_amount_ladder"
+        selection_reason = (
+            "找到非更优相邻量并完成峰值比较"
+            if refined_around_peak
+            else "找到非更优相邻量，但未进入更细粒度峰值精修"
+        )
+    elif best_profit is not None and best_profit > 0:
+        selection_basis = "initial_probe_profitable_scan_limit"
+        selection_reason = "初始量可盈利，但未找到峰值反向点前已达到探测次数上限"
+    else:
+        selection_basis = "initial_probe_unconfirmed"
+        selection_reason = "未完成可执行的最优量搜索，当前值只能作为初始量"
+    selection_meta = {
+        "selectionConfirmed": bool(selection_confirmed),
+        "selectionBasis": selection_basis,
+        "selectionReason": selection_reason,
+        "selectionMetric": best_profit,
+        "initialProbeAmount": float(amount) if amount is not None and amount > 0 else best_amount,
+        "amountOptimizedFrom": float(amount) if amount is not None and amount > 0 else best_amount,
+        "amountOptimized": abs(float(best_amount) - float(amount)) > 1e-12 if amount is not None and amount > 0 else False,
+        "foundUpperNeighbor": bool(found_upper_neighbor),
+        "refinedAroundPeak": bool(refined_around_peak),
+        "comparisonBaseAmount": float(comparison_base_amount),
+        "scannedCandidateCount": max(0, len(probe_records) - 1),
+    }
+    return best_analysis, best_amount, best_profit, probe_records, selection_meta
+
+
+def _tail(text: str, limit: int = 1200) -> str:
+    clean = str(text or "").strip()
+    return clean[-limit:] if len(clean) > limit else clean
+
+
+def _static_call_revert_detail(parsed: dict[str, Any]) -> str:
+    raw = str(parsed.get("errorDetail") or parsed.get("detail") or parsed.get("error") or "").strip()
+    return f"链上复核未通过：{raw}" if raw else "链上复核未通过：execution reverted"
+
+
+def best_amount_calculation_from_route(route: dict[str, Any] | None, amount: float) -> dict[str, Any]:
+    """Build a replayable best-amount calculation snapshot from route size analysis."""
+    route = route if isinstance(route, dict) else {}
+    symbols = _route_symbols(route)
+    symbol = symbols[0] if symbols else None
+    size = route.get("sizeAnalysis") if isinstance(route.get("sizeAnalysis"), dict) else {}
+    recommended_amount = _safe_float(size.get("recommendedBorrowInputAmount"))
+    selected_amount = _safe_float(amount)
+    if selected_amount is None:
+        selected_amount = recommended_amount
+    probe_records = _probe_records_from_size_analysis(
+        size=size,
+        symbol=symbol,
+        selected_amount=selected_amount,
+        recommended_amount=recommended_amount,
+    )
+    rows = size.get("rows") if isinstance(size.get("rows"), list) else []
+    selected_profit = None
+    selected_basis = None
+    selected_row_index = None
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        row_amount = _safe_float(row.get("borrowAmount") or row.get("referenceInputAmount") or row.get("amount"))
+        if row_amount is None or selected_amount is None:
+            continue
+        if abs(float(row_amount) - float(selected_amount)) <= max(float(selected_amount), 1) * 1e-9:
+            selected_profit, selected_basis = _row_profit_metric(row)
+            selected_row_index = index
+            break
+    if selected_profit is None:
+        best_records = [
+            record
+            for record in probe_records
+            if record.get("isBest") and record.get("profitAmount") is not None
+        ]
+        if best_records and selected_amount is not None:
+            best_record = best_records[0]
+            selected_profit = best_record.get("profitAmount")
+            selected_basis = best_record.get("profitBasis")
+    return {
+        "method": "static_route_size_analysis_probe_ladder",
+        "requestedAmount": float(selected_amount) if selected_amount is not None else None,
+        "requestedSymbol": symbol,
+        "bestAmount": float(selected_amount) if selected_amount is not None else recommended_amount,
+        "bestAmountSymbol": symbol,
+        "selectionConfirmed": False,
+        "selectionBasis": "static_route_size_analysis_initial",
+        "selectionReason": "静态规模分析尚未完成链上/链下最优量确认；当前值按初始量处理",
+        "selectionMetric": selected_profit,
+        "selectionBasis": selected_basis,
+        "selectedRowIndex": selected_row_index,
+        "recommendedBorrowInputAmount": recommended_amount,
+        "recommendedBorrowInputAmountReason": size.get("recommendedBorrowInputAmountReason"),
+        "recommendedSelectionMetric": size.get("recommendedSelectionMetric"),
+        "recommendedSelectionBasis": size.get("recommendedSelectionBasis"),
+        "recommendedSelectionRowIndex": size.get("recommendedSelectionRowIndex"),
+        "initialProbeAmount": float(selected_amount) if selected_amount is not None else recommended_amount,
+        "initialProbeSymbol": symbol,
+        "amountOptimizedFrom": float(selected_amount) if selected_amount is not None else recommended_amount,
+        "amountOptimized": False,
+        "amountOptimizationHint": None,
+        "probeRecords": probe_records,
+        "probe_records": probe_records,
+        "rows": rows,
+        "sizeAnalysis": size,
+    }
+
+
+__all__ = [
+    "_amount_float",
+    "_match_route",
+    "_official_route_addresses",
+    "_quote_failure_status",
+    "_recommended_route_test_amount",
+    "_routes_payload",
+    "_route_symbols",
+    "_static_call_revert_detail",
+    "_step_failure_status",
+    "_step_payload",
+    "_tail",
+    "best_amount_calculation_from_route",
+    "normalize_route_symbols",
+    "recommended_route_test_amount",
+]

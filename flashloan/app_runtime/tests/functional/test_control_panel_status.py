@@ -19,7 +19,7 @@ from web3 import Web3
 
 
 def test_liquidation_engine_core_accounts_only_returns_executable_rows(monkeypatch):
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(
         control_panel,
         "db_load_liquidation_core_opportunity_pool",
@@ -140,7 +140,7 @@ def test_liquidation_health_payload_includes_scan_summary(monkeypatch):
     persisted_rows = []
     LIQUIDATION_SCAN_CACHE["updated_at"] = 0.0
     LIQUIDATION_SCAN_CACHE["payload"] = None
-    monkeypatch.setattr(liquidation_base, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(liquidation_base, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(liquidation_base, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(liquidation_base, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(liquidation_base, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000003"])
@@ -221,7 +221,7 @@ def test_liquidation_account_registry_prefers_database(monkeypatch):
     control_panel.LIQUIDATION_ACCOUNT_CACHE["updated_at"] = 0.0
     control_panel.LIQUIDATION_ACCOUNT_CACHE["accounts"] = None
     control_panel.LIQUIDATION_ACCOUNT_CACHE["source"] = None
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: ["0x0000000000000000000000000000000000000001"])
@@ -248,7 +248,7 @@ def test_liquidation_account_registry_falls_back_to_file(monkeypatch, tmp_path):
     control_panel.LIQUIDATION_ACCOUNT_CACHE["accounts"] = None
     control_panel.LIQUIDATION_ACCOUNT_CACHE["source"] = None
     monkeypatch.setattr(control_panel, "LIQUIDATION_ACCOUNTS_PATH", account_path)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(control_panel, "db_load_liquidation_accounts", lambda database_url, retained_days=365, scan_start_after=None, scan_end_before=None: [])
@@ -262,7 +262,7 @@ def test_liquidation_account_registry_falls_back_to_file(monkeypatch, tmp_path):
 def test_liquidation_discovery_window_scans_from_one_year_start(monkeypatch):
     from web import control_panel
 
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
     monkeypatch.setenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
@@ -290,7 +290,7 @@ def test_liquidation_discovery_window_scans_from_one_year_start(monkeypatch):
 def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypatch):
     from web import control_panel
 
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     monkeypatch.setenv("LIQUIDATION_DISCOVERY_BLOCK_OVERLAP", "1")
     monkeypatch.setattr(
         control_panel,
@@ -323,7 +323,7 @@ def test_liquidation_discovery_window_resumes_recent_from_block_cursor(monkeypat
 def test_liquidation_discovery_window_force_full_restarts_from_one_year(monkeypatch):
     from web import control_panel
 
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
     monkeypatch.setenv("LIQUIDATION_ACCOUNT_SCAN_START_DAYS", "365")
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
@@ -351,7 +351,7 @@ def test_liquidation_discovery_window_force_full_restarts_from_one_year(monkeypa
 def test_liquidation_discovery_window_force_full_ignores_old_backfill_cursor(monkeypatch):
     from web import control_panel
 
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     LIQUIDATION_DISCOVERY_CACHE["historical_cursor_at"] = None
     monkeypatch.setenv("LIQUIDATION_BACKFILL_WINDOW_DAYS", "7")
     monkeypatch.setenv("LIQUIDATION_BLOCK_SECONDS", "2")
@@ -432,7 +432,7 @@ def test_discovery_writes_accounts_before_rejecting_progress_gap(monkeypatch):
     captured = {"accounts": None, "progress_records": []}
     account = "0x0000000000000000000000000000000000000001"
     control_panel.LIQUIDATION_DISCOVERY_CACHE["last_result"] = None
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000002")
     monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
     monkeypatch.setattr(control_panel, "liquidation_scan_config", lambda: LiquidationScanConfig())
@@ -544,9 +544,9 @@ def test_liquidation_borrow_pool_api_reads_persisted_top_accounts(monkeypatch):
 def test_liquidation_borrow_pool_payload_redacts_schema_errors(monkeypatch):
     from web import control_panel
 
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "e" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
 
     def fail_schema(_database_url):
@@ -570,7 +570,7 @@ def test_liquidation_borrow_pool_payload_marks_database_ready(monkeypatch):
 
     scan = context.liquidation_scan_module
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_load_liquidation_borrow_health_pool", lambda database_url, limit=20, offset=0: [])
     monkeypatch.setattr(
@@ -628,7 +628,7 @@ def test_liquidation_borrow_pool_scan_suppresses_duplicate_within_interval(monke
     scan = context.liquidation_scan_module
     scan_payload = context._scan_liquidation_borrow_pool_scan_payload
 
-    database_url = "postgresql://example"
+    database_url = "local_store.sqlite3"
     scope = scan._scan_market_scope()
     cached_payload = {
         "rows": [{"account": "0x1", "health_factor": 1.02}],
@@ -693,7 +693,7 @@ def test_liquidation_borrow_pool_scan_ignores_cache_for_changed_database(monkeyp
         {"rows": [{"account": "0xold"}], "summary": {"database_url_fingerprint": "old"}},
     )
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "borrow_pool_updated_at", time.monotonic())
-    monkeypatch.setattr(scan, "database_url_or_none", lambda: "postgresql://new-example", raising=False)
+    monkeypatch.setattr(scan, "database_url_or_none", lambda: "local_store_new.sqlite3", raising=False)
     class BusyLock:
         @staticmethod
         def acquire(blocking=False):
@@ -726,7 +726,7 @@ def test_liquidation_borrow_pool_classifies_disabled_database_endpoint():
     )
 
     assert payload["summary"]["scan_blocked_reason"] == "database_endpoint_disabled"
-    assert "端点已被服务商禁用" in payload["summary"]["next_action"]
+    assert "本地 KV 路径权限" in payload["summary"]["next_action"]
 
 
 def test_liquidation_borrow_pool_reports_database_blocker(monkeypatch):
@@ -743,7 +743,7 @@ def test_liquidation_borrow_pool_reports_database_blocker(monkeypatch):
     assert payload["summary"]["db_ready"] is False
     assert payload["summary"]["scan_blocked"] is True
     assert payload["summary"]["scan_blocked_reason"] == "database_unconfigured"
-    assert "DATABASE_URL" in payload["summary"]["error"]
+    assert "local KV store unavailable" in payload["summary"]["error"]
     assert payload["tiers"]["core_opportunity_rows"] == []
     assert payload["pagination"]["core_opportunity"]["page_size"] == 20
 
@@ -751,7 +751,7 @@ def test_liquidation_borrow_pool_reports_database_blocker(monkeypatch):
 def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(
         control_panel,
@@ -770,7 +770,7 @@ def test_liquidation_borrow_pool_latest_batch_api(monkeypatch):
 def test_liquidation_core_opportunities_api_returns_priority_rows(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(
         control_panel,
@@ -811,7 +811,7 @@ def test_liquidation_account_attempts_and_samples_api(monkeypatch):
 def test_liquidation_control_summary_api(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": True, "missing_migrations": []})
     monkeypatch.setattr(control_panel, "liquidation_discovery_progress", lambda pool_address: {})
@@ -850,9 +850,9 @@ def test_liquidation_control_summary_api(monkeypatch):
 def test_liquidation_control_summary_redacts_database_errors(monkeypatch):
     from web import control_panel
 
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "f" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
     monkeypatch.setattr(control_panel, "schema_status_payload", lambda: {"configured": True, "up_to_date": False})

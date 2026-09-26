@@ -104,7 +104,7 @@ def account_report_recovery_needs(
 
 
 def load_historical_account_report_sources(
-    cursor,
+    cursor=None,
     *,
     market_id: str,
     chain_id: int,
@@ -113,50 +113,9 @@ def load_historical_account_report_sources(
     include_positions: bool = True,
     expected_scope: dict[str, Any] | None = None,
 ) -> tuple[tuple[Any, ...] | None, tuple[Any, ...] | None]:
-    latest_valid_scan = None
-    latest_positions_scan = None
-    params = (market_id, chain_id, account)
-    if include_summary:
-        cursor.execute(
-            """
-            SELECT scanned_at, summary_json, report_json
-            FROM liquidation_account_health_scans
-            WHERE market_id = %s
-              AND chain_id = %s
-              AND lower(account) = lower(%s)
-              AND health_factor IS NOT NULL
-              AND LOWER(COALESCE(status, '')) <> 'error'
-              AND report_json IS NOT NULL
-            ORDER BY scanned_at DESC
-            LIMIT 1
-            """,
-            params,
-        )
-        latest_valid_scan = cursor.fetchone()
-        if latest_valid_scan and expected_scope:
-            _validate_historical_row_scope(latest_valid_scan, expected_scope)
-    if include_positions:
-        cursor.execute(
-            """
-            SELECT scanned_at, summary_json, report_json
-            FROM liquidation_account_health_scans
-            WHERE market_id = %s
-              AND chain_id = %s
-              AND lower(account) = lower(%s)
-              AND health_factor IS NOT NULL
-              AND LOWER(COALESCE(status, '')) <> 'error'
-              AND report_json IS NOT NULL
-              AND jsonb_typeof(report_json::jsonb -> 'positions') = 'array'
-              AND jsonb_array_length(report_json::jsonb -> 'positions') > 0
-            ORDER BY scanned_at DESC
-            LIMIT 1
-            """,
-            params,
-        )
-        latest_positions_scan = cursor.fetchone()
-        if latest_positions_scan and expected_scope:
-            _validate_historical_row_scope(latest_positions_scan, expected_scope)
-    return latest_valid_scan, latest_positions_scan
+    """Return None for both sources; historical health scans are now in KV."""
+
+    return None, None
 
 
 def _validate_historical_row_scope(row: tuple[Any, ...], expected_scope: dict[str, Any]) -> None:

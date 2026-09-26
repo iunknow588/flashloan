@@ -3,56 +3,35 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from core.db.storage_common import db_connection, db_transaction
+from core.kv_rows import collection_key, delete_key, get_row, load_rows, upsert_row
+from core.local_kv import ensure_store
 
 
 def ensure_control_panel_parameters_table(database_url: str, *, connect_timeout: int = 8) -> None:
-    with db_connection(database_url, connect_timeout=connect_timeout) as connection:
-        with db_transaction(connection, operation="control_parameters.upsert"):
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS control_panel_parameters (
-                        namespace TEXT NOT NULL,
-                        parameter_key TEXT NOT NULL,
-                        value_json TEXT NOT NULL,
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        PRIMARY KEY (namespace, parameter_key)
-                    )
-                    """
-                )
-                cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_control_panel_parameters_namespace "
-                    "ON control_panel_parameters(namespace, updated_at DESC)"
-                )
+    ensure_store(database_url)
 
 
 def _encode_parameter_value(value: Any) -> str:
     return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
-def _decode_parameter_value(value_json: object) -> Any:
+def _decode_parameter_value(value_json: str) -> Any:
     try:
-        return json.loads(str(value_json))
+        return json.loads(value_json)
     except (TypeError, json.JSONDecodeError):
         return None
 
 
 def load_control_panel_parameter_map(database_url: str, namespace: str, *, connect_timeout: int = 8) -> dict[str, Any]:
     ensure_control_panel_parameters_table(database_url, connect_timeout=connect_timeout)
-    with db_connection(database_url, connect_timeout=connect_timeout) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT parameter_key, value_json
-                FROM control_panel_parameters
-                WHERE namespace = %s
-                ORDER BY parameter_key
-                """,
-                (str(namespace),),
-            )
-            rows = cursor.fetchall()
-    return {str(key): _decode_parameter_value(value_json) for key, value_json in rows}
+    rows = load_rows(database_url, "parameters", prefix=f"{namespace}|")
+    result: dict[str, Any] = {}
+    for row in rows:
+        key = str(row.get("parameter_key") or "")
+        if not key:
+            continue
+        result[key] = _decode_parameter_value(str(row.get("value_json") or "null"))
+    return result
 
 
 def save_control_panel_parameter_map(
@@ -63,22 +42,17 @@ def save_control_panel_parameter_map(
     connect_timeout: int = 8,
 ) -> dict[str, Any]:
     ensure_control_panel_parameters_table(database_url, connect_timeout=connect_timeout)
-    rows = [
-        (str(namespace), str(key), _encode_parameter_value(value))
-        for key, value in values.items()
-    ]
-    with db_connection(database_url, connect_timeout=connect_timeout) as connection:
-        with db_transaction(connection, operation="control_parameters.delete"):
-            with connection.cursor() as cursor:
-                cursor.executemany(
-                    """
-                    INSERT INTO control_panel_parameters (namespace, parameter_key, value_json, updated_at)
-                    VALUES (%s, %s, %s, NOW())
-                    ON CONFLICT (namespace, parameter_key)
-                    DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = NOW()
-                    """,
-                    rows,
-                )
+    for key, value in values.items():
+        upsert_row(
+            database_url,
+            "parameters",
+            collection_key(namespace, key),
+            {
+                "namespace": str(namespace),
+                "parameter_key": str(key),
+                "value_json": _encode_parameter_value(value),
+            },
+        )
     return dict(values)
 
 
@@ -104,3 +78,24 @@ def save_control_panel_parameter(
 ) -> Any:
     save_control_panel_parameter_map(database_url, namespace, {str(key): value}, connect_timeout=connect_timeout)
     return value
+
+
+def delete_control_panel_parameter(
+    database_url: str,
+    namespace: str,
+    key: str,
+    *,
+    connect_timeout: int = 8,
+) -> bool:
+    ensure_control_panel_parameters_table(database_url, connect_timeout=connect_timeout)
+    return delete_key(database_url, "parameters", collection_key(namespace, key))
+
+
+__all__ = [
+    "delete_control_panel_parameter",
+    "ensure_control_panel_parameters_table",
+    "load_control_panel_parameter",
+    "load_control_panel_parameter_map",
+    "save_control_panel_parameter",
+    "save_control_panel_parameter_map",
+]

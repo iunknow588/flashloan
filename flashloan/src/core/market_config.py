@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -73,6 +74,8 @@ from core.market_profiles import (
     MARKET_TYPE_SHADOW_CHAIN,
     PROTOCOL_CAPABILITIES,
 )
+
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ChainMarketConfig:
@@ -497,21 +500,12 @@ def _builtin_supported_market_summaries() -> list[dict[str, Any]]:
 
 def supported_market_summaries(database_url: str | None = None) -> list[dict[str, Any]]:
     if database_url:
-        from core.db.storage_common import (
-            database_unavailable_reason,
-            is_database_unavailable_error,
-            mark_database_unavailable,
-        )
-
-        if database_unavailable_reason(database_url):
-            return _builtin_supported_market_summaries()
         try:
             from core.db.storage_chain_markets import load_chain_market_summaries
 
             rows = load_chain_market_summaries(database_url)
             if rows:
                 return [_normalize_supported_market_row(row) for row in rows]
-        except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
+        except Exception:
+            logger.warning("failed to load chain market summaries from local store", exc_info=True)
     return _builtin_supported_market_summaries()

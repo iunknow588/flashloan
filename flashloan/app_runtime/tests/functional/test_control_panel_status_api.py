@@ -8,7 +8,7 @@ def test_liquidation_daily_report_api_rebuilds_and_reads_file(monkeypatch, tmp_p
 
     report_path = tmp_path / "daily.json"
     monkeypatch.setattr(liquidation_data, "liquidation_observation_report_path", lambda: report_path)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(liquidation_data, "build_liquidation_observation_report", lambda database_url: {"generated_at": "2026-07-31T00:00:00+00:00", "borrow_pool": {"count": 1}, "core_opportunities": {"count": 2}, "execution": {"stats": {"total": 3}}})
     monkeypatch.setattr(liquidation_data, "write_liquidation_observation_report", lambda report, path: path.write_text(__import__("json").dumps(report), encoding="utf-8") or path)
 
@@ -24,10 +24,10 @@ def test_liquidation_daily_report_redacts_build_errors(monkeypatch, tmp_path):
     from web import control_panel
     from web.data_routes import liquidation_data
 
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "1" * 64
     report_path = tmp_path / "daily.json"
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(control_panel, "database_url_or_none", lambda: database_url)
     monkeypatch.setattr(liquidation_data, "liquidation_observation_report_path", lambda: report_path)
 
@@ -103,7 +103,7 @@ def test_liquidation_accounts_api_persists_to_database(monkeypatch):
     from web import control_panel
 
     captured = {}
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(control_panel, "db_prune_liquidation_accounts", lambda database_url, retained_days=365: 0)
     monkeypatch.setattr(
@@ -128,8 +128,8 @@ def test_clear_database_api_rejects_when_background_scan_is_running(monkeypatch)
 
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", True)
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
     monkeypatch.setattr(control_panel, "observer_starting", False)
@@ -185,104 +185,54 @@ def test_status_reports_liquidation_background_scan(monkeypatch):
     assert data["system_monitor"]["percent"] == 30
 
 
-def test_clear_database_api_truncates_without_schema_init(monkeypatch):
+def test_clear_database_api_truncates_without_schema_init(monkeypatch, tmp_path):
     from web import control_panel
 
+    kv_path = str(tmp_path / "clear.sqlite3")
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", False)
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: kv_path)
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: kv_path)
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
     monkeypatch.setattr(control_panel, "observer_starting", False)
 
-    executed = []
-
-    class FakeCursor:
-        def execute(self, sql):
-            executed.append(sql)
-
-    class FakeConnection:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def cursor(self):
-            class CursorContext:
-                def __enter__(self_inner):
-                    return FakeCursor()
-
-                def __exit__(self_inner, exc_type, exc, tb):
-                    return False
-
-            return CursorContext()
-
-    class FakePsycopg:
-        def connect(self, database_url, connect_timeout=8):
-            assert database_url == "postgresql://example"
-            return FakeConnection()
-
-    monkeypatch.setattr(control_panel, "require_psycopg", lambda: FakePsycopg())
+    from core.kv_rows import upsert_row
+    upsert_row(kv_path, "observations", "row1", {"observed_at": "2026-01-01"})
 
     response = app.test_client().post("/api/clear", json={})
     data = response.get_json()
 
     assert response.status_code == 200
     assert data["cleared"] is True
-    assert any("TRUNCATE TABLE observations" in sql for sql in executed)
-    assert all("CREATE TABLE" not in sql for sql in executed)
+    assert data["rows"] == 0
+    from core.kv_rows import row_count
+    assert row_count(kv_path, "observations") == 0
 
 
-def test_clear_database_api_resets_stale_scan_running_flag(monkeypatch):
+def test_clear_database_api_resets_stale_scan_running_flag(monkeypatch, tmp_path):
     from web import control_panel
 
+    kv_path = str(tmp_path / "clear-stale.sqlite3")
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "running", True)
     monkeypatch.setitem(control_panel.LIQUIDATION_DISCOVERY_CACHE, "stage", "borrowers")
     monkeypatch.setitem(control_panel.LIQUIDATION_SCAN_CACHE, "running", False)
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: kv_path)
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: kv_path)
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
     monkeypatch.setattr(control_panel, "is_observer_running", lambda: False)
     monkeypatch.setattr(control_panel, "observer_starting", False)
 
-    executed = []
-
-    class FakeCursor:
-        def execute(self, sql):
-            executed.append(sql)
-
-    class FakeConnection:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def cursor(self):
-            class CursorContext:
-                def __enter__(self_inner):
-                    return FakeCursor()
-
-                def __exit__(self_inner, exc_type, exc, tb):
-                    return False
-
-            return CursorContext()
-
-    class FakePsycopg:
-        def connect(self, database_url, connect_timeout=8):
-            assert database_url == "postgresql://example"
-            return FakeConnection()
-
-    monkeypatch.setattr(control_panel, "require_psycopg", lambda: FakePsycopg())
+    from core.kv_rows import upsert_row
+    upsert_row(kv_path, "arbitrage_simulations", "row1", {"observed_at": "2026-01-01"})
 
     response = app.test_client().post("/api/clear", json={})
 
     assert response.status_code == 200
     assert control_panel.LIQUIDATION_DISCOVERY_CACHE["running"] is False
     assert control_panel.LIQUIDATION_DISCOVERY_CACHE["stage"] == "idle"
-    assert any("TRUNCATE TABLE observations" in sql for sql in executed)
+    from core.kv_rows import row_count
+    assert row_count(kv_path, "arbitrage_simulations") == 0
 
 
 def test_liquidation_discovery_coverage_api_reports_gap(monkeypatch):

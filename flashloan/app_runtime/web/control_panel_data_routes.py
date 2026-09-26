@@ -135,11 +135,30 @@ def _request_cow_network_arg() -> str:
 
 def _optional_request_chain_selection(*, feature: str | None = None) -> dict | None:
     if not any(request.args.get(name, "").strip() for name in ("market_id", "chain_id", "feature")):
+        if not feature:
+            return None
+        try:
+            return resolve_request_chain_selection(
+                database_url=panel_call("database_url_or_none"),
+                feature=feature,
+            ).as_dict()
+        except ChainSelectionError:
+            logger.warning("feature default chain selection failed for %s", feature, exc_info=True)
+            return None
+        except Exception:
+            logger.warning("unexpected feature default chain selection error for %s", feature, exc_info=True)
+            return None
+    try:
+        return resolve_request_chain_selection(
+            database_url=panel_call("database_url_or_none"),
+            feature=feature,
+        ).as_dict()
+    except ChainSelectionError:
+        logger.warning("explicit request chain selection failed for %s", feature, exc_info=True)
         return None
-    return resolve_request_chain_selection(
-        database_url=panel_call("database_url_or_none"),
-        feature=feature,
-    ).as_dict()
+    except Exception:
+        logger.warning("unexpected explicit request chain selection error for %s", feature, exc_info=True)
+        return None
 
 
 def _chain_selection_error_response(exc: ChainSelectionError):
@@ -164,12 +183,17 @@ def _cow_execution_attempt_groups(
     *,
     limit: int,
     networks: list[str],
+    dedupe_by_route_evidence: bool = True,
 ) -> dict[str, dict]:
     groups = {}
     for category in COW_EXECUTION_REVIEW_CATEGORIES:
         rows = loader(limit=limit, networks=networks, category=category)
         rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)
-        rows = _dedupe_attempts_by_route_evidence(rows, limit=limit)
+        rows = _dedupe_attempts_by_route_evidence(
+            rows,
+            limit=limit,
+            dedupe_by_route_evidence=dedupe_by_route_evidence,
+        )
         groups[category] = {
             "attempts": rows,
             "count": len(rows),
@@ -181,13 +205,22 @@ def _cow_execution_attempt_groups(
     return groups
 
 
-def _flatten_cow_execution_groups(groups: dict[str, dict], limit: int) -> list[dict]:
+def _flatten_cow_execution_groups(
+    groups: dict[str, dict],
+    limit: int,
+    *,
+    dedupe_by_route_evidence: bool = True,
+) -> list[dict]:
     rows = [
         row
         for group in groups.values()
         for row in group.get("attempts", [])
     ]
-    return _dedupe_attempts_by_route_evidence(rows, limit=limit)
+    return _dedupe_attempts_by_route_evidence(
+        rows,
+        limit=limit,
+        dedupe_by_route_evidence=dedupe_by_route_evidence,
+    )
 
 
 def record_cow_market_candidates_safely(

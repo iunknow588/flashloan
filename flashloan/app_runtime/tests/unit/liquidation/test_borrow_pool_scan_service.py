@@ -22,7 +22,7 @@ def _runtime(**overrides):
     values = {
         "scan_cache": cache,
         "scan_lock": BusyLock(),
-        "database_url": "postgresql://example",
+        "database_url": "local_store.sqlite3",
         "config": SimpleNamespace(watch_health_factor=1.5),
         "scope": {"market_id": "avalanche-aave-v3", "chain_id": 43114},
         "market_kwargs": {},

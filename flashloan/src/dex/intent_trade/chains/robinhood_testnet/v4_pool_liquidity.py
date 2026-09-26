@@ -414,7 +414,7 @@ def _batch_eth_call_values(
                     },
                     method="POST",
                 )
-                with urllib_request.urlopen(req, timeout=60) as response:
+                with urllib_request.urlopen(req, timeout=20) as response:
                     decoded_response = json.loads(response.read().decode("utf-8"))
                     break
             except Exception as exc:

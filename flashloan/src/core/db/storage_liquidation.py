@@ -10,11 +10,13 @@ from core.db.storage_liquidation_accounts import (
 from core.db.storage_liquidation_attempts import (
     liquidation_execution_attempt_stats,
     load_liquidation_execution_attempts_for_account,
-    load_liquidation_failure_samples_for_account,
     load_latest_liquidation_execution_attempts_for_accounts,
     load_recent_liquidation_execution_attempts,
-    load_recent_liquidation_failure_samples,
     record_liquidation_execution_attempt,
+)
+from core.db.storage_liquidation_failures import (
+    load_liquidation_failure_samples_for_account,
+    load_recent_liquidation_failure_samples,
     record_liquidation_failure_sample,
 )
 from core.db.storage_liquidation_legacy import (

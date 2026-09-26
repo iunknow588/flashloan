@@ -20,7 +20,15 @@ logger = logging.getLogger(__name__)
 def _route_symbol_key(items: object) -> str:
     if isinstance(items, str):
         items = [part for part in items.split(" -> ") if str(part).strip()]
-    parts = [str(item).strip().upper() for item in (items or []) if str(item).strip()]
+    parts = []
+    for item in (items or []):
+        s = str(item).strip().upper()
+        if not s:
+            continue
+        # 过滤地址碎片，避免展示 0x... 这类非符号内容
+        if s.startswith("0X") and len(s) < 20:
+            continue
+        parts.append(s)
     return " -> ".join(parts)
 
 
@@ -194,12 +202,14 @@ def evict_stale_evidence_from_routes(routes: list[dict]) -> list[dict]:
     for route in routes:
         if not isinstance(route, dict):
             continue
-        route.pop("live_onchain_evidence", None)
         route["quoteStatus"] = "stale_refresh_pending"
         route["onchainEvidenceStatus"] = "stale_refresh_pending"
+        route.pop("live_onchain_evidence", None)
+        route.pop("evidence", None)
         stale_analysis = route.get("quoteAnalysis")
         if isinstance(stale_analysis, dict):
             stale_analysis.pop("live_onchain_evidence", None)
+            stale_analysis.pop("evidence", None)
             stale_analysis["onchainEvidenceStatus"] = "stale_refresh_pending"
             stale_analysis["requiresLiveQuoter"] = True
     return routes
@@ -214,11 +224,13 @@ def _merge_live_route_estimate(
         return route
     steps = [step for step in (live_payload.get("steps") or []) if isinstance(step, dict)]
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    live_analysis = {}
     if steps:
         analysis = {**analysis, "steps": steps}
     if live_payload.get("analysis") and isinstance(live_payload["analysis"], dict):
         live_analysis = live_payload["analysis"]
         for key in (
+            "referenceInputAmount",
             "referenceInputSymbol",
             "referenceFinalOutputAmount",
             "referenceFinalOutputSymbol",
@@ -227,9 +239,14 @@ def _merge_live_route_estimate(
             "referenceNetReturnBps",
             "maxStaticDepthImpactBps",
             "warnings",
+            "profitable",
+            "readyForTransactionPreflight",
         ):
             if live_analysis.get(key) is not None:
                 analysis[key] = live_analysis[key]
+    live_recommendation = live_payload.get("recommendation") or live_analysis.get("recommendation")
+    if isinstance(live_recommendation, dict):
+        analysis["recommendation"] = live_recommendation
     status = str(live_payload.get("quoteStatus") or "").strip().lower()
     if status == "requires_live_quoter" and (live_payload.get("steps") or []):
         status = "live_quote_reference_only"
@@ -241,16 +258,33 @@ def _merge_live_route_estimate(
         "status": status or ("live_verified" if live_payload.get("liveVerified") else "live_quote_reference_only"),
         "executionTrust": live_payload.get("executionTrust") or "static_reference_only",
         "trustedForExecution": False,
-        "readyForTransactionPreflight": False,
+        "readyForTransactionPreflight": bool(
+            live_payload.get("readyForTransactionPreflight")
+            or live_analysis.get("readyForTransactionPreflight")
+            or (live_recommendation.get("readyForTransactionPreflight") if isinstance(live_recommendation, dict) else False)
+        ),
+        "profitable": bool(live_payload.get("profitable") or live_analysis.get("profitable")),
         "blockNumber": live_payload.get("blockNumber"),
         "quoteBlockSource": live_payload.get("quoteBlockSource") or "route_live_estimate",
         "routeSymbols": live_payload.get("routeSymbols") or route.get("routeSymbols") or [],
         "hops": steps,
         "costModel": {
             "borrowInputSymbol": analysis.get("referenceInputSymbol") or (live_payload.get("routeSymbols") or [""])[0],
+            "borrowInputAmount": analysis.get("referenceInputAmount") or live_payload.get("amount"),
+            "selectedBorrowInputAmount": live_payload.get("bestAmount") or analysis.get("bestAmount") or analysis.get("referenceInputAmount") or live_payload.get("amount"),
             "netProfitAmount": analysis.get("referenceNetProfitAmount"),
             "netProfitBps": analysis.get("referenceNetProfitBps"),
             "finalOutputAmount": analysis.get("referenceFinalOutputAmount"),
+            "finalOutputSymbol": analysis.get("referenceFinalOutputSymbol"),
+            "finalOutputUsd": analysis.get("referenceFinalOutputUsd"),
+            "netProfitUsd": analysis.get("referenceNetProfitUsd"),
+            "netProfitAmountBps": analysis.get("referenceNetReturnBps"),
+            "profitable": bool(live_payload.get("profitable") or live_analysis.get("profitable")),
+            "readyForTransactionPreflight": bool(
+                live_payload.get("readyForTransactionPreflight")
+                or live_analysis.get("readyForTransactionPreflight")
+                or (live_recommendation.get("readyForTransactionPreflight") if isinstance(live_recommendation, dict) else False)
+            ),
         },
         "blockers": [],
         "transactionDevelopment": {
@@ -314,10 +348,16 @@ def _live_quote_deferred_route(
             return None
         if symbols[0].upper() != symbols[-1].upper():
             return None
+        quote_analysis = route.get("quoteAnalysis") or {}
+        size_analysis = route.get("sizeAnalysis") or {}
         amount = float(
-            (route.get("quoteAnalysis") or {}).get("inputAmount")
-            or (route.get("quoteAnalysis") or {}).get("referenceInputAmount")
-            or (route.get("sizeAnalysis") or {}).get("recommendedBorrowInputAmount")
+            quote_analysis.get("requestedAmount")
+            or quote_analysis.get("initialProbeAmount")
+            or quote_analysis.get("amountOptimizedFrom")
+            or quote_analysis.get("inputAmount")
+            or quote_analysis.get("referenceInputAmount")
+            or size_analysis.get("recommendedBorrowInputAmount")
+            or size_analysis.get("tokenAmountSteps", [None])[0]
             or 1000
         )
         if amount <= 0:

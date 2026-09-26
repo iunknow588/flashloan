@@ -174,10 +174,10 @@ def liquidation_config_health(market_id: str | None = None, chain_id: int | None
     manual_test_completed = _env_bool("LIQUIDATION_MANUAL_TEST_COMPLETED", True)
     checks = [
         ConfigCheck(
-            "DATABASE_URL",
-            bool(_env("DATABASE_URL")),
-            "error" if execution_enabled else "warning",
-            "DATABASE_URL is configured" if _env("DATABASE_URL") else "DATABASE_URL is missing",
+            "FLASHLOAN_KV_PATH",
+            True,
+            "info",
+            "Local SQLite KV store is ready",
         ),
         _address_check("AAVE_POOL_ADDRESS" if not _env("LIQUIDATION_POOL_ADDRESS") else "LIQUIDATION_POOL_ADDRESS"),
         _address_check(

@@ -30,6 +30,9 @@
     td.route-cell { min-width: 300px; max-width: 460px; white-space: normal; line-height: 1.45; }
     .route-addresses { margin-top: 4px; font-family: Consolas, "Courier New", monospace; word-break: break-all; }
     td.reason { max-width: 360px; white-space: normal; line-height: 1.45; }
+    td.review-cell { min-width: 420px; max-width: 560px; white-space: normal; line-height: 1.45; }
+    td.review-cell .review-line { margin-bottom: 3px; }
+    td.review-cell .review-line.muted { color: #667085; font-size: 12px; }
     .badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #eef2f6; color: #344054; }
     .badge.live { background: #dcfae6; color: #067647; }
     .badge.static { background: #fff3cd; color: #8a6116; }
@@ -62,9 +65,9 @@
     </section>
     <section class="grid">
       <div class="metric"><small>提交/观察总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
-      <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>已完成交易</span></div>
-      <div class="metric"><small>失败</small><strong id="failedCount">-</strong><span>执行或链上失败</span></div>
-      <div class="metric"><small>阻断</small><strong id="blockedCount">-</strong><span>报价后未满足提交条件</span></div>
+      <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>链上执行/提交成功</span></div>
+      <div class="metric"><small>失败</small><strong id="failedCount">-</strong><span>链上执行或复核失败</span></div>
+      <div class="metric"><small>阻断</small><strong id="blockedCount">-</strong><span>报价后未满足链上复核或链上执行条件</span></div>
     </section>
     <section class="panel">
       <div class="table-wrap">
@@ -76,8 +79,8 @@
               <th>路径</th>
               <th>证据来源</th>
               <th>链上区块</th>
-              <th>观察/复核盈亏比例</th>
-              <th>状态</th>
+              <th>盈亏/复盘</th>
+              <th>结果/状态</th>
               <th>原因与复盘要点</th>
               <th>订单/交易</th>
             </tr>
@@ -121,6 +124,13 @@
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : null;
     }
+    function humanTokenValue(value) {
+      const parsed = numberValue(value);
+      if (parsed === null) return null;
+      const abs = Math.abs(parsed);
+      if (abs >= 1e18 && Number.isInteger(parsed)) return parsed / 1e18;
+      return parsed;
+    }
     function money(value) {
       const parsed = numberValue(value);
       if (parsed === null) return "-";
@@ -159,7 +169,7 @@
       const review = row.review_summary || {};
       const plan = review.plan || {};
       const quote = row.quote || {};
-      const analysis = quote.quote_analysis || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
       const precheck = row.precheck || {};
       const status = String(ev.status || "").toLowerCase();
       const staticSource = status === "not_live_verified" && analysis.requiresLiveQuoter ? "第三方参考价" : "静态观察";
@@ -167,7 +177,7 @@
       if (direct !== null) return {value: direct, source: staticSource};
       const bps = numberValue(analysis.netProfitBps);
       if (bps !== null) return {value: bps / 100, source: staticSource};
-      const profitUsd = numberValue(analysis.netProfitUsd ?? row.final_delta_amount);
+      const profitUsd = numberValue(analysis.netProfitUsd ?? humanTokenValue(row.final_delta_amount));
       const notional = numberValue(analysis.notionalUsd ?? quote.input_amount ?? precheck.notional_usd);
       if (profitUsd !== null && notional !== null && notional > 0) return {value: profitUsd / notional * 100, source: staticSource};
       return {value: null, source: "-"};
@@ -176,6 +186,131 @@
       const parsed = numberValue(result?.value);
       if (parsed === null) return "-";
       return `${result.source} ${parsed >= 0 ? "+" : ""}${parsed.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`;
+    }
+    function executionOutcome(row) {
+      const raw = row.review_category || row.category || row.status || row.state || row.submission_status || "";
+      const normalized = String(raw).toLowerCase();
+      if (["submitted_success", "broadcast_success", "broadcasted", "submission_success", "broadcast_complete"].includes(normalized)) {
+        return {label: "链上执行/提交成功", cls: "live"};
+      }
+      if (["execution_success", "confirmed_success", "settled", "executed", "success"].includes(normalized)) {
+        return {label: "执行成功/已确认", cls: "live"};
+      }
+      if (["submission_failed", "broadcast_failed", "broadcast_error", "broadcast_disabled"].includes(normalized)) {
+        return {label: "链上执行/提交失败", cls: "fail"};
+      }
+      if (["execution_failed", "failed", "error", "confirmed_failed", "settlement_failed"].includes(normalized)) {
+        return {label: "执行失败", cls: "fail"};
+      }
+      if (["not_executable", "quote_required", "quote_failed", "blocked", "unsupported_route"].includes(normalized)) {
+        return {label: "未执行/未提交", cls: "static"};
+      }
+      return {label: raw || "未知", cls: "static"};
+    }
+    function fmtAmount(value, digits = 6) {
+      const parsed = numberValue(value);
+      return parsed === null ? "-" : parsed.toLocaleString("zh-CN", {minimumFractionDigits: digits, maximumFractionDigits: digits});
+    }
+    function fmtSignedAmount(value, digits = 6) {
+      const parsed = numberValue(value);
+      return parsed === null ? "-" : `${parsed >= 0 ? "+" : ""}${fmtAmount(parsed, digits)}`;
+    }
+    function probeRecords(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const candidates = row.probe_records || row.probeRecords || quote.probe_records || quote.probeRecords || analysis.probe_records || analysis.probeRecords || analysis.rows || quote.rows || calc.probe_records || calc.probeRecords || calc.rows || [];
+      return (Array.isArray(candidates) ? candidates : []).filter(item => item && typeof item === "object");
+    }
+    function reviewProbeText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const records = probeRecords(row);
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const bestAmount = numberValue(row.best_amount ?? quote.best_amount ?? calc.bestAmount ?? calc.recommendedBorrowInputAmount ?? calc.selectedBorrowInputAmount ?? analysis.bestAmount ?? analysis.best_amount);
+      const symbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
+      if (!records.length) return "探测记录=未保存前后探测数据；当前仅有最佳量可复盘";
+      const rows = records
+        .map(item => ({value: item, amount: numberValue(item.borrowAmount ?? item.amount ?? item.inputAmount ?? item.input_amount ?? item.bestAmount)}))
+        .filter(item => item.amount !== null)
+        .sort((a, b) => a.amount - b.amount);
+      if (!rows.length) return `探测记录=${fmtAmount(bestAmount, 8)} ${symbol}（原始探测记录字段缺失）`;
+      const exact = bestAmount !== null ? rows.findIndex(item => Math.abs(item.amount - bestAmount) < Math.max(Math.abs(bestAmount), 1) * 1e-9) : -1;
+      const trend = (item, label) => {
+        if (!item) return "";
+        const profit = humanTokenValue(item.value.referenceNetProfitAmount ?? item.value.netProfitAmount ?? item.value.profitAmount ?? item.value.profit_amount ?? item.value.netProfit ?? item.value.profit);
+        return `${label} ${fmtAmount(item.amount, 8)} ${symbol}=净利 ${fmtSignedAmount(profit, 6)}${item.value.executableCandidate ? "（可执行）" : ""}`;
+      };
+      if (exact >= 0) {
+        const prevRow = rows[exact - 1];
+        const nextRow = rows[exact + 1];
+        return `探测记录=最佳量 ${fmtAmount(bestAmount, 8)} ${symbol}${prevRow ? `；前一个 ${trend(prevRow, "前一个")}` : ""}${nextRow ? `；后一个 ${trend(nextRow, "后一个")}` : ""}`;
+      }
+      return `探测记录=${rows.map(item => trend(item, item.amount === bestAmount ? "最佳" : "探测")).filter(Boolean).join("；")}`;
+    }
+    function reviewBestAmountCalculationText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const calcSymbol = analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || quote.input_symbol || quote.final_symbol || calc.bestAmountSymbol || calc.requestedSymbol || "";
+      const calcRows = (Array.isArray(calc.probe_records) ? calc.probe_records : [])
+        .concat(Array.isArray(calc.probeRecords) ? calc.probeRecords : [])
+        .concat(Array.isArray(calc.rows) ? calc.rows : [])
+        .filter(item => item && typeof item === "object");
+      if (!calcRows.length) return "";
+      const lines = calcRows.map(item => {
+        const amountValue = numberValue(item.borrowAmount ?? item.amount ?? item.inputAmount ?? item.input_amount ?? item.referenceInputAmount);
+        const profit = humanTokenValue(item.referenceNetProfitAmount ?? item.netProfitAmount ?? item.profitAmount ?? item.profit_amount ?? item.netProfit ?? item.profit);
+        const mark = item.isRecommended ? "推荐" : item.isBest ? "本次最佳" : (profit !== null && profit > 0 ? "盈利" : "");
+        return `${fmtAmount(amountValue, 8)} ${calcSymbol}=净利${fmtSignedAmount(profit, 6)}${mark ? `(${mark})` : ""}`;
+      }).filter(Boolean);
+      return `最佳量计算过程=${lines.join("；")}`;
+    }
+    function profitReviewText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = evidence(row);
+      const pair = row.pair || quote.pair || row.route_key || "-";
+      const direction = row.direction || quote.direction || analysis.direction || pair;
+      const initialAmount = numberValue(row.initial_probe_amount ?? quote.initial_probe_amount ?? quote.input_amount ?? analysis.initialProbeAmount ?? analysis.requestedAmount);
+      const initialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const bestAmount = numberValue(row.best_amount ?? quote.best_amount ?? calc.bestAmount ?? calc.recommendedBorrowInputAmount ?? calc.selectedBorrowInputAmount ?? analysis.bestAmount ?? analysis.best_amount);
+      const symbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
+      const pct = profitPercent(row);
+      const profitAmount = humanTokenValue(quote.profit_amount ?? row.profit_amount ?? analysis.referenceNetProfitAmount ?? analysis.netProfitAmount ?? analysis.netProfitUsd ?? analysis.profit_amount);
+      const finalAmount = numberValue(quote.final_amount ?? row.final_amount ?? analysis.referenceFinalOutputAmount ?? analysis.finalOutputAmount ?? analysis.final_amount ?? analysis.referenceFinalOutputUsd);
+      const referenceNetReturnBps = numberValue(analysis.referenceNetReturnBps ?? quote.referenceNetReturnBps ?? calc.referenceNetReturnBps);
+      const parts = [];
+      parts.push(`方向=${direction}`);
+      if (initialAmount !== null) parts.push(`初始测试量=${fmtAmount(initialAmount, 8)} ${symbol || ""}`.trim());
+      if (initialProbeReason) parts.push(`初始探测依据=${offchainProbeReasonText(initialProbeReason)}`);
+      if (bestAmount !== null) parts.push(`最佳量=${fmtAmount(bestAmount, 8)} ${symbol || ""}`.trim());
+      if (profitAmount !== null) parts.push(`盈亏=${fmtSignedAmount(profitAmount, 6)} ${symbol || ""}`.trim());
+      if (referenceNetReturnBps !== null) parts.push(`参考净利 BPS=${fmtAmount(referenceNetReturnBps, 2)}`);
+      if (pct?.value != null) parts.push(`比例=${pct.value >= 0 ? "+" : ""}${pct.value.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`);
+      if (finalAmount !== null) parts.push(`期末=${fmtAmount(finalAmount, 6)} ${symbol || ""}`.trim());
+      const bestCalcText = reviewBestAmountCalculationText(row);
+      if (bestCalcText) parts.push(bestCalcText);
+      parts.push(reviewProbeText(row));
+      return parts.filter(Boolean).join(" | ");
+    }
+    function offchainProbeReasonText(reason) {
+      return ({
+        "stablecoin_usd_1000u_anchor": "按约 1000 USD 等价换算",
+        "one_basic_unit_fallback": "使用 1 个基础代币单位",
+        "onchain_review_best_amount_reused": "使用链上复核确认金额作为初始量",
+        "liquidity_cap_pool_reserve_2pct": "受池子流动性 2% 上限约束",
+        "no_offchain_initial_anchor": "暂无可用于价格/流动性锚点",
+        "requested_borrow_amount_fallback": "使用请求量作为初始探测起点（兼容旧数据）",
+      })[String(reason || "")] || reason || "";
+    }
+    function profitReviewHtml(row) {
+      return String(profitReviewText(row) || "-")
+        .split(" | ")
+        .filter(Boolean)
+        .map((line, index) => `<div class="review-line ${index === 0 ? "" : "muted"}">${esc(line)}</div>`)
+        .join("");
     }
     function lines(items) {
       return (items || []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
@@ -218,7 +353,7 @@
         not_live_verified: "未通过链上复核"
       };
       if (failureLabels[status]) return `<span class="badge fail">${failureLabels[status]}</span>`;
-      if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可执行复核通过</span>';
+      if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可进入链上执行</span>';
       if (status === "live_verified") return '<span class="badge live">链上报价已复核</span>';
       if (status === "not_live_verified") return '<span class="badge fail">未通过链上复核</span>';
       if (status && status !== "not_live_verified") return `<span class="badge fail">${esc(status)}</span>`;
@@ -228,7 +363,31 @@
     function reasonText(row) {
       const ev = evidence(row);
       const evReasons = ev.blockers || ev.blockers?.blockers || [];
-      const base = row.reason || row.blocked_reason || (row.blocked_reasons || []).join("，") || (row.reasons || []).join("，") || row.error || "-";
+      const rawReasons = lines([
+        row.reason,
+        row.blocked_reason,
+        ...(Array.isArray(row.blocked_reasons) ? row.blocked_reasons : []),
+        ...(Array.isArray(row.reasons) ? row.reasons : []),
+        row.error,
+      ]);
+      const reasonLabel = reason => {
+        const normalized = String(reason || "").trim();
+        const lower = normalized.toLowerCase();
+        if (["broadcast_complete", "submitted_success", "broadcast_success", "broadcasted", "execution_success", "confirmed_success"].includes(lower)) {
+          return "已提交链上交易；等待链上确认后才算最终成交确认";
+        }
+        if (lower === "broadcast disabled; static preflight passed") {
+          return "链上执行开关未开启；链上执行条件已通过但未发起交易，请开启执行配置后重试";
+        }
+        if (lower.startsWith("broadcast disabled")) {
+          return "链上执行开关未开启；请检查测试网执行配置后重试";
+        }
+        if (lower === "missing_route_identity" || normalized.includes("missing_route_identity")) {
+          return "路线缺少完整 token 地址身份；symbol 只能用于展示，不能作为链上复核或执行依据";
+        }
+        return normalized;
+      };
+      const base = rawReasons.map(reasonLabel).filter(Boolean).join("；") || "-";
       const hop = ev.hop_count || ev.hops?.length;
       const prefix = hop ? `每跳复核 ${hop} 跳。` : "";
       const reasons = Array.isArray(evReasons) && evReasons.length ? evReasons.join("，") : base;
@@ -240,26 +399,38 @@
     }
     function recordCopyText(row) {
       const ev = evidence(row);
-      const pct = fmtPct(profitPercent(row));
-      const status = row.review_category || row.category || row.status || row.state || row.submission_status || "-";
+      const outcome = executionOutcome(row);
       const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
       const quote = row.quote || {};
-      const analysis = quote.quote_analysis || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
       const hops = ev.hops?.length ? ev.hops : (quote.hops || analysis.steps || []);
       const identity = routeIdentity(row);
+      const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || identity.status || "").toLowerCase();
+      const identityLabel = identityStatus === "token_discontinuity" ? "token 地址不连续" : (identityStatus === "symbol_only" || identityStatus === "address_partial") ? "地址身份不完整" : identityStatus;
       const addressPath = routeAddressText(row);
+      const reviewDirection = row.direction || quote.direction || analysis.direction || pair;
+      const reviewInitialAmount = numberValue(row.initial_probe_amount ?? quote.initial_probe_amount ?? quote.input_amount ?? analysis.initialProbeAmount ?? analysis.requestedAmount);
+      const reviewBestAmount = numberValue(row.best_amount ?? quote.best_amount ?? analysis.bestAmount ?? analysis.best_amount ?? analysis.bestAmountCalculation?.bestAmount ?? analysis.bestAmountCalculation?.recommendedBorrowInputAmount);
+      const reviewSymbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
+      const reviewInitialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      const reviewReferenceNetReturnBps = numberValue(analysis.referenceNetReturnBps ?? quote.referenceNetReturnBps);
       return lines([
         `时间：${fmtTime(row.created_at || row.observed_at || row.updated_at)}`,
         `网络：${row.network || row.cow_network || "-"}`,
         `路径：${pair}`,
-        `底层地址路径：${addressPath || "-"}`,
-        `地址身份：${ev.routeIdentityStatus || ev.route_identity_status || identity.status || "-"}`,
-        `状态：${status}`,
-        `证据状态：${ev.status || "-"}`,
-        `执行可信：${ev.trustedForExecution || ev.trusted_for_execution ? "是" : "否"}`,
+        `地址路径：${addressPath || "-"}`,
+        `地址身份：${identityLabel || "-"}`,
+        `状态：${outcome.label}`,
+        `执行方向：${reviewDirection}`,
+        `初始测试量：${fmtAmount(reviewInitialAmount, 8)} ${reviewSymbol || ""}`.trimEnd(),
+        `初始探测依据：${reviewInitialProbeReason ? offchainProbeReasonText(reviewInitialProbeReason) : "-"}`,
+        `最佳交易量：${fmtAmount(reviewBestAmount, 8)} ${reviewSymbol || ""}`.trimEnd(),
+        `参考净利 BPS：${reviewReferenceNetReturnBps === null ? "-" : fmtAmount(reviewReferenceNetReturnBps, 2)}`,
+        `复核状态：${evidenceBadge(row).replace(/<[^>]+>/g, "") || ev.status || "-"}`,
+        `复核可信：${ev.trustedForExecution || ev.trusted_for_execution || String(ev.status || "").toLowerCase() === "live_verified" ? "是" : "否"}`,
         `触发区块：${ev.triggerBlockNumber || ev.trigger_block_number || "-"}`,
         `复核区块：${ev.blockNumber || ev.block_number || "-"}`,
-        `盈亏比例：${pct}`,
+        `复盘：${profitReviewText(row)}`,
         `订单/交易：${row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-"}`,
         "",
         "原因与复盘要点：",
@@ -270,22 +441,27 @@
           `${step.hop || "-"}。${step.fromSymbol || step.from_symbol || "-"} -> ${step.toSymbol || step.to_symbol || "-"}`,
           `协议：${step.protocol || step.dex || "-"}`,
           `池子：${step.pool || "-"}`,
-          `tokenIn：${step.tokenIn || step.token_in || "-"}`,
-          `tokenOut：${step.tokenOut || step.token_out || "-"}`,
+          `输入代币：${step.tokenIn || step.token_in || step.fromSymbol || step.from_symbol || "-"}`,
+          `输出代币：${step.tokenOut || step.token_out || step.toSymbol || step.to_symbol || "-"}`,
           `输入：${step.amountIn || step.inputAmount || "-"} ${step.fromSymbol || step.from_symbol || ""}`,
           `输出：${step.amountOut || step.outputAmount || "-"} ${step.toSymbol || step.to_symbol || ""}`,
-          `方法：${step.quoteMethod || step.quoteSource || "-"}`,
+          `报价方式：${step.quoteMethodLabel || step.quoteSourceLabel || step.quoteMethod || step.quoteSource || "-"}`,
         ].join(" | ")) : ["-"]),
       ]).join("\n");
     }
     function rowHtml(row, index) {
       const status = row.review_category || row.category || row.status || row.state || row.submission_status || "-";
+      const outcome = executionOutcome(row);
       const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
       const ev = evidence(row);
       const order = row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-";
       const addresses = routeAddressText(row, {short: true});
       const pathCell = `${esc(pair)}${addresses ? `<div class="muted route-addresses">${esc(addresses)}</div>` : ""}`;
-      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td class="route-cell">${pathCell}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td>${esc(fmtPct(profitPercent(row)))}</td><td>${esc(status)}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button></td></tr>`;
+      const outcomeCell = `<span class="badge ${outcome.cls}">${esc(outcome.label)}</span>${status && String(status).toLowerCase() !== outcome.label ? `<div class="muted">${esc(status)}</div>` : ""}`;
+      const onchainButton = (row.tx_hash || row.transaction_hash || row.quote?.tx_hash || row.quote?.transaction_hash || row.order_uid)
+        ? ` <button class="copy-btn" type="button" data-check-onchain="${index}">链上查询</button>`
+        : "";
+      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td class="route-cell">${pathCell}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td class="review-cell">${profitReviewHtml(row)}</td><td>${outcomeCell}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button>${onchainButton}</td></tr>`;
     }
     async function refresh() {
       $("message").textContent = "正在加载提交记录...";
@@ -330,7 +506,51 @@
     }
     $("refreshBtn").onclick = refresh;
     $("clearBtn").onclick = clearRecords;
+    async function checkOnchain(row, button) {
+      const quote = row.quote || {};
+      const txHash = row.tx_hash || row.transaction_hash || quote.tx_hash || quote.transaction_hash || row.order_uid || "";
+      if (!txHash) {
+        $("message").textContent = "当前记录没有可查询的交易哈希";
+        return;
+      }
+      const old = button.textContent;
+      button.disabled = true;
+      button.textContent = "查询中...";
+      try {
+        const response = await fetch(apiPath("/api/dex/submissions/check-onchain"), {
+          method: "POST",
+          cache: "no-cache",
+          headers: {"Content-Type": "application/json", "Accept": "application/json"},
+          body: JSON.stringify({tx_hash: txHash}),
+        });
+        const responseText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          const head = responseText.trim().replace(/\s+/g, " ").slice(0, 120);
+          throw new Error(`链上查询接口没有返回 JSON，当前服务可能未加载该接口或版本过旧，请重启服务后重试（返回内容：${head}）`);
+        }
+        if (!response.ok) throw new Error(data.error || data.detail || `查询失败（HTTP ${response.status}）`);
+        const statusText = data.status === "confirmed" ? "已确认" : data.status === "failed" ? "已失败" : data.status === "pending" ? "待确认" : data.status || "-";
+        const blockNumber = data.receipt?.blockNumber ?? data.transaction?.blockNumber ?? "-";
+        button.textContent = statusText;
+        const explorerLink = data.explorer_tx_url ? ` | <a href="${esc(data.explorer_tx_url)}" target="_blank" rel="noreferrer">区块浏览器</a>` : "";
+        $("message").innerHTML = esc(`链上查询：${txHash} | ${statusText} | 区块 ${blockNumber}`) + explorerLink;
+        setTimeout(() => { button.textContent = old; button.disabled = false; }, 4000);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = old;
+        $("message").textContent = uiError(error.message);
+      }
+    }
     $("rows").addEventListener("click", event => {
+      const chainButton = event.target.closest("[data-check-onchain]");
+      if (chainButton) {
+        const row = latestRows[Number(chainButton.dataset.checkOnchain)];
+        if (row) checkOnchain(row, chainButton);
+        return;
+      }
       const button = event.target.closest("[data-copy-record]");
       if (!button) return;
       const row = latestRows[Number(button.dataset.copyRecord)];

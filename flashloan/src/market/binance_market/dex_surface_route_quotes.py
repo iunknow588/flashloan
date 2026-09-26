@@ -15,7 +15,6 @@ from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_TESTNET_CHAIN_ID as _ROBINHOOD_TESTNET_CHAIN_ID,
 )
 from market.binance_market.dex_surface_graph import (
-    _pool_matches_edge,
     _route_addresses_from_tokens,
     _route_pools,
     _route_symbols_from_tokens,
@@ -26,28 +25,19 @@ from market.binance_market.dex_surface_types import (
     _norm_symbol,
     _number,
     _optional_number,
-    _pool_address,
-    _pool_protocol,
-    _pool_side_index,
     _pool_tokens,
     _raw_from_human,
     _route_symbol_allowed,
-    _token_address,
 )
 from market.binance_market.dex_surface_v4 import (
-    _fee_bps,
-    _is_constant_product_pool,
-    _market_reference_rate,
-    _pool_reserve_amount,
-    _pool_reserve_usd,
     _pool_token_decimals_trusted,
-    _pool_tvl_usd,
-    _reference_price_quote,
     _static_depth_available,
     _v4_live_token_metadata_enabled,
     _v4_spot_rate,
     _v4_token_decimals,
 )
+from market.binance_market.dex_surface_edge_quotes import _best_edge_quote, _edge_quote
+from market.binance_market.dex_route_identity import missing_route_identity_analysis, route_address_identity_issues
 from market.strategy.limits import DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD
 
 QUOTE_PROBE_NOTIONAL_USD = 1000.0
@@ -76,6 +66,18 @@ def _quote_failure_status(error: object) -> str:
     )
     if any(marker in message for marker in markers):
         return "not_enough_liquidity"
+    if "rpc" in message and "unavailable after" in message and "connect attempt" in message:
+        return "rpc_verification_failed"
+    if "rpc" in message and (
+        "unavailable" in message
+        or "failed" in message
+        or "connect" in message
+        or "timeout" in message
+        or "timed out" in message
+    ):
+        return "rpc_verification_timeout" if ("timeout" in message or "timed out" in message) else "rpc_verification_failed"
+    if "pool not initialized" in message or "missing sqrtpricex96" in message or "slot0 missing" in message:
+        return "pool_not_initialized"
     return "live_quote_failed"
 
 
@@ -124,324 +126,6 @@ def quote_v4_exact_input_single(*args: Any, **kwargs: Any):
     return _default_quote_v4_exact_input_single(*args, **kwargs)
 
 
-def _edge_quote(
-    *,
-    pool: dict[str, Any],
-    from_symbol: str,
-    to_symbol: str,
-    from_address: str | None = None,
-    to_address: str | None = None,
-    input_amount: float | None,
-    input_usd: float,
-    price_map: dict[str, float],
-    chain_id: int | None = None,
-) -> dict[str, Any] | None:
-    in_index = _pool_side_index(pool, from_symbol, from_address)
-    out_index = _pool_side_index(pool, to_symbol, to_address)
-    if in_index is None or out_index is None or in_index == out_index:
-        return None
-    protocol = _pool_protocol(pool)
-    if protocol == "uniswap_v4":
-        if _v4_live_quote_enabled(chain_id=chain_id) and input_amount is not None and input_amount > 0:
-            network = _chain_network_name(chain_id) or str(pool.get("network") or "").strip().lower()
-            adapter = None
-            if network:
-                try:
-                    adapter = load_v4_sdk_adapter(network=network, chain_id=chain_id)
-                except (AttributeError, ImportError, RuntimeError, TypeError):
-                    adapter = None
-            if adapter is not None:
-                try:
-                    input_decimals = _v4_token_decimals(pool, in_index, chain_id=chain_id)
-                    output_decimals = _v4_token_decimals(pool, out_index, chain_id=chain_id)
-                    pool_tokens = _pool_tokens(pool)
-                    token_in = pool_tokens[in_index].get("address") if len(pool_tokens) > in_index else None
-                    token_out = pool_tokens[out_index].get("address") if len(pool_tokens) > out_index else None
-                    if token_in and token_out and input_decimals is not None and output_decimals is not None:
-                        amount_in_raw = _raw_from_human(input_amount, input_decimals)
-                        request = build_v4_quote_request(
-                            network=network,
-                            chain_id=chain_id,
-                            pool=_pool_address(pool),
-                            token_in=_token_address(token_in),
-                            token_out=_token_address(token_out),
-                            amount_in_raw=amount_in_raw,
-                            block_number=None,
-                            fee=pool.get("fee"),
-                            route_symbols=(from_symbol, to_symbol),
-                        )
-                        request["poolState"] = {
-                            "pool": _pool_address(pool),
-                            "token0": _token_address(pool.get("token0")),
-                            "token1": _token_address(pool.get("token1")),
-                            "token0Symbol": _norm_symbol(pool.get("token0Symbol")),
-                            "token1Symbol": _norm_symbol(pool.get("token1Symbol")),
-                            "token0Decimals": _v4_token_decimals(pool, 0, chain_id=chain_id),
-                            "token1Decimals": _v4_token_decimals(pool, 1, chain_id=chain_id),
-                            "tickSpacing": pool.get("tickSpacing"),
-                            "sqrtPriceX96": pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96"),
-                        }
-                        quote = quote_v4_exact_input_single(adapter=adapter, request=request)
-                        amount_out_raw = int(quote["amountOutRaw"])
-                        output_amount = _human_from_raw(amount_out_raw, output_decimals)
-                        output_price = _number(price_map.get(to_symbol))
-                        token_decimals_trusted = _pool_token_decimals_trusted(pool, in_index, chain_id=chain_id) and _pool_token_decimals_trusted(
-                            pool,
-                            out_index,
-                            chain_id=chain_id,
-                        )
-                        output_usd = output_amount * output_price if output_price > 0 else None
-                        return {
-                            "pool": pool.get("pool"),
-                            "protocol": pool.get("protocol") or pool.get("dex"),
-                            "dex": pool.get("dex") or pool.get("protocol"),
-                            "fee": pool.get("fee"),
-                            "feeBps": _fee_bps(pool),
-                            "fromSymbol": from_symbol,
-                            "toSymbol": to_symbol,
-                            "tokenIn": _token_address(from_address),
-                            "tokenOut": _token_address(to_address),
-                            "amountInRaw": str(amount_in_raw),
-                            "amountOutRaw": str(amount_out_raw),
-                            "inputAmount": input_amount,
-                            "inputUsd": input_usd,
-                            "outputAmount": output_amount,
-                            "outputUsd": output_usd,
-                            "effectiveRate": amount_out_raw / amount_in_raw if amount_in_raw > 0 else None,
-                            "reserveInUsd": _pool_reserve_usd(pool, in_index, price_map),
-                            "reserveOutUsd": _pool_reserve_usd(pool, out_index, price_map),
-                            "priceImpactBps": None,
-                            "depthBand": pool.get("depthBand") or {},
-                            "quoteSource": "uniswap_v4_live_adapter_quote",
-                            "executionTrust": "live_v4_adapter",
-                            "priceEvidenceSource": "chain_live_quote",
-                            "priceEvidenceMode": "live_verified",
-                            "livePriceVerified": bool(output_usd is not None),
-                            "trustedUsdPrice": bool(output_usd is not None),
-                            "tokenDecimalsTrusted": token_decimals_trusted,
-                            "tokenDecimalAssumption": None if token_decimals_trusted else "missing_token_decimals_untrusted",
-                            "quoteMode": quote.get("quoteMode") or "uniswap_v4_sdk_exact_input_single",
-                            "adapterRequired": False,
-                            "sdkAdapter": quote.get("sdkAdapter") or quote.get("quoteAdapter"),
-                            "quoteAdapter": quote.get("quoteAdapter") or quote.get("sdkAdapter"),
-                        }
-                except Exception as exc:
-                    live_quote_error = str(exc)
-                else:
-                    live_quote_error = ""
-            else:
-                live_quote_error = ""
-            if live_quote_error:
-                quote = _reference_price_quote(
-                    pool=pool,
-                    from_symbol=from_symbol,
-                    to_symbol=to_symbol,
-                    from_address=from_address,
-                    to_address=to_address,
-                    input_amount=input_amount,
-                    input_usd=input_usd,
-                    price_map=price_map,
-                    reason="uniswap_v4_live_quote_failed",
-                    chain_id=chain_id,
-                )
-                if quote is None:
-                    quote = {
-                        "pool": pool.get("pool"),
-                        "protocol": pool.get("protocol") or pool.get("dex"),
-                        "dex": pool.get("dex") or pool.get("protocol"),
-                        "fee": pool.get("fee"),
-                        "feeBps": _fee_bps(pool),
-                        "fromSymbol": from_symbol,
-                        "toSymbol": to_symbol,
-                        "tokenIn": _token_address(from_address),
-                        "tokenOut": _token_address(to_address),
-                        "inputAmount": input_amount,
-                        "inputUsd": input_usd,
-                        "outputAmount": None,
-                        "outputUsd": None,
-                        "effectiveRate": None,
-                        "reserveInUsd": _pool_reserve_usd(pool, in_index, price_map),
-                        "reserveOutUsd": _pool_reserve_usd(pool, out_index, price_map),
-                        "priceImpactBps": None,
-                        "depthBand": pool.get("depthBand") or {},
-                    }
-                quote.update(
-                    {
-                        "quoteSource": "uniswap_v4_live_quote_not_enough_liquidity"
-                        if _quote_failure_status(live_quote_error) == "not_enough_liquidity"
-                        else "uniswap_v4_live_quote_failed",
-                        "executionTrust": _quote_failure_status(live_quote_error),
-                        "quoteMode": "uniswap_v4_sdk_exact_input_single",
-                        "adapterRequired": False,
-                        "liveQuoteError": live_quote_error,
-                        "warning": "uniswap_v4_live_quote_not_enough_liquidity"
-                        if _quote_failure_status(live_quote_error) == "not_enough_liquidity"
-                        else "uniswap_v4_live_quote_failed",
-                    }
-                )
-                return quote
-        quote = _reference_price_quote(
-            pool=pool,
-            from_symbol=from_symbol,
-            to_symbol=to_symbol,
-            from_address=from_address,
-            to_address=to_address,
-            input_amount=input_amount,
-            input_usd=input_usd,
-            price_map=price_map,
-            reason="uniswap_v4_sdk_adapter_required",
-            chain_id=chain_id,
-        )
-        if quote is None:
-            return {
-                "pool": pool.get("pool"),
-                "protocol": pool.get("protocol") or pool.get("dex"),
-                "dex": pool.get("dex") or pool.get("protocol"),
-                "fee": pool.get("fee"),
-                "feeBps": _fee_bps(pool),
-                "fromSymbol": from_symbol,
-                "toSymbol": to_symbol,
-                "tokenIn": _token_address(from_address),
-                "tokenOut": _token_address(to_address),
-                "inputAmount": input_amount,
-                "inputUsd": input_usd,
-                "outputAmount": None,
-                "outputUsd": None,
-                "effectiveRate": None,
-                "reserveInUsd": _pool_reserve_usd(pool, in_index, price_map),
-                "reserveOutUsd": _pool_reserve_usd(pool, out_index, price_map),
-                "priceImpactBps": None,
-                "depthBand": pool.get("depthBand") or {},
-                "quoteSource": "uniswap_v4_sdk_adapter_required",
-                "executionTrust": "sdk_adapter_required",
-                "quoteMode": "uniswap_v4_sdk_exact_input_single",
-                "adapterRequired": True,
-                "warning": "uniswap_v4_sdk_adapter_required",
-                "tokenDecimalsTrusted": False,
-                "tokenDecimalAssumption": "missing_token_decimals_no_assumption",
-            }
-        quote["quoteSource"] = "uniswap_v4_sdk_adapter_required"
-        quote["executionTrust"] = "sdk_adapter_required"
-        quote["quoteMode"] = "uniswap_v4_sdk_exact_input_single"
-        quote["adapterRequired"] = True
-        return quote
-    if not _is_constant_product_pool(pool):
-        return _reference_price_quote(
-            pool=pool,
-            from_symbol=from_symbol,
-            to_symbol=to_symbol,
-            from_address=from_address,
-            to_address=to_address,
-            input_amount=input_amount,
-            input_usd=input_usd,
-            price_map=price_map,
-            reason="concentrated_liquidity_pool_requires_quoter",
-            chain_id=chain_id,
-        )
-    fee_bps = _fee_bps(pool)
-    fee_factor = max(0.0, 1.0 - fee_bps / 10_000.0)
-    reserve_in_amount = _pool_reserve_amount(pool, in_index)
-    reserve_out_amount = _pool_reserve_amount(pool, out_index)
-    reserve_in_usd = _pool_reserve_usd(pool, in_index, price_map)
-    reserve_out_usd = _pool_reserve_usd(pool, out_index, price_map)
-    if reserve_in_usd is None or reserve_out_usd is None:
-        tvl = _pool_tvl_usd(pool)
-        if tvl > 0:
-            reserve_in_usd = reserve_in_usd or tvl / 2
-            reserve_out_usd = reserve_out_usd or tvl / 2
-    if not reserve_in_usd or not reserve_out_usd or input_usd <= 0:
-        return None
-    reference_rate = _market_reference_rate(pool, from_symbol, to_symbol)
-    implied_rate = reserve_out_amount / reserve_in_amount if reserve_in_amount and reserve_out_amount else None
-    if reference_rate and implied_rate:
-        deviation_bps = abs(implied_rate / reference_rate - 1.0) * 10_000.0
-        if deviation_bps > 500.0:
-            return _reference_price_quote(
-                pool=pool,
-                from_symbol=from_symbol,
-                to_symbol=to_symbol,
-                from_address=from_address,
-                to_address=to_address,
-                input_amount=input_amount,
-                input_usd=input_usd,
-                price_map=price_map,
-                reason="pool_reserve_price_deviates_from_market_reference",
-                chain_id=chain_id,
-            )
-    input_after_fee_usd = input_usd * fee_factor
-    output_usd = reserve_out_usd * input_after_fee_usd / (reserve_in_usd + input_after_fee_usd)
-    spot_output_usd = input_after_fee_usd * reserve_out_usd / reserve_in_usd if reserve_in_usd > 0 else 0.0
-    price_impact_bps = max(0.0, (1.0 - output_usd / spot_output_usd) * 10_000.0) if spot_output_usd > 0 else None
-    output_amount = None
-    if input_amount is not None and reserve_in_amount and reserve_out_amount:
-        input_after_fee = input_amount * fee_factor
-        output_amount = reserve_out_amount * input_after_fee / (reserve_in_amount + input_after_fee)
-        price = price_map.get(to_symbol)
-        if price and price > 0:
-            output_usd = output_amount * price
-    if output_amount is None:
-        price = price_map.get(to_symbol)
-        if price and price > 0:
-            output_amount = output_usd / price
-    effective_rate = output_amount / input_amount if input_amount and output_amount is not None else None
-    return {
-        "pool": pool.get("pool"),
-        "protocol": pool.get("protocol") or pool.get("dex"),
-        "dex": pool.get("dex") or pool.get("protocol"),
-        "fee": pool.get("fee"),
-        "feeBps": fee_bps,
-        "fromSymbol": from_symbol,
-        "toSymbol": to_symbol,
-        "tokenIn": _token_address(from_address),
-        "tokenOut": _token_address(to_address),
-        "inputAmount": input_amount,
-        "inputUsd": input_usd,
-        "outputAmount": output_amount,
-        "outputUsd": output_usd,
-        "effectiveRate": effective_rate,
-        "reserveInUsd": reserve_in_usd,
-        "reserveOutUsd": reserve_out_usd,
-        "priceImpactBps": price_impact_bps,
-        "depthBand": pool.get("depthBand") or {},
-        "quoteSource": "constant_product_v2_static_reserve",
-        "executionTrust": "static_v2_probe",
-    }
-
-def _best_edge_quote(
-    *,
-    pools: list[dict[str, Any]],
-    from_symbol: str,
-    to_symbol: str,
-    from_address: str | None = None,
-    to_address: str | None = None,
-    input_amount: float | None,
-    input_usd: float,
-    price_map: dict[str, float],
-    chain_id: int | None = None,
-) -> dict[str, Any] | None:
-    quotes = [
-        quote
-        for pool in pools
-        if _pool_matches_edge(pool, from_symbol, to_symbol, from_address, to_address)
-        for quote in [
-            _edge_quote(
-                pool=pool,
-                from_symbol=from_symbol,
-                to_symbol=to_symbol,
-                from_address=from_address,
-                to_address=to_address,
-                input_amount=input_amount,
-                input_usd=input_usd,
-                price_map=price_map,
-                chain_id=chain_id,
-            )
-        ]
-        if quote is not None
-    ]
-    if not quotes:
-        return None
-    return max(quotes, key=lambda item: (_number(item.get("outputUsd")), _number(item.get("reserveOutUsd"))))
-
 def _route_quote_analysis(
     route: dict[str, Any],
     *,
@@ -454,13 +138,25 @@ def _route_quote_analysis(
     overview_route = route.get("overviewRoute") or {}
     route_tokens = [token for token in route.get("routeTokenPath") or overview_route.get("pathTokens") or [] if isinstance(token, dict)]
     route_symbols = _route_symbols_from_tokens(route_tokens) if route_tokens else list(overview_route.get("pathSymbols") or route.get("routeSymbols") or [])
-    route_addresses = _route_addresses_from_tokens(route_tokens) if route_tokens else []
+    route_addresses = _route_addresses_from_tokens(route_tokens) if route_tokens else [
+        str(item or "").strip()
+        for item in route.get("routeAddresses") or overview_route.get("pathAddresses") or []
+        if str(item or "").strip()
+    ]
     pools = _route_pools(route)
     static_depth_available = bool(pools) and all(_static_depth_available(pool) for pool in pools)
     warnings: list[str] = []
     if route_symbols and not route_tokens:
         warnings.append("route_identity_symbol_fallback")
     invalid_symbols = [symbol for symbol in route_symbols if not _route_symbol_allowed(symbol)]
+    route_address_issues = route_address_identity_issues(route_symbols, route_addresses)
+    if route_address_issues and not route_tokens:
+        return missing_route_identity_analysis(
+            route_symbols=route_symbols,
+            route_addresses=route_addresses,
+            warnings=warnings,
+            notional_usd=notional_usd,
+        )
     if invalid_symbols:
         warnings.append(f"invalid_route_symbol:{','.join(invalid_symbols)}")
         return {
@@ -497,7 +193,7 @@ def _route_quote_analysis(
             "recommendation": {
                 "level": "blocked",
                 "action": "拒绝污染路径",
-                "reasons": ["路径包含明显的污染符号，不能进入报价或预检。"],
+                "reasons": ["路径包含明显的污染符号，不能进入报价或链上复核。"],
             },
             "warnings": warnings,
         }
@@ -562,12 +258,25 @@ def _route_quote_analysis(
         steps.append(quote)
         trust = str(quote.get("executionTrust") or "").strip().lower()
         has_reference_output = quote.get("referenceOutputUsd") is not None or quote.get("referenceOutputAmount") is not None
-        if trust in {"live_quote_failed", "not_enough_liquidity"}:
-            warnings.append(
+        if trust in {
+            "live_quote_failed",
+            "not_enough_liquidity",
+            "pool_not_initialized",
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
+        }:
+            failure_warning = (
                 f"hop_{index}_not_enough_liquidity"
                 if trust == "not_enough_liquidity"
+                else f"hop_{index}_pool_not_initialized"
+                if trust == "pool_not_initialized"
+                else f"hop_{index}_rpc_verification_timeout"
+                if trust == "rpc_verification_timeout"
+                else f"hop_{index}_rpc_verification_failed"
+                if trust == "rpc_verification_failed"
                 else f"hop_{index}_live_quote_failed"
             )
+            warnings.append(failure_warning)
             if quote.get("liveQuoteError"):
                 warnings.append(f"hop_{index}_live_quote_error:{quote['liveQuoteError']}")
             warnings.append(f"route_truncated_at_hop_{index}_{trust}")
@@ -596,7 +305,15 @@ def _route_quote_analysis(
             break
     complete = len(steps) == max(0, len(route_symbols) - 1) and all(step.get("status") == "quoted" for step in steps)
     requires_live_quoter = any(
-        step.get("executionTrust") in {"reference_only", "live_quote_failed", "not_enough_liquidity"}
+        step.get("executionTrust")
+        in {
+            "reference_only",
+            "live_quote_failed",
+            "not_enough_liquidity",
+            "pool_not_initialized",
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
+        }
         for step in steps
     )
     adapter_required = any(step.get("executionTrust") == "sdk_adapter_required" for step in steps)
@@ -706,9 +423,17 @@ def _route_quote_analysis(
         for step in steps
     )
     live_quote_failures = [
-        f"第 {step.get('hop') or '?'} 跳链上报价失败（流动性不足或 Quoter 错误）：{step.get('liveQuoteError')}"
+        f"第 {step.get('hop') or '?'} 跳链上报价失败（{step.get('executionTrust') or 'live_quote_failed'}）：{step.get('liveQuoteError')}"
         for step in steps
-        if step.get("executionTrust") in {"live_quote_failed", "not_enough_liquidity"} and step.get("liveQuoteError")
+        if step.get("executionTrust")
+        in {
+            "live_quote_failed",
+            "not_enough_liquidity",
+            "pool_not_initialized",
+            "rpc_verification_failed",
+            "rpc_verification_timeout",
+        }
+        and step.get("liveQuoteError")
     ]
     if not complete:
         action = "等待真实报价"
@@ -733,10 +458,10 @@ def _route_quote_analysis(
             [
                 "已基于本地 JSON 的 PoolKey、sqrtPriceX96、fee 和池内方向完成参考测算",
                 "路径包含 V3/V4 或参考价报价跳，参考测算不能作为自动交易依据",
-                "必须用链上 Quoter、协议 SDK 或 eth_call 复核每一跳输出后才能进入预检",
+                "必须用链上 Quoter、协议 SDK 或 eth_call 复核每一跳输出后才能进入链上复核",
             ]
             if reference_final_output_usd is not None
-            else ["路径包含 V3/V4 或参考价报价跳，静态余额不能作为自动交易依据", "必须用链上 Quoter 或协议 SDK 复核每一跳输出后才能进入预检"]
+            else ["路径包含 V3/V4 或参考价报价跳，静态余额不能作为自动交易依据", "必须用链上 Quoter 或协议 SDK 复核每一跳输出后才能进入链上复核"]
         )
         if strict_live_price_only:
             reasons = live_quote_failures or [
@@ -775,15 +500,15 @@ def _route_quote_analysis(
                 *reasons,
             ]
     elif token_basis_profitable and token_basis_complete and not borrow_asset_is_stable and reference_net_profit_usd is None:
-        action = f"{input_symbol} 本位闭环已验证正收益，进入链上预检"
+        action = f"{input_symbol} 本位闭环已验证正收益，进入链上复核"
         level = "ready_for_precheck"
         reasons = [
             "链上 live quote 已验证闭环 token 本位正收益",
             "当前缺少可信 USD 锚点，但这不应阻断非稳定 X 本位候选",
-            "仍需 static-call / gas / repayment 复核后再广播",
+            "仍需要链上复核确认链上可执行性与回款约束后再执行",
         ]
     elif net_profit_usd is not None and net_profit_usd >= min_profit_usd:
-        action = "进入自动交易预检"
+        action = "进入链上复核"
         level = "ready_for_precheck"
         reasons = ["1000U 静态探针净利润超过最低阈值", "仍需链上 Quoter、滑点、gas 与闪电贷费复核"]
     elif net_profit_usd is not None and net_profit_usd > 0:
@@ -803,6 +528,38 @@ def _route_quote_analysis(
     testnet_live_only = bool(chain_id == ROBINHOOD_TESTNET_CHAIN_ID and requires_live_quoter and not live_price_verified)
     if testnet_live_only:
         executable_candidate = False
+
+    # Ensure steps are ordered by hop number and match route_symbols order
+    steps = sorted([s for s in steps if isinstance(s, dict)], key=lambda s: int(s.get("hop") or 0))
+    truncated = any(str(warning).startswith("route_truncated_at_") for warning in warnings)
+
+    # Validate route-step continuity
+    if steps and route_symbols:
+        # Rebuild steps in route order by symbol pair lookup to avoid reversed live hops
+        step_map = {(str(s.get("fromSymbol") or "").upper(), str(s.get("toSymbol") or "").upper()): s for s in steps}
+        ordered_steps = []
+        for i, (frm, to) in enumerate(zip(route_symbols, route_symbols[1:]), start=1):
+            key = (str(frm).upper(), str(to).upper())
+            s = step_map.get(key)
+            if s:
+                s = dict(s)  # copy
+            elif complete:
+                # fallback to any step that matches hop number
+                s = next((x for x in steps if int(x.get("hop") or 0) == i), {})
+            else:
+                # Keep truncated routes to the steps that were actually quoted or failed.
+                continue
+            s["hop"] = i
+            s["fromSymbol"] = frm
+            s["toSymbol"] = to
+            ordered_steps.append(s)
+        steps = ordered_steps
+        # Fallback reference input amount from first step if not set
+        if token_basis_input_amount is None and steps and steps[0].get("inputAmount") is not None:
+            token_basis_input_amount = steps[0].get("inputAmount")
+        # Validate after reorder
+        if not truncated and steps and (steps[0].get("fromSymbol") != route_symbols[0] or steps[-1].get("toSymbol") != route_symbols[-1]):
+            warnings.append("route_steps_mismatch")
 
     payload = {
         "method": "static_amm_depth_probe",

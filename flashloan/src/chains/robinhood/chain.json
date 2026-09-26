@@ -14,7 +14,8 @@
   "explorer_url": "https://robinhoodchain.blockscout.com",
   "defaults": {
     "v4_quote_adapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
-    "v4_pool_index_writer": "intent_trade.chains.robinhood.v4_pool_index:write_v4_pool_index_from_observation_pool_ids"
+    "v4_pool_index_writer": "intent_trade.chains.robinhood.v4_pool_index:write_v4_pool_index_from_observation_pool_ids",
+    "v4_pool_liquidity_writer": "intent_trade.chains.robinhood.v4_pool_liquidity:write_v4_pool_liquidity_from_contract_evidence"
   },
   "contracts": {
     "v3_factory": "0x1f7d7550b1b028f7571e69a784071F0205FD2EfA",
@@ -41,7 +42,9 @@
     "dex_arbitrage": {
       "default_market_id": "dex-arbitrage-4663-uniswap-v4",
       "legacy_default_market_id": "robinhood-dex-shadow",
-      "protocol": "uniswap_v4"
+      "protocol": "uniswap_v4",
+      "protocol_supported": false,
+      "observation_only": true
     }
   },
   "flash_loan": {

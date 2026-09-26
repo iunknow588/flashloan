@@ -35,7 +35,7 @@ def _runtime(**overrides):
         "lock": Lock(),
         "stop_event": Event(),
         "status_payload": lambda: dict(cache),
-        "database_url": lambda: "postgresql://example",
+        "database_url": lambda: "local_store.sqlite3",
         "auto_discovery_enabled": lambda: True,
         "pool_address": lambda: "0xpool",
         "discovery_window": lambda force_full=True: _window(),
@@ -44,7 +44,7 @@ def _runtime(**overrides):
         "rpc_urls": lambda: ["https://rpc.example"],
         "resolve_block_range": lambda rpc_url, from_block, to_block: (123, 100, 200),
         "discover_borrowers": lambda *args, **kwargs: ["0x1"],
-        "configured_database_url": lambda: "postgresql://example",
+        "configured_database_url": lambda: "local_store.sqlite3",
         "upsert_accounts": lambda *args, **kwargs: None,
         "invalidate_account_cache": lambda: None,
         "set_progress": lambda progress: cache.update({"progress": progress}),
@@ -63,7 +63,7 @@ def test_backfill_workflow_rejects_missing_database_before_locking():
         "started": False,
         "saved": False,
         "count": 0,
-        "error": "DATABASE_URL is required",
+        "error": "local KV store unavailable",
     }
 
 
@@ -81,7 +81,7 @@ def test_backfill_workflow_saves_discovered_accounts_and_invalidates_cache():
     assert result["saved"] is True
     assert result["status"] == "success"
     assert result["count"] == 1
-    assert captured["database_url"] == "postgresql://example"
+    assert captured["database_url"] == "local_store.sqlite3"
     assert captured["accounts"] == ["0x1"]
     assert captured["kwargs"]["source"] == "one-year-gap-fill"
     assert captured["invalidated"] is True

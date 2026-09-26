@@ -176,6 +176,79 @@ def testnet_rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[s
     return rpc_urls
 
 
+def testnet_rpc_connect_timeouts(default: tuple[float, ...] = (10.0, 20.0, 30.0)) -> tuple[float, ...]:
+    """Return per-attempt RPC connect timeouts for Robinhood testnet.
+
+    Defaults to three attempts with escalating 10s/20s/30s timeouts. A slow
+    endpoint gets a real chance to answer before being treated as unavailable.
+    The value can be overridden with the program-local env var
+    ``DEX_ONCHAIN_RPC_CONNECT_TIMEOUTS_SECONDS`` as a comma-separated list.
+    """
+    raw = str(os.getenv("DEX_ONCHAIN_RPC_CONNECT_TIMEOUTS_SECONDS", "") or "").strip()
+    if raw:
+        parsed: list[float] = []
+        for part in raw.split(","):
+            try:
+                value = float(part.strip())
+            except (TypeError, ValueError):
+                continue
+            if value > 0 and value not in parsed:
+                parsed.append(value)
+        if parsed:
+            return tuple(parsed)
+    attempts_raw = str(os.getenv("DEX_ONCHAIN_RPC_CONNECT_ATTEMPTS", "") or "").strip()
+    if attempts_raw:
+        try:
+            attempts = max(1, int(attempts_raw))
+        except (TypeError, ValueError):
+            attempts = len(default)
+        return tuple(float(value) for value in default[:attempts])
+    return tuple(float(value) for value in default)
+
+
+def mainnet_rpc_connect_timeouts(default: tuple[float, ...] = (10.0, 20.0, 30.0)) -> tuple[float, ...]:
+    """Return per-attempt RPC connect timeouts for Robinhood mainnet.
+
+    The mainnet helper is intentionally separate from the testnet helper so a
+    mainnet refresh can never inherit testnet timeout policy or RPC failover
+    behavior. It can be overridden with
+    ``ROBINHOOD_MAINNET_RPC_CONNECT_TIMEOUTS_SECONDS`` or the generic
+    ``DEX_ONCHAIN_RPC_CONNECT_TIMEOUTS_SECONDS`` variable.
+    """
+    raw = str(
+        os.getenv(
+            "ROBINHOOD_MAINNET_RPC_CONNECT_TIMEOUTS_SECONDS",
+            os.getenv("DEX_ONCHAIN_RPC_CONNECT_TIMEOUTS_SECONDS", ""),
+        )
+        or ""
+    ).strip()
+    if raw:
+        parsed: list[float] = []
+        for part in raw.split(","):
+            try:
+                value = float(part.strip())
+            except (TypeError, ValueError):
+                continue
+            if value > 0 and value not in parsed:
+                parsed.append(value)
+        if parsed:
+            return tuple(parsed)
+    attempts_raw = str(
+        os.getenv(
+            "ROBINHOOD_MAINNET_RPC_CONNECT_ATTEMPTS",
+            os.getenv("DEX_ONCHAIN_RPC_CONNECT_ATTEMPTS", ""),
+        )
+        or ""
+    ).strip()
+    if attempts_raw:
+        try:
+            attempts = max(1, int(attempts_raw))
+        except (TypeError, ValueError):
+            attempts = len(default)
+        return tuple(float(value) for value in default[:attempts])
+    return tuple(float(value) for value in default)
+
+
 def wss_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]:
     env_urls = _split_env_urls("ROBINHOOD_WSS", "ROBINHOOD_WS_URLS", "ROBINHOOD_WS_URL", "ROBINHOOD_WS")
     if env_urls:

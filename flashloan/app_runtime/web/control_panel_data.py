@@ -9,11 +9,9 @@ from core.control_panel_data_cache import (
 )
 from core.control_panel_data_compact import (
     compact_extremes_payload,
-    fetch_one,
     latest_arbitrage_from_db,
     latest_extremes_from_db,
 )
-from core import control_panel_data_db as data_db
 from core.control_panel_data_db import (
     available_candidate_symbols as read_available_candidate_symbols,
     available_chart_symbols as read_available_chart_symbols,
@@ -29,17 +27,6 @@ from core.control_panel_data_db import (
     recent_velocity_timepoints as read_recent_velocity_timepoints,
     velocity_timepoint_snapshot as read_velocity_timepoint_snapshot,
 )
-
-
-def _with_facade_fetch_one(function, *args):
-    original_fetch_one = data_db.fetch_one
-    if original_fetch_one is fetch_one:
-        return function(*args)
-    data_db.fetch_one = fetch_one
-    try:
-        return function(*args)
-    finally:
-        data_db.fetch_one = original_fetch_one
 
 
 def latest_binance_extremes(database_url: str | None, latest_path: Path) -> Optional[dict]:
@@ -92,11 +79,11 @@ def stable_target_cache(cache_path: Path) -> Optional[dict]:
 
 
 def observation_count(database_url: str) -> Optional[int]:
-    return _with_facade_fetch_one(read_observation_count, database_url)
+    return read_observation_count(database_url)
 
 
 def database_table_counts(database_url: str) -> Optional[dict]:
-    return _with_facade_fetch_one(read_database_table_counts, database_url)
+    return read_database_table_counts(database_url)
 
 
 def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
@@ -112,7 +99,7 @@ def recent_velocity_timepoints(database_url: str, limit: int = 200) -> list[dict
 
 
 def velocity_timepoint_snapshot(database_url: str, snapshot_id: int | None = None) -> Optional[dict]:
-    return _with_facade_fetch_one(read_velocity_timepoint_snapshot, database_url, snapshot_id)
+    return read_velocity_timepoint_snapshot(database_url, snapshot_id)
 
 
 def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict]:

@@ -34,7 +34,7 @@ def test_scan_selection_package_is_independent_from_web_module(monkeypatch):
     }
 
     selection = scan_selection.select_accounts(
-        "postgresql://example",
+        "local_store.sqlite3",
         ["0x1", "0x2", "0x1"],
         Config(),
         scan_cache=cache,
@@ -121,7 +121,7 @@ def test_liquidation_core_rows_with_execution_attaches_execution_summary(monkeyp
         lambda database_url, limit: attempts,
     )
 
-    rows = scan.liquidation_core_rows_with_execution("postgresql://example", limit=20)
+    rows = scan.liquidation_core_rows_with_execution("local_store.sqlite3", limit=20)
 
     assert rows[0]["execution"]["value_state"] == "worth_executing"
     assert rows[0]["execution"]["execution_status"] == "preflight_passed"
@@ -145,7 +145,7 @@ def test_select_scan_accounts_uses_core_when_only_base_cycle_is_due(monkeypatch)
     monkeypatch.setattr(scan, "db_load_liquidation_high_frequency_pool", lambda database_url, limit=100, offset=0: _rows("0x3", "0x2"))
 
     selection = scan.select_liquidation_scan_accounts(
-        "postgresql://example",
+        "local_store.sqlite3",
         ["0x1", "0x2", "0x3"],
         LiquidationScanConfig(
             core_opportunity_refresh_seconds=1,
@@ -175,7 +175,7 @@ def test_select_scan_accounts_promotes_to_high_frequency_when_due(monkeypatch):
     monkeypatch.setattr(scan, "db_load_liquidation_high_frequency_pool", lambda database_url, limit=100, offset=0: _rows("0x3", "0x2"))
 
     selection = scan.select_liquidation_scan_accounts(
-        "postgresql://example",
+        "local_store.sqlite3",
         ["0x1", "0x2", "0x3"],
         LiquidationScanConfig(
             core_opportunity_refresh_seconds=1,
@@ -201,7 +201,7 @@ def test_select_scan_accounts_promotes_to_full_borrow_health_when_due(monkeypatc
     monkeypatch.setattr(scan, "db_load_liquidation_high_frequency_pool", lambda database_url, limit=100, offset=0: _rows("0x3"))
 
     selection = scan.select_liquidation_scan_accounts(
-        "postgresql://example",
+        "local_store.sqlite3",
         ["0x1", "0x2", "0x3"],
         LiquidationScanConfig(
             core_opportunity_refresh_seconds=1,
@@ -227,7 +227,7 @@ def test_select_scan_accounts_falls_back_when_core_pool_is_empty(monkeypatch):
     monkeypatch.setattr(scan, "db_load_liquidation_high_frequency_pool", lambda database_url, limit=100, offset=0: _rows("0x3"))
 
     selection = scan.select_liquidation_scan_accounts(
-        "postgresql://example",
+        "local_store.sqlite3",
         ["0x1", "0x2", "0x3"],
         LiquidationScanConfig(),
     )
@@ -248,7 +248,7 @@ def test_select_scan_accounts_force_runs_full_unique_account_pool(monkeypatch):
     monkeypatch.setattr(scan, "db_load_liquidation_high_frequency_pool", lambda database_url, limit=100, offset=0: _rows("0x3"))
 
     selection = scan.select_liquidation_scan_accounts(
-        "postgresql://example",
+        "local_store.sqlite3",
         ["0x1", "0x2", "0x1", "", "0x3"],
         LiquidationScanConfig(),
         force=True,
@@ -346,7 +346,7 @@ def test_borrow_pool_scan_payload_scans_only_selected_core_accounts(monkeypatch)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "last_core_scan_monotonic", now - 2)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "last_high_frequency_scan_monotonic", now - 1)
     monkeypatch.setitem(scan.LIQUIDATION_SCAN_CACHE, "last_borrow_health_scan_monotonic", now - 1)
-    monkeypatch.setattr(scan, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(scan, "database_url_or_none", lambda: "local_store.sqlite3")
     class FakeLock:
         def __init__(self):
             self.released = False

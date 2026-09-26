@@ -131,6 +131,8 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "live_quote_reference_only",
             "route_unprofitable",
             "slippage_limit_exceeded",
+            "pool_not_initialized",
+            "not_enough_liquidity",
             "pool_insufficient_for_profitable_execution",
             "missing_effective_pool",
             "depth_insufficient",
@@ -192,6 +194,44 @@ def _number_or_none(value: object) -> float | None:
     if parsed != parsed or parsed in (float("inf"), float("-inf")):
         return None
     return parsed
+
+
+def _hop_amount_continuity_issues(hops: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return hop-by-hop amount mismatches that break routed value continuity."""
+    issues: list[dict[str, Any]] = []
+    for index in range(1, len(hops)):
+        previous = hops[index - 1]
+        current = hops[index]
+        previous_symbol = str(previous.get("toSymbol") or "").strip().upper()
+        current_symbol = str(current.get("fromSymbol") or "").strip().upper()
+        previous_output = _number_or_none(previous.get("outputAmount") if _number_or_none(previous.get("outputAmount")) is not None else previous.get("amountOut"))
+        current_input = _number_or_none(current.get("inputAmount") if _number_or_none(current.get("inputAmount")) is not None else current.get("amountIn"))
+        if previous_symbol and current_symbol and previous_symbol != current_symbol:
+            issues.append(
+                {
+                    "kind": "symbol",
+                    "fromHop": previous.get("hop") or index,
+                    "toHop": current.get("hop") or index + 1,
+                    "fromSymbol": previous_symbol,
+                    "toSymbol": current_symbol,
+                    "message": f"hop {previous.get('hop') or index} output symbol {previous_symbol} does not match hop {current.get('hop') or index + 1} input symbol {current_symbol}",
+                }
+            )
+        if previous_output is None or current_input is None:
+            continue
+        tolerance = max(abs(previous_output), abs(current_input), 1.0) * 1e-9
+        if abs(previous_output - current_input) > tolerance:
+            issues.append(
+                {
+                    "kind": "amount",
+                    "fromHop": previous.get("hop") or index,
+                    "toHop": current.get("hop") or index + 1,
+                    "fromOutput": previous_output,
+                    "toInput": current_input,
+                    "message": f"hop {previous.get('hop') or index} output {previous_output} does not equal hop {current.get('hop') or index + 1} input {current_input}",
+                }
+            )
+    return issues
 
 
 def _chain_network(payload: dict[str, Any] | None, chain_id: int | None) -> str:
@@ -463,8 +503,6 @@ def _apply_onchain_evidence_to_attempt(attempt: dict[str, Any], evidence: dict[s
     blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
     terminal_depth_status = evidence_status in TERMINAL_DEPTH_STATUSES
-    if ready_for_preflight and not blockers:
-        blockers = ["on-chain Quoter already reverified as profitable; still need transaction calldata, slippage protection, flash loan return constraints, and fork/static-call simulation before submitting"]
     live_percent = _live_profit_percent(evidence)
     quote.update(
         {
@@ -573,31 +611,49 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             )
         ]
 
+    cost_final_output_amount = costs.get("finalOutputAmount")
+    cost_net_profit_amount = costs.get("netProfitAmount")
+    cost_net_profit_bps = costs.get("netProfitAmountBps")
+    cost_borrow_input_amount = (
+        costs.get("selectedBorrowInputAmount")
+        if _number_or_none(costs.get("selectedBorrowInputAmount")) is not None
+        else costs.get("borrowInputAmount")
+        if _number_or_none(costs.get("borrowInputAmount")) is not None
+        else costs.get("requestedBorrowInputAmount")
+    )
+    reference_input_amount = (
+        cost_borrow_input_amount
+        if _number_or_none(cost_borrow_input_amount) is not None
+        else None
+    )
     reference_final_output_amount = (
-        costs.get("finalOutputAmount")
-        if live_verified
+        cost_final_output_amount
+        if _number_or_none(cost_final_output_amount) is not None
         else (analysis.get("referenceFinalOutputAmount") if is_deferred else None)
     )
     reference_final_output_symbol = (
         costs.get("finalOutputSymbol") or validation.get("finalOutputSymbol")
-        if live_verified
+        if reference_final_output_amount is not None
         else (analysis.get("referenceFinalOutputSymbol") if is_deferred else None)
     )
     reference_net_profit_amount = (
-        costs.get("netProfitAmount")
-        if live_verified
+        cost_net_profit_amount
+        if _number_or_none(cost_net_profit_amount) is not None
         else (analysis.get("referenceNetProfitAmount") if is_deferred else None)
     )
     reference_net_return_bps = (
-        costs.get("netProfitAmountBps")
-        if live_verified
+        cost_net_profit_bps
+        if _number_or_none(cost_net_profit_bps) is not None
         else (analysis.get("referenceNetReturnBps") if is_deferred else None)
     )
     reference_input_symbol = (
         costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol")
-        if live_verified
+        if reference_input_amount is not None
         else analysis.get("referenceInputSymbol")
     )
+    reference_final_output_usd = costs.get("finalOutputUsd") if live_verified else None
+    reference_gross_profit_usd = costs.get("grossProfitUsd") if live_verified else None
+    reference_gross_profit_amount = costs.get("grossProfitAmount") if live_verified else None
     analysis.update(
         {
             "live_onchain_evidence": deepcopy(evidence),
@@ -614,16 +670,26 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "grossProfitUsd": costs.get("grossProfitUsd") if live_verified else None,
             "netProfitUsd": costs.get("netProfitUsd") if live_verified else None,
             "netProfitBps": costs.get("netProfitBps") if live_verified else None,
+            "referenceInputAmount": reference_input_amount,
             "referenceFinalOutputAmount": reference_final_output_amount,
+            "referenceFinalOutputUsd": reference_final_output_usd,
             "referenceFinalOutputSymbol": reference_final_output_symbol,
+            "referenceGrossProfitUsd": reference_gross_profit_usd,
+            "referenceGrossProfitAmount": reference_gross_profit_amount,
             "referenceNetProfitAmount": reference_net_profit_amount,
             "referenceNetReturnBps": reference_net_return_bps,
             "referenceInputSymbol": reference_input_symbol,
             "referenceReturnBasis": costs.get("profitBasis") or analysis.get("referenceReturnBasis"),
             "referenceReturnTrusted": live_verified,
+            "profitable": bool(evidence.get("profitable") or validation.get("profitableAfterCosts")),
+            "conclusion": evidence.get("conclusion"),
         }
     )
-    if blockers:
+    evidence_recommendation = evidence.get("recommendation") if isinstance(evidence.get("recommendation"), dict) else {}
+    if evidence_recommendation:
+        analysis["recommendation"] = deepcopy(evidence_recommendation)
+        analysis["recommendation"]["reasons"] = blockers or analysis["recommendation"].get("reasons") or []
+    elif blockers:
         analysis["recommendation"] = {
             "level": status,
             "action": (
@@ -649,6 +715,40 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             _pool_map(route),
         )
     live_hops = evidence.get("hops") if isinstance(evidence.get("hops"), list) else []
+    live_direction_symbols: list[str] = []
+    live_direction_addresses: list[str] = []
+    for hop in live_hops:
+        if not isinstance(hop, dict):
+            continue
+        from_symbol = str(hop.get("fromSymbol") or "").strip().upper()
+        to_symbol = str(hop.get("toSymbol") or "").strip().upper()
+        if from_symbol and (not live_direction_symbols or live_direction_symbols[-1] != from_symbol):
+            live_direction_symbols.append(from_symbol)
+        if to_symbol:
+            live_direction_symbols.append(to_symbol)
+        from_address = str(hop.get("tokenIn") or hop.get("token_in") or hop.get("fromAddress") or "").strip().lower()
+        to_address = str(hop.get("tokenOut") or hop.get("token_out") or hop.get("toAddress") or "").strip().lower()
+        if from_address and (not live_direction_addresses or live_direction_addresses[-1] != from_address):
+            live_direction_addresses.append(from_address)
+        if to_address:
+            live_direction_addresses.append(to_address)
+    if len(live_direction_symbols) >= 2:
+        route["routeSymbols"] = live_direction_symbols
+        route["symbolPair"] = " -> ".join(live_direction_symbols)
+        analysis["routeSymbols"] = live_direction_symbols
+        evidence["routeSymbols"] = live_direction_symbols
+    if len(live_direction_addresses) == len(live_direction_symbols):
+        route["routeAddresses"] = live_direction_addresses
+        analysis["routeAddresses"] = live_direction_addresses
+        evidence["routeAddresses"] = live_direction_addresses
+    if live_direction_symbols or evidence.get("directionConfirmed"):
+        analysis["directionConfirmed"] = True
+        analysis["direction"] = " -> ".join(live_direction_symbols or route_symbols)
+    best_amount = costs.get("selectedBorrowInputAmount")
+    if _number_or_none(best_amount) is None:
+        best_amount = None
+    analysis["bestAmount"] = best_amount
+    analysis["bestAmountSymbol"] = costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol")
     if live_hops or static_steps:
         merged_steps = []
         live_by_hop: dict[int, dict[str, Any]] = {}
@@ -746,6 +846,35 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             if isinstance(live, dict):
                 merged_steps.append(deepcopy(live))
         analysis["steps"] = merged_steps
+        amount_issues = _hop_amount_continuity_issues(merged_steps)
+        if amount_issues:
+            blockers.append("on-chain quote hop amounts are inconsistent; cannot enter transaction preflight")
+            for issue in amount_issues:
+                blockers.append(str(issue.get("message") or "hop amount continuity mismatch"))
+            analysis.setdefault("warnings", [])
+            analysis["warnings"].append("hop_amount_continuity_mismatch")
+
+    if blockers and not isinstance(analysis.get("recommendation"), dict):
+        analysis["recommendation"] = {
+            "level": status,
+            "action": (
+                "on-chain verified but net profit is not positive after flash loan fees; do not execute"
+                if status == "route_unprofitable"
+                else "on-chain quote failed; route cannot enter transaction preflight"
+            ),
+            "reasons": blockers,
+            "profitable": False,
+            "readyForTransactionPreflight": False,
+            "blocked": True,
+        }
+    elif blockers and isinstance(analysis.get("recommendation"), dict):
+        reasons = list(analysis["recommendation"].get("reasons") or [])
+        for blocker in blockers:
+            if blocker not in reasons:
+                reasons.append(blocker)
+        analysis["recommendation"]["reasons"] = reasons
+
+    analysis["blockers"] = list(blockers)
 
     verification = dict(route.get("quoteVerification") or {})
     verification.update(

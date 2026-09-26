@@ -26,46 +26,55 @@
     "hooks": "0x0000000000000000000000000000000000000000",
     "txHash": "0xd9e5061dc3310dc9efdaf04f5af0101d11ece170b1bc5183786c2b3cbbdd271d",
     "runAt": "2026-09-13T00:22:48.011Z",
-    "arb": "0x7942D3200c336a5bc309304F1F06F913cD93F49D",
+    "arb": "0x41fD8493523D850920a3a5E4Ece0f663cA900735",
     "lastArbLiveTest": {
-      "txHash": "0xa7959644c39b7fc145f0428cc72163ee0fd1edef6eb5e7ab453465a046a9cca0",
-      "runAt": "2026-09-17T08:39:16.746Z",
+      "txHash": "0xd772e566e54453964c5e329956b26d5f1e0d413dd6a6997e87edc0ce138a55a4",
+      "runAt": "2026-09-25T16:39:17.666Z",
       "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
-      "arb": "0x7942D3200c336a5bc309304F1F06F913cD93F49D",
+      "arb": "0x41fD8493523D850920a3a5E4Ece0f663cA900735",
       "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-      "amountIn": "1000000000000000000000",
-      "outTb": "988763887759463405525",
-      "outTa": "86747647489170194818",
-      "outTz": "1010144768897319117378",
-      "profit": "10144768897319117378",
-      "gasUsed": "369854",
+      "amountIn": "16000000000000000000",
+      "initialAmountIn": "16000000000000000000",
+      "selectedAmountIn": "16000000000000000000",
+      "outTb": "2441934455047292918",
+      "outTa": "41880176676311216254",
+      "outTz": "28195862186435662328",
+      "profit": "12195862186435662328",
+      "profitHuman": "12.195862186435662328",
+      "profitRaw": "12195862186435662328",
+      "selectedAmount": "16.0",
+      "selectedAmountMethod": "onchain_preview_adaptive_best_amount",
+      "selectedAmountAttemptedCount": "27",
+      "amountIsBest": true,
+      "gasUsed": "274465",
+      "waitError": null,
       "route": {
         "keys": [
           {
-            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-            "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "currency0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "currency1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
             "fee": 3000,
             "tickSpacing": 60,
             "hooks": "0x0000000000000000000000000000000000000000"
           },
           {
-            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "currency0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "currency1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
             "fee": 3000,
             "tickSpacing": 60,
             "hooks": "0x0000000000000000000000000000000000000000"
           },
           {
-            "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "currency0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "currency1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
             "fee": 3000,
             "tickSpacing": 60,
             "hooks": "0x0000000000000000000000000000000000000000"
           }
         ],
         "directions": [
-          false,
           true,
+          false,
           false
         ]
       },
@@ -73,22 +82,22 @@
         "keysets": [
           [
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+              "currency0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+              "currency1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
               "fee": 3000,
               "tickSpacing": 60,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+              "currency0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+              "currency1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
               "fee": 3000,
               "tickSpacing": 60,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+              "currency0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+              "currency1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
               "fee": 3000,
               "tickSpacing": 60,
               "hooks": "0x0000000000000000000000000000000000000000"
@@ -96,22 +105,22 @@
           ],
           [
             {
-              "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+              "currency0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+              "currency1": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
               "fee": 3000,
               "tickSpacing": 60,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+              "currency0": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+              "currency1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
               "fee": 3000,
               "tickSpacing": 60,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+              "currency0": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+              "currency1": "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
               "fee": 3000,
               "tickSpacing": 60,
               "hooks": "0x0000000000000000000000000000000000000000"
@@ -120,23 +129,23 @@
         ],
         "directionsets": [
           [
-            false,
             true,
+            false,
             false
           ],
           [
             true,
-            false,
-            true
+            true,
+            false
           ]
         ],
         "routeIndex": 0
       },
       "selectedRouteSymbols": [
-        "TB",
         "TZ",
         "TA",
-        "TB"
+        "TB",
+        "TZ"
       ],
       "reservePolicy": "80_percent_creation_reserve_is_for_later_liquidity_not_a_post_run_floor"
     },

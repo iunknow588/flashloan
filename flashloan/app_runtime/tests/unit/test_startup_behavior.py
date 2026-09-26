@@ -41,11 +41,27 @@ def reset_start_state():
     )
 
 
+def test_runtime_dir_defaults_to_src_runtime(monkeypatch):
+    from core.runtime_paths import resolve_log_dir, resolve_runtime_dir
+
+    monkeypatch.delenv("FLASHLOAN_RUNTIME_DIR", raising=False)
+    monkeypatch.delenv("FLASHLOAN_LOG_DIR", raising=False)
+
+    runtime_dir = resolve_runtime_dir(base_dir=control_panel.APP_DIR)
+    assert runtime_dir == control_panel.RUNTIME_DIR
+    assert runtime_dir.name == "runtime"
+    assert runtime_dir.parent.name == "src"
+
+    log_dir = resolve_log_dir(runtime_dir=runtime_dir, base_dir=control_panel.APP_DIR)
+    assert log_dir == control_panel.LOG_DIR
+    assert log_dir == runtime_dir / "logs"
+
+
 def test_start_api_returns_before_building_observer_environment(monkeypatch):
     reset_start_state()
     DummyThread.started = False
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
-    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "velocity_start_symbols", lambda: ["WETHUSDT"])
     monkeypatch.setattr(
         control_panel,
@@ -67,9 +83,9 @@ def test_start_api_returns_before_building_observer_environment(monkeypatch):
 
 def test_start_api_redacts_database_config_error(monkeypatch):
     reset_start_state()
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "a" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
 
     def fail_database_url():
@@ -133,7 +149,7 @@ def test_observer_supervisor_restarts_crashed_process(monkeypatch):
     control_panel.observer_process = CrashedProcess()
     control_panel.observer_supervisor_state["enabled"] = True
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
-    monkeypatch.setattr(control_panel, "build_observer_env", lambda: ({"DATABASE_URL": "postgresql://example"}, ["AVAXUSDT"]))
+    monkeypatch.setattr(control_panel, "build_observer_env", lambda: ({"FLASHLOAN_KV_PATH": "local_store.sqlite3"}, ["AVAXUSDT"]))
     monkeypatch.setattr(control_panel, "launch_observer_process", lambda env, symbols: events.append((env, symbols)) or RestartedProcess())
     monkeypatch.setattr(control_panel, "set_control_status", lambda *args, **kwargs: None)
 
@@ -141,7 +157,7 @@ def test_observer_supervisor_restarts_crashed_process(monkeypatch):
 
     assert result["action"] == "restarted"
     assert result["pid"] == 22
-    assert events == [({"DATABASE_URL": "postgresql://example"}, ["AVAXUSDT"])]
+    assert events == [({"FLASHLOAN_KV_PATH": "local_store.sqlite3"}, ["AVAXUSDT"])]
     assert control_panel.observer_supervisor_state["restart_count"] == 1
     assert control_panel.observer_supervisor_state["last_restart_at"] == 100.0
     assert control_panel.observer_supervisor_state["next_restart_at"] <= 130.0
@@ -170,8 +186,8 @@ def test_build_observer_env_prefers_detailed_liquidation_account_assets(monkeypa
     from web import control_panel
 
     monkeypatch.setenv("AAVE_POOL_ADDRESS", "0x0000000000000000000000000000000000000001")
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
-    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "aave_rpc_urls", lambda: ["https://rpc.example"])
     monkeypatch.setattr(
         control_panel,
@@ -212,7 +228,7 @@ def test_build_observer_env_prefers_detailed_liquidation_account_assets(monkeypa
 
 def test_observer_supervisor_restart_error_is_redacted(monkeypatch):
     reset_start_state()
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "b" * 64
 
     class CrashedProcess:
@@ -222,7 +238,7 @@ def test_observer_supervisor_restart_error_is_redacted(monkeypatch):
 
     control_panel.observer_process = CrashedProcess()
     control_panel.observer_supervisor_state["enabled"] = True
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
 
     def fail_build_env():
@@ -248,9 +264,9 @@ def test_observer_supervisor_restart_error_is_redacted(monkeypatch):
 
 def test_start_observer_background_redacts_build_error(monkeypatch):
     reset_start_state()
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "c" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
     monkeypatch.setattr(control_panel, "configured_database_url", lambda: database_url)
     control_panel.observer_starting = True
@@ -322,7 +338,7 @@ def test_initialize_liquidation_runtime_autostarts_observer_when_execution_enabl
     monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: engine_calls.append(force))
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: registry_calls.append(force))
     monkeypatch.setattr(control_panel, "quick_observer_running", lambda: False)
-    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "configured_database_url", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "velocity_start_symbols", lambda: ["AVAXUSDT"])
     monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)
 

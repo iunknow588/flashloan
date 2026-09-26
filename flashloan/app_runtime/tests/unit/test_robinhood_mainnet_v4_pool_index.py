@@ -9,7 +9,7 @@ from dex.intent_trade.chains.robinhood.v4_pool_index import (
     default_v4_pool_index_path,
 )
 from bot.execution import uniswap_v4_sdk_adapter
-from dex.runtime import dex_quote_evidence_helpers
+from dex.runtime import dex_quote_evidence_common, dex_quote_evidence_helpers
 
 
 def _module_text() -> str:
@@ -147,7 +147,7 @@ def test_quote_evidence_v4_adapter_prefers_chain_specific_env(monkeypatch):
             resolved_modules.append(module_name)
             return make_module(module_name)
 
-    monkeypatch.setattr(dex_quote_evidence_helpers, "importlib", _FakeImportlib())
+    monkeypatch.setattr(dex_quote_evidence_common, "importlib", _FakeImportlib())
     monkeypatch.setenv("ROBINHOOD_MAINNET_V4_QUOTE_ADAPTER", "mainnet:adapter")
     monkeypatch.setenv("ROBINHOOD_TESTNET_V4_QUOTE_ADAPTER", "testnet:adapter")
     monkeypatch.setenv("DEX_V4_QUOTE_ADAPTER", "generic:adapter")

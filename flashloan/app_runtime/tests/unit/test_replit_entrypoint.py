@@ -18,13 +18,13 @@ def _load_module(name: str, path: Path):
 def test_replit_config_runs_active_app_runtime_entrypoint():
     config = (REPO_ROOT / ".replit").read_text(encoding="utf-8")
     gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
-    launcher = _load_module("test_run_replit", REPO_ROOT / "run_replit.py")
+    launcher = _load_module("test_run_replit", REPO_ROOT / "scripts" / "run_replit.py")
 
-    assert 'run = "python3 run_replit.py"' in config
+    assert 'run = "python3 scripts/run_replit.py"' in config
     assert 'modules = ["python-3.11"]' in config
     assert 'language = "python3"' in config
     assert 'requiredFiles = [".replit", "replit.nix"]' in config
-    assert 'run = ["python3", "run_replit.py"]' in config
+    assert 'run = ["python3", "scripts/run_replit.py"]' in config
     assert ".replit" not in [line.strip() for line in gitignore]
     assert ".venv/" in [line.strip() for line in gitignore]
     assert ".node-dependencies-installed" in [line.strip() for line in gitignore]
@@ -37,7 +37,7 @@ def test_replit_config_runs_active_app_runtime_entrypoint():
 
 
 def test_replit_launcher_disables_user_site_pip_installs(monkeypatch, tmp_path):
-    launcher = _load_module("test_run_replit_pip", REPO_ROOT / "run_replit.py")
+    launcher = _load_module("test_run_replit_pip", REPO_ROOT / "scripts" / "run_replit.py")
     calls = []
     venv_python = tmp_path / ".venv" / "bin" / "python"
     venv_python.parent.mkdir(parents=True)
@@ -62,7 +62,7 @@ def test_replit_launcher_disables_user_site_pip_installs(monkeypatch, tmp_path):
 
 
 def test_replit_launcher_checks_dependencies_when_already_in_project_venv(monkeypatch):
-    launcher = _load_module("test_run_replit_already_in_venv", REPO_ROOT / "run_replit.py")
+    launcher = _load_module("test_run_replit_already_in_venv", REPO_ROOT / "scripts" / "run_replit.py")
     calls = []
 
     monkeypatch.setattr(launcher, "_in_project_venv", lambda: True)
@@ -74,7 +74,7 @@ def test_replit_launcher_checks_dependencies_when_already_in_project_venv(monkey
 
 
 def test_replit_launcher_reexecs_after_install_inside_project_venv(monkeypatch):
-    launcher = _load_module("test_run_replit_reexec_after_install", REPO_ROOT / "run_replit.py")
+    launcher = _load_module("test_run_replit_reexec_after_install", REPO_ROOT / "scripts" / "run_replit.py")
     calls = {}
 
     monkeypatch.setattr(launcher, "_in_project_venv", lambda: True)
@@ -96,7 +96,7 @@ def test_replit_launcher_reexecs_after_install_inside_project_venv(monkeypatch):
 
 
 def test_replit_launcher_force_installs_when_current_process_imports_are_missing(monkeypatch):
-    launcher = _load_module("test_run_replit_force_runtime_install", REPO_ROOT / "run_replit.py")
+    launcher = _load_module("test_run_replit_force_runtime_install", REPO_ROOT / "scripts" / "run_replit.py")
     calls = {}
 
     monkeypatch.setattr(launcher, "_missing_runtime_imports", lambda: ["flask"])

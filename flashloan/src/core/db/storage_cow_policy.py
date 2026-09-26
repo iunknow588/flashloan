@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.evidence_scope import evidence_scope_matches, infer_evidence_scope
-from core.db.storage_common import db_connection, db_transaction
+from core.db.storage_common import db_connection
 from core.db.cow_execution_mapping import scope_consistency_reasons
 from core.db.cow_execution_review import (
     _attempt_route_address_identity,

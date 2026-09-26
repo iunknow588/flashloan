@@ -1,95 +1,64 @@
 from __future__ import annotations
 
-import json
+import time
 from typing import Any
 
-from core.db.storage_common import db_connection, db_transaction
+from core.kv_rows import collection_key, load_rows, upsert_row
+from core.local_kv import delete, ensure_store
 
 
 def ensure_cow_supported_tokens_table(database_url: str) -> None:
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with db_transaction(connection, operation="cow.supported_tokens.replace"):
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS cow_supported_tokens (
-                        network TEXT NOT NULL,
-                        chain_id INTEGER NOT NULL,
-                        symbol TEXT NOT NULL,
-                        address TEXT NOT NULL,
-                        decimals INTEGER NOT NULL,
-                        source TEXT NOT NULL,
-                        token_json TEXT NOT NULL,
-                        refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                        PRIMARY KEY (network, address)
-                    )
-                    """
-                )
-                cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_cow_supported_tokens_network_symbol "
-                    "ON cow_supported_tokens(network, symbol)"
-                )
+    ensure_store(database_url)
 
 
 def replace_cow_supported_tokens(database_url: str, *, network: str, chain_id: int, tokens: list[dict[str, Any]]) -> int:
     ensure_cow_supported_tokens_table(database_url)
-    values = [
-        (
-            network,
-            int(chain_id),
-            str(token["symbol"]).upper(),
-            str(token["address"]).lower(),
-            int(token["decimals"]),
-            str(token.get("source") or ""),
-            json.dumps(token, ensure_ascii=True, sort_keys=True, separators=(",", ":")),
+    for existing in load_rows(database_url, "cow_supported_tokens"):
+        if str(existing.get("network")) == str(network):
+            delete(database_url, "cow_supported_tokens", existing.get("_key") or "")
+    for token in tokens:
+        key = collection_key(network, str(token["address"]).lower())
+        upsert_row(
+            database_url,
+            "cow_supported_tokens",
+            key,
+            {
+                "_key": key,
+                "network": str(network),
+                "chain_id": int(chain_id),
+                "symbol": str(token["symbol"]).upper(),
+                "address": str(token["address"]).lower(),
+                "decimals": int(token["decimals"]),
+                "source": str(token.get("source") or ""),
+                "token_json": token,
+                "refreshed_at": time.time(),
+            },
         )
-        for token in tokens
-    ]
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with db_transaction(connection, operation="cow.supported_tokens.refresh"):
-            with connection.cursor() as cursor:
-                cursor.execute("DELETE FROM cow_supported_tokens WHERE network = %s", (network,))
-                if values:
-                    cursor.executemany(
-                        """
-                        INSERT INTO cow_supported_tokens (
-                            network, chain_id, symbol, address, decimals, source, token_json
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        values,
-                    )
-    return len(values)
+    return len(tokens)
 
 
 def load_cow_supported_tokens(database_url: str, *, network: str) -> list[dict[str, Any]]:
     ensure_cow_supported_tokens_table(database_url)
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT symbol, address, decimals, source, token_json, refreshed_at
-                FROM cow_supported_tokens
-                WHERE network = %s
-                ORDER BY symbol, address
-                """,
-                (network,),
-            )
-            rows = cursor.fetchall()
     tokens = []
-    for symbol, address, decimals, source, token_json, refreshed_at in rows:
-        try:
-            payload = json.loads(token_json)
-        except (TypeError, json.JSONDecodeError):
-            payload = {}
+    for row in load_rows(database_url, "cow_supported_tokens"):
+        if str(row.get("network")) != str(network):
+            continue
+        payload = dict(row.get("token_json") or {})
         payload.update(
             {
-                "symbol": str(symbol).upper(),
-                "address": str(address).lower(),
-                "decimals": int(decimals),
-                "source": str(source or ""),
-                "refreshed_at": refreshed_at.isoformat() if hasattr(refreshed_at, "isoformat") else str(refreshed_at),
+                "symbol": str(row.get("symbol") or "").upper(),
+                "address": str(row.get("address") or "").lower(),
+                "decimals": int(row.get("decimals") or 0),
+                "source": str(row.get("source") or ""),
+                "refreshed_at": row.get("refreshed_at"),
             }
         )
         tokens.append(payload)
     return tokens
+
+
+__all__ = [
+    "ensure_cow_supported_tokens_table",
+    "load_cow_supported_tokens",
+    "replace_cow_supported_tokens",
+]

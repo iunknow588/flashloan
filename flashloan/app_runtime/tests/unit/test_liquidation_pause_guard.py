@@ -6,7 +6,7 @@ from bot.liquidation.pause_guard import (
 
 
 def test_pause_guard_pauses_after_consecutive_failures(monkeypatch, tmp_path):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     path = tmp_path / "pause_guard.json"
 
     record_pause_guard_event(
@@ -34,7 +34,7 @@ def test_pause_guard_pauses_after_consecutive_failures(monkeypatch, tmp_path):
 
 
 def test_pause_guard_success_resets_failure_count(monkeypatch, tmp_path):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     path = tmp_path / "pause_guard.json"
     record_pause_guard_event(
         path,
@@ -60,7 +60,7 @@ def test_pause_guard_success_resets_failure_count(monkeypatch, tmp_path):
 def test_pause_guard_syncs_to_database_parameter_map(monkeypatch, tmp_path):
     from bot.liquidation import pause_guard as pause
 
-    database_url = "postgresql://example"
+    database_url = "local_store.sqlite3"
     stored = {}
 
     def fake_load(database_url_arg, namespace):
@@ -74,7 +74,7 @@ def test_pause_guard_syncs_to_database_parameter_map(monkeypatch, tmp_path):
     def fake_sync(page_key, payload):
         stored.update(payload)
 
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(pause, "load_control_panel_parameter_map", fake_load)
     monkeypatch.setattr(pause, "save_control_panel_parameter_map", fake_save)
     monkeypatch.setattr(pause, "sync_page_parameter_file", fake_sync)

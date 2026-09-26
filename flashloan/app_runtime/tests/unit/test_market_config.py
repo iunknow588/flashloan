@@ -143,7 +143,7 @@ def test_bnb_venus_market_defaults_to_observation_mode(monkeypatch):
 def test_config_health_accepts_matching_bnb_chain(monkeypatch):
     _clear_market_env(monkeypatch)
     address = "0x0000000000000000000000000000000000000001"
-    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", "local_store.sqlite3")
     monkeypatch.setenv("LIQUIDATION_MARKET_ID", "bnb-aave-v3")
     monkeypatch.setenv("LIQUIDATION_POOL_ADDRESS", address)
     monkeypatch.setenv("LIQUIDATION_EXECUTOR_ADDRESS", address)
@@ -303,7 +303,7 @@ def test_supported_market_summaries_prefers_database_rows_when_available(monkeyp
 
     monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", lambda database_url: db_rows)
 
-    summaries = supported_market_summaries("postgresql://example")
+    summaries = supported_market_summaries("local_store.sqlite3")
 
     assert summaries[0]["market_id"] == CANONICAL_ROBINHOOD_DEX
     assert summaries[0]["legacy_market_id"] == "db-robinhood-dex"
@@ -318,7 +318,7 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
 
     monkeypatch.setattr(storage_chain_markets, "load_chain_market_summaries", fail)
 
-    summaries = {row["market_id"]: row for row in supported_market_summaries("postgresql://disabled")}
+    summaries = {row["market_id"]: row for row in supported_market_summaries("local_store_disabled.sqlite3")}
 
     assert CANONICAL_ROBINHOOD_DEX in summaries
     assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_DEX_MARKET_ID
@@ -328,10 +328,8 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
 
 def test_supported_market_summaries_short_circuits_repeated_database_failures(monkeypatch):
     import core.db.storage_chain_markets as storage_chain_markets
-    import core.db.storage_common as storage_common
 
-    database_url = "postgresql://chain-market-endpoint-disabled"
-    storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()
+    database_url = "local_store_endpoint_disabled.sqlite3"
     calls = []
 
     def fail(database_url):
@@ -344,7 +342,7 @@ def test_supported_market_summaries_short_circuits_repeated_database_failures(mo
     second = supported_market_summaries(database_url)
 
     assert first == second
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert CANONICAL_ROBINHOOD_DEX in {row["market_id"] for row in first}
     assert CANONICAL_ROBINHOOD_BOT in {row["market_id"] for row in first}
 
@@ -434,7 +432,7 @@ def test_market_scan_policy_prefers_database_rows(monkeypatch):
 
     profile = market_scan_refresh_profile(
         "bnb-venus-core",
-        database_url="postgresql://example",
+        database_url="local_store.sqlite3",
     )
 
     assert profile == {

@@ -21,8 +21,6 @@ from core.sensitive_data import redact_sensitive_text
 
 REQUIRED_MODULES = {
     "flask": "flask",
-    "psycopg": "psycopg[binary]",
-    "psycopg_pool": "psycopg_pool",
     "web3": "web3",
     "websockets": "websockets",
     "dotenv": "python-dotenv",
@@ -33,8 +31,7 @@ REQUIRED_MODULES = {
 def _runtime_environment():
     original_env = os.environ.copy()
     try:
-        os.environ.setdefault("FLASHLOAN_LOCAL_JSON_ONLY", "true")
-        os.environ.pop("DATABASE_URL", None)
+        os.environ.setdefault("FLASHLOAN_RUNTIME_DIR", str(_SPLIT_SRC_ROOT / "runtime"))
         load_env_files(__file__, override=False)
 
         # CoW analysis starts from the same observer cycle as the Binance signal.
@@ -74,7 +71,7 @@ def require_dependencies() -> None:
         packages = " ".join(missing)
         raise RuntimeError(
             f"Missing dependencies: {packages}. Replit/Nix users should run "
-            "`python3 run_replit.py` from the repository root so the project "
+            "`python3 scripts/run_replit.py` from the repository root so the project "
             "virtual environment is prepared automatically. Manual install: "
             "`.venv/bin/python -m pip install -r flashloan/app_runtime/requirements.txt`."
         )
@@ -222,6 +219,18 @@ def main() -> int:
         return 1
 
     with _runtime_environment():
+        try:
+            from core.db.storage_common import configured_database_url as storage_configured_database_url
+            from core.storage_seed import seed_local_kv_from_runtime_files
+
+            seed_local_kv_from_runtime_files(storage_configured_database_url())
+        except Exception as exc:
+            print(
+                f"runtime file import skipped: {redact_sensitive_text(exc)}",
+                file=sys.stderr,
+                flush=True,
+            )
+
         try:
             explicit_port = read_port_override()
             port, occupied_preferred = resolve_port(explicit_port or read_port(), explicit=explicit_port is not None)

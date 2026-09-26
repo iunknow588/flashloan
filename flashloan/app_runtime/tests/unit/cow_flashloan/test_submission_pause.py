@@ -7,7 +7,7 @@ from dex.runtime.cow_submission_pause import (
 
 
 def test_startup_initializes_missing_cow_transaction_switch_on(monkeypatch, tmp_path):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     path = tmp_path / "cow_submission_pause_guard.json"
     state = disable_cow_submission_for_startup(path)
 
@@ -17,7 +17,7 @@ def test_startup_initializes_missing_cow_transaction_switch_on(monkeypatch, tmp_
 
 
 def test_startup_does_not_overwrite_existing_enabled_choice(monkeypatch, tmp_path):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     path = tmp_path / "cow_submission_pause_guard.json"
     set_cow_submission_pause_guard(paused=False, reason="manual_resume", path=path)
 
@@ -29,7 +29,7 @@ def test_startup_does_not_overwrite_existing_enabled_choice(monkeypatch, tmp_pat
 
 
 def test_missing_cow_transaction_switch_state_defaults_to_on(monkeypatch, tmp_path):
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("FLASHLOAN_KV_PATH", raising=False)
     path = tmp_path / "missing_cow_submission_pause_guard.json"
 
     state = load_cow_submission_pause_guard(path)
@@ -41,7 +41,7 @@ def test_missing_cow_transaction_switch_state_defaults_to_on(monkeypatch, tmp_pa
 def test_cow_transaction_switch_syncs_to_database_parameter_map(monkeypatch, tmp_path):
     from dex.runtime import cow_submission_pause as pause
 
-    database_url = "postgresql://example"
+    database_url = "local_store.sqlite3"
     stored = {}
 
     def fake_load(database_url_arg, namespace):
@@ -55,7 +55,7 @@ def test_cow_transaction_switch_syncs_to_database_parameter_map(monkeypatch, tmp
     def fake_sync(page_key, payload):
       stored.update(payload)
 
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(pause, "load_control_panel_parameter_map", fake_load)
     monkeypatch.setattr(pause, "save_control_panel_parameter_map", fake_save)
     monkeypatch.setattr(pause, "sync_page_parameter_file", fake_sync)

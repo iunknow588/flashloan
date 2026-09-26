@@ -14,27 +14,21 @@
       "candidateQueueCount": "38",
       "closedLoopRouteCount": 6,
       "directClosedLoopCount": 0,
-      "observationCombinationCount": 6,
+      "observationCombinationCount": 3,
       "observationCombinationPreview": [
         "BTCB -> USDT -> ETH -> BTCB",
         "BTCB -> WBNB -> ETH -> BTCB",
-        "BTCB -> WBNB -> USDT -> BTCB",
-        "BTCB -> ETH -> USDT -> BTCB",
-        "BTCB -> USDT -> WBNB -> BTCB",
-        "BTCB -> ETH -> WBNB -> BTCB"
+        "BTCB -> WBNB -> USDT -> BTCB"
       ],
       "observationReachable": true,
-      "observationSequenceCount": 6,
+      "observationSequenceCount": 3,
       "observationSequencePreview": [
         "BTCB -> USDT -> ETH -> BTCB",
         "BTCB -> WBNB -> ETH -> BTCB",
-        "BTCB -> WBNB -> USDT -> BTCB",
-        "BTCB -> ETH -> USDT -> BTCB",
-        "BTCB -> USDT -> WBNB -> BTCB",
-        "BTCB -> ETH -> WBNB -> BTCB"
+        "BTCB -> WBNB -> USDT -> BTCB"
       ],
       "observationState": {
-        "groupCount": 6,
+        "groupCount": 3,
         "reachable": true,
         "reason": null,
         "status": "reachable",
@@ -133,27 +127,25 @@
       "candidateQueueCount": "46",
       "closedLoopRouteCount": 10,
       "directClosedLoopCount": 0,
-      "observationCombinationCount": 10,
+      "observationCombinationCount": 5,
       "observationCombinationPreview": [
         "ETH -> USDT -> BTCB -> ETH",
         "ETH -> WBNB -> BTCB -> ETH",
         "ETH -> USDT -> USDC -> ETH",
         "ETH -> WBNB -> USDC -> ETH",
-        "ETH -> WBNB -> USDT -> ETH",
-        "ETH -> BTCB -> USDT -> ETH"
+        "ETH -> WBNB -> USDT -> ETH"
       ],
       "observationReachable": true,
-      "observationSequenceCount": 10,
+      "observationSequenceCount": 5,
       "observationSequencePreview": [
         "ETH -> USDT -> BTCB -> ETH",
         "ETH -> WBNB -> BTCB -> ETH",
         "ETH -> USDT -> USDC -> ETH",
         "ETH -> WBNB -> USDC -> ETH",
-        "ETH -> WBNB -> USDT -> ETH",
-        "ETH -> BTCB -> USDT -> ETH"
+        "ETH -> WBNB -> USDT -> ETH"
       ],
       "observationState": {
-        "groupCount": 10,
+        "groupCount": 5,
         "reachable": true,
         "reason": null,
         "status": "reachable",
@@ -214,32 +206,26 @@
         "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
       ],
       "anchorSymbol": "USDC",
-      "bridgeClosedLoopCount": 12,
+      "bridgeClosedLoopCount": 9,
       "candidatePoolCount": "12",
       "candidateQueueCount": "38",
-      "closedLoopRouteCount": 12,
+      "closedLoopRouteCount": 9,
       "directClosedLoopCount": 0,
-      "observationCombinationCount": 6,
+      "observationCombinationCount": 3,
       "observationCombinationPreview": [
         "USDC -> USDT -> ETH -> USDC",
         "USDC -> WBNB -> ETH -> USDC",
-        "USDC -> WBNB -> USDT -> USDC",
-        "USDC -> ETH -> USDT -> USDC",
-        "USDC -> USDT -> WBNB -> USDC",
-        "USDC -> ETH -> WBNB -> USDC"
+        "USDC -> WBNB -> USDT -> USDC"
       ],
       "observationReachable": true,
-      "observationSequenceCount": 6,
+      "observationSequenceCount": 3,
       "observationSequencePreview": [
         "USDC -> USDT -> ETH -> USDC",
         "USDC -> WBNB -> ETH -> USDC",
-        "USDC -> WBNB -> USDT -> USDC",
-        "USDC -> ETH -> USDT -> USDC",
-        "USDC -> USDT -> WBNB -> USDC",
-        "USDC -> ETH -> WBNB -> USDC"
+        "USDC -> WBNB -> USDT -> USDC"
       ],
       "observationState": {
-        "groupCount": 6,
+        "groupCount": 3,
         "reachable": true,
         "reason": null,
         "status": "reachable",
@@ -290,32 +276,30 @@
         "0x55d398326f99059ff775485246999027b3197955"
       ],
       "anchorSymbol": "USDT",
-      "bridgeClosedLoopCount": 20,
+      "bridgeClosedLoopCount": 15,
       "candidatePoolCount": "16",
       "candidateQueueCount": "46",
-      "closedLoopRouteCount": 20,
+      "closedLoopRouteCount": 15,
       "directClosedLoopCount": 0,
-      "observationCombinationCount": 10,
+      "observationCombinationCount": 5,
       "observationCombinationPreview": [
         "USDT -> ETH -> BTCB -> USDT",
         "USDT -> WBNB -> BTCB -> USDT",
-        "USDT -> BTCB -> ETH -> USDT",
         "USDT -> USDC -> ETH -> USDT",
         "USDT -> WBNB -> ETH -> USDT",
-        "USDT -> ETH -> USDC -> USDT"
+        "USDT -> WBNB -> USDC -> USDT"
       ],
       "observationReachable": true,
-      "observationSequenceCount": 10,
+      "observationSequenceCount": 5,
       "observationSequencePreview": [
         "USDT -> ETH -> BTCB -> USDT",
         "USDT -> WBNB -> BTCB -> USDT",
-        "USDT -> BTCB -> ETH -> USDT",
         "USDT -> USDC -> ETH -> USDT",
         "USDT -> WBNB -> ETH -> USDT",
-        "USDT -> ETH -> USDC -> USDT"
+        "USDT -> WBNB -> USDC -> USDT"
       ],
       "observationState": {
-        "groupCount": 10,
+        "groupCount": 5,
         "reachable": true,
         "reason": null,
         "status": "reachable",
@@ -381,27 +365,25 @@
       "candidateQueueCount": "54",
       "closedLoopRouteCount": 10,
       "directClosedLoopCount": 0,
-      "observationCombinationCount": 10,
+      "observationCombinationCount": 5,
       "observationCombinationPreview": [
         "WBNB -> USDT -> BTCB -> WBNB",
         "WBNB -> ETH -> BTCB -> WBNB",
-        "WBNB -> BTCB -> ETH -> WBNB",
         "WBNB -> USDC -> ETH -> WBNB",
         "WBNB -> USDT -> ETH -> WBNB",
         "WBNB -> USDT -> USDC -> WBNB"
       ],
       "observationReachable": true,
-      "observationSequenceCount": 10,
+      "observationSequenceCount": 5,
       "observationSequencePreview": [
         "WBNB -> USDT -> BTCB -> WBNB",
         "WBNB -> ETH -> BTCB -> WBNB",
-        "WBNB -> BTCB -> ETH -> WBNB",
         "WBNB -> USDC -> ETH -> WBNB",
         "WBNB -> USDT -> ETH -> WBNB",
         "WBNB -> USDT -> USDC -> WBNB"
       ],
       "observationState": {
-        "groupCount": 10,
+        "groupCount": 5,
         "reachable": true,
         "reason": null,
         "status": "reachable",
@@ -540,14 +522,14 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "dex_market_observation",
-  "generated_at": "2026-09-10T23:57:23.125543Z",
+  "generated_at": "2026-09-26T04:19:53.301196Z",
   "handler": null,
   "list_counts": {
     "borrowableSymbols": 2,
     "candidateObservationGroups": 6,
     "chainSpecificObservationPairs": 0,
     "observationAnchorSymbols": 2,
-    "observationSequences": 42
+    "observationSequences": 21
   },
   "marketObservationSourceStage": "dex_market_observation_payload",
   "mode": "dex_market_observation",
@@ -598,11 +580,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "531141684415741939880301",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -628,9 +613,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-110524",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         },
         {
@@ -654,11 +642,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -684,9 +675,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         },
         {
@@ -710,11 +704,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3559526026870039721918",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -740,9 +737,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-35126",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         }
       ],
@@ -790,11 +790,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15455847577830298387178",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -820,9 +823,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "46362",
+          "tickSpacing": null,
           "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token0Decimals": null,
           "token0Symbol": "BTCB",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -846,11 +852,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -876,9 +885,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -902,11 +914,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3559526026870039721918",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -932,9 +947,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-35126",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         }
       ],
@@ -982,11 +1000,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15455847577830298387178",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1012,9 +1033,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "46362",
+          "tickSpacing": null,
           "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token0Decimals": null,
           "token0Symbol": "BTCB",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -1038,11 +1062,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1068,9 +1095,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -1094,11 +1124,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "531141684415741939880301",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1124,586 +1157,13 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-110524",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
-        }
-      ],
-      "ycPoolCount": "12",
-      "zcPoolCount": "12"
-    },
-    {
-      "anchorAddresses": [
-        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-      ],
-      "anchorSymbol": "BTCB",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "BTCB",
-        "ETH",
-        "USDT",
-        "BTCB"
-      ],
-      "pathText": "BTCB -> ETH -> USDT -> BTCB",
-      "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-      "routePools": [
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 795.6488760199139,
-            "token0Usd": 1500309.9362852434,
-            "token1": 31.50802943580833,
-            "token1Usd": 1990910.0571399094,
-            "tvlUsd": 3491219.9934251527
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3559526026870039721918",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "ETH"
-          ],
-          "routeText": "BTCB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-35126",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDT"
-          ],
-          "routeText": "ETH -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 4468206.7539157495,
-            "token0Usd": 4468206.7539157495,
-            "token1": 147.32013742640405,
-            "token1Usd": 9308774.571859758,
-            "tvlUsd": 13776981.325775508
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "531141684415741939880301",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "BTCB"
-          ],
-          "routeText": "USDT -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-110524",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        }
-      ],
-      "ycPoolCount": "12",
-      "zcPoolCount": "12"
-    },
-    {
-      "anchorAddresses": [
-        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-      ],
-      "anchorSymbol": "BTCB",
-      "bridgeSymbol": "USDT",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "BTCB",
-        "USDT",
-        "WBNB",
-        "BTCB"
-      ],
-      "pathText": "BTCB -> USDT -> WBNB -> BTCB",
-      "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-      "routePools": [
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 4468206.7539157495,
-            "token0Usd": 4468206.7539157495,
-            "token1": 147.32013742640405,
-            "token1Usd": 9308774.571859758,
-            "tvlUsd": 13776981.325775508
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "531141684415741939880301",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "USDT"
-          ],
-          "routeText": "BTCB -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-110524",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "WBNB"
-          ],
-          "routeText": "USDT -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 166.72676497612275,
-            "token0Usd": 10535028.66187255,
-            "token1": 5613.566999509456,
-            "token1Usd": 3434000.6831137803,
-            "tvlUsd": 13969029.34498633
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15455847577830298387178",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "BTCB"
-          ],
-          "routeText": "WBNB -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "46362",
-          "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token0Symbol": "BTCB",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "12",
-      "zcPoolCount": "12"
-    },
-    {
-      "anchorAddresses": [
-        "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-      ],
-      "anchorSymbol": "BTCB",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "BTCB",
-        "ETH",
-        "WBNB",
-        "BTCB"
-      ],
-      "pathText": "BTCB -> ETH -> WBNB -> BTCB",
-      "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-      "routePools": [
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 795.6488760199139,
-            "token0Usd": 1500309.9362852434,
-            "token1": 31.50802943580833,
-            "token1Usd": 1990910.0571399094,
-            "tvlUsd": 3491219.9934251527
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3559526026870039721918",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "ETH"
-          ],
-          "routeText": "BTCB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-35126",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "WBNB"
-          ],
-          "routeText": "ETH -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 166.72676497612275,
-            "token0Usd": 10535028.66187255,
-            "token1": 5613.566999509456,
-            "token1Usd": 3434000.6831137803,
-            "tvlUsd": 13969029.34498633
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15455847577830298387178",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "BTCB"
-          ],
-          "routeText": "WBNB -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "46362",
-          "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token0Symbol": "BTCB",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
         }
       ],
       "ycPoolCount": "12",
@@ -1750,11 +1210,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1780,9 +1243,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         },
         {
@@ -1806,11 +1272,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "531141684415741939880301",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1836,9 +1305,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-110524",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         },
         {
@@ -1862,11 +1334,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3559526026870039721918",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1892,9 +1367,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-35126",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         }
       ],
@@ -1942,11 +1420,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -1972,9 +1453,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -1998,11 +1482,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15455847577830298387178",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2028,9 +1515,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "46362",
+          "tickSpacing": null,
           "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token0Decimals": null,
           "token0Symbol": "BTCB",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -2054,11 +1544,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3559526026870039721918",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2084,9 +1577,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-35126",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         }
       ],
@@ -2134,11 +1630,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2164,9 +1663,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         },
         {
@@ -2190,11 +1692,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3766193192119892536928132512",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2220,9 +1725,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-10",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         },
         {
@@ -2246,11 +1754,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15956174983351970086392",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2276,9 +1787,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75390",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         }
       ],
@@ -2326,11 +1840,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2356,9 +1873,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -2382,11 +1902,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "1139394808998798130121215",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2412,9 +1935,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64157",
+          "tickSpacing": null,
           "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token0Decimals": null,
           "token0Symbol": "USDC",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -2438,11 +1964,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15956174983351970086392",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2468,9 +1997,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75390",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         }
       ],
@@ -2518,11 +2050,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2548,9 +2083,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -2574,11 +2112,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2604,9 +2145,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -2630,11 +2174,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -2660,970 +2207,13 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-      ],
-      "anchorSymbol": "ETH",
-      "bridgeSymbol": "BTCB",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "ETH",
-        "BTCB",
-        "USDT",
-        "ETH"
-      ],
-      "pathText": "ETH -> BTCB -> USDT -> ETH",
-      "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-      "routePools": [
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 795.6488760199139,
-            "token0Usd": 1500309.9362852434,
-            "token1": 31.50802943580833,
-            "token1Usd": 1990910.0571399094,
-            "tvlUsd": 3491219.9934251527
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3559526026870039721918",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "BTCB"
-          ],
-          "routeText": "ETH -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-35126",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 4468206.7539157495,
-            "token0Usd": 4468206.7539157495,
-            "token1": 147.32013742640405,
-            "token1Usd": 9308774.571859758,
-            "tvlUsd": 13776981.325775508
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "531141684415741939880301",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "USDT"
-          ],
-          "routeText": "BTCB -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-110524",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "ETH"
-          ],
-          "routeText": "USDT -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-      ],
-      "anchorSymbol": "ETH",
-      "bridgeSymbol": "USDC",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "ETH",
-        "USDC",
-        "USDT",
-        "ETH"
-      ],
-      "pathText": "ETH -> USDC -> USDT -> ETH",
-      "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-      "routePools": [
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 41.93956206751986,
-            "token0Usd": 79083.05232341819,
-            "token1": 26781.359600732645,
-            "token1Usd": 26781.359600732645,
-            "tvlUsd": 105864.41192415083
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "medium",
-            "level": "medium"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15956174983351970086392",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDC"
-          ],
-          "routeText": "ETH -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75390",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 22940302.50332124,
-            "token0Usd": 22940302.50332124,
-            "token1": 17753019.9084862,
-            "token1Usd": 17753019.9084862,
-            "tvlUsd": 40693322.41180744
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3766193192119892536928132512",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "USDT"
-          ],
-          "routeText": "USDC -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-10",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "ETH"
-          ],
-          "routeText": "USDT -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-      ],
-      "anchorSymbol": "ETH",
-      "bridgeSymbol": "USDT",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "ETH",
-        "USDT",
-        "WBNB",
-        "ETH"
-      ],
-      "pathText": "ETH -> USDT -> WBNB -> ETH",
-      "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-      "routePools": [
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDT"
-          ],
-          "routeText": "ETH -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "WBNB"
-          ],
-          "routeText": "USDT -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "ETH"
-          ],
-          "routeText": "WBNB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-      ],
-      "anchorSymbol": "ETH",
-      "bridgeSymbol": "BTCB",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "ETH",
-        "BTCB",
-        "WBNB",
-        "ETH"
-      ],
-      "pathText": "ETH -> BTCB -> WBNB -> ETH",
-      "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-      "routePools": [
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 795.6488760199139,
-            "token0Usd": 1500309.9362852434,
-            "token1": 31.50802943580833,
-            "token1Usd": 1990910.0571399094,
-            "tvlUsd": 3491219.9934251527
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3559526026870039721918",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "BTCB"
-          ],
-          "routeText": "ETH -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-35126",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 166.72676497612275,
-            "token0Usd": 10535028.66187255,
-            "token1": 5613.566999509456,
-            "token1Usd": 3434000.6831137803,
-            "tvlUsd": 13969029.34498633
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15455847577830298387178",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "WBNB"
-          ],
-          "routeText": "BTCB -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "46362",
-          "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token0Symbol": "BTCB",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "ETH"
-          ],
-          "routeText": "WBNB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-      ],
-      "anchorSymbol": "ETH",
-      "bridgeSymbol": "USDC",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "ETH",
-        "USDC",
-        "WBNB",
-        "ETH"
-      ],
-      "pathText": "ETH -> USDC -> WBNB -> ETH",
-      "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-      "routePools": [
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 41.93956206751986,
-            "token0Usd": 79083.05232341819,
-            "token1": 26781.359600732645,
-            "token1Usd": 26781.359600732645,
-            "tvlUsd": 105864.41192415083
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "medium",
-            "level": "medium"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15956174983351970086392",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDC"
-          ],
-          "routeText": "ETH -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75390",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 831979.5424065645,
-            "token0Usd": 831979.5424065645,
-            "token1": 2385.4527299856964,
-            "token1Usd": 1459258.6683337607,
-            "tvlUsd": 2291238.210740325
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "1139394808998798130121215",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "WBNB"
-          ],
-          "routeText": "USDC -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64157",
-          "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token0Symbol": "USDC",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "ETH"
-          ],
-          "routeText": "WBNB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
         }
       ],
       "ycPoolCount": "16",
@@ -3670,11 +2260,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3766193192119892536928132512",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -3700,9 +2293,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-10",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         },
         {
@@ -3726,11 +2322,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -3756,9 +2355,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         },
         {
@@ -3782,11 +2384,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15956174983351970086392",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -3812,9 +2417,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75390",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         }
       ],
@@ -3862,11 +2470,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "1139394808998798130121215",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -3892,9 +2503,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64157",
+          "tickSpacing": null,
           "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token0Decimals": null,
           "token0Symbol": "USDC",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -3918,11 +2532,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -3948,9 +2565,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -3974,11 +2594,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15956174983351970086392",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4004,9 +2627,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75390",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         }
       ],
@@ -4054,11 +2680,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "1139394808998798130121215",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4084,9 +2713,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64157",
+          "tickSpacing": null,
           "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token0Decimals": null,
           "token0Symbol": "USDC",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -4110,11 +2742,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4140,9 +2775,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -4166,11 +2804,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3766193192119892536928132512",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4196,586 +2837,13 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-10",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
-        }
-      ],
-      "ycPoolCount": "12",
-      "zcPoolCount": "12"
-    },
-    {
-      "anchorAddresses": [
-        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-      ],
-      "anchorSymbol": "USDC",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDC",
-        "ETH",
-        "USDT",
-        "USDC"
-      ],
-      "pathText": "USDC -> ETH -> USDT -> USDC",
-      "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-      "routePools": [
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 41.93956206751986,
-            "token0Usd": 79083.05232341819,
-            "token1": 26781.359600732645,
-            "token1Usd": 26781.359600732645,
-            "tvlUsd": 105864.41192415083
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "medium",
-            "level": "medium"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15956174983351970086392",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "ETH"
-          ],
-          "routeText": "USDC -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75390",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDT"
-          ],
-          "routeText": "ETH -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 22940302.50332124,
-            "token0Usd": 22940302.50332124,
-            "token1": 17753019.9084862,
-            "token1Usd": 17753019.9084862,
-            "tvlUsd": 40693322.41180744
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3766193192119892536928132512",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "USDC"
-          ],
-          "routeText": "USDT -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-10",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        }
-      ],
-      "ycPoolCount": "12",
-      "zcPoolCount": "12"
-    },
-    {
-      "anchorAddresses": [
-        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-      ],
-      "anchorSymbol": "USDC",
-      "bridgeSymbol": "USDT",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDC",
-        "USDT",
-        "WBNB",
-        "USDC"
-      ],
-      "pathText": "USDC -> USDT -> WBNB -> USDC",
-      "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-      "routePools": [
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 22940302.50332124,
-            "token0Usd": 22940302.50332124,
-            "token1": 17753019.9084862,
-            "token1Usd": 17753019.9084862,
-            "tvlUsd": 40693322.41180744
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3766193192119892536928132512",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "USDT"
-          ],
-          "routeText": "USDC -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-10",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "WBNB"
-          ],
-          "routeText": "USDT -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 831979.5424065645,
-            "token0Usd": 831979.5424065645,
-            "token1": 2385.4527299856964,
-            "token1Usd": 1459258.6683337607,
-            "tvlUsd": 2291238.210740325
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "1139394808998798130121215",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "USDC"
-          ],
-          "routeText": "WBNB -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64157",
-          "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token0Symbol": "USDC",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "12",
-      "zcPoolCount": "12"
-    },
-    {
-      "anchorAddresses": [
-        "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-      ],
-      "anchorSymbol": "USDC",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDC",
-        "ETH",
-        "WBNB",
-        "USDC"
-      ],
-      "pathText": "USDC -> ETH -> WBNB -> USDC",
-      "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-      "routePools": [
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 41.93956206751986,
-            "token0Usd": 79083.05232341819,
-            "token1": 26781.359600732645,
-            "token1Usd": 26781.359600732645,
-            "tvlUsd": 105864.41192415083
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "medium",
-            "level": "medium"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15956174983351970086392",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "ETH"
-          ],
-          "routeText": "USDC -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75390",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "WBNB"
-          ],
-          "routeText": "ETH -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 831979.5424065645,
-            "token0Usd": 831979.5424065645,
-            "token1": 2385.4527299856964,
-            "token1Usd": 1459258.6683337607,
-            "tvlUsd": 2291238.210740325
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "1139394808998798130121215",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "USDC"
-          ],
-          "routeText": "WBNB -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64157",
-          "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token0Symbol": "USDC",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
         }
       ],
       "ycPoolCount": "12",
@@ -4822,11 +2890,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4852,9 +2923,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         },
         {
@@ -4878,11 +2952,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3559526026870039721918",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4908,9 +2985,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-35126",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         },
         {
@@ -4934,11 +3014,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "531141684415741939880301",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -4964,9 +3047,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-110524",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         }
       ],
@@ -5014,11 +3100,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5044,9 +3133,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -5070,11 +3162,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15455847577830298387178",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5100,9 +3195,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "46362",
+          "tickSpacing": null,
           "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token0Decimals": null,
           "token0Symbol": "BTCB",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -5126,11 +3224,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "531141684415741939880301",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5156,202 +3257,13 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-110524",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x55d398326f99059ff775485246999027b3197955"
-      ],
-      "anchorSymbol": "USDT",
-      "bridgeSymbol": "BTCB",
-      "candidatePoolCount": "3",
-      "counterSymbol": "ETH",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDT",
-        "BTCB",
-        "ETH",
-        "USDT"
-      ],
-      "pathText": "USDT -> BTCB -> ETH -> USDT",
-      "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-      "routePools": [
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 4468206.7539157495,
-            "token0Usd": 4468206.7539157495,
-            "token1": 147.32013742640405,
-            "token1Usd": 9308774.571859758,
-            "tvlUsd": 13776981.325775508
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "531141684415741939880301",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "BTCB"
-          ],
-          "routeText": "USDT -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-110524",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 795.6488760199139,
-            "token0Usd": 1500309.9362852434,
-            "token1": 31.50802943580833,
-            "token1Usd": 1990910.0571399094,
-            "tvlUsd": 3491219.9934251527
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3559526026870039721918",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "ETH"
-          ],
-          "routeText": "BTCB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-35126",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDT"
-          ],
-          "routeText": "ETH -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
         }
       ],
       "ycPoolCount": "16",
@@ -5398,11 +3310,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3766193192119892536928132512",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5428,9 +3343,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-10",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         },
         {
@@ -5454,11 +3372,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15956174983351970086392",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5484,9 +3405,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75390",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         },
         {
@@ -5510,11 +3434,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5540,9 +3467,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         }
       ],
@@ -5590,11 +3520,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5620,9 +3553,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -5646,11 +3582,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5676,9 +3615,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -5702,11 +3644,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -5732,202 +3677,13 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x55d398326f99059ff775485246999027b3197955"
-      ],
-      "anchorSymbol": "USDT",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDC",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDT",
-        "ETH",
-        "USDC",
-        "USDT"
-      ],
-      "pathText": "USDT -> ETH -> USDC -> USDT",
-      "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-      "routePools": [
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "ETH"
-          ],
-          "routeText": "USDT -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 41.93956206751986,
-            "token0Usd": 79083.05232341819,
-            "token1": 26781.359600732645,
-            "token1Usd": 26781.359600732645,
-            "tvlUsd": 105864.41192415083
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "medium",
-            "level": "medium"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15956174983351970086392",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDC"
-          ],
-          "routeText": "ETH -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75390",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 22940302.50332124,
-            "token0Usd": 22940302.50332124,
-            "token1": 17753019.9084862,
-            "token1Usd": 17753019.9084862,
-            "tvlUsd": 40693322.41180744
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3766193192119892536928132512",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "USDT"
-          ],
-          "routeText": "USDC -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-10",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
         }
       ],
       "ycPoolCount": "16",
@@ -5974,11 +3730,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6004,9 +3763,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -6030,11 +3792,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "1139394808998798130121215",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6060,9 +3825,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64157",
+          "tickSpacing": null,
           "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token0Decimals": null,
           "token0Symbol": "USDC",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -6086,11 +3854,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3766193192119892536928132512",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6116,586 +3887,13 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-10",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x55d398326f99059ff775485246999027b3197955"
-      ],
-      "anchorSymbol": "USDT",
-      "bridgeSymbol": "BTCB",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDT",
-        "BTCB",
-        "WBNB",
-        "USDT"
-      ],
-      "pathText": "USDT -> BTCB -> WBNB -> USDT",
-      "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-      "routePools": [
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 4468206.7539157495,
-            "token0Usd": 4468206.7539157495,
-            "token1": 147.32013742640405,
-            "token1Usd": 9308774.571859758,
-            "tvlUsd": 13776981.325775508
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "531141684415741939880301",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "BTCB"
-          ],
-          "routeText": "USDT -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-110524",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 166.72676497612275,
-            "token0Usd": 10535028.66187255,
-            "token1": 5613.566999509456,
-            "token1Usd": 3434000.6831137803,
-            "tvlUsd": 13969029.34498633
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15455847577830298387178",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "WBNB"
-          ],
-          "routeText": "BTCB -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "46362",
-          "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token0Symbol": "BTCB",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "USDT"
-          ],
-          "routeText": "WBNB -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x55d398326f99059ff775485246999027b3197955"
-      ],
-      "anchorSymbol": "USDT",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDT",
-        "ETH",
-        "WBNB",
-        "USDT"
-      ],
-      "pathText": "USDT -> ETH -> WBNB -> USDT",
-      "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-      "routePools": [
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "ETH"
-          ],
-          "routeText": "USDT -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "WBNB"
-          ],
-          "routeText": "ETH -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "USDT"
-          ],
-          "routeText": "WBNB -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "16",
-      "zcPoolCount": "16"
-    },
-    {
-      "anchorAddresses": [
-        "0x55d398326f99059ff775485246999027b3197955"
-      ],
-      "anchorSymbol": "USDT",
-      "bridgeSymbol": "USDC",
-      "candidatePoolCount": "3",
-      "counterSymbol": "WBNB",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "USDT",
-        "USDC",
-        "WBNB",
-        "USDT"
-      ],
-      "pathText": "USDT -> USDC -> WBNB -> USDT",
-      "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-      "routePools": [
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 22940302.50332124,
-            "token0Usd": 22940302.50332124,
-            "token1": 17753019.9084862,
-            "token1Usd": 17753019.9084862,
-            "tvlUsd": 40693322.41180744
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3766193192119892536928132512",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "USDC"
-          ],
-          "routeText": "USDT -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-10",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 831979.5424065645,
-            "token0Usd": 831979.5424065645,
-            "token1": 2385.4527299856964,
-            "token1Usd": 1459258.6683337607,
-            "tvlUsd": 2291238.210740325
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "1139394808998798130121215",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "WBNB"
-          ],
-          "routeText": "USDC -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64157",
-          "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token0Symbol": "USDC",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "USDT"
-          ],
-          "routeText": "WBNB -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
         }
       ],
       "ycPoolCount": "16",
@@ -6742,11 +3940,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6772,9 +3973,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -6798,11 +4002,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "531141684415741939880301",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6828,9 +4035,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-110524",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         },
         {
@@ -6854,11 +4064,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15455847577830298387178",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6884,9 +4097,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "46362",
+          "tickSpacing": null,
           "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token0Decimals": null,
           "token0Symbol": "BTCB",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         }
       ],
@@ -6934,11 +4150,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -6964,9 +4183,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -6990,11 +4212,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3559526026870039721918",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7020,9 +4245,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-35126",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token1Decimals": null,
           "token1Symbol": "BTCB"
         },
         {
@@ -7046,11 +4274,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15455847577830298387178",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7076,201 +4307,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "46362",
+          "tickSpacing": null,
           "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+          "token0Decimals": null,
           "token0Symbol": "BTCB",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "20",
-      "zcPoolCount": "20"
-    },
-    {
-      "anchorAddresses": [
-        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-      ],
-      "anchorSymbol": "WBNB",
-      "bridgeSymbol": "BTCB",
-      "candidatePoolCount": "3",
-      "counterSymbol": "ETH",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "WBNB",
-        "BTCB",
-        "ETH",
-        "WBNB"
-      ],
-      "pathText": "WBNB -> BTCB -> ETH -> WBNB",
-      "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-      "routePools": [
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 166.72676497612275,
-            "token0Usd": 10535028.66187255,
-            "token1": 5613.566999509456,
-            "token1Usd": 3434000.6831137803,
-            "tvlUsd": 13969029.34498633
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15455847577830298387178",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "BTCB"
-          ],
-          "routeText": "WBNB -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "46362",
-          "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token0Symbol": "BTCB",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 795.6488760199139,
-            "token0Usd": 1500309.9362852434,
-            "token1": 31.50802943580833,
-            "token1Usd": 1990910.0571399094,
-            "tvlUsd": 3491219.9934251527
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3559526026870039721918",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4BBA1018b967e59220b22Ca03f68821A3276c9a6",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "ETH"
-          ],
-          "routeText": "BTCB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-35126",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "WBNB"
-          ],
-          "routeText": "ETH -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         }
       ],
@@ -7318,11 +4360,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "1139394808998798130121215",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7348,9 +4393,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64157",
+          "tickSpacing": null,
           "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token0Decimals": null,
           "token0Symbol": "USDC",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -7374,11 +4422,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "15956174983351970086392",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7404,9 +4455,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75390",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         },
         {
@@ -7430,11 +4484,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7460,9 +4517,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         }
       ],
@@ -7510,11 +4570,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7540,9 +4603,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -7566,11 +4632,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "540071566270406563309318",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7596,9 +4665,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "75400",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0x55d398326f99059fF775485246999027B3197955",
+          "token1Decimals": null,
           "token1Symbol": "USDT"
         },
         {
@@ -7622,11 +4694,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "75409512342474642566852",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7652,9 +4727,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "11237",
+          "tickSpacing": null,
           "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+          "token0Decimals": null,
           "token0Symbol": "ETH",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         }
       ],
@@ -7702,11 +4780,14 @@
           "direction": "yc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "6228208008757811037859107",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7732,9 +4813,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64165",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         },
         {
@@ -7758,11 +4842,14 @@
           "direction": "bridge",
           "evidence": {},
           "fee": "500",
+          "hooks": "",
           "liquidity": "3766193192119892536928132512",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7788,9 +4875,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-10",
+          "tickSpacing": null,
           "token0": "0x55d398326f99059fF775485246999027B3197955",
+          "token0Decimals": null,
           "token0Symbol": "USDT",
           "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token1Decimals": null,
           "token1Symbol": "USDC"
         },
         {
@@ -7814,11 +4904,14 @@
           "direction": "zc",
           "evidence": {},
           "fee": "100",
+          "hooks": "",
           "liquidity": "1139394808998798130121215",
           "pairAddress": "",
           "pairSymbol": "",
           "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
           "poolIdentityMode": "",
+          "poolKey": null,
+          "poolManager": null,
           "protocol": "pancakeswap_v3",
           "quality": "pass",
           "quoteSummary": {
@@ -7844,777 +4937,12 @@
           "source": "",
           "sqrtPriceX96": "",
           "tick": "-64157",
+          "tickSpacing": null,
           "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+          "token0Decimals": null,
           "token0Symbol": "USDC",
           "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "20",
-      "zcPoolCount": "20"
-    },
-    {
-      "anchorAddresses": [
-        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-      ],
-      "anchorSymbol": "WBNB",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDC",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "WBNB",
-        "ETH",
-        "USDC",
-        "WBNB"
-      ],
-      "pathText": "WBNB -> ETH -> USDC -> WBNB",
-      "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-      "routePools": [
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "ETH"
-          ],
-          "routeText": "WBNB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 41.93956206751986,
-            "token0Usd": 79083.05232341819,
-            "token1": 26781.359600732645,
-            "token1Usd": 26781.359600732645,
-            "tvlUsd": 105864.41192415083
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "medium",
-            "level": "medium"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15956174983351970086392",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x539e0EBfffd39e54A0f7E5F8FEc40ade7933A664",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDC"
-          ],
-          "routeText": "ETH -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75390",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 831979.5424065645,
-            "token0Usd": 831979.5424065645,
-            "token1": 2385.4527299856964,
-            "token1Usd": 1459258.6683337607,
-            "tvlUsd": 2291238.210740325
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "1139394808998798130121215",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "WBNB"
-          ],
-          "routeText": "USDC -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64157",
-          "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token0Symbol": "USDC",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "20",
-      "zcPoolCount": "20"
-    },
-    {
-      "anchorAddresses": [
-        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-      ],
-      "anchorSymbol": "WBNB",
-      "bridgeSymbol": "BTCB",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "WBNB",
-        "BTCB",
-        "USDT",
-        "WBNB"
-      ],
-      "pathText": "WBNB -> BTCB -> USDT -> WBNB",
-      "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-      "routePools": [
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 166.72676497612275,
-            "token0Usd": 10535028.66187255,
-            "token1": 5613.566999509456,
-            "token1Usd": 3434000.6831137803,
-            "tvlUsd": 13969029.34498633
-          },
-          "classification": {},
-          "counterAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "counterSymbol": "BTCB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "15455847577830298387178",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x6bbc40579ad1BBD243895cA0ACB086BB6300d636",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "BTCB"
-          ],
-          "routeText": "WBNB -> BTCB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "46362",
-          "token0": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token0Symbol": "BTCB",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-          "anchorSymbol": "BTCB",
-          "balances": {
-            "token0": 4468206.7539157495,
-            "token0Usd": 4468206.7539157495,
-            "token1": 147.32013742640405,
-            "token1Usd": 9308774.571859758,
-            "tvlUsd": 13776981.325775508
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "531141684415741939880301",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x46Cf1cF8c69595804ba91dFdd8d6b960c9B0a7C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "BTCB",
-            "USDT"
-          ],
-          "routeText": "BTCB -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-110524",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-          "token1Symbol": "BTCB"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "WBNB"
-          ],
-          "routeText": "USDT -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "20",
-      "zcPoolCount": "20"
-    },
-    {
-      "anchorAddresses": [
-        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-      ],
-      "anchorSymbol": "WBNB",
-      "bridgeSymbol": "USDC",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "WBNB",
-        "USDC",
-        "USDT",
-        "WBNB"
-      ],
-      "pathText": "WBNB -> USDC -> USDT -> WBNB",
-      "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-      "routePools": [
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 831979.5424065645,
-            "token0Usd": 831979.5424065645,
-            "token1": 2385.4527299856964,
-            "token1Usd": 1459258.6683337607,
-            "tvlUsd": 2291238.210740325
-          },
-          "classification": {},
-          "counterAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "counterSymbol": "USDC",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "1139394808998798130121215",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xf2688Fb5B81049DFB7703aDa5e770543770612C4",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "USDC"
-          ],
-          "routeText": "WBNB -> USDC",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64157",
-          "token0": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token0Symbol": "USDC",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-          "anchorSymbol": "USDC",
-          "balances": {
-            "token0": 22940302.50332124,
-            "token0Usd": 22940302.50332124,
-            "token1": 17753019.9084862,
-            "token1Usd": 17753019.9084862,
-            "tvlUsd": 40693322.41180744
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "3766193192119892536928132512",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x4f31Fa980a675570939B737Ebdde0471a4Be40Eb",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "USDC",
-            "USDT"
-          ],
-          "routeText": "USDC -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-10",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-          "token1Symbol": "USDC"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "WBNB"
-          ],
-          "routeText": "USDT -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        }
-      ],
-      "ycPoolCount": "20",
-      "zcPoolCount": "20"
-    },
-    {
-      "anchorAddresses": [
-        "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-      ],
-      "anchorSymbol": "WBNB",
-      "bridgeSymbol": "ETH",
-      "candidatePoolCount": "3",
-      "counterSymbol": "USDT",
-      "counterTokenCount": "2",
-      "kind": "anchor_closed_loop_token_bridge",
-      "matchedPoolCount": "3",
-      "pathSymbols": [
-        "WBNB",
-        "ETH",
-        "USDT",
-        "WBNB"
-      ],
-      "pathText": "WBNB -> ETH -> USDT -> WBNB",
-      "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-      "routePools": [
-        {
-          "anchorAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "anchorSymbol": "WBNB",
-          "balances": {
-            "token0": 4555.7133161884985,
-            "token0Usd": 8590450.085639952,
-            "token1": 4835.848236085564,
-            "token1Usd": 2958244.9354578913,
-            "tvlUsd": 11548695.021097843
-          },
-          "classification": {},
-          "counterAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "counterSymbol": "ETH",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "yc",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "75409512342474642566852",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xD0e226f674bBf064f54aB47F42473fF80DB98CBA",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8"
-          ],
-          "routeSymbols": [
-            "WBNB",
-            "ETH"
-          ],
-          "routeText": "WBNB -> ETH",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "11237",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-          "token1Symbol": "WBNB"
-        },
-        {
-          "anchorAddress": "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-          "anchorSymbol": "ETH",
-          "balances": {
-            "token0": 1899.3643981247192,
-            "token0Usd": 3581523.6658005845,
-            "token1": 528524.2968702937,
-            "token1Usd": 528524.2968702937,
-            "tvlUsd": 4110047.962670878
-          },
-          "classification": {},
-          "counterAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "counterSymbol": "USDT",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "bridge",
-          "evidence": {},
-          "fee": "500",
-          "liquidity": "540071566270406563309318",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0xBe141893E4c6AD9272e8C04BAB7E6a10604501a5",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x2170ed0880ac9a755fd29b2688956bd959f933f8",
-            "0x55d398326f99059ff775485246999027b3197955"
-          ],
-          "routeSymbols": [
-            "ETH",
-            "USDT"
-          ],
-          "routeText": "ETH -> USDT",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "75400",
-          "token0": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
-          "token0Symbol": "ETH",
-          "token1": "0x55d398326f99059fF775485246999027B3197955",
-          "token1Symbol": "USDT"
-        },
-        {
-          "anchorAddress": "0x55d398326f99059ff775485246999027b3197955",
-          "anchorSymbol": "USDT",
-          "balances": {
-            "token0": 8378007.997162512,
-            "token0Usd": 8378007.997162512,
-            "token1": 16602.355555434366,
-            "token1Usd": 10156198.424930448,
-            "tvlUsd": 18534206.42209296
-          },
-          "classification": {},
-          "counterAddress": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
-          "counterSymbol": "WBNB",
-          "depthBand": {
-            "label": "deep",
-            "level": "deep"
-          },
-          "dex": "pancakeswap_v3",
-          "direction": "zc",
-          "evidence": {},
-          "fee": "100",
-          "liquidity": "6228208008757811037859107",
-          "pairAddress": "",
-          "pairSymbol": "",
-          "pool": "0x172fcD41E0913e95784454622d1c3724f546f849",
-          "poolIdentityMode": "",
-          "protocol": "pancakeswap_v3",
-          "quality": "pass",
-          "quoteSummary": {
-            "probeUsd": null,
-            "token0ToToken1": {
-              "ok": false,
-              "reason": null
-            },
-            "token1ToToken0": {
-              "ok": false,
-              "reason": null
-            }
-          },
-          "routeAddresses": [
-            "0x55d398326f99059ff775485246999027b3197955",
-            "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"
-          ],
-          "routeSymbols": [
-            "USDT",
-            "WBNB"
-          ],
-          "routeText": "USDT -> WBNB",
-          "source": "",
-          "sqrtPriceX96": "",
-          "tick": "-64165",
-          "token0": "0x55d398326f99059fF775485246999027B3197955",
-          "token0Symbol": "USDT",
-          "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+          "token1Decimals": null,
           "token1Symbol": "WBNB"
         }
       ],
@@ -8656,13 +4984,13 @@
     "borrowableTokenCount": 2,
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
-    "candidateObservationBridgeCount": 58,
+    "candidateObservationBridgeCount": 50,
     "candidateObservationDirectCount": 0,
     "candidateObservationGroupCount": 6,
     "candidateObservationPoolCount": 9,
     "candidateObservationSequenceCount": 42,
     "chainSpecificObservationSequenceCount": 0,
-    "closedLoopRouteCount": 58,
+    "closedLoopRouteCount": 50,
     "directClosedLoopCount": 0,
     "directPairCount": 6,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
@@ -8670,7 +4998,7 @@
     "fundAnchorPairObservationAssociatedPairCount": 0,
     "fundAnchorPairObservationPoolCount": 0,
     "fundAnchorPairObservationRouteCount": 0,
-    "indirectRouteCount": 58,
+    "indirectRouteCount": 50,
     "nonEthPairFirstAssociatedObservationPoolCount": 0,
     "nonEthPairFirstAssociatedObservationTokenCount": 0,
     "nonEthPairFirstAssociatedPairCount": 0,

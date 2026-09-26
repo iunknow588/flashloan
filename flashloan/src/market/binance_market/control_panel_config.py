@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 from core.config_schema import parse_env_float
-from core.db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
 from core.db.storage_common import database_url_or_none as storage_database_url_or_none
 from core.parameter_config import (
     LEGACY_STRATEGY_CONFIG_PATHS,
@@ -75,7 +74,7 @@ def read_strategy_config_parameters(config_path: Path) -> dict:
     database_url = _database_url_or_none()
     legacy_paths = LEGACY_STRATEGY_CONFIG_PATHS if config_path == STRATEGY_CONFIG_PATH else ()
     file_values = read_json_parameter(config_path, legacy_paths=legacy_paths) or {}
-    if database_url and not database_unavailable_reason(database_url):
+    if database_url:
         try:
             stored = load_page_parameter_map(database_url, STRATEGY_CONFIG_PAGE)
             if stored:
@@ -91,15 +90,14 @@ def read_strategy_config_parameters(config_path: Path) -> dict:
                 except Exception:
                     logger.warning("failed to sync strategy config file after database migration", exc_info=True)
                 return file_values
-        except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
+        except Exception:
+            logger.warning("failed to load strategy config from local store, using file values", exc_info=True)
     return file_values
 
 
 def save_strategy_config_parameters(values: dict) -> bool:
     database_url = _database_url_or_none()
-    if not database_url or database_unavailable_reason(database_url):
+    if not database_url:
         return False
     try:
         save_page_parameter_map(database_url, STRATEGY_CONFIG_PAGE, values)
@@ -108,9 +106,7 @@ def save_strategy_config_parameters(values: dict) -> bool:
         except Exception:
             logger.warning("failed to sync strategy config file after database save", exc_info=True)
         return True
-    except Exception as exc:
-        if is_database_unavailable_error(exc):
-            mark_database_unavailable(database_url, exc)
+    except Exception:
         return False
 
 
@@ -126,6 +122,7 @@ def sanitize_strategy_config(values: dict) -> dict:
     config["ARBITRAGE_MIN_PAPER_PROFIT_USD"] = enforce_min_paper_profit_usd(config["ARBITRAGE_MIN_PAPER_PROFIT_USD"])
     config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"] = max(1, int(config["ARBITRAGE_ROUTE_TRADE_FEE_HOPS"]))
     config["DEX_SCAN_WORKERS"] = max(1, min(int(config["DEX_SCAN_WORKERS"]), 64))
+    config["DEX_EVIDENCE_TIMEOUT_SECONDS"] = max(60, min(float(config["DEX_EVIDENCE_TIMEOUT_SECONDS"]), 120))
     config["EXECUTION_SLIPPAGE_BPS"] = max(0, min(int(config["EXECUTION_SLIPPAGE_BPS"]), 5000))
     config["EXECUTION_PLAN_MAX_AGE_SECONDS"] = max(1, int(config["EXECUTION_PLAN_MAX_AGE_SECONDS"]))
     config["BINANCE_CHANGE_WINDOW_SECONDS"] = max(MIN_SAMPLING_SECONDS, float(config["BINANCE_CHANGE_WINDOW_SECONDS"]))

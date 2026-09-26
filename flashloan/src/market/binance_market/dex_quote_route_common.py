@@ -15,6 +15,9 @@ def quote_route_status(quote_analysis: dict[str, Any]) -> str:
     live_verified = bool(quote_analysis.get("livePriceVerified")) or str(quote_analysis.get("priceEvidenceMode") or "").strip().lower() == "live_verified"
     if live_verified:
         return "live_verified"
+    terminal_status = str(quote_analysis.get("terminalStatus") or "").strip()
+    if terminal_status in {"missing_route_identity", "route_invalid"}:
+        return terminal_status
     if quote_analysis.get("executableCandidate"):
         return "static_probe_ready_for_precheck"
     if quote_analysis.get("chainSubmissionCandidate"):

@@ -8,7 +8,8 @@ import time
 from pathlib import Path
 from threading import Event, Thread
 
-from core.env_loader import load_env_files, resolve_env_path
+from core.env_loader import load_env_files
+from core.runtime_paths import resolve_runtime_dir
 from core.sensitive_data import redact_sensitive_text
 from core.scoped_state import save_runtime_state
 from core.contracts import validate_scoped_payload
@@ -17,7 +18,7 @@ from core.contracts import validate_scoped_payload
 load_env_files(__file__, override=False)
 
 APP_DIR = Path(__file__).resolve().parents[1]
-RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
+RUNTIME_DIR = resolve_runtime_dir(base_dir=APP_DIR)
 STATUS_PATH = RUNTIME_DIR / "state" / "liquidation_daemon_status.json"
 LOG = logging.getLogger("liquidation-daemon")
 

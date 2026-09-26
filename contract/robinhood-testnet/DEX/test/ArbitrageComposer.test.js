@@ -443,6 +443,29 @@ describe("ArbitrageComposer", function () {
       )
     ).to.be.revertedWithCustomError(arb, "DexError").withArgs(40010401n);
   });
+  it("reverts through runArbitrageBestFromInitialAmount when route keysets mismatch", async function () {
+    const { poolManager } = await deployOnchainFixture();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const zero = ethers.ZeroAddress;
+    const key = {
+      currency0: "0x1111111111111111111111111111111111111111",
+      currency1: "0x2222222222222222222222222222222222222222",
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: zero,
+    };
+
+    await expect(
+      arb.runArbitrageBestFromInitialAmount(
+        "0x1111111111111111111111111111111111111111",
+        [[key, key, key], [key, key, key]],
+        [[true, false, true]],
+        ethers.parseEther("1000"),
+        1n
+      )
+    ).to.be.revertedWithCustomError(arb, "DexError").withArgs(40010401n);
+  });
   it("executes the candidate with the highest deviation rather than the first one listed", async function () {
     const { composer, executor } = await deployFixture();
     const low = await makeCandidate(300);
@@ -520,6 +543,61 @@ describe("ArbitrageComposer", function () {
       ethers.parseEther("1"),
       200n
     );
+    expect(await executor.calls()).to.equal(1n);
+  });
+
+  it("previewBestDetailedWithInitialAmount returns amount, direction, and profit from a ladder", async function () {
+    const { composer, executor } = await deployFixture();
+    const low = await makeCandidate(300);
+    const high = await makeCandidate(500);
+    const initialAmount = ethers.parseEther("1000");
+
+    const preview = await composer.previewBestDetailedWithInitialAmount.staticCall(
+      "0x1111111111111111111111111111111111111111",
+      [low, high],
+      initialAmount,
+      ethers.parseEther("1"),
+      200n
+    );
+
+    expect(preview.executed).to.equal(true);
+    expect(preview.selectedAmount).to.be.gt(0n);
+    expect(preview.profit).to.be.gt(0n);
+    expect(preview.resultData.length).to.be.gt(0);
+  });
+
+  it("preview keeps doubling a profitable origin until the adaptive search limit", async function () {
+    const { composer, executor } = await deployFixture();
+    await executor.setProfitScale(true);
+    const candidate = await makeCandidate(500);
+    const initialAmount = ethers.parseEther("1000");
+
+    const preview = await composer.previewBestDetailedWithInitialAmount.staticCall(
+      "0x1111111111111111111111111111111111111111",
+      [candidate],
+      initialAmount,
+      ethers.parseEther("1"),
+      200n
+    );
+
+    expect(preview.executed).to.equal(true);
+    expect(preview.selectedAmount).to.equal(initialAmount << 24n);
+    expect(preview.profit).to.equal(preview.selectedAmount / 1000n);
+  });
+
+  it("can broadcast a preselected amount through runBestDetailedWithSelectedAmount", async function () {
+    const { composer, executor } = await deployFixture();
+    const candidate = await makeCandidate(500);
+    const selectedAmount = ethers.parseEther("250");
+
+    await composer.runBestDetailedWithSelectedAmount(
+      "0x1111111111111111111111111111111111111111",
+      [candidate],
+      selectedAmount,
+      ethers.parseEther("1"),
+      200n
+    );
+
     expect(await executor.calls()).to.equal(1n);
   });
 

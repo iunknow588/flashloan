@@ -182,6 +182,32 @@ def _official_v4_arb_candidate_route(
     return route_symbols, route_addresses, steps, keys, zero_for_one, pool_ids
 
 
+def _official_v4_route_components(
+    route: dict[str, Any],
+    *,
+    fallback_pools: dict[str, dict[str, Any]],
+    fallback_steps: list[dict[str, Any]],
+) -> tuple[list[str], list[str], list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    from dex.runtime.dex_onchain_quote_evidence import (
+        _complete_route_steps,
+        _norm_symbol,
+        _pool_map,
+        _text,
+    )
+
+    route_symbols = [_norm_symbol(item) for item in route.get("routeSymbols") or []]
+    route_addresses = [str(item) for item in route.get("routeAddresses") or [] if str(item).strip()]
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    raw_steps = [step for step in analysis.get("steps") or [] if isinstance(step, dict)]
+    if not raw_steps:
+        raw_steps = fallback_steps or []
+    route_pools = _pool_map(route)
+    if not route_pools:
+        route_pools = fallback_pools or {}
+    steps = _complete_route_steps(route_symbols, route_addresses, raw_steps, route_pools)
+    return route_symbols, route_addresses, steps, route_pools
+
+
 def official_v4_arb_static_hop_rows(
     *,
     w3: Any,
@@ -190,6 +216,7 @@ def official_v4_arb_static_hop_rows(
     steps: list[dict[str, Any]],
     amount_in_raw: int,
     chain_id: int | None,
+    routes_group: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], list[str], list[dict[str, Any]]] | None:
     from dex.runtime.dex_onchain_quote_evidence import (
         _human_from_raw,
@@ -216,23 +243,42 @@ def official_v4_arb_static_hop_rows(
     token_z = route_addresses[0] if route_addresses else input_token_first
     if not token_z:
         return None
-    reverse_symbols = [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
-    reverse_addresses = [route_addresses[0], route_addresses[2], route_addresses[1], route_addresses[0]] if len(route_addresses) == 4 else route_addresses
-    reverse_steps = [_reverse_step(steps[2]), _reverse_step(steps[1]), _reverse_step(steps[0])]
-    candidates: list[tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str]]] = []
-    for candidate_symbols, candidate_addresses, candidate_steps in (
-        (route_symbols, route_addresses, steps),
-        (reverse_symbols, reverse_addresses, reverse_steps),
-    ):
-        candidate = _official_v4_arb_candidate_route(
-            route_symbols=candidate_symbols,
-            route_addresses=candidate_addresses,
-            steps=candidate_steps,
-            pools=pools,
+    candidates: list[tuple[list[str], list[str], list[dict[str, Any]], list[tuple[Any, Any, Any, Any, Any]], list[bool], list[str], dict[str, dict[str, Any]]]] = []
+    # Aggregate every closed-loop route in the same flash-loan anchor group into
+    # one Candidate so the composer can compare the full group and call the
+    # executor once for that group instead of per route.
+    for group_route in (routes_group or [route]):
+        if not isinstance(group_route, dict):
+            continue
+        group_symbols, group_addresses, group_steps, group_pools = _official_v4_route_components(
+            group_route,
+            fallback_pools=pools,
+            fallback_steps=steps if group_route is route else [],
         )
-        if candidate is None:
-            return None
-        candidates.append(candidate)
+        if len(group_symbols) != 4 or group_symbols[0] != group_symbols[-1]:
+            continue
+        if len(group_steps) != 3:
+            continue
+        if not all(_text(step.get("protocol") or step.get("dex") or "").lower() in {"uniswap_v4", "v4"} for step in group_steps):
+            continue
+        reverse_symbols = [group_symbols[0], group_symbols[2], group_symbols[1], group_symbols[0]]
+        reverse_addresses = [group_addresses[0], group_addresses[2], group_addresses[1], group_addresses[0]] if len(group_addresses) == 4 else group_addresses
+        reverse_steps = [_reverse_step(group_steps[2]), _reverse_step(group_steps[1]), _reverse_step(group_steps[0])]
+        for candidate_symbols, candidate_addresses, candidate_steps in (
+            (group_symbols, group_addresses, group_steps),
+            (reverse_symbols, reverse_addresses, reverse_steps),
+        ):
+            candidate = _official_v4_arb_candidate_route(
+                route_symbols=candidate_symbols,
+                route_addresses=candidate_addresses,
+                steps=candidate_steps,
+                pools=group_pools,
+            )
+            if candidate is None:
+                continue
+            candidates.append((*candidate, group_pools))
+    if not candidates:
+        return None
     keysets = [candidate[3] for candidate in candidates]
     directionsets = [candidate[4] for candidate in candidates]
     quote_source = "official_v4_arb_static_call"
@@ -287,11 +333,11 @@ def official_v4_arb_static_hop_rows(
     )
     if route_index >= len(candidates):
         return None
-    selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids = candidates[route_index]
+    selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids, selected_pools = candidates[route_index]
     if (
         composer_used
         and str(os.getenv("DEX_OPPORTUNITY_SCANNER_ALLOW_BROADCAST", "")).strip().lower() in {"1", "true", "yes", "on"}
-        and route_symbols == ["TZ", "TB", "TA", "TZ"]
+        and selected_symbols == ["TZ", "TB", "TA", "TZ"]
     ):
         try:
             candidate = [keysets, directionsets, 0, 0, 0, 0]
@@ -312,7 +358,7 @@ def official_v4_arb_static_hop_rows(
     amounts = [out_tb, out_ta, out_tz]
     hop_rows: list[dict[str, Any]] = []
     for index, step in enumerate(selected_steps):
-        pool = _pool_for_step(step, pools)
+        pool = _pool_for_step(step, selected_pools)
         from_symbol = _norm_symbol(step.get("fromSymbol"))
         to_symbol = _norm_symbol(step.get("toSymbol"))
         _, _, in_decimals = _pool_side(pool, from_symbol)

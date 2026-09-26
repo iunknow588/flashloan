@@ -8,6 +8,7 @@ from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_fl
 from core.dex_candidate_response import compact_candidate_payload
 from core.dex_response import compact_dex_overview_response
 from market.binance_market.dex_strategy_registry import resolve_dex_strategy_key
+from core.chain_selection import ChainSelectionError
 from web import control_panel_data_routes as shared
 
 
@@ -173,7 +174,15 @@ def request_protocols_arg() -> list[str]:
 
 
 def request_dex_protocols_arg() -> list[str]:
-    return [protocol for protocol in request_protocols_arg() if protocol in DEX_QUOTE_PROTOCOLS]
+    protocols = [protocol for protocol in request_protocols_arg() if protocol in DEX_QUOTE_PROTOCOLS]
+    if protocols:
+        return protocols
+    chain_selection = _request_chain_selection_or_default()
+    if isinstance(chain_selection, dict):
+        configured = str(chain_selection.get("protocol") or chain_selection.get("protocol_id") or "").strip().lower()
+        if configured and configured in DEX_QUOTE_PROTOCOLS:
+            return [configured]
+    return []
 
 
 def request_dex_strategy_arg() -> str:
@@ -181,11 +190,41 @@ def request_dex_strategy_arg() -> str:
 
 
 def selected_chain_id_from_request() -> tuple[dict | None, int | None]:
-    chain_selection = shared._optional_request_chain_selection()
+    chain_selection = _request_chain_selection_or_default()
     selected_chain_id = None
     if isinstance(chain_selection, dict) and chain_selection.get("chain_id") is not None:
         selected_chain_id = int(chain_selection["chain_id"])
     return chain_selection, selected_chain_id
+
+
+def _request_chain_selection_or_default() -> dict | None:
+    chain_selection = shared._optional_request_chain_selection(feature="dex_arbitrage")
+    if isinstance(chain_selection, dict):
+        return chain_selection
+    try:
+        from core.chain_selection import ChainSelection as _ChainSelection
+        try:
+            from web.chain_selection import resolve_request_chain_selection
+        except ImportError:
+            return None
+        try:
+            database_url = shared.panel_call("database_url_or_none")
+        except Exception:
+            database_url = None
+        try:
+            selection = resolve_request_chain_selection(
+                database_url=database_url,
+                feature="dex_arbitrage",
+            )
+            if isinstance(selection, _ChainSelection):
+                return selection.as_dict()
+        except Exception:
+            # If the DEX feature has no loadable default, keep the historical
+            # behavior of treating unscoped calls as unscoped.
+            return None
+    except Exception:
+        return None
+    return None
 
 
 def submission_networks_from_request(chain_selection: dict | None) -> list[str]:

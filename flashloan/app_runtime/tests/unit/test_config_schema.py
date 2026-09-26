@@ -5,7 +5,7 @@ from core.config_schema import liquidation_config_health
 
 def clear_liquidation_env(monkeypatch):
     names = [
-        "DATABASE_URL",
+        "FLASHLOAN_KV_PATH",
         "AAVE_POOL_ADDRESS",
         "AAVE_PROTOCOL_DATA_PROVIDER_ADDRESS",
         "AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS",
@@ -74,7 +74,7 @@ def test_liquidation_config_health_accepts_matching_owner_key(monkeypatch):
     private_key = account.key.hex()
     owner = account.address
     address = "0x0000000000000000000000000000000000000001"
-    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", "local_store.sqlite3")
     monkeypatch.setenv("AAVE_POOL_ADDRESS", address)
     monkeypatch.setenv("AAVE_PROTOCOL_DATA_PROVIDER_ADDRESS", address)
     monkeypatch.setenv("AAVE_LIQUIDATION_DATA_PROVIDER_ADDRESS", address)

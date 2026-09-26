@@ -6,10 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.db.storage_common import (
-    database_unavailable_reason,
     database_url_or_none as storage_database_url_or_none,
-    is_database_unavailable_error,
-    mark_database_unavailable,
 )
 from core.parameter_config import (
     COW_SUBMISSION_PAUSE_GUARD_PATH,
@@ -110,7 +107,7 @@ def load_cow_submission_pause_guard(
     database_url: str | None = None,
 ) -> dict[str, Any]:
     resolved_database_url = _database_url_or_none(database_url)
-    if resolved_database_url and not database_unavailable_reason(resolved_database_url):
+    if resolved_database_url:
         try:
             state = _load_cow_submission_pause_guard_db(resolved_database_url)
             if state is not None:
@@ -121,8 +118,6 @@ def load_cow_submission_pause_guard(
             migrated["source"] = "database_migrated_from_file" if had_file else "database_initialized"
             return migrated
         except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(resolved_database_url, exc)
             fallback = _load_cow_submission_pause_guard_file(path)
             fallback["source"] = "file_fallback"
             fallback["database_error"] = str(exc)
@@ -139,12 +134,10 @@ def save_cow_submission_pause_guard(
     payload = dict(_DEFAULT_STATE)
     payload.update(state)
     resolved_database_url = _database_url_or_none(database_url)
-    if resolved_database_url and not database_unavailable_reason(resolved_database_url):
+    if resolved_database_url:
         try:
             return _save_cow_submission_pause_guard_db(resolved_database_url, payload)
         except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(resolved_database_url, exc)
             payload["source"] = "file_fallback"
             payload["database_error"] = str(exc)
     else:

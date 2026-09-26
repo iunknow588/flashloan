@@ -1,8 +1,6 @@
 import os
 
 from core.env_loader import (
-    disable_database_alias_enabled,
-    local_json_only_enabled,
     load_chain_env_files,
     load_env_files,
 )
@@ -59,40 +57,35 @@ def test_load_env_files_applies_non_sensitive_test_env_overrides(monkeypatch, tm
     assert "EMPTY_TEST_VALUE" not in os.environ
 
 
-def test_load_env_files_skips_database_url_in_local_json_only_mode(monkeypatch, tmp_path):
+def test_load_env_files_loads_service_url_from_env_file(monkeypatch, tmp_path):
     child = tmp_path / "app_runtime"
     child.mkdir()
     (child / ".env").write_text(
-        "DATABASE_URL=postgresql://remote.example/db\nSETTING=local\n",
+        "SERVICE_URL=https://remote.example/db\nSETTING=local\n",
         encoding="utf-8",
     )
-    monkeypatch.setenv("FLASHLOAN_LOCAL_JSON_ONLY", "true")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SERVICE_URL", raising=False)
     monkeypatch.delenv("SETTING", raising=False)
 
     load_env_files(child / "run.py")
 
-    assert "DATABASE_URL" not in os.environ
+    assert os.environ["SERVICE_URL"] == "https://remote.example/db"
     assert os.environ["SETTING"] == "local"
 
 
-def test_load_env_files_skips_database_url_in_disable_database_alias_mode(monkeypatch, tmp_path):
+def test_load_env_files_loads_service_url_without_legacy_alias(monkeypatch, tmp_path):
     child = tmp_path / "app_runtime"
     child.mkdir()
     (child / ".env").write_text(
-        "DATABASE_URL=postgresql://remote.example/db\nSETTING=alias\n",
+        "SERVICE_URL=https://remote.example/db\nSETTING=alias\n",
         encoding="utf-8",
     )
-    monkeypatch.delenv("FLASHLOAN_LOCAL_JSON_ONLY", raising=False)
-    monkeypatch.setenv("FLASHLOAN_DISABLE_DATABASE", "true")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("SERVICE_URL", raising=False)
     monkeypatch.delenv("SETTING", raising=False)
 
     load_env_files(child / "run.py")
 
-    assert disable_database_alias_enabled() is True
-    assert local_json_only_enabled() is True
-    assert "DATABASE_URL" not in os.environ
+    assert os.environ["SERVICE_URL"] == "https://remote.example/db"
     assert os.environ["SETTING"] == "alias"
 
 

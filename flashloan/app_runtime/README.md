@@ -115,8 +115,9 @@ Robinhood Chain and Robinhood Testnet are separate chain data owners:
   LP liquidity for the requested amount.
 - The DEX evidence path checks missing pool identity before RPC, then performs a
   live PoolManager `slot0`/`liquidity` read after connecting to the testnet RPC.
-  A missing pool or empty LP reports a concrete business error instead of a
-  45 second timeout. Cached liquidity data is not treated as live evidence.
+  A missing pool or empty LP reports a concrete business error instead of
+  waiting for the evidence watchdog. Cached liquidity data is not treated as
+  live evidence.
 
 ### DEX Scan Concurrency
 
@@ -124,6 +125,17 @@ Robinhood Chain and Robinhood Testnet are separate chain data owners:
 defaulting to `1`. It controls how many on-chain evidence review workers the
 DEX opportunity scanner uses. It is not hardcoded per testnet; users may raise
 it on a machine known to tolerate parallel RPC/quoter review.
+
+`DEX_EVIDENCE_TIMEOUT_SECONDS` is also a control panel setting, defaulting to
+`90` seconds, with a configured minimum of `60` seconds. It bounds the total
+time the scanner waits for one on-chain evidence pass before returning
+`rpc_verification_timeout`. Robinhood Testnet RPC connection attempts use
+10/20/30 second per-attempt timeouts by default, configured with the
+program-local `DEX_ONCHAIN_RPC_CONNECT_TIMEOUTS_SECONDS` comma-separated
+setting. The evidence budget must be large enough to cover those attempts plus
+the live pool and quote calls. A hard RPC connection failure returns
+`rpc_verification_failed` after the configured attempts; an evidence watchdog
+timeout remains `rpc_verification_timeout`.
 
 Runtime PID files should live under `runtime/logs/` or `runtime/state/` instead
 of the repository root. Do not create versioned PID files such as
@@ -153,16 +165,17 @@ python flashloan/src/market/tools/analyze_thresholds.py --hours 2 --window-secon
 python -m pytest flashloan/app_runtime/tests
 ```
 
-需要把服务日志统一写入 `flashloan/app_runtime/runtime/logs/` 时，使用：
+需要把服务日志统一写入 `flashloan/src/runtime/logs/` 时，使用：
 
 ```powershell
 python flashloan/app_runtime/start_server.py --port 5000
 ```
 
-`start_server.py` 会把 stdout/stderr 写到 `runtime/logs/server_<port>_stdout.log` 和 `server_<port>_stderr.log`，避免在仓库根目录或 `app_runtime/` 下散落外部日志文件。
+`start_server.py` 会把 stdout/stderr 写到 `flashloan/src/runtime/logs/server_stdout.log` 和 `server_stderr.log`，避免在仓库根目录或 `app_runtime/` 下散落外部日志文件。
 
 The main entry is the control panel at `http://127.0.0.1:5000/`. The `/healthz` route stays available for liveness checks only.
-Liquidation accounts are stored in Postgres when `DATABASE_URL` is set. The control panel can keep either 30 days or 365 days of discovery data, and on startup it backfills the latest window first before doing incremental discovery.
+Liquidation accounts are stored in the local SQLite KV database (`FLASHLOAN_RUNTIME_DIR/local_store.sqlite3` by default, override with `FLASHLOAN_KV_PATH`). The control panel can keep either 30 days or 365 days of discovery data, and on startup it backfills the latest window first before doing incremental discovery.
+On first startup, `run.py` imports existing runtime files (`runtime/parameters/*.json`, `runtime/cache/liquidation_accounts.txt`, and the latest state snapshots) into the local KV store. The import is idempotent and recorded under `kv_meta.runtime_files_imported`.
 Environment precedence is process environment first, then the nearest `.env`, then parent-directory `.env` files.
 
 ## Runtime Files

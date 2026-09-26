@@ -11,7 +11,7 @@ from pathlib import Path
 from types import ModuleType
 
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "flashloan" / "src"
 APP_RUNTIME_DIR = REPO_ROOT / "flashloan" / "app_runtime"
 APP_RUNTIME_RUN = APP_RUNTIME_DIR / "run.py"
@@ -22,7 +22,7 @@ if not COW_NODE_ADAPTER_DIR.exists():
     COW_NODE_ADAPTER_DIR = APP_RUNTIME_DIR / "cow_flashloan" / "node_adapter"
 COW_NODE_PACKAGE_LOCK = COW_NODE_ADAPTER_DIR / "package-lock.json"
 COW_NODE_MODULES = COW_NODE_ADAPTER_DIR / "node_modules"
-REQUIRED_PYTHON_IMPORTS = ("flask", "psycopg", "psycopg_pool", "web3", "websockets", "dotenv")
+REQUIRED_PYTHON_IMPORTS = ("flask", "web3", "websockets", "dotenv")
 
 
 def _venv_python() -> Path:

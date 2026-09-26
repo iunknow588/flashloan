@@ -68,10 +68,26 @@ def _attempt_time_key(row: dict) -> str:
     return str(row.get("created_at") or row.get("observed_at") or "")
 
 
-def dedupe_attempts_by_route_evidence(rows: list[dict], *, limit: int) -> list[dict]:
+def dedupe_attempts_by_route_evidence(
+    rows: list[dict],
+    *,
+    limit: int,
+    dedupe_by_route_evidence: bool = True,
+) -> list[dict]:
     best: dict[tuple[str, str], dict] = {}
     for row in rows:
         key = _attempt_route_key(row)
+        if not dedupe_by_route_evidence:
+            tx = str(row.get("tx_hash") or row.get("order_uid") or row.get("uid") or "").strip()
+            if tx:
+                key = (key[0], key[1], tx)
+            else:
+                key = (
+                    key[0],
+                    key[1],
+                    _attempt_time_key(row),
+                    str(row.get("execution_phase") or row.get("state") or "").strip().lower(),
+                )
         if not key[1]:
             key = (key[0], f"__row_{len(best)}_{_attempt_time_key(row)}")
         current = best.get(key)

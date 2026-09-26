@@ -1,168 +1,109 @@
 from __future__ import annotations
 
-import json
 from typing import Optional
 
-from core.db.storage import EXPECTED_SCHEMA_MIGRATION_IDS
-from core.db.storage_common import db_connection
-from core.control_panel_data_compact import fetch_one, iso
+from core.kv_rows import count, get_row, latest_rows, load_rows
+from core.local_kv import meta_get
+from core.db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS
+from core.control_panel_data_compact import iso
+
+
+def _scan_rows(database_url: str, collection: str) -> list[dict]:
+    return load_rows(database_url, collection)
 
 
 def observation_count(database_url: str) -> Optional[int]:
     if not database_url:
         return None
-    try:
-        row = fetch_one(database_url, "SELECT COUNT(*) FROM observations")
-        return int(row[0]) if row else 0
-    except Exception:
-        return None
+    return count(database_url, "observations")
 
 
 def database_table_counts(database_url: str) -> Optional[dict]:
     if not database_url:
         return None
-    query = """
-        SELECT
-            (SELECT COUNT(*) FROM observations) AS observations,
-            (SELECT COUNT(*) FROM binance_price_history) AS binance_price_history,
-            (SELECT COUNT(*) FROM binance_candidate_price_history) AS binance_candidate_price_history,
-            (SELECT COUNT(*) FROM binance_pair_price_history) AS binance_pair_price_history,
-            (SELECT COUNT(*) FROM binance_window_extremes) AS binance_window_extremes,
-            (SELECT COUNT(*) FROM arbitrage_simulations) AS arbitrage_simulations,
-            (SELECT COUNT(*) FROM liquidation_accounts) AS liquidation_accounts,
-            (SELECT COUNT(*) FROM liquidation_discovery_scans) AS liquidation_discovery_scans,
-            (SELECT COUNT(*) FROM liquidation_account_health_scans) AS liquidation_account_health_scans,
-            (SELECT COUNT(*) FROM liquidation_borrow_health_pool) AS liquidation_borrow_health_pool,
-            (SELECT COUNT(*) FROM liquidation_high_frequency_pool) AS liquidation_high_frequency_pool,
-            (SELECT COUNT(*) FROM liquidation_core_opportunity_pool) AS liquidation_core_opportunity_pool,
-            (SELECT COUNT(*) FROM liquidation_borrow_health_scan_batches) AS liquidation_borrow_health_scan_batches,
-            (SELECT COUNT(*) FROM liquidation_scan_config_library) AS liquidation_scan_config_library,
-            (SELECT COUNT(*) FROM liquidation_failure_samples) AS liquidation_failure_samples,
-            (SELECT COUNT(*) FROM schema_migrations) AS schema_migrations,
-            (
-                SELECT COALESCE(MAX(applied_at)::TEXT, '')
-                FROM schema_migrations
-            ) AS latest_schema_migration_at,
-            (
-                SELECT COUNT(*)
-                FROM schema_migrations
-                WHERE migration_id = ANY(%s)
-            ) AS expected_schema_migrations_applied
-    """
-    try:
-        row = fetch_one(database_url, query, (list(EXPECTED_SCHEMA_MIGRATION_IDS),))
-        if not row:
-            return None
-        counts = {
-            "observations": int(row[0] or 0),
-            "binance_price_history": int(row[1] or 0),
-            "binance_candidate_price_history": int(row[2] or 0),
-            "binance_pair_price_history": int(row[3] or 0),
-            "binance_window_extremes": int(row[4] or 0),
-            "arbitrage_simulations": int(row[5] or 0),
-            "liquidation_accounts": int(row[6] or 0),
-            "liquidation_discovery_scans": int(row[7] or 0),
-            "liquidation_account_health_scans": int(row[8] or 0),
-            "liquidation_borrow_health_pool": int(row[9] or 0),
-            "liquidation_high_frequency_pool": int(row[10] or 0),
-            "liquidation_core_opportunity_pool": int(row[11] or 0),
-            "liquidation_borrow_health_scan_batches": int(row[12] or 0),
-            "liquidation_scan_config_library": int(row[13] or 0),
-            "liquidation_failure_samples": int(row[14] or 0),
-            "schema_migrations": int(row[15] or 0),
-        }
-        table_total = sum(counts.values())
-        expected_count = len(EXPECTED_SCHEMA_MIGRATION_IDS)
-        applied_count = int(row[17] or 0)
-        counts["schema"] = {
-            "latest_migration_at": str(row[16] or ""),
-            "expected_migration_count": expected_count,
-            "expected_migration_applied_count": applied_count,
-            "up_to_date": applied_count == expected_count,
-        }
-        counts["total"] = table_total
-        return counts
-    except Exception:
-        return None
+    collections = (
+        "observations",
+        "binance_price_history",
+        "binance_candidate_price_history",
+        "binance_pair_price_history",
+        "binance_window_extremes",
+        "arbitrage_simulations",
+        "liquidation_accounts",
+        "liquidation_discovery_scans",
+        "liquidation_account_health_scans",
+        "liquidation_borrow_health_pool",
+        "liquidation_high_frequency_pool",
+        "liquidation_core_opportunity_pool",
+        "liquidation_borrow_health_scan_batches",
+        "liquidation_scan_config_library",
+        "liquidation_failure_samples",
+        "schema_migrations",
+    )
+    counts = {name: count(database_url, name) for name in collections}
+    applied = meta_get(database_url, "schema_migrations") or {}
+    expected_count = len(EXPECTED_SCHEMA_MIGRATION_IDS)
+    applied_count = len(applied)
+    counts["schema"] = {
+        "latest_migration_at": "",
+        "expected_migration_count": expected_count,
+        "expected_migration_applied_count": applied_count,
+        "up_to_date": applied_count >= expected_count,
+    }
+    counts["total"] = sum(int(value) for key, value in counts.items() if key != "schema")
+    return counts
 
 
 def available_chart_symbols(database_url: str, limit: int = 500) -> list[str]:
     if not database_url:
         return []
-    query = """
-        SELECT symbol
-        FROM (
-            SELECT symbol, MAX(observed_at) AS latest_at
-            FROM observations
-            GROUP BY symbol
-            UNION ALL
-            SELECT symbol, MAX(event_time) AS latest_at
-            FROM binance_price_history
-            GROUP BY symbol
-        ) source
-        GROUP BY symbol
-        ORDER BY MAX(latest_at) DESC, symbol
-        LIMIT %s
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (limit,))
-            rows = cursor.fetchall()
-    return [str(row[0]) for row in rows]
+    by_symbol: dict[str, str] = {}
+    for row in _scan_rows(database_url, "observations"):
+        symbol = str(row.get("symbol") or "")
+        observed_at = str(row.get("observed_at") or "")
+        if symbol and observed_at >= by_symbol.get(symbol, ""):
+            by_symbol[symbol] = observed_at
+    for row in _scan_rows(database_url, "binance_price_history"):
+        symbol = str(row.get("symbol") or "")
+        event_time = str(row.get("event_time") or "")
+        if symbol and event_time >= by_symbol.get(symbol, ""):
+            by_symbol[symbol] = event_time
+    ordered = sorted(by_symbol.items(), key=lambda item: item[1], reverse=True)
+    return [symbol for symbol, _ in ordered[:max(0, int(limit))]]
 
 
 def available_candidate_symbols(database_url: str, limit: int = 500) -> list[str]:
     if not database_url:
         return []
-    query = """
-        SELECT symbol
-        FROM (
-            SELECT symbol, MAX(event_time) AS latest_at
-            FROM binance_candidate_price_history
-            GROUP BY symbol
-            UNION ALL
-            SELECT x_symbol AS symbol, MAX(event_time) AS latest_at
-            FROM binance_pair_price_history
-            GROUP BY x_symbol
-            UNION ALL
-            SELECT y_symbol AS symbol, MAX(event_time) AS latest_at
-            FROM binance_pair_price_history
-            GROUP BY y_symbol
-        ) source
-        GROUP BY symbol
-        ORDER BY MAX(latest_at) DESC, symbol
-        LIMIT %s
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (limit,))
-            rows = cursor.fetchall()
-    return [str(row[0]) for row in rows]
+    by_symbol: dict[str, str] = {}
+    for row in _scan_rows(database_url, "binance_candidate_price_history"):
+        symbol = str(row.get("symbol") or "")
+        event_time = str(row.get("event_time") or "")
+        if symbol and event_time >= by_symbol.get(symbol, ""):
+            by_symbol[symbol] = event_time
+    for row in _scan_rows(database_url, "binance_pair_price_history"):
+        for symbol_key in ("x_symbol", "y_symbol"):
+            symbol = str(row.get(symbol_key) or "")
+            event_time = str(row.get("event_time") or "")
+            if symbol and event_time >= by_symbol.get(symbol, ""):
+                by_symbol[symbol] = event_time
+    ordered = sorted(by_symbol.items(), key=lambda item: item[1], reverse=True)
+    return [symbol for symbol, _ in ordered[:max(0, int(limit))]]
 
 
 def recent_velocity_timepoints(database_url: str, limit: int = 200) -> list[dict]:
     if not database_url:
         return []
-    query = """
-        SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
-        FROM binance_window_extremes
-        ORDER BY observed_at DESC
-        LIMIT %s
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (limit,))
-            rows = cursor.fetchall()
+    rows = latest_rows(database_url, "binance_window_extremes", limit=limit)
     result = []
-    for row_id, observed_at, window_seconds, sample_count, top_json, bottom_json in rows:
-        top = decode_extreme_json(top_json)
-        bottom = decode_extreme_json(bottom_json)
+    for index, row in enumerate(rows):
+        top = row.get("top") or []
+        bottom = row.get("bottom") or []
         result.append(
             {
-                "id": int(row_id),
-                "observed_at": iso(observed_at),
-                "window_seconds": float(window_seconds),
-                "sample_count": int(sample_count),
+                "id": index + 1,
+                "observed_at": iso(row.get("observed_at")),
+                "window_seconds": float(row.get("window_seconds") or 0),
+                "sample_count": int(row.get("sample_count") or 0),
                 "top_symbols": [str(item.get("symbol")) for item in top[:5] if item.get("symbol")],
                 "bottom_symbols": [str(item.get("symbol")) for item in bottom[:5] if item.get("symbol")],
             }
@@ -171,183 +112,106 @@ def recent_velocity_timepoints(database_url: str, limit: int = 200) -> list[dict
 
 
 def velocity_timepoint_snapshot(database_url: str, snapshot_id: int | None = None) -> Optional[dict]:
-    if snapshot_id is None:
-        query = """
-            SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
-            FROM binance_window_extremes
-            ORDER BY observed_at DESC
-            LIMIT 1
-        """
-        params = ()
-    else:
-        query = """
-            SELECT id, observed_at, window_seconds, sample_count, top_json, bottom_json
-            FROM binance_window_extremes
-            WHERE id = %s
-        """
-        params = (snapshot_id,)
-    row = fetch_one(database_url, query, params)
-    if not row:
+    if not database_url:
         return None
-    row_id, observed_at, window_seconds, sample_count, top_json, bottom_json = row
+    rows = latest_rows(database_url, "binance_window_extremes", limit=snapshot_id or 1)
+    if snapshot_id is None:
+        rows = latest_rows(database_url, "binance_window_extremes", limit=1)
+    elif snapshot_id and rows:
+        rows = rows[-1:]
+    if not rows:
+        return None
+    row = rows[0]
     return {
-        "id": int(row_id),
-        "observed_at": iso(observed_at),
-        "window_seconds": float(window_seconds),
-        "sample_count": int(sample_count),
-        "top": decode_extreme_json(top_json),
-        "bottom": decode_extreme_json(bottom_json),
+        "id": int(snapshot_id or 1),
+        "observed_at": iso(row.get("observed_at")),
+        "window_seconds": float(row.get("window_seconds") or 0),
+        "sample_count": int(row.get("sample_count") or 0),
+        "top": row.get("top") or [],
+        "bottom": row.get("bottom") or [],
     }
-
-
-def decode_extreme_json(raw: str | None) -> list[dict]:
-    if not raw:
-        return []
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(data, list):
-        return []
-    rows = []
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        try:
-            rows.append(
-                {
-                    "symbol": str(item["symbol"]).upper(),
-                    "change_percent": float(item["change_percent"]),
-                    "start_price": float(item["start_price"]),
-                    "end_price": float(item["end_price"]),
-                    "start_ms": item.get("start_ms"),
-                    "end_ms": item.get("end_ms"),
-                }
-            )
-        except (KeyError, TypeError, ValueError):
-            continue
-    return rows
 
 
 def recent_observations(database_url: str, symbol: str, limit: int) -> list[dict]:
     if not database_url:
         return []
-    query = """
-        SELECT observed_at, symbol, asset, binance_price, aave_price, diff_percent
-        FROM observations WHERE symbol = %s ORDER BY observed_at DESC LIMIT %s
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (symbol, limit))
-            rows = cursor.fetchall()
-    rows.reverse()
+    symbol = str(symbol)
+    rows = [row for row in _scan_rows(database_url, "observations") if str(row.get("symbol")) == symbol]
+    rows.sort(key=lambda row: str(row.get("observed_at") or ""))
+    rows = rows[-max(0, int(limit)):]
     return [
         {
-            "observed_at": iso(row[0]),
-            "symbol": str(row[1]),
-            "asset": str(row[2]),
-            "binance_price": float(row[3]),
-            "aave_price": float(row[4]),
-            "diff_percent": float(row[5]),
+            "observed_at": iso(row.get("observed_at")),
+            "symbol": str(row.get("symbol")),
+            "asset": str(row.get("asset")),
+            "binance_price": float(row.get("binance_price")),
+            "aave_price": float(row.get("aave_price")),
+            "diff_percent": float(row.get("diff_percent")),
         }
         for row in rows
     ]
 
 
 def latest_observation_prices(database_url: str, symbols: list[str]) -> dict[str, dict]:
-    if not symbols:
+    if not symbols or not database_url:
         return {}
-    if not database_url:
-        return {}
-    query = """
-        SELECT DISTINCT ON (symbol)
-               observed_at, symbol, asset, binance_price, aave_price, diff_percent
-        FROM observations
-        WHERE symbol = ANY(%s)
-        ORDER BY symbol, observed_at DESC
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (symbols,))
-            rows = cursor.fetchall()
-    result = {}
-    for observed_at, symbol, asset, binance_price, aave_price, diff_percent in rows:
-        result[str(symbol)] = {
-            "observed_at": iso(observed_at),
-            "symbol": str(symbol),
-            "asset": str(asset),
-            "binance_price": float(binance_price),
-            "aave_price": float(aave_price),
-            "diff_percent": float(diff_percent),
-        }
+    symbols = {str(symbol) for symbol in symbols}
+    result: dict[str, dict] = {}
+    for row in _scan_rows(database_url, "observations"):
+        symbol = str(row.get("symbol") or "")
+        if symbol not in symbols:
+            continue
+        if symbol not in result or str(row.get("observed_at") or "") > str(result[symbol].get("observed_at") or ""):
+            result[symbol] = {
+                "observed_at": iso(row.get("observed_at")),
+                "symbol": symbol,
+                "asset": str(row.get("asset")),
+                "binance_price": float(row.get("binance_price")),
+                "aave_price": float(row.get("aave_price")),
+                "diff_percent": float(row.get("diff_percent")),
+            }
     return result
 
 
 def latest_observation_prices_at_or_before(database_url: str, symbols: list[str], cutoff_at) -> dict[str, dict]:
-    if not symbols:
+    if not symbols or not database_url:
         return {}
-    if not database_url:
-        return {}
-    query = """
-        SELECT DISTINCT ON (symbol)
-               observed_at, symbol, asset, binance_price, aave_price, diff_percent
-        FROM observations
-        WHERE symbol = ANY(%s) AND observed_at <= %s
-        ORDER BY symbol, observed_at DESC
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (symbols, cutoff_at))
-            rows = cursor.fetchall()
-    result = {}
-    for observed_at, symbol, asset, binance_price, aave_price, diff_percent in rows:
-        result[str(symbol)] = {
-            "observed_at": iso(observed_at),
-            "symbol": str(symbol),
-            "asset": str(asset),
-            "binance_price": float(binance_price),
-            "aave_price": float(aave_price),
-            "diff_percent": float(diff_percent),
-        }
+    cutoff = str(cutoff_at)
+    symbols = {str(symbol) for symbol in symbols}
+    result: dict[str, dict] = {}
+    for row in _scan_rows(database_url, "observations"):
+        symbol = str(row.get("symbol") or "")
+        observed_at = str(row.get("observed_at") or "")
+        if symbol not in symbols or observed_at > cutoff:
+            continue
+        if symbol not in result or observed_at > str(result[symbol].get("observed_at") or ""):
+            result[symbol] = {
+                "observed_at": iso(row.get("observed_at")),
+                "symbol": symbol,
+                "asset": str(row.get("asset")),
+                "binance_price": float(row.get("binance_price")),
+                "aave_price": float(row.get("aave_price")),
+                "diff_percent": float(row.get("diff_percent")),
+            }
     return result
 
 
 def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
     if not database_url:
         return []
-    query = """
-        WITH x_rows AS (
-            SELECT observed_at, aave_price,
-                   row_number() OVER (ORDER BY observed_at DESC) AS rn
-            FROM observations
-            WHERE symbol = %s
-            ORDER BY observed_at DESC
-            LIMIT %s
-        ),
-        y_rows AS (
-            SELECT observed_at, aave_price,
-                   row_number() OVER (ORDER BY observed_at DESC) AS rn
-            FROM observations
-            WHERE symbol = %s
-            ORDER BY observed_at DESC
-            LIMIT %s
-        )
-        SELECT x_rows.observed_at, x_rows.aave_price, y_rows.aave_price
-        FROM x_rows
-        JOIN y_rows ON x_rows.rn = y_rows.rn
-        ORDER BY x_rows.rn DESC
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (x_symbol, limit, y_symbol, limit))
-            rows = cursor.fetchall()
+    x_rows = [row for row in _scan_rows(database_url, "observations") if str(row.get("symbol")) == str(x_symbol)]
+    y_rows = [row for row in _scan_rows(database_url, "observations") if str(row.get("symbol")) == str(y_symbol)]
+    x_rows.sort(key=lambda row: str(row.get("observed_at") or ""))
+    y_rows.sort(key=lambda row: str(row.get("observed_at") or ""))
+    x_rows = x_rows[-max(0, int(limit)):]
+    y_rows = y_rows[-max(0, int(limit)):]
     result = []
-    for observed_at, x_price, y_price in rows:
-        x_value = float(x_price)
-        y_value = float(y_price)
+    for x_row, y_row in zip(x_rows, y_rows):
+        x_value = float(x_row.get("aave_price"))
+        y_value = float(y_row.get("aave_price"))
         result.append(
             {
-                "observed_at": iso(observed_at),
+                "observed_at": iso(x_row.get("observed_at")),
                 "x_symbol": x_symbol,
                 "y_symbol": y_symbol,
                 "x_usdc_price": x_value,
@@ -361,106 +225,91 @@ def recent_aave_pair_prices(database_url: str, x_symbol: str, y_symbol: str, lim
 def recent_binance_pair_prices(database_url: str, x_symbol: str, y_symbol: str, limit: int) -> list[dict]:
     if not database_url:
         return []
-    query = """
-        SELECT observed_at, x_symbol, y_symbol, x_usdc_price, y_usdc_price, x_y_price, event_time, source
-        FROM binance_pair_price_history
-        WHERE (x_symbol = %s AND y_symbol = %s) OR (x_symbol = %s AND y_symbol = %s)
-        ORDER BY event_time DESC
-        LIMIT %s
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (x_symbol, y_symbol, y_symbol, x_symbol, limit))
-            rows = cursor.fetchall()
-    rows.reverse()
+    x_symbol, y_symbol = str(x_symbol), str(y_symbol)
+    rows = [
+        row
+        for row in _scan_rows(database_url, "binance_pair_price_history")
+        if (str(row.get("x_symbol")) == x_symbol and str(row.get("y_symbol")) == y_symbol)
+        or (str(row.get("x_symbol")) == y_symbol and str(row.get("y_symbol")) == x_symbol)
+    ]
+    rows.sort(key=lambda row: str(row.get("event_time") or ""))
+    rows = rows[-max(0, int(limit)):]
     result = []
-    for observed_at, stored_x, stored_y, stored_x_price, stored_y_price, stored_pair_price, event_time, source in rows:
-        stored_x = str(stored_x)
-        stored_y = str(stored_y)
-        stored_x_price = float(stored_x_price)
-        stored_y_price = float(stored_y_price)
+    for row in rows:
+        stored_x, stored_y = str(row.get("x_symbol")), str(row.get("y_symbol"))
+        stored_x_price, stored_y_price = float(row.get("x_usdc_price")), float(row.get("y_usdc_price"))
         if stored_x == x_symbol and stored_y == y_symbol:
-            x_price = stored_x_price
-            y_price = stored_y_price
-            pair_price = float(stored_pair_price)
+            x_price, y_price = stored_x_price, stored_y_price
+            pair_price = float(row.get("x_y_price")) if row.get("x_y_price") is not None else None
         else:
-            x_price = stored_y_price
-            y_price = stored_x_price
+            x_price, y_price = stored_y_price, stored_x_price
             pair_price = x_price / y_price if y_price > 0 else None
         result.append(
             {
-                "observed_at": iso(event_time or observed_at),
+                "observed_at": iso(row.get("event_time") or row.get("observed_at")),
                 "x_symbol": x_symbol,
                 "y_symbol": y_symbol,
                 "x_usdc_price": x_price,
                 "y_usdc_price": y_price,
                 "x_y_price": pair_price,
-                "source": str(source),
+                "source": str(row.get("source")),
             }
         )
     return result
 
 
 def latest_candidate_price_rows(database_url: str, symbols: list[str]) -> dict[str, dict]:
-    if not symbols:
-        return {}
     if not database_url:
         return {}
-    query = """
-        SELECT DISTINCT ON (symbol)
-               observed_at, symbol, price_usdc, change_percent, rank_side,
-               rank_position, event_time, source
-        FROM binance_candidate_price_history
-        WHERE symbol = ANY(%s)
-        ORDER BY symbol, event_time DESC
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (symbols,))
-            rows = cursor.fetchall()
-    result = {}
-    for observed_at, symbol, price_usdc, change_percent, rank_side, rank_position, event_time, source in rows:
-        end_price = float(price_usdc)
-        change = float(change_percent)
-        start_divisor = 1 + change / 100
-        start_price = end_price / start_divisor if start_divisor > 0 else end_price
-        result[str(symbol)] = {
-            "observed_at": iso(event_time or observed_at),
-            "symbol": str(symbol),
-            "start_price": start_price,
-            "end_price": end_price,
-            "change_percent": change,
-            "rank_side": str(rank_side),
-            "rank_position": int(rank_position),
-            "source": str(source),
-        }
+    symbols = {str(symbol) for symbol in symbols}
+    result: dict[str, dict] = {}
+    for row in _scan_rows(database_url, "binance_candidate_price_history"):
+        symbol = str(row.get("symbol") or "")
+        if symbol not in symbols:
+            continue
+        if symbol not in result or str(row.get("event_time") or "") > str(result[symbol].get("event_time") or ""):
+            result[symbol] = dict(row)
+    for row in _scan_rows(database_url, "binance_pair_price_history"):
+        for symbol_key in ("x_symbol", "y_symbol"):
+            symbol = str(row.get(symbol_key) or "")
+            if symbol not in symbols:
+                continue
+            if symbol not in result or str(row.get("event_time") or "") > str(result[symbol].get("event_time") or ""):
+                result[symbol] = dict(row)
     return result
 
 
 def recent_binance_price_history(database_url: str, symbol: str, limit: int) -> list[dict]:
     if not database_url:
         return []
-    query = """
-        SELECT observed_at, symbol, price, event_time, source
-        FROM binance_price_history
-        WHERE symbol = %s
-        ORDER BY event_time DESC
-        LIMIT %s
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (symbol, limit))
-            rows = cursor.fetchall()
-    rows.reverse()
+    symbol = str(symbol)
+    rows = [row for row in _scan_rows(database_url, "binance_price_history") if str(row.get("symbol")) == symbol]
+    rows.sort(key=lambda row: str(row.get("event_time") or ""))
+    rows = rows[-max(0, int(limit)):]
     return [
         {
-            "observed_at": iso(row[3] or row[0]),
-            "symbol": str(row[1]),
-            "asset": str(row[1]).replace("USDT", ""),
-            "binance_price": float(row[2]),
-            "aave_price": None,
-            "diff_percent": None,
-            "source": str(row[4]),
+            "observed_at": iso(row.get("observed_at")),
+            "symbol": str(row.get("symbol")),
+            "price": float(row.get("price")),
+            "event_time": str(row.get("event_time")),
+            "source": str(row.get("source")),
         }
         for row in rows
     ]
+
+
+__all__ = [
+    "available_candidate_symbols",
+    "available_chart_symbols",
+    "database_table_counts",
+    "latest_candidate_price_rows",
+    "latest_observation_prices",
+    "latest_observation_prices_at_or_before",
+    "observation_count",
+    "recent_aave_pair_prices",
+    "recent_binance_pair_prices",
+    "recent_binance_price_history",
+    "recent_observations",
+    "recent_velocity_timepoints",
+    "velocity_timepoint_snapshot",
+]

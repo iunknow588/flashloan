@@ -13,10 +13,15 @@ import time
 from typing import Any, Callable
 
 from core.chain_data_registry import chain_data_by_chain_id
-from core.env_loader import local_json_only_enabled
 from core.parameter_config import LEGACY_STRATEGY_CONFIG_PATHS, STRATEGY_CONFIG_PATH, read_json_parameter
 from market.binance_market.dex_surfaces import dex_overview_payload, dex_quote_routes_payload
 from dex.runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, capture_onchain_trigger_context
+from dex.runtime.dex_opportunity_auto_execute import (
+    DexAutoExecuteRunner,
+    auto_execute_callback_from_env as default_auto_execute_callback,
+    auto_execute_cooldown_seconds as default_auto_execute_cooldown_seconds,
+    auto_execute_env_enabled as default_auto_execute_env_enabled,
+)
 from dex.runtime.dex_opportunity_helpers import (
     _apply_onchain_evidence_to_attempt,
     _chain_key,
@@ -42,11 +47,35 @@ QuotePayloadProvider = Callable[..., dict[str, Any]]
 RecordAttempts = Callable[[list[dict[str, Any]]], dict[str, Any]]
 OnchainEvidenceProvider = Callable[..., dict[str, Any]]
 TriggerContextProvider = Callable[..., dict[str, Any]]
+AutoExecuteCallback = Callable[..., dict[str, Any]]
 
 CACHE_PATH = Path(__file__).resolve().parent / "cache" / "dex_opportunity_snapshot.json"
 _SCANNER: DexOpportunityScanner | None = None
 _SCANNER_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
+
+
+def _route_closed_loop_group_key(route: dict[str, Any]) -> str:
+    addresses = route.get("routeAddresses") if isinstance(route.get("routeAddresses"), list) else route.get("addresses")
+    if isinstance(addresses, list):
+        for item in addresses:
+            text = str(item or "").strip().lower()
+            if text:
+                return text
+    symbols = route.get("routeSymbols") if isinstance(route.get("routeSymbols"), list) else route.get("symbols")
+    if isinstance(symbols, list):
+        for item in symbols:
+            text = str(item or "").strip().upper()
+            if text:
+                return text
+    return "fallback"
+
+
+def _route_is_closed_loop_quad(route: dict[str, Any]) -> bool:
+    symbols = route.get("routeSymbols") if isinstance(route.get("routeSymbols"), list) else route.get("symbols")
+    if not isinstance(symbols, list) or len(symbols) != 4:
+        return False
+    return str(symbols[0] or "").strip().upper() == str(symbols[-1] or "").strip().upper()
 
 
 def _attempt_route_identity(attempt: dict[str, Any]) -> tuple[Any, ...]:
@@ -74,6 +103,22 @@ def _scanner_snapshot_ttl_seconds() -> float:
         return 600.0
 
 
+def _chain_scope_key(chain_id: int | None, protocols: list[str] | None = None) -> str:
+    """Return the snapshot cache key for a chain plus its requested protocols.
+
+    A chain can be watched with different protocol scopes.  Keying only by chain
+    lets a ``protocols=[]`` scan overwrite a ``protocols=['uniswap_v4']`` scan,
+    which drops route evidence from the quote-routes page.
+    """
+    base = _chain_key(chain_id)
+    normalized = tuple(
+        sorted(str(item).strip().lower() for item in (protocols or []) if str(item).strip())
+    )
+    if not normalized:
+        return base
+    return f"{base}|protocols:{','.join(normalized)}"
+
+
 def _scanner_evidence_worker_count() -> int:
     saved = read_json_parameter(STRATEGY_CONFIG_PATH, legacy_paths=LEGACY_STRATEGY_CONFIG_PATHS) or {}
     raw = saved.get("DEX_SCAN_WORKERS", 1)
@@ -81,6 +126,15 @@ def _scanner_evidence_worker_count() -> int:
         return max(1, int(float(raw)))
     except (TypeError, ValueError):
         return 1
+
+
+def _scanner_evidence_timeout_seconds() -> float:
+    saved = read_json_parameter(STRATEGY_CONFIG_PATH, legacy_paths=LEGACY_STRATEGY_CONFIG_PATHS) or {}
+    raw = saved.get("DEX_EVIDENCE_TIMEOUT_SECONDS", os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "90"))
+    try:
+        return max(60.0, float(raw))
+    except (TypeError, ValueError):
+        return 90.0
 
 
 def _is_robinhood_family_network(chain_id: int | None) -> bool:
@@ -166,30 +220,6 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
                 "firstFailureAmountRaw": str(retry_amount_raw) if succeeded_evidence is None else str(original_int_raw),
                 "attempts": probe_attempts,
             }
-    if str(evidence.get("status") or "").lower() == "live_evidence_deferred":
-        trigger = kwargs.get("trigger_context") or {}
-        latest_trigger = {
-            key: value
-            for key, value in trigger.items()
-            if isinstance(key, str) and "block" not in key.lower()
-        }
-        latest_trigger["source"] = "latest_block_fallback_historical_state_unavailable"
-        latest_trigger["observedAt"] = latest_trigger.get("observedAt") or kwargs.get("observed_at")
-        retry_kwargs = {key: value for key, value in kwargs.items() if key != "trigger_context"}
-        evidence = build_route_onchain_evidence(*args, trigger_context=latest_trigger, **retry_kwargs)
-        if str(evidence.get("status") or "").lower() == "live_evidence_deferred":
-            evidence = dict(evidence)
-            evidence["status"] = "live_quote_failed"
-            evidence["executionTrust"] = "live_quote_failed"
-            evidence["trustedForExecution"] = False
-            evidence["blockers"] = list(evidence.get("blockers") or []) + [
-                "historical state unavailable after retry; on-chain verification failed instead of being deferred"
-            ]
-            evidence["errorStack"] = list(evidence.get("errorStack") or []) + [{
-                "module": "DEX",
-                "code": "historical_state_unavailable",
-                "message": "historical state unavailable after retry; on-chain verification failed instead of being deferred",
-            }]
     return evidence
 
 
@@ -336,11 +366,30 @@ def build_dex_opportunity_attempts(
     attempts = []
     evidence_results: dict[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]] = {}
     if selected_indexes:
-        evidence_timeout_seconds = max(0.0, float(os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "45") or 45))
+        evidence_timeout_seconds = _scanner_evidence_timeout_seconds()
         requested_workers = max(1, int(evidence_workers))
+
+        route_group_by_key: dict[str, list[dict[str, Any]]] = {}
+        for _original_index, _route, _attempt in selected_routes:
+            if not isinstance(_route, dict):
+                continue
+            group_key = _route_closed_loop_group_key(_route)
+            route_group_by_key.setdefault(group_key, []).append(_route)
+
+        group_evidence_cache: dict[str, dict[str, Any]] = {}
+        group_evidence_lock = threading.Lock()
 
         def _review_one(item: tuple[int, dict[str, Any], dict[str, Any], int]) -> tuple[int, tuple[dict[str, Any], dict[str, Any], dict[str, Any], int]]:
             attempt_index, route, attempt, original_index = item
+            group_key = _route_closed_loop_group_key(route)
+            if _route_is_closed_loop_quad(route):
+                with group_evidence_lock:
+                    cached = group_evidence_cache.get(group_key)
+                if cached is not None:
+                    cached_evidence = deepcopy(cached)
+                    if isinstance(cached_evidence, dict):
+                        cached_evidence["closedLoopGroupEvidence"] = {"shared": True, "groupKey": group_key}
+                    return attempt_index, (cached_evidence, route, attempt, original_index)
             evidence = _evidence_provider_with_timeout(
                 evidence_provider,
                 evidence_timeout_seconds,
@@ -349,7 +398,13 @@ def build_dex_opportunity_attempts(
                 chain_id=chain_id,
                 observed_at=observed_at,
                 trigger_context=trigger_context or {},
+                closed_loop_routes_group=route_group_by_key.get(group_key) or [route],
             )
+            if _route_is_closed_loop_quad(route):
+                if isinstance(evidence, dict):
+                    evidence["closedLoopGroupEvidence"] = {"shared": False, "groupKey": group_key}
+                with group_evidence_lock:
+                    group_evidence_cache.setdefault(group_key, deepcopy(evidence))
             return attempt_index, (evidence, route, attempt, original_index)
 
         review_items = [
@@ -409,10 +464,13 @@ class DexOpportunityScanner:
         *,
         interval_seconds: float = 180.0,
         record_cooldown_seconds: float = 60.0,
+        auto_execute_cooldown_seconds: float | None = None,
         quote_payload_provider: QuotePayloadProvider | None = None,
         record_attempts: RecordAttempts | None = None,
         onchain_evidence_provider: OnchainEvidenceProvider | None = None,
         trigger_context_provider: TriggerContextProvider | None = None,
+        auto_execute_callback: AutoExecuteCallback | None = None,
+        auto_execute_enabled: bool | None = None,
         cache_path: Path | None = CACHE_PATH,
         record_opportunities: bool = True,
         max_onchain_evidence_routes: int = 5,
@@ -425,10 +483,21 @@ class DexOpportunityScanner:
         self.periodic_scan_enabled = bool(periodic_scan_enabled)
         self._queue_poll_seconds = max(0.25, min(1.0, self.interval_seconds / 4.0))
         self.record_cooldown_seconds = max(0.0, float(record_cooldown_seconds))
+        self.auto_execute_cooldown_seconds = max(
+            0.0,
+            float(auto_execute_cooldown_seconds if auto_execute_cooldown_seconds is not None else default_auto_execute_cooldown_seconds()),
+        )
         self.quote_payload_provider = quote_payload_provider or default_quote_payload_provider
         self.record_attempts = record_attempts or default_record_attempts
         self.onchain_evidence_provider = onchain_evidence_provider or _scanner_onchain_evidence_provider
         self.trigger_context_provider = trigger_context_provider or capture_onchain_trigger_context
+        self.auto_execute_callback = auto_execute_callback
+        self.auto_execute_enabled = bool(auto_execute_enabled if auto_execute_enabled is not None else default_auto_execute_env_enabled())
+        self._auto_execute_runner = DexAutoExecuteRunner(
+            callback=self.auto_execute_callback,
+            enabled=self.auto_execute_enabled,
+            cooldown_seconds=self.auto_execute_cooldown_seconds,
+        )
         self.cache_path = cache_path
         self.record_opportunities = bool(record_opportunities)
         self.max_onchain_evidence_routes = max(0, int(max_onchain_evidence_routes))
@@ -450,6 +519,8 @@ class DexOpportunityScanner:
         self._recorded_signatures: dict[tuple[Any, ...], float] = {}
         self._last_recording: dict[str, Any] = {"recorded": 0, "source": "empty", "error": None}
         self._recorded_attempt_count = 0
+        self._auto_execute_count = 0
+        self._last_auto_execute_at: str | None = None
         self._last_error: str | None = None
         self._scan_count = 0
         self._last_scan_started_at: str | None = None
@@ -492,6 +563,8 @@ class DexOpportunityScanner:
                 self._last_scan_started_at = scanner.get("last_scan_started_at")
                 self._last_scan_finished_at = scanner.get("last_scan_finished_at")
                 self._last_duration_ms = scanner.get("last_duration_ms")
+                self._auto_execute_count = int(scanner.get("auto_execute_count") or 0)
+                self._last_auto_execute_at = scanner.get("last_auto_execute_at")
                 last_recording = scanner.get("last_recording")
                 if isinstance(last_recording, dict):
                     self._last_recording = last_recording
@@ -511,14 +584,31 @@ class DexOpportunityScanner:
     def watch(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> None:
         normalized_protocols = tuple(str(item).strip().lower() for item in (protocols or []) if str(item).strip())
         with self._lock:
-            self._watched[_chain_key(chain_id)] = (chain_id, normalized_protocols)
+            self._watched[_chain_scope_key(chain_id, list(normalized_protocols))] = (chain_id, normalized_protocols)
+
+    def _latest_chain_snapshot_for_status(self, chain_id: int | None) -> dict[str, Any] | None:
+        if chain_id is None:
+            return None
+        base = _chain_key(chain_id)
+        exact = self._snapshots.get(base)
+        if exact is not None:
+            return deepcopy(exact)
+        candidates = [
+            snapshot
+            for key, snapshot in self._snapshots.items()
+            if key == base or key.startswith(base + "|")
+        ]
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: str((item or {}).get("updated_at") or ""), reverse=True)
+        return deepcopy(candidates[0])
 
     def status(self, *, chain_id: int | None = None) -> dict[str, Any]:
         thread = self._thread
         with self._lock:
             watched_keys = sorted(self._watched)
             queued_count = len(self._queued_scans)
-            snapshot = deepcopy(self._snapshots.get(_chain_key(chain_id))) if chain_id is not None else None
+            snapshot = self._latest_chain_snapshot_for_status(chain_id)
             scan_count = self._scan_count
             last_error = self._last_error
             last_started = self._last_scan_started_at
@@ -526,10 +616,15 @@ class DexOpportunityScanner:
             last_duration = self._last_duration_ms
             last_recording = deepcopy(self._last_recording)
             recorded_attempt_count = self._recorded_attempt_count
+            auto_execute_count = self._auto_execute_count
+            last_auto_execute_at = self._last_auto_execute_at
         return {
             "running": bool(thread and thread.is_alive()),
             "interval_seconds": self.interval_seconds,
             "record_cooldown_seconds": self.record_cooldown_seconds,
+            "auto_execute_cooldown_seconds": self.auto_execute_cooldown_seconds,
+            "auto_execute_enabled": self.auto_execute_enabled,
+            "auto_execute_callback_configured": self.auto_execute_callback is not None,
             "max_onchain_evidence_routes": self.max_onchain_evidence_routes,
             "max_recordable_routes": self.max_recordable_routes,
             "testnet_max_onchain_evidence_routes": self.testnet_max_onchain_evidence_routes,
@@ -540,6 +635,8 @@ class DexOpportunityScanner:
             "chain_id": chain_id,
             "scan_count": scan_count,
             "recorded_attempt_count": recorded_attempt_count,
+            "auto_execute_count": auto_execute_count,
+            "last_auto_execute_at": last_auto_execute_at,
             "last_recording": last_recording,
             "last_error": last_error,
             "last_scan_started_at": last_started,
@@ -548,10 +645,12 @@ class DexOpportunityScanner:
             "snapshot_updated_at": snapshot.get("updated_at") if snapshot else None,
         }
 
-    def snapshot(self, *, chain_id: int | None = None) -> dict[str, Any]:
-        key = _chain_key(chain_id)
+    def snapshot(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
+        key = _chain_scope_key(chain_id, protocols)
         with self._lock:
             snapshot = deepcopy(self._snapshots.get(key))
+            if snapshot is None and protocols is None and chain_id is not None:
+                snapshot = self._latest_chain_snapshot_for_status(chain_id)
         if snapshot is None:
             snapshot = {
                 "chain_id": chain_id,
@@ -579,7 +678,7 @@ class DexOpportunityScanner:
             for chain_id, protocols in watched:
                 if self._stop.is_set():
                     break
-                key = _chain_key(chain_id)
+                key = _chain_scope_key(chain_id, list(protocols))
                 now = time.monotonic()
                 with self._lock:
                     last_periodic_at = self._last_periodic_scan_at.get(key)
@@ -594,7 +693,7 @@ class DexOpportunityScanner:
     def scan_now(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
         self.watch(chain_id=chain_id, protocols=protocols)
         self._scan_one(chain_id=chain_id, protocols=protocols or [])
-        return self.snapshot(chain_id=chain_id)
+        return self.snapshot(chain_id=chain_id, protocols=protocols)
 
     def scan_async(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
         self.watch(chain_id=chain_id, protocols=protocols)
@@ -603,7 +702,7 @@ class DexOpportunityScanner:
             if scan_key not in self._queued_scans:
                 self._queued_scans.append(scan_key)
         self.start(chain_id=chain_id, protocols=protocols)
-        snapshot = self.snapshot(chain_id=chain_id)
+        snapshot = self.snapshot(chain_id=chain_id, protocols=protocols)
         snapshot["queued"] = True
         return snapshot
 
@@ -620,7 +719,7 @@ class DexOpportunityScanner:
     def _scan_one(self, *, chain_id: int | None, protocols: list[str]) -> None:
         started_at = _now_iso()
         started = time.perf_counter()
-        key = _chain_key(chain_id)
+        key = _chain_scope_key(chain_id, protocols)
         trigger_context = self.trigger_context_provider(
             chain_id=chain_id,
             network=_network_for_chain_id(chain_id),
@@ -701,6 +800,8 @@ class DexOpportunityScanner:
                 "chain_id": None,
                 "scan_count": self._scan_count,
                 "recorded_attempt_count": self._recorded_attempt_count,
+                "auto_execute_count": self._auto_execute_count,
+                "last_auto_execute_at": self._last_auto_execute_at,
                 "last_recording": deepcopy(self._last_recording),
                 "last_error": self._last_error,
                 "last_scan_started_at": self._last_scan_started_at,
@@ -744,6 +845,7 @@ class DexOpportunityScanner:
             with self._lock:
                 self._last_recording = recording
             return recording
+        auto_execute_result = self._auto_execute_ready_attempts(attempts, chain_id=chain_id, observed_at=observed_at)
         if not self.record_opportunities:
             recording = {
                 "candidate_count": len(attempts),
@@ -751,6 +853,8 @@ class DexOpportunityScanner:
                 "source": "disabled",
                 "error": None,
             }
+            if auto_execute_result.get("autoExecuteEnabled"):
+                recording.update(auto_execute_result)
             with self._lock:
                 self._last_recording = recording
             return recording
@@ -776,17 +880,37 @@ class DexOpportunityScanner:
             "attempted_record_count": len(cooled_attempts),
             **(recording if isinstance(recording, dict) else {"recorded": 0, "source": "unknown", "error": None}),
         }
+        if auto_execute_result.get("autoExecuteEnabled"):
+            recording.update(auto_execute_result)
         with self._lock:
             self._last_recording = recording
             self._recorded_attempt_count += int(recording.get("recorded") or 0)
         return recording
+
+    def _auto_execute_ready_attempts(
+        self,
+        attempts: list[dict[str, Any]],
+        *,
+        chain_id: int | None,
+        observed_at: str,
+    ) -> dict[str, Any]:
+        result = self._auto_execute_runner.run_ready_attempts(
+            attempts,
+            chain_id=chain_id,
+            observed_at=observed_at,
+        )
+        executed_count = int(result.get("autoExecuted") or 0)
+        if executed_count:
+            with self._lock:
+                self._auto_execute_count += executed_count
+                self._last_auto_execute_at = observed_at
+        return result
 
 
 def get_dex_opportunity_scanner() -> DexOpportunityScanner:
     global _SCANNER
     with _SCANNER_LOCK:
         if _SCANNER is None:
-            local_only = local_json_only_enabled()
             _SCANNER = DexOpportunityScanner(
                 interval_seconds=_env_float("DEX_OPPORTUNITY_SCAN_INTERVAL_SECONDS", 180.0, minimum=1.0, maximum=3600.0),
                 record_cooldown_seconds=_env_float(
@@ -795,7 +919,15 @@ def get_dex_opportunity_scanner() -> DexOpportunityScanner:
                     minimum=0.0,
                     maximum=3600.0,
                 ),
-                record_opportunities=not local_only,
+                auto_execute_cooldown_seconds=_env_float(
+                    "DEX_AUTO_EXECUTE_COOLDOWN_SECONDS",
+                    600.0,
+                    minimum=0.0,
+                    maximum=86400.0,
+                ),
+                auto_execute_callback=default_auto_execute_callback(),
+                auto_execute_enabled=default_auto_execute_env_enabled(),
+                record_opportunities=True,
                 evidence_workers=_scanner_evidence_worker_count(),
                 testnet_max_onchain_evidence_routes=int(
                     _env_float("DEX_OPPORTUNITY_TESTNET_MAX_ONCHAIN_EVIDENCE_ROUTES", 10.0, minimum=1.0, maximum=1000.0)
@@ -813,7 +945,7 @@ def ensure_dex_opportunity_scanner_running(
 ) -> DexOpportunityScanner:
     scanner = get_dex_opportunity_scanner()
     scanner.start(chain_id=chain_id, protocols=protocols)
-    snapshot = scanner.snapshot(chain_id=chain_id)
+    snapshot = scanner.snapshot(chain_id=chain_id, protocols=protocols)
     if not (snapshot.get("snapshot") or {}).get("payload"):
         try:
             dex_overview_payload(
@@ -837,7 +969,7 @@ def ensure_dex_opportunity_scanner_running(
                     "recording": {"candidate_count": 0, "recorded": 0, "source": "warmup", "error": None},
                 }
                 with scanner._lock:
-                    scanner._snapshots[_chain_key(chain_id)] = warmed
+                    scanner._snapshots[_chain_scope_key(chain_id, protocols)] = warmed
         except Exception:
             logger.warning("failed to warm DEX opportunity scanner snapshot", exc_info=True)
     return scanner
@@ -851,7 +983,7 @@ def run_dex_opportunity_scan_now(*, chain_id: int | None = None, protocols: list
 def dex_opportunity_snapshot(*, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
     scanner = get_dex_opportunity_scanner()
     scanner.start(chain_id=chain_id, protocols=protocols)
-    return scanner.snapshot(chain_id=chain_id)
+    return scanner.snapshot(chain_id=chain_id, protocols=protocols)
 
 
 def dex_opportunity_scanner_status(*, chain_id: int | None = None) -> dict[str, Any]:

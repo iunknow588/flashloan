@@ -1,4 +1,4 @@
-from core.db.storage_common import db_connection, require_psycopg
+from core.db.storage_common import db_connection
 from core.db.storage_market import (
     append_arbitrage_simulation,
     append_binance_candidate_price_history,
@@ -16,5 +16,4 @@ __all__ = [
     "append_binance_price_history",
     "append_observations",
     "db_connection",
-    "require_psycopg",
 ]

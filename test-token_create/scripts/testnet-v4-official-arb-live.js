@@ -30,6 +30,14 @@ function parseRouteSymbols(value) {
     .filter(Boolean);
 }
 
+function parseRouteAddresses(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s*,\s*|\s*->\s*|\s+/) 
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function sortPair(a, b) {
   return BigInt(a.toLowerCase()) < BigInt(b.toLowerCase()) ? [a, b] : [b, a];
 }
@@ -117,15 +125,29 @@ async function main() {
   const routeText = readArg("route", process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_ROUTE || "TZ -> TB -> TA -> TZ");
   const symbols = parseRouteSymbols(routeText);
   const symbolAddress = { TZ: tz, TA: ta, TB: tb };
-  const routeAddresses = symbols.map((symbol) => {
-    const address = symbolAddress[symbol];
-    if (!address) {
-      throw new Error(`official V4 arb route contains unsupported symbol ${symbol}; expected TA/TB/TZ`);
+  if (symbols.length !== 4 || symbols[0] !== symbols[3] || new Set(symbols).size !== 3) {
+    throw new Error("official V4 arb route must be a 4-symbol closed triangle made of 3 unique tokens, e.g. A -> B -> C -> A");
+  }
+  const envAddresses = parseRouteAddresses(process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_ADDRESSES || "");
+  const routeAddresses = envAddresses.length > 0
+    ? envAddresses
+    : symbols.map((symbol) => {
+        const address = symbolAddress[symbol];
+        if (!address) {
+          throw new Error(`official V4 arb route contains unsupported symbol ${symbol}; pass ROBINHOOD_TESTNET_OFFICIAL_ARB_ADDRESSES as 4 comma-separated token addresses`);
+        }
+        return address;
+      });
+  if (routeAddresses.length !== symbols.length) {
+    throw new Error("official V4 arb route address list length must match route symbols length");
+  }
+  if (routeAddresses[0].toLowerCase() !== routeAddresses[3].toLowerCase()) {
+    throw new Error("official V4 arb route must close: first and last token addresses must match");
+  }
+  for (const address of routeAddresses) {
+    if (!ethers.isAddress(address)) {
+      throw new Error(`official V4 arb route contains invalid token address: ${address}`);
     }
-    return address;
-  });
-  if (routeAddresses.length !== 4 || routeAddresses[0].toLowerCase() !== routeAddresses[3].toLowerCase()) {
-    throw new Error("official V4 arb route must be a 4-symbol closed triangle, e.g. TZ -> TB -> TA -> TZ");
   }
   const keys = [
     makeKey(routeAddresses[0], routeAddresses[1], fee, tickSpacing, hooks),
@@ -190,9 +212,60 @@ async function main() {
   const reverseDirections = [!directions[2], !directions[1], !directions[0]];
   const keysets = [keys, reverseKeys];
   const directionsets = [directions, reverseDirections];
+  const amountAlreadyBest = String(
+    readArg("amount-is-best", process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT_IS_BEST || "false")
+  ).toLowerCase() === "true"
+    && String(process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_REUSE_AMOUNT || "false").toLowerCase() === "true";
+  let preview = null;
+  let selectedAmountBig;
+  let selectedAmountText;
+  if (amountAlreadyBest) {
+    selectedAmountBig = amountIn;
+    selectedAmountText = amountText;
+  } else {
+    try {
+      preview = await arb.previewArbitrageBestAmount.staticCall(
+        routeAddresses[0],
+        keysets,
+        directionsets,
+        amountIn,
+        minProfit,
+        false
+      );
+      selectedAmountBig = preview.selectedAmount;
+      selectedAmountText = ethers.formatUnits(selectedAmountBig, 18);
+    } catch (error) {
+      const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+      console.log(
+        "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+          JSON.stringify({
+            ok: false,
+            error: "static_arb_call_reverted",
+            detail: revertInfo.errorDetail || error.shortMessage || error.reason || error.message || error,
+            errorData: revertInfo.data,
+            errorSelector: revertInfo.selector,
+            errorDetail: revertInfo.errorDetail,
+            routeSymbols: symbols,
+            amount: amountText,
+            initialAmount: amountText,
+            staticCall: "reverted",
+            method: "previewArbitrageBestAmount",
+          })
+      );
+      console.error("official V4 previewArbitrageBestAmount reverted");
+      console.error(`  shortMessage=${error.shortMessage || ""}`);
+      console.error(`  data=${revertInfo.data}`);
+      console.error(`  errorDetail=${revertInfo.errorDetail}`);
+      throw error;
+    }
+  }
+  const bestAmountMethod = amountAlreadyBest
+    ? "preselected_best_amount"
+    : "onchain_preview_adaptive_best_amount";
+  const bestAmountAttemptedCount = preview ? preview.attemptedCount.toString() : "1";
   let result;
   try {
-    result = await arb.runArbitrageBest.staticCall(routeAddresses[0], keysets, directionsets, amountIn, minProfit);
+    result = await arb.runArbitrageBest.staticCall(routeAddresses[0], keysets, directionsets, selectedAmountBig, minProfit);
   } catch (error) {
     const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
     console.log(
@@ -206,20 +279,29 @@ async function main() {
           errorDetail: revertInfo.errorDetail,
           routeSymbols: symbols,
           amount: amountText,
+          initialAmount: amountText,
+          bestAmount: selectedAmountText,
+          bestAmountRaw: selectedAmountBig.toString(),
+          bestAmountMethod,
+          bestAmountAttemptedCount,
+          amountIsBest: amountAlreadyBest,
           staticCall: "reverted",
           method: "runArbitrageBest",
         })
     );
-    console.error("official V4 static arbitrageBest reverted");
+    console.error("official V4 static arbitrageBest reverted after best amount preview");
     console.error(`  shortMessage=${error.shortMessage || ""}`);
     console.error(`  data=${revertInfo.data}`);
     console.error(`  errorDetail=${revertInfo.errorDetail}`);
     console.error(`  reason=${error.reason || error.message || error}`);
     throw error;
   }
-  const routeIndex = Number(result[4]);
+  const routeIndex = Number(result[4] ?? Number(preview?.selectedRouteIndex ?? 0));
   const selectedSymbols = routeIndex === 0 ? symbols : [symbols[0], symbols[2], symbols[1], symbols[0]];
-  console.log("official V4 static arbitrageBest result:");
+  console.log(`official V4 ${amountAlreadyBest ? "preselected amount" : "adaptive best amount preview"} + static arbitrageBest result:`);
+  console.log(`  initialAmount=${amountText}`);
+  console.log(`  bestAmount=${selectedAmountText} ${symbols[0]}`);
+  console.log(`  attemptedCount=${bestAmountAttemptedCount}`);
   console.log(`  selected routeIndex=${routeIndex}`);
   console.log(`  selected route=${selectedSymbols.join(" -> ")}`);
   console.log(`  outTb=${ethers.formatUnits(result[0], 18)}`);
@@ -227,6 +309,8 @@ async function main() {
   console.log(`  out${symbols[0]}=${ethers.formatUnits(result[2], 18)}`);
   console.log(`  profit=${ethers.formatUnits(result[3], 18)} ${symbols[0]}`);
   const staticOk = result[3] > 0n;
+  const profitHuman = ethers.formatUnits(result[3], 18);
+  const outAmountHuman = ethers.formatUnits(result[2], 18);
   console.log(
     "\nOFFICIAL_V4_ARB_RESULT_JSON " +
       JSON.stringify({
@@ -236,11 +320,20 @@ async function main() {
         routeSymbols: symbols,
         selectedRouteSymbols: selectedSymbols,
         amount: amountText,
+        initialAmount: amountText,
+        bestAmount: selectedAmountText,
+        bestAmountRaw: selectedAmountBig.toString(),
+        bestAmountMethod,
+        bestAmountAttemptedCount,
+        amountIsBest: amountAlreadyBest,
         staticCall: staticOk ? "ok" : "not_profitable",
         method: "runArbitrageBest",
         routeIndex,
         profit: result[3].toString(),
+        profitHuman,
+        profitRaw: result[3].toString(),
         outAmount: result[2].toString(),
+        outAmountHuman,
       })
   );
   if (!staticOk) {
@@ -257,20 +350,43 @@ async function main() {
           routeSymbols: symbols,
           selectedRouteSymbols: selectedSymbols,
           amount: amountText,
+          initialAmount: amountText,
+          bestAmount: selectedAmountText,
+          bestAmountRaw: selectedAmountBig.toString(),
+          bestAmountMethod,
+          bestAmountAttemptedCount,
+          amountIsBest: amountAlreadyBest,
           staticCall: "ok",
           broadcastDisabled: true,
           method: "runArbitrageBest",
           routeIndex,
           profit: result[3].toString(),
+          profitHuman,
+          profitRaw: result[3].toString(),
           outAmount: result[2].toString(),
+          outAmountHuman,
         })
     );
     return;
   }
 
-  const tx = await arb.runArbitrageBest(routeAddresses[0], keysets, directionsets, amountIn, minProfit);
-  const receipt = await tx.wait();
-  const txHash = receipt.hash;
+  const tx = await arb.runArbitrageBestWithSelectedAmount(
+    routeAddresses[0],
+    keysets,
+    directionsets,
+    selectedAmountBig,
+    minProfit,
+    true,
+    routeIndex
+  );
+  const txHash = tx.hash;
+  let receipt = null;
+  let waitError = null;
+  try {
+    receipt = await tx.wait();
+  } catch (error) {
+    waitError = error;
+  }
   const record = {
     txHash,
     runAt: new Date().toISOString(),
@@ -278,11 +394,20 @@ async function main() {
     arb: await arb.getAddress(),
     poolManager: poolManagerAddress,
     amountIn: amountIn.toString(),
+    initialAmountIn: amountIn.toString(),
+    selectedAmountIn: selectedAmountBig.toString(),
     outTb: result[0].toString(),
     outTa: result[1].toString(),
     outTz: result[2].toString(),
     profit: result[3].toString(),
-    gasUsed: receipt.gasUsed.toString(),
+    profitHuman,
+    profitRaw: result[3].toString(),
+    selectedAmount: selectedAmountText,
+    selectedAmountMethod: bestAmountMethod,
+    selectedAmountAttemptedCount: bestAmountAttemptedCount,
+    amountIsBest: true,
+    gasUsed: receipt ? receipt.gasUsed.toString() : "0",
+    waitError: waitError ? (waitError.shortMessage || waitError.reason || waitError.message || String(waitError)).slice(0, 200) : null,
     route: { keys, directions },
     bestRoute: { keysets, directionsets, routeIndex },
     selectedRouteSymbols: selectedSymbols,
@@ -292,10 +417,47 @@ async function main() {
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + "\n", "utf8");
   console.log("official V4 live arbitrageBest broadcast:");
   console.log(`  txHash=${txHash}`);
-  console.log(`  gasUsed=${receipt.gasUsed}`);
+  console.log(`  gasUsed=${receipt ? receipt.gasUsed : "pending"}`);
   console.log(`  routeIndex=${routeIndex}`);
   console.log(`  selected route=${selectedSymbols.join(" -> ")}`);
   console.log(`  profit=${ethers.formatUnits(result[3], 18)} ${symbols[0]}`);
+  if (waitError) {
+    const revertInfo = decodeRevertData(waitError.data || waitError.info?.error?.data || "");
+    console.log(
+      "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+        JSON.stringify({
+          ok: false,
+          error: "broadcast_receipt_wait_failed",
+          detail: waitError.shortMessage || waitError.reason || waitError.message || "broadcast receipt wait failed",
+          errorData: revertInfo.data,
+          errorSelector: revertInfo.selector,
+          errorDetail: revertInfo.errorDetail || revertInfo.data,
+          routeSymbols: symbols,
+          selectedRouteSymbols: selectedSymbols,
+          amount: amountText,
+          initialAmount: amountText,
+          bestAmount: selectedAmountText,
+          bestAmountRaw: selectedAmountBig.toString(),
+          bestAmountMethod,
+          bestAmountAttemptedCount,
+          amountIsBest: true,
+          broadcast: true,
+          txHash,
+          method: "runArbitrageBest",
+          routeIndex,
+          profit: result[3].toString(),
+          profitHuman,
+          profitRaw: result[3].toString(),
+          outAmount: result[2].toString(),
+          outAmountHuman,
+        })
+    );
+    console.error("official V4 broadcast receipt wait failed; transaction was submitted but confirmation is unknown");
+    console.error(`  txHash=${txHash}`);
+    console.error(`  waitError=${waitError.shortMessage || waitError.reason || waitError.message || waitError}`);
+    process.exitCode = 1;
+    return;
+  }
   console.log(
     "\nOFFICIAL_V4_ARB_RESULT_JSON " +
       JSON.stringify({
@@ -304,12 +466,21 @@ async function main() {
         routeSymbols: symbols,
         selectedRouteSymbols: selectedSymbols,
         amount: amountText,
+        initialAmount: amountText,
+        bestAmount: selectedAmountText,
+        bestAmountRaw: selectedAmountBig.toString(),
+        bestAmountMethod,
+        bestAmountAttemptedCount,
+        amountIsBest: true,
         broadcast: true,
         txHash,
         method: "runArbitrageBest",
         routeIndex,
         profit: result[3].toString(),
+        profitHuman,
+        profitRaw: result[3].toString(),
         outAmount: result[2].toString(),
+        outAmountHuman,
       })
   );
 }

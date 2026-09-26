@@ -11,7 +11,7 @@ def test_debt_pool_state_emits_market_alert_once(monkeypatch, tmp_path):
     PAGE_STATE_STORE._states.clear()
     observed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     monkeypatch.setattr(market_volatility_event_store, "MARKET_VOLATILITY_EVENT_STORE_PATH", tmp_path / "market_events.jsonl")
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: (["0x1"], "database"))
     monkeypatch.setattr(
         control_panel,
@@ -69,7 +69,7 @@ def test_execution_state_payload_reflects_recorded_state():
 def test_page_state_store_syncs_to_database_parameter_map(monkeypatch):
     from bot.page_state import store as state_store
 
-    database_url = "postgresql://example"
+    database_url = "local_store.sqlite3"
     stored = {}
 
     def fake_load(database_url_arg):
@@ -80,7 +80,7 @@ def test_page_state_store_syncs_to_database_parameter_map(monkeypatch):
         stored.update(values)
         return dict(values)
 
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     monkeypatch.setattr(state_store, "load_page_state_parameter_map", fake_load)
     monkeypatch.setattr(state_store, "save_page_state_parameter_map", fake_save)
 

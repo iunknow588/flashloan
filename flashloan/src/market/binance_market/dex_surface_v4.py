@@ -8,6 +8,7 @@ import os
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
+from dex.intent_trade.chains.robinhood import config as robinhood_config
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
 from market.binance_market.dex_surface_types import (
     _norm_symbol,
@@ -165,15 +166,21 @@ def _live_v4_token_decimals(address: str, *, chain_id: int | None = None) -> int
     rpc_url = str(row.get("rpc_url") or row.get("rpcUrl") or "").strip()
     if not rpc_url:
         return None
-    timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "6") or 6)
-    try:
-        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": timeout}))
-        if not w3.is_connected():
-            return None
-        contract = w3.eth.contract(address=Web3.to_checksum_address(normalized), abi=ERC20_DECIMALS_ABI)
-        return int(contract.functions.decimals().call())
-    except Exception:
-        return None
+    timeouts = (
+        robinhood_config.testnet_rpc_connect_timeouts()
+        if int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID
+        else (float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12),)
+    )
+    for timeout in timeouts:
+        try:
+            w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": timeout}))
+            if not w3.is_connected():
+                continue
+            contract = w3.eth.contract(address=Web3.to_checksum_address(normalized), abi=ERC20_DECIMALS_ABI)
+            return int(contract.functions.decimals().call())
+        except Exception:
+            continue
+    return None
 def _pool_tvl_usd(pool: dict[str, Any]) -> float:
     balances = pool.get("balances") if isinstance(pool.get("balances"), dict) else {}
     return _number(balances.get("tvlUsd") if balances else pool.get("tvlUsd"))

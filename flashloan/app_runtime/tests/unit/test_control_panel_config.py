@@ -56,18 +56,16 @@ def test_market_strategy_numeric_readers_fall_back_for_invalid_config(monkeypatc
 
 
 def test_strategy_config_database_failure_is_cached_for_fast_ui_fallback(monkeypatch, tmp_path):
-    from core.db import storage_common
     from market.binance_market import control_panel_config
 
-    database_url = "postgresql://control-panel-endpoint-disabled"
-    storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()
+    database_url = str(tmp_path / "store.sqlite3")
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     calls = []
 
     def fail(database_url, page_key):
         calls.append((database_url, page_key))
         raise RuntimeError("the endpoint has been disabled; enable it using the API and retry")
 
-    monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setattr(control_panel_config, "load_page_parameter_map", fail)
 
     path = tmp_path / "strategy.json"
@@ -76,4 +74,4 @@ def test_strategy_config_database_failure_is_cached_for_fast_ui_fallback(monkeyp
 
     assert first == {}
     assert second == {}
-    assert calls == [(database_url, "config")]
+    assert calls == [(database_url, "config"), (database_url, "config")]

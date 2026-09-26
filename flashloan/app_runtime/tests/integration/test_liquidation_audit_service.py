@@ -98,9 +98,9 @@ def test_empty_execution_attempt_stats_is_stable():
 
 
 def test_audit_error_message_is_redacted(monkeypatch):
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "a" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     result = audit._safe_error_message(f"connection failed: {database_url} private_key={private_key}")
 
@@ -113,9 +113,9 @@ def test_audit_error_message_is_redacted(monkeypatch):
 
 
 def test_failure_sample_payload_keeps_redacted_error(monkeypatch):
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "b" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
     safe_error = audit._safe_error_message(f"submit failed: {database_url} private_key={private_key}")
 
     payload = audit.build_failure_sample_payload(

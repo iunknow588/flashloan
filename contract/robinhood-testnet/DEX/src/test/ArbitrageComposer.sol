@@ -108,6 +108,142 @@ contract ArbitrageComposer {
         revert NoProfitableCandidate();
     }
 
+    /// @notice Read-only adaptive peak search from a caller-provided
+    /// initialAmount. The initial amount is only the search origin. The contract
+    /// doubles a profitable origin until the first non-improving probe is found,
+    /// then searches the interval with midpoints. It returns the first midpoint
+    /// that improves the profitable base instead of scanning every fixed ladder
+    /// amount to completion.
+    function previewBestDetailedWithInitialAmount(
+        address tokenZ,
+        Candidate[] calldata candidates,
+        uint256 initialAmount,
+        uint256 minProfit,
+        uint256 minDeviationBps
+    )
+        external
+        returns (
+            bool executed,
+            uint256 selectedAmount,
+            uint256 candidateIndex,
+            uint256 profit,
+            uint256 routeIndex,
+            bytes memory resultData
+        )
+    {
+        if (tokenZ == address(0) || initialAmount == 0) revert InvalidRequest();
+        (uint256[] memory order, uint256 orderLen, bool sawInvalidAnchor) = _selectionOrder(
+            candidates, tokenZ, minDeviationBps
+        );
+        uint256 selectedCandidateIndex;
+        uint256 selectedProfit;
+        uint256 selectedRouteIndex;
+        bytes memory selectedResultData;
+        uint256 baseAmount;
+        uint256 upperAmount;
+        bool hasUpperAmount;
+
+        (bool initialExecuted, uint256 initialCandidateIndex, uint256 initialProfit, uint256 initialRouteIndex, bytes memory initialResultData) =
+            _probeAmountForCandidates(tokenZ, candidates, order, orderLen, initialAmount, minProfit);
+        if (initialExecuted) {
+            executed = true;
+            selectedAmount = initialAmount;
+            selectedCandidateIndex = initialCandidateIndex;
+            selectedProfit = initialProfit;
+            selectedRouteIndex = initialRouteIndex;
+            selectedResultData = initialResultData;
+            baseAmount = initialAmount;
+
+            uint256 candidate = _doubleAmount(baseAmount);
+            for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS && candidate > 0; step++) {
+                (bool ok, uint256 p, bytes memory rd, ) =
+                    _probeCandidateRouteFixed(candidates[selectedCandidateIndex], tokenZ, candidate, minProfit, selectedRouteIndex);
+                if (ok && p > selectedProfit) {
+                    selectedAmount = candidate;
+                    selectedProfit = p;
+                    selectedResultData = rd;
+                    baseAmount = candidate;
+                    hasUpperAmount = false;
+                    upperAmount = 0;
+                    candidate = _doubleAmount(baseAmount);
+                    continue;
+                }
+                upperAmount = candidate;
+                hasUpperAmount = true;
+                break;
+            }
+        } else {
+            upperAmount = initialAmount;
+            uint256 candidate = initialAmount / 2;
+            for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS && candidate > 0; step++) {
+                (bool ok, uint256 p, bytes memory rd, ) =
+                    _probeCandidateRouteFixed(candidates[initialCandidateIndex], tokenZ, candidate, minProfit, initialRouteIndex);
+                if (ok) {
+                    executed = true;
+                    selectedAmount = candidate;
+                    selectedProfit = p;
+                    selectedCandidateIndex = initialCandidateIndex;
+                    selectedRouteIndex = initialRouteIndex;
+                    selectedResultData = rd;
+                    baseAmount = candidate;
+                    hasUpperAmount = true;
+                    break;
+                }
+                upperAmount = candidate;
+                candidate /= 2;
+            }
+        }
+
+        if (hasUpperAmount && executed) {
+            for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS; step++) {
+                if (upperAmount <= baseAmount + 1) break;
+                uint256 midpoint = baseAmount + (upperAmount - baseAmount) / 2;
+                if (midpoint <= baseAmount || midpoint >= upperAmount) break;
+
+                (bool ok, uint256 p, bytes memory rd, ) =
+                    _probeCandidateRouteFixed(candidates[selectedCandidateIndex], tokenZ, midpoint, minProfit, selectedRouteIndex);
+                if (ok && p > selectedProfit) {
+                    selectedAmount = midpoint;
+                    selectedProfit = p;
+                    selectedResultData = rd;
+                    break;
+                }
+                upperAmount = midpoint;
+            }
+        }
+
+        candidateIndex = selectedCandidateIndex;
+        profit = selectedProfit;
+        routeIndex = selectedRouteIndex;
+        resultData = selectedResultData;
+        if (!executed) {
+            if (sawInvalidAnchor) {
+                revert DexError(ContractDexErrorCodes.VALIDATION_ROUTE_INVALID);
+            }
+            revert NoProfitableCandidate();
+        }
+    }
+
+    /// @notice Broadcast wrapper for the preselected amount produced by
+    /// previewBestDetailedWithInitialAmount. Runs the normal single-amount
+    /// best-route selection once, then returns the selected route details.
+    function runBestDetailedWithSelectedAmount(
+        address tokenZ,
+        Candidate[] calldata candidates,
+        uint256 selectedAmount,
+        uint256 minProfit,
+        uint256 minDeviationBps
+    ) external returns (bool executed, uint256 candidateIndex, uint256 profit, bytes memory resultData, PoolKey[3] memory selectedKeys, bool[3] memory selectedDirections) {
+        if (selectedAmount == 0) revert InvalidRequest();
+        (executed, candidateIndex, profit, resultData, selectedKeys, selectedDirections) = this.runBestDetailed(
+            tokenZ,
+            candidates,
+            selectedAmount,
+            minProfit,
+            minDeviationBps
+        );
+    }
+
     /// @notice Resolves the deviation for every anchored candidate and orders
     /// them from largest to smallest deviation. The Robinhood network has no
     /// MEV competition, so the composer picks the candidate with the largest
@@ -432,6 +568,81 @@ contract ArbitrageComposer {
             return false;
         }
         return true;
+    }
+
+    uint256 private constant MAX_AMOUNT_SEARCH_STEPS = 24;
+
+    function _doubleAmount(uint256 amount) private pure returns (uint256) {
+        if (amount > type(uint256).max / 2) return 0;
+        return amount * 2;
+    }
+
+    function _probeCandidateRouteFixed(
+        Candidate calldata candidate,
+        address tokenZ,
+        uint256 amountIn,
+        uint256 minProfit,
+        uint256 routeIndex
+    )
+        private
+        returns (bool ok, uint256 profit, bytes memory resultData, uint256 selectedRoute)
+    {
+        if (routeIndex >= candidate.routePools.length || routeIndex >= candidate.routeDirections.length) {
+            return (false, 0, "", routeIndex);
+        }
+        PoolKey[3][] memory pools = new PoolKey[3][](1);
+        bool[3][] memory directions = new bool[3][](1);
+        pools[0] = candidate.routePools[routeIndex];
+        directions[0] = candidate.routeDirections[routeIndex];
+
+        bytes memory callData = abi.encodeWithSelector(
+            RUN_ARBITRAGE_BEST_SELECTOR,
+            tokenZ,
+            pools,
+            directions,
+            amountIn,
+            minProfit
+        );
+        (bool success, bytes memory ret) = executor.call(callData);
+        if (!success || ret.length < 5 * 32) {
+            return (false, 0, "", routeIndex);
+        }
+        (uint256 outTb, uint256 outTa, uint256 outTz, uint256 p, uint256 ri) = abi.decode(
+            ret,
+            (uint256, uint256, uint256, uint256, uint256)
+        );
+        outTb; outTa; outTz; ri;
+        resultData = ret;
+        return (true, p, resultData, routeIndex);
+    }
+
+    function _probeAmountForCandidates(
+        address tokenZ,
+        Candidate[] calldata candidates,
+        uint256[] memory order,
+        uint256 orderLen,
+        uint256 amount,
+        uint256 minProfit
+    )
+        private
+        returns (bool executed, uint256 candidateIndex, uint256 profit, uint256 routeIndex, bytes memory resultData)
+    {
+        for (uint256 k = 0; k < orderLen; k++) {
+            uint256 i = order[k];
+            (bool ok, uint256 p, bytes memory rd, uint256 ri) = _tryCandidate(
+                candidates[i], tokenZ, amount, minProfit
+            );
+            if (!ok) {
+                continue;
+            }
+            if (!executed || p > profit) {
+                executed = true;
+                candidateIndex = i;
+                profit = p;
+                routeIndex = ri;
+                resultData = rd;
+            }
+        }
     }
 
     function _mulDiv(uint256 x, uint256 y, uint256 denominator) internal pure returns (uint256 result) {

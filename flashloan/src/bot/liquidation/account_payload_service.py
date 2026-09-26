@@ -86,7 +86,7 @@ def liquidation_account_cached_payload(
             "found": False,
             "cached": True,
             "account": checksum,
-            "error": "DATABASE_URL is required",
+            "error": "local KV store unavailable",
         }
     return runtime.load_account_snapshot(
         database_url,

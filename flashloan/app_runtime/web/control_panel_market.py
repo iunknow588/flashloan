@@ -10,7 +10,8 @@ from bot.execution.execution_payload import PayloadConfig, build_execution_paylo
 from bot.execution.liquidation_scan import health_factor_band
 from bot.execution.plan_quotes import quote_execution_plan
 from core.config_schema import parse_env_float
-from core.env_loader import load_env_files, resolve_env_path
+from core.env_loader import load_env_files
+from core.runtime_paths import resolve_runtime_dir
 from market.strategy.arbitrage import ArbitrageConfig, simulate_four_route_cycles
 from market.observer import ASSETS, DEFAULT_BINANCE_REST_BASES
 from market.binance_market.control_panel_config import (
@@ -60,7 +61,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = SRC_ROOT
 WEB_DIR = Path(__file__).resolve().parent
 load_env_files(__file__, override=False)
-RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
+RUNTIME_DIR = resolve_runtime_dir(base_dir=APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
 CACHE_DIR = RUNTIME_DIR / "cache"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"

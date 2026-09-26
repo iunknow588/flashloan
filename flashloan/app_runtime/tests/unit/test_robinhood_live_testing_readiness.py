@@ -264,6 +264,42 @@ def test_live_testing_readiness_rejects_ready_plan_when_new_snapshot_has_no_live
     assert "current_opportunity_snapshot_has_no_live_profitable_route" in report["blockingReasons"]
 
 
+def test_live_testing_readiness_reads_protocol_scoped_opportunity_snapshot():
+    plan = _live_ready_plan()
+    plan["generatedAt"] = "2026-08-31T08:08:32.710541+00:00"
+    chain_metadata = _base_chain_metadata()
+    chain_metadata["profitableRouteLiveTest"] = {
+        "complete": True,
+        "broadcastOk": True,
+        "txHash": "0x" + "2" * 64,
+        "evidence": "profitable/latest.json",
+    }
+    snapshot = {
+        "updated_at": "2026-09-03T00:16:06.002936+00:00",
+        "snapshots": {
+            "46630|protocols:uniswap_v4": {
+                "updated_at": "2026-09-03T00:16:06.002936+00:00",
+                "summary": {
+                    "live_profitable_route_count": 0,
+                    "live_verified_route_count": 3,
+                },
+            }
+        },
+    }
+
+    report = summarize_robinhood_testnet_live_testing_readiness(
+        chain_metadata=chain_metadata,
+        contracts_metadata=_base_contracts_metadata(),
+        chain_test_plan=plan,
+        current_opportunity_snapshot=snapshot,
+    )
+
+    assert report["gates"]["opportunitySnapshotNewerThanPlan"] is True
+    assert report["gates"]["currentSnapshotHasNoLiveProfitableRoute"] is True
+    assert "chain_test_plan_stale_against_current_opportunity_snapshot" in report["blockingReasons"]
+    assert "current_opportunity_snapshot_has_no_live_profitable_route" in report["blockingReasons"]
+
+
 def test_live_testing_readiness_cli_writes_report(tmp_path, monkeypatch):
     chain_metadata = _base_chain_metadata()
     chain_metadata["profitableRouteLiveTest"] = {

@@ -369,6 +369,50 @@ def test_robinhood_chain_test_plan_surfaces_latest_snapshot_recommended_borrow_a
     assert plan["evidence"]["routeRequestedBorrowAmountRaw"] == 250000000000000000
 
 
+def test_robinhood_chain_test_plan_reads_protocol_scoped_opportunity_snapshot(tmp_path, monkeypatch):
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-09-04T04:50:30.225613+00:00",
+                "snapshots": {
+                    "46630|protocols:uniswap_v4": {
+                        "payload": {
+                            "routes": [
+                                {
+                                    "pathText": "ETH -> 0X71178B -> 0XC9F9C8 -> ETH",
+                                    "sizeAnalysis": {
+                                        "recommendedBorrowInputAmountRaw": "125000000000000000",
+                                        "maxExecutableAmountRaw": "498365714991916341",
+                                        "executionSizeProbe": {
+                                            "status": "liquidity_probe_complete",
+                                        },
+                                    },
+                                    "quoteAnalysis": {
+                                        "executableCandidate": True,
+                                        "chainSubmissionCandidate": True,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chain_test_pack, "ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT", snapshot_path)
+    attempt = _testnet_size_cap_attempt()
+    attempt["quote"]["live_onchain_evidence"].pop("selectedBorrowInputAmountRaw", None)
+
+    plan = build_robinhood_chain_test_plan(attempt)
+
+    assert plan["evidence"]["routeRecommendedBorrowAmountRaw"] == 125000000000000000
+    assert plan["evidence"]["routeSelectedBorrowAmountRaw"] == 125000000000000000
+    assert plan["evidence"]["routeRequestedBorrowAmountRaw"] == 125000000000000000
+
+
 def test_robinhood_chain_test_audit_rejects_size_gate_inconsistency(tmp_path, monkeypatch):
     snapshot_path = tmp_path / "snapshot.json"
     snapshot_path.write_text(

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from core.db.storage_common import (
-    database_unavailable_reason,
     database_url_or_none as storage_database_url_or_none,
-    is_database_unavailable_error,
-    mark_database_unavailable,
 )
 from core.parameter_config import load_page_state_parameter_map, save_page_state_parameter_map
+
+logger = logging.getLogger(__name__)
 
 
 def utc_iso_now() -> str:
@@ -81,29 +81,25 @@ class PageStateStore:
         database_url = self._database_url_or_none()
         if not database_url or not self._database_sync_enabled() or self._memory_cleared:
             return None
-        if database_unavailable_reason(database_url):
-            return None
         try:
             values = load_page_state_parameter_map(database_url)
             raw = values.get(page)
             if isinstance(raw, dict):
                 return PageState.from_dict(raw)
-        except Exception as exc:
-            if database_url and is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
+        except Exception:
+            logger.warning("failed to load page state from local store", exc_info=True)
         return None
 
     def _save_to_database(self, state: PageState) -> None:
         database_url = self._database_url_or_none()
-        if not database_url or not self._database_sync_enabled() or database_unavailable_reason(database_url):
+        if not database_url or not self._database_sync_enabled():
             return
         try:
             values = load_page_state_parameter_map(database_url)
             values[state.page] = state.to_dict()
             save_page_state_parameter_map(database_url, values)
-        except Exception as exc:
-            if database_url and is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
+        except Exception:
+            logger.warning("failed to save page state to local store", exc_info=True)
 
     def set(
         self,

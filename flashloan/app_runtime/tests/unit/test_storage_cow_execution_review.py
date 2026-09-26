@@ -1,7 +1,9 @@
 import core.db.cow_execution_review as cow_execution_review
+import pytest
 
 from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl, load_recent_cow_execution_attempts_jsonl
 from core.db.cow_execution_review import _build_review_summary, _review_route_identity
+from core.cow_evidence_helpers import dedupe_attempts_by_route_evidence
 
 
 def _attempt_with_route_addresses(route_addresses):
@@ -79,6 +81,31 @@ def test_market_candidate_jsonl_dedupe_uses_route_addresses(tmp_path):
         vlad_a.lower(),
         vlad_b.lower(),
     }
+
+
+def test_submission_dedupe_can_keep_multiple_broadcasts_for_same_route():
+    rows = [
+        {
+            "network": "robinhood-testnet",
+            "pair": "TZ -> TA -> TB -> TZ",
+            "created_at": "2026-09-22T00:00:00+00:00",
+            "tx_hash": "0xaaaa",
+            "state": "submitted_success",
+        },
+        {
+            "network": "robinhood-testnet",
+            "pair": "TZ -> TA -> TB -> TZ",
+            "created_at": "2026-09-22T00:01:00+00:00",
+            "tx_hash": "0xbbbb",
+            "state": "submitted_success",
+        },
+    ]
+
+    all_rows = dedupe_attempts_by_route_evidence(rows, limit=10, dedupe_by_route_evidence=False)
+    default_rows = dedupe_attempts_by_route_evidence(rows, limit=10)
+
+    assert {row["tx_hash"] for row in all_rows} == {"0xaaaa", "0xbbbb"}
+    assert len(default_rows) == 1
 
 
 def test_review_summary_infers_net_positive_for_legacy_evidence(tmp_path):
@@ -342,3 +369,119 @@ def test_route_test_recorder_persists_quote_evidence_and_addresses(tmp_path, mon
     summary_evidence = rows[0]["review_summary"]["onchain_evidence"]
     assert summary_evidence["status"] == "not_enough_liquidity"
     assert summary_evidence["route_identity_status"] == "ok"
+
+
+def test_route_test_recorder_blocks_unprofitable_from_submission(tmp_path, monkeypatch):
+    from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
+
+    log_path = tmp_path / "attempts_route_unprofitable.jsonl"
+    monkeypatch.setattr(
+        "dex.runtime.dex_route_test_recorder.cow_execution_attempt_log_path",
+        lambda **kwargs: log_path,
+    )
+    payload = {
+        "ok": True,
+        "quoteStatus": "route_unprofitable",
+        "executionTrust": "live_v4_adapter",
+        "readyForTransactionPreflight": False,
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40, "0x" + "1" * 40],
+        "steps": [],
+        "analysis": {"referenceNetProfitAmount": -990.1515632508288},
+    }
+    recorded = record_dex_route_test_attempt(
+        payload,
+        chain_id=46630,
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        amount=1000.0,
+        amount_source="requested",
+        mode="estimate",
+        broadcast=False,
+        fallback_networks=["robinhood-testnet"],
+    )
+
+    assert recorded["recorded"] == 1
+    rows = load_recent_cow_execution_attempts_jsonl(
+        log_path,
+        limit=1,
+        networks=["robinhood-testnet"],
+        chain_ids=[46630],
+    )
+    assert len(rows) == 1
+    assert rows[0]["precheck"]["can_submit_order"] is False
+    assert rows[0]["precheck"]["checks_passed"] is False
+    assert rows[0]["quote"]["quote_verified"] is False
+
+
+def test_route_test_recorder_marks_broadcast_completed_as_submitted_success(tmp_path, monkeypatch):
+    from dex.runtime.dex_route_test_recorder import record_dex_route_test_attempt
+
+    log_path = tmp_path / "attempts_broadcast_complete.jsonl"
+    monkeypatch.setattr(
+        "dex.runtime.dex_route_test_recorder.cow_execution_attempt_log_path",
+        lambda **kwargs: log_path,
+    )
+    payload = {
+        "ok": True,
+        "mode": "dex_route_broadcast_test",
+        "txHash": "0x" + "ab" * 32,
+        "profit": "1765038633546139200000",
+        "outAmount": "1865088633546139159000",
+        "routeSymbols": ["TB", "TZ", "TA", "TB"],
+        "routeAddresses": ["0x" + "1" * 40, "0x" + "2" * 40, "0x" + "3" * 40, "0x" + "1" * 40],
+        "steps": [],
+        "analysis": {},
+        "bestAmountCalculation": {
+            "recommendedBorrowInputAmount": 10.0,
+            "recommendedBorrowInputAmountReason": "best_positive_observed_net_profit",
+            "probe_records": [
+                {
+                    "amount": 0.1,
+                    "borrowAmount": 0.1,
+                    "borrowSymbol": "TB",
+                    "referenceNetProfitAmount": -1.0,
+                    "referenceNetReturnBps": -100.0,
+                    "executableCandidate": False,
+                },
+                {
+                    "amount": 10.0,
+                    "borrowAmount": 10.0,
+                    "borrowSymbol": "TB",
+                    "referenceNetProfitAmount": 1765.0386335461392,
+                    "referenceNetReturnBps": 17650386.335461392,
+                    "executableCandidate": True,
+                    "isRecommended": True,
+                },
+            ],
+        },
+    }
+    recorded = record_dex_route_test_attempt(
+        payload,
+        chain_id=46630,
+        route_symbols=["TB", "TZ", "TA", "TB"],
+        amount=0.1,
+        amount_source="requested",
+        mode="auto",
+        broadcast=True,
+        fallback_networks=["robinhood-testnet"],
+    )
+
+    assert recorded["recorded"] == 1
+    rows = load_recent_cow_execution_attempts_jsonl(
+        log_path,
+        limit=1,
+        networks=["robinhood-testnet"],
+        chain_ids=[46630],
+    )
+    assert len(rows) == 1
+    assert rows[0]["state"] == "submitted_success"
+    assert rows[0]["tx_hash"] == "0x" + "ab" * 32
+    assert rows[0]["precheck"]["can_submit_order"] is True
+    assert rows[0]["precheck"]["checks_passed"] is True
+    assert rows[0]["quote"]["profit_amount"] == pytest.approx(1765.0386335461392)
+    assert rows[0]["quote"]["final_amount"] == pytest.approx(1865.0886335461392)
+    assert rows[0]["quote"]["best_amount"] == pytest.approx(10.0)
+    assert rows[0]["quote"]["profit_percent"] == pytest.approx(17650.386335461392)
+    assert rows[0]["probe_records"]
+    assert rows[0]["quote"]["best_amount_calculation"]["recommendedBorrowInputAmount"] == 10.0
+    assert rows[0]["quote"]["probe_records"][1]["isRecommended"] is True

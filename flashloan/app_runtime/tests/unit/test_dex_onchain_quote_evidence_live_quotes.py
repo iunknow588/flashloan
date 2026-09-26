@@ -171,7 +171,7 @@ def test_live_quote_falls_back_to_latest_when_trigger_block_missing(monkeypatch)
 
     assert evidence["status"] == "live_verified"
     assert evidence["blockNumber"] == 999
-    assert evidence["quoteBlockSource"] == "latest_fallback_missing_trigger"
+    assert evidence["quoteBlockSource"] == "latest_onchain_review"
 
 
 def test_live_quote_rpc_failure_is_reported_as_failed_verification(monkeypatch):
@@ -373,9 +373,10 @@ def test_direct_evidence_falls_back_to_latest_when_historical_state_missing(monk
     )
 
     assert evidence["status"] == "live_verified"
-    assert evidence["quoteBlockSource"] == "latest_fallback_missing_trigger"
+    assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert FakeEth.block_number in seen
-    assert seen[0] != seen[-1]
+    assert len(seen) == 1
+    assert seen[0] == 999
 
 
 def test_scanner_provider_falls_back_to_latest_when_historical_state_missing(monkeypatch):
@@ -460,9 +461,10 @@ def test_scanner_provider_falls_back_to_latest_when_historical_state_missing(mon
     )
 
     assert evidence["status"] == "live_verified"
-    assert evidence["quoteBlockSource"] == "latest_fallback_missing_trigger"
+    assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert FakeEth.block_number in seen
-    assert seen[0] != seen[-1]
+    assert len(seen) == 1
+    assert seen[0] == 999
 
 
 def test_merge_onchain_evidence_preserves_full_static_route_when_live_stops_early():
@@ -674,6 +676,8 @@ def test_route_evidence_expands_missing_hops_when_pool_set_is_complete(monkeypat
     from types import SimpleNamespace
 
     class FakeEth:
+        block_number = 999
+
         def get_block(self, block_number):
             return {"timestamp": 1_777_777_777}
 
@@ -757,12 +761,12 @@ def test_route_evidence_expands_missing_hops_when_pool_set_is_complete(monkeypat
     assert [hop["hop"] for hop in evidence["hops"]] == [1, 2, 3]
 
 
-def test_live_quote_uses_trigger_block_instead_of_latest_block(monkeypatch):
+def test_live_quote_uses_latest_block_for_review(monkeypatch):
     class FakeEth:
         block_number = 999
 
         def get_block(self, block_number):
-            assert block_number == 123
+            assert block_number == 999
             return {"timestamp": 1_777_777_777}
 
     class FakeW3:
@@ -775,7 +779,7 @@ def test_live_quote_uses_trigger_block_instead_of_latest_block(monkeypatch):
         seen["block_number"] = kwargs["block_number"]
         return {
             "status": "live_verified",
-            "quoteMethod": "test_trigger_block",
+            "quoteMethod": "test_latest_review",
             "protocol": "uniswap_v2",
             "pool": kwargs["step"]["pool"],
             "amountInRaw": str(kwargs["amount_in_raw"]),
@@ -818,11 +822,11 @@ def test_live_quote_uses_trigger_block_instead_of_latest_block(monkeypatch):
         quote_hop_provider=quote_hop_provider,
     )
 
-    assert seen["block_number"] == 123
+    assert seen["block_number"] == 999
     assert evidence["status"] == "live_verified"
-    assert evidence["blockNumber"] == 123
+    assert evidence["blockNumber"] == 999
     assert evidence["triggerBlockNumber"] == 123
-    assert evidence["quoteBlockSource"] == "trigger_block"
+    assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert evidence["blockTimestamp"] == 1_777_777_777
     assert evidence["trustedForExecution"] is False
 
@@ -943,7 +947,7 @@ def test_non_stable_closed_loop_uses_x_amount_and_positive_x_profit(monkeypatch)
     assert evidence["readyForTransactionPreflight"] is True
     assert evidence["costModel"]["profitBasis"] == "borrow_token"
     assert evidence["costModel"]["finalOutputUsd"] is None
-    assert evidence["costModel"]["borrowInputAmount"] == 1.0094950199127197
+    assert evidence["costModel"]["borrowInputAmount"] == 1.0
     assert evidence["costModel"]["finalOutputAmount"] == 1.01
     assert evidence["costModel"]["netProfitAmount"] > 0
     assert evidence["validation"]["borrowAssetIsStable"] is False

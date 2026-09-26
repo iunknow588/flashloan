@@ -2,9 +2,11 @@ import pytest
 
 from runtime import dex_onchain_quote_evidence
 from runtime.dex_onchain_quote_evidence import build_route_onchain_evidence
+from runtime.dex_opportunity_helpers import _merge_onchain_evidence_into_route
 from runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 from runtime.dex_quote_evidence_helpers import _token_decimals
 from runtime.dex_quote_evidence_helpers import _robinhood_network_for_chain_id
+from runtime.dex_quote_evidence_helpers import _offchain_initial_probe_amount_raw
 from bot.execution.uniswap_v4_sdk_adapter import load_v4_sdk_adapter
 from core.error_registry import ErrorCode
 from dex.intent_trade.chains.robinhood_testnet import v4_quote_adapter
@@ -55,6 +57,150 @@ def test_token_decimals_accepts_native_zero_address_without_rpc():
     assert _token_decimals(w3=None, address="0x0000000000000000000000000000000000000000", symbol="ETH", cache={}) == 18
 
 
+def test_offchain_initial_probe_uses_1000u_price_anchor():
+    route = {
+        "routeSymbols": ["WETH", "USDG", "FOO", "WETH"],
+        "quoteAnalysis": {
+            "inputSymbol": "WETH",
+            "steps": [],
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=18,
+        price_map={"WETH": 1000.0},
+    )
+    assert amount_raw == 10**18
+    assert basis == "borrow_token"
+    assert "stablecoin_usd_1000u_anchor" in reasons
+    assert "stablecoin_usd_1000u_anchor" in reason
+
+
+def test_offchain_initial_probe_falls_back_to_one_basic_unit_without_price():
+    route = {
+        "routeSymbols": ["FOO", "BAR", "BAZ", "FOO"],
+        "quoteAnalysis": {
+            "inputSymbol": "FOO",
+            "steps": [],
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=6,
+        price_map={},
+    )
+    assert amount_raw == 10**6
+    assert basis == "borrow_token"
+    assert "one_basic_unit_fallback" in reasons
+    assert "one_basic_unit_fallback" in reason
+
+
+def test_offchain_initial_probe_ignores_existing_probe_fields():
+    route = {
+        "routeSymbols": ["USDG", "FOO", "USDG"],
+        "offchainInitialProbeAmountRaw": "500",
+        "recommendedBorrowInputAmountRaw": "400",
+        "quoteAnalysis": {
+            "inputSymbol": "USDG",
+            "steps": [],
+            "initialProbeAmountRaw": "300",
+            "sizeAnalysis": {
+                "offchainInitialProbeAmountRaw": "999",
+                "recommendedBorrowInputAmountRaw": "888",
+                "maxExecutableAmountRaw": "777",
+            },
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=6,
+        price_map={"USDG": 1.0},
+    )
+    assert amount_raw == 1000 * 10**6
+    assert basis == "borrow_token"
+    assert "stablecoin_usd_1000u_anchor" in reasons
+    assert "stablecoin_usd_1000u_anchor" in reason
+
+
+def test_offchain_initial_probe_does_not_infer_stable_usd_price_from_reference_notional():
+    route = {
+        "routeSymbols": ["WETH", "USDG", "FOO", "WETH"],
+        "quoteAnalysis": {
+            "inputSymbol": "WETH",
+            "referenceInputAmount": 2.5,
+            "notionalUsd": 2500.0,
+            "steps": [],
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=18,
+        price_map={},
+    )
+    assert amount_raw == 10**18
+    assert basis == "borrow_token"
+    assert "one_basic_unit_fallback" in reasons
+    assert "one_basic_unit_fallback" in reason
+
+
+def test_offchain_initial_probe_caps_by_pool_borrow_liquidity():
+    route = {
+        "routeSymbols": ["USDG", "FOO", "USDG"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "token0Symbol": "USDG",
+                    "token1Symbol": "FOO",
+                    "token0Amount": "100",
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "inputSymbol": "USDG",
+            "steps": [],
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=6,
+        price_map={"USDG": 1.0},
+    )
+    assert amount_raw == 2 * 10**6
+    assert basis == "borrow_token"
+    assert "liquidity_cap_pool_reserve_2pct" in reasons
+    assert reason == "liquidity_cap_pool_reserve_2pct"
+
+
+def test_offchain_initial_probe_never_caps_below_one_basic_unit():
+    route = {
+        "routeSymbols": ["USDG", "FOO", "USDG"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": "0x" + "1" * 40,
+                    "token0Symbol": "USDG",
+                    "token1Symbol": "FOO",
+                    "token0Amount": "5",
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "inputSymbol": "USDG",
+            "steps": [],
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=6,
+        price_map={"USDG": 1.0},
+    )
+    assert amount_raw == 10**6
+    assert basis == "borrow_token"
+    assert "liquidity_cap_pool_reserve_2pct" in reasons
+    assert reason == "liquidity_cap_pool_reserve_2pct"
+
+
 def test_robinhood_network_for_chain_id_prefers_testnet_chain_metadata():
     assert _robinhood_network_for_chain_id(46630, "robinhood") == "robinhood-testnet"
     assert _robinhood_network_for_chain_id(46630, "chain_46630") == "robinhood-testnet"
@@ -73,6 +219,56 @@ def test_dex_error_stack_from_state_returns_only_module_code_message():
         "code": int(ErrorCode.DEX_POOL_NOT_INITIALIZED),
         "message": "V4 pool is not initialized",
     }
+
+
+def test_merge_onchain_evidence_clears_static_reference_profit_for_not_enough_liquidity():
+    route = {
+        "routeSymbols": ["A", "B", "A"],
+        "quoteAnalysis": {
+            "referenceFinalOutputAmount": 2,
+            "referenceFinalOutputUsd": 3,
+            "referenceGrossProfitUsd": 1,
+            "referenceGrossProfitAmount": 1,
+            "referenceNetProfitAmount": -1,
+            "referenceNetReturnBps": -500,
+        },
+    }
+    merged = _merge_onchain_evidence_into_route(
+        route,
+        {
+            "status": "not_enough_liquidity",
+            "blockers": ["hop 1 A -> B has no LP liquidity on chain"],
+        },
+    )
+    analysis = merged["quoteAnalysis"]
+    assert analysis["onchainEvidenceStatus"] == "not_enough_liquidity"
+    assert analysis["referenceFinalOutputAmount"] is None
+    assert analysis["referenceFinalOutputUsd"] is None
+    assert analysis["referenceGrossProfitUsd"] is None
+    assert analysis["referenceGrossProfitAmount"] is None
+    assert analysis["referenceNetProfitAmount"] is None
+    assert analysis["referenceNetReturnBps"] is None
+
+
+def test_merge_onchain_evidence_does_not_use_requested_amount_as_best_amount():
+    route = {
+        "routeSymbols": ["A", "B", "A"],
+        "quoteAnalysis": {},
+    }
+    merged = _merge_onchain_evidence_into_route(
+        route,
+        {
+            "status": "live_verified",
+            "costModel": {
+                "requestedBorrowInputAmount": 1000.0,
+                "netProfitAmount": 1.0,
+                "finalOutputAmount": 1001.0,
+            },
+        },
+    )
+    analysis = merged["quoteAnalysis"]
+    assert analysis["referenceInputAmount"] == 1000.0
+    assert analysis["bestAmount"] is None
 
 
 def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
@@ -535,6 +731,7 @@ def test_robinhood_testnet_closed_loop_v4_route_probes_size_without_route_metada
             "requestedAmountRaw": "1000000000000000000",
             "maxExecutableAmountRaw": "750000000000000000",
             "firstFailureAmountRaw": "800000000000000000",
+            "maxExecutableAmountConfirmed": True,
         },
     )
 
@@ -628,7 +825,7 @@ def test_robinhood_testnet_closed_loop_v4_route_probes_size_without_route_metada
     assert evidence["status"] == "live_verified"
 
 
-def test_robinhood_testnet_skip_probe_uses_small_default_amount_without_reference(monkeypatch):
+def test_robinhood_testnet_skip_probe_uses_one_basic_unit_without_reference(monkeypatch):
     class FakeEth:
         block_number = 123
 
@@ -724,12 +921,12 @@ def test_robinhood_testnet_skip_probe_uses_small_default_amount_without_referenc
         skip_execution_size_probe=True,
     )
 
-    assert captured_amounts[0] == 100000000000000000
-    assert evidence["selectedBorrowInputAmountRaw"] == "100000000000000000"
-    assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000000"
+    assert captured_amounts[0] == 1000000000000000000
+    assert evidence["selectedBorrowInputAmountRaw"] == "1000000000000000000"
+    assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000"
 
 
-def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_quote(monkeypatch):
+def test_robinhood_testnet_closed_loop_v4_route_does_not_use_old_max_executable_as_best_amount(monkeypatch):
     class FakeEth:
         block_number = 123
 
@@ -779,12 +976,14 @@ def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_qu
             "probeAttempts": 3,
             "maxExecutableAmountRaw": "750000000000000000",
             "firstFailureAmountRaw": "800000000000000000",
+            "maxExecutableAmountConfirmed": True,
             "executionSizeProbe": {
                 "status": "liquidity_probe_complete",
                 "searchStatus": "bounded",
                 "probeAttempts": 3,
                 "maxExecutableAmountRaw": "750000000000000000",
                 "firstFailureAmountRaw": "800000000000000000",
+                "maxExecutableAmountConfirmed": True,
             },
         },
         "quoteAnalysis": {
@@ -815,10 +1014,99 @@ def test_robinhood_testnet_closed_loop_v4_route_uses_route_size_advice_before_qu
     )
 
     assert evidence["requestedBorrowInputAmountRaw"] == "1000000000000000000"
-    assert evidence["selectedBorrowInputAmountRaw"] == "1999000310897827147"
-    assert evidence["hops"][0]["amountInRaw"] == "1999000310897827147"
-    assert captured_amounts[-3] == 1999000310897827147
+    assert evidence["selectedBorrowInputAmountRaw"] == "1000000000000000000"
+    assert evidence["selectedBorrowInputAmountRaw"] != "750000000000000000"
+    assert evidence["hops"][0]["amountInRaw"] == "1000000000000000000"
+    assert captured_amounts[0] == 1000000000000000000
     assert evidence["status"] == "live_verified"
+    assert evidence["recommendation"]["profitable"] is True
+    assert evidence["recommendation"]["readyForTransactionPreflight"] is True
+    assert "正收益" in evidence["recommendation"]["conclusion"]
+
+
+def test_robinhood_testnet_closed_loop_route_slippage_above_limit_blocks_preflight(monkeypatch):
+    class FakeEth:
+        block_number = 123
+
+        def get_block(self, block_number):
+            assert block_number == 123
+            return {"timestamp": 1_777_777_777}
+
+    class FakeW3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+
+    def fake_quote_hop_provider(*, w3, quoter, step, pool, amount_in_raw, block_number, token_cache):
+        hop_no = int(step.get("hop") or 1)
+        price_impacts = {1: 0, 2: 374, 3: 554}
+        amount_out_raw = int(amount_in_raw) + int(amount_in_raw // 2) + 1
+        return {
+            "status": "live_verified",
+            "quoteMethod": "fake_quote",
+            "pool": step.get("pool"),
+            "tokenIn": step.get("tokenIn"),
+            "tokenOut": step.get("tokenOut"),
+            "fee": step.get("fee") or 0,
+            "amountInRaw": str(amount_in_raw),
+            "amountOutRaw": str(amount_out_raw),
+            "amountIn": "1",
+            "amountOut": "2",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "priceImpactBps": price_impacts.get(hop_no, 0),
+            "quoterGasEstimate": 12345,
+        }
+
+    route = {
+        "network": "robinhood-testnet",
+        "routeSymbols": ["ETH", "A", "B", "ETH"],
+        "routeAddresses": [
+            "0x0000000000000000000000000000000000000000",
+            "0x" + "2" * 40,
+            "0x" + "3" * 40,
+            "0x0000000000000000000000000000000000000000",
+        ],
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "referenceInputAmount": 1.0,
+            "inputSymbol": "ETH",
+            "outputSymbol": "ETH",
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "executableCandidate": True,
+            "chainSubmissionCandidate": True,
+            "steps": [
+                {"hop": 1, "fromSymbol": "ETH", "toSymbol": "A", "protocol": "uniswap_v4", "pool": "0x" + "1" * 40, "tokenIn": "0x0000000000000000000000000000000000000000", "tokenOut": "0x" + "2" * 40, "fee": 100},
+                {"hop": 2, "fromSymbol": "A", "toSymbol": "B", "protocol": "uniswap_v4", "pool": "0x" + "2" * 40, "tokenIn": "0x" + "2" * 40, "tokenOut": "0x" + "3" * 40, "fee": 3000},
+                {"hop": 3, "fromSymbol": "B", "toSymbol": "ETH", "protocol": "uniswap_v4", "pool": "0x" + "3" * 40, "tokenIn": "0x" + "3" * 40, "tokenOut": "0x0000000000000000000000000000000000000000", "fee": 500},
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-08-24T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-08-24T00:00:00+00:00"},
+        quote_hop_provider=fake_quote_hop_provider,
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "slippage_limit_exceeded"
+    assert evidence["readyForTransactionPreflight"] is False
+    assert evidence["validation"]["allHopsWithinPriceImpactLimit"] is False
+    assert evidence["recommendation"]["profitable"] is True
+    assert evidence["recommendation"]["readyForTransactionPreflight"] is False
+    assert "价格影响超过 10 bps" in evidence["recommendation"]["conclusion"]
+    assert any(
+        "hop 3 B->ETH price impact" in blocker
+        and "554" in blocker
+        and "exceeds 10 bps limit" in blocker
+        for blocker in evidence["blockers"]
+    )
 
 
 def test_robinhood_testnet_route_execution_probe_ignores_impact_limit_when_profitable(monkeypatch):
@@ -858,9 +1146,13 @@ def test_robinhood_testnet_route_execution_probe_ignores_impact_limit_when_profi
     )
 
     assert probe["status"] == "route_execution_size_probe_complete"
-    assert probe["maxExecutableAmountRaw"] == "6400"
-    assert probe["selectedProfitableAmountRaw"] == "6400"
-    assert attempted == [100, 200, 400, 800, 1600, 3200, 6400]
+    assert probe["maxExecutableAmountRaw"] == "100"
+    assert probe["selectedProfitableAmountRaw"] == "100"
+    assert probe["bestProfitAmount"] == 1.0
+    assert probe["maxExecutableAmountConfirmed"] is True
+    assert probe["searchStatus"] == "profitable_amount_found"
+    assert attempted[0] == 100
+    assert 200 in attempted
 
 
 def test_route_execution_probe_stops_immediately_on_not_enough_liquidity(monkeypatch):
@@ -942,10 +1234,59 @@ def test_route_execution_probe_expands_profitable_starting_amount(monkeypatch):
     )
 
     assert probe["searchStatus"] == "profitable_amount_found"
-    assert probe["selectedProfitableAmountRaw"] == "1600"
-    assert probe["firstFailureAmountRaw"] == "25"
-    assert probe["expansionStopReason"] is None
-    assert attempted == [25, 50, 100, 200, 400, 800, 1600]
+    assert probe["selectedProfitableAmountRaw"] == "25"
+    assert probe["firstFailureAmountRaw"] == "26"
+    assert probe["expansionStopReason"] == "not_improving_profit"
+    assert probe["maxExecutableAmountConfirmed"] is True
+    assert attempted[0] == 25
+    assert 50 in attempted
+
+
+def test_route_execution_probe_selects_larger_amount_when_profit_improves(monkeypatch):
+    attempted = []
+
+    def fake_build_route_onchain_evidence(*args, **kwargs):
+        amount_raw = int(kwargs["borrow_input_amount_override_raw"])
+        attempted.append(amount_raw)
+        profits = {
+            16: 10,
+            32: 25,
+            64: 20,
+            128: 5,
+        }
+        profit = profits.get(amount_raw, -1)
+        return {
+            "status": "live_verified" if profit > 0 else "route_unprofitable",
+            "validation": {
+                "allHopsQuoted": True,
+                "routeClosed": True,
+                "tokenContinuity": True,
+                "profitableAfterCosts": profit > 0,
+                "allHopsWithinPriceImpactLimit": True,
+            },
+            "costModel": {"netProfitAmount": str(profit)},
+        }
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "build_route_onchain_evidence", fake_build_route_onchain_evidence)
+    probe = dex_onchain_quote_evidence._probe_robinhood_testnet_route_execution_size(
+        {},
+        payload={},
+        chain_id=46630,
+        observed_at="2026-09-04T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123},
+        quote_hop_provider=None,
+        requested_amount_raw=16,
+        max_attempts=8,
+    )
+
+    assert probe["status"] == "route_execution_size_probe_complete"
+    assert probe["selectedProfitableAmountRaw"] == "32"
+    assert probe["maxExecutableAmountRaw"] == "32"
+    assert probe["bestProfitAmount"] == 25
+    assert probe["searchStatus"] == "profitable_amount_found"
+    assert attempted[0] == 16
+    assert 32 in attempted
+    assert 64 in attempted
 
 
 def test_route_size_advice_ignores_per_hop_token_units_for_borrow_amount():
@@ -1479,11 +1820,16 @@ def test_robinhood_testnet_live_pool_precheck_reports_not_enough_liquidity(monke
     class FakeW3:
         eth = FakeEth()
 
-    def fake_live_state(**kwargs):
-        raise ValueError("robinhood testnet v4 pool manager live liquidity is zero")
+    def fake_batch_state(**kwargs):
+        return {
+            _POOL_ID.lower(): {
+                "error": "robinhood testnet v4 pool manager live liquidity is zero",
+                "poolId": _POOL_ID,
+            }
+        }
 
     monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
-    monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state_with_w3", fake_live_state)
+    monkeypatch.setattr(v4_quote_adapter, "_batch_read_live_pool_states", fake_batch_state)
 
     route = {
         "routeSymbols": ["WETH", "ETH", "WETH"],
@@ -1541,11 +1887,16 @@ def test_robinhood_testnet_live_pool_precheck_reports_pool_not_initialized(monke
     class FakeW3:
         eth = FakeEth()
 
-    def fake_live_state(**kwargs):
-        raise ValueError("robinhood testnet v4 pool manager live slot0 missing sqrtPriceX96")
+    def fake_batch_state(**kwargs):
+        return {
+            _POOL_ID.lower(): {
+                "error": "robinhood testnet v4 pool manager live slot0 missing sqrtPriceX96",
+                "poolId": _POOL_ID,
+            }
+        }
 
     monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
-    monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state_with_w3", fake_live_state)
+    monkeypatch.setattr(v4_quote_adapter, "_batch_read_live_pool_states", fake_batch_state)
 
     route = {
         "routeSymbols": ["WETH", "ETH", "WETH"],
@@ -1593,6 +1944,87 @@ def test_robinhood_testnet_live_pool_precheck_reports_pool_not_initialized(monke
     assert any("pool is not initialized" in blocker for blocker in evidence["blockers"])
 
 
+def test_robinhood_testnet_live_pool_precheck_uses_latest_block(monkeypatch):
+    class FakeEth:
+        block_number = 999
+
+        def contract(self, **kwargs):
+            return None
+
+    class FakeW3:
+        eth = FakeEth()
+
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
+    monkeypatch.setattr(dex_onchain_quote_evidence, "_live_pool_state_precheck_failures", lambda **kwargs: [])
+
+    def fake_quote_hop_provider(*, step, amount_in_raw, block_number, **kwargs):
+        assert block_number == 999
+        amount_out_raw = int(amount_in_raw) + 1
+        return {
+            "status": "live_verified",
+            "quoteMethod": "test_latest_precheck_fallback",
+            "pool": step.get("pool"),
+            "tokenIn": step.get("tokenIn"),
+            "tokenOut": step.get("tokenOut"),
+            "fee": step.get("fee") or 0,
+            "amountInRaw": str(amount_in_raw),
+            "amountOutRaw": str(amount_out_raw),
+            "amountIn": "1",
+            "amountOut": "2",
+            "inputDecimals": 18,
+            "outputDecimals": 18,
+            "priceImpactBps": 0,
+        }
+
+    route = {
+        "routeSymbols": ["WETH", "ETH", "WETH"],
+        "quoteInputs": {
+            "routePools": [
+                {
+                    "pool": _POOL_ID,
+                    "protocol": "uniswap_v4",
+                    "token0Symbol": "WETH",
+                    "token0": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "token0Decimals": 18,
+                    "token1Symbol": "ETH",
+                    "token1": "0x0000000000000000000000000000000000000000",
+                    "token1Decimals": 18,
+                }
+            ]
+        },
+        "quoteAnalysis": {
+            "notionalUsd": 1000.0,
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "WETH",
+                    "toSymbol": "ETH",
+                    "protocol": "uniswap_v4",
+                    "pool": _POOL_ID,
+                    "tokenIn": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+                    "tokenOut": "0x0000000000000000000000000000000000000000",
+                }
+            ],
+        },
+    }
+
+    evidence = build_route_onchain_evidence(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-09-18T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123, "observedAt": "2026-09-18T00:00:00+00:00"},
+        quote_hop_provider=fake_quote_hop_provider,
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "live_verified"
+    assert evidence["executionTrust"] == "live_quoter_verified_readonly"
+    assert evidence["hops"][0]["quoteMethod"] == "test_latest_precheck_fallback"
+    assert evidence["quoteBlockSource"] == "latest_onchain_review"
+    assert evidence["triggerBlockNumber"] == 123
+
+
 def test_robinhood_testnet_live_pool_precheck_reports_rpc_failure(monkeypatch):
     class FakeEth:
         block_number = 123
@@ -1603,11 +2035,11 @@ def test_robinhood_testnet_live_pool_precheck_reports_rpc_failure(monkeypatch):
     class FakeW3:
         eth = FakeEth()
 
-    def fake_live_state(**kwargs):
+    def fake_batch_state(**kwargs):
         raise RuntimeError("robinhood testnet v4 pool manager extsload RPC connection timed out")
 
     monkeypatch.setattr(dex_onchain_quote_evidence, "_connect_robinhood_family", lambda *args, **kwargs: (FakeW3(), "https://rpc.example"))
-    monkeypatch.setattr(v4_quote_adapter, "_read_live_pool_state_with_w3", fake_live_state)
+    monkeypatch.setattr(v4_quote_adapter, "_batch_read_live_pool_states", fake_batch_state)
 
     route = {
         "routeSymbols": ["WETH", "ETH", "WETH"],
@@ -1650,8 +2082,8 @@ def test_robinhood_testnet_live_pool_precheck_reports_rpc_failure(monkeypatch):
         skip_execution_size_probe=True,
     )
 
-    assert evidence["status"] == "rpc_verification_failed"
-    assert evidence["executionTrust"] == "rpc_verification_failed"
+    assert evidence["status"] == "rpc_verification_timeout"
+    assert evidence["executionTrust"] == "rpc_verification_timeout"
     assert any("on-chain live pool state verification failed" in blocker for blocker in evidence["blockers"])
 
 

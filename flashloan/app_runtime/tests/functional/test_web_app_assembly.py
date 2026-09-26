@@ -191,6 +191,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     assert '/ops?market_id=robinhood-testnet-dex-paused' not in scoped_body
 
     quotes_body = client.get("/dex/quotes").get_data(as_text=True)
+    quotes_body += client.get("/static/dex_quotes/quotes_app.js").get_data(as_text=True)
     assert "/api/dex/opportunity-scanner/start" in quotes_body
     assert "/api/dex/opportunity-scanner/snapshot" in quotes_body
     assert "/api/dex/opportunity-scanner/scan-now" in quotes_body
@@ -199,7 +200,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     submissions_body = client.get("/dex/submissions").get_data(as_text=True)
     assert "/api/dex/submissions/clear" in submissions_body
     assert 'id="routeFrameworkPanel"' in submissions_body
-    assert "观察/复核盈亏比例" in submissions_body
+    assert "盈亏/复盘" in submissions_body
     assert "清空当前链路记录" in submissions_body
     assert "未通过链上复核" in submissions_body
     assert "第三方参考价" in submissions_body
@@ -736,11 +737,9 @@ def test_chain_selection_api_exposes_robinhood_in_bot_and_dex_scopes():
 
 def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(monkeypatch):
     from core.db import storage_chain_markets
-    from core.db import storage_common
     from web import control_panel
 
-    database_url = "postgresql://live-chain-selection-endpoint-disabled"
-    storage_common._DATABASE_UNAVAILABLE_UNTIL.clear()
+    database_url = "local_store_endpoint_disabled.sqlite3"
     calls = []
 
     def fail(database_url):
@@ -767,6 +766,6 @@ def test_chain_selection_api_falls_back_fast_when_database_endpoint_is_disabled(
     assert venus.get_json()["selected"]["market_id"] == CANONICAL_BNB_VENUS
     assert wrong_chain.status_code == 400
     assert wrong_chain.get_json()["code"] == "chain_mismatch"
-    assert len(calls) == 1
+    assert len(calls) == 3
 
 

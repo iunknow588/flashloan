@@ -49,9 +49,9 @@ def test_run_parallel_submissions_raises_when_all_fail():
 
 
 def test_run_parallel_submissions_redacts_attempt_errors(monkeypatch):
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "2" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     def fail():
         raise RuntimeError(f"submit failed: {database_url} private_key={private_key}")

@@ -10,12 +10,14 @@ from typing import Optional
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
+os.environ.setdefault("FLASHLOAN_RUNTIME_DIR", str(SRC_ROOT.parent / "src" / "runtime"))
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.config_schema import parse_env_float, parse_env_int
 from bot.execution.dex_costs import estimate_symbol_cost
-from core.env_loader import load_env_files, local_json_only_enabled, resolve_env_path
+from core.env_loader import load_env_files, resolve_env_path
+from core.runtime_paths import resolve_log_dir, resolve_runtime_dir
 from core.sensitive_data import redact_sensitive_text
 from bot.execution.execution_payload import PayloadConfig, build_execution_payload
 from bot.execution.liquidation_scan import (
@@ -88,7 +90,7 @@ for _module in (
     market_panel,
 ):
     globals().update({name: value for name, value in vars(_module).items() if not name.startswith("_")})
-from core.db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS, require_psycopg
+from core.db.storage_common import EXPECTED_SCHEMA_MIGRATION_IDS
 from core.db.storage_liquidation import (
     load_liquidation_accounts as db_load_liquidation_accounts,
     load_liquidation_accounts_page as db_load_liquidation_accounts_page,
@@ -133,11 +135,12 @@ def ensure_database_schema_cached(database_url: str, *, ttl_seconds: float = 300
 WEB_DIR = Path(__file__).resolve().parent
 APP_DIR = SRC_ROOT
 load_env_files(__file__, override=False)
+os.environ["FLASHLOAN_RUNTIME_DIR"] = str((SRC_ROOT.parent / "src" / "runtime").resolve())
 
-RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
+RUNTIME_DIR = resolve_runtime_dir(base_dir=APP_DIR)
 STATE_DIR = RUNTIME_DIR / "state"
 CACHE_DIR = RUNTIME_DIR / "cache"
-LOG_DIR = RUNTIME_DIR / "logs"
+LOG_DIR = resolve_log_dir(runtime_dir=RUNTIME_DIR, base_dir=APP_DIR)
 OBSERVER_PATH = APP_DIR / "market" / "observer.py"
 TEMPLATE_PATH = WEB_DIR / "templates" / "control_panel.html"
 LIQUIDATION_TEMPLATE_PATH = WEB_DIR / "templates" / "liquidation_panel.html"
@@ -723,8 +726,6 @@ def start_observer_background() -> None:
 
 def start_observer_runtime_async() -> dict:
     global observer_start_error, observer_starting, selected_symbols
-    if local_json_only_enabled():
-        return {"enabled": False, "started": False, "reason": "local_json_only"}
     if quick_observer_running():
         return {"enabled": True, "started": False, "reason": "already_running", "pid": quick_observer_pid()}
     with observer_start_lock:
@@ -756,8 +757,6 @@ def start_observer_runtime_async() -> dict:
 
 def start_liquidation_engine_runtime(*, force: bool = False) -> dict:
     global liquidation_engine_instance, liquidation_engine_thread
-    if local_json_only_enabled():
-        return {"enabled": False, "started": False, "reason": "local_json_only"}
     if not force and not liquidation_engine_enabled():
         return {"enabled": False, "started": False, "reason": "LIQUIDATION_ENGINE_ENABLED is false"}
     with liquidation_engine_lock:
@@ -787,8 +786,6 @@ def bnb_venus_watcher_enabled() -> bool:
     return os.getenv("BNB_VENUS_WATCHER_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 def start_bnb_venus_watcher_runtime() -> dict:
     global bnb_venus_watcher_thread
-    if local_json_only_enabled():
-        return {"enabled": False, "started": False, "reason": "local_json_only"}
     if not bnb_venus_watcher_enabled():
         return {"enabled": False, "started": False, "reason": "BNB_VENUS_WATCHER_ENABLED is false"}
     with bnb_venus_watcher_lock:
@@ -825,8 +822,6 @@ def start_bnb_venus_watcher_runtime() -> dict:
             "interval_seconds": interval_seconds,
         }
 def initialize_liquidation_runtime() -> None:
-    if local_json_only_enabled():
-        return
     if liquidation_engine_autostart_enabled():
         try:
             start_liquidation_engine_runtime(force=True)
@@ -850,8 +845,6 @@ def initialize_liquidation_runtime() -> None:
         except Exception as exc:
             set_control_status("error", "读取清算数据库", redact_sensitive_text(exc), 0)
 def initialize_cow_arbitrage_runtime() -> None:
-    if local_json_only_enabled():
-        return
     if not cow_quote_daemon_enabled():
         return
     try:

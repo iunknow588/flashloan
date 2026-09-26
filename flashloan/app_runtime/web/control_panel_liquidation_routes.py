@@ -1,22 +1,15 @@
-import os
 import logging
 
 from flask import jsonify, request
 
-from core.sensitive_data import redact_sensitive_text
-from bot.page_state import normalize_execution_phase, normalize_tx_hash, receipt_status
+from bot.page_state import normalize_tx_hash, receipt_status
 from bot.liquidation.scan_request import parse_scan_request
 from web.control_panel_bnb_venus import bnb_venus_accounts_payload
-from core.route_context import RouteContext
 from bot.liquidation.route_response import (
-    CANONICAL_ROUTE_FAILURE_STATES,
-    _float_or_none,
     classify_liquidation_payload_block,
-    liquidation_failure_response as build_liquidation_failure_response,
     route_error_message,
     route_failure_phase,
     route_failure_state,
-    stale_liquidatable_context_response,
 )
 from web.data_routes.liquidation_route_request import (
     is_bnb_venus_request as _is_bnb_venus_request,
@@ -25,82 +18,25 @@ from web.data_routes.liquidation_route_request import (
     request_int_arg,
     request_liquidatable_context,
     request_market_kwargs as _request_market_kwargs,
-    validate_request_liquidatable_context as _validate_request_liquidatable_context,
+)
+from web.control_panel_liquidation_route_helpers import (
+    ROUTE_CONTEXT,
+    ensure_request_liquidatable_context,
+    liquidation_coverage_payload,
+    liquidation_failure_response,
+    panel_call,
+    validate_request_liquidatable_context,
 )
 
-ROUTE_CONTEXT = RouteContext()
 logger = logging.getLogger(__name__)
 
-def panel_call(name: str, *args, **kwargs):
-    return ROUTE_CONTEXT.panel_call(name, *args, **kwargs)
 
-
-def validate_request_liquidatable_context(account: str) -> dict:
-    return _validate_request_liquidatable_context(account, panel_call)
-
-
-def ensure_request_liquidatable_context(account: str) -> dict | None:
-    validation = validate_request_liquidatable_context(account)
-    if validation.get("present") and not validation.get("fresh"):
-        response, status = stale_liquidatable_context_response(account, validation)
-        return jsonify(response), status
-    return None
-
-
-def liquidation_coverage_payload(pool_address: str, panel=None, *, market_id: str | None = None, chain_id: int | None = None) -> dict:
-    source_panel = panel or ROUTE_CONTEXT.panel
-    try:
-        progress = getattr(source_panel, "liquidation_discovery_progress")(
-            pool_address,
-            market_id=market_id,
-            chain_id=chain_id,
-        )
-    except TypeError:
-        if market_id is not None or chain_id is not None:
-            raise
-        progress = getattr(source_panel, "liquidation_discovery_progress")(pool_address)
-    latest_to = progress.get("latest_recent_to_block")
-    earliest_from = progress.get("earliest_backfill_from_block")
-    latest_gap_from = None
-    latest_gap_to = None
-    if latest_to is not None and earliest_from is not None and int(earliest_from) > int(latest_to) + 1:
-        latest_gap_from = int(latest_to) + 1
-        latest_gap_to = int(earliest_from) - 1
-    return {
-        "pool_address": pool_address or None,
-        "covered_from_block": earliest_from,
-        "covered_to_block": latest_to,
-        "latest_gap_from_block": latest_gap_from,
-        "latest_gap_to_block": latest_gap_to,
-        "has_gap": latest_gap_from is not None,
-        "progress": progress,
-    }
-
-
-def liquidation_failure_response(account: str, payload: dict | None, error: Exception) -> dict:
-    """Keep route-context lookups at the route boundary."""
-    cached_snapshot = None
-    execution_controls = None
-    if not isinstance(payload, dict):
-        try:
-            cached_snapshot = panel_call("liquidation_account_cached_payload", account)
-        except Exception:
-            cached_snapshot = {}
-    else:
-        try:
-            execution_controls = panel_call("liquidation_execution_controls")
-        except Exception:
-            execution_controls = None
-    return build_liquidation_failure_response(
-        account,
-        payload,
-        error,
-        cached_snapshot=cached_snapshot,
-        execution_controls=execution_controls,
-    )
-
-
-def record_liquidation_route_failure(account: str, mode: str, response: dict, error: Exception) -> None:
+def record_liquidation_route_failure(
+    account: str,
+    mode: str,
+    response: dict,
+    error: Exception,
+) -> None:
     safe_error = route_error_message(error)
     failure_state = route_failure_state(mode, response)
     failure_phase = route_failure_phase(response, failure_state)
@@ -205,7 +141,7 @@ def register_liquidation_routes(app, panel) -> None:
         market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
-            return jsonify({"configured": False, "batches": [], "error": "DATABASE_URL is required"})
+            return jsonify({"configured": False, "batches": [], "error": "local KV store unavailable"})
         try:
             return jsonify({"configured": True, "batches": panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=limit, **market_kwargs)})
         except Exception as exc:
@@ -216,7 +152,7 @@ def register_liquidation_routes(app, panel) -> None:
         market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
-            return jsonify({"configured": False, "batch": None, "error": "DATABASE_URL is required"})
+            return jsonify({"configured": False, "batch": None, "error": "local KV store unavailable"})
         try:
             batches = panel_call("db_load_liquidation_borrow_health_scan_batches", database_url, limit=1, **market_kwargs)
             return jsonify({"configured": True, "batch": batches[0] if batches else None})
@@ -229,7 +165,7 @@ def register_liquidation_routes(app, panel) -> None:
         market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
-            return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
+            return jsonify({"configured": False, "rows": [], "error": "local KV store unavailable"})
         try:
             rows = panel_call("db_load_liquidation_high_frequency_pool", database_url, limit=limit, **market_kwargs)
             return jsonify({"configured": True, "count": len(rows), "rows": rows})
@@ -242,7 +178,7 @@ def register_liquidation_routes(app, panel) -> None:
         market_kwargs = _request_market_kwargs()
         database_url = panel_call("database_url_or_none")
         if not database_url:
-            return jsonify({"configured": False, "rows": [], "error": "DATABASE_URL is required"})
+            return jsonify({"configured": False, "rows": [], "error": "local KV store unavailable"})
         try:
             rows = panel_call("liquidation_core_rows_with_execution", database_url, limit=limit, **market_kwargs)
             return jsonify({"configured": True, "count": len(rows), "rows": rows})
@@ -626,7 +562,7 @@ def register_liquidation_routes(app, panel) -> None:
         try:
             database_url = panel_call("database_url_or_none")
             if not database_url:
-                return jsonify({"error": "DATABASE_URL is required"}), 400
+                return jsonify({"error": "local KV store unavailable"}), 400
             panel_call("ensure_database_schema_cached", database_url)
             panel_call(
                 "db_upsert_liquidation_accounts",

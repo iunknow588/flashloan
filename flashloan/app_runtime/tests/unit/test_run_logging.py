@@ -5,7 +5,7 @@ from core.sensitive_data import _is_sensitive_environment_name
 def test_redact_sensitive_text_masks_credentials_and_private_key_shapes():
     private_key = "0x" + ("1" * 64)
     message = (
-        "DATABASE_URL=postgresql://bot:demo-password@db.example/app?token=demo-token "
+        "LEGACY_URI=postgresql://bot:demo-password@db.example/app?token=demo-token "
         f"private_key={private_key}"
     )
 

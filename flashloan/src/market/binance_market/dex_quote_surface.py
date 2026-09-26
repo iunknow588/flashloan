@@ -15,6 +15,7 @@ from market.binance_market.dex_quote_surface_helpers import (
     _static_hop_steps,
     _v4_pool_index_by_id,
 )
+from market.binance_market.dex_quote_surface_routes_builder import _build_quote_routes_and_best
 from dex.error_stack import route_error_stack
 from market.binance_market.dex_quote_route_common import (
     build_quote_analysis_defaults,
@@ -23,7 +24,6 @@ from market.binance_market.dex_quote_route_common import (
     build_quote_verification_payload,
     quote_route_status,
 )
-
 
 def build_quote_routes_payload_from_overview(
     overview: dict[str, Any],
@@ -52,6 +52,8 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_symbol = None
     best_token_basis_amount = None
     best_token_basis_bps = None
+    best_token_basis_profit = None
+    best_token_basis_profit_basis = None
     force_live_refresh = str(os.getenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
     # Robinhood Chain/Testnet route pages are quote/review-first: run live
     # Quoter/eth_call by default so routes do not sit in "requires live quoter"
@@ -81,151 +83,31 @@ def build_quote_routes_payload_from_overview(
         in {"1", "true", "yes", "on"}
     )
 
-    for route_index, path in enumerate(paths, start=1):
-        route = dict(path)
-        overview_route = route.get("overviewRoute") or {}
-        route_symbols = list(route.get("routeSymbols") or overview_route.get("pathSymbols") or [])
-        route_addresses = list(route.get("routeAddresses") or [])
-        route_tokens = list(route.get("routeTokenPath") or [])
-        pools = _enrich_route_pools_from_index(
-            _framework_route_pools(route),
-            index_by_pool=v4_index_by_pool,
-        )
-        base_quote_analysis = route.get("quoteAnalysis") or route.get("overviewProfit") or {}
-        quote_analysis = build_quote_analysis_defaults(
-            quote_analysis=base_quote_analysis,
-            route_symbols=route_symbols,
-            price_evidence_source=route.get("priceEvidenceSource")
-            or base_quote_analysis.get("priceEvidenceSource")
-            or "cached_framework_live_confirmation",
-            price_evidence_mode=route.get("priceEvidenceMode")
-            or base_quote_analysis.get("priceEvidenceMode")
-            or "framework_reused_live_confirmation",
-            notional_usd=quote_probe_notional_usd,
-        )
-        analysis_route = dict(route)
-        if not route.get("quoteInputs"):
-            quote_requests = build_quote_request_specs(
-                pair_symbol=str(route.get("symbolPair") or ""),
-                pools=pools,
-                route_symbols=route_symbols,
-                route_addresses=route_addresses,
-                route_tokens=route_tokens,
-                amm_quote_mode="overview_route_snapshot",
-                amm_status="waiting_live_price",
-                v4_quote_mode="overview_route_snapshot",
-                v4_status="waiting_live_price",
-                uniswapx_quote_mode="intent_exact_input",
-                uniswapx_status="waiting_live_price",
-                chain_id=chain_id,
-                settlement=settlement,
-                adapter_hints=[
-                    "pool_manager_state_required",
-                    "hook_aware_quote_required",
-                    "multi_hop_path_must_follow_market_observation_route",
-                    "sdk_or_adapter_must_return_amount_out_raw",
-                ],
-            )
-            quote_inputs = build_quote_inputs_bundle(
-                candidate_pools=pools[:5],
-                route_pools=pools,
-                quote_requests=quote_requests,
-                conditions=[
-                    "报价与路由必须基于统一的实时复核结果，不再从零遍历静态池子",
-                    "需要链上实时 Quoter 复核后才能进入自动交易",
-                ],
-            )
-        else:
-            quote_inputs = dict(route.get("quoteInputs") or {})
-        should_run_live_route = bool(
-            pools
-            and (
-                force_live_refresh
-                or (
-                    not base_quote_analysis.get("steps")
-                    and (probe_all_testnet_routes or route_index <= live_route_limit)
-                )
-                or base_quote_analysis.get("executableCandidate")
-            )
-        )
-        if should_run_live_route:
-            analysis_route["quoteInputs"] = quote_inputs
-            live_analysis = route_quote_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
-            if isinstance(live_analysis, dict) and (live_analysis.get("steps") or live_analysis.get("complete")):
-                quote_analysis = build_quote_analysis_defaults(
-                    quote_analysis=live_analysis,
-                    route_symbols=route_symbols,
-                    price_evidence_source=live_analysis.get("priceEvidenceSource")
-                    or quote_analysis.get("priceEvidenceSource")
-                    or "cached_framework_live_confirmation",
-                    price_evidence_mode=live_analysis.get("priceEvidenceMode")
-                    or quote_analysis.get("priceEvidenceMode")
-                    or "framework_reused_live_confirmation",
-                    notional_usd=quote_probe_notional_usd,
-                )
-        size_analysis = dict(route.get("sizeAnalysis") or {})
-        should_probe_size = bool(
-            size_analysis
-            or probe_all_testnet_routes
-            or route_index <= size_probe_limit
-            or quote_analysis.get("livePriceVerified")
-            or quote_analysis.get("executableCandidate")
-            or quote_analysis.get("chainSubmissionCandidate")
-        )
-        if should_probe_size:
-            size_analysis = route_size_analysis_fn(analysis_route, price_map=price_map or {}, chain_id=chain_id)
-            size_analysis = dict(size_analysis)
-            recommended_analysis = size_analysis.get("recommendedQuoteAnalysis")
-            if isinstance(recommended_analysis, dict):
-                quote_analysis = build_quote_analysis_defaults(
-                    quote_analysis=recommended_analysis,
-                    route_symbols=route_symbols,
-                    price_evidence_source=recommended_analysis.get("priceEvidenceSource"),
-                    price_evidence_mode=recommended_analysis.get("priceEvidenceMode"),
-                    notional_usd=quote_probe_notional_usd,
-                )
-        path_source = route.get("pathSource") or overview.get("routeFrameworkSource") or "market_observation"
-        route_payload = build_quote_route_payload(
-            route=route,
-            route_symbols=route_symbols,
-            route_addresses=route_addresses,
-            route_tokens=route_tokens,
-            pools=pools,
-            quote_analysis=quote_analysis,
-            size_analysis=size_analysis,
-            chain_id=chain_id,
-            path_source=path_source,
-            settlement=settlement,
-            price_evidence_source=quote_analysis.get("priceEvidenceSource"),
-            price_evidence_mode=quote_analysis.get("priceEvidenceMode"),
-        )
-        route_quote_analysis = route_payload.get("quoteAnalysis")
-        if isinstance(route_quote_analysis, dict) and not route_quote_analysis.get("steps"):
-            route_quote_analysis["steps"] = _static_hop_steps(
-                pools=pools,
-                route_symbols=route_symbols,
-                route_addresses=route_addresses,
-                route_quote_analysis=route_quote_analysis,
-            )
-            route_quote_analysis["stepCount"] = len(route_quote_analysis["steps"])
-        routes.append(route_payload)
-        observed_value = quote_analysis.get("referenceNetProfitUsd")
-        if observed_value is not None:
-            observed_net_profits.append(_number(observed_value))
-        executable_value = quote_analysis.get("netProfitUsd")
-        if quote_analysis.get("executableCandidate") and executable_value is not None:
-            executable_net_profits.append(_number(executable_value))
-        if best_observed_profit is None and quote_analysis.get("referenceNetProfitUsd") is not None:
-            best_observed_profit = quote_analysis.get("referenceNetProfitUsd")
-            best_observed_notional = quote_analysis.get("notionalUsd")
-        if best_executable_profit is None and quote_analysis.get("netProfitUsd") is not None:
-            best_executable_profit = quote_analysis.get("netProfitUsd")
-            best_executable_notional = quote_analysis.get("notionalUsd")
-        if quote_analysis.get("referenceReturnBasis") == "borrow_token" and best_token_basis_bps is None:
-            best_token_basis_bps = quote_analysis.get("referenceNetReturnBps")
-            best_token_basis_notional = quote_analysis.get("notionalUsd")
-            best_token_basis_symbol = quote_analysis.get("referenceInputSymbol")
-            best_token_basis_amount = quote_analysis.get("referenceNetProfitAmount")
+    routes, observed_net_profits, executable_net_profits, best_routes_state = _build_quote_routes_and_best(
+        paths=paths,
+        overview=overview,
+        chain_id=chain_id,
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+        quote_probe_notional_usd=quote_probe_notional_usd,
+        price_map=price_map,
+        v4_index_by_pool=v4_index_by_pool,
+        settlement=settlement,
+        force_live_refresh=force_live_refresh,
+        live_route_limit=live_route_limit,
+        size_probe_limit=size_probe_limit,
+        probe_all_testnet_routes=probe_all_testnet_routes,
+    )
+    best_observed_notional = best_routes_state["best_observed_notional"]
+    best_observed_profit = best_routes_state["best_observed_profit"]
+    best_executable_notional = best_routes_state["best_executable_notional"]
+    best_executable_profit = best_routes_state["best_executable_profit"]
+    best_token_basis_notional = best_routes_state["best_token_basis_notional"]
+    best_token_basis_symbol = best_routes_state["best_token_basis_symbol"]
+    best_token_basis_amount = best_routes_state["best_token_basis_amount"]
+    best_token_basis_bps = best_routes_state["best_token_basis_bps"]
+    best_token_basis_profit = best_routes_state["best_token_basis_profit"]
+    best_token_basis_profit_basis = best_routes_state["best_token_basis_profit_basis"]
     summary.update(
         {
             "probeNotionalUsd": quote_probe_notional_usd,
@@ -252,6 +134,8 @@ def build_quote_routes_payload_from_overview(
             "bestTokenBasisInputSymbol": best_token_basis_symbol,
             "bestTokenBasisNetProfitAmount": best_token_basis_amount,
             "bestTokenBasisNetReturnBps": best_token_basis_bps,
+            "bestTokenBasisProfitAmount": best_token_basis_profit,
+            "bestTokenBasisProfitBasis": best_token_basis_profit_basis,
             "directAnchorRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
             "bridgeRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
             "marketObservationRouteCount": int(
@@ -288,7 +172,6 @@ def build_quote_routes_payload_from_overview(
         "poolStaticTable": pool_static_table,
     }
 
-
 def build_quote_request_payload(
     *,
     quote_routes_payload: dict[str, Any],
@@ -311,6 +194,7 @@ def build_quote_request_payload(
             "pair": normalized_pair,
             "venue": normalized_venue,
             "availablePairs": [route.get("symbolPair") for route in quote_routes_payload.get("routes") or []],
+            "quoteRequests": [],
             "errorStack": route_error_stack(
                 status="candidate_pair_not_found",
                 message="candidate_pair_not_found",
@@ -346,7 +230,6 @@ def build_quote_request_payload(
         "note": "This endpoint returns the exact quote request specification; live quote execution is handled by the configured venue adapter.",
     }
 
-
 def build_submission_review_payload(
     *,
     attempts: list[dict[str, Any]] | None = None,
@@ -354,10 +237,161 @@ def build_submission_review_payload(
     source: str | None = None,
 ) -> dict[str, Any]:
     rows = list(attempts or [])
-
+    def _route_review_key(row: dict[str, Any]) -> tuple[str, str]:
+        network = str(row.get("network") or row.get("cow_network") or "").strip().lower()
+        pair = str(row.get("pair") or row.get("symbol_pair") or row.get("route_key") or "").strip()
+        if not pair:
+            quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+            path = row.get("route_path") or quote.get("path") or []
+            if isinstance(path, list):
+                pair = " -> ".join(str(item).strip() for item in path if str(item).strip())
+        return network, pair.upper()
+    def _attempt_ts(row: dict[str, Any]) -> str:
+        return str(row.get("created_at") or row.get("observed_at") or row.get("updated_at") or "")
     def row_status(row: dict[str, Any]) -> str:
         return str(row.get("review_category") or row.get("category") or row.get("status") or row.get("state") or "").lower()
-
+    def row_tx_hash(row: dict[str, Any]) -> str:
+        quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+        return str(
+            row.get("tx_hash")
+            or row.get("transaction_hash")
+            or quote.get("tx_hash")
+            or quote.get("transaction_hash")
+            or ""
+        ).strip()
+    # The submission review page is for chain-submitted transactions only.
+    # Quote-only prechecks and broadcast-disabled attempts have no tx hash and
+    # should not be shown as "复盘记录".
+    def row_broadcast_attempted(row: dict[str, Any]) -> bool:
+        error_blob = " ".join(
+            str(row.get(key) or "")
+            for key in ("error", "detail", "errorDetail")
+        ).strip().lower()
+        if (
+            row.get("broadcastDisabled")
+            or "broadcast_disabled" in error_blob
+            or "broadcast disabled" in error_blob
+        ):
+            return False
+        precheck = row.get("precheck") if isinstance(row.get("precheck"), dict) else {}
+        phase = str(row.get("execution_phase") or "").strip().lower()
+        state = row_status(row)
+        return bool(
+            row.get("broadcast")
+            or row.get("broadcastAttempted")
+            or precheck.get("broadcast")
+            or precheck.get("broadcastAttempted")
+            or phase in {"submission", "order_submission", "execution"}
+            or state in {
+                "submitted_success",
+                "submission_failed",
+                "submit_failed",
+                "order_failed",
+                "execution_failed",
+                "settlement_failed",
+            }
+        )
+    # The review page shows only records where a chain transaction was actually
+    # submitted. A failed broadcast without a tx hash has no chain submission
+    # record to review, so it is not shown here.
+    rows = [row for row in rows if row_tx_hash(row)]
+    # Keep off-chain estimate data available for review. A submission attempt
+    # must not lose the latest off-chain probe records / best-amount calculation
+    # just because the on-chain broadcast row has no probe rows itself.
+    estimates_by_route: dict[tuple[str, str], dict[str, Any]] = {}
+    for candidate in (attempts or []):
+        if not isinstance(candidate, dict):
+            continue
+        if row_tx_hash(candidate) or row_broadcast_attempted(candidate):
+            continue
+        key = _route_review_key(candidate)
+        if not key[1]:
+            continue
+        current = estimates_by_route.get(key)
+        if current is None or _attempt_ts(candidate) > _attempt_ts(current):
+            estimates_by_route[key] = candidate
+    merged_rows = []
+    for row in rows:
+        key = _route_review_key(row)
+        estimate = estimates_by_route.get(key) if key[1] else None
+        if not isinstance(estimate, dict) or estimate is row:
+            merged_rows.append(row)
+            continue
+        merged = {**row}
+        est_quote = estimate.get("quote") if isinstance(estimate.get("quote"), dict) else {}
+        est_calc = (
+            estimate.get("best_amount_calculation")
+            or estimate.get("bestAmountCalculation")
+            or est_quote.get("best_amount_calculation")
+            or est_quote.get("bestAmountCalculation")
+        )
+        if isinstance(est_calc, dict) and not (row.get("best_amount_calculation") or row.get("bestAmountCalculation")):
+            merged["best_amount_calculation"] = est_calc
+            merged["bestAmountCalculation"] = est_calc
+        if not row.get("probe_records") and not row.get("probeRecords"):
+            est_probes = (
+                estimate.get("probe_records")
+                or estimate.get("probeRecords")
+                or est_quote.get("probe_records")
+                or est_quote.get("probeRecords")
+                or (est_calc if isinstance(est_calc, dict) else {}).get("probe_records")
+                or (est_calc if isinstance(est_calc, dict) else {}).get("probeRecords")
+                or []
+            )
+            if isinstance(est_probes, list):
+                merged["probe_records"] = est_probes
+                merged["probeRecords"] = est_probes
+        if isinstance(row.get("quote"), dict) and est_quote:
+            merged_quote = {**row["quote"]}
+            if not merged_quote.get("probe_records") and not merged_quote.get("probeRecords"):
+                est_probes = (
+                    est_quote.get("probe_records")
+                    or est_quote.get("probeRecords")
+                    or (est_calc if isinstance(est_calc, dict) else {}).get("probe_records")
+                    or (est_calc if isinstance(est_calc, dict) else {}).get("probeRecords")
+                    or []
+                )
+                if isinstance(est_probes, list):
+                    merged_quote["probe_records"] = est_probes
+                    merged_quote["probeRecords"] = est_probes
+            if not merged_quote.get("best_amount_calculation") and not merged_quote.get("bestAmountCalculation"):
+                if isinstance(est_calc, dict):
+                    merged_quote["best_amount_calculation"] = est_calc
+                    merged_quote["bestAmountCalculation"] = est_calc
+            merged["quote"] = merged_quote
+        if isinstance(row.get("analysis"), dict):
+            est_analysis = estimate.get("analysis") if isinstance(estimate.get("analysis"), dict) else {}
+            if est_analysis:
+                merged_analysis = {**row["analysis"]}
+                if not merged_analysis.get("probe_records") and not merged_analysis.get("probeRecords"):
+                    est_probes = (
+                        est_analysis.get("probe_records")
+                        or est_analysis.get("probeRecords")
+                        or (est_calc if isinstance(est_calc, dict) else {}).get("probe_records")
+                        or (est_calc if isinstance(est_calc, dict) else {}).get("probeRecords")
+                        or []
+                    )
+                    if isinstance(est_probes, list):
+                        merged_analysis["probe_records"] = est_probes
+                        merged_analysis["probeRecords"] = est_probes
+                if not merged_analysis.get("best_amount_calculation") and not merged_analysis.get("bestAmountCalculation"):
+                    if isinstance(est_calc, dict):
+                        merged_analysis["best_amount_calculation"] = est_calc
+                        merged_analysis["bestAmountCalculation"] = est_calc
+                merged["analysis"] = merged_analysis
+        merged_rows.append(merged)
+    rows = merged_rows
+    filtered_groups = {}
+    for key, group in (groups or {}).items():
+        if not isinstance(group, dict):
+            filtered_groups[key] = group
+            continue
+        attempts = group.get("attempts") or []
+        filtered_groups[key] = {
+            **group,
+            "attempts": [row for row in attempts if row_tx_hash(row)],
+        }
+    groups = filtered_groups or groups
     success = [row for row in rows if row_status(row).endswith("success")]
     failed = [row for row in rows if "fail" in row_status(row)]
     blocked = [row for row in rows if "not_executable" in row_status(row) or row_status(row) == "quote_required"]

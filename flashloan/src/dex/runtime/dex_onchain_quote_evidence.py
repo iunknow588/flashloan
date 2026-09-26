@@ -43,6 +43,7 @@ from dex.runtime.dex_quote_evidence_helpers import (
     _is_missing_v4_adapter_error,
     _is_not_enough_liquidity_error,
     _is_pool_not_initialized_error,
+    _is_rpc_verification_error,
     _is_robinhood_family,
     _load_v4_quote_adapter,
     _norm_symbol,
@@ -172,12 +173,12 @@ def _unsupported_evidence(
         "missing_trigger_block",
     }:
         pass
+    elif _is_rpc_verification_error(ValueError(joined)):
+        status = _is_rpc_verification_error(ValueError(joined))
     elif _is_not_enough_liquidity_error(ValueError(joined)):
         status = "not_enough_liquidity"
     elif _is_pool_not_initialized_error(ValueError(joined)):
         status = "pool_not_initialized"
-    elif "rpc" in lower and ("unavailable" in lower or "failed" in lower or "connect" in lower):
-        status = "rpc_verification_failed"
     elif "adapter" in lower and "required" in lower:
         status = "adapter_required"
     elif "trigger block" in lower or "block context" in lower:
@@ -336,6 +337,11 @@ def _live_pool_state_precheck_failures(
     if not hasattr(w3, "eth") or not hasattr(w3.eth, "contract") or not callable(getattr(w3.eth, "contract", None)):
         return []
     failures: list[str] = []
+    from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import (
+        _batch_read_live_pool_states,
+    )
+
+    v4_entries: dict[str, list[tuple[dict[str, Any], str, str]]] = {}
     for step in steps:
         if _protocol_key(step.get("protocol"), step.get("dex"), step.get("fee")) != "uniswap_v4":
             continue
@@ -351,26 +357,38 @@ def _live_pool_state_precheck_failures(
         if not (pool_id.startswith("0x") and len(pool_id) == 66):
             continue
         hop_label = f"hop {step.get('hop') or '?'} {step.get('fromSymbol') or ''} -> {step.get('toSymbol') or ''}"
-        try:
-            from dex.intent_trade.chains.robinhood_testnet.v4_quote_adapter import _read_live_pool_state_with_w3
+        v4_entries.setdefault(pool_manager, []).append((step, pool_id, hop_label))
 
-            _read_live_pool_state_with_w3(
+    for pool_manager, entries in v4_entries.items():
+        pool_ids = [pool_id for _, pool_id, _ in entries]
+        try:
+            states = _batch_read_live_pool_states(
                 w3=w3,
                 rpc_url=rpc_url,
                 pool_manager=pool_manager,
-                pool_id=pool_id,
+                pool_ids=pool_ids,
                 block_number=block_number,
                 network=network,
                 chain_id=chain_id,
             )
         except Exception as exc:
-            message = _text(exc).lower()
-            if "live liquidity is zero" in message or _is_not_enough_liquidity_error(exc):
+            for _, _, hop_label in entries:
+                failures.append(f"on-chain live pool state verification failed for {hop_label}: {exc}")
+            continue
+        for _, pool_id, hop_label in entries:
+            state = states.get(pool_id.lower())
+            if not state:
+                failures.append(f"on-chain live pool state verification failed for {hop_label}: batch response missing pool state")
+                continue
+            message = _text(state.get("error")).lower()
+            if not message:
+                continue
+            if "live liquidity is zero" in message or _is_not_enough_liquidity_error(ValueError(message)):
                 failures.append(f"{hop_label} has no LP liquidity on chain: pool manager live liquidity is zero")
-            elif "slot0 missing" in message or "missing sqrtpricex96" in message or _is_pool_not_initialized_error(exc):
+            elif "slot0 missing" in message or "missing sqrtpricex96" in message or _is_pool_not_initialized_error(ValueError(message)):
                 failures.append(f"{hop_label} pool is not initialized: live slot0 is missing")
             else:
-                failures.append(f"on-chain live pool state verification failed for {hop_label}: {exc}")
+                failures.append(f"on-chain live pool state verification failed for {hop_label}: {state.get('error')}")
     return failures
 
 
@@ -384,6 +402,7 @@ def build_route_onchain_evidence(
     quote_hop_provider: QuoteHopProvider | None = None,
     borrow_input_amount_override_raw: int | None = None,
     skip_execution_size_probe: bool = False,
+    closed_loop_routes_group: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     observed = observed_at or _now_iso()
     table = payload.get("poolStaticTable") if isinstance(payload, dict) and isinstance(payload.get("poolStaticTable"), dict) else {}
@@ -462,12 +481,8 @@ def build_route_onchain_evidence(
     token_cache: dict[str, int] = {}
     try:
         w3, rpc_url = _connect_robinhood_family(chain_id, network)
-        if trigger_block_number is None:
-            block_number = int(w3.eth.block_number)
-            quote_block_source = "latest_fallback_missing_trigger"
-        else:
-            block_number = trigger_block_number
-            quote_block_source = "trigger_block"
+        block_number = int(w3.eth.block_number)
+        quote_block_source = "latest_onchain_review"
     except Exception as exc:
         return _unsupported_evidence(
             chain_id=chain_id,
@@ -495,14 +510,10 @@ def build_route_onchain_evidence(
         ]
         pool_failure_status = None
         if generic_failures and len(generic_failures) == len(live_pool_failures):
+            joined_generic = " ".join(generic_failures)
             pool_failure_status = (
-                "rpc_verification_failed"
-                if any(
-                    marker in blocker.lower()
-                    for blocker in generic_failures
-                    for marker in ("rpc", "timeout", "connection", "http")
-                )
-                else "live_quote_failed"
+                _is_rpc_verification_error(ValueError(joined_generic))
+                or "live_quote_failed"
             )
         return _unsupported_evidence(
             chain_id=chain_id,
@@ -534,51 +545,30 @@ def build_route_onchain_evidence(
     route_closed = bool(route_symbols and route_symbols[0] == route_symbols[-1])
     route_size_execution_probe, route_max_executable_raw, route_first_failure_raw, route_recommended_raw = _route_size_advice(route)
     reference_input_amount = _positive_decimal_or_none(analysis.get("referenceInputAmount"))
-    borrow_input_amount = (
-        reference_input_amount
-        if route_closed and reference_input_amount is not None
-        else _positive_decimal_or_none(analysis.get("notionalUsd"))
-        or Decimal("1000")
-    )
-    requested_borrow_input_amount_raw = (
-        int(borrow_input_amount_override_raw)
-        if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0
-        else _raw_from_human(borrow_input_amount, input_decimals)
-    )
-    probe_requested_amount_raw = requested_borrow_input_amount_raw
-    # Testnet closed-loop V4 pools are small and often do not have a populated
-    # USD price or balance table yet. Falling back to 1000 borrow tokens makes
-    # every route look catastrophically unprofitable because the probe crosses
-    # the entire pool. Start the on-chain size search from a conservative
-    # amount when there is no reference/size guidance; the probe can still
-    # double upward until it finds the largest executable profitable size.
-    if (
-        borrow_input_amount_override_raw is None
-        and chain_id in {ROBINHOOD_TESTNET_CHAIN_ID}
-        and route_closed
-        and reference_input_amount is None
-        and not route_recommended_raw
-        and not route_max_executable_raw
-    ):
-        probe_requested_amount_raw = min(
-            requested_borrow_input_amount_raw,
-            _raw_from_human(Decimal("0.1"), input_decimals),
-        )
     offchain_initial_probe_amount_raw, offchain_initial_probe_basis, offchain_initial_probe_reason, _ = (
         _offchain_initial_probe_amount_raw(
             route,
-            requested_amount_raw=probe_requested_amount_raw,
             input_decimals=input_decimals,
             analysis=analysis,
             pools=pools,
         )
     )
     if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0:
+        requested_borrow_input_amount_raw = int(borrow_input_amount_override_raw)
+    elif offchain_initial_probe_amount_raw and int(offchain_initial_probe_amount_raw) > 0:
+        # 初始请求量的默认值就是链下初始探测起点；只有用户显式传入金额时才不同。
+        requested_borrow_input_amount_raw = int(offchain_initial_probe_amount_raw)
+    elif route_closed and reference_input_amount is not None:
+        requested_borrow_input_amount_raw = _raw_from_human(reference_input_amount, input_decimals)
+    else:
+        requested_borrow_input_amount_raw = _raw_from_human(Decimal("1"), input_decimals)
+    probe_requested_amount_raw = (
+        int(offchain_initial_probe_amount_raw)
+        if offchain_initial_probe_amount_raw and int(offchain_initial_probe_amount_raw) > 0
+        else requested_borrow_input_amount_raw
+    )
+    if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0:
         selected_borrow_input_amount_raw = int(borrow_input_amount_override_raw)
-    elif route_recommended_raw is not None and route_recommended_raw > 0:
-        selected_borrow_input_amount_raw = int(route_recommended_raw)
-    elif route_max_executable_raw is not None and route_max_executable_raw > 0:
-        selected_borrow_input_amount_raw = int(route_max_executable_raw)
     else:
         selected_borrow_input_amount_raw = int(probe_requested_amount_raw)
     borrow_input_amount = Decimal(int(selected_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))
@@ -598,9 +588,8 @@ def build_route_onchain_evidence(
         and (route_has_size_metadata or robinhood_closed_loop_v4_route)
     ):
         probe_amount_raw = offchain_initial_probe_amount_raw
-        # Off-chain sizing chooses the starting point and passes it to the
-        # on-chain probe as an explicit parameter. The probe halves on failed
-        # attempts and doubles on successful attempts from that starting point.
+        # 链下初始探测只负责给出起点；链上执行规模探测再围绕绝对利润峰值
+        # 搜索最佳量，不能把离线 sizeAnalysis 的 maxExecutable 当作执行量。
         execution_size_probe = _probe_robinhood_testnet_route_execution_size(
             route,
             payload=payload,
@@ -612,13 +601,451 @@ def build_route_onchain_evidence(
             initial_probe_amount_raw=offchain_initial_probe_amount_raw,
         )
         try:
-            probed_amount_raw = int(execution_size_probe.get("maxExecutableAmountRaw") or 0)
+            probed_amount_raw = int(
+                execution_size_probe.get("bestProfitAmountRaw")
+                or execution_size_probe.get("maxExecutableAmountRaw")
+                or 0
+            )
         except (TypeError, ValueError):
             probed_amount_raw = None
         if probed_amount_raw is not None and probed_amount_raw > 0:
             selected_borrow_input_amount_raw = probed_amount_raw
             borrow_input_amount = Decimal(probed_amount_raw) / (Decimal(10) ** int(input_decimals))
 
+    hop_rows, blockers, amount_in_raw, route_symbols, route_addresses, steps = _quote_route_hops(
+        route=route,
+        pools=pools,
+        steps=steps,
+        w3=w3,
+        quoter=quoter,
+        chain_id=chain_id,
+        network=network,
+        block_number=block_number,
+        token_cache=token_cache,
+        quote_hop_provider=quote_hop_provider,
+        closed_loop_routes_group=closed_loop_routes_group,
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        selected_borrow_input_amount_raw=selected_borrow_input_amount_raw,
+    )
+
+    token_continuity_issues = _token_continuity_issues(hop_rows)
+    token_continuity_ok = not token_continuity_issues
+    if token_continuity_issues:
+        blockers.append("on-chain verified token addresses are inconsistent; cannot enter transaction preflight")
+    reference_quote_only = any(
+        _text(hop.get("sdkAdapter") or hop.get("quoteAdapter")).lower() == "reference_quote_adapter"
+        or _text(hop.get("quoteMethod")).lower() == "uniswap_v4_reference_quote"
+        for hop in hop_rows
+    )
+    if reference_quote_only:
+        blockers.append("V4 路线使用参考报价适配器；必须先用真实 V4 Quoter/SDK 或链上复核确认报价后再进入链上执行")
+    all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and token_continuity_ok and not any(
+        _text(hop.get("status")).lower() in {"live_quote_failed", "quote_failed", "not_enough_liquidity", "adapter_required", "pool_not_initialized", "rpc_verification_failed", "rpc_verification_timeout", "live_evidence_deferred"}
+        for hop in hop_rows
+    ) and not reference_quote_only
+    hop_price_impact_rows = [
+        hop for hop in hop_rows if isinstance(hop, dict) and hop.get("amountOutRaw") is not None
+    ]
+    all_hops_within_price_impact_limit = bool(hop_price_impact_rows) and len(hop_price_impact_rows) == len(steps) and all(
+        hop.get("priceImpactWithinLimit") is True for hop in hop_price_impact_rows
+    )
+    price_impact_issues = [
+        {
+            "hop": hop.get("hop"),
+            "fromSymbol": hop.get("fromSymbol"),
+            "toSymbol": hop.get("toSymbol"),
+            "priceImpactBps": hop.get("priceImpactBps"),
+            "limitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+            "error": hop.get("priceImpactError"),
+        }
+        for hop in hop_rows
+        if hop.get("priceImpactWithinLimit") is not True
+    ]
+    for issue in price_impact_issues:
+        hop_no = int(issue.get("hop") or 0)
+        from_symbol = _norm_symbol(issue.get("fromSymbol"))
+        to_symbol = _norm_symbol(issue.get("toSymbol"))
+        impact_bps = issue.get("priceImpactBps")
+        limit_bps = int(issue.get("limitBps") or DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS)
+        if impact_bps is None:
+            blockers.append(
+                f"hop {hop_no} {from_symbol}->{to_symbol} price impact cannot be confirmed; "
+                f"must be at or below {limit_bps} bps before transaction preflight"
+            )
+        else:
+            blockers.append(
+                f"hop {hop_no} {from_symbol}->{to_symbol} price impact {impact_bps} bps "
+                f"exceeds {limit_bps} bps limit"
+            )
+    adapter_required = bool(
+        any(_text(hop.get("status")).lower() == "adapter_required" for hop in hop_rows)
+    )
+    final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
+    final_hop = hop_rows[-1] if all_hops_verified and hop_rows else None
+    final_decimals = int(final_hop["outputDecimals"]) if final_hop and final_hop.get("outputDecimals") is not None else None
+    final_amount = Decimal(final_hop["amountOut"]) if final_hop and final_hop.get("amountOut") is not None else None
+    borrow_asset_is_stable = bool(
+        analysis.get("borrowAssetIsStable")
+        if analysis.get("borrowAssetIsStable") is not None
+        else input_symbol in _STABLE_ANCHOR_SYMBOLS
+    )
+    notional = (
+        borrow_input_amount
+        if borrow_asset_is_stable
+        else (_positive_decimal_or_none(analysis.get("notionalUsd")) or Decimal("1000"))
+    )
+    token_gross_profit = (
+        final_amount - borrow_input_amount
+        if all_hops_verified and route_closed and final_symbol == input_symbol and final_amount is not None
+        else None
+    )
+    token_flash_fee = borrow_input_amount * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    token_submission_net_profit = token_gross_profit - token_flash_fee if token_gross_profit is not None else None
+    token_net_profit = token_submission_net_profit
+    token_net_profit_bps = (
+        token_net_profit / borrow_input_amount * Decimal(10_000)
+        if token_net_profit is not None and borrow_input_amount > 0
+        else None
+    )
+    final_output_usd = final_amount if borrow_asset_is_stable and final_symbol in _STABLE_ANCHOR_SYMBOLS and final_amount is not None else None
+    gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
+    flash_fee = notional * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
+    gas_reserve = Decimal(str(DEFAULT_GAS_RESERVE_USD))
+    submission_net_profit_usd = gross_profit_usd - flash_fee if gross_profit_usd is not None else None
+    net_profit_usd = submission_net_profit_usd - gas_reserve if submission_net_profit_usd is not None else None
+    net_profit_bps = net_profit_usd / notional * Decimal(10_000) if net_profit_usd is not None and notional > 0 else None
+    min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
+    net_positive_after_costs = bool(
+        all_hops_verified
+        and (
+            (borrow_asset_is_stable and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
+            or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
+        )
+    )
+    meets_submission_profit_threshold = bool(
+        all_hops_verified
+        and (
+            (borrow_asset_is_stable and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
+            or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
+        )
+    )
+    if not all_hops_verified and not blockers:
+        blockers.append("on-chain verification did not cover all hops; cannot enter preflight")
+    if all_hops_verified and not net_positive_after_costs:
+        blockers.append("on-chain computed profit is not positive after flash loan fees; cannot enter preflight")
+    elif all_hops_verified and borrow_asset_is_stable and not meets_submission_profit_threshold:
+        blockers.append("stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight")
+    if borrow_asset_is_stable and final_output_usd is None:
+        blockers.append("final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight")
+    pool_insufficient_for_profitable_execution = bool(
+        execution_size_probe
+        and execution_size_probe.get("searchStatus") == "pool_insufficient_for_profitable_execution"
+    )
+    pool_not_initialized = bool(
+        any(_text(hop.get("status")).lower() == "pool_not_initialized" for hop in hop_rows)
+        or bool(
+            execution_size_probe
+            and execution_size_probe.get("searchStatus") == "pool_not_initialized"
+        )
+    )
+    not_enough_liquidity = bool(
+        any(_text(hop.get("status")).lower() == "not_enough_liquidity" for hop in hop_rows)
+        or bool(
+            execution_size_probe
+            and execution_size_probe.get("searchStatus") == "not_enough_liquidity"
+        )
+    )
+    if pool_insufficient_for_profitable_execution:
+        blockers.append("current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee")
+    if pool_not_initialized:
+        blockers.append("V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate")
+    if not_enough_liquidity:
+        blockers.append("current borrow size exceeds available liquidity for at least one hop; reduce borrow size and retry")
+    if adapter_required:
+        blockers.append("V4 quote adapter is required; pool interpretation deferred until the mainnet V4 adapter is configured")
+    ready_for_transaction_preflight = bool(
+        meets_submission_profit_threshold and all_hops_within_price_impact_limit
+    )
+    evidence_status = (
+        "adapter_required"
+        if adapter_required
+        else (
+        "pool_not_initialized"
+        if pool_not_initialized
+        else (
+            "not_enough_liquidity"
+        if not_enough_liquidity
+        else (
+            "pool_insufficient_for_profitable_execution"
+        if pool_insufficient_for_profitable_execution
+        else (
+            "route_unprofitable"
+            if all_hops_verified and not net_positive_after_costs
+            else (
+                "slippage_limit_exceeded"
+                if all_hops_verified and not all_hops_within_price_impact_limit
+                else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
+            )
+        )
+        )
+        )
+        )
+    )
+    evidence_trust = (
+        "live_quoter_verified_readonly"
+        if all_hops_verified
+        else (
+            evidence_status
+            if evidence_status in {"not_enough_liquidity", "pool_not_initialized", "live_quote_failed", "rpc_verification_failed", "rpc_verification_timeout"}
+            else ("live_quote_reference_only" if reference_quote_only else "static_reference_only")
+        )
+    )
+    if ready_for_transaction_preflight:
+        evidence_conclusion = "链上报价已验证为正收益，本次复核完成"
+        evidence_action = "on-chain verified profitable; review complete"
+    elif all_hops_verified and not net_positive_after_costs:
+        evidence_conclusion = "链上报价不盈利，不建议进入链上执行"
+        evidence_action = "on-chain verified but net profit is not positive after flash loan fees; do not execute"
+    elif all_hops_verified and not all_hops_within_price_impact_limit:
+        evidence_conclusion = "链上报价已验证存在利润，但至少一个单跳价格影响超过 10 bps；不建议按当前金额进入链上执行"
+        evidence_action = "on-chain verified but at least one hop price impact exceeds the 10 bps limit; reduce size or do not execute"
+    elif not all_hops_verified:
+        evidence_conclusion = "链上报价失败或未完成，当前无法给出可执行套利结论"
+        evidence_action = "on-chain quote failed; route cannot enter transaction preflight"
+    else:
+        evidence_conclusion = "链上复核完成，但当前状态不满足交易提交条件"
+        evidence_action = "on-chain reverify complete; current state does not satisfy transaction submission conditions"
+    return _build_onchain_quote_evidence_payload(locals())
+
+
+
+def _build_onchain_quote_evidence_payload(c: dict[str, Any]) -> dict[str, Any]:
+    adapter_required = c["adapter_required"]
+    all_hops_verified = c["all_hops_verified"]
+    all_hops_within_price_impact_limit = c["all_hops_within_price_impact_limit"]
+    block_number = c["block_number"]
+    blockers = c["blockers"]
+    borrow_asset_is_stable = c["borrow_asset_is_stable"]
+    borrow_input_amount = c["borrow_input_amount"]
+    chain_id = c["chain_id"]
+    evidence_action = c["evidence_action"]
+    evidence_conclusion = c["evidence_conclusion"]
+    evidence_status = c["evidence_status"]
+    evidence_trust = c["evidence_trust"]
+    execution_size_probe = c["execution_size_probe"]
+    final_amount = c["final_amount"]
+    final_decimals = c["final_decimals"]
+    final_output_usd = c["final_output_usd"]
+    final_symbol = c["final_symbol"]
+    flash_fee = c["flash_fee"]
+    gas_reserve = c["gas_reserve"]
+    gross_profit_usd = c["gross_profit_usd"]
+    hop_rows = c["hop_rows"]
+    input_decimals = c["input_decimals"]
+    input_symbol = c["input_symbol"]
+    meets_submission_profit_threshold = c["meets_submission_profit_threshold"]
+    min_profit_usd = c["min_profit_usd"]
+    net_positive_after_costs = c["net_positive_after_costs"]
+    net_profit_bps = c["net_profit_bps"]
+    net_profit_usd = c["net_profit_usd"]
+    network = c["network"]
+    not_enough_liquidity = c["not_enough_liquidity"]
+    notional = c["notional"]
+    observed = c["observed"]
+    offchain_initial_probe_amount_raw = c["offchain_initial_probe_amount_raw"]
+    offchain_initial_probe_basis = c["offchain_initial_probe_basis"]
+    offchain_initial_probe_reason = c["offchain_initial_probe_reason"]
+    pool_insufficient_for_profitable_execution = c["pool_insufficient_for_profitable_execution"]
+    pool_not_initialized = c["pool_not_initialized"]
+    price_impact_issues = c["price_impact_issues"]
+    quote_block_source = c["quote_block_source"]
+    quoter = c["quoter"]
+    ready_for_transaction_preflight = c["ready_for_transaction_preflight"]
+    requested_borrow_input_amount_raw = c["requested_borrow_input_amount_raw"]
+    route_addresses = c["route_addresses"]
+    route_closed = c["route_closed"]
+    route_symbols = c["route_symbols"]
+    rpc_url = c["rpc_url"]
+    selected_borrow_input_amount_raw = c["selected_borrow_input_amount_raw"]
+    submission_net_profit_usd = c["submission_net_profit_usd"]
+    token_continuity_issues = c["token_continuity_issues"]
+    token_continuity_ok = c["token_continuity_ok"]
+    token_flash_fee = c["token_flash_fee"]
+    token_gross_profit = c["token_gross_profit"]
+    token_net_profit = c["token_net_profit"]
+    token_net_profit_bps = c["token_net_profit_bps"]
+    token_submission_net_profit = c["token_submission_net_profit"]
+    trigger = c["trigger"]
+    trigger_block_number = c["trigger_block_number"]
+    w3 = c["w3"]
+
+    return {
+        "evidenceVersion": 1,
+        "observedAt": observed,
+        "network": network,
+        "chainId": chain_id,
+        "rpcUrl": rpc_url,
+        "blockNumber": block_number,
+        "blockTimestamp": _block_timestamp(w3, block_number),
+        "triggerContext": trigger,
+        "triggerBlockNumber": trigger_block_number,
+        "quoteBlockSource": quote_block_source,
+        "quoter": quoter,
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "requestedBorrowInputAmountRaw": str(requested_borrow_input_amount_raw),
+        "offchainInitialProbeAmountRaw": str(offchain_initial_probe_amount_raw),
+        "offchainInitialProbeBasis": offchain_initial_probe_basis,
+        "offchainInitialProbeReason": offchain_initial_probe_reason,
+        "selectedBorrowInputAmountRaw": str(selected_borrow_input_amount_raw),
+        "executionSizeProbe": execution_size_probe,
+        "status": evidence_status,
+        "executionTrust": evidence_trust,
+        "trustedForExecution": False,
+        "priceEvidenceMode": "live_verified" if all_hops_verified else "live_required",
+        "priceEvidenceSource": "chain_live_quote" if all_hops_verified else "chain_live_quote_required",
+        "livePriceVerified": bool(all_hops_verified),
+        "readyForTransactionPreflight": ready_for_transaction_preflight,
+        "profitable": bool(all_hops_verified and net_positive_after_costs),
+        "conclusion": evidence_conclusion,
+        "recommendation": {
+            "level": evidence_status,
+            "action": evidence_action,
+            "conclusion": evidence_conclusion,
+            "profitable": bool(all_hops_verified and net_positive_after_costs),
+            "readyForTransactionPreflight": ready_for_transaction_preflight,
+            "blocked": not ready_for_transaction_preflight,
+            "reasons": blockers,
+        },
+        "hops": hop_rows,
+        "costModel": {
+            "notionalUsd": float(notional),
+            "requestedBorrowInputAmountRaw": int(requested_borrow_input_amount_raw),
+            "requestedBorrowInputAmount": float(Decimal(int(requested_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))),
+            "selectedBorrowInputAmountRaw": int(selected_borrow_input_amount_raw),
+            "selectedBorrowInputAmount": float(borrow_input_amount),
+            "selectedBorrowInputAmountBasis": "borrow_token",
+            "selectedBorrowInputAmountReason": (
+                "onchain_execution_size_probe_max_absolute_profit_amount"
+                if (
+                    isinstance(execution_size_probe, dict)
+                    and execution_size_probe.get("maxExecutableAmountRaw") is not None
+                    and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
+                    and execution_size_probe.get("maxExecutableAmountConfirmed") is True
+                )
+                else "onchain_execution_size_probe_confirmed_profitable_lower_bound"
+                if (
+                    isinstance(execution_size_probe, dict)
+                    and execution_size_probe.get("maxExecutableAmountRaw") is not None
+                    and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
+                    and execution_size_probe.get("maxExecutableAmountConfirmed") is False
+                )
+                else "requested_amount_fallback"
+            ),
+            "selectedBorrowInputAmountConfirmedMax": bool(
+                isinstance(execution_size_probe, dict)
+                and execution_size_probe.get("maxExecutableAmountConfirmed") is True
+                and execution_size_probe.get("maxExecutableAmountRaw") is not None
+                and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
+            ),
+            "borrowInputAmount": float(borrow_input_amount),
+            "borrowInputSymbol": input_symbol,
+            "finalOutputAmount": float(final_amount) if final_amount is not None else None,
+            "finalOutputSymbol": final_symbol,
+            "grossProfitAmount": float(token_gross_profit) if token_gross_profit is not None else None,
+            "flashLoanFeeAmount": float(token_flash_fee),
+            "submissionNetProfitAmount": float(token_submission_net_profit) if token_submission_net_profit is not None else None,
+            "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
+            "netProfitAmountSymbol": input_symbol,
+            "netProfitAmountBps": float(token_net_profit_bps) if token_net_profit_bps is not None else None,
+            "profitBasis": "usd" if borrow_asset_is_stable else "borrow_token",
+            "tokenGasExcluded": not borrow_asset_is_stable,
+            "finalOutputUsd": float(final_output_usd) if final_output_usd is not None else None,
+            "grossProfitUsd": float(gross_profit_usd) if gross_profit_usd is not None else None,
+            "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
+            "flashLoanFeeUsd": float(flash_fee),
+            "gasReserveUsd": float(gas_reserve),
+            "offchainMinProfitUsd": float(min_profit_usd),
+            "minProfitUsd": float(min_profit_usd),
+            "submissionMinProfitUsd": float(flash_fee),
+            "submissionNetProfitUsd": float(submission_net_profit_usd) if submission_net_profit_usd is not None else None,
+            "offchainNetProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
+            "netProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
+            "netProfitBps": float(net_profit_bps if borrow_asset_is_stable else token_net_profit_bps)
+            if (net_profit_bps if borrow_asset_is_stable else token_net_profit_bps) is not None
+            else None,
+            "hopPriceImpactLimitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+            "maxHopPriceImpactBps": max(
+                (float(hop.get("priceImpactBps")) for hop in hop_rows if _number(hop.get("priceImpactBps")) is not None),
+                default=None,
+            ),
+            "priceImpactIssues": price_impact_issues,
+        },
+        "validation": {
+            "allHopsQuoted": all_hops_verified,
+            "allHopsWithinPriceImpactLimit": all_hops_within_price_impact_limit,
+            "hopPriceImpactLimitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
+            "priceImpactIssues": price_impact_issues,
+            "routeClosed": route_closed,
+            "tokenContinuity": token_continuity_ok,
+            "tokenContinuityIssues": token_continuity_issues,
+            "finalOutputSymbol": final_symbol,
+            "finalOutputDecimals": final_decimals,
+            "profitableAfterCosts": net_positive_after_costs,
+            "netPositiveAfterCosts": net_positive_after_costs,
+            "meetsMinProfitThreshold": meets_submission_profit_threshold,
+            "meetsSubmissionProfitThreshold": meets_submission_profit_threshold,
+            "meetsOffchainProfitThreshold": bool(
+                all_hops_verified and net_profit_usd is not None and net_profit_usd >= min_profit_usd
+            ),
+            "borrowAssetClass": "stable" if borrow_asset_is_stable else "non_stable",
+            "borrowAssetIsStable": borrow_asset_is_stable,
+            "borrowInputAmount": float(borrow_input_amount),
+            "requestedBorrowInputAmount": float(Decimal(int(requested_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))),
+            "borrowInputSymbol": input_symbol,
+            "finalOutputAmount": float(final_amount) if final_amount is not None else None,
+            "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
+            "netProfitAmountSymbol": input_symbol,
+            "nonStablePositiveXProfitPolicy": bool(not borrow_asset_is_stable),
+            "executionSizeSearchStatus": execution_size_probe.get("searchStatus") if execution_size_probe else None,
+            "poolInsufficientForProfitableExecution": pool_insufficient_for_profitable_execution,
+            "poolNotInitialized": pool_not_initialized,
+            "notEnoughLiquidity": not_enough_liquidity,
+            "adapterRequired": adapter_required,
+        },
+        "blockers": blockers,
+        "errorStack": _dex_error_stack_from_status(
+            evidence_status,
+            message=blockers[0] if blockers else "OK",
+            raw_error=blockers[0] if blockers else None,
+            details={
+                "status": evidence_status,
+                "blockers": blockers,
+                "executionSizeProbe": execution_size_probe,
+            },
+        ),
+        "transactionDevelopment": _transaction_development(ready_for_transaction_preflight, blockers),
+    }
+
+
+def _quote_route_hops(
+    *,
+    route: dict[str, Any],
+    pools: dict[str, dict[str, Any]],
+    steps: list[dict[str, Any]],
+    w3: Any,
+    quoter: str,
+    chain_id: int | None,
+    network: str,
+    block_number: int,
+    token_cache: dict[str, int],
+    quote_hop_provider: QuoteHopProvider | None,
+    closed_loop_routes_group: list[dict[str, Any]] | None,
+    route_symbols: list[str],
+    route_addresses: list[str],
+    selected_borrow_input_amount_raw: int,
+) -> tuple[list[dict[str, Any]], list[str], int | None, list[str], list[str], list[dict[str, Any]]]:
     hop_provider = quote_hop_provider
     hop_rows: list[dict[str, Any]] = []
     amount_in_raw: int | None = None
@@ -631,6 +1058,7 @@ def build_route_onchain_evidence(
         steps=steps,
         amount_in_raw=amount_in_raw,
         chain_id=chain_id,
+        routes_group=closed_loop_routes_group,
     )
     official_fast_rows = None
     if official_fast is not None:
@@ -665,44 +1093,16 @@ def build_route_onchain_evidence(
                 hop = _quote_v3_hop(w3=w3, quoter=quoter, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
         except Exception as exc:
             if _is_missing_historical_state_error(exc):
-                # A trigger block is useful for reproducibility, but it must
-                # not prevent a live verification when the RPC has pruned or
-                # never exposed that historical state. Retry this route from
-                # the current head once; downstream profitability checks then
-                # decide whether the route is usable.
-                if quote_block_source == "trigger_block":
-                    try:
-                        latest_block = int(w3.eth.block_number)
-                    except Exception:
-                        latest_block = None
-                    if latest_block is not None and latest_block > 0 and latest_block != block_number:
-                        latest_trigger = {
-                            key: value
-                            for key, value in trigger.items()
-                            if isinstance(key, str) and "block" not in key.lower()
-                        }
-                        latest_trigger.update(
-                            {
-                                "source": "latest_fallback_historical_state_unavailable",
-                                "observedAt": observed,
-                            }
-                        )
-                        return build_route_onchain_evidence(
-                            route,
-                            payload=payload,
-                            chain_id=chain_id,
-                            observed_at=observed,
-                            trigger_context=latest_trigger,
-                            quote_hop_provider=quote_hop_provider,
-                            borrow_input_amount_override_raw=borrow_input_amount_override_raw,
-                            skip_execution_size_probe=skip_execution_size_probe,
-                        )
+                # Live verification always runs against the latest block.
+                # A pruned state response is a real RPC/evidence failure; do
+                # not fall back to any historical block or reinterpret it as
+                # missing liquidity.
                 hop_rows.append(
                     {
                         "hop": hop_number,
                         "status": "live_quote_failed",
                         "executionTrust": "static_reference_only",
-                        "quoteSource": "historical_state_unavailable",
+                        "quoteSource": "chain_live_quote_failed",
                         "quoteMethod": f"{protocol}_exact_input",
                         "protocol": protocol,
                         "pool": step.get("pool") or pool.get("pool"),
@@ -724,7 +1124,7 @@ def build_route_onchain_evidence(
                     }
                 )
                 blockers.append(
-                    f"hop {hop_number} historical state at block {block_number} is unavailable; on-chain verification failed: {exc}"
+                    f"on-chain verification failed at hop {hop_number}: {exc}"
                 )
                 break
             if _is_missing_v4_adapter_error(exc):
@@ -837,268 +1237,6 @@ def build_route_onchain_evidence(
         )
         hop_rows.append(hop)
         amount_in_raw = int(hop["amountOutRaw"])
-
-    token_continuity_issues = _token_continuity_issues(hop_rows)
-    token_continuity_ok = not token_continuity_issues
-    if token_continuity_issues:
-        blockers.append("on-chain verified token addresses are inconsistent; cannot enter transaction preflight")
-    reference_quote_only = any(
-        _text(hop.get("sdkAdapter") or hop.get("quoteAdapter")).lower() == "reference_quote_adapter"
-        or _text(hop.get("quoteMethod")).lower() == "uniswap_v4_reference_quote"
-        for hop in hop_rows
-    )
-    if reference_quote_only:
-        blockers.append("V4 route uses reference_quote_adapter; must connect real V4 Quoter/SDK or swap static-call before transaction preflight")
-    all_hops_verified = bool(steps) and len(hop_rows) == len(steps) and token_continuity_ok and not any(
-        _text(hop.get("status")).lower() in {"live_quote_failed", "quote_failed", "not_enough_liquidity", "adapter_required", "pool_not_initialized", "live_evidence_deferred"}
-        for hop in hop_rows
-    ) and not reference_quote_only
-    hop_price_impact_rows = [
-        hop for hop in hop_rows if isinstance(hop, dict) and hop.get("amountOutRaw") is not None
-    ]
-    all_hops_within_price_impact_limit = bool(hop_price_impact_rows) and len(hop_price_impact_rows) == len(steps) and all(
-        hop.get("priceImpactWithinLimit") is True for hop in hop_price_impact_rows
-    )
-    price_impact_issues = [
-        {
-            "hop": hop.get("hop"),
-            "fromSymbol": hop.get("fromSymbol"),
-            "toSymbol": hop.get("toSymbol"),
-            "priceImpactBps": hop.get("priceImpactBps"),
-            "limitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
-            "error": hop.get("priceImpactError"),
-        }
-        for hop in hop_rows
-        if hop.get("priceImpactWithinLimit") is not True
-    ]
-    adapter_required = bool(
-        any(_text(hop.get("status")).lower() == "adapter_required" for hop in hop_rows)
-    )
-    final_symbol = _norm_symbol(route_symbols[-1] if route_symbols else analysis.get("outputSymbol"))
-    final_hop = hop_rows[-1] if all_hops_verified and hop_rows else None
-    final_decimals = int(final_hop["outputDecimals"]) if final_hop and final_hop.get("outputDecimals") is not None else None
-    final_amount = Decimal(final_hop["amountOut"]) if final_hop and final_hop.get("amountOut") is not None else None
-    borrow_asset_is_stable = bool(
-        analysis.get("borrowAssetIsStable")
-        if analysis.get("borrowAssetIsStable") is not None
-        else input_symbol in _STABLE_ANCHOR_SYMBOLS
-    )
-    notional = (
-        borrow_input_amount
-        if borrow_asset_is_stable
-        else (_positive_decimal_or_none(analysis.get("notionalUsd")) or Decimal("1000"))
-    )
-    token_gross_profit = (
-        final_amount - borrow_input_amount
-        if all_hops_verified and route_closed and final_symbol == input_symbol and final_amount is not None
-        else None
-    )
-    token_flash_fee = borrow_input_amount * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
-    token_submission_net_profit = token_gross_profit - token_flash_fee if token_gross_profit is not None else None
-    token_net_profit = token_submission_net_profit
-    token_net_profit_bps = (
-        token_net_profit / borrow_input_amount * Decimal(10_000)
-        if token_net_profit is not None and borrow_input_amount > 0
-        else None
-    )
-    final_output_usd = final_amount if borrow_asset_is_stable and final_symbol in _STABLE_ANCHOR_SYMBOLS and final_amount is not None else None
-    gross_profit_usd = final_output_usd - notional if final_output_usd is not None else None
-    flash_fee = notional * Decimal(str(DEFAULT_FLASH_LOAN_FEE_BPS)) / Decimal(10_000)
-    gas_reserve = Decimal(str(DEFAULT_GAS_RESERVE_USD))
-    submission_net_profit_usd = gross_profit_usd - flash_fee if gross_profit_usd is not None else None
-    net_profit_usd = submission_net_profit_usd - gas_reserve if submission_net_profit_usd is not None else None
-    net_profit_bps = net_profit_usd / notional * Decimal(10_000) if net_profit_usd is not None and notional > 0 else None
-    min_profit_usd = Decimal(str(DEFAULT_ARBITRAGE_MIN_PAPER_PROFIT_USD))
-    net_positive_after_costs = bool(
-        all_hops_verified
-        and (
-            (borrow_asset_is_stable and submission_net_profit_usd is not None and submission_net_profit_usd > 0)
-            or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
-        )
-    )
-    meets_submission_profit_threshold = bool(
-        all_hops_verified
-        and (
-            (borrow_asset_is_stable and net_profit_usd is not None and net_profit_usd >= min_profit_usd)
-            or (not borrow_asset_is_stable and token_submission_net_profit is not None and token_submission_net_profit > 0)
-        )
-    )
-    if not all_hops_verified and not blockers:
-        blockers.append("on-chain verification did not cover all hops; cannot enter preflight")
-    if all_hops_verified and not net_positive_after_costs:
-        blockers.append("on-chain computed profit is not positive after flash loan fees; cannot enter preflight")
-    elif all_hops_verified and borrow_asset_is_stable and not meets_submission_profit_threshold:
-        blockers.append("stable-coin route on-chain net profit is below the $6 gate; cannot enter preflight")
-    if borrow_asset_is_stable and final_output_usd is None:
-        blockers.append("final output is not stable coin or lacks reliable USD valuation; cannot enter automatic transaction preflight")
-    pool_insufficient_for_profitable_execution = bool(
-        execution_size_probe
-        and execution_size_probe.get("searchStatus") == "pool_insufficient_for_profitable_execution"
-    )
-    pool_not_initialized = bool(
-        any(_text(hop.get("status")).lower() == "pool_not_initialized" for hop in hop_rows)
-        or bool(
-            execution_size_probe
-            and execution_size_probe.get("searchStatus") == "pool_not_initialized"
-        )
-    )
-    not_enough_liquidity = bool(
-        any(_text(hop.get("status")).lower() == "not_enough_liquidity" for hop in hop_rows)
-        or bool(
-            execution_size_probe
-            and execution_size_probe.get("searchStatus") == "not_enough_liquidity"
-        )
-    )
-    if pool_insufficient_for_profitable_execution:
-        blockers.append("current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee")
-    if pool_not_initialized:
-        blockers.append("V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate")
-    if not_enough_liquidity:
-        blockers.append("current borrow size exceeds available liquidity for at least one hop; reduce borrow size and retry")
-    if adapter_required:
-        blockers.append("V4 quote adapter is required; pool interpretation deferred until the mainnet V4 adapter is configured")
-    evidence_status = (
-        "adapter_required"
-        if adapter_required
-        else (
-        "pool_not_initialized"
-        if pool_not_initialized
-        else (
-            "not_enough_liquidity"
-        if not_enough_liquidity
-        else (
-            "pool_insufficient_for_profitable_execution"
-        if pool_insufficient_for_profitable_execution
-        else (
-            "route_unprofitable"
-            if all_hops_verified and not net_positive_after_costs
-            else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
-        )
-        )
-        )
-        )
-    )
-    evidence_trust = (
-        "live_quoter_verified_readonly"
-        if all_hops_verified
-        else (
-            evidence_status
-            if evidence_status in {"not_enough_liquidity", "pool_not_initialized", "live_quote_failed", "rpc_verification_failed", "rpc_verification_timeout"}
-            else ("live_quote_reference_only" if reference_quote_only else "static_reference_only")
-        )
-    )
-    return {
-        "evidenceVersion": 1,
-        "observedAt": observed,
-        "network": network,
-        "chainId": chain_id,
-        "rpcUrl": rpc_url,
-        "blockNumber": block_number,
-        "blockTimestamp": _block_timestamp(w3, block_number),
-        "triggerContext": trigger,
-        "triggerBlockNumber": trigger_block_number,
-        "quoteBlockSource": quote_block_source,
-        "quoter": quoter,
-        "routeSymbols": route_symbols,
-        "routeAddresses": route_addresses,
-        "requestedBorrowInputAmountRaw": str(requested_borrow_input_amount_raw),
-        "offchainInitialProbeAmountRaw": str(offchain_initial_probe_amount_raw),
-        "offchainInitialProbeBasis": offchain_initial_probe_basis,
-        "offchainInitialProbeReason": offchain_initial_probe_reason,
-        "selectedBorrowInputAmountRaw": str(selected_borrow_input_amount_raw),
-        "executionSizeProbe": execution_size_probe,
-        "status": evidence_status,
-        "executionTrust": evidence_trust,
-        "trustedForExecution": False,
-        "priceEvidenceMode": "live_verified" if all_hops_verified else "live_required",
-        "priceEvidenceSource": "chain_live_quote" if all_hops_verified else "chain_live_quote_required",
-        "livePriceVerified": bool(all_hops_verified),
-        "readyForTransactionPreflight": meets_submission_profit_threshold,
-        "hops": hop_rows,
-        "costModel": {
-            "notionalUsd": float(notional),
-            "requestedBorrowInputAmountRaw": int(requested_borrow_input_amount_raw),
-            "requestedBorrowInputAmount": float(Decimal(int(requested_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))),
-            "selectedBorrowInputAmountRaw": int(selected_borrow_input_amount_raw),
-            "selectedBorrowInputAmount": float(borrow_input_amount),
-            "borrowInputAmount": float(borrow_input_amount),
-            "borrowInputSymbol": input_symbol,
-            "finalOutputAmount": float(final_amount) if final_amount is not None else None,
-            "finalOutputSymbol": final_symbol,
-            "grossProfitAmount": float(token_gross_profit) if token_gross_profit is not None else None,
-            "flashLoanFeeAmount": float(token_flash_fee),
-            "submissionNetProfitAmount": float(token_submission_net_profit) if token_submission_net_profit is not None else None,
-            "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
-            "netProfitAmountSymbol": input_symbol,
-            "netProfitAmountBps": float(token_net_profit_bps) if token_net_profit_bps is not None else None,
-            "profitBasis": "usd" if borrow_asset_is_stable else "borrow_token",
-            "tokenGasExcluded": not borrow_asset_is_stable,
-            "finalOutputUsd": float(final_output_usd) if final_output_usd is not None else None,
-            "grossProfitUsd": float(gross_profit_usd) if gross_profit_usd is not None else None,
-            "flashLoanFeeBps": DEFAULT_FLASH_LOAN_FEE_BPS,
-            "flashLoanFeeUsd": float(flash_fee),
-            "gasReserveUsd": float(gas_reserve),
-            "offchainMinProfitUsd": float(min_profit_usd),
-            "minProfitUsd": float(min_profit_usd),
-            "submissionMinProfitUsd": float(flash_fee),
-            "submissionNetProfitUsd": float(submission_net_profit_usd) if submission_net_profit_usd is not None else None,
-            "offchainNetProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
-            "netProfitUsd": float(net_profit_usd) if net_profit_usd is not None else None,
-            "netProfitBps": float(net_profit_bps if borrow_asset_is_stable else token_net_profit_bps)
-            if (net_profit_bps if borrow_asset_is_stable else token_net_profit_bps) is not None
-            else None,
-            "hopPriceImpactLimitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
-            "maxHopPriceImpactBps": max(
-                (float(hop.get("priceImpactBps")) for hop in hop_rows if _number(hop.get("priceImpactBps")) is not None),
-                default=None,
-            ),
-            "priceImpactIssues": price_impact_issues,
-        },
-        "validation": {
-            "allHopsQuoted": all_hops_verified,
-            "allHopsWithinPriceImpactLimit": all_hops_within_price_impact_limit,
-            "hopPriceImpactLimitBps": DEFAULT_HOP_PRICE_IMPACT_LIMIT_BPS,
-            "priceImpactIssues": price_impact_issues,
-            "routeClosed": route_closed,
-            "tokenContinuity": token_continuity_ok,
-            "tokenContinuityIssues": token_continuity_issues,
-            "finalOutputSymbol": final_symbol,
-            "finalOutputDecimals": final_decimals,
-            "profitableAfterCosts": net_positive_after_costs,
-            "netPositiveAfterCosts": net_positive_after_costs,
-            "meetsMinProfitThreshold": meets_submission_profit_threshold,
-            "meetsSubmissionProfitThreshold": meets_submission_profit_threshold,
-            "meetsOffchainProfitThreshold": bool(
-                all_hops_verified and net_profit_usd is not None and net_profit_usd >= min_profit_usd
-            ),
-            "borrowAssetClass": "stable" if borrow_asset_is_stable else "non_stable",
-            "borrowAssetIsStable": borrow_asset_is_stable,
-            "borrowInputAmount": float(borrow_input_amount),
-            "requestedBorrowInputAmount": float(Decimal(int(requested_borrow_input_amount_raw)) / (Decimal(10) ** int(input_decimals))),
-            "borrowInputSymbol": input_symbol,
-            "finalOutputAmount": float(final_amount) if final_amount is not None else None,
-            "netProfitAmount": float(token_net_profit) if token_net_profit is not None else None,
-            "netProfitAmountSymbol": input_symbol,
-            "nonStablePositiveXProfitPolicy": bool(not borrow_asset_is_stable),
-            "executionSizeSearchStatus": execution_size_probe.get("searchStatus") if execution_size_probe else None,
-            "poolInsufficientForProfitableExecution": pool_insufficient_for_profitable_execution,
-            "poolNotInitialized": pool_not_initialized,
-            "notEnoughLiquidity": not_enough_liquidity,
-            "adapterRequired": adapter_required,
-        },
-        "blockers": blockers,
-        "errorStack": _dex_error_stack_from_status(
-            evidence_status,
-            message=blockers[0] if blockers else "OK",
-            raw_error=blockers[0] if blockers else None,
-            details={
-                "status": evidence_status,
-                "blockers": blockers,
-                "executionSizeProbe": execution_size_probe,
-            },
-        ),
-        "transactionDevelopment": _transaction_development(meets_submission_profit_threshold, blockers),
-    }
-
+    return hop_rows, blockers, amount_in_raw, route_symbols, route_addresses, steps
 
 __all__ = ["build_route_onchain_evidence", "capture_onchain_trigger_context"]

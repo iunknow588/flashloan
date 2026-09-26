@@ -17,6 +17,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
     account_scan_panel += client.get("/static/liquidation_panel.js").get_data(as_text=True)
     binance_market_panel += client.get("/static/binance_market_helpers.js").get_data(as_text=True)
     binance_market_panel += client.get("/static/binance_market_views.js").get_data(as_text=True)
+    dex_arbitrage_panel += client.get("/static/dex_quotes/quotes_app.js").get_data(as_text=True)
 
     assert 'data-app-shell="true"' in control_panel
     assert 'data-global-chain-selector="true"' in control_panel
@@ -112,7 +113,7 @@ def test_control_panel_navigation_chain_links_expected_pages():
         "DEX 总览",
         "/dex/overview",
     ]:
-        assert token in binance_market_panel
+        assert token in dex_arbitrage_panel
 
     assert 'value="sepolia"' not in binance_market_html
     assert "autoExecuteToggle" not in binance_market_html

@@ -9,6 +9,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
+from core.local_kv import store_path
 
 
 load_env_files(__file__)
@@ -37,8 +38,9 @@ def build_checks() -> list[dict]:
     signal_file = SRC_ROOT / "runtime" / "state" / "latest_executable_signal.json"
     aave_cache = SRC_ROOT / "runtime" / "cache" / "aave_reserve_assets.json"
     trade_log = PROJECT_ROOT / "contracts" / "deployments" / "fuji-trades.jsonl"
+    kv_path = store_path()
     return [
-        check_item("DATABASE_URL configured", present_env("DATABASE_URL")),
+        check_item("Local SQLite KV configured", bool(kv_path), detail=str(kv_path)),
         check_item("FUJI_RPC_URL configured", present_env("FUJI_RPC_URL")),
         check_item("DEPLOYER_PRIVATE_KEY configured", present_env("DEPLOYER_PRIVATE_KEY"), manual=True),
         check_item("AAVE_POOL_ADDRESS configured", present_env("AAVE_POOL_ADDRESS")),

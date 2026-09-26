@@ -29,7 +29,7 @@ def borrow_pool_payload(
     if not database_url:
         return panel._borrow_pool_blocked_payload(
             configured=False,
-            error="DATABASE_URL is required",
+            error="local KV store unavailable",
             **pages,
         )
     try:
@@ -98,7 +98,7 @@ def borrow_pool_scan_payload(
     if not database_url:
         return panel._borrow_pool_blocked_payload(
             configured=False,
-            error="DATABASE_URL is required",
+            error="local KV store unavailable",
             **pages,
         )
     config = panel.liquidation_scan_config()

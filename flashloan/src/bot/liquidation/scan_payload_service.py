@@ -59,8 +59,8 @@ def database_block_reason(configured: bool, error: str | None) -> str:
 
 def database_next_action(reason: str) -> str:
     return {
-        "database_unconfigured": "配置有效 DATABASE_URL 后重启 UI，再执行账户扫描。",
-        "database_endpoint_disabled": "当前数据库端点已被服务商禁用；启用端点或替换 DATABASE_URL 后重启 UI，再继续扫描。",
+        "database_unconfigured": "本地 KV 存储未就绪，请重启 UI，再执行账户扫描。",
+        "database_endpoint_disabled": "本地 KV 存储不可写，请检查本地 KV 路径权限后重启 UI，再继续扫描。",
         "database_connection_terminated": "数据库连接被管理端终止；确认端点状态后重启 UI，再继续扫描。",
         "database_unavailable": "数据库当前不可用或连接已失效；恢复数据库端点后重启 UI，再继续扫描。",
     }.get(reason, "恢复数据库连接后重启 UI，再继续扫描。")

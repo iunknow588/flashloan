@@ -85,7 +85,7 @@ def test_quote_route_status_and_request_payload_surface_live_verification():
                     "executableCandidate": True,
                     "chainSubmissionCandidate": True,
                     "chainSubmissionPolicy": "live_framework_reuse",
-                    "recommendation": {"level": "ready_for_precheck", "action": "进入自动交易预检", "reasons": []},
+                    "recommendation": {"level": "ready_for_precheck", "action": "进入链上复核", "reasons": []},
                 },
                 "quoteInputs": {"candidatePools": [], "routePools": [], "quoteRequests": []},
             }
@@ -269,10 +269,27 @@ def test_offchain_size_ladder_emits_recommended_raw_borrow_amount():
         route_quote_analysis_fn=quote_analysis,
     )
 
-    assert analysis["recommendedBorrowInputAmount"] == 100.0
-    assert analysis["recommendedBorrowInputAmountRaw"] == str(100 * 10**18)
+    assert analysis["recommendedBorrowInputAmount"] == 64.0
+    assert analysis["recommendedBorrowInputAmountRaw"] == str(64 * 10**18)
     assert analysis["recommendedBorrowInputAmountBasis"] == "borrow_token"
     assert analysis["recommendedBorrowInputAmountReason"] == "best_positive_observed_net_profit"
+
+
+def test_token_basis_amount_steps_use_doubling_halving_from_base_one(monkeypatch):
+    from market.binance_market.dex_surface_analysis_impl import _token_basis_amount_steps
+
+    monkeypatch.delenv("DEX_QUOTE_TOKEN_AMOUNT_STEPS", raising=False)
+    monkeypatch.delenv("DEX_QUOTE_TOKEN_BASE_AMOUNT", raising=False)
+    monkeypatch.delenv("DEX_QUOTE_TOKEN_HALVING_STEPS", raising=False)
+    monkeypatch.delenv("DEX_QUOTE_TOKEN_DOUBLING_STEPS", raising=False)
+
+    steps = _token_basis_amount_steps()
+
+    assert steps[0] == 0.0625
+    assert 0.5 in steps
+    assert 1.0 in steps
+    assert 64.0 in steps
+    assert all(round(steps[index + 1] / steps[index], 12) == 2.0 for index in range(len(steps) - 1))
 
 
 def test_quote_routes_payload_limits_expensive_size_probes_for_late_non_testnet_routes(monkeypatch):
@@ -532,3 +549,28 @@ def test_quote_routes_payload_reviews_robinhood_testnet_by_default(monkeypatch):
     assert calls["size"] == 1
     assert payload["routes"][0]["quoteAnalysis"]["priceEvidenceMode"] == "live_verified"
     assert payload["routes"][0]["quoteStatus"] == "live_verified"
+
+def test_route_steps_order_and_continuity():
+    """Steps must be ordered by hop and match route symbols end-to-end."""
+    from market.binance_market.dex_surface_route_quotes import _route_quote_analysis
+
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+        "quoteInputs": {"routePools": []},
+    }
+    # Mock price map so analysis completes
+    price_map = {"TZ": 1.0, "TB": 1.0, "TA": 1.0}
+    analysis = _route_quote_analysis(route, price_map=price_map, chain_id=46630, token_basis_input_amount=0.1)
+
+    steps = analysis.get("steps") or []
+    # Steps must be sorted by hop
+    hops = [int(s.get("hop") or 0) for s in steps]
+    assert hops == sorted(hops), "steps not ordered by hop"
+    # Continuity with route symbols
+    if steps:
+        assert steps[0].get("fromSymbol") == "TZ", "first step fromSymbol mismatch route"
+        assert steps[-1].get("toSymbol") == "TZ", "last step toSymbol mismatch route"
+        # No route steps mismatch warning
+        warnings = analysis.get("warnings") or []
+        assert "route_steps_mismatch" not in warnings, "route steps mismatch detected"

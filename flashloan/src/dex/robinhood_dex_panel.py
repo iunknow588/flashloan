@@ -13,7 +13,6 @@ from core.market_identity import canonical_market_id_from_legacy
 from core.contracts import source_metadata
 from dex.intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
 from dex.intent_trade.chains.robinhood.readiness import robinhood_deployment_status
-from core.db.storage_common import database_unavailable_reason, is_database_unavailable_error, mark_database_unavailable
 from core.db.storage_chain_markets import load_current_dex_arbitrage_candidates
 
 
@@ -306,7 +305,7 @@ def robinhood_dex_observation_payload(
     legacy_source = "cache"
     database_error = None
     fallback_reason = None
-    if database_url and not database_unavailable_reason(database_url):
+    if database_url:
         try:
             candidates = load_current_dex_arbitrage_candidates(
                 database_url,
@@ -316,8 +315,6 @@ def robinhood_dex_observation_payload(
             source = "database"
             legacy_source = "database"
         except Exception as exc:
-            if is_database_unavailable_error(exc):
-                mark_database_unavailable(database_url, exc)
             database_error = str(exc)
             fallback_reason = "database_unavailable"
     if not candidates:

@@ -162,34 +162,43 @@ def _chain_label(network: str | None, chain_id: int | None) -> str:
 
 def _connect_chain_rpc(network: str | None, chain_id: int | None) -> tuple[Any, str]:
     failures: list[str] = []
-    timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12)
+    timeouts = robinhood.mainnet_rpc_connect_timeouts()
     urls = _chain_rpc_urls(network, chain_id)
-    cache_key = (_text(network).lower(), int(chain_id) if chain_id is not None else None, urls, timeout)
+    cache_key = (_text(network).lower(), int(chain_id) if chain_id is not None else None, urls, timeouts)
     with _RPC_CONNECTION_CACHE_LOCK:
         cached = _RPC_CONNECTION_CACHE.get(cache_key)
     if cached is not None:
         return cached
 
     def _probe_one(url: str) -> tuple[Any, str]:
-        w3 = Web3(
-            Web3.HTTPProvider(
-                url,
-                request_kwargs={
-                    "timeout": timeout,
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "User-Agent": "flashloan-robinhood-mainnet-v4/1.1",
-                        "Connection": "close",
+        last_exc: Exception | None = None
+        for attempt, timeout in enumerate(timeouts, start=1):
+            w3 = Web3(
+                Web3.HTTPProvider(
+                    url,
+                    request_kwargs={
+                        "timeout": timeout,
+                        "headers": {
+                            "Content-Type": "application/json",
+                            "User-Agent": "flashloan-robinhood-mainnet-v4/1.1",
+                            "Connection": "close",
+                        },
                     },
-                },
+                )
             )
-        )
-        if not w3.is_connected():
-            raise RuntimeError("HTTP endpoint did not answer")
-        actual_chain_id = int(w3.eth.chain_id)
-        if chain_id is not None and actual_chain_id != int(chain_id):
-            raise RuntimeError(f"wrong chain id {actual_chain_id}, expected {chain_id}")
-        return w3, url
+            try:
+                if not w3.is_connected():
+                    raise RuntimeError("HTTP endpoint did not answer")
+                actual_chain_id = int(w3.eth.chain_id)
+                if chain_id is not None and actual_chain_id != int(chain_id):
+                    raise RuntimeError(f"wrong chain id {actual_chain_id}, expected {chain_id}")
+                return w3, url
+            except Exception as exc:
+                last_exc = exc
+                failures.append(f"{url} attempt={attempt}: {exc}")
+                if attempt < len(timeouts):
+                    time.sleep(0.25)
+        raise RuntimeError(f"HTTP endpoint did not answer: {last_exc}")
 
     if not urls:
         raise RuntimeError("Robinhood RPC unavailable: no RPC URLs configured")
@@ -282,9 +291,10 @@ def _read_live_pool_state_with_w3(
     contract = w3.eth.contract(address=Web3.to_checksum_address(pool_manager), abi=_V4_POOL_MANAGER_EXTSLOAD_ABI)
     pool_id_bytes = bytes.fromhex(_normalize_pool_id(pool_id)[2:])
     state_slot = keccak(pool_id_bytes + _V4_POOLS_SLOT)
-    call_kwargs: dict[str, Any] = {}
-    if block_number is not None:
-        call_kwargs["block_identifier"] = int(block_number)
+    # Live review must read the current chain head. Do not query a numeric
+    # block in the evidence path; some RPCs prune state shortly after the
+    # block and return "historical state ... is not available".
+    call_kwargs: dict[str, Any] = {"block_identifier": "latest"}
     slot0_raw = contract.functions.extsload(state_slot).call(**call_kwargs)
     liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
     liquidity_raw = contract.functions.extsload(liquidity_slot).call(**call_kwargs)
@@ -612,10 +622,9 @@ def _quote_v4_exact_input_single(
     last_exc: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            if block_number is None:
-                amount_out, gas_estimate = quote_call.call(call_kwargs)
-            else:
-                amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier=int(block_number))
+            # Use the live head, not a numeric snapshot block. The block_number
+            # argument is retained only as audit metadata for the evidence record.
+            amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier="latest")
             return int(amount_out), int(gas_estimate)
         except Exception as exc:
             last_exc = exc

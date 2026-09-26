@@ -49,7 +49,7 @@ def test_dex_pool_candidates_full_refresh_reports_refresh_state(monkeypatch):
     monkeypatch.setattr(
         dex_surface_routes.shared,
         "_optional_request_chain_selection",
-        lambda: {"network": "robinhood-testnet", "chain_id": 46630},
+        lambda feature=None: {"network": "robinhood-testnet", "chain_id": 46630},
     )
     monkeypatch.setattr(
         dex_surface_routes,
@@ -116,11 +116,52 @@ def test_dex_submission_clear_api_removes_current_chain_records(tmp_path, monkey
     cleared = client.post("/api/dex/submissions/clear?market_id=robinhood-dex-shadow&chain_id=4663").get_json()
     after = client.get("/api/dex/submissions?market_id=robinhood-dex-shadow&chain_id=4663&limit=20").get_json()
 
-    assert before["summary"]["attemptCount"] == 1
+    assert before["summary"]["attemptCount"] == 0
     assert cleared["ok"] is True
     assert cleared["cleared"] == 1
     assert cleared["networks"] == ["robinhood"]
     assert after["summary"]["attemptCount"] == 0
+
+
+def test_binance_cow_execution_attempt_history_keeps_multiple_submission_txs(tmp_path, monkeypatch):
+    from core.db.storage_cow_execution import append_cow_execution_attempts_jsonl
+    from web.data_routes import binance_market_admin
+
+    log_path = tmp_path / "attempts.jsonl"
+    append_cow_execution_attempts_jsonl(
+        log_path,
+        [
+            {
+                "observed_at": "2026-09-21T21:21:26+00:00",
+                "network": "robinhood",
+                "chain_id": 4663,
+                "pair": "TZ -> TA -> TB -> TZ",
+                "state": "submitted_success",
+                "execution_phase": "order_submission",
+                "checks_passed": True,
+                "can_submit_order": True,
+                "tx_hash": "0x" + "a" * 64,
+            },
+            {
+                "observed_at": "2026-09-21T21:22:26+00:00",
+                "network": "robinhood",
+                "chain_id": 4663,
+                "pair": "TZ -> TA -> TB -> TZ",
+                "state": "submitted_success",
+                "execution_phase": "order_submission",
+                "checks_passed": True,
+                "can_submit_order": True,
+                "tx_hash": "0x" + "b" * 64,
+            },
+        ],
+    )
+    monkeypatch.setattr(binance_market_admin.shared, "COW_EXECUTION_ATTEMPT_LOG_ROOT", tmp_path)
+
+    data = app.test_client().get("/api/binance-market/cow-execution-attempts?limit=10").get_json()
+    attempts = data["attempts"]
+
+    assert {row["tx_hash"] for row in attempts} == {"0x" + "a" * 64, "0x" + "b" * 64}
+    assert data["groups"]["execution_success"]["count"] == 2
 
 
 def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_path, monkeypatch):
@@ -133,12 +174,13 @@ def test_dex_submission_review_prefers_verified_route_record_over_deferred(tmp_p
     append_cow_execution_attempts_jsonl(
         path,
         [
-            {
-                "observed_at": "2026-08-24T12:54:19+00:00",
-                "network": "robinhood",
-                "pair": pair,
-                "state": "quote_required",
-                "execution_phase": "market_candidate",
+                {
+                    "observed_at": "2026-08-24T12:54:19+00:00",
+                    "network": "robinhood",
+                    "pair": pair,
+                    "state": "quote_required",
+                    "tx_hash": "0x" + "c" * 64,
+                    "execution_phase": "market_candidate",
                 "checks_passed": False,
                 "can_submit_order": False,
                 "quote": {

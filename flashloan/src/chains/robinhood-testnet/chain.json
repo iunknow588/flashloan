@@ -6,8 +6,8 @@
   "native_symbol": "ETH",
   "rpc_url": "https://rpc.testnet.chain.robinhood.com",
   "rpc_urls": [
-    "https://rpc.testnet.chain.robinhood.com/rpc",
     "https://robinhood-sepolia-rpc.publicnode.com",
+    "https://rpc.testnet.chain.robinhood.com/rpc",
     "https://rpc.testnet.chain.robinhood.com"
   ],
   "explorer_url": "https://explorer.testnet.chain.robinhood.com",

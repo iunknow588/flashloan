@@ -1,8 +1,8 @@
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from core.db.storage_common import db_connection
+from core.kv_rows import latest_rows, load_rows
 
 
 def compact_extreme(items: list[dict], index: int) -> dict:
@@ -66,63 +66,18 @@ def compact_extremes_payload(data: dict) -> Optional[dict]:
 
 
 def latest_extremes_from_db(database_url: str) -> Optional[dict]:
-    query = """
-        SELECT observed_at, window_seconds, sample_count,
-               top_symbol_1, top_change_percent_1, top_symbol_2, top_change_percent_2,
-               bottom_symbol_1, bottom_change_percent_1, bottom_symbol_2, bottom_change_percent_2
-        FROM binance_window_extremes ORDER BY observed_at DESC LIMIT 1
-    """
-    row = fetch_one(database_url, query)
-    if not row:
+    rows = latest_rows(database_url, "binance_window_extremes", limit=1)
+    if not rows:
         return None
-    return {
-        "observed_at": iso(row[0]),
-        "window_seconds": float(row[1]),
-        "sample_count": int(row[2]),
-        "gainer_count": None,
-        "loser_count": None,
-        "observation_universe_size": None,
-        "market_divergence_index": None,
-        "a": {"symbol": row[3], "change_percent": float(row[4]) if row[4] is not None else None},
-        "top_2": {"symbol": row[5], "change_percent": float(row[6]) if row[6] is not None else None},
-        "b": {"symbol": row[7], "change_percent": float(row[8]) if row[8] is not None else None},
-        "bottom_2": {"symbol": row[9], "change_percent": float(row[10]) if row[10] is not None else None},
-    }
+    return compact_extremes_payload(rows[0])
 
 
 def latest_arbitrage_from_db(database_url: str) -> Optional[dict]:
-    columns = [
-        "observed_at", "window_seconds", "sample_count", "a_symbol", "b_symbol",
-        "a_change_percent", "b_change_percent", "a_start_price", "a_end_price",
-        "b_start_price", "b_end_price", "notional_usd", "trade_fee_percent",
-        "flashloan_fee_percent", "borrowed_b", "a_bought", "usdt_after_selling_a",
-        "b_rebought", "b_to_repay", "profit_b", "profit_usd",
-        "paper_route_profit_usd", "candidate_score_usd",
-        "profit_percent", "candidate_score_percent",
-        "gross_relative_edge_percent", "window_spread_percent", "min_window_spread_percent",
-        "min_paper_profit_usd", "fee_reserve_percent", "fee_reserve_usd",
-        "net_signal_profit_usd", "signal", "blocked_reasons_json",
-        "candidate_pair_count", "evaluated_strategy_count", "best_strategy",
-        "m1_profit_usd", "m2_profit_usd",
-        "selected_signed_profit_usd", "selected_direction_score_usd",
-        "selected_expected_profit_usd",
-        "route_symbols_json", "borrow_symbol", "swap_symbol",
-        "profitable", "strategy", "execution_plan_json",
-    ]
-    row = fetch_one(database_url, f"SELECT {', '.join(columns)} FROM arbitrage_simulations ORDER BY observed_at DESC LIMIT 1")
-    if not row:
+    rows = latest_rows(database_url, "arbitrage_simulations", limit=1)
+    if not rows:
         return None
-    data = dict(zip(columns, row))
-    data["observed_at"] = iso(data["observed_at"])
-    data["sample_count"] = int(data["sample_count"])
-    data["profitable"] = bool(data["profitable"])
+    data = dict(rows[0])
     decode_json_fields(data)
-    for key, value in list(data.items()):
-        if key not in string_like_arbitrage_keys():
-            data[key] = float(value) if value is not None else None
-    for int_key in ("candidate_pair_count", "evaluated_strategy_count"):
-        if data.get(int_key) is not None:
-            data[int_key] = int(data[int_key])
     return data
 
 
@@ -151,15 +106,6 @@ def string_like_arbitrage_keys() -> set[str]:
     }
 
 
-def fetch_one(database_url: str | None, query: str, params: tuple = ()) -> Optional[tuple]:
-    if not database_url:
-        return None
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, params)
-            return cursor.fetchone()
-
-
 def iso(value) -> str:
     return value.isoformat() if hasattr(value, "isoformat") else str(value)
 
@@ -170,3 +116,19 @@ def parse_observed_age_seconds(observed_at: str) -> float:
     if observed.tzinfo is None:
         observed = observed.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - observed.astimezone(timezone.utc)).total_seconds()
+
+
+def load_json_rows(database_url: str, collection: str) -> list[dict[str, Any]]:
+    return load_rows(database_url, collection)
+
+
+__all__ = [
+    "compact_extreme",
+    "compact_extremes_payload",
+    "decode_json_fields",
+    "iso",
+    "latest_arbitrage_from_db",
+    "latest_extremes_from_db",
+    "parse_observed_age_seconds",
+    "string_like_arbitrage_keys",
+]

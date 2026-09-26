@@ -11,7 +11,7 @@ class _FakeConfig:
 
 class _FakeCtx:
     def __init__(self):
-        self.database_url_or_none = lambda: "postgresql://example"
+        self.database_url_or_none = lambda: "local_store.sqlite3"
         self.LIQUIDATION_DISCOVERY_LOCK = threading.Lock()
         self.LIQUIDATION_DISCOVERY_CACHE = {"last_result": None}
         self.LIQUIDATION_ACCOUNT_CACHE = {}

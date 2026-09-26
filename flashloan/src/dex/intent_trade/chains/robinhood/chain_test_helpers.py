@@ -264,6 +264,44 @@ def _route_path_text(route_path: list[str]) -> str:
     return " -> ".join(item for item in (_text(value) for value in route_path) if item)
 
 
+def _chain_opportunity_snapshot(
+    snapshots: dict[str, Any],
+    chain_id: int,
+    *,
+    preferred_protocols: tuple[str, ...] = ("uniswap_v4",),
+) -> tuple[dict[str, Any], str]:
+    """Return a chain snapshot, preferring protocol-scoped evidence keys.
+
+    The scanner now stores snapshots as ``46630`` (no protocol scope) and
+    ``46630|protocols:uniswap_v4``.  Older readers that only looked up the bare
+    chain key would miss the richer protocol-specific snapshot after a
+    protocol-scoped scan.
+    """
+    base = str(chain_id)
+    exact = snapshots.get(base)
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for key, value in snapshots.items():
+        if not isinstance(key, str) or not (key == base or key.startswith(base + "|protocols:")):
+            continue
+        if isinstance(value, dict):
+            candidates.append((key, value))
+    if not candidates:
+        return ({} if not isinstance(exact, dict) else exact), base
+
+    def _sort_key(item: tuple[str, dict[str, Any]]) -> tuple[int, float, str]:
+        key, snap = item
+        preferred = 0 if any(f"protocols:{protocol}" in key for protocol in preferred_protocols) else 1
+        updated_raw = str(snap.get("updated_at") or "")
+        try:
+            updated = datetime.fromisoformat(updated_raw.replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            updated = 0.0
+        return preferred, -updated, key
+
+    candidates.sort(key=_sort_key)
+    return candidates[0][1], candidates[0][0]
+
+
 def _latest_snapshot_route(route_path: list[str], *, chain_id: int, network: str) -> tuple[dict[str, Any], dict[str, Any]]:
     if network != ROBINHOOD_TESTNET_NETWORK or chain_id != ROBINHOOD_TESTNET_CHAIN_ID:
         return {}, {}
@@ -275,7 +313,8 @@ def _latest_snapshot_route(route_path: list[str], *, chain_id: int, network: str
 
     snapshot = _read_json(getattr(_chain_test_pack, "ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT", ROBINHOOD_TESTNET_OPPORTUNITY_SNAPSHOT))
     snapshots = _as_dict(snapshot.get("snapshots"))
-    chain_snapshot = _as_dict(snapshots.get(str(chain_id)))
+    chain_snapshot, _chain_snapshot_key = _chain_opportunity_snapshot(snapshots, chain_id)
+    chain_snapshot = _as_dict(chain_snapshot)
     payload = _as_dict(chain_snapshot.get("payload"))
     wanted = _route_path_text(route_path).lower()
     if not wanted:

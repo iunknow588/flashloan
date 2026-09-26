@@ -28,7 +28,7 @@ def evaluate_account_pool_state(
 
     if not database_configured and effective_count <= 0:
         result = AccountPoolResult.MISSING
-        reason = "DATABASE_URL is required or no fallback account file is available"
+        reason = "local KV store unavailable or no fallback account file is available"
     elif source.endswith("-error"):
         result = AccountPoolResult.INCOMPLETE
         reason = f"account source is not healthy: {source}"

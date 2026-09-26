@@ -171,3 +171,52 @@ def test_merge_evidence_demotes_cache_source_away_from_live_verified():
     assert route["onchainEvidenceStatus"] == "static_reference_pending_live_review"
     assert route["quoteAnalysis"]["requiresLiveQuoter"] is True
     assert route["live_onchain_evidence"]["executionTrust"] == "static_reference_pending_live_review"
+
+
+def test_merge_evidence_blocks_hop_amount_continuity_mismatch():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {
+            "referenceFinally": None,
+            "steps": [
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "inputAmount": 1000.0, "outputAmount": 0.018829891539466887},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "inputAmount": 52.369752540558274, "outputAmount": 0.187722992171735303},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "inputAmount": 1.9862697254812829, "outputAmount": 1.865088633546139159},
+            ],
+        },
+    }
+    evidence = {
+        "status": "route_unprofitable",
+        "executionTrust": "live_v4_adapter",
+        "livePriceVerified": True,
+        "costModel": {
+            "borrowInputSymbol": "TZ",
+            "borrowInputAmount": 1000.0,
+            "finalOutputAmount": 10.348436749171217,
+            "finalOutputSymbol": "TZ",
+            "netProfitAmount": -990.1515632508288,
+            "netProfitAmountBps": -9901.515632508288,
+        },
+        "validation": {
+            "finalOutputAmount": 10.348436749171217,
+            "finalOutputSymbol": "TZ",
+            "netProfitAmount": -990.1515632508288,
+        },
+        "hops": [
+            {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "outputAmount": 0.018829891539466887},
+            {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "inputAmount": 52.369752540558274, "outputAmount": 0.187722992171735303},
+            {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "inputAmount": 1.9862697254812829, "outputAmount": 1.865088633546139159},
+        ],
+        "blockers": [],
+    }
+
+    _merge_onchain_evidence_into_route(route, evidence)
+    analysis = route["quoteAnalysis"]
+
+    assert any("hop amounts are inconsistent" in blocker for blocker in analysis.get("blockers", []) or evidence.get("blockers", []))
+    assert "hop_amount_continuity_mismatch" in analysis["warnings"]
+    assert analysis["referenceInputAmount"] == 1000.0
+    assert analysis["referenceFinalOutputAmount"] == 10.348436749171217
+    assert analysis["referenceNetProfitAmount"] == -990.1515632508288
+    assert analysis["referenceNetReturnBps"] == -9901.515632508288
+    assert analysis["recommendation"]["action"] == "on-chain verified but net profit is not positive after flash loan fees; do not execute"

@@ -1,13 +1,9 @@
 ﻿from core.db.storage_common import (
     EXPECTED_SCHEMA_MIGRATION_IDS,
-    OBSERVER_ADVISORY_LOCK_ID,
     SCHEMA_MIGRATIONS,
-    close_connection_pools,
     configured_database_url,
     db_connection,
     database_url_or_none,
-    db_transaction,
-    require_psycopg,
     utc_from_ms,
 )
 from core.db.storage_control_parameters import (
@@ -71,6 +67,7 @@ from core.db.storage_market import (
 from core.db.storage_schema import (
     ensure_database_schema,
     ensure_deduplication_constraints,
+    ensure_local_store_schema,
     ensure_schema_columns,
     load_schema_migrations,
     record_schema_migrations,
@@ -78,7 +75,6 @@ from core.db.storage_schema import (
 
 __all__ = [
     "EXPECTED_SCHEMA_MIGRATION_IDS",
-    "OBSERVER_ADVISORY_LOCK_ID",
     "SCHEMA_MIGRATIONS",
     "append_arbitrage_simulation",
     "append_binance_candidate_price_history",
@@ -86,15 +82,14 @@ __all__ = [
     "append_binance_pair_price_history",
     "append_binance_price_history",
     "append_observations",
-    "close_connection_pools",
     "configured_database_url",
     "db_connection",
     "database_url_or_none",
-    "db_transaction",
     "ensure_chain_market_registry_schema",
     "ensure_control_panel_parameters_table",
     "ensure_database_schema",
     "ensure_deduplication_constraints",
+    "ensure_local_store_schema",
     "ensure_schema_columns",
     "liquidation_account_registry_stats",
     "liquidation_execution_attempt_stats",
@@ -132,7 +127,6 @@ __all__ = [
     "record_liquidation_borrow_health_scan_batch",
     "record_liquidation_scan_config_snapshot",
     "record_schema_migrations",
-    "require_psycopg",
     "save_control_panel_parameter",
     "save_control_panel_parameter_map",
     "seed_builtin_chain_markets",

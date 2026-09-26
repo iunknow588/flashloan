@@ -87,7 +87,7 @@ contract OfficialV4FlashArb {
     /// function lets the chain compute which direction is executable. Each route
     /// is attempted as an isolated external call so a revert on one direction
     /// does not undo the next attempt.
-    function runArbitrageBest(
+  function runArbitrageBest(
         address tokenZ,
         IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
         bool[3][] calldata directionsets,
@@ -101,14 +101,210 @@ contract OfficialV4FlashArb {
         if (keysets.length == 0 || keysets.length != directionsets.length) {
             revert DexError(ContractDexErrorCodes.VALIDATION_ROUTE_INVALID);
         }
+        bool found;
+        uint256 bestTb;
+        uint256 bestTa;
+        uint256 bestTz;
+        uint256 bestProfit;
+        uint256 bestIndex;
         for (uint256 i = 0; i < keysets.length; i++) {
             try this.runArbitrage(tokenZ, keysets[i], directionsets[i], amountIn, minProfit)
                 returns (uint256 b, uint256 a, uint256 z, uint256 p)
             {
-                return (b, a, z, p, i);
+                if (!found || p > bestProfit) {
+                    found = true;
+                    bestTb = b;
+                    bestTa = a;
+                    bestTz = z;
+                    bestProfit = p;
+                    bestIndex = i;
+                }
             } catch {}
         }
+        if (found) {
+            return (bestTb, bestTa, bestTz, bestProfit, bestIndex);
+        }
         revert NoProfitableRoute();
+    }
+
+    /// @notice Reads-only adaptive peak search from `initialAmount`.
+    /// @dev The initial amount is only the search origin. A profitable origin
+    /// is doubled until the first non-improving or failed probe is found. An
+    /// unprofitable origin is halved until a profitable base is found. The
+    /// interval around that base is then searched by midpoints. The first
+    /// midpoint that improves the base is selected deliberately: this keeps
+    /// eth_call bounded while preserving the absolute-profit objective.
+    function previewArbitrageBestAmount(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
+        bool[3][] calldata directionsets,
+        uint256 initialAmount,
+        uint256 minProfit,
+        bool isBestAmount
+    )
+        external
+        returns (
+            uint256 selectedAmount,
+            uint256 selectedRouteIndex,
+            uint256 selectedProfit,
+            uint256 attemptedCount
+        )
+    {
+        if (tokenZ == address(0) || initialAmount == 0) revert InvalidRequest();
+        if (keysets.length == 0 || keysets.length != directionsets.length) {
+            revert DexError(ContractDexErrorCodes.VALIDATION_ROUTE_INVALID);
+        }
+        uint256 baseAmount;
+        uint256 upperAmount;
+        bool hasUpperAmount;
+
+        if (isBestAmount) {
+            (bool executable, uint256 profit, uint256 routeIndex, uint256 attempts) =
+                _probeAmount(tokenZ, keysets, directionsets, initialAmount, minProfit);
+            attemptedCount += attempts;
+            if (executable) {
+                selectedAmount = initialAmount;
+                selectedRouteIndex = routeIndex;
+                selectedProfit = profit;
+            }
+            if (selectedAmount == 0) revert NoProfitableRoute();
+            return (selectedAmount, selectedRouteIndex, selectedProfit, attemptedCount);
+        }
+
+        (bool initialExecutable, uint256 initialProfit, uint256 initialRouteIndex, uint256 initialAttempts) =
+            _probeAmount(tokenZ, keysets, directionsets, initialAmount, minProfit);
+        attemptedCount += initialAttempts;
+
+        if (initialExecutable) {
+            selectedAmount = initialAmount;
+            selectedRouteIndex = initialRouteIndex;
+            selectedProfit = initialProfit;
+            baseAmount = initialAmount;
+
+            uint256 candidate = _doubleAmount(baseAmount);
+            for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS && candidate > 0; step++) {
+                (bool executable, uint256 profit, uint256 attempts) =
+                    _probeAmountForRoute(tokenZ, keysets, directionsets, selectedRouteIndex, candidate, minProfit);
+                attemptedCount += attempts;
+                if (executable && profit > selectedProfit) {
+                    selectedAmount = candidate;
+                    selectedProfit = profit;
+                    baseAmount = candidate;
+                    hasUpperAmount = false;
+                    upperAmount = 0;
+                    candidate = _doubleAmount(baseAmount);
+                    continue;
+                }
+                upperAmount = candidate;
+                hasUpperAmount = true;
+                break;
+            }
+        } else {
+            upperAmount = initialAmount;
+            uint256 candidate = initialAmount / 2;
+            for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS && candidate > 0; step++) {
+                (bool executable, uint256 profit, uint256 attempts) =
+                    _probeAmountForRoute(tokenZ, keysets, directionsets, initialRouteIndex, candidate, minProfit);
+                attemptedCount += attempts;
+                if (executable) {
+                    selectedAmount = candidate;
+                    selectedRouteIndex = initialRouteIndex;
+                    selectedProfit = profit;
+                    baseAmount = candidate;
+                    hasUpperAmount = true;
+                    break;
+                }
+                upperAmount = candidate;
+                candidate /= 2;
+            }
+        }
+
+        if (hasUpperAmount && selectedAmount > 0) {
+            for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS; step++) {
+                if (upperAmount <= baseAmount + 1) break;
+                uint256 midpoint = baseAmount + (upperAmount - baseAmount) / 2;
+                if (midpoint <= baseAmount || midpoint >= upperAmount) break;
+
+                (bool executable, uint256 profit, uint256 attempts) =
+                    _probeAmountForRoute(tokenZ, keysets, directionsets, selectedRouteIndex, midpoint, minProfit);
+                attemptedCount += attempts;
+                if (executable && profit > selectedProfit) {
+                    selectedAmount = midpoint;
+                    selectedProfit = profit;
+                    break;
+                }
+                upperAmount = midpoint;
+            }
+        }
+
+        if (selectedAmount == 0) revert NoProfitableRoute();
+        return (selectedAmount, selectedRouteIndex, selectedProfit, attemptedCount);
+    }
+
+    /// @notice Broadcast wrapper for the official V4 executor. Takes an already
+    /// preselected amount (for example produced by previewArbitrageBestAmount)
+    /// and reuses the original direction-selection logic once, without scanning
+    /// multiple flash-loan rounds inside a real transaction.
+    function runArbitrageBestWithSelectedAmount(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
+        bool[3][] calldata directionsets,
+        uint256 selectedAmount,
+        uint256 minProfit,
+        bool isBestAmount,
+        uint256 selectedRouteIndex
+    )
+        external
+        returns (uint256 outTb, uint256 outTa, uint256 outTz, uint256 profit, uint256 routeIndex)
+    {
+        if (selectedAmount == 0 || !isBestAmount || selectedRouteIndex >= keysets.length || selectedRouteIndex >= directionsets.length) {
+            revert InvalidRequest();
+        }
+        (outTb, outTa, outTz, profit) = this.runArbitrage(
+            tokenZ,
+            keysets[selectedRouteIndex],
+            directionsets[selectedRouteIndex],
+            selectedAmount,
+            minProfit
+        );
+        routeIndex = selectedRouteIndex;
+    }
+
+    /// @notice Convenience execution entry that reviews first, then broadcasts
+    /// the newly selected amount. The initial amount is only a search origin;
+    /// it is never treated as a confirmed best amount.
+    /// @dev This entry intentionally re-runs the full best-amount search inside
+    /// the broadcast transaction, so it consumes more gas than the preselected
+    /// amount wrapper. Use it when the caller wants the contract to decide the
+    /// amount atomically and accepts the higher gas cost.
+    function runArbitrageBestFromInitialAmount(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
+        bool[3][] calldata directionsets,
+        uint256 initialAmount,
+        uint256 minProfit
+    )
+        external
+        returns (uint256 outTb, uint256 outTa, uint256 outTz, uint256 profit, uint256 routeIndex)
+    {
+        (uint256 selectedAmount, uint256 selectedRouteIndex, , ) = this.previewArbitrageBestAmount(
+            tokenZ,
+            keysets,
+            directionsets,
+            initialAmount,
+            minProfit,
+            false
+        );
+        if (selectedAmount == 0) revert NoProfitableRoute();
+        (outTb, outTa, outTz, profit, routeIndex) = this.runArbitrageBestWithSelectedAmount(
+            tokenZ,
+            keysets,
+            directionsets,
+            selectedAmount,
+            minProfit,
+            true,
+            selectedRouteIndex
+        );
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
@@ -180,5 +376,59 @@ contract OfficialV4FlashArb {
         } else {
             revert SwapNotResolved();
         }
+    }
+
+    uint256 private constant MAX_AMOUNT_SEARCH_STEPS = 24;
+
+    function _doubleAmount(uint256 amount) private pure returns (uint256) {
+        if (amount > type(uint256).max / 2) return 0;
+        return amount * 2;
+    }
+
+    function _probeAmountForRoute(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
+        bool[3][] calldata directionsets,
+        uint256 routeIndex,
+        uint256 amount,
+        uint256 minProfit
+    )
+        private
+        returns (bool executable, uint256 profit, uint256 attempts)
+    {
+        if (routeIndex >= keysets.length || routeIndex >= directionsets.length) return (false, 0, 0);
+        attempts = 1;
+        try this.runArbitrage(tokenZ, keysets[routeIndex], directionsets[routeIndex], amount, minProfit)
+            returns (uint256 outTb, uint256 outTa, uint256 outTz, uint256 candidateProfit)
+        {
+            outTb; outTa; outTz;
+            executable = candidateProfit > 0;
+            profit = candidateProfit;
+        } catch {}
+    }
+
+    function _probeAmount(
+        address tokenZ,
+        IOfficialV4PoolManagerArb.PoolKey[3][] calldata keysets,
+        bool[3][] calldata directionsets,
+        uint256 amount,
+        uint256 minProfit
+    )
+        private
+        returns (bool executable, uint256 profit, uint256 routeIndex, uint256 attempts)
+    {
+        for (uint256 i = 0; i < keysets.length; i++) {
+            attempts++;
+            try this.runArbitrage(tokenZ, keysets[i], directionsets[i], amount, minProfit)
+                returns (uint256 outTb, uint256 outTa, uint256 outTz, uint256 candidateProfit)
+            {
+                outTb; outTa; outTz;
+                if (candidateProfit > profit) {
+                    profit = candidateProfit;
+                    routeIndex = i;
+                }
+            } catch {}
+        }
+        executable = profit > 0;
     }
 }

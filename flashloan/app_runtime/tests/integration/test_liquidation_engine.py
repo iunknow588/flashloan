@@ -298,9 +298,9 @@ def test_engine_default_event_poll_interval_is_under_five_seconds(monkeypatch):
 def test_engine_submission_error_is_redacted(monkeypatch):
     records = []
     submitted = []
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "d" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     deps = _deps(records=records, submitted=submitted)
 

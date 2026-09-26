@@ -55,7 +55,7 @@ def register_liquidation_data_routes(app, panel) -> None:
     def liquidation_daily_report_api():
         database_url = panel_call("database_url_or_none")
         if not database_url:
-            return jsonify({"configured": False, "error": "DATABASE_URL is required", "report": None})
+            return jsonify({"configured": False, "error": "local KV store unavailable", "report": None})
         try:
             path = liquidation_observation_report_path()
             if path.exists():
@@ -71,7 +71,7 @@ def register_liquidation_data_routes(app, panel) -> None:
     def liquidation_daily_report_refresh_api():
         database_url = panel_call("database_url_or_none")
         if not database_url:
-            return jsonify({"configured": False, "error": "DATABASE_URL is required", "report": None})
+            return jsonify({"configured": False, "error": "local KV store unavailable", "report": None})
         try:
             path = liquidation_observation_report_path()
             report = build_liquidation_observation_report(database_url)

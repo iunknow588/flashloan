@@ -1,65 +1,31 @@
-import pytest
-
 import core.db.storage_liquidation_accounts as storage
+import time
+
+from core.kv_rows import load_rows, upsert_row
 
 
-class _Cursor:
-    def __init__(self, rows):
-        self.rows = rows
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
-
-    def execute(self, query, params=()):
-        self.params = params
-
-    def fetchall(self):
-        return list(self.rows)
-
-
-class _Connection:
-    def __init__(self, rows):
-        self.rows = rows
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
-
-    def cursor(self):
-        return _Cursor(self.rows)
-
-
-def _row(scope):
-    return (
-        scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"],
-        "0xabc", "scan", True, None, None, None,
-        1.2, "healthy", "green", 1, 10.0, 2.0, "normal", "{}", "{}",
-    )
-
-
-def test_latest_liquidation_reports_validates_database_row_scope(monkeypatch):
+def test_latest_liquidation_reports_validates_database_row_scope(monkeypatch, tmp_path):
     scope = {"market_id": "m", "chain_id": 56, "network": "bnb", "protocol": "venus"}
-    monkeypatch.setattr(storage, "_scope_values", lambda **kwargs: scope)
-    monkeypatch.setattr(storage, "require_psycopg", lambda: object())
-    monkeypatch.setattr(storage, "db_connection", lambda *args, **kwargs: _Connection([_row(scope)]))
+    kv_path = tmp_path / "accounts.sqlite3"
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", str(kv_path))
+    upsert_row(str(kv_path), "liquidation_accounts", "m|56|0xabc", {**scope, "account": "0xabc", "last_report_json": {"summary": {}}})
 
-    reports = storage.load_latest_liquidation_account_reports("postgresql://example")
+    reports = storage.load_latest_liquidation_account_reports(str(kv_path))
 
     assert reports[0]["market_id"] == "m"
     assert reports[0]["chain_id"] == 56
 
 
-def test_latest_liquidation_reports_rejects_wrong_database_row_scope(monkeypatch):
-    scope = {"market_id": "m", "chain_id": 56, "network": "bnb", "protocol": "venus"}
-    invalid = {**scope, "chain_id": 1}
-    monkeypatch.setattr(storage, "_scope_values", lambda **kwargs: scope)
-    monkeypatch.setattr(storage, "require_psycopg", lambda: object())
-    monkeypatch.setattr(storage, "db_connection", lambda *args, **kwargs: _Connection([_row(invalid)]))
+def test_prune_liquidation_accounts_removes_old_history_but_keeps_active(tmp_path):
+    kv_path = str(tmp_path / "accounts.sqlite3")
+    scope = {"market_id": "m", "chain_id": 56, "network": "bnb", "protocol": "aave"}
+    old = time.time() - 999 * 86400
 
-    with pytest.raises(ValueError, match=r"invalid scoped DB row at index 0.*chain_id"):
-        storage.load_latest_liquidation_account_reports("postgresql://example")
+    upsert_row(str(kv_path), "liquidation_account_health_scans", "m|56|0xabc|old", {**scope, "account": "0xabc", "scanned_at": old})
+    upsert_row(str(kv_path), "liquidation_account_health_scans", "m|56|0xabc|new", {**scope, "account": "0xabc", "scanned_at": time.time()})
+    upsert_row(str(kv_path), "liquidation_accounts", "m|56|0xold", {**scope, "account": "0xold", "active": False, "last_scanned_at": old})
+    upsert_row(str(kv_path), "liquidation_accounts", "m|56|0xnew", {**scope, "account": "0xnew", "active": True, "last_scanned_at": old})
+
+    assert storage.prune_liquidation_accounts(str(kv_path), retained_days=365) == 2
+    assert len(load_rows(str(kv_path), "liquidation_account_health_scans")) == 1
+    assert {row["account"] for row in load_rows(str(kv_path), "liquidation_accounts")} == {"0xnew"}

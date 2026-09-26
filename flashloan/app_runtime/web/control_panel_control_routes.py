@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from flask import jsonify
 
+from core.kv_rows import delete_collection
 from core.sensitive_data import redact_sensitive_text
 
 
@@ -145,16 +146,16 @@ def register_control_routes(app, panel) -> None:
             return jsonify({"error": message, "blockers": blockers}), 400
         panel.set_control_status("initializing", "清空数据库", "正在清空行情与观察数据", 25)
         try:
-            psycopg = panel.require_psycopg()
-            with psycopg.connect(panel.configured_database_url(), connect_timeout=8) as connection:
-                with connection.cursor() as cursor:
-                    cursor.execute("SET LOCAL lock_timeout = '3s'")
-                    cursor.execute("SET LOCAL statement_timeout = '10s'")
-                    cursor.execute(
-                        "TRUNCATE TABLE observations, binance_price_history, "
-                        "binance_candidate_price_history, binance_pair_price_history, "
-                        "binance_window_extremes, arbitrage_simulations RESTART IDENTITY"
-                    )
+            database_url = panel.configured_database_url()
+            for collection in (
+                "observations",
+                "binance_price_history",
+                "binance_candidate_price_history",
+                "binance_pair_price_history",
+                "binance_window_extremes",
+                "arbitrage_simulations",
+            ):
+                delete_collection(database_url, collection)
         except Exception as exc:
             message = panel.database_lock_message("清空数据库", exc)
             panel.set_control_status("error", "清空数据库", message, 0)

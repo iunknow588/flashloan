@@ -78,13 +78,13 @@
     const list = value => Array.isArray(value) ? value : [];
     const recommendationAction = value => {
       const map = {
-        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；正在阻止交易预检",
+        "on-chain step-by-step reverify failed; blocking transaction preflight": "链上逐步复核失败；正在阻止链上执行",
         "on-chain reverify complete; current state does not satisfy transaction submission conditions": "链上复核完成；当前状态不满足提交条件",
         "on-chain reverify complete": "链上复核完成",
         "waiting for live quoter": "等待链上实时报价",
         "static reference only": "静态参考",
-        "ready for transaction preflight": "可进入交易预检",
-        "blocking transaction preflight": "阻止交易预检",
+        "ready for transaction preflight": "可进入链上执行",
+        "blocking transaction preflight": "阻止链上执行",
       }[String(value || "")];
       if (map) return map;
       if (/[\u4e00-\u9fff]/.test(String(value || ""))) return value;

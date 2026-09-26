@@ -22,6 +22,38 @@ from dex.intent_trade.chains.robinhood_testnet.predeploy_readiness import (
 )
 
 
+def _chain_opportunity_snapshot(
+    snapshots: dict[str, Any],
+    chain_id: int,
+    *,
+    preferred_protocols: tuple[str, ...] = ("uniswap_v4",),
+) -> dict[str, Any]:
+    """Select a scanner snapshot for this chain, preferring protocol scopes."""
+    base = str(chain_id)
+    exact = snapshots.get(base)
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for key, value in snapshots.items():
+        if not isinstance(key, str) or not (key == base or key.startswith(base + "|protocols:")):
+            continue
+        if isinstance(value, dict):
+            candidates.append((key, value))
+    if not candidates:
+        return {} if not isinstance(exact, dict) else exact
+
+    def _sort_key(item: tuple[str, dict[str, Any]]) -> tuple[int, float, str]:
+        key, snap = item
+        preferred = 0 if any(f"protocols:{protocol}" in key for protocol in preferred_protocols) else 1
+        updated_raw = str(snap.get("updated_at") or "")
+        try:
+            updated = datetime.fromisoformat(updated_raw.replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            updated = 0.0
+        return preferred, -updated, key
+
+    candidates.sort(key=_sort_key)
+    return candidates[0][1]
+
+
 def summarize_robinhood_testnet_live_testing_readiness(
     *,
     chain_metadata: dict[str, Any],
@@ -76,11 +108,13 @@ def summarize_robinhood_testnet_live_testing_readiness(
     audit_ok = _bool(audit.get("ok"))
     stage_approved = _bool(stage.get("stageFreezeApproved") or chain_metadata.get("stageFreezeApproved"))
     execution_first = _bool(live_testing.get("executionFirst"))
-    snapshot_chain = _as_dict(
-        _as_dict(current_opportunity_snapshot).get("snapshots", {}).get(str(chain_metadata.get("chainId")))
-        if isinstance(_as_dict(current_opportunity_snapshot).get("snapshots"), dict)
+    current_snapshot_root = _as_dict(current_opportunity_snapshot)
+    current_snapshots = (
+        current_snapshot_root.get("snapshots")
+        if isinstance(current_snapshot_root.get("snapshots"), dict)
         else {}
     )
+    snapshot_chain = _as_dict(_chain_opportunity_snapshot(current_snapshots, int(chain_metadata.get("chainId") or 0)))
     snapshot_updated_at = _text(snapshot_chain.get("updated_at") or _as_dict(current_opportunity_snapshot).get("updated_at"))
     plan_generated_at = _text(chain_test_plan.get("generatedAt"))
 

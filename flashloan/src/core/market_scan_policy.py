@@ -61,21 +61,11 @@ def market_scan_policies(
     fallback = builtin_market_scan_policies(market_id, feature=feature)
     if not database_url:
         return fallback
-    from core.db.storage_common import (
-        database_unavailable_reason,
-        is_database_unavailable_error,
-        mark_database_unavailable,
-    )
-
-    if database_unavailable_reason(database_url):
-        return fallback
     try:
         from core.db.storage_chain_markets import load_market_scan_policies
 
         rows = load_market_scan_policies(database_url, market_id=market_id, feature=feature)
-    except Exception as exc:
-        if is_database_unavailable_error(exc):
-            mark_database_unavailable(database_url, exc)
+    except Exception:
         return fallback
     return rows or fallback
 

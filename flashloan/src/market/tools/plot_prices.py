@@ -22,8 +22,8 @@ from core.env_loader import load_env_files
 from core.db.storage_common import (
     configured_database_url,
     database_url_or_none,
-    db_connection,
 )
+from core.kv_rows import load_rows
 
 
 load_env_files(__file__)
@@ -60,50 +60,28 @@ def parse_time(value: str) -> datetime:
 def load_observations(
     database_url: str | None, symbols: Optional[set[str]]
 ) -> dict[str, list[Observation]]:
-    """Read observations from Postgres and group them by trading pair."""
+    """Read observations from the local KV store and group them by trading pair."""
 
     if not database_url:
         return {}
     grouped: dict[str, list[Observation]] = defaultdict(list)
-    params: list[object] = []
-    where = ""
-    if symbols:
-        placeholders = ",".join("%s" for _ in symbols)
-        where = f"WHERE UPPER(symbol) IN ({placeholders})"
-        params = sorted(symbols)
-
-    query = f"""
-        SELECT observed_at, symbol, asset, binance_price, aave_price, diff_percent
-        FROM observations
-        {where}
-        ORDER BY symbol, observed_at
-    """
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-
-        for (
-            observed_at,
-            symbol_raw,
-            asset_raw,
-            binance_price,
-            aave_price,
-            diff_percent,
-        ) in rows:
-            symbol = str(symbol_raw).strip().upper()
-            if not symbol:
-                continue
-            grouped[symbol].append(
-                Observation(
-                    observed_at=parse_time(str(observed_at)),
-                    symbol=symbol,
-                    asset=str(asset_raw or symbol).strip() or symbol,
-                    binance_price=float(binance_price),
-                    aave_price=float(aave_price),
-                    diff_percent=float(diff_percent),
-                )
+    wanted = {str(symbol).strip().upper() for symbol in symbols or [] if str(symbol).strip()}
+    rows = load_rows(database_url, "observations")
+    rows.sort(key=lambda row: (str(row.get("symbol") or ""), str(row.get("observed_at") or "")))
+    for row in rows:
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if not symbol or (wanted and symbol not in wanted):
+            continue
+        grouped[symbol].append(
+            Observation(
+                observed_at=parse_time(str(row.get("observed_at"))),
+                symbol=symbol,
+                asset=str(row.get("asset") or symbol).strip() or symbol,
+                binance_price=float(row.get("binance_price") or 0),
+                aave_price=float(row.get("aave_price") or 0),
+                diff_percent=float(row.get("diff_percent") or 0),
             )
+        )
 
     return dict(grouped)
 
@@ -208,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--database-url",
         default=database_url_or_none(),
-        help="Postgres DATABASE_URL",
+        help="Local KV store path",
     )
     parser.add_argument(
         "--output-dir",
@@ -244,7 +222,7 @@ def main() -> None:
 
     if not grouped:
         raise RuntimeError(
-            "No observations found. Run observer.py first and check DATABASE_URL."
+            "No observations found. Run observer.py first and check FLASHLOAN_KV_PATH."
         )
 
     for symbol, observations in grouped.items():

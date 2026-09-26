@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 import json
 import os
+import time
+import urllib.request as urllib_request
 
 from eth_abi import decode as abi_decode
 from eth_utils import keccak
@@ -167,15 +169,39 @@ def _chain_label(network: str | None, chain_id: int | None) -> str:
 
 def _connect_chain_rpc(network: str | None, chain_id: int | None) -> tuple[Any, str]:
     failures: list[str] = []
-    timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "6") or 6)
+    timeouts = robinhood.testnet_rpc_connect_timeouts()
     for url in _chain_rpc_urls(network, chain_id):
-        w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": timeout}))
-        try:
-            if w3.is_connected() and (chain_id is None or int(w3.eth.chain_id) == int(chain_id)):
-                return w3, url
-        except Exception as exc:
-            failures.append(f"{url}: {exc}")
-    raise RuntimeError("Robinhood RPC unavailable: " + "; ".join(failures[:3]))
+        for attempt, timeout in enumerate(timeouts, start=1):
+            w3 = Web3(
+                Web3.HTTPProvider(
+                    url,
+                    request_kwargs={
+                        "timeout": timeout,
+                        "headers": {
+                            "Content-Type": "application/json",
+                            "User-Agent": "flashloan-robinhood-testnet-v4/1.1",
+                            "Connection": "close",
+                        },
+                    },
+                )
+            )
+            try:
+                if not w3.is_connected():
+                    failures.append(f"{url} attempt={attempt}: not connected")
+                else:
+                    actual_chain_id = int(w3.eth.chain_id)
+                    if chain_id is None or actual_chain_id == int(chain_id):
+                        return w3, url
+                    failures.append(f"{url} attempt={attempt}: chain_id mismatch {actual_chain_id}, expected {chain_id}")
+            except Exception as exc:
+                failures.append(f"{url} attempt={attempt}: {exc}")
+            if attempt < len(timeouts):
+                time.sleep(0.25)
+    raise RuntimeError(
+        "Robinhood RPC unavailable after "
+        f"{len(timeouts)} connect attempts ({'/'.join(str(int(t)) for t in timeouts)}s): "
+        + "; ".join(failures[:5])
+    )
 
 
 def _pool_manager_address(network: str | None, chain_id: int | None, pool: dict[str, Any]) -> str:
@@ -245,9 +271,10 @@ def _read_live_pool_state_with_w3(
     contract = w3.eth.contract(address=Web3.to_checksum_address(pool_manager), abi=_V4_POOL_MANAGER_EXTSLOAD_ABI)
     pool_id_bytes = bytes.fromhex(_normalize_pool_id(pool_id)[2:])
     state_slot = keccak(pool_id_bytes + _V4_POOLS_SLOT)
-    call_kwargs: dict[str, Any] = {}
-    if block_number is not None:
-        call_kwargs["block_identifier"] = int(block_number)
+    # Live review must read the current chain head. Do not query a numeric
+    # block in the evidence path; some testnet RPCs prune state shortly after
+    # the block and return "historical state ... is not available".
+    call_kwargs: dict[str, Any] = {"block_identifier": "latest"}
     slot0_raw = contract.functions.extsload(state_slot).call(**call_kwargs)
     liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
     liquidity_raw = contract.functions.extsload(liquidity_slot).call(**call_kwargs)
@@ -276,6 +303,151 @@ def _read_live_pool_state_with_w3(
         "rpcUrl": rpc_url,
         "blockNumber": int(block_number) if block_number is not None else None,
     }
+
+
+def _batch_read_live_pool_states(
+    *,
+    w3: Any,
+    rpc_url: str | None,
+    pool_manager: str,
+    pool_ids: list[str],
+    block_number: int | None = None,
+    network: str | None = None,
+    chain_id: int | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Read multiple V4 pool states in one JSON-RPC batch request.
+
+    The precheck previously read each pool with two sequential eth_calls. On
+    slow testnet RPCs that can blow the scanner watchdog budget. Batching the
+    slot0+liquidity reads keeps the precheck fast while still reading live
+    chain head state.
+    """
+    results: dict[str, dict[str, Any]] = {}
+    if not pool_ids:
+        return results
+    if not rpc_url:
+        return results
+    normalized_manager = Web3.to_checksum_address(pool_manager)
+    payload: list[dict[str, Any]] = []
+    id_map: dict[int, tuple[str, str, bytes]] = {}
+    next_id = 1
+    for pool_id in pool_ids:
+        normalized_id = _normalize_pool_id(pool_id)
+        pool_id_bytes = bytes.fromhex(normalized_id[2:])
+        state_slot = keccak(pool_id_bytes + _V4_POOLS_SLOT)
+        liquidity_slot = (int.from_bytes(state_slot, "big") + 3).to_bytes(32, "big")
+        for slot, kind in ((state_slot, "slot0"), (liquidity_slot, "liquidity")):
+            request_id = next_id
+            next_id += 1
+            id_map[request_id] = (normalized_id, kind, slot)
+            selector = Web3.keccak(text="extsload(bytes32)")[:4]
+            call_data = selector + slot
+            payload.append(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": "eth_call",
+                    "params": [{"to": normalized_manager, "data": "0x" + call_data.hex()}, "latest"],
+                }
+            )
+    decoded_response = None
+    last_error: Exception | None = None
+    timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "10") or 10)
+    for attempt in range(1, 3):
+        try:
+            body = json.dumps(payload).encode("utf-8")
+            req = urllib_request.Request(
+                rpc_url,
+                data=body,
+                headers={
+                    "content-type": "application/json",
+                    "user-agent": "flashloan-robinhood-testnet-v4-batch/1.0",
+                },
+                method="POST",
+            )
+            with urllib_request.urlopen(req, timeout=timeout) as response:
+                decoded_response = json.loads(response.read().decode("utf-8"))
+                break
+        except Exception as exc:
+            last_error = exc
+            if attempt >= 2:
+                raise RuntimeError(
+                    f"{_chain_label(network, chain_id)} V4 pool state batch eth_call failed; {last_error}"
+                ) from last_error
+            time.sleep(0.4 * attempt)
+    if decoded_response is None:
+        return results
+    rows = decoded_response if isinstance(decoded_response, list) else [decoded_response]
+    values: dict[tuple[str, str], bytes] = {}
+    errors: dict[tuple[str, str], str] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        request_id = row.get("id")
+        if request_id not in id_map:
+            continue
+        pool_id, kind, _ = id_map[request_id]
+        if "result" in row and row["result"]:
+            values[(pool_id, kind)] = bytes.fromhex(str(row["result"]).removeprefix("0x"))
+        elif "error" in row:
+            errors[(pool_id, kind)] = str(row["error"])
+    for pool_id in pool_ids:
+        normalized_id = _normalize_pool_id(pool_id)
+        key = normalized_id.lower()
+        slot0_raw = values.get((normalized_id, "slot0"))
+        liquidity_raw = values.get((normalized_id, "liquidity"))
+        if slot0_raw is None or liquidity_raw is None:
+            error = errors.get((normalized_id, "slot0")) or errors.get((normalized_id, "liquidity"))
+            results[key] = {
+                "error": error or "V4 pool state batch response missing slot0/liquidity",
+                "poolId": normalized_id,
+                "poolManager": normalized_manager,
+                "blockNumber": int(block_number) if block_number is not None else None,
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+            continue
+        slot0_value = int.from_bytes(slot0_raw, "big")
+        sqrt_price_x96 = slot0_value & ((1 << 160) - 1)
+        tick = (slot0_value >> 160) & ((1 << 24) - 1)
+        if tick & (1 << 23):
+            tick -= 1 << 24
+        protocol_fee = (slot0_value >> 184) & 0xFFFFFF
+        lp_fee = (slot0_value >> 208) & 0xFFFFFF
+        liquidity = int.from_bytes(liquidity_raw, "big") & ((1 << 128) - 1)
+        if sqrt_price_x96 <= 0:
+            results[key] = {
+                "error": f"{_chain_label(network, chain_id)} pool manager live slot0 missing sqrtPriceX96",
+                "poolId": normalized_id,
+                "poolManager": normalized_manager,
+                "blockNumber": int(block_number) if block_number is not None else None,
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+            continue
+        if liquidity <= 0:
+            results[key] = {
+                "error": f"{_chain_label(network, chain_id)} pool manager live liquidity is zero",
+                "poolId": normalized_id,
+                "poolManager": normalized_manager,
+                "blockNumber": int(block_number) if block_number is not None else None,
+                "source": "pool_manager_extsload_live_state_batch",
+            }
+            continue
+        results[key] = {
+            "source": "pool_manager_extsload_live_state_batch",
+            "poolManager": normalized_manager,
+            "poolId": normalized_id,
+            "stateSlot": Web3.keccak(
+                bytes.fromhex(normalized_id[2:]) + _V4_POOLS_SLOT
+            ).hex(),
+            "sqrtPriceX96": str(sqrt_price_x96),
+            "tick": int(tick),
+            "protocolFee": int(protocol_fee),
+            "lpFee": int(lp_fee),
+            "liquidity": str(liquidity),
+            "rpcUrl": rpc_url,
+            "blockNumber": int(block_number) if block_number is not None else None,
+        }
+    return results
 
 
 def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[dict[str, Any]]:
@@ -559,10 +731,9 @@ def _quote_v4_exact_input_single(
                 hook_data,
             )
         )
-        if block_number is None:
-            amount_out, gas_estimate = quote_call.call(call_kwargs)
-        else:
-            amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier=int(block_number))
+        # Use the live head, not a numeric snapshot block. The block_number
+        # argument is retained only as audit metadata for the evidence record.
+        amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier="latest")
     except Exception as exc:
         data = _extract_revert_data(exc)
         summary = _summarize_v4_revert_data(data)

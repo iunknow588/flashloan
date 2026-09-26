@@ -310,7 +310,7 @@
       $("targetSectionTitle").textContent = testnetV4Mode ? "可借贷代币与关联 PoolKey" : (observableMode ? "闪电贷可用性验证状态" : (flashSourceMode ? "闪电贷可借资产与来源" : "闪电贷可借资产与目标资产"));
       $("stableSectionHint").textContent = testnetV4Mode ? "来自 PoolManager 已扫描到正余额的稳定币；资金池按币种展示，PoolKey 只是关联交易池证据。" : (observableMode ? "来自 Robinhood DEX 池发现证据；仅表示池存在并可观察，不等同于已验证闪电贷可用资金池。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电贷可用来源。") : "来自已接入闪电贷能力的 reserve cache，并按 `is_stable=true` 分类。"));
       $("nonStableSectionHint").textContent = testnetV4Mode ? "来自 PoolManager 已扫描到正余额的非稳定币；PoolKey 只用于标记该币种可参与哪些交易池。" : (observableMode ? "来自 Robinhood DEX 池发现证据；这些池尚未通过闪电贷提供方或 flash 调用验证。" : (flashSourceMode ? (view.status_note || "来自只读链上探测的闪电贷可用来源。") : "来自已接入闪电贷能力的 reserve cache，并按 `is_stable=false` 分类。"));
-      $("targetSectionHint").textContent = testnetV4Mode ? "闪电贷额度上限按 PoolManager 币种余额评估；PoolKey 仅作为关联交易池证据，最终可用性以 eth_call 模拟为准。" : (observableMode ? "DEX 合约具备 flash 接口证据；但当前没有已验证余额/可借额度，因此已验证闪电贷可用来源为 0。" : (flashSourceMode ? "这里展示闪电贷可借资产与对应 flash loan / flash swap 来源；执行广播仍受观察模式开关限制。" : "展示已验证闪电贷可借资产到目标资产的映射。"));
+      $("targetSectionHint").textContent = testnetV4Mode ? "闪电贷额度上限按 PoolManager 币种余额评估；PoolKey 仅作为关联交易池证据，最终可用性以 eth_call 模拟为准。" : (observableMode ? "DEX 合约具备 flash 接口证据；但当前没有已验证余额/可借额度，因此已验证闪电贷可用来源为 0。" : (flashSourceMode ? "这里展示闪电贷可借资产与对应 flash loan / flash swap 来源；执行链上操作仍受观察模式开关限制。" : "展示已验证闪电贷可借资产到目标资产的映射。"));
       $("stableSectionCount").textContent = `${stableRows.length} 个${testnetV4Mode ? "可借贷代币" : (observableMode ? "待验证证据" : "可用来源")}`;
       $("nonStableSectionCount").textContent = `${nonStableRows.length} 个${testnetV4Mode ? "可借贷代币" : (observableMode ? "待验证证据" : "可用来源")}`;
       $("stableEmpty").classList.toggle("visible", !stableRows.length);

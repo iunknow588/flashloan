@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-from core.db.storage_common import db_connection
+from core.kv_rows import load_rows
 
 
 def testnet_trade_log_path(repo_root: Path) -> Path:
@@ -37,37 +37,20 @@ def testnet_trade_stats(repo_root: Path) -> dict:
     }
 
 
-def fetch_one(database_url: str, query: str, params: tuple = ()) -> tuple | None:
-    if not database_url:
-        return None
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, params)
-            return cursor.fetchone()
-
-
 def trade_stats(database_url: str | None) -> dict | None:
     if not database_url:
         return None
-    query = """
-        SELECT
-            COUNT(*) AS candidates,
-            COALESCE(SUM(CASE WHEN signal THEN 1 ELSE 0 END), 0) AS signals,
-            COALESCE(AVG(net_signal_profit_usd), 0) AS avg_net_profit,
-            COALESCE(MAX(net_signal_profit_usd), 0) AS max_net_profit,
-            COALESCE(AVG(window_spread_percent), 0) AS avg_spread,
-            COALESCE(MAX(window_spread_percent), 0) AS max_spread
-        FROM arbitrage_simulations
-    """
-    row = fetch_one(database_url, query)
-    candidates = int(row[0] or 0) if row else 0
-    signals = int(row[1] or 0) if row else 0
+    rows = load_rows(database_url, "arbitrage_simulations")
+    candidates = len(rows)
+    signals = sum(1 for row in rows if bool(row.get("signal") or row.get("profitable")))
+    net_values = [float(row.get("net_signal_profit_usd") or 0) for row in rows if row.get("net_signal_profit_usd") is not None]
+    spread_values = [float(row.get("window_spread_percent") or 0) for row in rows if row.get("window_spread_percent") is not None]
     return {
         "candidates": candidates,
         "signals": signals,
         "signal_rate_percent": (signals / candidates * 100) if candidates else 0.0,
-        "avg_net_profit_usdc": float(row[2] or 0) if row else 0.0,
-        "max_net_profit_usdc": float(row[3] or 0) if row else 0.0,
-        "avg_window_spread_percent": float(row[4] or 0) if row else 0.0,
-        "max_window_spread_percent": float(row[5] or 0) if row else 0.0,
+        "avg_net_profit_usdc": sum(net_values) / len(net_values) if net_values else 0.0,
+        "max_net_profit_usdc": max(net_values) if net_values else 0.0,
+        "avg_window_spread_percent": sum(spread_values) / len(spread_values) if spread_values else 0.0,
+        "max_window_spread_percent": max(spread_values) if spread_values else 0.0,
     }

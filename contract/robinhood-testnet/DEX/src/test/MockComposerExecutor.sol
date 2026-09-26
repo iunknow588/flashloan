@@ -7,6 +7,7 @@ contract MockComposerExecutor {
     uint256 public calls;
     bool public shouldRevert;
     bool public revertNext;
+    bool public profitScale;
     address public revertMarkerCurrency0;
     address public failMarkerCurrency0;
     address public lastFailMarkerTried;
@@ -25,6 +26,10 @@ contract MockComposerExecutor {
 
     function setRevertNext(bool value_) external {
         revertNext = value_;
+    }
+
+    function setProfitScale(bool value_) external {
+        profitScale = value_;
     }
 
     function setRevertMarkerCurrency0(address value_) external {
@@ -51,7 +56,21 @@ contract MockComposerExecutor {
         if (shouldRevert) {
             revert("mockExecutorRevert");
         }
+        if (profitScale && data.length > 4) {
+            uint256 amountIn = _decodeRunArbitrageBestAmount(data);
+            return abi.encode(uint256(111), uint256(222), uint256(333), amountIn / 1000, uint256(0));
+        }
         return abi.encode(uint256(111), uint256(222), uint256(333), uint256(999), uint256(0));
+    }
+
+    function _decodeRunArbitrageBestAmount(bytes calldata data) private pure returns (uint256 amountIn) {
+        if (data.length < 4 + 32 * 4) return 0;
+        uint256 decodedAmount;
+        (, , , decodedAmount,) = abi.decode(
+            data[4:],
+            (address, PoolKey[3][], bool[3][], uint256, uint256)
+        );
+        amountIn = decodedAmount;
     }
 
     function _containsMarker(bytes calldata data, address marker) private pure returns (bool) {

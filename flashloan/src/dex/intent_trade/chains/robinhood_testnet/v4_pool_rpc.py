@@ -137,7 +137,7 @@ def _web3(rpc_url: str) -> Web3:
         Web3.HTTPProvider(
             rpc_url,
             request_kwargs={
-                "timeout": 30,
+                "timeout": 20,
                 "headers": {
                     "content-type": "application/json",
                     "user-agent": "flashloan-robinhood-testnet-v4/1.0",

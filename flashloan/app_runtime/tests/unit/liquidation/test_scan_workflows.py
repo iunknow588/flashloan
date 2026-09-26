@@ -59,7 +59,7 @@ def test_account_payload_service_records_snapshot_and_preserves_market_context()
         protocol_data_provider_address=lambda: "0xprovider",
         liquidation_data_provider_address=lambda: "0xliquidation-provider",
         scan_config=lambda: {"watch": 1},
-        database_url=lambda: "postgresql://example",
+        database_url=lambda: "local_store.sqlite3",
         record_account_scan=lambda database_url, report: recorded.update(database_url=database_url, report=report),
         prune_accounts=lambda database_url, retained_days: recorded.update(retained_days=retained_days),
         retention_days=lambda: 14,
@@ -70,7 +70,7 @@ def test_account_payload_service_records_snapshot_and_preserves_market_context()
     payload = liquidation_account_payload("0xabc", runtime=runtime)
 
     assert payload["account"] == "checksum:0xabc"
-    assert recorded["database_url"] == "postgresql://example"
+    assert recorded["database_url"] == "local_store.sqlite3"
     assert recorded["retained_days"] == 14
     assert payload["context"]["market"]["market_id"] == "avalanche-aave-v3"
     assert payload["context"]["reserve_asset_count"] == 1

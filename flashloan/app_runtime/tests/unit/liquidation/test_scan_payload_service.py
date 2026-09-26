@@ -89,7 +89,7 @@ def test_display_payload_passes_market_scope_to_storage_and_summary():
         }
 
     payload = build_borrow_pool_display_payload(
-        database_url="postgresql://example",
+        database_url="local_store.sqlite3",
         page_size=20,
         risk_page=2,
         high_page=3,
@@ -119,6 +119,6 @@ def test_display_payload_passes_market_scope_to_storage_and_summary():
     assert payload["summary"]["scan_response_source"] == "database_display"
     assert payload["pagination"]["borrow_health"]["page"] == 2
     assert payload["debt_pool_decision"]["route_intent"] == "sync_core_then_rejudge"
-    assert calls[0] == ("schema", "postgresql://example")
+    assert calls[0] == ("schema", "local_store.sqlite3")
     assert calls[1][-1] == {"market_id": "bnb-aave-v3", "chain_id": 56}
     assert calls[2][-1] == {"market_id": "bnb-aave-v3", "chain_id": 56}

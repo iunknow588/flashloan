@@ -1,26 +1,18 @@
-import json
+from __future__ import annotations
+
+import time
 from typing import Any
 
-from core.market_config import liquidation_market_config, liquidation_market_config_for
-from core.db.scoped_adapter import validate_scoped_rows
-from core.db.storage_common import db_connection, db_transaction, require_psycopg
-from core.db.liquidation_failures_mapping import (
-    failure_row as _failure_row,
-    json_or_default as _json_or_default,
-)
+from core.kv_rows import count, load_rows, upsert_row
+from core.local_kv import ensure_store
 
 
 def _market_scope(market_id: str | None = None, chain_id: int | None = None) -> dict[str, Any]:
-    market = (
-        liquidation_market_config_for(market_id, chain_id=chain_id)
-        if market_id is not None or chain_id is not None
-        else liquidation_market_config()
-    )
     return {
-        "market_id": market.market_id,
-        "chain_id": market.chain_id,
-        "network": market.network,
-        "protocol": market.protocol,
+        "market_id": str(market_id or "default"),
+        "chain_id": int(chain_id) if chain_id is not None else 0,
+        "network": str(market_id or "local"),
+        "protocol": "aave",
     }
 
 
@@ -34,75 +26,46 @@ def record_liquidation_failure_sample(
     failure_type: str,
     failure_reason: str | None = None,
     payload: dict[str, Any] | None = None,
-    source: str = "execution_attempt",
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> int:
-    require_psycopg()
+    ensure_store(database_url)
     scope = _market_scope(market_id, chain_id)
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with db_transaction(connection, operation="liquidation.failure_sample"):
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO liquidation_failure_samples (
-                        market_id, chain_id, network, protocol,
-                        account, block_number, collateral_asset, debt_asset,
-                        failure_type, failure_reason, payload_json, source, created_at
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                    RETURNING id
-                    """,
-                    (
-                        scope["market_id"], scope["chain_id"], scope["network"], scope["protocol"],
-                        account, block_number, collateral_asset, debt_asset, failure_type,
-                        failure_reason, json.dumps(payload or {}, ensure_ascii=True, separators=(",", ":")), source,
-                    ),
-                )
-                row = cursor.fetchone()
-                return int(row[0]) if row else 0
+    sample_id = count(database_url, "liquidation_failure_samples") + 1
+    upsert_row(
+        database_url,
+        "liquidation_failure_samples",
+        str(sample_id),
+        {
+            "id": sample_id,
+            **scope,
+            "account": account,
+            "block_number": block_number,
+            "collateral_asset": collateral_asset,
+            "debt_asset": debt_asset,
+            "failure_type": failure_type,
+            "failure_reason": failure_reason,
+            "payload": payload or {},
+            "created_at": time.time(),
+        },
+    )
+    return sample_id
 
 
 def _load_failure_samples(
     database_url: str,
-    limit: int,
     *,
-    account: str | None = None,
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
-    require_psycopg()
     scope = _market_scope(market_id, chain_id)
-    account_clause = "AND lower(account) = lower(%s)" if account else ""
-    params: list[Any] = [scope["market_id"], scope["chain_id"]]
-    if account:
-        params.insert(0, account)
-    params.append(max(1, int(limit)))
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT market_id, chain_id, network, protocol,
-                       id, account, block_number, collateral_asset, debt_asset,
-                       failure_type, failure_reason, payload_json, source, created_at
-                FROM liquidation_failure_samples
-                WHERE {('lower(account) = lower(%s) AND ' if account else '')}
-                      market_id = %s AND chain_id = %s
-                ORDER BY created_at DESC, id DESC
-                LIMIT %s
-                """,
-                tuple(params),
-            )
-            column_names = (
-                "market_id", "chain_id", "network", "protocol", "id", "account",
-                "block_number", "collateral_asset", "debt_asset", "failure_type",
-                "failure_reason", "payload_json", "source", "created_at",
-            )
-            rows = validate_scoped_rows(
-                [dict(zip(column_names, row)) for row in cursor.fetchall()],
-                scope,
-            )
-            return [_failure_row(tuple(row[name] for name in column_names), scope) for row in rows]
+    rows = load_rows(database_url, "liquidation_failure_samples")
+    if market_id is not None:
+        rows = [row for row in rows if str(row.get("market_id")) == scope["market_id"]]
+    if chain_id is not None:
+        rows = [row for row in rows if int(row.get("chain_id") or 0) == scope["chain_id"]]
+    rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+    return rows
 
 
 def load_recent_liquidation_failure_samples(
@@ -112,7 +75,7 @@ def load_recent_liquidation_failure_samples(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
-    return _load_failure_samples(database_url, limit, market_id=market_id, chain_id=chain_id)
+    return _load_failure_samples(database_url, market_id=market_id, chain_id=chain_id)[:max(1, int(limit))]
 
 
 def load_liquidation_failure_samples_for_account(
@@ -123,10 +86,12 @@ def load_liquidation_failure_samples_for_account(
     market_id: str | None = None,
     chain_id: int | None = None,
 ) -> list[dict[str, Any]]:
-    return _load_failure_samples(
-        database_url,
-        limit,
-        account=account,
-        market_id=market_id,
-        chain_id=chain_id,
-    )
+    rows = _load_failure_samples(database_url, market_id=market_id, chain_id=chain_id)
+    return [row for row in rows if str(row.get("account") or "").lower() == str(account).lower()][:max(1, int(limit))]
+
+
+__all__ = [
+    "load_liquidation_failure_samples_for_account",
+    "load_recent_liquidation_failure_samples",
+    "record_liquidation_failure_sample",
+]

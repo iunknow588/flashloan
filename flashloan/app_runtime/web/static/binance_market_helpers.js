@@ -51,7 +51,16 @@
     };
 
     const api = async (path, options = {}) => {
-      const requestPath = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      let requestPath = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      if (!window.ChainSelector?.withSelection) {
+        const url = new URL(requestPath, window.location.origin);
+        const query = new URLSearchParams(window.location.search);
+        ["chain_id", "market_id", "protocols", "protocol_id", "dex_strategy", "workflow", "execution_mode", "scope"].forEach(key => {
+          const value = query.get(key);
+          if (value && !url.searchParams.get(key)) url.searchParams.set(key, value);
+        });
+        requestPath = url.pathname + (url.search || "");
+      }
       const response = await fetch(requestPath, {
         ...options,
         headers: {"Accept": "application/json", ...(options.headers || {})},

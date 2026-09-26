@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from core.config_schema import parse_env_int
-from core.env_loader import resolve_env_path
 from core.db.storage_control_parameters import load_control_panel_parameter_map, save_control_panel_parameter_map
+from core.runtime_paths import resolve_runtime_dir
 
 SRC_ROOT = Path(__file__).resolve().parents[2] / "app_runtime"
 APP_DIR = SRC_ROOT
-RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
+RUNTIME_DIR = resolve_runtime_dir(base_dir=APP_DIR)
 PARAMETER_DIR = RUNTIME_DIR / "parameters"
 LEGACY_CONFIG_DIR = RUNTIME_DIR / "config"
 LEGACY_CACHE_DIR = RUNTIME_DIR / "cache"

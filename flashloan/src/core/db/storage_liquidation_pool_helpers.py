@@ -133,38 +133,25 @@ def upsert_scan_config_snapshot(
         },
     ):
         return
-    cursor.execute(
-        """
-        INSERT INTO liquidation_scan_config_library (
-            market_id, chain_id, network, protocol,
-            config_key, category, source_table, source_key,
-            active, payload_json, updated_at
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-        ON CONFLICT (market_id, chain_id, config_key) DO UPDATE SET
-            market_id = EXCLUDED.market_id,
-            chain_id = EXCLUDED.chain_id,
-            network = EXCLUDED.network,
-            protocol = EXCLUDED.protocol,
-            category = EXCLUDED.category,
-            source_table = EXCLUDED.source_table,
-            source_key = EXCLUDED.source_key,
-            active = EXCLUDED.active,
-            payload_json = EXCLUDED.payload_json,
-            updated_at = NOW()
-        """,
-        (
-            scope["market_id"],
-            scope["chain_id"],
-            scope["network"],
-            scope["protocol"],
-            config_key,
-            category,
-            source_table,
-            source_key,
-            bool(active),
-            json_value(item),
-        ),
+    from core.kv_rows import upsert_row
+    key = f"{scope['market_id']}|{scope['chain_id']}|{config_key}"
+    upsert_row(
+        database_url,
+        "liquidation_scan_config_library",
+        key,
+        {
+            "market_id": scope["market_id"],
+            "chain_id": scope["chain_id"],
+            "network": scope["network"],
+            "protocol": scope["protocol"],
+            "config_key": config_key,
+            "category": category,
+            "source_table": source_table,
+            "source_key": source_key,
+            "active": bool(active),
+            "payload_json": json_value(item),
+            "updated_at": time.time(),
+        },
     )
 
 

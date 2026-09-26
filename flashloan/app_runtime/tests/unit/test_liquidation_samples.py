@@ -184,7 +184,7 @@ def test_serialize_liquidation_failure_samples_records_four_failure_classes():
     ]
 
     result = serialize_liquidation_failure_samples(
-        "postgresql://example",
+        "local_store.sqlite3",
         reports,
         recorder=recorder,
     )
@@ -197,7 +197,7 @@ def test_serialize_liquidation_failure_samples_records_four_failure_classes():
         "low_profit",
         "high_slippage_failure",
     ]
-    assert calls[0][0] == "postgresql://example"
+    assert calls[0][0] == "local_store.sqlite3"
     assert calls[0][1]["source"] == "liquidation_sample_library"
     assert calls[0][1]["collateral_asset"] == "0xcoll"
 
@@ -205,9 +205,9 @@ def test_serialize_liquidation_failure_samples_records_four_failure_classes():
 def test_liquidation_sample_payload_error_is_redacted(monkeypatch):
     from bot.execution import liquidation_samples
 
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "b" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     def fail_payload(*args, **kwargs):
         raise RuntimeError(f"payload failed: {database_url} private_key={private_key}")
@@ -231,7 +231,7 @@ def test_liquidation_sample_payload_error_is_redacted(monkeypatch):
 def test_export_liquidation_samples_prints_replay_summary(monkeypatch, tmp_path: Path, capsys):
     from bot.tools import export_liquidation_samples as exporter
 
-    monkeypatch.setenv("DATABASE_URL", "postgresql://example")
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", "local_store.sqlite3")
     monkeypatch.setattr(exporter, "ensure_database_schema", lambda database_url: None)
     monkeypatch.setattr(
         exporter,

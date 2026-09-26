@@ -52,9 +52,9 @@ def test_account_pool_state_ready_with_active_accounts_and_scan_window():
 
 
 def test_account_pool_state_payload_redacts_registry_errors(monkeypatch):
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "f" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     class Panel:
         @staticmethod

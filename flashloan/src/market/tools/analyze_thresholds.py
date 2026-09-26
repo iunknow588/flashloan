@@ -11,7 +11,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from core.env_loader import load_env_files
-from core.db.storage_common import configured_database_url, db_connection
+from core.db.storage_common import configured_database_url
+from core.kv_rows import load_rows
 
 
 load_env_files(__file__)
@@ -54,18 +55,32 @@ def load_price_history(database_url: str | None, hours: float) -> list[tuple]:
     if not database_url:
         return []
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT observed_at, symbol, price, event_time, source
-                FROM binance_price_history
-                WHERE event_time >= %s
-                ORDER BY event_time, symbol
-                """,
-                (cutoff,),
-            )
-            return cursor.fetchall()
+    rows = load_rows(database_url, "binance_price_history")
+    rows = [row for row in rows if _parse_event_time(row.get("event_time")) >= cutoff]
+    rows.sort(key=lambda row: (str(row.get("event_time") or ""), str(row.get("symbol") or "")))
+    return [
+        (
+            row.get("observed_at"),
+            str(row.get("symbol") or ""),
+            float(row.get("price") or 0),
+            row.get("event_time"),
+            str(row.get("source") or ""),
+        )
+        for row in rows
+    ]
+
+
+def _parse_event_time(value) -> datetime:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value or "")
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def replay_windows(rows: list[tuple], window_seconds: float) -> list[dict]:

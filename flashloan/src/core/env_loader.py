@@ -6,23 +6,8 @@ SENSITIVE_ENV_MARKERS = (
     "PRIVATE_KEY",
     "SECRET",
     "PASSWORD",
-    "DATABASE_URL",
     "JWT",
 )
-
-
-def _env_flag(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def disable_database_alias_enabled() -> bool:
-    return _env_flag("FLASHLOAN_DISABLE_DATABASE")
-
-
-def local_json_only_enabled() -> bool:
-    return _env_flag("FLASHLOAN_LOCAL_JSON_ONLY") or disable_database_alias_enabled()
-
-
 def candidate_env_paths(start_path: str | os.PathLike[str]) -> list[Path]:
     path = Path(start_path).resolve()
     directory = path.parent if path.is_file() else path
@@ -113,8 +98,6 @@ def load_env_files(
         values = parse_env_lines(env_path.read_text(encoding="utf-8").splitlines())
         is_test_env = env_path.name == ".env.test"
         for key, value in values.items():
-            if key == "DATABASE_URL" and local_json_only_enabled():
-                continue
             if is_test_env and _is_sensitive_key(key):
                 continue
             if is_test_env and str(value or "").strip() == "":

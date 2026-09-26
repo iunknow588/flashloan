@@ -1,11 +1,64 @@
 from __future__ import annotations
 
+import os
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 
 from core.dex_provenance import build_price_evidence_payload
 
 DEFAULT_QUOTE_PROBE_NOTIONAL_USD = 1000.0
+DEFAULT_TOKEN_BASIS_BASE_AMOUNT = 1.0
+DEFAULT_TOKEN_BASIS_HALVING_STEPS = 4
+DEFAULT_TOKEN_BASIS_DOUBLING_STEPS = 6
+
+
+def _token_basis_amount_steps() -> list[float]:
+    """Return a token-basis ladder based on halving/doubling a base amount.
+
+    The ladder is generated as ``[base / 2^k ... base ... base * 2^m]`` so the
+    candidate amounts follow the same doubling/halving convention used by the
+    on-chain size probe instead of a dense arbitrary decimal grid.
+    """
+    raw_env = os.getenv("DEX_QUOTE_TOKEN_AMOUNT_STEPS", "").strip()
+    if not raw_env:
+        try:
+            base_amount = float(os.getenv("DEX_QUOTE_TOKEN_BASE_AMOUNT", str(DEFAULT_TOKEN_BASIS_BASE_AMOUNT)))
+        except (TypeError, ValueError):
+            base_amount = float(DEFAULT_TOKEN_BASIS_BASE_AMOUNT)
+        if not base_amount or base_amount <= 0:
+            base_amount = float(DEFAULT_TOKEN_BASIS_BASE_AMOUNT)
+        halving_steps = max(0, int(os.getenv("DEX_QUOTE_TOKEN_HALVING_STEPS", str(DEFAULT_TOKEN_BASIS_HALVING_STEPS)) or DEFAULT_TOKEN_BASIS_HALVING_STEPS))
+        doubling_steps = max(0, int(os.getenv("DEX_QUOTE_TOKEN_DOUBLING_STEPS", str(DEFAULT_TOKEN_BASIS_DOUBLING_STEPS)) or DEFAULT_TOKEN_BASIS_DOUBLING_STEPS))
+        return _generate_token_basis_steps(
+            base_amount=base_amount,
+            halving_steps=halving_steps,
+            doubling_steps=doubling_steps,
+        )
+    parsed: list[float] = []
+    for part in raw_env.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            value = float(part)
+        except (TypeError, ValueError):
+            continue
+        if value > 0 and value not in parsed:
+            parsed.append(value)
+    if parsed:
+        return sorted(parsed)
+    return _generate_token_basis_steps(
+        base_amount=float(DEFAULT_TOKEN_BASIS_BASE_AMOUNT),
+        halving_steps=int(DEFAULT_TOKEN_BASIS_HALVING_STEPS),
+        doubling_steps=int(DEFAULT_TOKEN_BASIS_DOUBLING_STEPS),
+    )
+
+
+def _generate_token_basis_steps(*, base_amount: float, halving_steps: int, doubling_steps: int) -> list[float]:
+    steps = [base_amount / (2 ** halving_steps)]
+    for _ in range(halving_steps + doubling_steps):
+        steps.append(steps[-1] * 2)
+    return [round(float(step), 12) for step in steps]
 
 
 def _number(value: object) -> float:
@@ -65,13 +118,34 @@ def _human_to_raw(value: object, decimals: int | None) -> int | None:
     return int((parsed * (Decimal(10) ** int(decimals))).to_integral_value())
 
 
+def _profit_metric(row: dict[str, Any]) -> tuple[float | None, str | None]:
+    """Return a comparable absolute profit for a size-analysis row.
+
+    USD profit is preferred when available; otherwise borrow-token absolute
+    profit is used. BPS is deliberately never used as a selection metric.
+    """
+    for key in ("observedNetProfitUsd", "netProfitUsd", "referenceNetProfitUsd"):
+        value = row.get(key)
+        if value is not None:
+            return _number(value), "usd"
+    for key in ("referenceNetProfitAmount", "netProfitAmount"):
+        value = row.get(key)
+        if value is not None:
+            return _number(value), "borrow_token"
+    return None, None
+
+
 def _best_probe_row(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-    scored = [row for row in rows if _number(row.get("observedNetProfitUsd")) is not None and row.get("referenceInputAmount") is not None]
+    scored = [
+        row
+        for row in rows
+        if row.get("referenceInputAmount") is not None and _profit_metric(row)[0] is not None
+    ]
     if scored:
-        return max(scored, key=lambda row: _number(row.get("observedNetProfitUsd")))
+        return max(scored, key=lambda row: _profit_metric(row)[0] or 0)
     executable = [row for row in rows if row.get("executableCandidate") and row.get("referenceInputAmount") is not None]
     if executable:
-        return max(executable, key=lambda row: _number(row.get("observedNetProfitUsd")))
+        return max(executable, key=lambda row: _profit_metric(row)[0] or 0)
     return next((row for row in rows if row.get("referenceInputAmount") is not None), None)
 
 
@@ -227,7 +301,7 @@ def build_route_size_analysis(
     input_symbol = route_symbols[0] if route_symbols else None
     use_token_basis_ladder = bool(input_symbol and len(route_symbols) > 1 and route_symbols[-1] == input_symbol and not price_map.get(input_symbol))
     notionals = [] if use_token_basis_ladder else [100.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0]
-    token_amounts = [0.01, 0.1, 1.0, 10.0, 100.0] if use_token_basis_ladder else []
+    token_amounts = _token_basis_amount_steps() if use_token_basis_ladder else []
     rows: list[dict[str, Any]] = []
     for notional in notionals:
         analysis = route_quote_analysis_fn(route, price_map=price_map, chain_id=chain_id, notional_usd=notional)
@@ -323,13 +397,25 @@ def build_route_size_analysis(
                 "maxStaticDepthImpactBps": summary.get("maxStaticDepthImpactBps"),
             }
         )
-    observed = [row for row in rows if row.get("observedNetProfitUsd") is not None]
-    executable = [row for row in rows if row.get("executableCandidate") and row.get("observedNetProfitUsd") is not None]
-    positive = [row for row in observed if _number(row.get("observedNetProfitUsd")) > 0]
-    token_basis_rows = [row for row in rows if row.get("referenceNetReturnBps") is not None]
-    best_observed = max(observed, key=lambda row: _number(row.get("observedNetProfitUsd")), default=None)
-    best_executable = max(executable, key=lambda row: _number(row.get("observedNetProfitUsd")), default=None)
-    best_token_basis = max(token_basis_rows, key=lambda row: _number(row.get("referenceNetReturnBps")), default=None)
+    observed = [row for row in rows if _profit_metric(row)[0] is not None]
+    executable = [
+        row
+        for row in rows
+        if row.get("executableCandidate") and _profit_metric(row)[0] is not None
+    ]
+    positive = [row for row in observed if (_profit_metric(row)[0] or 0) > 0]
+    token_basis_rows = [
+        row
+        for row in rows
+        if (
+            row.get("referenceReturnBasis") == "borrow_token"
+            or row.get("borrowBasis") == "borrow_token"
+        )
+        and _profit_metric(row)[0] is not None
+    ]
+    best_observed = max(observed, key=lambda row: _profit_metric(row)[0] or 0, default=None)
+    best_executable = max(executable, key=lambda row: _profit_metric(row)[0] or 0, default=None)
+    best_token_basis = max(token_basis_rows, key=lambda row: _profit_metric(row)[0] or 0, default=None)
     size_probe_rows = [
         row
         for row in rows
@@ -347,9 +433,21 @@ def build_route_size_analysis(
         recommended_row.get("borrowBasis") if isinstance(recommended_row, dict) else ""
     ).strip().lower() or None
     recommended_input_reason = None
+    recommended_selection_metric = None
+    recommended_selection_basis = None
+    recommended_selection_row_index = None
     if isinstance(recommended_row, dict):
-        if _number(recommended_row.get("observedNetProfitUsd")) > 0:
+        recommended_profit, recommended_profit_basis = _profit_metric(recommended_row)
+        recommended_selection_metric = recommended_profit
+        recommended_selection_basis = recommended_profit_basis
+        for index, row in enumerate(rows):
+            if row is recommended_row:
+                recommended_selection_row_index = index
+                break
+        if recommended_profit is not None and recommended_profit > 0 and recommended_profit_basis == "usd":
             recommended_input_reason = "best_positive_observed_net_profit"
+        elif recommended_profit is not None and recommended_profit > 0:
+            recommended_input_reason = "best_positive_absolute_profit"
         elif recommended_row.get("executableCandidate"):
             recommended_input_reason = "best_executable_candidate"
         else:
@@ -383,6 +481,9 @@ def build_route_size_analysis(
         "recommendedBorrowInputAmountRaw": str(recommended_input_amount_raw) if recommended_input_amount_raw is not None else None,
         "recommendedBorrowInputAmountBasis": recommended_input_basis,
         "recommendedBorrowInputAmountReason": recommended_input_reason,
+        "recommendedSelectionMetric": recommended_selection_metric,
+        "recommendedSelectionBasis": recommended_selection_basis,
+        "recommendedSelectionRowIndex": recommended_selection_row_index,
         "recommendedBorrowInputAmountDecimals": recommended_input_decimals,
         "recommendedQuoteAnalysis": recommended_analysis,
         "depthExplorationRequired": depth_exploration_required,

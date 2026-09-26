@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
@@ -12,7 +13,8 @@ from core.aave_reserve_cache import load_aave_reserve_symbols
 from core.config_schema import parse_env_float, parse_env_int
 from core.env_loader import load_env_files
 from market.observer import ASSETS, DEFAULT_EXECUTABLE_SYMBOLS, DEFAULT_RPC, env_list
-from core.db.storage_common import configured_database_url, db_connection
+from core.db.storage_common import configured_database_url
+from core.kv_rows import load_rows
 from market.strategy.limits import DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT, DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT
 
 
@@ -37,39 +39,58 @@ def executable_symbols() -> set[str]:
 def fetch_candidates(database_url: str | None, since_minutes: int, limit: int) -> list[dict]:
     if not database_url:
         return []
-    query = """
-        SELECT observed_at, window_seconds, sample_count,
-               top_symbol_1, top_change_percent_1, top_start_price_1, top_end_price_1,
-               bottom_symbol_1, bottom_change_percent_1, bottom_start_price_1, bottom_end_price_1
-        FROM binance_window_extremes
-        WHERE observed_at >= now() - (%s || ' minutes')::interval
-          AND top_change_percent_1 >= %s
-          AND bottom_change_percent_1 <= -%s
-        ORDER BY observed_at DESC
-        LIMIT %s
-    """
     min_up = parse_env_float("TRIGGER_MIN_UP_CHANGE_PERCENT", DEFAULT_TRIGGER_MIN_UP_CHANGE_PERCENT, minimum=0)[0]
     min_down = parse_env_float("TRIGGER_MIN_DOWN_CHANGE_PERCENT", DEFAULT_TRIGGER_MIN_DOWN_CHANGE_PERCENT, minimum=0)[0]
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (since_minutes, min_up, min_down, limit))
-            rows = cursor.fetchall()
-    return [
-        {
-            "observed_at": row[0].isoformat(),
-            "window_seconds": float(row[1]),
-            "sample_count": int(row[2]),
-            "x_symbol": row[3],
-            "x_change_percent": float(row[4]),
-            "x_start_price": float(row[5]) if row[5] is not None else 0.0,
-            "x_end_price": float(row[6]) if row[6] is not None else 0.0,
-            "y_symbol": row[7],
-            "y_change_percent": float(row[8]),
-            "y_start_price": float(row[9]) if row[9] is not None else 0.0,
-            "y_end_price": float(row[10]) if row[10] is not None else 0.0,
-        }
-        for row in rows
-    ]
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=int(since_minutes))
+    rows = load_rows(database_url, "binance_window_extremes")
+    candidates = []
+    for row in rows:
+        top = row.get("top") or []
+        bottom = row.get("bottom") or []
+        if not top or not bottom:
+            continue
+        try:
+            observed_at = _parse_observed_at(row.get("observed_at"))
+        except Exception:
+            continue
+        if observed_at < cutoff:
+            continue
+        x = top[0]
+        y = bottom[0]
+        x_change = float(x.get("change_percent") or 0)
+        y_change = float(y.get("change_percent") or 0)
+        if x_change < min_up or y_change > -min_down:
+            continue
+        candidates.append(
+            {
+                "observed_at": observed_at.isoformat(),
+                "window_seconds": float(row.get("window_seconds") or 0),
+                "sample_count": int(row.get("sample_count") or 0),
+                "x_symbol": x.get("symbol"),
+                "x_change_percent": x_change,
+                "x_start_price": float(x.get("start_price") or 0),
+                "x_end_price": float(x.get("end_price") or x.get("current_price") or 0),
+                "y_symbol": y.get("symbol"),
+                "y_change_percent": y_change,
+                "y_start_price": float(y.get("start_price") or 0),
+                "y_end_price": float(y.get("end_price") or y.get("current_price") or 0),
+            }
+        )
+    candidates.sort(key=lambda item: str(item["observed_at"]), reverse=True)
+    return candidates[:max(1, int(limit))]
+
+
+def _parse_observed_at(value) -> datetime:
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = str(value or "")
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def build_candidate(candidate: dict) -> dict:

@@ -207,7 +207,6 @@
       if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
       if (text === "amount must be positive") return "金额必须大于 0";
       const replaced = text
-        .replace("DATABASE_URL is required. Configure .env or a system environment variable first.", "缺少 DATABASE_URL。请先在 .env 或系统环境变量中配置数据库连接。")
         .replace("initialize database and collect velocity windows first", "请先初始化数据库并采集速度窗口。")
         .replace("no velocity timepoint found", "没有找到速度时间点。")
         .replace("request failed", "请求失败");

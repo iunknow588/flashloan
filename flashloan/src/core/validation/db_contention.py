@@ -6,7 +6,7 @@ import uuid
 from statistics import median
 from typing import Any
 
-from core.db.storage_common import db_connection, run_db_transaction
+from core.local_kv import ensure_store, meta_get, meta_put
 
 
 def run_live_contention(
@@ -16,37 +16,23 @@ def run_live_contention(
     operations_per_worker: int = 5,
     hold_ms: float = 10.0,
 ) -> dict[str, Any]:
-    """Use an isolated table to measure row-lock waits and transaction errors."""
-    table = f"codex_db_contention_{uuid.uuid4().hex[:12]}"
+    """Use an isolated KV meta counter to measure local write contention."""
+    counter_key = f"codex_db_contention_{uuid.uuid4().hex[:12]}"
+    ensure_store(database_url)
+    meta_put(database_url, counter_key, {"value": 0})
     workers = max(1, int(workers))
     operations = max(1, int(operations_per_worker))
     durations: list[float] = []
     errors: list[str] = []
     lock = threading.Lock()
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY, value INTEGER NOT NULL)')
-            cursor.execute(f'INSERT INTO "{table}" (id, value) VALUES (1, 0)')
 
     def worker() -> None:
         for _ in range(operations):
             started = time.perf_counter()
             try:
-                def contend(connection: object) -> None:
-                    with connection.cursor() as cursor:
-                        cursor.execute(f'SELECT value FROM "{table}" WHERE id = 1 FOR UPDATE')
-                        row = cursor.fetchone() or (0,)
-                        cursor.execute(f'UPDATE "{table}" SET value = %s WHERE id = 1', (int(row[0]) + 1,))
-                        time.sleep(max(0.0, float(hold_ms)) / 1000.0)
-
-                run_db_transaction(
-                    database_url,
-                    "validation.db_contention",
-                    contend,
-                    connect_timeout=8,
-                    max_retries=2,
-                    retry_backoff_ms=25,
-                )
+                value = int((meta_get(database_url, counter_key) or {}).get("value") or 0)
+                meta_put(database_url, counter_key, {"value": value + 1})
+                time.sleep(max(0.0, float(hold_ms)) / 1000.0)
                 with lock:
                     durations.append((time.perf_counter() - started) * 1000.0)
             except Exception as exc:
@@ -60,9 +46,6 @@ def run_live_contention(
     for thread in threads:
         thread.join()
     elapsed_ms = (time.perf_counter() - started) * 1000.0
-    with db_connection(database_url, connect_timeout=8) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f'DROP TABLE IF EXISTS "{table}"')
     ordered = sorted(durations)
     return {
         "status": "calculated" if not errors else "completed_with_errors",

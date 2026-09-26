@@ -8,8 +8,14 @@ from pathlib import Path
 
 
 APP_DIR = Path(__file__).resolve().parent
-RUNTIME_DIR = Path(os.getenv("FLASHLOAN_RUNTIME_DIR", str(APP_DIR / "runtime"))).resolve()
-LOG_DIR = Path(os.getenv("FLASHLOAN_LOG_DIR", str(RUNTIME_DIR / "logs"))).resolve()
+SRC_ROOT = APP_DIR.parent / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from core.runtime_paths import resolve_log_dir, resolve_runtime_dir
+
+RUNTIME_DIR = resolve_runtime_dir(base_dir=APP_DIR)
+LOG_DIR = resolve_log_dir(runtime_dir=RUNTIME_DIR, base_dir=APP_DIR)
 
 
 def _read_port() -> str:
@@ -24,8 +30,8 @@ def _read_port() -> str:
 def main() -> int:
     port = _read_port()
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    stdout_path = LOG_DIR / f"server_{port}_stdout.log"
-    stderr_path = LOG_DIR / f"server_{port}_stderr.log"
+    stdout_path = LOG_DIR / "server_stdout.log"
+    stderr_path = LOG_DIR / "server_stderr.log"
 
     with stdout_path.open("ab", buffering=0) as stdout, stderr_path.open("ab", buffering=0) as stderr:
         env = os.environ.copy()

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -54,21 +53,19 @@ def build_validation_report(
     rpc = {"status": "not_probed", "configured_count": len(market.rpc_urls), "urls": list(market.rpc_urls)}
     if live_rpc_probe:
         rpc = {"configured_count": len(market.rpc_urls), **probe_rpc_urls(list(market.rpc_urls))}
+    database_url = database_url_or_none()
     database = {
-        "pool_enabled": os.getenv("DATABASE_POOL_ENABLED", "true"),
-        "pool_min_size": os.getenv("DATABASE_POOL_MIN_SIZE", "2"),
-        "pool_max_size": os.getenv("DATABASE_POOL_MAX_SIZE", "10"),
+        "local_store_path": str(database_url or ""),
         "transaction_boundary": "db_connection context commits on normal exit and rolls back on exception",
         "live_lock_benchmark": "not_run",
     }
-    database_url = database_url_or_none()
     if live_db_contention and database_url:
         try:
             database["live_lock_benchmark"] = run_live_contention(database_url, workers=db_workers)
         except Exception as exc:
             database["live_lock_benchmark"] = {"status": "failed", "error": str(exc)[:240]}
     elif live_db_contention:
-        database["live_lock_benchmark"] = {"status": "not_configured", "reason": "DATABASE_URL is missing"}
+        database["live_lock_benchmark"] = {"status": "not_configured", "reason": "local KV store unavailable"}
     return {
         "schema_version": 1,
         "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),

@@ -51,6 +51,7 @@ def register_binance_market_admin_routes(app, panel) -> None:
             ),
             limit=limit,
             networks=networks,
+            dedupe_by_route_evidence=False,
         )
         return jsonify(
             {
@@ -61,7 +62,11 @@ def register_binance_market_admin_routes(app, panel) -> None:
                 "category_retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
                 "networks": networks,
                 "groups": groups,
-                "attempts": _flatten_cow_execution_groups(groups, limit),
+                "attempts": _flatten_cow_execution_groups(
+                    groups,
+                    limit,
+                    dedupe_by_route_evidence=False,
+                ),
             }
         )
 

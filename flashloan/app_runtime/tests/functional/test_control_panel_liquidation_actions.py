@@ -126,10 +126,10 @@ def test_route_failure_records_tx_hash_from_receipt_when_top_level_missing(monke
 def test_route_failure_redacts_sensitive_error_before_attempt(monkeypatch):
     from web import control_panel_liquidation_routes as routes
 
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "c" * 64
     captured = {}
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     def fake_panel_call(name, **kwargs):
         captured["name"] = name
@@ -160,9 +160,9 @@ def test_route_failure_redacts_sensitive_error_before_attempt(monkeypatch):
 def test_liquidation_account_api_redacts_sensitive_errors(monkeypatch):
     from web import control_panel
 
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "d" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     def fail_payload(account):
         raise RuntimeError(f"db failed: {database_url} private_key={private_key}")

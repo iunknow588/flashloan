@@ -163,22 +163,11 @@ def test_account_report_uses_valid_summary_json_when_report_summary_failed():
     assert restored["positions"] == report["positions"]
 
 
-def test_historical_report_lookup_can_query_only_missing_positions():
-    positions_row = ("2026-08-03T07:33:10Z", "{}", '{"positions":[{"symbol":"SAVAX"}]}')
+def test_historical_report_lookup_returns_kv_sources():
+    """Historical health scans are stored in KV rows, so the compatibility helper stays empty."""
 
-    class Cursor:
-        def __init__(self):
-            self.queries = []
-
-        def execute(self, query, params):
-            self.queries.append((query, params))
-
-        def fetchone(self):
-            return positions_row
-
-    cursor = Cursor()
     latest_valid, latest_positions = load_historical_account_report_sources(
-        cursor,
+        None,
         market_id="avalanche-aave-v3",
         chain_id=43114,
         account="0x1",
@@ -187,41 +176,27 @@ def test_historical_report_lookup_can_query_only_missing_positions():
     )
 
     assert latest_valid is None
-    assert latest_positions == positions_row
-    assert len(cursor.queries) == 1
-    assert "jsonb_array_length" in cursor.queries[0][0]
-    assert cursor.queries[0][1] == ("avalanche-aave-v3", 43114, "0x1")
+    assert latest_positions is None
 
 
-def test_historical_report_lookup_rejects_explicit_wrong_scope():
-    positions_row = (
-        "2026-08-03T07:33:10Z",
-        '{"scope":{"market_id":"avalanche-aave-v3","chain_id":1,"network":"ethereum","protocol":"aave"}}',
-        "{\"positions\":[]}",
+def test_historical_report_lookup_ignores_legacy_scope_payloads():
+    latest_valid, latest_positions = load_historical_account_report_sources(
+        None,
+        market_id="avalanche-aave-v3",
+        chain_id=43114,
+        account="0x1",
+        include_summary=False,
+        include_positions=True,
+        expected_scope={
+            "market_id": "avalanche-aave-v3",
+            "chain_id": 43114,
+            "network": "avalanche",
+            "protocol": "aave",
+        },
     )
 
-    class Cursor:
-        def execute(self, query, params):
-            pass
-
-        def fetchone(self):
-            return positions_row
-
-    with pytest.raises(ValueError, match="scope mismatch on chain_id"):
-        load_historical_account_report_sources(
-            Cursor(),
-            market_id="avalanche-aave-v3",
-            chain_id=43114,
-            account="0x1",
-            include_summary=False,
-            include_positions=True,
-            expected_scope={
-                "market_id": "avalanche-aave-v3",
-                "chain_id": 43114,
-                "network": "avalanche",
-                "protocol": "aave",
-            },
-        )
+    assert latest_valid is None
+    assert latest_positions is None
 
 
 def test_valid_health_scan_does_not_query_history_only_to_fill_positions():

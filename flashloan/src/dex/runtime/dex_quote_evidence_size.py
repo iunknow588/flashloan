@@ -1,0 +1,169 @@
+﻿from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any
+
+from dex.runtime.dex_quote_evidence_common import (
+    _as_dict,
+    _int_or_none,
+    _norm_symbol,
+    _pool_map,
+    _positive_decimal_or_none,
+    _raw_from_human,
+    _text,
+)
+
+def _offchain_initial_probe_amount_raw(
+    route: dict[str, Any],
+    *,
+    input_decimals: int,
+    analysis: dict[str, Any] | None = None,
+    pools: dict[str, dict[str, Any]] | None = None,
+    price_map: dict[str, float] | None = None,
+) -> tuple[int, str, str, list[str]]:
+    """估算链下初始探测借币量，是所有初始探测量的唯一起点。
+
+    本函数不读取路由或规模分析中已有的 initialProbeAmountRaw /
+    offchainInitialProbeAmountRaw，也不读取 recommended / maxExecutable 作为起点。
+    规则：
+    - 只使用传入 price_map 的可信稳定币/稳定池价格锚点；
+      绝不从 referenceInputAmount/notionalUsd 反推 TZ_USDT 价格；
+    - 没有可信价格时，使用一个基础代币单位 10 ** input_decimals；
+    - 若路由包含池子余额信息，会将初始探测值限制在池子流动性的 2% 以内，
+      避免一开始就把过度资金穿透整个池子；
+    - 无法计算时返回 0，由调用方决定是否回退到请求量。
+    """
+    route_analysis = analysis if isinstance(analysis, dict) else _as_dict(route.get("quoteAnalysis"))
+    pools = pools or _pool_map(route)
+    price_map = price_map or {}
+    input_symbol = _norm_symbol(
+        route_analysis.get("inputSymbol")
+        or (route.get("routeSymbols") or [None])[0]
+        or route.get("tokenXSymbol")
+    )
+    input_price = price_map.get(input_symbol) if input_symbol else None
+    if input_price is not None and input_price > 0:
+        amount_raw = max(1, _raw_from_human(Decimal(str(1000.0 / input_price)), input_decimals))
+        reason = "stablecoin_usd_1000u_anchor"
+        reasons = ["stablecoin_usd_1000u_anchor"]
+    elif input_decimals is not None and input_decimals > 0:
+        amount_raw = max(1, int(Decimal(10) ** int(input_decimals)))
+        reason = "one_basic_unit_fallback"
+        reasons = ["one_basic_unit_fallback"]
+    else:
+        return 0, "borrow_token", "no_offchain_initial_anchor", ["no_offchain_initial_anchor"]
+    one_basic_unit_raw = (
+        max(1, int(Decimal(10) ** int(input_decimals)))
+        if input_decimals is not None and input_decimals > 0
+        else 1
+    )
+    liquidity_cap_raw, liquidity_reason = _liquidity_cap_raw(pools, input_symbol, input_decimals)
+    if liquidity_cap_raw is not None and liquidity_cap_raw > 0 and amount_raw > liquidity_cap_raw:
+        # 2% liquidity cap is only a conservative search starting point. It
+        # must never force the initial probe below one basic token unit.
+        amount_raw = max(int(liquidity_cap_raw), one_basic_unit_raw)
+        reason = liquidity_reason or "liquidity_cap"
+        reasons.append(liquidity_reason or "liquidity_cap")
+    return amount_raw, "borrow_token", reason, reasons
+
+def _step_token_rate(step: dict[str, Any]) -> Decimal | None:
+    input_amount = _positive_decimal_or_none(step.get("referenceInputAmount") or step.get("inputAmount") or step.get("amountIn"))
+    output_amount = _positive_decimal_or_none(step.get("referenceOutputAmount") or step.get("outputAmount") or step.get("amountOut"))
+    if input_amount is None or output_amount is None or input_amount <= 0:
+        return None
+    return output_amount / input_amount
+
+def _pool_borrow_side_amount(pool: dict[str, Any], input_symbol: str) -> Decimal | None:
+    balances = pool.get("balances") if isinstance(pool.get("balances"), dict) else {}
+    symbol = _norm_symbol(input_symbol)
+    for index in (0, 1):
+        if _norm_symbol(pool.get(f"token{index}Symbol")) == symbol:
+            amount = balances.get(f"token{index}") if balances else pool.get(f"token{index}Amount")
+            return _positive_decimal_or_none(amount)
+    return None
+
+def _pool_borrow_liquidity_raw(
+    pools: dict[str, dict[str, Any]] | None,
+    input_symbol: str,
+    input_decimals: int,
+) -> int | None:
+    total: Decimal | None = None
+    for pool in (pools or {}).values():
+        if not isinstance(pool, dict):
+            continue
+        side_amount = _pool_borrow_side_amount(pool, input_symbol)
+        if side_amount is None or side_amount <= 0:
+            continue
+        total = (total or Decimal("0")) + side_amount
+    if total is None:
+        return None
+    return max(1, _raw_from_human(total, input_decimals))
+
+def _liquidity_cap_raw(
+    pools: dict[str, dict[str, Any]] | None,
+    input_symbol: str,
+    input_decimals: int,
+) -> tuple[int | None, str | None]:
+    pool_cap_raw = _pool_borrow_liquidity_raw(pools, input_symbol, input_decimals)
+    if pool_cap_raw is not None:
+        pool_cap_raw = max(1, pool_cap_raw // 50)
+    if pool_cap_raw is not None:
+        return pool_cap_raw, "liquidity_cap_pool_reserve_2pct"
+    return None, None
+
+def _route_size_advice(route: dict[str, Any]) -> tuple[dict[str, Any], int | None, int | None, int | None]:
+    size_analysis = _as_dict(route.get("sizeAnalysis"))
+    if not size_analysis:
+        size_analysis = _as_dict(_as_dict(route.get("quoteAnalysis")).get("sizeAnalysis"))
+    if not size_analysis:
+        size_analysis = _as_dict(_as_dict(route.get("overviewRoute")).get("sizeAnalysis"))
+    execution_probe = _as_dict(
+        size_analysis.get("executionSizeProbe")
+        or size_analysis.get("routeExecutionSizeProbe")
+    )
+    input_amount_unit = _text(size_analysis.get("inputAmountUnit")).lower()
+    max_executable_raw = _int_or_none(
+        (
+            size_analysis.get("maxExecutableAmountRaw")
+            or execution_probe.get("maxExecutableAmountRaw")
+            or route.get("maxExecutableAmountRaw")
+        )
+        if input_amount_unit != "per_hop"
+        else None
+    )
+    first_failure_raw = _int_or_none(
+        (
+            size_analysis.get("firstFailureAmountRaw")
+            or execution_probe.get("firstFailureAmountRaw")
+            or route.get("firstFailureAmountRaw")
+        )
+        if input_amount_unit != "per_hop"
+        else None
+    )
+    recommended_raw = _int_or_none(
+        size_analysis.get("offchainInitialProbeAmountRaw")
+        or size_analysis.get("initialProbeAmountRaw")
+        or size_analysis.get("recommendedBorrowInputAmountRaw")
+        or execution_probe.get("recommendedBorrowInputAmountRaw")
+        or execution_probe.get("offchainInitialProbeAmountRaw")
+        or route.get("recommendedBorrowInputAmountRaw")
+    )
+    return execution_probe, max_executable_raw, first_failure_raw, recommended_raw
+
+def _transaction_development(ready: bool, blockers: list[str]) -> dict[str, Any]:
+    if ready:
+        return {
+            "status": "ready_for_transaction_preflight_development",
+            "executionEnabled": False,
+            "nextModules": [
+                "build flash loan borrow entry",
+                "verify route and generate AMM swap calldata",
+                "add minimum repayment and slippage protection",
+                "完成链上复核确认链上可执行性后再发起链上执行",
+            ],
+        }
+    return {
+        "status": "blocked_before_transaction_development",
+        "executionEnabled": False,
+        "blockers": blockers,
+    }

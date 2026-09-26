@@ -10,6 +10,13 @@ from dex.intent_trade.chains.robinhood_testnet import market_observation as robi
 from market.strategy.arbitrage import ArbitrageConfig
 
 
+def test_scanner_evidence_timeout_has_rpc_retry_budget_floor(monkeypatch):
+    from dex.runtime import dex_opportunity_scanner
+
+    monkeypatch.setenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "45")
+    assert dex_opportunity_scanner._scanner_evidence_timeout_seconds() >= 60.0
+
+
 def _write_json(path, payload):
     import json
 
@@ -89,6 +96,36 @@ def test_dex_opportunity_scanner_keeps_latest_quote_snapshot(tmp_path):
     assert payload["snapshot"]["summary"]["best_net_profit_usd"] == 7.5
     assert payload["snapshot"]["payload"]["routes"][0]["symbolPair"] == "USDC -> WBNB -> USDC"
     assert (tmp_path / "dex_opportunity_snapshot.json").exists()
+
+
+def test_dex_opportunity_scanner_snapshot_is_protocol_scoped(tmp_path):
+    from runtime.dex_opportunity_scanner import DexOpportunityScanner
+
+    def quote_payload_provider(*, chain_id=None, protocols=None):
+        return {
+            "summary": {"routeCount": 1},
+            "routes": [{"symbolPair": "TZ -> TB -> TA -> TZ", "quoteStatus": "live_verified"}],
+        }
+
+    scanner = DexOpportunityScanner(
+        quote_payload_provider=quote_payload_provider,
+        trigger_context_provider=lambda **kwargs: {"triggerBlockNumber": 12345},
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        record_opportunities=False,
+    )
+
+    scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
+
+    specific = scanner.snapshot(chain_id=46630, protocols=["uniswap_v4"])
+    other = scanner.snapshot(chain_id=46630, protocols=["uniswap_v2"])
+    legacy = scanner.snapshot(chain_id=46630)
+
+    assert specific["ok"] is True
+    assert specific["snapshot"]["payload"]["routes"][0]["symbolPair"] == "TZ -> TB -> TA -> TZ"
+    assert other["ok"] is True
+    assert not other["snapshot"].get("payload")
+    assert legacy["ok"] is True
+    assert legacy["snapshot"]["payload"]["routes"][0]["symbolPair"] == "TZ -> TB -> TA -> TZ"
 
 
 def test_dex_opportunity_scanner_reviews_onchain_evidence_when_recording_is_disabled(tmp_path):
@@ -1073,9 +1110,99 @@ def test_dex_submission_review_counts_recorded_opportunities_as_blocked():
         source="jsonl",
     )
 
+    assert payload["summary"]["attemptCount"] == 0
+    assert payload["summary"]["blockedCount"] == 0
+    assert payload["attempts"] == []
+
+
+def test_dex_submission_review_hides_quote_only_rows_without_tx_hash():
+    payload = dex_surfaces.dex_submission_review_payload(
+        attempts=[
+            {
+                "review_category": "not_executable",
+                "state": "quote_required",
+                "pair": "TZ -> TA -> TB -> TZ",
+            },
+            {
+                "review_category": "execution_success",
+                "state": "submitted_success",
+                "pair": "TZ -> TA -> TB -> TZ",
+                "tx_hash": "0x" + "a" * 64,
+                "quote": {
+                    "profit_amount": 1.5,
+                    "final_amount": 12.5,
+                },
+            },
+        ],
+        groups={},
+        source="jsonl",
+    )
+
     assert payload["summary"]["attemptCount"] == 1
-    assert payload["summary"]["blockedCount"] == 1
-    assert payload["attempts"][0]["pair"] == "USDG -> WETH -> TEST -> WETH -> USDG"
+    assert payload["summary"]["successCount"] == 1
+    assert payload["summary"]["blockedCount"] == 0
+    assert payload["attempts"][0]["tx_hash"] == "0x" + "a" * 64
+
+
+def test_dex_submission_review_hides_broadcast_attempt_without_tx_hash():
+    payload = dex_surfaces.dex_submission_review_payload(
+        attempts=[
+            {
+                "review_category": "execution_failed",
+                "state": "submission_failed",
+                "execution_phase": "submission",
+                "precheck": {"broadcast": True},
+                "pair": "TZ -> TA -> TB -> TZ",
+                "error": "official_arb_broadcast_failed",
+                "blocked_reasons": ["static_call_ok"],
+            }
+        ],
+        groups={},
+        source="jsonl",
+    )
+
+    assert payload["summary"]["attemptCount"] == 0
+    assert payload["attempts"] == []
+
+
+def test_dex_submission_review_keeps_offchain_probe_data_from_latest_estimate():
+    probe = [
+        {"amount": 1.0, "borrowAmount": 1.0, "referenceNetProfitAmount": 13.26, "executableCandidate": True},
+        {"amount": 16.0, "borrowAmount": 16.0, "referenceNetProfitAmount": 148.9, "executableCandidate": True},
+    ]
+    payload = dex_surfaces.dex_submission_review_payload(
+        attempts=[
+            {
+                "network": "robinhood-testnet",
+                "created_at": "2026-09-24T08:47:00+00:00",
+                "state": "quote_verified",
+                "execution_phase": "quote_precheck",
+                "precheck": {"broadcast": False},
+                "pair": "TZ -> TA -> TB -> TZ",
+                "probe_records": probe,
+                "best_amount_calculation": {"bestAmount": 16.0, "probe_records": probe},
+            },
+            {
+                "network": "robinhood-testnet",
+                "created_at": "2026-09-24T08:50:00+00:00",
+                "state": "submitted_success",
+                "execution_phase": "order_submission",
+                "precheck": {"broadcast": True},
+                "pair": "TZ -> TA -> TB -> TZ",
+                "tx_hash": "0x" + "c" * 64,
+                "probe_records": [],
+                "best_amount_calculation": {},
+            },
+        ],
+        groups={},
+        source="jsonl",
+    )
+
+    assert payload["summary"]["attemptCount"] == 1
+    row = payload["attempts"][0]
+    assert row["tx_hash"] == "0x" + "c" * 64
+    assert len(row["probe_records"]) == 2
+    assert row["best_amount_calculation"]["bestAmount"] == 16.0
 
 
 def test_evidence_provider_returns_timeout_when_provider_is_slow():
@@ -1113,5 +1240,61 @@ def test_evidence_provider_returns_provider_result_when_fast():
     )
 
     assert evidence["status"] == "live_verified"
+
+
+def test_closed_loop_quad_group_evidence_is_reused_within_one_scan():
+    from runtime.dex_opportunity_scanner import build_dex_opportunity_attempts
+
+    calls = {"count": 0}
+    anchor = "0x00"
+    mid_a = "0x" + "a" * 40
+    mid_b = "0x" + "b" * 40
+    payload = {
+        "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630},
+        "routes": [
+            {
+                "symbolPair": "TZ -> TA -> TB -> TZ",
+                "routeSymbols": ["TZ", "TA", "TB", "TZ"],
+                "routeAddresses": [anchor, mid_a, mid_b, anchor],
+                "quoteStatus": "quote_required",
+                "quoteAnalysis": {"complete": True, "requiresLiveQuoter": True},
+            },
+            {
+                "symbolPair": "TZ -> TB -> TA -> TZ",
+                "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+                "routeAddresses": [anchor, mid_b, mid_a, anchor],
+                "quoteStatus": "quote_required",
+                "quoteAnalysis": {"complete": True, "requiresLiveQuoter": True},
+            },
+        ],
+    }
+
+    def onchain_evidence_provider(route, **kwargs):
+        calls["count"] += 1
+        return {
+            "evidenceVersion": 1,
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "status": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "trustedForExecution": False,
+            "blockNumber": 12345,
+            "hops": [{"hop": 1, "status": "live_verified"}],
+            "costModel": {},
+            "blockers": [],
+        }
+
+    attempts = build_dex_opportunity_attempts(
+        payload,
+        chain_id=46630,
+        observed_at="2026-09-19T00:00:00Z",
+        onchain_evidence_provider=onchain_evidence_provider,
+        max_onchain_evidence_routes=0,
+    )
+
+    assert len(attempts) == 2
+    assert calls["count"] == 1
+    assert attempts[0]["quote"]["live_onchain_evidence"]["status"] == "live_verified"
+    assert attempts[1]["quote"]["live_onchain_evidence"]["status"] == "live_verified"
 
 

@@ -146,3 +146,33 @@ def test_hop_error_stack_maps_not_enough_liquidity():
     assert rows[0]["code"] == int(ErrorCode.DEX_NOT_ENOUGH_LIQUIDITY)
     assert "hop 2 0XA->0XB verification failed" in rows[0]["message"]
     assert any("NotEnoughLiquidity" in row["message"] for row in rows)
+
+
+def test_hop_error_stack_maps_rpc_verification_failed():
+    rows = _dex_error_stack_from_hop(
+        {
+            "hop": 1,
+            "fromSymbol": "WETH",
+            "toSymbol": "ETH",
+            "status": "live_quote_failed",
+            "liveQuoteError": "Robinhood RPC unavailable: HTTP endpoint did not answer",
+        }
+    )
+    assert rows[0]["code"] == int(ErrorCode.DEX_RPC_FAILED)
+    assert rows[0]["message"].startswith("hop 1 WETH->ETH verification failed")
+    assert any("RPC unavailable" in row["message"] for row in rows)
+
+
+def test_hop_error_stack_maps_rpc_verification_timeout():
+    rows = _dex_error_stack_from_hop(
+        {
+            "hop": 3,
+            "fromSymbol": "0XC9F9C8",
+            "toSymbol": "WETH",
+            "status": "live_quote_failed",
+            "liveQuoteError": "Robinhood RPC unavailable: request timed out",
+        }
+    )
+    assert rows[0]["code"] == int(ErrorCode.DEX_RPC_TIMEOUT)
+    assert rows[0]["message"].startswith("hop 3 0XC9F9C8->WETH verification failed")
+    assert any("request timed out" in row["message"] for row in rows)

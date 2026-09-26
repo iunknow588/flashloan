@@ -141,7 +141,7 @@ def test_liquidation_page_explains_database_and_profit_review_states():
 def test_account_pool_state_api_and_debt_pool_gate(monkeypatch):
     from web import control_panel
 
-    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "postgresql://example")
+    monkeypatch.setattr(control_panel, "database_url_or_none", lambda: "local_store.sqlite3")
     monkeypatch.setattr(control_panel, "latest_binance_extremes_file", lambda: {})
     monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: ([], "database"))
     monkeypatch.setattr(
@@ -174,7 +174,7 @@ def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch
             "debt_status": "NEED_ACCOUNT_POOL",
         },
         {
-            "database_url": "postgresql://example",
+            "database_url": "local_store.sqlite3",
             "accounts": [],
             "source": "database",
             "window": {"total_count": 0, "active_count": 0, "latest_scan_end_at": None},
@@ -182,7 +182,7 @@ def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch
             "debt_status": "NEED_ACCOUNT_POOL",
         },
         {
-            "database_url": "postgresql://example",
+            "database_url": "local_store.sqlite3",
             "accounts": ["0x1"],
             "source": "database",
             "window": {"total_count": 1, "active_count": 1, "latest_scan_end_at": None},
@@ -190,7 +190,7 @@ def test_account_pool_gate_covers_missing_empty_incomplete_and_ready(monkeypatch
             "debt_status": "NEED_ACCOUNT_POOL",
         },
         {
-            "database_url": "postgresql://example",
+            "database_url": "local_store.sqlite3",
             "accounts": ["0x1"],
             "source": "database",
             "window": {"total_count": 1, "active_count": 1, "latest_scan_end_at": "2026-08-02T00:00:00+00:00"},
@@ -640,11 +640,21 @@ def test_dex_page_variant_is_driven_by_market_selection():
     bnb_body = bnb.get_data(as_text=True)
     assert 'data-dex-surface-template="quotes"' in bnb_body
     assert "cowNetworkChecks" not in bnb_body
-    assert "复制本组" in bnb_body
-    assert "data-copy-route" in bnb_body
-    assert "初始探测（initialProbe）=" in bnb_body
-    assert "hop ${step.hop" in bnb_body
-    assert "referenceNetReturnBps=" in bnb_body
+    assert "/static/dex_quotes/quotes_render.js" in bnb_body
+    dex_quotes_js = "\n".join(
+        (STATIC_DIR / "dex_quotes" / name).read_text(encoding="utf-8")
+        for name in (
+            "quotes_render.js",
+            "quotes_app.js",
+        )
+    )
+    assert "复制本组" in dex_quotes_js
+    assert "data-copy-route" in dex_quotes_js
+    assert "初始测试量" in dex_quotes_js and "初始探测" in dex_quotes_js
+    assert "链下初始探测" in dex_quotes_js
+    assert "初始探测依据" in dex_quotes_js
+    assert "第 ${step.hop" in dex_quotes_js
+    assert "参考净利 BPS=" in dex_quotes_js
     assert robinhood.status_code == 200
     assert 'data-dex-surface-template="quotes"' in robinhood.get_data(as_text=True)
 
@@ -735,7 +745,15 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_testnet_quotes = client.get(
         "/api/dex/quote-routes?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4"
     ).get_json()
-    quote_pair = quote(str(robinhood_testnet_quotes["routes"][0]["symbolPair"]), safe="")
+    closed_loop_pair = next(
+        (
+            str(route.get("symbolPair"))
+            for route in robinhood_testnet_quotes.get("routes") or []
+            if len(route.get("routeSymbols") or []) >= 3 and route.get("selected_basis") == "closed_loop"
+        ),
+        "TZ -> TB -> TA -> TZ",
+    )
+    quote_pair = quote(closed_loop_pair, safe="")
     quote_request = client.get(
         f"/api/dex/quote-request?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&pair={quote_pair}&venue=uniswap_v4&amount=1000"
     ).get_json()
@@ -901,7 +919,11 @@ def test_dex_surface_payload_minimal_interfaces_are_consistent(monkeypatch):
         },
     )
     monkeypatch.setattr(web_dex_surfaces.shared, "_cow_execution_attempt_groups", lambda *args, **kwargs: {"all": []})
-    monkeypatch.setattr(web_dex_surfaces.shared, "_flatten_cow_execution_groups", lambda groups, limit: [])
+    monkeypatch.setattr(
+        web_dex_surfaces.shared,
+        "_flatten_cow_execution_groups",
+        lambda groups, limit, **kwargs: [],
+    )
     monkeypatch.setattr(web_dex_surfaces, "submission_networks_from_request", lambda chain_selection: ["robinhood-testnet"])
 
     client = app.test_client()

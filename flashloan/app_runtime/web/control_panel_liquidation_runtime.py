@@ -11,13 +11,14 @@ import time
 from pathlib import Path
 
 from core.config_schema import parse_env_float, parse_env_int
-from core.env_loader import load_env_files, local_json_only_enabled, resolve_env_path
+from core.env_loader import load_env_files
+from core.runtime_paths import resolve_runtime_dir
 from bot.runtime.liquidation_engine import LiquidationEngineConfig
 
 
 APP_DIR = Path(__file__).resolve().parents[1]
 load_env_files(__file__, override=False)
-RUNTIME_DIR = resolve_env_path("FLASHLOAN_RUNTIME_DIR", "runtime", APP_DIR)
+RUNTIME_DIR = resolve_runtime_dir(base_dir=APP_DIR)
 CACHE_DIR = RUNTIME_DIR / "cache"
 AAVE_RESERVE_CACHE_PATH = CACHE_DIR / "aave_reserve_assets.json"
 
@@ -31,14 +32,10 @@ def _control_panel():
 
 
 def liquidation_engine_enabled() -> bool:
-    if local_json_only_enabled():
-        return False
     return os.getenv("LIQUIDATION_ENGINE_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def liquidation_engine_autostart_enabled() -> bool:
-    if local_json_only_enabled():
-        return False
     return any(
         os.getenv(name, "false").strip().lower() in {"1", "true", "yes", "on"}
         for name in (
@@ -50,8 +47,6 @@ def liquidation_engine_autostart_enabled() -> bool:
 
 
 def liquidation_observer_autostart_enabled() -> bool:
-    if local_json_only_enabled():
-        return False
     raw = os.getenv("LIQUIDATION_OBSERVER_AUTOSTART")
     if raw is not None:
         return raw.strip().lower() in {"1", "true", "yes", "on"}

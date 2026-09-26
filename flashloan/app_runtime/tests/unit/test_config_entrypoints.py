@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-from core.db import storage_common
 from core import aave_reserve_cache
 from market import dex_target_loaders
 from market.observer_common import env_float, env_int
@@ -130,13 +129,6 @@ def test_aave_reserve_cache_chain_snapshot_reads_chain_and_block(monkeypatch):
     }
 
 
-def test_database_pool_bounds_use_safe_env_parsing(monkeypatch):
-    monkeypatch.setenv("DATABASE_POOL_MIN_SIZE", "bad")
-    monkeypatch.setenv("DATABASE_POOL_MAX_SIZE", "0")
-
-    assert storage_common._pool_bounds() == (2, 10)
-
-
 def test_observer_common_env_helpers_use_shared_safe_parsing(monkeypatch):
     monkeypatch.setenv("SAMPLE_FLOAT", "bad")
     monkeypatch.setenv("SAMPLE_INT", "-5")
@@ -165,9 +157,9 @@ def test_liquidation_runtime_config_uses_safe_env_parsing(monkeypatch, tmp_path)
 
 
 def test_liquidation_base_schema_errors_are_redacted(monkeypatch):
-    database_url = "postgresql://user:secret-pass@example.com:5432/db?token=abc123"
+    database_url = "local_store.sqlite3?password=secret-pass&token=abc123"
     private_key = "0x" + "6" * 64
-    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setenv("FLASHLOAN_KV_PATH", database_url)
 
     def fail_schema(_database_url):
         raise RuntimeError(f"schema failed: {database_url} private_key={private_key}")
