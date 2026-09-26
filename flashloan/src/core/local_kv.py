@@ -34,7 +34,8 @@ def store_path(path: str | os.PathLike[str] | None = None) -> Path:
         return resolved if resolved.is_absolute() else _default_store_path().parent / resolved
     env_path = os.getenv("FLASHLOAN_KV_PATH", "").strip()
     if env_path:
-        return Path(env_path).expanduser().resolve()
+        resolved = Path(env_path).expanduser()
+        return resolved if resolved.is_absolute() else _default_store_path().parent / resolved
     return _default_store_path()
 
 
