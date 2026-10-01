@@ -677,11 +677,16 @@ class DexOpportunityScanner:
             from market.binance_market.dex_route_test import (
                 estimate_route_live_quote,
                 recommended_route_test_amount,
+                run_official_v4_arb_route_test,
             )
 
             routes = payload.get("routes") or []
             refreshed = []
             refresh_attempt_pairs = []
+            manual_review_count = 0
+            auto_broadcast_count = 0
+            auto_broadcast_failed = 0
+            auto_broadcast_errors: list[str] = []
             for route in routes:
                 route_symbols = [str(item) for item in (route.get("routeSymbols") or []) if str(item).strip()]
                 if not route_symbols:
@@ -696,13 +701,36 @@ class DexOpportunityScanner:
                     if amount is None:
                         refreshed.append(route)
                         continue
-                    result = estimate_route_live_quote(
-                        chain_id=task.chain_id,
-                        protocols=list(task.protocols),
-                        route_symbols=route_symbols,
-                        amount=amount,
-                        route=route,
-                    )
+                    if self.auto_execute_enabled:
+                        manual_result = self._run_manual_route_review_and_broadcast(
+                            route=route,
+                            route_symbols=route_symbols,
+                            amount=amount,
+                            chain_id=task.chain_id,
+                            protocols=list(task.protocols),
+                            run_official_v4_arb_route_test=run_official_v4_arb_route_test,
+                        )
+                        result = manual_result["result"]
+                        route["__manualPreflight"] = manual_result["preflight"]
+                        route["__manualBroadcast"] = manual_result["broadcast"]
+                        manual_review_count += 1
+                        broadcast_payload = manual_result["broadcast"]
+                        if broadcast_payload is not None:
+                            if bool(broadcast_payload.get("ok")) and broadcast_payload.get("txHash"):
+                                auto_broadcast_count += 1
+                            else:
+                                auto_broadcast_failed += 1
+                                auto_broadcast_errors.append(
+                                    str(broadcast_payload.get("error") or "official_arb_auto_broadcast_failed")[:300]
+                                )
+                    else:
+                        result = estimate_route_live_quote(
+                            chain_id=task.chain_id,
+                            protocols=list(task.protocols),
+                            route_symbols=route_symbols,
+                            amount=amount,
+                            route=route,
+                        )
                     if isinstance(result, dict):
                         route["__liveEstimate"] = result
                         attempt = self._fixed_refresh_attempt(route, chain_id=task.chain_id, observed_at=_now_iso())
@@ -723,16 +751,40 @@ class DexOpportunityScanner:
                     }
                     refreshed.append(route)
             payload["routes"] = refreshed
-            if refresh_attempt_pairs and self.auto_execute_enabled:
-                fixed_auto_execute_result = self._auto_execute_ready_attempts(
-                    [attempt for _, attempt in refresh_attempt_pairs],
-                    chain_id=task.chain_id,
-                    observed_at=_now_iso(),
-                )
-                payload["auto_execute"] = fixed_auto_execute_result
-                for route, attempt in refresh_attempt_pairs:
-                    if isinstance(attempt.get("auto_execute"), dict):
-                        route["auto_execute"] = attempt["auto_execute"]
+            if self.auto_execute_enabled and manual_review_count:
+                payload["auto_execute"] = {
+                    "autoExecuteEnabled": True,
+                    "manualReviewCount": manual_review_count,
+                    "autoExecuted": auto_broadcast_count,
+                    "autoExecuteSkipped": manual_review_count - auto_broadcast_count - auto_broadcast_failed,
+                    "autoExecuteFailed": auto_broadcast_failed,
+                    "autoExecuteErrors": auto_broadcast_errors,
+                }
+                if auto_broadcast_count:
+                    with self._lock:
+                        self._auto_execute_count += auto_broadcast_count
+                        self._last_auto_execute_at = _now_iso()
+                for route in refreshed:
+                    broadcast_payload = route.get("__manualBroadcast")
+                    auto_execute_payload = {
+                        "observed_at": _now_iso(),
+                        "route_symbols": route.get("routeSymbols") or [],
+                        "broadcast": broadcast_payload is not None,
+                        "attempted": isinstance(broadcast_payload, dict),
+                    }
+                    if isinstance(broadcast_payload, dict):
+                        auto_execute_payload.update({
+                            "amount": broadcast_payload.get("amount"),
+                            "result": broadcast_payload,
+                            "executed": bool(broadcast_payload.get("ok")) and bool(broadcast_payload.get("txHash")),
+                        })
+                    else:
+                        auto_execute_payload["skipped"] = True
+                        auto_execute_payload["reason"] = "manual_review_not_profitable"
+                    route["auto_execute"] = auto_execute_payload
+                    for _, attempt in refresh_attempt_pairs:
+                        if attempt.get("route_path") == route.get("routeSymbols"):
+                            attempt["auto_execute"] = auto_execute_payload
         self._merge_fixed_refresh_into_snapshot(task, payload)
         return {
             "ok": True,
@@ -742,6 +794,60 @@ class DexOpportunityScanner:
             "routes": payload.get("routes") or [],
             "auto_execute": payload.get("auto_execute"),
         }
+
+    def _run_manual_route_review_and_broadcast(
+        self,
+        *,
+        route: dict[str, Any],
+        route_symbols: list[str],
+        amount: float,
+        chain_id: int | None,
+        protocols: list[str],
+        run_official_v4_arb_route_test: Callable[..., dict[str, Any]],
+    ) -> dict[str, Any]:
+        route_addresses = [
+            str(item).strip()
+            for item in (route.get("routeAddresses") or [])
+            if str(item).strip()
+        ]
+        preflight = run_official_v4_arb_route_test(
+            route_symbols=route_symbols,
+            amount=amount,
+            broadcast=False,
+            chain_id=chain_id,
+            route_addresses=route_addresses or None,
+        )
+        if (
+            not isinstance(preflight, dict)
+            or not preflight.get("ok")
+            or not preflight.get("bestAmountConfirmed")
+            or not self._manual_review_is_profitable(preflight)
+        ):
+            return {"preflight": preflight, "broadcast": None, "result": preflight}
+        broadcast_amount = preflight.get("bestAmount") or amount
+        amount_is_best = bool(preflight.get("bestAmountConfirmed"))
+        broadcast = run_official_v4_arb_route_test(
+            route_symbols=route_symbols,
+            amount=broadcast_amount,
+            broadcast=True,
+            chain_id=chain_id,
+            route_addresses=route_addresses or None,
+            amount_is_best=amount_is_best,
+        )
+        if not isinstance(broadcast, dict):
+            broadcast = {"ok": False, "error": "official_arb_auto_broadcast_failed"}
+        return {"preflight": preflight, "broadcast": broadcast, "result": broadcast}
+
+    @staticmethod
+    def _manual_review_is_profitable(payload: dict[str, Any] | None) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        if bool(payload.get("profitable")):
+            return True
+        try:
+            return float(payload.get("profit") or 0) > 0
+        except (TypeError, ValueError):
+            return False
 
     def _fixed_refresh_attempt(self, route: dict[str, Any], *, chain_id: int | None, observed_at: str) -> dict[str, Any] | None:
         estimate = route.get("__liveEstimate")

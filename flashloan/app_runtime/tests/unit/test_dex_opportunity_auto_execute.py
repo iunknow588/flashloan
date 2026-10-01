@@ -245,38 +245,40 @@ def test_fixed_refresh_deep_mode_runs_auto_execute_when_enabled(tmp_path, monkey
 
     calls = []
 
-    def callback(*, route_symbols, amount, broadcast, chain_id):
-        calls.append({"route_symbols": route_symbols, "amount": amount, "broadcast": broadcast, "chain_id": chain_id})
-        return {"ok": True, "txHash": "0xtx", "routeSymbols": route_symbols}
-
-    scanner = _scanner(tmp_path, callback=callback, enabled=True)
+    scanner = _scanner(tmp_path, enabled=True)
     payload = _quote_payload_for_robinhood_testnet()
     monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
     monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.5)
 
-    def fake_estimate(**kwargs):
-        route = kwargs.get("route") or {}
-        symbols = kwargs.get("route_symbols") or route.get("routeSymbols") or []
-        addresses = route.get("routeAddresses") or []
+    def fake_run_official(**kwargs):
+        symbols = kwargs.get("route_symbols") or []
+        addresses = kwargs.get("route_addresses") or []
+        broadcast = bool(kwargs.get("broadcast"))
+        calls.append({"route_symbols": symbols, "amount": kwargs.get("amount"), "broadcast": broadcast, "chain_id": kwargs.get("chain_id")})
         return {
             "ok": True,
+            "mode": "dex_route_broadcast_test",
+            "actionStage": "onchain_execution" if broadcast else "onchain_preflight",
             "quoteStatus": "live_verified",
-            "executionTrust": "live_v4_adapter",
-            "liveVerified": True,
+            "executionTrust": "live_quoter_verified_readonly",
             "readyForTransactionPreflight": True,
             "profitable": True,
+            "profit": 0.5,
             "bestAmountConfirmed": True,
             "routeSymbols": symbols,
             "routeAddresses": addresses,
-            "bestAmount": 1.5,
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
             "steps": [],
             "analysis": {
                 "referenceNetProfitAmount": 0.5,
                 "referenceNetReturnBps": 33.3,
             },
+            "txHash": "0xtx" if broadcast else None,
+            "broadcast": broadcast,
         }
 
-    monkeypatch.setattr(dex_route_test, "estimate_route_live_quote", fake_estimate)
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
     task = scanner.closed_loop_review_queue.submit_group(
         group_key="TZ",
         chain_id=46630,
@@ -291,12 +293,67 @@ def test_fixed_refresh_deep_mode_runs_auto_execute_when_enabled(tmp_path, monkey
         {
             "route_symbols": ["TZ", "TA", "TB", "TZ"],
             "amount": 1.5,
+            "broadcast": False,
+            "chain_id": 46630,
+        },
+        {
+            "route_symbols": ["TZ", "TA", "TB", "TZ"],
+            "amount": 1.5,
             "broadcast": True,
             "chain_id": 46630,
-        }
+        },
     ]
     assert (done.result or {}).get("auto_execute", {}).get("autoExecuted") == 1
     assert scanner._auto_execute_count == 1
+
+
+def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitable(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet()
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.5)
+
+    def fake_run_official(**kwargs):
+        symbols = kwargs.get("route_symbols") or []
+        calls.append({"broadcast": bool(kwargs.get("broadcast")), "symbols": symbols})
+        return {
+            "ok": True,
+            "quoteStatus": "route_unprofitable",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": False,
+            "profitable": False,
+            "profit": -0.5,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "analysis": {"referenceNetProfitAmount": -0.5, "referenceNetReturnBps": -10.0},
+            "txHash": None,
+            "broadcast": False,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert calls == [{"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]}]
+    auto_execute = (done.result or {}).get("auto_execute", {})
+    assert auto_execute.get("autoExecuted") == 0
+    assert auto_execute.get("autoExecuteSkipped") == 1
+    assert (done.result or {}).get("routes", [])[0].get("auto_execute", {}).get("skipped") is True
 
 
 def test_scan_exception_records_structured_error_stack(tmp_path):
