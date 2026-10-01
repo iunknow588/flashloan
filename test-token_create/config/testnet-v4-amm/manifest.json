@@ -27,125 +27,125 @@
     "runAt": "2026-09-13T00:22:48.011Z",
     "arb": "0xd46327b50f3a16253fF16f7f657deDe7Ab19b808",
     "lastArbLiveTest": {
-      "txHash": "0xd32896689602384760433779aa90377f07e753a4c4f8d9383cb91e1645c22539",
-      "runAt": "2026-10-01T17:47:56.897Z",
+      "txHash": "0x69da334da86d6cf284f8c41247d6777459a618d84da26f784dc93eee6985d5b8",
+      "runAt": "2026-10-01T18:50:07.670Z",
       "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
       "arb": "0xd46327b50f3a16253fF16f7f657deDe7Ab19b808",
       "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-      "amountIn": "16000000000000000000",
-      "initialAmountIn": "16000000000000000000",
-      "selectedAmountIn": "10000000000000000000",
-      "outTb": "1409446701950599030",
-      "outTa": "21561400897878508489",
-      "outTz": "10692186276214027959",
-      "profit": "692186276214027959",
-      "profitHuman": "0.692186276214027959",
-      "profitRaw": "692186276214027959",
-      "selectedAmount": "10.0",
+      "amountIn": "7812500000000000",
+      "initialAmountIn": "7812500000000000",
+      "selectedAmountIn": "4638671875000000",
+      "outTb": "2391921767747981",
+      "outTa": "54754917750430965",
+      "outTz": "10058753322546790",
+      "profit": "5420081447546790",
+      "profitHuman": "0.00542008144754679",
+      "profitRaw": "5420081447546790",
+      "selectedAmount": "0.004638671875",
       "selectedAmountMethod": "onchain_preview_adaptive_best_amount",
-      "selectedAmountAttemptedCount": "14",
+      "selectedAmountAttemptedCount": "23",
       "selectedAmountPreviewedOnChain": true,
       "amountIsBest": true,
-      "gasUsed": "244061",
+      "gasUsed": "334503",
       "waitError": null,
       "route": {
         "keys": [
           {
-            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-            "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-            "fee": 3000,
-            "tickSpacing": 60,
+            "currency0": "0x0000000000000000000000000000000000000000",
+            "currency1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "fee": 500,
+            "tickSpacing": 10,
             "hooks": "0x0000000000000000000000000000000000000000"
           },
           {
-            "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-            "fee": 3000,
-            "tickSpacing": 60,
+            "currency0": "0x0000000000000000000000000000000000000000",
+            "currency1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+            "fee": 10000,
+            "tickSpacing": 200,
             "hooks": "0x0000000000000000000000000000000000000000"
           },
           {
-            "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-            "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-            "fee": 3000,
+            "currency0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+            "currency1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+            "fee": 8388608,
             "tickSpacing": 60,
-            "hooks": "0x0000000000000000000000000000000000000000"
+            "hooks": "0xE8061A7262c2B14Fc68e8Fc5e71c6bbF51e06880"
           }
         ],
         "directions": [
+          false,
           true,
-          true,
-          false
+          true
         ]
       },
       "bestRoute": {
         "keysets": [
           [
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-              "fee": 3000,
-              "tickSpacing": 60,
+              "currency0": "0x0000000000000000000000000000000000000000",
+              "currency1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "fee": 500,
+              "tickSpacing": 10,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-              "fee": 3000,
-              "tickSpacing": 60,
+              "currency0": "0x0000000000000000000000000000000000000000",
+              "currency1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+              "fee": 10000,
+              "tickSpacing": 200,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-              "fee": 3000,
+              "currency0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+              "currency1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "fee": 8388608,
               "tickSpacing": 60,
-              "hooks": "0x0000000000000000000000000000000000000000"
+              "hooks": "0xE8061A7262c2B14Fc68e8Fc5e71c6bbF51e06880"
             }
           ],
           [
             {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-              "fee": 3000,
+              "currency0": "0x71178bac73cbeb415514eb542a8995b82669778d",
+              "currency1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "fee": 8388608,
               "tickSpacing": 60,
+              "hooks": "0xE8061A7262c2B14Fc68e8Fc5e71c6bbF51e06880"
+            },
+            {
+              "currency0": "0x0000000000000000000000000000000000000000",
+              "currency1": "0x71178bac73cbeb415514eb542a8995b82669778d",
+              "fee": 10000,
+              "tickSpacing": 200,
               "hooks": "0x0000000000000000000000000000000000000000"
             },
             {
-              "currency0": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-              "currency1": "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
-              "fee": 3000,
-              "tickSpacing": 60,
-              "hooks": "0x0000000000000000000000000000000000000000"
-            },
-            {
-              "currency0": "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
-              "currency1": "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
-              "fee": 3000,
-              "tickSpacing": 60,
+              "currency0": "0x0000000000000000000000000000000000000000",
+              "currency1": "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+              "fee": 500,
+              "tickSpacing": 10,
               "hooks": "0x0000000000000000000000000000000000000000"
             }
           ]
         ],
         "directionsets": [
           [
+            false,
             true,
-            true,
-            false
+            true
           ],
           [
-            true,
             false,
-            false
+            false,
+            true
           ]
         ],
-        "routeIndex": 1
+        "routeIndex": 0
       },
       "selectedRouteSymbols": [
-        "TZ",
-        "TA",
-        "TB",
-        "TZ"
+        "TSLA",
+        "ETH",
+        "0X71178B",
+        "TSLA"
       ],
       "reservePolicy": "80_percent_creation_reserve_is_for_later_liquidity_not_a_post_run_floor"
     },
@@ -157,10 +157,10 @@
       "liquidityToAdd": "100000000000000000000"
     },
     "lastMakeArb": {
-      "txHash": "0x68061c48aabf95e474e5f65ca0dbaeb01c23811e6e8da9f93d7a9c852f89e751",
-      "gasUsed": "288646",
-      "runAt": "2026-10-01T12:11:11.311Z",
-      "amountIn": "500000000000000000000",
+      "txHash": "0x217c12ba6725e5c39477cf1780aec097019e8d216960959bdc6ca57d918248e5",
+      "gasUsed": "221461",
+      "runAt": "2026-10-01T18:44:12.207Z",
+      "amountIn": "100000000000000000000",
       "route": {
         "keys": [
           {

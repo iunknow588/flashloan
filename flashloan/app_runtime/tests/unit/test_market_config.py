@@ -74,6 +74,10 @@ def _clear_market_env(monkeypatch):
         "ROBINHOOD_RPC",
         "ROBINHOOD_RPC_URL",
         "ROBINHOOD_ALCHEMY_RPC_URL",
+        "ROBINHOOD_TESTNET_RPCS",
+        "ROBINHOOD_TESTNET_RPC",
+        "ROBINHOOD_TESTNET_RPC_URL",
+        "ROBINHOOD_TESTNET_ALCHEMY_RPC_URL",
     ):
         monkeypatch.delenv(name, raising=False)
 

@@ -83,6 +83,42 @@ def _normalize_chain_file(path: Path) -> dict[str, Any]:
         raise ValueError(f"{path} directory name must match network {network}")
     if chain_id is None:
         raise ValueError(f"{path} missing integer chain_id")
+
+    rpc_config = payload.get("rpc")
+    rpc_urls: list[str] = []
+    if isinstance(rpc_config, dict):
+        rpc_primary = _text(rpc_config.get("primary"))
+        rpc_fallbacks = rpc_config.get("fallbacks")
+        rpc_candidates: list[str] = [rpc_primary]
+        if isinstance(rpc_fallbacks, list):
+            rpc_candidates.extend(_text(item) for item in rpc_fallbacks)
+        elif isinstance(rpc_fallbacks, tuple):
+            rpc_candidates.extend(_text(item) for item in rpc_fallbacks)
+        elif isinstance(rpc_fallbacks, str):
+            rpc_candidates.extend(item.strip() for item in rpc_fallbacks.split(",") if item.strip())
+        for item in rpc_candidates:
+            if item and item not in rpc_urls:
+                rpc_urls.append(item)
+        if rpc_primary:
+            payload["rpc_url"] = rpc_primary
+    elif isinstance(rpc_config, str):
+        rpc_urls = [rpc_config] if rpc_config.strip() else []
+        payload["rpc_url"] = rpc_config
+    else:
+        rpc_url = _text(payload.get("rpc_url") or payload.get("rpcUrl"))
+        if rpc_url:
+            rpc_urls = [rpc_url]
+    if rpc_urls:
+        payload["rpc_urls"] = rpc_urls
+
+    explorer_config = payload.get("explorer")
+    if isinstance(explorer_config, dict):
+        explorer_url = _text(explorer_config.get("url") or payload.get("explorer_url"))
+        if explorer_url:
+            payload["explorer_url"] = explorer_url
+    elif isinstance(explorer_config, str) and explorer_config.strip():
+        payload["explorer_url"] = explorer_config
+
     flash_loan = _as_dict(payload.get("flash_loan"))
     payload["network"] = network
     payload["chain_id"] = chain_id
