@@ -182,3 +182,6 @@ class DexAutoExecuteRunner:
             return True
         self._executed_keys[dedupe_key] = now
         return False
+
+    def reset_cooldowns(self) -> None:
+        self._executed_keys.clear()

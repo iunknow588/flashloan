@@ -95,11 +95,18 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const profitableCount = summary.liveProfitableRouteCount ?? summary.live_profitable_route_count ?? 0;
       $("profitableCount").textContent = `${profitableCount}`;
       $("profitableMeta").textContent = `${profitableCount} 条链上复核为正收益`;
-      const autoExecutedCount = scanner.auto_execute_count ?? 0;
+      const sessionStats = scanner.session_stats || {};
+      const sessionExecuted = sessionStats.executed_count ?? 0;
+      const sessionAutoExecuted = sessionStats.auto_executed_count ?? sessionStats.executed_count ?? 0;
+      const sessionProfit = sessionStats.positive_profit_amount ?? 0;
+      const autoExecutedCount = sessionAutoExecuted;
       $("autoExecutedCount").textContent = `${autoExecutedCount}`;
-      $("autoExecutedMeta").textContent = scanner.last_auto_execute_at
-        ? `最近执行 ${new Date(scanner.last_auto_execute_at).toLocaleString("zh-CN", {hour12: false})}`
+      $("autoExecutedMeta").textContent = sessionStats.reset_at
+        ? `统计自 ${new Date(sessionStats.reset_at).toLocaleString("zh-CN", {hour12: false})} | 已执行 ${sessionExecuted} 条 | 自动 ${sessionAutoExecuted} 条`
         : "暂未自动执行";
+      $("profitableMeta").textContent = sessionStats.reset_at
+        ? `最近清零后正利润 ${numeric(sessionProfit, 6)}U / ${sessionStats.positive_profit_count ?? 0} 条`
+        : `${profitableCount} 条链上复核为正收益`;
       const queueCount = (scanner.closed_loop_review_queue?.queued ?? 0) + (scanner.queued_scan_count ?? 0);
       $("queueCount").textContent = `${queueCount}`;
       $("queueMeta").textContent = `复核队列 ${scanner.closed_loop_review_queue?.queued ?? 0} | 扫描排队 ${scanner.queued_scan_count ?? 0}`;
@@ -1254,5 +1261,17 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       });
     }
     setupAutoExecuteToggle();
+    const resetStatsBtn = document.getElementById("resetStatsBtn");
+    if (resetStatsBtn) {
+      resetStatsBtn.addEventListener("click", async () => {
+        try {
+          await postJson("/api/dex/opportunity-scanner/stats/reset", {});
+          $("message").textContent = "统计已清零";
+          await refresh();
+        } catch (error) {
+          $("message").textContent = uiError(error.message);
+        }
+      });
+    }
     $("refreshInterval").addEventListener("change", scheduleRefresh);
     scheduleRefresh();

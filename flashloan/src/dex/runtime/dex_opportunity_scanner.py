@@ -233,6 +233,40 @@ def _auto_execute_log_stats(chain_id: int | None) -> dict[str, Any]:
     }
 
 
+def _broadcast_profit_value(payload: Any) -> float | None:
+    """Best-effort numeric profit from an official arb broadcast payload."""
+    if not isinstance(payload, dict):
+        return None
+    for key in ("profit", "profitHuman", "netProfitAmount", "profitAmount"):
+        try:
+            value = float(payload.get(key))
+        except (TypeError, ValueError):
+            continue
+        if value:
+            return value
+    evidence = payload.get("evidence")
+    if isinstance(evidence, dict):
+        costs = evidence.get("costModel")
+        if isinstance(costs, dict):
+            for key in ("netProfitAmount", "netProfitUsd", "profitAmount", "profit"):
+                try:
+                    value = float(costs.get(key))
+                except (TypeError, ValueError):
+                    continue
+                if value:
+                    return value
+    analysis = payload.get("analysis")
+    if isinstance(analysis, dict):
+        for key in ("referenceNetProfitAmount", "netProfitAmount", "profitAmount"):
+            try:
+                value = float(analysis.get(key))
+            except (TypeError, ValueError):
+                continue
+            if value:
+                return value
+    return None
+
+
 def _is_robinhood_family_network(chain_id: int | None) -> bool:
     return _network_for_chain_id(chain_id).lower() in {
         "robinhood",
@@ -652,6 +686,11 @@ class DexOpportunityScanner:
         self._recorded_attempt_count = 0
         self._auto_execute_count = 0
         self._last_auto_execute_at: str | None = None
+        self._session_reset_at = _now_iso()
+        self._session_executed_count = 0
+        self._session_auto_executed_count = 0
+        self._session_positive_profit_count = 0
+        self._session_positive_profit_amount = 0.0
         self._last_error: str | None = None
         self._last_error_stack: list[dict[str, Any]] | None = None
         self._scan_count = 0
@@ -718,6 +757,7 @@ class DexOpportunityScanner:
                         if broadcast_payload is not None:
                             if bool(broadcast_payload.get("ok")) and broadcast_payload.get("txHash"):
                                 auto_broadcast_count += 1
+                                self._record_session_executed(broadcast_payload, auto=True)
                             else:
                                 auto_broadcast_failed += 1
                                 auto_broadcast_errors.append(
@@ -967,6 +1007,27 @@ class DexOpportunityScanner:
         self._auto_execute_runner.enabled = self.auto_execute_enabled
         self._auto_execute_runner.callback = self.auto_execute_callback
 
+    def _record_session_executed(self, payload: dict[str, Any], *, auto: bool = True) -> None:
+        with self._lock:
+            self._session_executed_count += 1
+            if auto:
+                self._session_auto_executed_count += 1
+            profit = _broadcast_profit_value(payload)
+            if profit is not None and profit > 0:
+                self._session_positive_profit_count += 1
+                self._session_positive_profit_amount += float(profit)
+
+    def reset_dex_opportunity_stats(self) -> None:
+        with self._lock:
+            self._session_reset_at = _now_iso()
+            self._session_executed_count = 0
+            self._session_auto_executed_count = 0
+            self._session_positive_profit_count = 0
+            self._session_positive_profit_amount = 0.0
+            self._recorded_signatures.clear()
+            self._auto_execute_runner.reset_cooldowns()
+        self._write_cache()
+
     def _enqueue_closed_loop_groups_from_payload(
         self,
         payload: dict[str, Any],
@@ -975,7 +1036,8 @@ class DexOpportunityScanner:
         protocols: list[str] | None,
     ) -> None:
         if self._thread is None or not self._thread.is_alive():
-            return
+            if not self.auto_execute_enabled:
+                return
         seen: set[str] = set()
         for route in payload.get("routes") or []:
             if not isinstance(route, dict) or not _route_is_closed_loop_quad(route):
@@ -994,7 +1056,7 @@ class DexOpportunityScanner:
                     group_key=group_key,
                     chain_id=chain_id,
                     protocols=protocols,
-                    mode="scan",
+                    mode="deep" if self.auto_execute_enabled else "scan",
                 )
 
     def _load_cache(self) -> None:
@@ -1040,6 +1102,14 @@ class DexOpportunityScanner:
                 self._last_duration_ms = scanner.get("last_duration_ms")
                 self._auto_execute_count = int(scanner.get("auto_execute_count") or 0)
                 self._last_auto_execute_at = scanner.get("last_auto_execute_at")
+                self._session_reset_at = str(scanner.get("session_reset_at") or _now_iso())
+                self._session_executed_count = int(scanner.get("session_executed_count") or 0)
+                self._session_auto_executed_count = int(scanner.get("session_auto_executed_count") or 0)
+                self._session_positive_profit_count = int(scanner.get("session_positive_profit_count") or 0)
+                try:
+                    self._session_positive_profit_amount = float(scanner.get("session_positive_profit_amount") or 0)
+                except (TypeError, ValueError):
+                    self._session_positive_profit_amount = 0.0
                 last_recording = scanner.get("last_recording")
                 if isinstance(last_recording, dict):
                     self._last_recording = last_recording
@@ -1098,6 +1168,11 @@ class DexOpportunityScanner:
             recorded_attempt_count = self._recorded_attempt_count
             auto_execute_count = self._auto_execute_count
             last_auto_execute_at = self._last_auto_execute_at
+            session_reset_at = self._session_reset_at
+            session_executed_count = self._session_executed_count
+            session_auto_executed_count = self._session_auto_executed_count
+            session_positive_profit_count = self._session_positive_profit_count
+            session_positive_profit_amount = self._session_positive_profit_amount
         log_auto_execute_count = int(log_stats.get("auto_execute_count") or 0)
         if log_auto_execute_count > auto_execute_count:
             auto_execute_count = log_auto_execute_count
@@ -1134,6 +1209,13 @@ class DexOpportunityScanner:
             "last_scan_finished_at": last_finished,
             "last_duration_ms": last_duration,
             "snapshot_updated_at": snapshot.get("updated_at") if snapshot else None,
+            "session_stats": {
+                "reset_at": session_reset_at,
+                "executed_count": session_executed_count,
+                "auto_executed_count": session_auto_executed_count,
+                "positive_profit_count": session_positive_profit_count,
+                "positive_profit_amount": session_positive_profit_amount,
+            },
         }
 
     def snapshot(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> dict[str, Any]:
@@ -1255,6 +1337,8 @@ class DexOpportunityScanner:
                     chain_id=chain_id,
                     protocols=protocols,
                 )
+                if self.auto_execute_enabled and (self._thread is None or not self._thread.is_alive()):
+                    self.closed_loop_review_pipeline.run_once()
                 _refresh_payload_summary(working_payload)
                 snapshot = {
                     "chain_id": chain_id,
@@ -1317,6 +1401,11 @@ class DexOpportunityScanner:
                 "recorded_attempt_count": self._recorded_attempt_count,
                 "auto_execute_count": self._auto_execute_count,
                 "last_auto_execute_at": self._last_auto_execute_at,
+                "session_reset_at": self._session_reset_at,
+                "session_executed_count": self._session_executed_count,
+                "session_auto_executed_count": self._session_auto_executed_count,
+                "session_positive_profit_count": self._session_positive_profit_count,
+                "session_positive_profit_amount": self._session_positive_profit_amount,
                 "last_recording": deepcopy(self._last_recording),
                 "last_error": self._last_error,
                 "last_error_stack": deepcopy(self._last_error_stack),
@@ -1346,6 +1435,25 @@ class DexOpportunityScanner:
         observed_at: str,
         trigger_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        if self.auto_execute_enabled:
+            # When auto-execute is enabled, the closed-loop deep review pipeline
+            # runs the manual review+broadcast path per route. Avoid the old
+            # scan-time evidence callback path here, otherwise a slow RPC can
+            # produce duplicate 90s timeout rows before the deep review runs.
+            recording = {
+                "candidate_count": 0,
+                "recorded": 0,
+                "source": "closed_loop_deep_review",
+                "error": None,
+                "autoExecuteEnabled": True,
+                "autoExecuted": 0,
+                "autoExecuteSkipped": 0,
+                "autoExecuteFailed": 0,
+                "autoExecuteErrors": [],
+            }
+            with self._lock:
+                self._last_recording = recording
+            return recording
         attempts = build_dex_opportunity_attempts(
             payload,
             chain_id=chain_id,
@@ -1417,6 +1525,11 @@ class DexOpportunityScanner:
         )
         executed_count = int(result.get("autoExecuted") or 0)
         if executed_count:
+            for attempt in attempts:
+                auto = attempt.get("auto_execute") if isinstance(attempt.get("auto_execute"), dict) else {}
+                if bool(auto.get("executed")):
+                    result_payload = auto.get("result") if isinstance(auto.get("result"), dict) else {}
+                    self._record_session_executed(result_payload, auto=True)
             with self._lock:
                 self._auto_execute_count += executed_count
                 self._last_auto_execute_at = observed_at

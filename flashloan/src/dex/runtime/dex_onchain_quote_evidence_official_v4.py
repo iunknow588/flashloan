@@ -457,27 +457,9 @@ def official_v4_arb_static_hop_rows(
     if route_index >= len(candidates):
         return None
     selected_symbols, selected_addresses, selected_steps, _selected_keys, _selected_directions, selected_pool_ids, selected_pools = candidates[route_index]
-    if (
-        composer_used
-        and str(os.getenv("DEX_OPPORTUNITY_SCANNER_ALLOW_BROADCAST", "")).strip().lower() in {"1", "true", "yes", "on"}
-        and selected_symbols == ["TZ", "TB", "TA", "TZ"]
-    ):
-        try:
-            candidate = [keysets, directionsets, 0, 0, 0, 0]
-            tx_hash = contract.functions.runBest(
-                Web3.to_checksum_address(token_z),
-                [candidate],
-                int(amount_in_raw),
-                1,
-                0,
-            ).transact({})
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-            broadcast_record = {
-                "txHash": Web3.to_hex(tx_hash),
-                "status": str(receipt.get("status")),
-            }
-        except Exception as exc:
-            broadcast_record = {"error": str(exc)}
+    # Evidence collection must stay read-only. Broadcast is only allowed through
+    # the explicit official arb route-test path, which respects the
+    # auto-execute toggle before calling run_official_v4_arb_route_test.
     amounts = [out_tb, out_ta, out_tz]
     hop_rows: list[dict[str, Any]] = []
     for index, step in enumerate(selected_steps):

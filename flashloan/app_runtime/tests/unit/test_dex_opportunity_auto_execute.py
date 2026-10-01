@@ -145,7 +145,7 @@ def test_summary_counts_static_reference_as_pending_live_review():
     assert summary["autoExecutableClosedLoopCount"] == 0
 
 
-def test_auto_execute_calls_callback_only_for_live_verified_profitable_route(tmp_path):
+def test_auto_execute_scan_now_defers_to_closed_loop_deep_review(tmp_path):
     calls = []
 
     def callback(*, route_symbols, amount, broadcast, chain_id):
@@ -155,54 +155,32 @@ def test_auto_execute_calls_callback_only_for_live_verified_profitable_route(tmp
     scanner = _scanner(tmp_path, callback=callback, enabled=True)
     result = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
-    assert calls == [
-        {
-            "route_symbols": ["TZ", "TA", "TB", "TZ"],
-            "amount": 1.5,
-            "broadcast": True,
-            "chain_id": 46630,
-        }
-    ]
+    assert calls == []
     recording = result["snapshot"]["recording"]
-    assert result["snapshot"]["summary"]["auto_executable_closed_loop_count"] == 1
-    assert result["snapshot"]["payload"]["summary"]["autoExecutableClosedLoopCount"] == 1
+    assert recording["source"] == "closed_loop_deep_review"
     assert recording["autoExecuteEnabled"] is True
-    assert recording["autoExecuted"] == 1
-    assert recording["autoExecuteFailed"] == 0
-    assert scanner._auto_execute_count == 1
-    assert scanner._last_auto_execute_at is not None
+    assert recording["autoExecuted"] == 0
+    assert scanner._auto_execute_count == 0
 
 
-def test_auto_execute_skips_without_live_evidence(tmp_path):
+def test_auto_execute_scan_now_skips_old_evidence_timeout_path(tmp_path):
     calls = []
 
     def callback(**kwargs):
         calls.append(kwargs)
         return {"ok": True, "txHash": "0xtx"}
 
-    def no_evidence(route, **kwargs):
-        return {
-            "status": "live_quote_failed",
-            "trustedForExecution": False,
-            "readyForTransactionPreflight": False,
-            "blockNumber": 123,
-            "hops": [],
-            "costModel": {},
-            "blockers": ["quote failed"],
-        }
-
-    scanner = _scanner(tmp_path, evidence=no_evidence, callback=callback, enabled=True)
+    scanner = _scanner(tmp_path, callback=callback, enabled=True)
     result = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
     assert calls == []
     recording = result["snapshot"]["recording"]
-    assert recording["autoExecuteSkipped"] == 1
+    assert recording["source"] == "closed_loop_deep_review"
+    assert recording["autoExecuteSkipped"] == 0
     assert recording["autoExecuted"] == 0
-    snapshot_route = result["snapshot"]["payload"]["routes"][0]
-    assert snapshot_route["quoteAnalysis"]["live_onchain_evidence"]["status"] == "live_quote_failed"
 
 
-def test_auto_execute_respects_cooldown_keyed_to_route_amount_and_block(tmp_path):
+def test_auto_execute_scan_now_does_not_use_legacy_runner_cooldown(tmp_path):
     calls = []
 
     def callback(*, route_symbols, amount, broadcast, chain_id):
@@ -214,29 +192,9 @@ def test_auto_execute_respects_cooldown_keyed_to_route_amount_and_block(tmp_path
     first = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
     second = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
-    assert len(calls) == 1
-    assert first["snapshot"]["recording"]["autoExecuted"] == 1
-    assert second["snapshot"]["recording"]["autoExecuted"] == 0
-    assert second["snapshot"]["recording"]["autoExecuteSkipped"] == 1
-
-
-def test_auto_execute_records_failure_and_attempt_markers(tmp_path):
-    calls = []
-
-    def callback(*, route_symbols, amount, broadcast, chain_id):
-        calls.append((route_symbols, amount))
-        return {"ok": False, "error": "official_arb_broadcast_rpc_unavailable", "txHash": None}
-
-    scanner = _scanner(tmp_path, callback=callback, enabled=True)
-    result = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
-
-    assert len(calls) == 1
-    recording = result["snapshot"]["recording"]
-    assert recording["autoExecuted"] == 0
-    assert recording["autoExecuteFailed"] == 1
-    assert recording["autoExecuteErrors"] == ["official_arb_broadcast_rpc_unavailable"]
-    snapshot_route = result["snapshot"]["payload"]["routes"][0]
-    assert snapshot_route["quoteAnalysis"]["live_onchain_evidence"]["status"] == "live_verified"
+    assert calls == []
+    assert first["snapshot"]["recording"]["source"] == "closed_loop_deep_review"
+    assert second["snapshot"]["recording"]["source"] == "closed_loop_deep_review"
 
 
 def test_fixed_refresh_deep_mode_runs_auto_execute_when_enabled(tmp_path, monkeypatch):
@@ -354,6 +312,43 @@ def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitab
     assert auto_execute.get("autoExecuted") == 0
     assert auto_execute.get("autoExecuteSkipped") == 1
     assert (done.result or {}).get("routes", [])[0].get("auto_execute", {}).get("skipped") is True
+
+
+def test_closed_loop_groups_use_deep_mode_when_auto_execute_enabled(tmp_path):
+    from runtime.dex_opportunity_scanner import DexOpportunityScanner
+
+    scanner = DexOpportunityScanner(
+        quote_payload_provider=lambda **kwargs: _quote_payload_for_robinhood_testnet(),
+        onchain_evidence_provider=lambda route, **kwargs: _profitable_live_evidence(route),
+        trigger_context_provider=lambda **kwargs: {},
+        auto_execute_enabled=True,
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        record_opportunities=False,
+        periodic_scan_enabled=False,
+    )
+    payload = _quote_payload_for_robinhood_testnet()
+    scanner._enqueue_closed_loop_groups_from_payload(payload, chain_id=46630, protocols=["uniswap_v4"])
+    rows = scanner.closed_loop_review_queue.snapshot()
+    assert rows and rows[0]["mode"] == "deep"
+
+
+def test_session_stats_are_reset_explicitly(tmp_path):
+    scanner = _scanner(tmp_path, enabled=True)
+    scanner._record_session_executed({"ok": True, "txHash": "0xabc", "profit": 1.25}, auto=True)
+    status = scanner.status(chain_id=46630)
+    session = status["session_stats"]
+    assert session["executed_count"] == 1
+    assert session["auto_executed_count"] == 1
+    assert session["positive_profit_count"] == 1
+    assert session["positive_profit_amount"] == 1.25
+
+    scanner.reset_dex_opportunity_stats()
+    status = scanner.status(chain_id=46630)
+    session = status["session_stats"]
+    assert session["executed_count"] == 0
+    assert session["auto_executed_count"] == 0
+    assert session["positive_profit_count"] == 0
+    assert session["positive_profit_amount"] == 0
 
 
 def test_scan_exception_records_structured_error_stack(tmp_path):
@@ -498,7 +493,7 @@ def test_build_attempts_reviews_all_robinhood_routes_despite_testnet_cap(tmp_pat
     assert ready_attempt["quote"]["live_onchain_evidence"]["status"] == "live_verified"
 
 
-def test_auto_execute_enabled_forces_execution_size_probe(tmp_path):
+def test_auto_execute_enabled_skips_old_scan_evidence_probe(tmp_path):
     enabled_skips = []
     disabled_skips = []
 
@@ -516,7 +511,7 @@ def test_auto_execute_enabled_forces_execution_size_probe(tmp_path):
     disabled_scanner = _scanner(tmp_path, evidence=disabled_evidence, enabled=False)
     disabled_scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
 
-    assert enabled_skips == [False]
+    assert enabled_skips == []
     assert disabled_skips == [True]
 
 

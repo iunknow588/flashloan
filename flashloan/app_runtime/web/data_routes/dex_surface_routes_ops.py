@@ -265,7 +265,25 @@ def register_dex_scanner_routes(app) -> None:
             "on",
         }
         scanner = _root.get_dex_opportunity_scanner()
+        # Rule: every click on the auto-execute toggle resets the session stats,
+        # whether it is being enabled or disabled.
+        scanner.reset_dex_opportunity_stats()
         scanner.set_auto_execute_enabled(enabled)
+        payload = _root.dex_opportunity_snapshot(
+            chain_id=selected_chain_id,
+            protocols=_root.request_dex_protocols_arg(),
+        )
+        payload["chain_selection"] = chain_selection
+        return jsonify(_root._attach_dex_strategy(payload))
+
+    @app.post("/api/dex/opportunity-scanner/stats/reset")
+    def dex_opportunity_scanner_stats_reset():
+        try:
+            chain_selection, selected_chain_id = _root.selected_chain_id_from_request()
+        except ChainSelectionError as exc:
+            return _root.shared._chain_selection_error_response(exc)
+        scanner = _root.get_dex_opportunity_scanner()
+        scanner.reset_dex_opportunity_stats()
         payload = _root.dex_opportunity_snapshot(
             chain_id=selected_chain_id,
             protocols=_root.request_dex_protocols_arg(),
