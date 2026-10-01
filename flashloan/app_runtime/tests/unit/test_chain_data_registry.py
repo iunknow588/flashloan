@@ -145,10 +145,11 @@ def test_global_chain_id_and_config_summary_are_chain_owned():
         "avalanche-testnet",
         "bnb",
         "ethereum",
+        "local-hardhat",
         "polygon",
         "robinhood",
     ]
-    assert data_independence["isolation"]["forbidden_source_chain_ids"] == [1, 56, 137, 4663, 43113, 43114]
+    assert data_independence["isolation"]["forbidden_source_chain_ids"] == [1, 56, 137, 4663, 31337, 43113, 43114]
     assert processing_independence["all_flows_have_handlers"] is True
     assert processing_independence["all_flows_require_scope_match"] is True
     assert processing_independence["flow_names"] == [

@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 
-from flask import Response, jsonify, request, send_file
+from flask import Response, jsonify, redirect, request, send_file
 
 from core.build_info import build_info_payload
 from core.chain_selection import ChainSelectionError
@@ -20,6 +21,7 @@ from bot.page_state import (
     execution_state_payload,
     market_observation_state_payload,
 )
+from dex.runtime.dex_opportunity_scanner import get_dex_opportunity_scanner
 from web.flash_loan_pools import flash_loan_pools_payload
 from web.page_routes_helpers import (
     _current_static_pool_store,
@@ -71,6 +73,15 @@ def register_page_routes(app, panel) -> None:
     @app.get("/")
     @app.get("/bot")
     def index():
+        default_feature = os.getenv("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage").strip().lower()
+        if request.path == "/" and not request.args.get("feature", "").strip() and default_feature in {"dex", "dex_arbitrage"}:
+            target = "/flash-loan/pools"
+            kept = [(key, value) for key, value in request.args.items() if key in {"chain_id", "market_id", "protocols", "protocol_id"}]
+            if kept:
+                from urllib.parse import urlencode
+
+                target = f"{target}?{urlencode(kept)}"
+            return redirect(target)
         return _market_page_response(panel)
 
     @app.get("/home")
@@ -118,6 +129,7 @@ def register_page_routes(app, panel) -> None:
     @app.get("/dex/overview")
     @app.get("/dex/quotes")
     @app.get("/dex/submissions")
+    @app.get("/dex/submissions/failed")
     def binance_market_panel():
         return _market_page_response(
             panel,
@@ -240,6 +252,7 @@ def register_page_routes(app, panel) -> None:
                 "starting": panel.observer_starting,
                 "start_error": panel.observer_start_error,
                 "background_activity": background_activity,
+                "dex_opportunity_scanner": get_dex_opportunity_scanner().status(),
                 "system_info": system_info_payload(),
                 "observer_progress": panel.observer_progress_payload(running, panel.observer_starting, binance_extremes),
                 "control_status": control_status_current,

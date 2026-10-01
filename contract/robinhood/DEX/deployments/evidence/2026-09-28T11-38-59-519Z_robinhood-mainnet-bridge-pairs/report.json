@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "robinhood-mainnet-bridge-pairs-readonly-v1",
+  "chainId": 4663,
+  "route": [
+    "0X7195E208",
+    "WETH",
+    "USDG",
+    "0X7195E208"
+  ],
+  "addresses": [
+    "0x7195e2088f3DFCca56e6A71D129051963Ed9657A",
+    "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "0x7195e2088f3DFCca56e6A71D129051963Ed9657A"
+  ],
+  "amountInRaw": "100000000000000",
+  "profitable": false,
+  "broadcast": false,
+  "ok": false,
+  "detail": "quote_reverted",
+  "errorMessage": "Connect Timeout Error",
+  "hop": 1,
+  "poolKey": {
+    "currency0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "currency1": "0x7195e2088f3DFCca56e6A71D129051963Ed9657A",
+    "fee": 8388608,
+    "tickSpacing": 60,
+    "hooks": "0x2380aBf72C17aABAb76480244759AC7E2932EEcC"
+  },
+  "zeroForOne": false,
+  "note": "read-only V4 Quoter preflight; no broadcast attempted"
+}

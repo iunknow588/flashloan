@@ -68,7 +68,11 @@ def main() -> int:
     )
     parser.add_argument("--rpc-url", default="")
     parser.add_argument("--output-dir", type=Path, default=SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery")
-    parser.add_argument("--cache", type=Path, default=SRC_ROOT / "runtime" / "cache" / "robinhood_dex_candidates.json")
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        default=SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_candidates.json",
+    )
     args = parser.parse_args()
 
     rpc_url = args.rpc_url.strip() or robinhood.DEFAULT_RPC_URLS[0]

@@ -4,13 +4,21 @@
   "chain_id": 46630,
   "display_name": "Robinhood Testnet",
   "native_symbol": "ETH",
-  "rpc_url": "https://rpc.testnet.chain.robinhood.com",
-  "rpc_urls": [
-    "https://robinhood-sepolia-rpc.publicnode.com",
-    "https://rpc.testnet.chain.robinhood.com/rpc",
-    "https://rpc.testnet.chain.robinhood.com"
-  ],
-  "explorer_url": "https://explorer.testnet.chain.robinhood.com",
+  "rpc": {
+    "primary": "https://rpc.testnet.chain.robinhood.com",
+    "fallbacks": [
+      "https://rpc.testnet.chain.robinhood.com/rpc",
+      "https://robinhood-sepolia-rpc.publicnode.com"
+    ],
+    "timeout_seconds": 20
+  },
+  "explorer": {
+    "url": "https://explorer.testnet.chain.robinhood.com"
+  },
+  "tooling": {
+    "hardhat_network": "robinhoodTestnet",
+    "foundry_alias": "robinhoodTestnet"
+  },
   "defaults": {
     "flash_loan_pool_page": true,
     "v4_quote_adapter": "intent_trade.chains.robinhood_testnet.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index"
@@ -52,7 +60,14 @@
     "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
     "universal_router": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
     "wrapped_native": "0x7943e237c7F95DA44E0301572D358911207852Fa",
-    "multicall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8"
+    "multicall3": "0xa432504b6F04Cafe775b09D8AA92e8dbe41Ec7a8",
+    "usdc": "",
+    "unified_executor": "",
+    "owner": ""
+  },
+  "officialV4": {
+    "arb": "0xd46327b50f3a16253fF16f7f657deDe7Ab19b808",
+    "composer": "0x8e42A1649670bd3f337720DDBD9e0184987534bD"
   },
   "processing_handlers": {
     "flash_loan_pools": "intent_trade.chains.robinhood_testnet.flash_loan_pools:flash_loan_pool_protocol_view",

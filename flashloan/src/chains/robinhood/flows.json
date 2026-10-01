@@ -5,8 +5,8 @@
   "isolation": {
     "scope_fields": ["network", "chain_id", "market_id"],
     "forbid_cross_chain_fallback": true,
-    "forbidden_source_networks": ["ethereum", "bnb", "polygon", "avalanche-testnet", "avalanche", "robinhood-testnet"],
-    "forbidden_source_chain_ids": [1, 56, 137, 43113, 43114, 46630]
+    "forbidden_source_networks": ["ethereum", "bnb", "polygon", "avalanche-testnet", "avalanche", "robinhood-testnet", "local-hardhat"],
+    "forbidden_source_chain_ids": [1, 56, 137, 43113, 43114, 46630, 31337]
   },
   "flows": {
     "flash_loan_pools": {

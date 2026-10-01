@@ -1,9 +1,51 @@
 from __future__ import annotations
 
+import os
+from copy import deepcopy
+from typing import Any
+
 from flask import jsonify, request
 
 from core.chain_selection import ChainSelectionError
 from web.data_routes import dex_surfaces as _root
+
+
+_STATIC_ROUTE_PAYLOAD_CACHE: dict[tuple[str, tuple[str, ...], str, float], dict[str, Any]] = {}
+
+
+def _is_zero_address(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text.startswith("0x"):
+        return False
+    try:
+        return int(text, 16) == 0
+    except ValueError:
+        return False
+
+
+def _route_has_zero_address(route: dict) -> bool:
+    for key in ("routeAddresses", "route_addresses", "addresses", "pathAddresses"):
+        items = route.get(key) if isinstance(route, dict) else None
+        if isinstance(items, (list, tuple)) and any(_is_zero_address(item) for item in items):
+            return True
+    return False
+
+
+def _protocols_include_uniswap_v4(protocols: list[str] | None) -> bool:
+    lowered = {str(protocol or "").strip().lower() for protocol in (protocols or [])}
+    return bool(lowered & {"uniswap_v4", "v4"})
+
+
+def _route_has_unresolved_zero_address(route: dict, protocols: list[str] | None) -> bool:
+    """Zero address is a legal Uniswap V4 native-ETH sentinel.
+
+    The candidate surface already keeps V4 zero-address pools as ETH. Quote and
+    route pages must follow the same protocol rule instead of treating every
+    ``0x0`` address as an invalid token address.
+    """
+    if not _route_has_zero_address(route):
+        return False
+    return not _protocols_include_uniswap_v4(protocols)
 
 
 def register_dex_quote_routes(app) -> None:
@@ -29,6 +71,21 @@ def register_dex_quote_routes(app) -> None:
                     "detail": "static market observation overview is not ready for this chain/protocol",
                 }
             )
+        overview_path = str(overview.get("path") or "")
+        try:
+            overview_mtime = os.path.getmtime(overview_path) if overview_path else 0.0
+        except OSError:
+            overview_mtime = 0.0
+        cache_key = (
+            str(selected_chain_id),
+            tuple(sorted(str(protocol or "").strip().lower() for protocol in (protocols or []))),
+            str(request.args.get("dex_strategy") or "").strip().lower(),
+            request.query_string.decode("utf-8"),
+            overview_mtime,
+        )
+        cached = _STATIC_ROUTE_PAYLOAD_CACHE.get(cache_key)
+        if cached is not None:
+            return jsonify(deepcopy(cached))
         routes = []
         summaries = overview.get("closedLoopRouteSummaries") or []
         seen = set()
@@ -42,7 +99,10 @@ def register_dex_quote_routes(app) -> None:
                     for part in str(summary.get("pathText") or "").replace("->", " -> ").split()
                     if part.strip()
                 ]
-            if len(path_symbols) < 2:
+            if (
+                len(path_symbols) < 4
+                or str(path_symbols[0]).upper() != str(path_symbols[-1]).upper()
+            ):
                 continue
             path_text = str(summary.get("pathText") or " -> ".join(path_symbols))
             dedup_key = "|".join([str(s).upper() for s in path_symbols])
@@ -54,12 +114,16 @@ def register_dex_quote_routes(app) -> None:
                 for address in summary.get("routeAddresses") or []
                 if str(address or "").strip()
             ]
+            if any(_is_zero_address(address) for address in route_addresses) and not _protocols_include_uniswap_v4(protocols):
+                continue
             route_pools = [
                 _compact_static_route_pool(pool)
                 for pool in summary.get("routePools") or []
                 if isinstance(pool, dict)
             ]
             route_pools = [pool for pool in route_pools if pool]
+            if len(route_pools) < 3:
+                continue
             steps = [
                 {
                     "hop": index + 1,
@@ -83,7 +147,8 @@ def register_dex_quote_routes(app) -> None:
                         "targetSymbol": str(summary.get("counterSymbol") or path_symbols[-2]),
                         "pathSymbols": path_symbols,
                         "pathText": path_text,
-                        "kind": "bridge_pair" if len(path_symbols) > 3 else "direct_anchor_pair",
+                        "kind": "bridge_pair",
+                        "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                         "marketObservationRoute": True,
                     },
                     "quoteAnalysis": {
@@ -128,7 +193,9 @@ def register_dex_quote_routes(app) -> None:
             "closedLoopGroups": _compact_static_groups(overview),
             "chain_selection": chain_selection,
         }
-        return jsonify(_root._attach_dex_strategy(payload))
+        payload = _root._attach_dex_strategy(payload)
+        _STATIC_ROUTE_PAYLOAD_CACHE[cache_key] = payload
+        return jsonify(deepcopy(payload))
 
     @app.get("/api/dex/quote-routes")
     def dex_quote_routes():
@@ -143,6 +210,7 @@ def register_dex_quote_routes(app) -> None:
             "yes",
             "on",
         }
+        anchor = str(request.args.get("anchor") or "").strip() or None
         _root._bootstrap_dex_surface_dependencies(
             chain_id=selected_chain_id,
             protocols=protocols,
@@ -153,10 +221,12 @@ def register_dex_quote_routes(app) -> None:
             mode="dex_quote_routes",
             chain_id=selected_chain_id,
             protocols=protocols,
+            anchor=anchor,
             fallback=lambda: _root.dex_quote_routes_payload(
                 chain_id=selected_chain_id,
                 protocols=protocols,
                 use_static_observation=True,
+                anchor=anchor,
             ),
         )
         snapshot_container = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
@@ -305,6 +375,16 @@ def register_dex_quote_routes(app) -> None:
         payload["chain_selection"] = chain_selection
         payload.setdefault("routes", [])
         payload.setdefault("mode", "dex_quote_routes")
+        if isinstance(payload.get("routes"), list):
+            filtered_routes = [
+                route
+                for route in payload["routes"]
+                if isinstance(route, dict) and not _route_has_unresolved_zero_address(route, protocols)
+            ]
+            payload["routes"] = filtered_routes
+            summary = payload.get("summary")
+            if isinstance(summary, dict) and "routeCount" in summary:
+                summary["routeCount"] = len(filtered_routes)
         try:
             overview = _root.load_market_observation_overview_static(
                 chain_id=selected_chain_id,
@@ -605,6 +685,116 @@ def register_dex_quote_route_test_routes(app) -> None:
             broadcast=broadcast,
             fallback_networks=_root.submission_networks_from_request(chain_selection),
         )
+        payload = _root._attach_dex_strategy(payload)
+        return jsonify(payload), 200 if (payload.get("ok") or payload.get("broadcastDisabled")) else 400
+
+
+def register_dex_estimate_fixed_pnl_routes(app) -> None:
+    @app.post("/api/dex/estimate-fixed-pnl")
+    def dex_estimate_fixed_pnl():
+        from market.binance_market.dex_route_test import (
+            estimate_fixed_amount_pnl,
+            normalize_route_symbols,
+        )
+
+        body = request.get_json(silent=True) or {}
+        chain_id = body.get("chain_id")
+        if chain_id is not None:
+            try:
+                chain_id = int(chain_id)
+            except (TypeError, ValueError):
+                return (
+                    jsonify(
+                        {
+                            "ok": False,
+                            "mode": "dex_estimate_fixed_pnl",
+                            "error": "chain_id_invalid",
+                            "detail": "chain_id must be an integer",
+                        }
+                    ),
+                    400,
+                )
+        else:
+            try:
+                _, chain_id = _root.selected_chain_id_from_request()
+            except ChainSelectionError as exc:
+                return _root.shared._chain_selection_error_response(exc)
+
+        protocols = body.get("protocols") or _root.request_dex_protocols_arg()
+        route_symbols = normalize_route_symbols(
+            body.get("routeSymbols")
+            or body.get("path")
+            or body.get("pair")
+            or body.get("symbolPair")
+            or ""
+        )
+        if len(route_symbols) < 2:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "mode": "dex_estimate_fixed_pnl",
+                        "error": "route_symbols_required",
+                        "detail": "routeSymbols or pair with a closed route is required",
+                    }
+                ),
+                400,
+            )
+        raw_amount = body.get("amount")
+        if raw_amount is None or str(raw_amount).strip() == "":
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "mode": "dex_estimate_fixed_pnl",
+                        "error": "amount_required",
+                        "detail": "amount is required",
+                    }
+                ),
+                400,
+            )
+        try:
+            amount = float(str(raw_amount).strip())
+        except (TypeError, ValueError):
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "mode": "dex_estimate_fixed_pnl",
+                        "error": "amount_invalid",
+                        "detail": "amount must be a number",
+                    }
+                ),
+                400,
+            )
+        if amount <= 0:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "mode": "dex_estimate_fixed_pnl",
+                        "error": "amount_invalid",
+                        "detail": "amount must be greater than 0",
+                    }
+                ),
+                400,
+            )
+        try:
+            payload = estimate_fixed_amount_pnl(
+                chain_id=chain_id,
+                protocols=protocols,
+                route_symbols=route_symbols,
+                amount=amount,
+            )
+        except Exception as exc:
+            payload = {
+                "ok": False,
+                "mode": "dex_estimate_fixed_pnl",
+                "error": "estimate_fixed_pnl_failed",
+                "detail": str(exc)[:500],
+                "routeSymbols": route_symbols,
+                "amount": amount,
+            }
         payload = _root._attach_dex_strategy(payload)
         return jsonify(payload), 200 if payload.get("ok") else 400
 

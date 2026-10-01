@@ -3,6 +3,9 @@
 function executionRouteTestSummary(result) {
   if (result?.txHash) return `链上执行已提交 | 交易哈希：${result.txHash}`;
   const failureText = result?.detail || result?.errorDetail || result?.error;
+  if (result?.broadcastDisabled || String(result?.detail || "").toLowerCase().includes("broadcast disabled")) {
+    return failureText ? `链上执行未提交：${failureText}` : "链上执行未提交：当前环境未开启链上执行开关";
+  }
   if (result?.ok === false) return failureText ? `链上执行失败：${failureText}` : "链上执行失败：后台未返回交易哈希";
   if (result?.broadcast) return failureText ? `链上执行未提交：${failureText}` : "链上执行未提交：后台未返回交易哈希";
   if (result?.detail && !result?.steps) return String(result.detail);
@@ -19,7 +22,9 @@ function executionRouteTestAdvice(result) {
   const error = String(result?.error || result?.detail || result?.errorDetail || "").toLowerCase();
   if (result?.txHash) return "建议：链上执行已提交；请到区块浏览器确认交易哈希与链上结果。";
   if (error.includes("broadcast disabled") || error.includes("static preflight passed")) {
-    return "建议：链上执行未提交；当前环境未开启链上执行开关，因此未发起链上交易。";
+    const amount = result?.bestAmount == null ? "" : `，最佳交易量 ${result.bestAmount} ${result.amountSymbol || ""}`;
+    const profit = result?.profitHuman == null ? "" : `，参考净利 ${result.profitHuman} ${result.amountSymbol || ""}`;
+    return `建议：链上复核已通过${amount}${profit}；当前环境未开启链上执行开关，因此未发起链上交易。`;
   }
   if (result?.error === "official_arb_broadcast_route_unsupported" || error.includes("route_unsupported")) {
     return "建议：当前三币闭环无法解析完整代币地址，或不在当前链的链上执行范围内，暂不能执行链上交易；可先查看链下估算，再通过链上复核确认可执行性。";

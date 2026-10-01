@@ -59,9 +59,10 @@ def _bootstrap_dex_surface_dependencies(
     ):
         return
     warmers = {
-        "dex_market_observation": (
-            lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-        ),
+        # Market observation is a static display surface. It reads the compact
+        # observation snapshot directly and does not need the full candidate
+        # pool universe warmed synchronously during navigation.
+        "dex_market_observation": (),
         # Overview is a display surface. It consumes the compact static
         # snapshot and must not synchronously rebuild the V4 pool universe.
         "dex_overview": (),
@@ -83,7 +84,7 @@ def _bootstrap_dex_surface_dependencies(
         ),
     }
     warm_surfaces = {
-        "dex_market_observation": [None],
+        "dex_market_observation": [],
         "dex_overview": [],
         "dex_quote_routes": [None, "dex_market_observation", "dex_overview"],
         "dex_quote_request": [None, "dex_market_observation", "dex_overview", "dex_quote_routes"],

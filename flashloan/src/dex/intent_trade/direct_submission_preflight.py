@@ -35,7 +35,7 @@ def prepare_submission_inputs(
             )
         }
 
-    executor_address = _executor_address(deps, protocol)
+    executor_address = _executor_address(deps, protocol, network=network)
     if not executor_address:
         return {"blocked": _missing_executor_result()}
 
@@ -139,10 +139,13 @@ def _executor_adapter_unverified_result(deps: Any, *, network: str, chain_id: in
     }
 
 
-def _executor_address(deps: Any, protocol: dict[str, Any]) -> str:
+def _executor_address(deps: Any, protocol: dict[str, Any], *, network: str) -> str:
+    chain_lookup = getattr(deps, "unified_executor_address_for_network", None)
+    chain_value = str(chain_lookup(network)).strip() if callable(chain_lookup) else ""
     return str(
         protocol.get("unified_executor_address")
         or protocol.get("executor_address")
+        or chain_value
         or deps.env("UNIFIED_EXECUTOR_ADDRESS", "TRIANGULAR_UNIFIED_EXECUTOR_ADDRESS")
     ).strip()
 

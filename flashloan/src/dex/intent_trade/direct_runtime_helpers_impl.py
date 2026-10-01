@@ -50,10 +50,12 @@ from dex.intent_trade.direct_onchain_config import (
     normalize_direct_onchain_network as _normalize_direct_onchain_network_impl,
     normalize_pair_address as _normalize_pair_address_impl,
     normalize_usdc_pair_table as _normalize_usdc_pair_table_impl,
+    owner_address_for_network as _owner_address_for_network_impl,
     parse_pair_id as _parse_pair_id_impl,
     positive_int_value as _positive_int_value_impl,
     resolve_direct_onchain_network as _resolve_direct_onchain_network_impl,
     runtime_candidate_pairs as _runtime_candidate_pairs_impl,
+    unified_executor_address_for_network as _unified_executor_address_for_network_impl,
     unified_executor_supported_for_network as _unified_executor_supported_for_network_impl,
     usdc_decimal_to_base_units as _usdc_decimal_to_base_units_impl,
 )
@@ -244,6 +246,12 @@ def _direct_rpc_url(network: str) -> tuple[str, tuple[str, ...]]:
 
 def _unified_executor_supported_for_network(network: str) -> bool:
     return _unified_executor_supported_for_network_impl(network)
+
+def _unified_executor_address_for_network(network: str) -> str:
+    return _unified_executor_address_for_network_impl(network)
+
+def _owner_address_for_network(network: str) -> str:
+    return _owner_address_for_network_impl(network)
 
 def _executor_adapter_unverified_status(network: str) -> str:
     return _executor_adapter_unverified_status_impl(network)

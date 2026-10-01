@@ -17,6 +17,28 @@ def test_scanner_evidence_timeout_has_rpc_retry_budget_floor(monkeypatch):
     assert dex_opportunity_scanner._scanner_evidence_timeout_seconds() >= 60.0
 
 
+def test_scanner_dedupes_same_closed_loop_route_by_addresses():
+    from dex.runtime.dex_opportunity_scanner import _dedupe_payload_routes
+
+    routes = [
+        {
+            "routeAddresses": ["0xTZ", "0xTB", "0xTA", "0xTZ"],
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "quoteStatus": "rpc_verification_timeout",
+        },
+        {
+            "routeAddresses": ["0xTZ", "0xTB", "0xTA", "0xTZ"],
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "quoteStatus": "requires_live_quoter",
+        },
+    ]
+
+    deduped = _dedupe_payload_routes(routes)
+
+    assert len(deduped) == 1
+    assert deduped[0]["quoteStatus"] == "rpc_verification_timeout"
+
+
 def _write_json(path, payload):
     import json
 
@@ -251,12 +273,12 @@ def test_dex_opportunity_scanner_reconciles_live_summary_after_review(tmp_path):
     result = scanner.scan_now(chain_id=46630, protocols=["uniswap_v4"])
     summary = result["snapshot"]["payload"]["summary"]
 
-    assert summary["onchainEvidenceReviewedRouteCount"] == 2
+    assert summary["onchainEvidenceReviewedRouteCount"] == 1
     assert summary["onchainEvidenceDeferredRouteCount"] == 0
     assert summary["onchainEvidenceFailedRouteCount"] == 1
-    assert summary["liveQuoterRequiredCount"] == 0
-    assert summary["liveVerifiedRouteCount"] == 1
-    assert summary["bestLiveNetProfitUsd"] == -1.25
+    assert summary["liveQuoterRequiredCount"] == 1
+    assert summary["liveVerifiedRouteCount"] == 0
+    assert summary["bestLiveNetProfitUsd"] is None
     assert result["scanner"]["testnet_max_onchain_evidence_routes"] == 2
 
 
@@ -684,6 +706,7 @@ def test_dex_opportunity_scanner_reviews_all_robinhood_testnet_candidates_each_s
             "executionTrust": "live_quoter_verified_readonly",
             "trustedForExecution": False,
             "readyForTransactionPreflight": False,
+            "bestAmountConfirmed": True,
             "blockNumber": 12345,
             "triggerContext": kwargs.get("trigger_context") or {},
             "triggerBlockNumber": (kwargs.get("trigger_context") or {}).get("triggerBlockNumber"),
@@ -691,7 +714,13 @@ def test_dex_opportunity_scanner_reviews_all_robinhood_testnet_candidates_each_s
             "routeSymbols": route.get("routeSymbols") or [],
             "routeAddresses": route.get("routeAddresses") or [],
             "hops": [{"hop": 1, "protocol": "uniswap_v4", "quoteMethod": "uniswap_v4_sdk_exact_input_single"}],
-            "costModel": {"netProfitUsd": 1.0, "netProfitBps": 10.0},
+            "costModel": {
+                "bestAmountConfirmed": True,
+                "selectedBorrowInputAmount": 1.0,
+                "borrowInputAmount": 1.0,
+                "netProfitUsd": 1.0,
+                "netProfitBps": 10.0,
+            },
             "validation": {"allHopsQuoted": True, "routeClosed": True, "finalOutputSymbol": "A"},
             "blockers": [],
             "transactionDevelopment": {"status": "ready_for_transaction_preflight_development", "executionEnabled": False, "blockers": []},

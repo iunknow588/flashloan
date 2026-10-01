@@ -8,6 +8,25 @@ from typing import Any
 from core.contracts import source_metadata
 
 
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+
+def _is_zero_address(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text.startswith("0x"):
+        return False
+    try:
+        return int(text, 16) == 0
+    except ValueError:
+        return False
+
+
+def _v4_zero_address_allowed(row: dict[str, Any]) -> bool:
+    """V4 PoolKeys legitimately use the zero address as plain-ETH sentinel."""
+    protocol = str(row.get("protocol") or row.get("dex") or "").strip().lower()
+    return protocol in {"uniswap_v4", "v4"}
+
+
 STABLE_SYMBOLS = {
     "AUSD",
     "BUSD",
@@ -463,6 +482,8 @@ def build_anchor_candidate_groups(
         pool_id = str(record.get("pool") or "").strip()
         if not token_symbol or not pool_id:
             return
+        if _is_zero_address(token_address) and not _v4_zero_address_allowed(record):
+            return
         seen_key = _anchor_queue_signature(
             anchor_symbol=str(group["anchorSymbol"]),
             direction=section,
@@ -504,7 +525,16 @@ def build_anchor_candidate_groups(
             token1_symbol = str(pool.get("token1Symbol") or "").strip().upper()
             token0_address = _token_address(pool.get("token0"))
             token1_address = _token_address(pool.get("token1"))
-            if not token0_symbol or not token1_symbol:
+            if (
+                not token0_symbol
+                or not token1_symbol
+                or not token0_address
+                or not token1_address
+            ):
+                continue
+            if _is_zero_address(token0_address) and not _v4_zero_address_allowed(pool):
+                continue
+            if _is_zero_address(token1_address) and not _v4_zero_address_allowed(pool):
                 continue
             for anchor_symbol, anchor_address, counter_symbol, counter_address in (
                 (token0_symbol, token0_address, token1_symbol, token1_address),
@@ -552,6 +582,12 @@ def build_anchor_candidate_groups(
             continue
         yc_tokens = []
         for token in sorted(group["ycTokensMap"].values(), key=lambda item: (-len(item["pools"]), str(item["symbol"]))):
+            if not token.get("address"):
+                continue
+            if _is_zero_address(token.get("address")) and not any(
+                _v4_zero_address_allowed(row) for row in token.get("pools") or []
+            ):
+                continue
             yc_tokens.append(
                 {
                     "symbol": token["symbol"],
@@ -562,6 +598,12 @@ def build_anchor_candidate_groups(
             )
         zc_tokens = []
         for token in sorted(group["zcTokensMap"].values(), key=lambda item: (-len(item["pools"]), str(item["symbol"]))):
+            if not token.get("address"):
+                continue
+            if _is_zero_address(token.get("address")) and not any(
+                _v4_zero_address_allowed(row) for row in token.get("pools") or []
+            ):
+                continue
             zc_tokens.append(
                 {
                     "symbol": token["symbol"],
@@ -570,6 +612,8 @@ def build_anchor_candidate_groups(
                     "pools": token["pools"][:10],
                 }
             )
+        if not group["ycPools"] and not group["zcPools"]:
+            continue
         anchor_groups.append(
             {
                 "anchorSymbol": symbol,

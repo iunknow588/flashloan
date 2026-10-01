@@ -55,6 +55,7 @@ def submission_deps() -> Any:
         runtime_trade_plan_report=impl._runtime_trade_plan_report,
         select_best_unified_route_group=impl._select_best_unified_route_group,
         unified_cross_pool_params=impl._unified_cross_pool_params,
+        unified_executor_address_for_network=impl._unified_executor_address_for_network,
         unified_execution_params=impl._unified_execution_params,
         unified_executor_supported_for_network=impl._unified_executor_supported_for_network,
         unified_required_factory=impl._unified_required_factory,

@@ -4,6 +4,21 @@
   "chain_id": 56,
   "display_name": "BNB Chain",
   "native_symbol": "BNB",
+  "rpc": {
+    "primary": "https://bsc-dataseed.bnbchain.org",
+    "fallbacks": [
+      "https://bsc.publicnode.com",
+      "https://1rpc.io/bnb"
+    ],
+    "timeout_seconds": 20
+  },
+  "explorer": {
+    "url": "https://bscscan.com"
+  },
+  "tooling": {
+    "hardhat_network": "bnb",
+    "foundry_alias": "bnb"
+  },
   "features": {
     "liquidation": {
       "default_market_id": "liquidation-56-venus-core",
@@ -20,6 +35,11 @@
     "default_protocols": ["venus_core", "pancakeswap_v3", "pancakeswap_v2", "aave_v3"],
     "candidate_protocols": ["aave_v3", "venus_core", "pancakeswap_v3", "pancakeswap_v2", "biswap_v2", "uniswap_v4"],
     "supported_protocol_count": 6
+  },
+  "contracts": {
+    "usdc": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+    "unified_executor": "",
+    "owner": ""
   },
   "data_files": {
     "venus_markets": "../../data_info/BNB/liquidation/venus_market_static_table.json",

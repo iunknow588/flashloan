@@ -28,6 +28,7 @@ _STATUS_CODES = {
     "slippage_limit_exceeded": ErrorCode.DEX_GATE_NOT_READY,
     "live_evidence_deferred": ErrorCode.DEX_GATE_NOT_READY,
     "live_quote_reference_only": ErrorCode.DEX_GATE_NOT_READY,
+    "static_reference_pending_live_review": ErrorCode.DEX_GATE_NOT_READY,
     "requires_live_quoter": ErrorCode.DEX_GATE_NOT_READY,
     "sdk_adapter_required": ErrorCode.DEX_GATE_NOT_READY,
     "candidate_pair_not_found": ErrorCode.DEX_ROUTE_INVALID,

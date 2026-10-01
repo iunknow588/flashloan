@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument(
         "--market-cache",
         type=Path,
-        default=SRC_ROOT / "runtime" / "cache" / "robinhood_dex_market_pools.json",
+        default=SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_market_pools.json",
     )
     parser.add_argument(
         "--static-table",

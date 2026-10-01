@@ -70,7 +70,7 @@
 
   function rootPathForFeature(feature) {
     const normalized = String(feature || "").trim().toLowerCase();
-    if (normalized === "dex_arbitrage") return "/dex";
+    if (normalized === "dex_arbitrage") return "/flash-loan/pools";
     return "/bot";
   }
 
@@ -208,7 +208,9 @@
   document.addEventListener("change", handleChange);
   window.addEventListener("message", handleMessage);
   window.addEventListener("popstate", handlePopState);
-  setFeatureState(pathFeature(window.location.pathname) || "liquidation");
+  const shellNode = document.querySelector("[data-app-shell]");
+  const shellFeature = shellNode && shellNode.dataset.shellFeature;
+  setFeatureState(shellFeature || pathFeature(window.location.pathname) || "liquidation");
 
   window.AppShell = {
     navigate: navigate,

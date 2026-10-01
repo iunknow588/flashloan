@@ -102,7 +102,7 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-09-26T04:19:56.594363Z",
+  "generated_at": "2026-10-01T06:21:12.175455Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
     "borrowableSymbols": 3,
@@ -121,6 +121,7 @@
   "observationSequences": [],
   "ok": true,
   "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\market_observation\\robinhood\\4663\\uniswap_v2\\observation.json",
+  "poolRegistry": {},
   "poolStaticTable": {
     "cachePath": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\cache\\candidate_pools\\robinhood\\chain-4663\\snapshot.json",
     "chainId": 4663,
@@ -173,13 +174,11 @@
     "bridgePoolIndexMatchedPairCount": 0,
     "bridgePoolIndexMatchedPoolCount": 0,
     "candidateObservationBridgeCount": 0,
-    "candidateObservationDirectCount": 0,
     "candidateObservationGroupCount": 0,
     "candidateObservationPoolCount": 0,
     "candidateObservationSequenceCount": 0,
     "chainSpecificObservationSequenceCount": 0,
     "closedLoopRouteCount": 0,
-    "directClosedLoopCount": 0,
     "directPairCount": 0,
     "fundAnchorPairObservationAssociatedObservationPoolCount": 0,
     "fundAnchorPairObservationAssociatedObservationTokenCount": 0,

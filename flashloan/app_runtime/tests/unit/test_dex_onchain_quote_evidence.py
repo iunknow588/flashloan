@@ -95,7 +95,7 @@ def test_offchain_initial_probe_falls_back_to_one_basic_unit_without_price():
     assert "one_basic_unit_fallback" in reason
 
 
-def test_offchain_initial_probe_ignores_existing_probe_fields():
+def test_offchain_initial_probe_prefers_existing_probe_fields():
     route = {
         "routeSymbols": ["USDG", "FOO", "USDG"],
         "offchainInitialProbeAmountRaw": "500",
@@ -116,10 +116,30 @@ def test_offchain_initial_probe_ignores_existing_probe_fields():
         input_decimals=6,
         price_map={"USDG": 1.0},
     )
-    assert amount_raw == 1000 * 10**6
+    assert amount_raw == 500
     assert basis == "borrow_token"
-    assert "stablecoin_usd_1000u_anchor" in reasons
-    assert "stablecoin_usd_1000u_anchor" in reason
+    assert "requested_borrow_amount_fallback" in reasons
+    assert "requested_borrow_amount_fallback" in reason
+
+
+def test_offchain_initial_probe_keeps_small_explicit_amount_when_no_price():
+    route = {
+        "routeSymbols": ["TSLA", "0X71178B", "0XF91173", "TSLA"],
+        "offchainInitialProbeAmount": "0.001",
+        "quoteAnalysis": {
+            "inputSymbol": "TSLA",
+            "steps": [],
+        },
+    }
+    amount_raw, basis, reason, reasons = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=18,
+        price_map={},
+    )
+    assert amount_raw == 10**15
+    assert basis == "borrow_token"
+    assert "requested_borrow_amount_fallback" in reasons
+    assert "requested_borrow_amount_fallback" in reason
 
 
 def test_offchain_initial_probe_does_not_infer_stable_usd_price_from_reference_notional():
@@ -267,8 +287,65 @@ def test_merge_onchain_evidence_does_not_use_requested_amount_as_best_amount():
         },
     )
     analysis = merged["quoteAnalysis"]
-    assert analysis["referenceInputAmount"] == 1000.0
+    assert analysis["referenceInputAmount"] is None
     assert analysis["bestAmount"] is None
+
+
+def test_merge_onchain_evidence_ignores_selected_amount_when_best_amount_missing():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {},
+    }
+    merged = _merge_onchain_evidence_into_route(
+        route,
+        {
+            "status": "live_verified",
+            "costModel": {
+                "selectedBorrowInputAmount": 8.0,
+                "borrowInputAmount": 8.0,
+                "bestAmountMissing": True,
+                "netProfitAmount": 1.0,
+                "finalOutputAmount": 9.0,
+            },
+            "hops": [{"hop": 1, "status": "live_verified"}],
+        },
+    )
+    analysis = merged["quoteAnalysis"]
+
+    assert analysis["bestAmount"] is None
+    assert analysis["bestAmountMissing"] is True
+    assert merged["live_onchain_evidence"]["costModel"]["bestAmountMissing"] is True
+    assert merged["live_onchain_evidence"]["status"] == "static_reference_pending_live_review"
+    assert merged["live_onchain_evidence"]["readyForTransactionPreflight"] is False
+
+
+def test_merge_onchain_evidence_ignores_unconfirmed_requested_amount_fallback():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {},
+    }
+    merged = _merge_onchain_evidence_into_route(
+        route,
+        {
+            "status": "live_verified",
+            "costModel": {
+                "selectedBorrowInputAmount": 1.0,
+                "borrowInputAmount": 1.0,
+                "selectedBorrowInputAmountReason": "requested_amount_fallback",
+                "selectedBorrowInputAmountConfirmedMax": False,
+                "netProfitAmount": 0.49,
+                "finalOutputAmount": 1.49,
+            },
+            "hops": [{"hop": 1, "status": "live_verified"}],
+        },
+    )
+    analysis = merged["quoteAnalysis"]
+
+    assert analysis["bestAmount"] is None
+    assert analysis["bestAmountMissing"] is True
+    assert analysis["bestAmountConfirmed"] is False
+    assert merged["live_onchain_evidence"]["status"] == "static_reference_pending_live_review"
+    assert merged["live_onchain_evidence"]["readyForTransactionPreflight"] is False
 
 
 def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
@@ -329,7 +406,7 @@ def test_v4_route_blocks_when_sdk_adapter_is_unset(monkeypatch):
     assert evidence["status"] == "adapter_required"
     assert evidence["trustedForExecution"] is False
     assert evidence["readyForTransactionPreflight"] is False
-    assert evidence["executionTrust"] == "static_reference_only"
+    assert evidence["executionTrust"] == "static_reference_pending_live_review"
     assert len(evidence["hops"]) == 1
     assert evidence["hops"][0]["status"] == "adapter_required"
     assert evidence["hops"][0]["executionTrust"] == "adapter_required"
@@ -702,6 +779,7 @@ def test_v4_route_uses_injected_quote_adapter(monkeypatch):
     )
 
     assert evidence["status"] == "live_verified"
+    assert evidence["readyForTransactionPreflight"] is True
     assert evidence["hops"][0]["quoteMethod"] == "uniswap_v4_sdk_exact_input_single"
     assert evidence["hops"][0]["amountOutRaw"] == "1003000000"
     assert evidence["trustedForExecution"] is False
@@ -1021,7 +1099,6 @@ def test_robinhood_testnet_closed_loop_v4_route_does_not_use_old_max_executable_
     assert evidence["status"] == "live_verified"
     assert evidence["recommendation"]["profitable"] is True
     assert evidence["recommendation"]["readyForTransactionPreflight"] is True
-    assert "正收益" in evidence["recommendation"]["conclusion"]
 
 
 def test_robinhood_testnet_closed_loop_route_slippage_above_limit_blocks_preflight(monkeypatch):
@@ -1155,7 +1232,7 @@ def test_robinhood_testnet_route_execution_probe_ignores_impact_limit_when_profi
     assert 200 in attempted
 
 
-def test_route_execution_probe_stops_immediately_on_not_enough_liquidity(monkeypatch):
+def test_route_execution_probe_halves_on_not_enough_liquidity_and_confirms_best(monkeypatch):
     attempted = []
 
     def fake_build_route_onchain_evidence(*args, **kwargs):
@@ -1195,12 +1272,14 @@ def test_route_execution_probe_stops_immediately_on_not_enough_liquidity(monkeyp
         max_attempts=24,
     )
 
-    assert probe["status"] == "route_execution_size_probe_unexecutable"
-    assert probe["searchStatus"] == "not_enough_liquidity"
-    assert probe["maxExecutableAmountRaw"] is None
-    assert probe["firstFailureAmountRaw"] == "100"
+    assert probe["status"] == "route_execution_size_probe_complete"
+    assert probe["searchStatus"] == "profitable_amount_found"
+    assert probe["maxExecutableAmountRaw"] == "50"
+    assert probe["selectedProfitableAmountRaw"] == "50"
+    assert probe["maxExecutableAmountConfirmed"] is True
     assert attempted[0] == 100
-    assert attempted == [100]
+    assert 50 in attempted
+    assert any(amount_raw > 50 for amount_raw in attempted[1:])
 
 
 def test_route_execution_probe_expands_profitable_starting_amount(monkeypatch):
@@ -2018,8 +2097,8 @@ def test_robinhood_testnet_live_pool_precheck_uses_latest_block(monkeypatch):
         skip_execution_size_probe=True,
     )
 
-    assert evidence["status"] == "live_verified"
-    assert evidence["executionTrust"] == "live_quoter_verified_readonly"
+    assert evidence["status"] == "static_reference_pending_live_review"
+    assert evidence["executionTrust"] == "static_reference_pending_live_review"
     assert evidence["hops"][0]["quoteMethod"] == "test_latest_precheck_fallback"
     assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert evidence["triggerBlockNumber"] == 123

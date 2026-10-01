@@ -75,6 +75,23 @@ def test_bootstrap_dex_surface_dependencies_walks_backwards(monkeypatch):
     assert calls == ["candidates", "surface", "overview"]
 
 
+def test_bootstrap_dex_market_observation_skips_pool_candidates_warmup(monkeypatch):
+    from web.data_routes import dex_surfaces as web_dex_surfaces
+
+    calls = []
+
+    monkeypatch.setattr(web_dex_surfaces, "dex_pool_candidates_payload", lambda **kwargs: calls.append("candidates") or {})
+    monkeypatch.setattr(web_dex_surfaces, "dex_market_observation_surface_payload", lambda **kwargs: calls.append("surface") or {})
+
+    web_dex_surfaces._bootstrap_dex_surface_dependencies(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        flow_name="dex_market_observation",
+    )
+
+    assert calls == []
+
+
 def test_submission_review_framework_payload_exposes_static_framework_label(monkeypatch):
     from web.data_routes import dex_surfaces as web_dex_surfaces
 
@@ -348,17 +365,16 @@ def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monk
             "observationAnchorCount": 2,
             "candidateObservationGroupCount": 1,
             "observationSequenceCount": 1,
-            "closedLoopRouteCount": 1,
+            "closedLoopRouteCount": 0,
         },
         "observationAnchorSymbols": ["ETH", "USDC"],
         "borrowableSymbols": ["ETH", "USDC"],
         "candidateObservationGroups": [{"anchorSymbol": "ETH", "observationSequenceCount": 1, "closedLoopRouteCount": 1}],
-        "observationSequences": [{"pathText": "ETH -> USDC -> ETH"}],
-        "closedLoopRoutes": [{"pathText": "ETH -> USDC -> ETH"}],
+        "observationSequences": [{"pathText": "ETH -> USDC -> DAI -> ETH"}],
+        "closedLoopRoutes": [{"pathText": "ETH -> USDC -> DAI -> ETH"}],
         "chainSpecificObservationPairs": [],
         "chainSpecificObservationPools": [],
         "directPools": [],
-        "directClosedLoopRoutes": [],
         "indirectRoutes": [],
         "unmatchedPools": [],
         "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True},
@@ -376,7 +392,7 @@ def test_dex_market_observation_surface_uses_static_snapshot_when_requested(monk
 
     assert observation["marketObservationSource"] == "cached_snapshot"
     assert observation["marketObservationSourceStage"] == "cached_snapshot"
-    assert observation["summary"]["closedLoopRouteCount"] == 1
+    assert observation["summary"]["closedLoopRouteCount"] == 0
     assert observation["observationAnchorSymbols"] == ["ETH", "USDC"]
 
 
@@ -553,7 +569,7 @@ def test_dex_market_observation_uses_v4_index_for_shared_yz_bridge(monkeypatch):
     assert bridge_pool["source"] == "v4_pool_index_bridge_pool"
 
 
-def test_robinhood_testnet_v4_non_eth_pair_first_links_native_fund_to_bridge_pair():
+def test_robinhood_testnet_v4_non_eth_pair_first_keeps_native_zero_fund_routes():
     zero = "0x" + "0" * 40
     token_y = "0x" + "4" * 40
     token_z = "0x" + "5" * 40
@@ -608,30 +624,15 @@ def test_robinhood_testnet_v4_non_eth_pair_first_links_native_fund_to_bridge_pai
     assert observation["associatedObservationPairCount"] == 1
     assert observation["fundAnchorCandidatePairCount"] == 3
     assert observation["associatedObservationCandidatePairCount"] == 3
-    # Observation detail is route-level: the bridge pool is retained here,
-    # while entry/exit pools remain embedded in each route sequence.
     assert observation["associatedObservationPoolCount"] == 1
     assert observation["associatedObservationTokenCount"] == 2
-    assert observation["associatedObservationPairs"][0]["symbolPair"] == "AAA:BBB"
-    assert observation["associatedObservationPairs"][0]["poolCount"] == 1
-    assert observation["associatedObservationPairs"][0]["directSwapRequired"] is True
-    assert observation["associatedObservationPairs"][0]["directSwapPoolCount"] == 1
-    assert observation["associatedObservationPairs"][0]["directSwapPools"][0]["role"] == "direct_y_z_swap_pool"
-    assert observation["associatedObservationPairs"][0]["closedLoopReady"] is True
-    assert set(observation["associatedObservationPairs"][0]["closedLoopRoutePreviews"]) == {
-        "ETH -> AAA -> BBB -> ETH",
-        "ETH -> BBB -> AAA -> ETH",
-    }
-    assert {
-        tuple(step["direction"] for step in route["routePools"])
-        for route in observation["associatedObservationPairs"][0]["routeEvidence"]
-    } == {("yc", "bridge", "zc")}
     assert observation["routeCount"] == 2
-    assert {sequence["pathText"] for sequence in observation["observationSequences"]} == {
+    assert observation["fundAssetCount"] == 1
+    assert observation["executorSupportedFundAssetCount"] == 0
+    assert [seq["pathText"] for seq in observation["observationSequences"]] == [
         "ETH -> AAA -> BBB -> ETH",
         "ETH -> BBB -> AAA -> ETH",
-    }
-    assert all(sequence["kind"] == "robinhood_testnet_v4_fund_anchor_pair_observation" for sequence in observation["observationSequences"])
+    ]
 
 
 def test_robinhood_testnet_v4_associated_non_eth_pool_is_diagnostic_only_without_same_anchor_loop():
@@ -875,7 +876,8 @@ def test_dex_market_observation_filters_same_symbol_reentry_without_profit(monke
 
     observation = dex_surfaces.dex_market_observation_payload(chain_id=46630, protocols=["uniswap_v3"])
 
-    assert all(route["kind"] != "direct_closed_pair" for route in observation["closedLoopRoutes"])
+    assert all(route["kind"] == "bridge_closed_loop" for route in observation["closedLoopRoutes"])
+    assert all(route.get("routeSemantics") == "x_y_entry_y_z_bridge_z_x_exit" for route in observation["closedLoopRoutes"])
     assert all(sequence["kind"] != "anchor_closed_loop_reentry" for sequence in observation["observationSequences"])
 
 

@@ -4,7 +4,12 @@ from web.control_panel import app
 def test_control_panel_navigation_chain_links_expected_pages():
     client = app.test_client()
 
-    control_panel = client.get("/").get_data(as_text=True)
+    root_response = client.get("/")
+    assert root_response.status_code == 302
+    assert root_response.headers["Location"] == "/flash-loan/pools"
+
+    control_panel = client.get("/bot").get_data(as_text=True)
+    pools_panel = client.get("/flash-loan/pools").get_data(as_text=True)
     liquidation_panel = client.get("/liquidation").get_data(as_text=True)
     account_scan_panel = client.get("/account-scan").get_data(as_text=True)
     execution_panel = client.get("/execution").get_data(as_text=True)
@@ -33,6 +38,11 @@ def test_control_panel_navigation_chain_links_expected_pages():
     assert 'data-shell-link="/bot/account-scan"' in control_panel
     assert 'data-shell-link="/dex"' not in control_panel
     assert 'data-shell-link="/flash-loan/pools"' not in control_panel
+    assert 'data-app-shell="true"' in pools_panel
+    assert 'data-shell-link="/dex"' in pools_panel
+    assert 'data-shell-link="/flash-loan/pools"' in pools_panel
+    assert 'data-shell-link="/bot"' not in pools_panel
+    assert 'data-shell-link="/bot/account-scan"' not in pools_panel
 
     for link in [
         "/bot",

@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "robinhood-testnet-preflight-v1",
+  "runAt": "2026-09-29T15:11:27.828Z",
+  "network": "robinhoodTestnet",
+  "expectedChainId": 46630,
+  "routeRequirements": {
+    "requireV3Adapter": false,
+    "requireV4Adapter": true,
+    "flashSourceKind": 4
+  },
+  "onchainTestPolicy": {
+    "mode": "normal_only",
+    "normalFunctionFirst": true,
+    "abnormalOnchainTestsEnabled": false,
+    "abnormalOnchainTestsDeferred": true,
+    "tokenConservation": true
+  },
+  "rpc": {
+    "configured": true,
+    "source": "env",
+    "envName": "ROBINHOOD_TESTNET_RPC_URL",
+    "host": "rpc.testnet.chain.robinhood.com",
+    "chainId": null,
+    "blockNumber": null,
+    "ok": false,
+    "error": "Connect Timeout Error"
+  },
+  "adapters": [
+    {
+      "label": "flashSource",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultFlashSource",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "v3SwapRouter",
+      "required": false,
+      "configured": false,
+      "envName": "",
+      "address": null,
+      "ok": true,
+      "error": null
+    },
+    {
+      "label": "v4UniversalRouter",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4UniversalRouter",
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "v4PoolManager",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultV4PoolManager",
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    },
+    {
+      "label": "permit2",
+      "required": true,
+      "configured": true,
+      "envName": "chain_json.defaultPermit2",
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "ok": false,
+      "error": "rpc_unavailable_or_wrong_chain"
+    }
+  ],
+  "deployer": {
+    "configured": false,
+    "address": null,
+    "balanceWei": null,
+    "minBalanceWei": "1",
+    "balanceOk": false,
+    "error": null
+  },
+  "flashAccountingLiquidity": {
+    "attempted": false,
+    "address": null,
+    "lookbackBlocks": 20000,
+    "minUsablePools": 1,
+    "fromBlock": null,
+    "toBlock": null,
+    "swapLogCount": 0,
+    "activePoolIds": [],
+    "usableFlashAccountingPoolCount": 0,
+    "nativeBalanceWei": null,
+    "ok": false,
+    "error": "not_checked"
+  },
+  "broadcastEnabled": false,
+  "readyForPausedDeploy": false,
+  "readyForBroadcast": false,
+  "blockingReasons": [
+    "robinhood_testnet_rpc_chain_id_not_verified",
+    "testnet_usable_pool_missing",
+    "flashSource_code_not_verified",
+    "v4UniversalRouter_code_not_verified",
+    "v4PoolManager_code_not_verified",
+    "permit2_code_not_verified",
+    "deployer_key_missing_or_unavailable"
+  ]
+}

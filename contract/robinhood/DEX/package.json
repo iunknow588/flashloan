@@ -8,7 +8,8 @@
     "test:robinhood": "hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js test/RobinhoodV4FlashNormalProbe.test.js test/RobinhoodMainnetReadiness.test.js",
     "test:robinhood:mainnet": "hardhat test test/RobinhoodPausedFlashLoanExecutor.test.js test/RobinhoodMainnetReadiness.test.js",
     "preflight:robinhood:mainnet": "hardhat run scripts/preflight-robinhood-mainnet.js --network robinhood",
-    "ready:robinhood:mainnet": "hardhat run scripts/check-robinhood-mainnet-readiness.js --network robinhood"
+    "ready:robinhood:mainnet": "hardhat run scripts/check-robinhood-mainnet-readiness.js --network robinhood",
+    "preflight:robinhood:mainnet:bridge-pairs": "hardhat run ../../../test-token_create/scripts/tool/robinhood-mainnet-bridge-pairs-live.js --network robinhood"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",

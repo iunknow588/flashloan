@@ -14,6 +14,7 @@ from market.binance_market.dex_quote_route_common import (
     build_quote_inputs_bundle,
     build_quote_request_specs,
 )
+from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 
 
 def _build_quote_routes_and_best(
@@ -27,10 +28,8 @@ def _build_quote_routes_and_best(
     price_map: dict[str, float] | None,
     v4_index_by_pool: dict[str, dict[str, Any]],
     settlement: dict[str, Any],
-    force_live_refresh: bool,
-    live_route_limit: int,
+    route_live_test_policy: QuoteLiveTestPolicy,
     size_probe_limit: int,
-    probe_all_testnet_routes: bool,
 ) -> tuple[list[dict[str, Any]], list[float], list[float], dict[str, Any]]:
     price_map = price_map or {}
     routes: list[dict[str, Any]] = []
@@ -47,7 +46,11 @@ def _build_quote_routes_and_best(
     best_token_basis_profit = None
     best_token_basis_profit_basis = None
 
-    for route_index, path in enumerate(paths, start=1):
+    matched_route_index = 0
+    for path in paths:
+        if not route_live_test_policy.matches_anchor(path):
+            continue
+        matched_route_index += 1
         route = dict(path)
         overview_route = route.get("overviewRoute") or {}
         route_symbols = list(route.get("routeSymbols") or overview_route.get("pathSymbols") or [])
@@ -106,10 +109,13 @@ def _build_quote_routes_and_best(
         should_run_live_route = bool(
             pools
             and (
-                force_live_refresh
+                route_live_test_policy.force_live_refresh
                 or (
                     not base_quote_analysis.get("steps")
-                    and (probe_all_testnet_routes or route_index <= live_route_limit)
+                    and (
+                        route_live_test_policy.probe_all_testnet_routes
+                        or matched_route_index <= route_live_test_policy.live_route_limit
+                    )
                 )
                 or base_quote_analysis.get("executableCandidate")
             )
@@ -132,8 +138,8 @@ def _build_quote_routes_and_best(
         size_analysis = dict(route.get("sizeAnalysis") or {})
         should_probe_size = bool(
             size_analysis
-            or probe_all_testnet_routes
-            or route_index <= size_probe_limit
+            or route_live_test_policy.probe_all_testnet_routes
+            or matched_route_index <= size_probe_limit
             or quote_analysis.get("livePriceVerified")
             or quote_analysis.get("executableCandidate")
             or quote_analysis.get("chainSubmissionCandidate")

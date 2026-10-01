@@ -501,19 +501,27 @@ def protocol_options_for_chain(
     snapshot = query_flash_loan_pool_discovery(chain_id=chain_id, snapshot_path=snapshot_path)
     options: list[dict[str, str]] = []
     seen: set[str] = set()
-    for item in _sorted_protocols(snapshot.get("protocols") or []):
-        protocol = str(item.get("protocol") or "").strip().lower()
-        if not protocol or protocol in seen:
-            continue
-        seen.add(protocol)
-        options.append({"protocol": protocol, "display_name": str(item.get("display_name") or _protocol_label(protocol))})
     chain_candidates = _chain_protocol_candidates()
-    if chain_id in chain_candidates:
-        for protocol in chain_candidates[int(chain_id)]["protocols"]:
-            if protocol in seen:
+    configured = chain_candidates.get(int(chain_id)) if chain_id is not None else None
+    if configured and configured.get("protocols"):
+        # Chain config is authoritative. A stale discovery snapshot may still
+        # list protocols that were removed from chains/<network>/chain.json,
+        # so do not merge snapshot entries once the chain has explicit config.
+        for protocol in _sorted_protocols(
+            [{"protocol": protocol} for protocol in configured["protocols"]]
+        ):
+            name = str(protocol.get("protocol") or "").strip().lower()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            options.append({"protocol": name, "display_name": _protocol_label(name)})
+    else:
+        for item in _sorted_protocols(snapshot.get("protocols") or []):
+            protocol = str(item.get("protocol") or "").strip().lower()
+            if not protocol or protocol in seen:
                 continue
             seen.add(protocol)
-            options.append({"protocol": protocol, "display_name": _protocol_label(protocol)})
+            options.append({"protocol": protocol, "display_name": str(item.get("display_name") or _protocol_label(protocol))})
     options = [
         {"protocol": item["protocol"], "display_name": item["display_name"]}
         for item in _sorted_protocols(options)

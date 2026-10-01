@@ -30,6 +30,15 @@ ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = (
     / "robinhood-testnet"
     / "v4_token_allowlist.json"
 )
+ROBINHOOD_TESTNET_OFFICIAL_V4_MANIFEST = (
+    ROOT
+    / "test-token_create"
+    / "config"
+    / "testnet-v4-amm"
+    / "manifest.json"
+)
+
+_OFFICIAL_TEST_ROUTE_SYMBOLS = {"TZ", "TA", "TB"}
 
 def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]]:
     """Build symbol->address identity from the chain-owned token allowlist.
@@ -239,6 +248,106 @@ def _routes_payload(*, chain_id: int, protocols: list[str]) -> dict[str, Any]:
             os.environ[key] = previous
 
 
+def _official_v4_route_pool_keys(
+    *,
+    route_symbols: list[str],
+    chain_id: int,
+    protocols: list[str],
+) -> list[dict[str, Any]]:
+    """Return the exact 3 Uniswap V4 PoolKeys used by an official triangle route.
+
+    For the TZ/TA/TB testnet manifest route the configured PoolKeys are the
+    repeatable source of truth; observation can silently pick a different
+    hook pool for the same token pair and change the tested route. For other
+    routes the market observation bridge pool identities are used so hooks are
+    not lost.
+    """
+    manifest_pool_keys = _official_v4_manifest_route_pool_keys(route_symbols)
+    if manifest_pool_keys:
+        return manifest_pool_keys
+    routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
+    route = _match_route(routes_payload.get("routes") or [], route_symbols)
+    if not isinstance(route, dict):
+        return []
+    pool_keys: list[dict[str, Any]] = []
+    for pool in route.get("routePools") or []:
+        if not isinstance(pool, dict):
+            continue
+        pool_key = pool.get("poolKey")
+        currency0 = str(pool_key.get("currency0") or "") if isinstance(pool_key, dict) else ""
+        currency1 = str(pool_key.get("currency1") or "") if isinstance(pool_key, dict) else ""
+        fee = pool_key.get("fee") if isinstance(pool_key, dict) else pool.get("fee")
+        tickSpacing = pool_key.get("tickSpacing") if isinstance(pool_key, dict) else pool.get("tickSpacing")
+        hooks = (
+            str(pool_key.get("hooks") or pool.get("hooks") or "0x0000000000000000000000000000000000000000")
+            if isinstance(pool_key, dict)
+            else str(pool.get("hooks") or "0x0000000000000000000000000000000000000000")
+        )
+        if (not currency0 or not currency1) and isinstance(pool.get("routeAddresses"), list):
+            addresses = [str(item).strip() for item in pool["routeAddresses"] if str(item).strip()]
+            if len(addresses) >= 2:
+                currency0, currency1 = addresses[0], addresses[1]
+        if not currency0 or not currency1 or fee is None or tickSpacing is None:
+            continue
+        pool_keys.append(
+            {
+                "currency0": currency0,
+                "currency1": currency1,
+                "fee": int(fee),
+                "tickSpacing": int(tickSpacing),
+                "hooks": hooks,
+            }
+        )
+    return pool_keys
+
+
+def _official_v4_manifest_route_pool_keys(route_symbols: list[str]) -> list[dict[str, Any]]:
+    normalized = [str(symbol or "").strip().upper() for symbol in route_symbols]
+    if (
+        len(normalized) != 4
+        or normalized[0] != normalized[-1]
+        or normalized[0] not in _OFFICIAL_TEST_ROUTE_SYMBOLS
+        or set(normalized) != _OFFICIAL_TEST_ROUTE_SYMBOLS
+    ):
+        return []
+    try:
+        data = json.loads(ROBINHOOD_TESTNET_OFFICIAL_V4_MANIFEST.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    official = data.get("officialV4") if isinstance(data, dict) else None
+    if not isinstance(official, dict):
+        return []
+    try:
+        fee = int(official.get("fee"))
+        tick_spacing = int(official.get("tickSpacing"))
+    except (TypeError, ValueError):
+        return []
+    hooks = str(official.get("hooks") or "0x0000000000000000000000000000000000000000")
+    addresses = _official_route_addresses(normalized)
+    if len(addresses) != 4 or addresses[0].lower() != addresses[-1].lower():
+        return []
+    pool_keys: list[dict[str, Any]] = []
+    for index in range(3):
+        currency0 = addresses[index]
+        currency1 = addresses[index + 1]
+        try:
+            swapped = int(currency0.lower(), 16) > int(currency1.lower(), 16)
+        except ValueError:
+            return []
+        if swapped:
+            currency0, currency1 = currency1, currency0
+        pool_keys.append(
+            {
+                "currency0": currency0,
+                "currency1": currency1,
+                "fee": fee,
+                "tickSpacing": tick_spacing,
+                "hooks": hooks,
+            }
+        )
+    return pool_keys
+
+
 def _probe_record_item(
     probe_analysis: dict[str, Any],
     probe_amount: float,
@@ -328,9 +437,10 @@ def _optimize_amount_ladder(
         attempts_used += 1
         return candidate_analysis, _parse_profit(candidate_analysis)
 
-    lower_amount = best_amount
+    lower_amount = best_amount / 2.0
     upper_amount = None
     initial_profitable = best_profit is not None and best_profit > 0
+    base_amount = best_amount
 
     if not initial_profitable:
         # Unprofitable at the initial amount: halve until the first profitable
@@ -347,16 +457,18 @@ def _optimize_amount_ladder(
                 best_amount = test_amount
                 best_profit = candidate_profit
                 best_analysis = candidate_analysis
-                lower_amount = test_amount
+                base_amount = test_amount
+                lower_amount = test_amount / 2.0
                 upper_amount = last_unprofitable_amount
                 found_upper_neighbor = True
-                comparison_base_amount = last_unprofitable_amount
+                comparison_base_amount = test_amount
                 break
             last_unprofitable_amount = test_amount
             test_amount /= 2.0
     else:
         # Profitable at the initial amount: double until the next candidate no
-        # longer beats the current best, then refine with the midpoint rule.
+        # longer beats the current best, then refine with both midpoint
+        # directions so direction of the next step is chosen by profit.
         test_amount = best_amount * 2.0
         while attempts_used < max_attempts:
             probe = _probe(test_amount)
@@ -367,7 +479,8 @@ def _optimize_amount_ladder(
                 best_amount = test_amount
                 best_profit = candidate_profit
                 best_analysis = candidate_analysis
-                lower_amount = test_amount
+                base_amount = test_amount
+                lower_amount = test_amount / 2.0
                 comparison_base_amount = test_amount
                 upper_amount = None
                 found_upper_neighbor = False
@@ -383,20 +496,60 @@ def _optimize_amount_ladder(
         refined_around_peak = True
         tolerance = max(abs(float(best_amount)), 1.0) * 1e-9
         while attempts_used < max_attempts and float(upper_amount) - float(lower_amount) > tolerance:
-            mid_amount = (float(lower_amount) + float(upper_amount)) / 2.0
-            if mid_amount <= 0:
+            if float(upper_amount) <= float(base_amount) + tolerance or float(lower_amount) >= float(base_amount) - tolerance:
                 break
-            probe = _probe(mid_amount)
-            if probe is None:
+            left_mid = float(lower_amount) + (float(base_amount) - float(lower_amount)) / 2.0
+            right_mid = float(base_amount) + (float(upper_amount) - float(base_amount)) / 2.0
+            if left_mid <= float(lower_amount) or left_mid >= float(base_amount) or right_mid <= float(base_amount) or right_mid >= float(upper_amount):
                 break
-            candidate_analysis, candidate_profit = probe
-            if candidate_profit is not None and candidate_profit > best_profit:
-                best_amount = mid_amount
-                best_profit = candidate_profit
-                best_analysis = candidate_analysis
-                comparison_base_amount = mid_amount
+
+            left = _probe(left_mid)
+            right = _probe(right_mid)
+            if left is None and right is None:
                 break
-            upper_amount = mid_amount
+            left_analysis, left_profit = left if left is not None else (None, None)
+            right_analysis, right_profit = right if right is not None else (None, None)
+            left_ok = left_profit is not None and left_profit > 0
+            right_ok = right_profit is not None and right_profit > 0
+            left_improves = left_ok and left_profit is not None and left_profit > best_profit
+            right_improves = right_ok and right_profit is not None and right_profit > best_profit
+            if not left_improves and not right_improves:
+                break
+
+            old_base = float(base_amount)
+            if left_ok and right_ok:
+                if right_profit is not None and left_profit is not None and left_profit >= right_profit:
+                    if left_improves and left_analysis is not None and left_profit is not None:
+                        best_amount = left_mid
+                        best_profit = left_profit
+                        best_analysis = left_analysis
+                        comparison_base_amount = left_mid
+                    upper_amount = old_base
+                    base_amount = left_mid
+                else:
+                    if right_improves and right_analysis is not None and right_profit is not None:
+                        best_amount = right_mid
+                        best_profit = right_profit
+                        best_analysis = right_analysis
+                        comparison_base_amount = right_mid
+                    lower_amount = old_base
+                    base_amount = right_mid
+            elif left_ok:
+                if left_improves and left_analysis is not None and left_profit is not None:
+                    best_amount = left_mid
+                    best_profit = left_profit
+                    best_analysis = left_analysis
+                    comparison_base_amount = left_mid
+                upper_amount = old_base
+                base_amount = left_mid
+            elif right_ok:
+                if right_improves and right_analysis is not None and right_profit is not None:
+                    best_amount = right_mid
+                    best_profit = right_profit
+                    best_analysis = right_analysis
+                    comparison_base_amount = right_mid
+                lower_amount = old_base
+                base_amount = right_mid
     selection_confirmed = bool(found_upper_neighbor)
     if selection_confirmed:
         selection_basis = "offchain_amount_ladder"

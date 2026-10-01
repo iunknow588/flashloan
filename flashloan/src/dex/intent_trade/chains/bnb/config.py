@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from typing import Any
+from core.chain_data_registry import chain_data_by_network
 from dex.intent_trade.chains.common.routes import (
     all_unordered_pairs,
     best_edges_by_pair,
@@ -14,25 +16,34 @@ from dex.intent_trade.chains.common.routes import (
 
 CHAIN_ID = 56
 NETWORK = "bnb"
-DEFAULT_RPC_URLS = (
-    "https://ultra-prettiest-frost.bsc.quiknode.pro/a1756ab6e43e3347797d64bccf5416f5b4d63995",
-    "https://bsc.publicnode.com",
-    "https://1rpc.io/bnb",
-    "https://bsc-dataseed.bnbchain.org",
-    "https://bsc-dataseed-public.bnbchain.org",
-    "https://bsc-dataseed.binance.org/",
-    "https://bsc-dataseed1.binance.org/",
-    "https://bsc-dataseed2.binance.org/",
-)
-DEFAULT_LOG_RPC_URLS = (
-    "https://ultra-prettiest-frost.bsc.quiknode.pro/a1756ab6e43e3347797d64bccf5416f5b4d63995",
-    "https://bsc-rpc.publicnode.com",
-    "https://bsc.publicnode.com",
-    "https://1rpc.io/bnb",
-)
-DEFAULT_WSS_RPC_URLS = (
-    "wss://ultra-prettiest-frost.bsc.quiknode.pro/a1756ab6e43e3347797d64bccf5416f5b4d63995",
-)
+
+
+def _chain_row() -> dict[str, Any]:
+    try:
+        row = chain_data_by_network("bnb") or {}
+    except Exception:
+        return {}
+    return row if isinstance(row, dict) else {}
+
+
+def _chain_rpc_urls() -> tuple[str, ...]:
+    row = _chain_row()
+    rpc = row.get("rpc") if isinstance(row.get("rpc"), dict) else {}
+    if rpc:
+        primary = str(rpc.get("primary") or "").strip()
+        fallbacks = rpc.get("fallbacks") or []
+        values = [primary, *(str(url).strip() for url in fallbacks if str(url).strip())]
+    else:
+        values = row.get("rpc_urls") or row.get("officialRpcUrls") or [
+            row.get("rpc_url"),
+            row.get("officialRpc"),
+        ]
+    return tuple(dict.fromkeys(str(url).strip() for url in values if str(url).strip()))
+
+
+DEFAULT_RPC_URLS = _chain_rpc_urls()
+DEFAULT_LOG_RPC_URLS = _chain_rpc_urls()
+DEFAULT_WSS_RPC_URLS: tuple[str, ...] = ()
 
 
 def _split_env_urls(*names: str) -> tuple[str, ...]:
@@ -45,22 +56,27 @@ def _split_env_urls(*names: str) -> tuple[str, ...]:
     return tuple(urls)
 
 
-def rpc_urls_from_env(default: tuple[str, ...] = DEFAULT_RPC_URLS) -> tuple[str, ...]:
-    return _split_env_urls("BNB_RPCS", "BNB_RPC_URLS", "BSC_RPCS", "BSC_RPC_URLS", "BNB_RPC", "BSC_RPC") or default
+def rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]:
+    env_urls = _split_env_urls("BNB_RPCS", "BNB_RPC_URLS", "BSC_RPCS", "BSC_RPC_URLS", "BNB_RPC", "BSC_RPC")
+    fallback = tuple(default or DEFAULT_RPC_URLS)
+    if env_urls:
+        return tuple(dict.fromkeys([*env_urls, *fallback]))
+    return fallback
 
 
-def log_rpc_urls_from_env(default: tuple[str, ...] = DEFAULT_LOG_RPC_URLS) -> tuple[str, ...]:
-    return (
-        _split_env_urls(
-            "BNB_LOG_RPCS",
-            "BNB_LOG_RPC_URLS",
-            "BSC_LOG_RPCS",
-            "BSC_LOG_RPC_URLS",
-            "BNB_EVENT_RPCS",
-            "BNB_EVENT_RPC_URLS",
-        )
-        or default
+def log_rpc_urls_from_env(default: tuple[str, ...] | None = None) -> tuple[str, ...]:
+    env_urls = _split_env_urls(
+        "BNB_LOG_RPCS",
+        "BNB_LOG_RPC_URLS",
+        "BSC_LOG_RPCS",
+        "BSC_LOG_RPC_URLS",
+        "BNB_EVENT_RPCS",
+        "BNB_EVENT_RPC_URLS",
     )
+    fallback = tuple(default or DEFAULT_LOG_RPC_URLS)
+    if env_urls:
+        return tuple(dict.fromkeys([*env_urls, *fallback]))
+    return fallback
 
 
 @dataclass(frozen=True)

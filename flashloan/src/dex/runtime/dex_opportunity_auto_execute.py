@@ -40,6 +40,9 @@ def _auto_execute_skip_reason(attempt: dict[str, Any], *, chain_id: int | None) 
     if not bool(evidence.get("readyForTransactionPreflight")):
         return "not_ready_for_transaction_preflight"
     costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    best_amount_confirmed = bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))
+    if not best_amount_confirmed:
+        return "best_amount_not_confirmed"
     net_profit = costs.get("netProfitUsd")
     if net_profit is None:
         net_profit = costs.get("netProfitAmount")

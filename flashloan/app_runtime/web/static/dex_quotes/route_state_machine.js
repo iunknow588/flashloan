@@ -3,6 +3,67 @@
 
 const routeEvidence = route => route?.live_onchain_evidence || route?.quoteAnalysis?.live_onchain_evidence || route?.quote?.live_onchain_evidence || {};
 
+const unconfirmedFixedAmount = costs => {
+  if (!costs || typeof costs !== "object") return false;
+  if (costs.bestAmountMissing === true) return true;
+  const reason = String(costs.selectedBorrowInputAmountReason || "").toLowerCase();
+  return costs.selectedBorrowInputAmountConfirmedMax !== true
+    && ["requested_amount_fallback", "onchain_execution_size_probe_confirmed_profitable_lower_bound"].includes(reason);
+};
+
+var activeExecution = { routeKey: "", state: "", txHash: "", startedAt: 0 };
+
+const evidenceNeedsLiveReview = evidence => {
+  if (!evidence || typeof evidence !== "object") return false;
+  const lower = String(evidence?.status || evidence?.executionTrust || "").toLowerCase();
+  return lower === "static_reference_pending_live_review" || lower === "static_reference_only" || lower === "static_live_quoter_estimate" || lower === "live_quote_reference_only";
+};
+
+const terminalRouteStatus = status => [
+  "route_unprofitable",
+  "slippage_limit_exceeded",
+  "live_quote_failed",
+  "quote_failed",
+  "not_enough_liquidity",
+  "pool_not_initialized",
+  "pool_insufficient_for_profitable_execution",
+  "missing_effective_pool",
+  "missing_route_identity",
+  "route_lacks_complete_token_address_identity",
+  "rpc_verification_failed",
+  "rpc_verification_timeout",
+  "adapter_required",
+  "missing_trigger_block",
+].includes(String(status || "").toLowerCase());
+
+const routeNeedsLiveReview = route => {
+  if (!route || typeof route !== "object") return false;
+  const evidence = routeEvidence(route);
+  if (evidenceNeedsLiveReview(evidence)) return true;
+  const lower = String(route?.quoteStatus || route?.onchainEvidenceStatus || route?.reviewMode || "").toLowerCase();
+  return lower === "static_reference_pending_live_review" || lower === "static_reference_only" || lower === "static_live_quoter_estimate" || lower === "live_quote_reference_only";
+};
+
+const routeExecutionKey = route => {
+  if (!route || typeof route !== "object") return "";
+  const symbols = Array.isArray(route.routeSymbols)
+    ? route.routeSymbols.map(item => String(item || "").trim().toUpperCase()).filter(Boolean)
+    : [];
+  const addresses = Array.isArray(route.routeAddresses)
+    ? route.routeAddresses.map(item => String(item || "").trim().toLowerCase()).filter(Boolean)
+    : Array.isArray(route?.quoteAnalysis?.routeAddresses)
+      ? route.quoteAnalysis.routeAddresses.map(item => String(item || "").trim().toLowerCase()).filter(Boolean)
+      : [];
+  const poolIds = Array.isArray(route.poolIds)
+    ? route.poolIds.map(item => String(item || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  const pools = Array.isArray(route.routePools)
+    ? route.routePools.map(pool => String(pool?.pool || pool?.poolId || pool?.pairAddress || pool?.pairSymbol || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  const chain = String(route.chain_id ?? route.chainId ?? "");
+  return ["exec", chain || "-", addresses.join("|"), poolIds.join("|"), pools.join("|"), symbols.join(" -> ")].join("|");
+};
+
 const routeHasCompletedOffchainReview = route => {
   const evidence = routeEvidence(route);
   if (!evidence || typeof evidence !== "object" || !Object.keys(evidence).length) return false;
@@ -54,6 +115,7 @@ const ROUTE_UI_TRANSITIONS = Object.freeze({
   [ROUTE_UI_STATE.EXECUTION_PENDING]: [
     ROUTE_UI_STATE.EXECUTION_SUBMITTED,
     ROUTE_UI_STATE.EXECUTION_FAILED,
+    ROUTE_UI_STATE.PREFLIGHT_DONE,
   ],
   [ROUTE_UI_STATE.EXECUTION_SUBMITTED]: [
     ROUTE_UI_STATE.EXECUTION_FAILED,
@@ -67,19 +129,29 @@ const ROUTE_UI_TRANSITIONS = Object.freeze({
 const inferUiState = route => {
   const stage = String(route?.__reviewStage || "");
   if (["preflight_failed"].includes(stage)) return ROUTE_UI_STATE.PREFLIGHT_FAILED;
-  if (stage === "preflight") return ROUTE_UI_STATE.PREFLIGHT_DONE;
+  if (stage === "preflight") return hasConfirmedBestAmount(route) ? ROUTE_UI_STATE.PREFLIGHT_DONE : ROUTE_UI_STATE.OFFCHAIN_ESTIMATE;
   if (stage === "execution_pending") return ROUTE_UI_STATE.EXECUTION_PENDING;
   if (stage === "execution_failed") return ROUTE_UI_STATE.EXECUTION_FAILED;
   if (stage === "execution") return ROUTE_UI_STATE.EXECUTION_SUBMITTED;
   if (route?.reviewMode === "pending_offchain_review") return ROUTE_UI_STATE.OFFCHAIN_PENDING;
+  if (routeNeedsLiveReview(route)) return ROUTE_UI_STATE.OFFCHAIN_ESTIMATE;
   const evidence = routeEvidence(route);
+  if (
+    String(evidence?.status || route?.quoteStatus || "").toLowerCase() === "static_reference_pending_live_review"
+  ) {
+    return ROUTE_UI_STATE.OFFCHAIN_ESTIMATE;
+  }
+  if (terminalRouteStatus(evidence?.status || route?.quoteStatus)) {
+    return ROUTE_UI_STATE.PREFLIGHT_FAILED;
+  }
   if (
     evidence &&
     typeof evidence === "object" &&
     (
       String(evidence.status || "").trim() !== "" ||
       (evidence.costModel && typeof evidence.costModel === "object" && evidence.costModel.selectedBorrowInputAmountRaw != null)
-    )
+    ) &&
+    hasConfirmedBestAmount(route)
   ) {
     return ROUTE_UI_STATE.PREFLIGHT_DONE;
   }
@@ -89,16 +161,36 @@ const inferUiState = route => {
 const uiStateOf = route => String(route?.__uiState || inferUiState(route) || ROUTE_UI_STATE.OFFCHAIN_ESTIMATE);
 
 const hasConfirmedBestAmount = route => {
+  if (routeNeedsLiveReview(route)) return false;
   const evidence = routeEvidence(route);
   const analysis = route?.quoteAnalysis && typeof route.quoteAnalysis === "object" ? route.quoteAnalysis : {};
+  const costs = evidence && typeof evidence === "object" && evidence.costModel && typeof evidence.costModel === "object" ? evidence.costModel : {};
+  const bestAmountConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
+    || costs.bestAmountConfirmed === true
+    || evidence?.bestAmountConfirmed === true
+    || evidence?.readyForTransactionPreflight === true
+    || analysis.bestAmountConfirmed === true
+    || route?.bestAmountConfirmed === true;
   if (
     evidence &&
     typeof evidence === "object" &&
-    (evidence.costModel && typeof evidence.costModel === "object" && evidence.costModel.selectedBorrowInputAmount != null)
+    evidence.costModel &&
+    typeof evidence.costModel === "object" &&
+    evidence.costModel.bestAmountMissing === true &&
+    !bestAmountConfirmed
+  ) {
+    return false;
+  }
+  if ((analysis.bestAmountMissing === true || route?.bestAmountMissing === true) && !bestAmountConfirmed) return false;
+  if (unconfirmedFixedAmount(evidence?.costModel) && !bestAmountConfirmed) return false;
+  if (!bestAmountConfirmed) return false;
+  if (
+    evidence &&
+    typeof evidence === "object" &&
+    (costs.selectedBorrowInputAmount != null || String(evidence.status || "").toLowerCase() === "live_verified")
   ) {
     return true;
   }
-  if (String(evidence?.status || "").toLowerCase() === "live_verified") return true;
   return analysis.bestAmountConfirmed === true;
 };
 
@@ -112,6 +204,19 @@ const routeBestAmountPick = (route, evidence, analysis) => {
   const safeEvidence = evidence && typeof evidence === "object" ? evidence : {};
   const safeAnalysis = analysis && typeof analysis === "object" ? analysis : {};
   const costs = safeEvidence.costModel && typeof safeEvidence.costModel === "object" ? safeEvidence.costModel : {};
+  const evidenceConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
+    || costs.bestAmountConfirmed === true
+    || safeEvidence.bestAmountConfirmed === true
+    || safeEvidence.readyForTransactionPreflight === true
+    || safeAnalysis.bestAmountConfirmed === true;
+  if (
+    (costs.bestAmountMissing === true
+      || safeAnalysis.bestAmountMissing === true
+      || route?.bestAmountMissing === true
+      || unconfirmedFixedAmount(costs)) && !evidenceConfirmed
+  ) {
+    return null;
+  }
   const analysisBest = safeAnalysis.bestAmount ?? safeAnalysis.best_amount ?? null;
   const calcBest =
     safeAnalysis.bestAmountCalculation?.bestAmount ??
@@ -122,7 +227,26 @@ const routeBestAmountPick = (route, evidence, analysis) => {
     route?.sizeAnalysis?.recommendedBorrowInputAmount ??
     route?.sizeAnalysis?.tokenAmountSteps?.[0] ??
     null;
-  return costs.selectedBorrowInputAmount ?? costs.borrowInputAmount ?? analysisBest ?? calcBest ?? sizeBest ?? null;
+  const confirmedBest = costs.selectedBorrowInputAmount ?? costs.borrowInputAmount ?? analysisBest ?? calcBest;
+  return confirmedBest ?? sizeBest ?? null;
+};
+
+const bestAmountMissingOf = (route, evidence, analysis) => {
+  const safeEvidence = evidence && typeof evidence === "object" ? evidence : {};
+  const safeAnalysis = analysis && typeof analysis === "object" ? analysis : {};
+  const costs = safeEvidence.costModel && typeof safeEvidence.costModel === "object" ? safeEvidence.costModel : {};
+  const bestAmountConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
+    || costs.bestAmountConfirmed === true
+    || safeEvidence.bestAmountConfirmed === true
+    || safeEvidence.readyForTransactionPreflight === true
+    || safeAnalysis.bestAmountConfirmed === true;
+  if (
+    (route?.bestAmountMissing === true
+      || safeAnalysis.bestAmountMissing === true
+      || costs.bestAmountMissing === true) && !bestAmountConfirmed
+  ) return true;
+  const picked = routeBestAmountPick(route, safeEvidence, safeAnalysis);
+  return picked === null || picked === undefined || picked === "" || !bestAmountConfirmed;
 };
 
 const canAutoEstimate = route => [ROUTE_UI_STATE.OFFCHAIN_ESTIMATE, ROUTE_UI_STATE.OFFCHAIN_PENDING].includes(effectiveUiState(route));
@@ -162,6 +286,13 @@ const setRouteUiState = (route, nextState, meta = {}) => {
   const tracked = Object.values(ROUTE_UI_STATE).includes(String(route.__uiState || ""));
   if (tracked && currentState !== nextState && !allowed.includes(nextState)) return route;
   route.__uiState = nextState;
+  if ([
+    ROUTE_UI_STATE.EXECUTION_PENDING,
+    ROUTE_UI_STATE.EXECUTION_SUBMITTED,
+    ROUTE_UI_STATE.EXECUTION_FAILED,
+  ].includes(nextState)) {
+    route.__executionRouteKey = routeExecutionKey(route);
+  }
   const stage = uiStageFromUiState(nextState);
   route.__reviewStage = stage;
   route.reviewMode = nextState;
@@ -205,18 +336,30 @@ const bestAmountDisplayLabel = ({evidence, analysis, stage = "estimate"}) => {
   return estimateBestAmountDisplayLabel({evidence, analysis});
 };
 
-function normalizedReviewStage(route, latestBroadcast) {
-  if (latestBroadcast?.txHashes?.length) return "execution";
+function normalizedReviewStage(route, latestBroadcast, currentExecution) {
+  const active = currentExecution && typeof currentExecution === "object" ? currentExecution : activeExecution;
+  const routeKey = routeExecutionKey(route);
+  const selfExecutionKey = route?.__executionRouteKey || "";
+  const selfState = String(route?.__uiState || "");
+  const activeMatches = Boolean(active?.routeKey && active.routeKey === routeKey);
+  const selfMatches = Boolean(selfExecutionKey && selfExecutionKey === routeKey);
+  if (activeMatches && active.state) return uiStageFromUiState(active.state);
+  if (activeMatches && active.txHash) return "execution";
+  if (selfMatches && [ROUTE_UI_STATE.EXECUTION_PENDING, ROUTE_UI_STATE.EXECUTION_SUBMITTED, ROUTE_UI_STATE.EXECUTION_FAILED].includes(selfState)) {
+    return uiStageFromUiState(selfState);
+  }
   return uiStageFromUiState(effectiveUiState(route));
 }
 
 const estimateStageQuoteStatus = ({pending, terminalStatus, evidenceStatus}) => {
+  if (String(evidenceStatus || "").toLowerCase() === "static_reference_pending_live_review") return evidenceStatusEx(evidenceStatus);
   if (pending) return "链下估算完成";
   if (terminalStatus) return evidenceStatusEx(evidenceStatus);
   return "链下估算完成";
 };
 
 const preflightStageQuoteStatus = ({pending, terminalStatus, evidenceStatus}) => {
+  if (String(evidenceStatus || "").toLowerCase() === "static_reference_pending_live_review") return evidenceStatusEx(evidenceStatus);
   if (terminalStatus === "preflight_failed") return "链上复核失败";
   if (pending) return "链上复核待开始";
   if (terminalStatus) return evidenceStatusEx(evidenceStatus);
@@ -230,12 +373,14 @@ const executionStageQuoteStatus = ({failed, pending}) => {
 };
 
 const estimateStageResultStatus = ({pending, terminalStatus, evidenceStatus}) => {
+  if (String(evidenceStatus || "").toLowerCase() === "static_reference_pending_live_review") return evidenceStatusEx(evidenceStatus);
   if (pending) return "链下估算完成";
   if (terminalStatus) return evidenceStatusEx(evidenceStatus);
   return "链下估算完成";
 };
 
 const preflightStageResultStatus = ({pending, terminalStatus, evidenceStatus}) => {
+  if (String(evidenceStatus || "").toLowerCase() === "static_reference_pending_live_review") return evidenceStatusEx(evidenceStatus);
   if (terminalStatus === "preflight_failed") return "链上复核失败";
   if (pending) return "待链上复核";
   if (terminalStatus) return evidenceStatusEx(evidenceStatus);

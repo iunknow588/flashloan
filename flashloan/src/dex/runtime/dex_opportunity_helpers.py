@@ -5,9 +5,12 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import time
 from typing import Any
 
 from core.chain_data_registry import chain_data_by_chain_id
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
 from dex.runtime.dex_quote_evidence_helpers import dex_error_stack_from_state
 from dex.runtime.dex_onchain_quote_evidence import _complete_route_steps, _pool_map
 
@@ -102,6 +105,7 @@ def _snapshot_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
         "onchain_evidence_failed_route_count": int(summary.get("onchainEvidenceFailedRouteCount") or 0),
         "live_verified_route_count": int(summary.get("liveVerifiedRouteCount") or 0),
         "live_profitable_route_count": int(summary.get("liveProfitableRouteCount") or 0),
+        "auto_executable_closed_loop_count": int(summary.get("autoExecutableClosedLoopCount") or 0),
         "best_live_net_profit_usd": summary.get("bestLiveNetProfitUsd"),
     }
 
@@ -113,6 +117,174 @@ def _route_evidence(route: dict[str, Any]) -> dict[str, Any]:
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
     evidence = analysis.get("live_onchain_evidence")
     return evidence if isinstance(evidence, dict) else {}
+
+
+def _evidence_ready_for_auto_execute(row: dict[str, Any]) -> bool:
+    """Return whether a route evidence row satisfies the auto-execute gates."""
+    if not row:
+        return False
+    if str(row.get("status") or "").strip().lower() != "live_verified":
+        return False
+    if not bool(row.get("readyForTransactionPreflight")):
+        return False
+    costs = row.get("costModel") if isinstance(row.get("costModel"), dict) else {}
+    if not (bool(row.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))):
+        return False
+    profitable = bool(row.get("profitable")) or bool((row.get("validation") or {}).get("profitableAfterCosts"))
+    if not profitable:
+        net_profit = costs.get("netProfitUsd")
+        if net_profit is None:
+            net_profit = costs.get("netProfitAmount")
+        try:
+            profitable = float(net_profit or 0) > 0
+        except (TypeError, ValueError):
+            profitable = False
+    return profitable
+
+
+def _route_addresses_from_route(route: dict[str, Any]) -> list[str]:
+    for key in ("routeAddresses", "route_addresses", "addresses"):
+        value = route.get(key)
+        if isinstance(value, list):
+            addresses = [str(item or "").strip().lower() for item in value if str(item or "").strip()]
+            if addresses:
+                return addresses
+    return []
+
+
+def _route_evidence_dedup_key(route: dict[str, Any]) -> str:
+    addresses = _route_addresses_from_route(route)
+    if addresses:
+        return "addr|" + "|".join(addresses)
+    raw_path = route.get("routeSymbols") or route.get("symbolPair") or route.get("path") or []
+    if isinstance(raw_path, str):
+        raw_path = [part for part in raw_path.split(" -> ") if str(part).strip()]
+    parts = []
+    for item in raw_path or []:
+        s = str(item).strip().upper()
+        if not s:
+            continue
+        if s.startswith("0X") and len(s) < 20:
+            continue
+        parts.append(s)
+    return "symbol|" + " -> ".join(parts)
+
+
+def _recent_attempt_max_age_seconds() -> float:
+    raw = os.getenv("DEX_RECENT_ATTEMPT_MAX_AGE_SECONDS", "600")
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return 600.0
+
+
+def _attempt_timestamp(attempt: dict[str, Any]) -> float | None:
+    raw = str(attempt.get("created_at") or attempt.get("observed_at") or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _attempt_route_evidence(attempt: dict[str, Any]) -> dict[str, Any]:
+    quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+    candidates = (
+        quote.get("live_onchain_evidence"),
+        attempt.get("live_onchain_evidence"),
+        attempt.get("evidence"),
+    )
+    for candidate in candidates:
+        if isinstance(candidate, dict) and candidate:
+            return candidate
+    return {}
+
+
+def _attempt_has_submitted_transaction(attempt: dict[str, Any]) -> bool:
+    for key in ("tx_hash", "transaction_hash", "txHash", "transactionHash"):
+        if str(attempt.get(key) or "").strip():
+            return True
+    quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+    for key in ("tx_hash", "transaction_hash", "txHash", "transactionHash"):
+        if str(quote.get(key) or "").strip():
+            return True
+    return False
+
+
+def merge_recent_manual_review_evidence_into_routes(
+    routes: list[dict[str, Any]],
+    *,
+    chain_id: int,
+    recent_attempt_limit: int = 500,
+    max_age_seconds: float | None = None,
+) -> list[dict[str, Any]]:
+    """Fold recent manual quote-route test evidence into scanner routes.
+
+    Submitted/executed attempts are intentionally excluded so a manually
+    executed opportunity is not offered again by the scanner as an executable
+    candidate. The route keeps fresh live evidence only for manual reviews
+    that have not produced a transaction yet.
+    """
+    if not routes or chain_id is None:
+        return routes
+    try:
+        log_path = cow_execution_attempt_log_path(chain_id=int(chain_id))
+        attempts = load_recent_cow_execution_attempts_jsonl(
+            log_path,
+            limit=max(1, int(recent_attempt_limit)),
+            chain_ids=[int(chain_id)],
+        )
+    except Exception:
+        return routes
+    latest_evidence_by_route = {}
+    max_age = _recent_attempt_max_age_seconds() if max_age_seconds is None else float(max_age_seconds)
+    now = time.time()
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        attempt_ts = _attempt_timestamp(attempt)
+        if attempt_ts is None or now - attempt_ts > max_age:
+            continue
+        if _attempt_has_submitted_transaction(attempt):
+            continue
+        quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+        raw_path = attempt.get("route_path") or quote.get("path") or attempt.get("path") or []
+        evidence = _attempt_route_evidence(attempt)
+        if not isinstance(evidence, dict) or not evidence.get("status"):
+            continue
+        route_key = _route_evidence_dedup_key(
+            {
+                "routeAddresses": evidence.get("routeAddresses") or evidence.get("route_addresses") or [],
+                "routeSymbols": raw_path,
+            }
+        )
+        if not route_key:
+            continue
+        latest_evidence_by_route.setdefault(route_key, evidence)
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        route_key = _route_evidence_dedup_key(route)
+        evidence = latest_evidence_by_route.get(route_key)
+        if not isinstance(evidence, dict) or not evidence:
+            continue
+        existing_evidence = route.get("live_onchain_evidence")
+        existing_status = (
+            str(existing_evidence.get("status") or "")
+            if isinstance(existing_evidence, dict)
+            else ""
+        ).strip().lower()
+        attempt_status = str(evidence.get("status") or "").strip().lower()
+        if attempt_status != "live_verified":
+            continue
+        if existing_status == "live_verified":
+            continue
+        _merge_onchain_evidence_into_route(route, evidence)
+    return routes
 
 
 def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
@@ -128,7 +300,6 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
         in {
             "live_verified",
             "live_quote_failed",
-            "live_quote_reference_only",
             "route_unprofitable",
             "slippage_limit_exceeded",
             "pool_not_initialized",
@@ -143,9 +314,14 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
     )
     deferred_count = sum(status == "live_evidence_deferred" for status in statuses)
     not_reviewed_count = sum(status == "not_reviewed_this_scan" for status in statuses)
+    pending_reference_count = sum(
+        status in {"static_reference_pending_live_review", "live_quote_reference_only"}
+        for status in statuses
+    )
     failed_count = sum(status in {"live_quote_failed", "rpc_verification_failed", "rpc_verification_timeout"} for status in statuses)
     unreviewed_count = sum(not evidence for evidence in evidence_rows)
     ready_count = sum(bool(row.get("readyForTransactionPreflight")) for row in evidence_rows)
+    auto_executable_closed_loop_count = sum(_evidence_ready_for_auto_execute(row) for row in evidence_rows)
     adapter_count = sum(
         status in {"", "live_evidence_deferred"}
         and bool((route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}).get("adapterRequired"))
@@ -173,16 +349,18 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
         summary["onchainEvidenceDeferredRouteCount"] = deferred_count
         summary["onchainEvidenceNotReviewedRouteCount"] = not_reviewed_count
         summary["onchainEvidenceFailedRouteCount"] = failed_count
-        summary["onchainEvidencePendingRouteCount"] = deferred_count + not_reviewed_count + unreviewed_count
-        summary["liveQuoterRequiredCount"] = deferred_count + not_reviewed_count + unreviewed_count
+        summary["onchainEvidencePendingRouteCount"] = deferred_count + not_reviewed_count + unreviewed_count + pending_reference_count
+        summary["liveQuoterRequiredCount"] = deferred_count + not_reviewed_count + unreviewed_count + pending_reference_count
         summary["executableCandidateCount"] = ready_count
         summary["chainSubmissionCandidateCount"] = ready_count
+        summary["autoExecutableClosedLoopCount"] = auto_executable_closed_loop_count
         summary["sdkAdapterRequiredCount"] = adapter_count
         summary["liveVerifiedRouteCount"] = sum(status == "live_verified" for status in statuses)
         summary["liveProfitableRouteCount"] = sum(value > 0 for value in live_profits)
         summary["bestLiveNetProfitUsd"] = max(live_profits) if live_profits else None
         summary["profitableRouteCount"] = summary["liveProfitableRouteCount"]
         summary["bestNetProfitUsd"] = summary["bestLiveNetProfitUsd"]
+    summary["autoExecutableClosedLoopCount"] = auto_executable_closed_loop_count
     return summary
 
 
@@ -573,11 +751,22 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     if _evidence_has_cache_source(evidence):
         status = "static_reference_pending_live_review"
         evidence = {**evidence, "status": status, "executionTrust": "static_reference_pending_live_review"}
+    live_hops = evidence.get("hops") if isinstance(evidence.get("hops"), list) else []
+    has_live_hops = bool(live_hops)
+    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+    has_trusted_live_amounts = bool(
+        has_live_hops
+        or evidence.get("bestAmountConfirmed")
+        or costs.get("bestAmountConfirmed")
+    )
+    if status == "live_verified" and not has_trusted_live_amounts:
+        status = "static_reference_pending_live_review"
+        evidence = {**evidence, "status": status, "executionTrust": "static_reference_pending_live_review"}
     live_verified = bool(evidence.get("livePriceVerified")) or status == "live_verified"
     is_deferred = status in {"live_evidence_deferred", "not_reviewed_this_scan"}
+    static_reference_status = status == "static_reference_pending_live_review"
     terminal_depth_status = status in TERMINAL_DEPTH_STATUSES
     validation = evidence.get("validation") if isinstance(evidence.get("validation"), dict) else {}
-    costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
     blockers = [str(item) for item in evidence.get("blockers") or [] if str(item).strip()]
 
     # Once real on-chain Quoter/eth_call evidence has been produced, static
@@ -623,28 +812,28 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     )
     reference_input_amount = (
         cost_borrow_input_amount
-        if _number_or_none(cost_borrow_input_amount) is not None
-        else None
+        if has_trusted_live_amounts and _number_or_none(cost_borrow_input_amount) is not None
+        else (analysis.get("referenceInputAmount") if static_reference_status or is_deferred else None)
     )
     reference_final_output_amount = (
         cost_final_output_amount
-        if _number_or_none(cost_final_output_amount) is not None
-        else (analysis.get("referenceFinalOutputAmount") if is_deferred else None)
+        if has_trusted_live_amounts and _number_or_none(cost_final_output_amount) is not None
+        else (analysis.get("referenceFinalOutputAmount") if static_reference_status or is_deferred else None)
     )
     reference_final_output_symbol = (
         costs.get("finalOutputSymbol") or validation.get("finalOutputSymbol")
-        if reference_final_output_amount is not None
-        else (analysis.get("referenceFinalOutputSymbol") if is_deferred else None)
+        if reference_final_output_amount is not None and has_trusted_live_amounts
+        else (analysis.get("referenceFinalOutputSymbol") if static_reference_status or is_deferred else None)
     )
     reference_net_profit_amount = (
         cost_net_profit_amount
-        if _number_or_none(cost_net_profit_amount) is not None
-        else (analysis.get("referenceNetProfitAmount") if is_deferred else None)
+        if has_trusted_live_amounts and _number_or_none(cost_net_profit_amount) is not None
+        else (analysis.get("referenceNetProfitAmount") if static_reference_status or is_deferred else None)
     )
     reference_net_return_bps = (
         cost_net_profit_bps
-        if _number_or_none(cost_net_profit_bps) is not None
-        else (analysis.get("referenceNetReturnBps") if is_deferred else None)
+        if has_trusted_live_amounts and _number_or_none(cost_net_profit_bps) is not None
+        else (analysis.get("referenceNetReturnBps") if static_reference_status or is_deferred else None)
     )
     reference_input_symbol = (
         costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol")
@@ -654,6 +843,42 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     reference_final_output_usd = costs.get("finalOutputUsd") if live_verified else None
     reference_gross_profit_usd = costs.get("grossProfitUsd") if live_verified else None
     reference_gross_profit_amount = costs.get("grossProfitAmount") if live_verified else None
+    selected_amount_reason = str(costs.get("selectedBorrowInputAmountReason") or "").lower()
+    selected_amount_confirmed_max = bool(costs.get("selectedBorrowInputAmountConfirmedMax"))
+    unconfirmed_fixed_amount = bool(
+        not selected_amount_confirmed_max
+        and selected_amount_reason in {"requested_amount_fallback", "onchain_execution_size_probe_confirmed_profitable_lower_bound"}
+    )
+    if costs.get("bestAmountMissing") is True or unconfirmed_fixed_amount:
+        best_amount = None
+    else:
+        best_amount = costs.get("selectedBorrowInputAmount")
+        if _number_or_none(best_amount) is None:
+            best_amount = costs.get("borrowInputAmount")
+        if _number_or_none(best_amount) is None:
+            best_amount = None
+    best_amount_confirmed = bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))
+    best_amount_unconfirmed = bool(
+        costs.get("bestAmountMissing") is True
+        or unconfirmed_fixed_amount
+        or best_amount is None
+        or not best_amount_confirmed
+    )
+    if status == "live_verified" and best_amount_unconfirmed:
+        status = "static_reference_pending_live_review"
+        evidence = {
+            **evidence,
+            "status": status,
+            "executionTrust": "static_reference_pending_live_review",
+            "readyForTransactionPreflight": False,
+        }
+        live_verified = False
+    ready_for_preflight_candidate = bool(
+        evidence.get("readyForTransactionPreflight")
+        and (live_verified or has_trusted_live_amounts)
+        and not best_amount_unconfirmed
+    )
+    profitable_from_reference = reference_net_profit_amount is not None and float(reference_net_profit_amount) > 0
     analysis.update(
         {
             "live_onchain_evidence": deepcopy(evidence),
@@ -664,8 +889,10 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "requiresLiveQuoter": not live_verified and not terminal_depth_status,
             "adapterRequired": False if status != "live_evidence_deferred" else bool(analysis.get("adapterRequired")),
             "quote_verified": live_verified,
-            "executableCandidate": bool(evidence.get("readyForTransactionPreflight")),
-            "chainSubmissionCandidate": bool(evidence.get("readyForTransactionPreflight")),
+            "executableCandidate": ready_for_preflight_candidate,
+            "chainSubmissionCandidate": ready_for_preflight_candidate,
+            "bestAmountMissing": best_amount_unconfirmed,
+            "bestAmountConfirmed": bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed")),
             "finalOutputUsd": costs.get("finalOutputUsd") if live_verified else None,
             "grossProfitUsd": costs.get("grossProfitUsd") if live_verified else None,
             "netProfitUsd": costs.get("netProfitUsd") if live_verified else None,
@@ -681,7 +908,7 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             "referenceInputSymbol": reference_input_symbol,
             "referenceReturnBasis": costs.get("profitBasis") or analysis.get("referenceReturnBasis"),
             "referenceReturnTrusted": live_verified,
-            "profitable": bool(evidence.get("profitable") or validation.get("profitableAfterCosts")),
+            "profitable": profitable_from_reference if not has_trusted_live_amounts else bool(evidence.get("profitable") or validation.get("profitableAfterCosts")),
             "conclusion": evidence.get("conclusion"),
         }
     )
@@ -703,6 +930,12 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             ),
             "reasons": blockers,
         }
+    if best_amount_unconfirmed:
+        recommendation = analysis.get("recommendation") or {}
+        recommendation["readyForTransactionPreflight"] = False
+        recommendation["blocked"] = True
+        recommendation["action"] = "on-chain best amount unconfirmed; cannot enter transaction preflight"
+        analysis["recommendation"] = recommendation
 
     static_steps = analysis.get("steps") if isinstance(analysis.get("steps"), list) else []
     route_symbols = [str(item) for item in route.get("routeSymbols") or [] if str(item).strip()]
@@ -714,7 +947,6 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
             static_steps,
             _pool_map(route),
         )
-    live_hops = evidence.get("hops") if isinstance(evidence.get("hops"), list) else []
     live_direction_symbols: list[str] = []
     live_direction_addresses: list[str] = []
     for hop in live_hops:
@@ -744,9 +976,6 @@ def _merge_onchain_evidence_into_route(route: dict[str, Any], evidence: dict[str
     if live_direction_symbols or evidence.get("directionConfirmed"):
         analysis["directionConfirmed"] = True
         analysis["direction"] = " -> ".join(live_direction_symbols or route_symbols)
-    best_amount = costs.get("selectedBorrowInputAmount")
-    if _number_or_none(best_amount) is None:
-        best_amount = None
     analysis["bestAmount"] = best_amount
     analysis["bestAmountSymbol"] = costs.get("borrowInputSymbol") or analysis.get("referenceInputSymbol")
     if live_hops or static_steps:

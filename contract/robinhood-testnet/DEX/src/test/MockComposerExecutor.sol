@@ -8,6 +8,8 @@ contract MockComposerExecutor {
     bool public shouldRevert;
     bool public revertNext;
     bool public profitScale;
+    bool public leftPeakMode;
+    uint256 public leftPeakAmount;
     address public revertMarkerCurrency0;
     address public failMarkerCurrency0;
     address public lastFailMarkerTried;
@@ -30,6 +32,14 @@ contract MockComposerExecutor {
 
     function setProfitScale(bool value_) external {
         profitScale = value_;
+    }
+
+    function setLeftPeakMode(bool value_) external {
+        leftPeakMode = value_;
+    }
+
+    function setLeftPeakAmount(uint256 value_) external {
+        leftPeakAmount = value_;
     }
 
     function setRevertMarkerCurrency0(address value_) external {
@@ -59,6 +69,19 @@ contract MockComposerExecutor {
         if (profitScale && data.length > 4) {
             uint256 amountIn = _decodeRunArbitrageBestAmount(data);
             return abi.encode(uint256(111), uint256(222), uint256(333), amountIn / 1000, uint256(0));
+        }
+        if (leftPeakMode && data.length > 4) {
+            uint256 amountIn = _decodeRunArbitrageBestAmount(data);
+            uint256 profit;
+            uint256 tolerance = leftPeakAmount / 1000;
+            if (leftPeakAmount > 0 && amountIn + tolerance >= leftPeakAmount && amountIn <= leftPeakAmount + tolerance) {
+                profit = 10_000;
+            } else if (amountIn < leftPeakAmount) {
+                profit = amountIn;
+            } else {
+                profit = 1;
+            }
+            return abi.encode(uint256(111), uint256(222), uint256(333), profit, uint256(0));
         }
         return abi.encode(uint256(111), uint256(222), uint256(333), uint256(999), uint256(0));
     }

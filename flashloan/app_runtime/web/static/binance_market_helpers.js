@@ -55,8 +55,11 @@
       if (!window.ChainSelector?.withSelection) {
         const url = new URL(requestPath, window.location.origin);
         const query = new URLSearchParams(window.location.search);
+        const normalized = window.ChainSelector?.normalizeScopeQuery
+          ? window.ChainSelector.normalizeScopeQuery(query)
+          : query;
         ["chain_id", "market_id", "protocols", "protocol_id", "dex_strategy", "workflow", "execution_mode", "scope"].forEach(key => {
-          const value = query.get(key);
+          const value = normalized.get(key);
           if (value && !url.searchParams.get(key)) url.searchParams.set(key, value);
         });
         requestPath = url.pathname + (url.search || "");

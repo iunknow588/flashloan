@@ -292,6 +292,20 @@ def test_selection_prefers_feature_chain_protocol_triplet(monkeypatch):
     assert dex.legacy_market_id == "bnb-dex-arbitrage"
 
 
+def test_selection_prefers_explicit_testnet_triplet_over_stale_mainnet_market(monkeypatch):
+    monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
+
+    selected = resolve_chain_selection(
+        feature="dex_arbitrage",
+        chain_id=46630,
+        protocol_id="uniswap_v4",
+        market_id="robinhood-dex-shadow",
+    )
+
+    assert selected.market_id == "dex-arbitrage-46630-uniswap-v4"
+    assert selected.chain_id == 46630
+
+
 def test_selection_rejects_legacy_market_from_other_feature_when_triplet_is_explicit(monkeypatch):
     monkeypatch.setattr("core.chain_selection.supported_market_summaries", lambda _url=None: _rows())
 

@@ -109,8 +109,11 @@
       if (path === "/api/dex/overview") {
         const pageUrl = new URL(window.location.href);
         const url = new URL(path, window.location.origin);
+        const scopeQuery = window.ChainSelector?.normalizeScopeQuery
+          ? window.ChainSelector.normalizeScopeQuery(pageUrl.searchParams)
+          : new URLSearchParams(pageUrl.searchParams);
         ["chain_id", "market_id", "protocols", "dex_strategy"].forEach(key => {
-          const value = pageUrl.searchParams.get(key);
+          const value = scopeQuery.get(key);
           if (value) url.searchParams.set(key, value);
         });
         return url.pathname + (url.search ? url.search : "");
@@ -136,7 +139,7 @@
       const priceEvidenceSource = pair.priceEvidenceSource || profit.priceEvidenceSource || (profit.requiresLiveQuoter ? "live_quoter_required" : "static_reference_probe");
       const livePriceVerified = Boolean(profit?.priceEvidenceMode === "live_verified" || profit?.livePriceVerified);
       const priceEvidenceText = pair.priceEvidenceSourceLabel || profit.priceEvidenceSourceLabel || priceEvidenceLabel(priceEvidenceSource);
-      const routeLabel = route.kind === "bridge_pair" ? "X-Y-Z-X 闭环" : "X-Y-X 闭环";
+      const routeLabel = "X-Y-Z-X 闭环";
       const rec = profit.recommendation || {};
       const recClass = profit.executableCandidate ? "good" : (profit.requiresLiveQuoter ? "warn" : (profit.profitable ? "warn" : ""));
       const tokenBasis = profit.referenceReturnBasis === "borrow_token";
@@ -292,7 +295,7 @@
         marketObservationSourceStage = data.marketObservationSourceStage || data.marketObservationSource || "computed";
         $("pathCount").textContent = data.summary?.arbitragePathCount ?? 0;
         const anchors = data.summary?.closedLoopAnchorSymbols || data.summary?.anchorBorrowSymbols || [];
-        $("pathMeta").textContent = `${frameworkLabel(data.summary?.pathSource || "market_observation")} ${data.summary?.overviewPathGroupCount ?? 0} 个资金池 | ${data.summary?.directAnchorPathCount ?? 0} | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
+        $("pathMeta").textContent = `${frameworkLabel(data.summary?.pathSource || "market_observation")} ${data.summary?.overviewPathGroupCount ?? 0} 个资金池 | X-Y-Z-X ${data.summary?.bridgePathCount ?? 0} | 锚点 ${anchors.join(", ") || "-"}`;
         $("watchCount").textContent = data.summary?.watchPairCount ?? 0;
         $("watchMeta").textContent = `链路观察 ${data.summary?.marketObservationRouteCount ?? 0} 条 | 专用交易对 ${data.summary?.chainSpecificObservationPairCount ?? 0}`;
         $("profitCount").textContent = `${data.summary?.overviewProfitableRouteCount ?? 0}/${data.summary?.overviewProbeCompleteCount ?? 0}`;

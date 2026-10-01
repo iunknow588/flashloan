@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from web import control_panel, control_panel_control_routes
 from web.control_panel import app
 
@@ -369,3 +371,26 @@ def test_initialize_liquidation_runtime_allows_observer_autostart_opt_out(monkey
 
     assert control_panel.observer_starting is False
     assert DummyThread.started is False
+
+
+def test_initialize_liquidation_runtime_skips_background_when_default_is_dex(monkeypatch):
+    reset_start_state()
+    DummyThread.started = False
+    registry_calls = []
+
+    monkeypatch.setenv("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage")
+    monkeypatch.setenv("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_AUTO_EXECUTE", "false")
+    monkeypatch.setenv("LIQUIDATION_EXECUTION_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_ENGINE_ENABLED", "false")
+    monkeypatch.setenv("LIQUIDATION_BACKGROUND_REFRESH", "false")
+    monkeypatch.setenv("BNB_VENUS_WATCHER_ENABLED", "false")
+    monkeypatch.setattr(control_panel, "start_liquidation_engine_runtime", lambda force=False: pytest.fail("engine should not start"))
+    monkeypatch.setattr(control_panel, "load_liquidation_account_registry", lambda force=False: registry_calls.append(force))
+    monkeypatch.setattr(control_panel.threading, "Thread", DummyThread)
+
+    control_panel.initialize_liquidation_runtime()
+
+    assert control_panel.observer_starting is False
+    assert DummyThread.started is False
+    assert registry_calls == []

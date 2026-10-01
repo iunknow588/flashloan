@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -188,7 +188,7 @@ def _unsupported_evidence(
     execution_trust = (
         status
         if status in {"rpc_verification_failed", "rpc_verification_timeout", "missing_trigger_block", "not_enough_liquidity", "pool_not_initialized", "live_quote_failed"}
-        else "static_reference_only"
+        else "static_reference_pending_live_review"
     )
     return {
         "evidenceVersion": 1,
@@ -324,6 +324,7 @@ def _live_pool_state_precheck_failures(
     steps: list[dict[str, Any]],
     pools: dict[str, dict[str, Any]],
     block_number: int,
+    live_pool_states: dict[str, dict[str, Any]] | None = None,
 ) -> list[str]:
     """Return terminal failures from a realtime V4 pool-state precheck.
 
@@ -371,6 +372,8 @@ def _live_pool_state_precheck_failures(
                 network=network,
                 chain_id=chain_id,
             )
+            if live_pool_states is not None:
+                live_pool_states.update(states)
         except Exception as exc:
             for _, _, hop_label in entries:
                 failures.append(f"on-chain live pool state verification failed for {hop_label}: {exc}")
@@ -479,6 +482,23 @@ def build_route_onchain_evidence(
 
     quoter = _text(table.get("quoter") or robinhood.default_v3_quoter_address(ROBINHOOD_DEFAULT_V3_QUOTER))
     token_cache: dict[str, int] = {}
+    for _pool in pools.values():
+        for side_index in ("0", "1"):
+            if not isinstance(_pool, dict):
+                continue
+            _address = _text(_pool.get(f"token{side_index}"))
+            _symbol = _text(_pool.get(f"token{side_index}Symbol"))
+            _decimals_raw = _pool.get(f"token{side_index}Decimals") or _pool.get(f"token{side_index}_decimals")
+            if _decimals_raw in (None, ""):
+                continue
+            try:
+                _decimals = int(_decimals_raw)
+            except (TypeError, ValueError):
+                continue
+            if _address:
+                token_cache[_address.lower()] = _decimals
+            if _symbol:
+                token_cache[_symbol.lower()] = _decimals
     try:
         w3, rpc_url = _connect_robinhood_family(chain_id, network)
         block_number = int(w3.eth.block_number)
@@ -493,6 +513,7 @@ def build_route_onchain_evidence(
             trigger_context=trigger,
         )
 
+    live_pool_states: dict[str, dict[str, Any]] = {}
     live_pool_failures = _live_pool_state_precheck_failures(
         chain_id=chain_id,
         network=network,
@@ -501,6 +522,7 @@ def build_route_onchain_evidence(
         steps=steps,
         pools=pools,
         block_number=block_number,
+        live_pool_states=live_pool_states,
     )
     if live_pool_failures:
         generic_failures = [
@@ -555,6 +577,9 @@ def build_route_onchain_evidence(
     )
     if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0:
         requested_borrow_input_amount_raw = int(borrow_input_amount_override_raw)
+        offchain_initial_probe_amount_raw = int(borrow_input_amount_override_raw)
+        offchain_initial_probe_basis = "borrow_token"
+        offchain_initial_probe_reason = "requested_borrow_amount_fallback"
     elif offchain_initial_probe_amount_raw and int(offchain_initial_probe_amount_raw) > 0:
         # 初始请求量的默认值就是链下初始探测起点；只有用户显式传入金额时才不同。
         requested_borrow_input_amount_raw = int(offchain_initial_probe_amount_raw)
@@ -587,7 +612,11 @@ def build_route_onchain_evidence(
         and selected_borrow_input_amount_raw > 0
         and (route_has_size_metadata or robinhood_closed_loop_v4_route)
     ):
-        probe_amount_raw = offchain_initial_probe_amount_raw
+        probe_amount_raw = (
+            int(borrow_input_amount_override_raw)
+            if borrow_input_amount_override_raw is not None and int(borrow_input_amount_override_raw) > 0
+            else offchain_initial_probe_amount_raw
+        )
         # 链下初始探测只负责给出起点；链上执行规模探测再围绕绝对利润峰值
         # 搜索最佳量，不能把离线 sizeAnalysis 的 maxExecutable 当作执行量。
         execution_size_probe = _probe_robinhood_testnet_route_execution_size(
@@ -598,7 +627,7 @@ def build_route_onchain_evidence(
             trigger_context=trigger,
             quote_hop_provider=quote_hop_provider,
             requested_amount_raw=probe_amount_raw,
-            initial_probe_amount_raw=offchain_initial_probe_amount_raw,
+            initial_probe_amount_raw=probe_amount_raw,
         )
         try:
             probed_amount_raw = int(
@@ -627,6 +656,8 @@ def build_route_onchain_evidence(
         route_symbols=route_symbols,
         route_addresses=route_addresses,
         selected_borrow_input_amount_raw=selected_borrow_input_amount_raw,
+        rpc_url=rpc_url,
+        live_pool_states=live_pool_states,
     )
 
     token_continuity_issues = _token_continuity_issues(hop_rows)
@@ -756,6 +787,15 @@ def build_route_onchain_evidence(
             and execution_size_probe.get("searchStatus") == "not_enough_liquidity"
         )
     )
+    best_amount_confirmed = bool(
+        isinstance(execution_size_probe, dict)
+        and execution_size_probe.get("maxExecutableAmountConfirmed") is True
+        and execution_size_probe.get("maxExecutableAmountRaw") is not None
+        and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
+    )
+    best_amount_unconfirmed = bool(all_hops_verified and not best_amount_confirmed)
+    if best_amount_unconfirmed:
+        blockers.append("chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight")
     if pool_insufficient_for_profitable_execution:
         blockers.append("current pool depth cannot support a borrow size that passes 10 bps per-hop limit and profit after flash loan fee")
     if pool_not_initialized:
@@ -765,7 +805,9 @@ def build_route_onchain_evidence(
     if adapter_required:
         blockers.append("V4 quote adapter is required; pool interpretation deferred until the mainnet V4 adapter is configured")
     ready_for_transaction_preflight = bool(
-        meets_submission_profit_threshold and all_hops_within_price_impact_limit
+        meets_submission_profit_threshold
+        and all_hops_within_price_impact_limit
+        and best_amount_confirmed
     )
     evidence_status = (
         "adapter_required"
@@ -785,7 +827,7 @@ def build_route_onchain_evidence(
             else (
                 "slippage_limit_exceeded"
                 if all_hops_verified and not all_hops_within_price_impact_limit
-                else ("live_verified" if all_hops_verified else ("live_quote_reference_only" if reference_quote_only else "live_quote_failed"))
+                else ("live_verified" if all_hops_verified and best_amount_confirmed else ("static_reference_pending_live_review" if reference_quote_only or best_amount_unconfirmed else "live_quote_failed"))
             )
         )
         )
@@ -794,11 +836,11 @@ def build_route_onchain_evidence(
     )
     evidence_trust = (
         "live_quoter_verified_readonly"
-        if all_hops_verified
+        if all_hops_verified and best_amount_confirmed
         else (
             evidence_status
             if evidence_status in {"not_enough_liquidity", "pool_not_initialized", "live_quote_failed", "rpc_verification_failed", "rpc_verification_timeout"}
-            else ("live_quote_reference_only" if reference_quote_only else "static_reference_only")
+            else ("static_reference_pending_live_review" if reference_quote_only else "static_reference_pending_live_review")
         )
     )
     if ready_for_transaction_preflight:
@@ -810,6 +852,9 @@ def build_route_onchain_evidence(
     elif all_hops_verified and not all_hops_within_price_impact_limit:
         evidence_conclusion = "链上报价已验证存在利润，但至少一个单跳价格影响超过 10 bps；不建议按当前金额进入链上执行"
         evidence_action = "on-chain verified but at least one hop price impact exceeds the 10 bps limit; reduce size or do not execute"
+    elif best_amount_unconfirmed:
+        evidence_conclusion = "链上报价已验证当前金额，但最佳量未计算成功；复核未通过"
+        evidence_action = "on-chain best amount unconfirmed; cannot enter transaction preflight"
     elif not all_hops_verified:
         evidence_conclusion = "链上报价失败或未完成，当前无法给出可执行套利结论"
         evidence_action = "on-chain quote failed; route cannot enter transaction preflight"
@@ -949,6 +994,18 @@ def _build_onchain_quote_evidence_payload(c: dict[str, Any]) -> dict[str, Any]:
                 and execution_size_probe.get("maxExecutableAmountRaw") is not None
                 and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
             ),
+            "bestAmountConfirmed": bool(
+                isinstance(execution_size_probe, dict)
+                and execution_size_probe.get("maxExecutableAmountConfirmed") is True
+                and execution_size_probe.get("maxExecutableAmountRaw") is not None
+                and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
+            ),
+            "bestAmountMissing": not bool(
+                isinstance(execution_size_probe, dict)
+                and execution_size_probe.get("maxExecutableAmountConfirmed") is True
+                and execution_size_probe.get("maxExecutableAmountRaw") is not None
+                and int(execution_size_probe.get("maxExecutableAmountRaw") or 0) == int(selected_borrow_input_amount_raw)
+            ),
             "borrowInputAmount": float(borrow_input_amount),
             "borrowInputSymbol": input_symbol,
             "finalOutputAmount": float(final_amount) if final_amount is not None else None,
@@ -1045,6 +1102,8 @@ def _quote_route_hops(
     route_symbols: list[str],
     route_addresses: list[str],
     selected_borrow_input_amount_raw: int,
+    rpc_url: str | None = None,
+    live_pool_states: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], int | None, list[str], list[str], list[dict[str, Any]]]:
     hop_provider = quote_hop_provider
     hop_rows: list[dict[str, Any]] = []
@@ -1088,6 +1147,12 @@ def _quote_route_hops(
                     token_cache=token_cache,
                     chain_id=chain_id,
                     network=network,
+                    rpc_url=rpc_url,
+                    live_pool_state=(
+                        live_pool_states.get(str(step.get("pool") or pool.get("pool") or "").lower())
+                        if live_pool_states
+                        else None
+                    ),
                 )
             else:
                 hop = _quote_v3_hop(w3=w3, quoter=quoter, step=step, pool=pool, amount_in_raw=amount_in_raw, block_number=block_number, token_cache=token_cache)
@@ -1101,7 +1166,7 @@ def _quote_route_hops(
                     {
                         "hop": hop_number,
                         "status": "live_quote_failed",
-                        "executionTrust": "static_reference_only",
+                        "executionTrust": "static_reference_pending_live_review",
                         "quoteSource": "chain_live_quote_failed",
                         "quoteMethod": f"{protocol}_exact_input",
                         "protocol": protocol,

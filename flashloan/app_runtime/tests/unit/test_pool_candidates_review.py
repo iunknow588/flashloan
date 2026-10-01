@@ -177,7 +177,7 @@ def test_dex_overview_does_not_reuse_robinhood_borrow_anchor_on_other_chains(tmp
     overview = dex_surfaces.dex_overview_payload(chain_id=56)
 
     assert overview["summary"]["anchorBorrowSymbols"] == ["USDC"]
-    assert overview["arbitragePaths"][0]["overviewRoute"]["pathText"] == "USDC -> WBNB -> USDC"
+    assert overview["arbitragePaths"] == []
 
 
 def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
@@ -283,8 +283,8 @@ def test_robinhood_testnet_dex_surfaces_use_all_candidate_symbols(monkeypatch):
     assert observation["observationAnchorSymbols"] == expected_symbols
     assert quotes["summary"]["anchorBorrowSymbols"] == expected_symbols
     assert quotes["summary"]["closedLoopAnchorSymbols"] == expected_symbols
-    assert quotes["summary"]["routeCount"] > 1
-    assert len({route["overviewRoute"]["anchorBorrowSymbol"] for route in quotes["routes"]}) > 1
+    assert quotes["summary"]["routeCount"] == 0
+    assert quotes["routes"] == []
 
 
 def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
@@ -310,6 +310,17 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
         "market": {"priceNative": "0.00002810", "priceUsd": "0.06924"},
         "depthBand": {"level": "deep", "label": "深度充足"},
     }
+    pons_usdg_pool = {
+        "pool": "0x" + "9" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0Symbol": "PONS",
+        "token1Symbol": "USDG",
+        "balances": {"token0": 10_253_738, "token1": 710_000, "tvlUsd": 1_400_000},
+        "market": {"priceNative": "0.00002810", "priceUsd": "0.06924"},
+        "depthBand": {"level": "deep", "label": "深度充足"},
+    }
     payload = {
         "pairs": [
             {
@@ -327,6 +338,14 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
                 "preferredPools": [pons_weth_pool],
                 "executionPools": [pons_weth_pool],
                 "strictQualityPools": [pons_weth_pool],
+            },
+            {
+                "symbolPair": "PONS:USDG",
+                "tokenXSymbol": "PONS",
+                "tokenYSymbol": "USDG",
+                "preferredPools": [pons_usdg_pool],
+                "executionPools": [pons_usdg_pool],
+                "strictQualityPools": [pons_usdg_pool],
             },
         ],
         "summary": {},
@@ -350,7 +369,7 @@ def test_dex_quote_routes_do_not_apply_v2_reserve_math_to_v3_pools(monkeypatch):
     )
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
-    route = next(item for item in quotes["routes"] if item["symbolPair"] == "WETH -> PONS -> WETH")
+    route = next(item for item in quotes["routes"] if item["symbolPair"] == "WETH -> PONS -> USDG -> WETH")
     analysis = route["quoteAnalysis"]
 
     assert route["quoteStatus"] == "requires_live_quoter"
@@ -707,11 +726,11 @@ def test_dex_overview_payload_reuses_cached_framework_payload(monkeypatch):
             "overview_paths": [
                 {
                     "overviewRoute": {
-                        "pathText": "USDC -> WETH -> USDC",
-                        "kind": "direct_anchor_pair",
+                        "pathText": "USDC -> WETH -> DAI -> USDC",
+                        "kind": "bridge_pair",
                         "candidatePairSymbols": ["USDC:WETH"],
                     },
-                    "routeSymbols": ["USDC", "WETH", "USDC"],
+                    "routeSymbols": ["USDC", "WETH", "DAI", "USDC"],
                 }
             ],
             "watch_pairs": [],
@@ -746,7 +765,7 @@ def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebu
         "protocols": ["uniswap_v4"],
         "snapshot_kind": "dex_overview_compact",
         "summary": {"closedLoopRouteCount": 1},
-        "closedLoopRouteSummaries": [{"pathText": "ETH -> USDC -> ETH", "pathSymbols": ["ETH", "USDC", "ETH"]}],
+        "closedLoopRouteSummaries": [{"pathText": "ETH -> USDC -> DAI -> ETH", "pathSymbols": ["ETH", "USDC", "DAI", "ETH"]}],
         "chainSpecificObservationPairs": [{"symbolPair": "ETH:USDC"}],
         "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True},
         "flashLoanLiquidity": {"available_protocols": ["venus_core"]},
@@ -756,7 +775,7 @@ def test_robinhood_testnet_overview_uses_compact_snapshot_without_candidate_rebu
         "chain_id": 46630,
         "protocols": ["uniswap_v4"],
         "summary": {"closedLoopRouteCount": 1},
-        "observationSequences": [{"pathText": "ETH -> USDC -> ETH"}],
+        "observationSequences": [{"pathText": "ETH -> USDC -> DAI -> ETH"}],
         "chainSpecificObservationPairs": [{"symbolPair": "ETH:USDC"}],
         "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True},
         "flashLoanLiquidity": {"available_protocols": ["venus_core"]},

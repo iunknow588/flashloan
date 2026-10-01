@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from web.data_routes import dex_surface_helpers
+from web.data_routes import dex_surface_routes_quotes
 from dex.runtime.dex_opportunity_helpers import _merge_onchain_evidence_into_route
 
 
@@ -45,6 +46,33 @@ def test_route_dedup_key_prefers_addresses_over_symbols():
 
     assert dex_surface_helpers._route_dedup_key(route_a) != dex_surface_helpers._route_dedup_key(route_b)
     assert dex_surface_helpers._route_dedup_key(route_a) == dex_surface_helpers._route_dedup_key(dict(route_a))
+
+
+def test_zero_address_filtering_rejects_native_placeholder_routes():
+    assert dex_surface_routes_quotes._is_zero_address("0x0000000000000000000000000000000000000000")
+    assert dex_surface_routes_quotes._is_zero_address("0x0")
+    assert not dex_surface_routes_quotes._is_zero_address("0x7943e237c7F95DA44E0301572D358911207852Fa")
+
+    zero_route = {
+        "routeSymbols": ["WETH", "ETH", "0XC9F9C8", "WETH"],
+        "routeAddresses": [
+            "0x7943e237c7F95DA44E0301572D358911207852Fa",
+            "0x0000000000000000000000000000000000000000",
+            "0xc9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+            "0x7943e237c7F95DA44E0301572D358911207852Fa",
+        ],
+    }
+    clean_route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "routeAddresses": [
+            "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+            "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
+            "0xB169FE96425783D7BA7a9F905fe8dE5f80E3Fdc8",
+            "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
+        ],
+    }
+    assert dex_surface_routes_quotes._route_has_zero_address(zero_route) is True
+    assert dex_surface_routes_quotes._route_has_zero_address(clean_route) is False
 
 
 def test_merge_recent_attempt_evidence_ignores_stale_history(monkeypatch):
@@ -219,4 +247,195 @@ def test_merge_evidence_blocks_hop_amount_continuity_mismatch():
     assert analysis["referenceFinalOutputAmount"] == 10.348436749171217
     assert analysis["referenceNetProfitAmount"] == -990.1515632508288
     assert analysis["referenceNetReturnBps"] == -9901.515632508288
-    assert analysis["recommendation"]["action"] == "on-chain verified but net profit is not positive after flash loan fees; do not execute"
+    assert analysis["recommendation"]["action"] == "on-chain best amount unconfirmed; cannot enter transaction preflight"
+
+
+def test_merge_live_route_estimate_keeps_borrow_input_aligned_with_best_amount():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {
+            "referenceInputAmount": 1.0,
+            "referenceInputSymbol": "TZ",
+        },
+    }
+    live_payload = {
+        "amount": 1.0,
+        "bestAmount": 8.0,
+        "bestAmountConfirmed": True,
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "steps": [
+            {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "inputAmount": 8.0},
+            {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "inputAmount": 8.0},
+            {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "inputAmount": 8.0},
+        ],
+        "analysis": {
+            "referenceInputSymbol": "TZ",
+            "referenceFinalOutputAmount": 11.414891501849196,
+            "referenceNetProfitAmount": 3.4148915018491968,
+        },
+    }
+
+    result = dex_surface_helpers._merge_live_route_estimate(route, live_payload)
+    cost_model = result["live_onchain_evidence"]["costModel"]
+
+    assert cost_model["borrowInputAmount"] == 8.0
+    assert cost_model["selectedBorrowInputAmount"] == 8.0
+    assert cost_model["requestedBorrowInputAmount"] == 1.0
+    assert result["quoteAnalysis"]["referenceInputAmount"] == 8.0
+
+
+def test_merge_live_route_estimate_does_not_fabricate_best_amount_from_requested_amount():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {
+            "referenceInputAmount": 1.0,
+            "referenceInputSymbol": "TZ",
+        },
+    }
+    live_payload = {
+        "amount": 1.0,
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "steps": [
+            {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "inputAmount": 1.0},
+            {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "inputAmount": 1.0},
+            {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "inputAmount": 1.0},
+        ],
+        "quoteStatus": "static_reference_pending_live_review",
+        "analysis": {
+            "referenceFinalOutputAmount": 1.071441601366711,
+            "referenceNetProfitAmount": 0.07094160136671104,
+        },
+    }
+
+    result = dex_surface_helpers._merge_live_route_estimate(route, live_payload)
+    cost_model = result["live_onchain_evidence"]["costModel"]
+
+    assert cost_model["bestAmountComputed"] is False
+    assert cost_model["bestAmountMissing"] is True
+    assert cost_model["borrowInputAmount"] is None
+    assert cost_model["selectedBorrowInputAmount"] is None
+    assert cost_model["requestedBorrowInputAmount"] == 1.0
+    assert result["quoteAnalysis"].get("bestAmount") is None
+
+
+def test_merge_live_route_estimate_ignores_best_amount_when_missing_flag_is_true():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {},
+    }
+    live_payload = {
+        "amount": 1.0,
+        "bestAmount": 8.0,
+        "bestAmountMissing": True,
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteStatus": "static_reference_pending_live_review",
+        "analysis": {
+            "referenceInputAmount": 1.0,
+            "referenceNetProfitAmount": 0.07,
+        },
+    }
+
+    result = dex_surface_helpers._merge_live_route_estimate(route, live_payload)
+    cost_model = result["live_onchain_evidence"]["costModel"]
+
+    assert cost_model["borrowInputAmount"] is None
+    assert cost_model["selectedBorrowInputAmount"] is None
+    assert cost_model["bestAmountMissing"] is True
+    assert result["quoteAnalysis"].get("bestAmount") is None
+
+
+def test_merge_evidence_does_not_fabricate_scaled_steps_without_live_hops():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {
+            "referenceInputAmount": 1.0,
+            "referenceInputSymbol": "TZ",
+            "steps": [
+                {
+                    "hop": 1,
+                    "fromSymbol": "TZ",
+                    "toSymbol": "TB",
+                    "inputAmount": 1.0,
+                    "outputAmount": 1.623477868780824281,
+                },
+                {
+                    "hop": 2,
+                    "fromSymbol": "TB",
+                    "toSymbol": "TA",
+                    "inputAmount": 1.623477868780824281,
+                    "outputAmount": 0.161777836025244087,
+                },
+                {
+                    "hop": 3,
+                    "fromSymbol": "TA",
+                    "toSymbol": "TZ",
+                    "inputAmount": 0.161777836025244087,
+                    "outputAmount": 1.071441601366711039,
+                },
+            ],
+        },
+    }
+    evidence = {
+        "status": "live_verified",
+        "executionTrust": "live_v4_adapter",
+        "readyForTransactionPreflight": True,
+        "costModel": {
+            "borrowInputSymbol": "TZ",
+            "borrowInputAmount": 8.0,
+            "selectedBorrowInputAmount": 8.0,
+            "requestedBorrowInputAmount": 1.0,
+            "finalOutputAmount": 11.414891501849196,
+            "finalOutputSymbol": "TZ",
+            "netProfitAmount": 3.4148915018491968,
+            "netProfitAmountBps": 4268.614377311496,
+        },
+        "validation": {
+            "finalOutputAmount": 11.414891501849196,
+            "finalOutputSymbol": "TZ",
+        },
+        "hops": [],
+        "blockers": [],
+    }
+
+    _merge_onchain_evidence_into_route(route, evidence)
+    analysis = route["quoteAnalysis"]
+    steps = analysis["steps"]
+
+    assert analysis["bestAmount"] == 8.0
+    assert analysis["livePriceVerified"] is False
+    assert analysis["quote_verified"] is False
+    assert analysis["executableCandidate"] is False
+    assert analysis["chainSubmissionCandidate"] is False
+    assert analysis["onchainEvidenceStatus"] == "static_reference_pending_live_review"
+    assert analysis["referenceInputAmount"] == 1.0
+    assert analysis["referenceFinalOutputAmount"] is None
+    assert analysis["referenceNetProfitAmount"] is None
+    assert steps[0]["inputAmount"] == 1.0
+    assert steps[2]["outputAmount"] == 1.071441601366711039
+
+
+def test_merge_evidence_uses_borrow_input_amount_when_selected_missing():
+    route = {
+        "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+        "quoteAnalysis": {
+            "steps": [
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "inputAmount": 1.0},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "inputAmount": 1.0},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "inputAmount": 1.0, "outputAmount": 1.071441601366711},
+            ],
+        },
+    }
+    evidence = {
+        "status": "live_verified",
+        "costModel": {
+            "borrowInputSymbol": "TZ",
+            "borrowInputAmount": 8.0,
+        },
+        "hops": [],
+        "blockers": [],
+    }
+
+    _merge_onchain_evidence_into_route(route, evidence)
+
+    assert route["quoteAnalysis"]["bestAmount"] == 8.0
+    assert route["quoteAnalysis"]["steps"][0]["inputAmount"] == 1.0

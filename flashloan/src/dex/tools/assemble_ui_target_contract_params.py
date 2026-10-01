@@ -170,8 +170,7 @@ def _config_status(protocol: dict[str, Any]) -> dict[str, Any]:
     executor = str(
         protocol.get("unified_executor_address")
         or protocol.get("executor_address")
-        or os.getenv("UNIFIED_EXECUTOR_ADDRESS", "")
-        or os.getenv("TRIANGULAR_UNIFIED_EXECUTOR_ADDRESS", "")
+        or direct._unified_executor_address_for_network(str(protocol.get("network") or "avalanche"))
     ).strip()
     rpc = os.getenv("AVALANCHE_RPC_URL", "").strip() or os.getenv("AVALANCHE_RPC", "").strip()
     return {

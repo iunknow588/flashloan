@@ -3,7 +3,11 @@ from __future__ import annotations
 from typing import Any, Iterable
 from urllib.parse import urlencode, urlsplit
 
-from core.chain_data_registry import chain_config_summary, global_chain_id
+from core.chain_data_registry import (
+    chain_config_summary,
+    chain_protocol_candidate_map,
+    global_chain_id,
+)
 from core.chain_selection import ChainSelection
 from core.contracts import MarketScope
 from core.market_identity import canonical_market_id_from_legacy
@@ -117,6 +121,10 @@ def chain_scope_options(
 ) -> list[dict[str, Any]]:
     groups: dict[str, list[ChainSelection]] = {}
     group_indexes: dict[str, int] = {}
+    try:
+        protocol_candidates = chain_protocol_candidate_map()
+    except Exception:
+        protocol_candidates = {}
     for selection in selections:
         key = selection_chain_key(selection)
         group_indexes.setdefault(key, len(group_indexes))
@@ -158,6 +166,19 @@ def chain_scope_options(
             )
         chain_key = selection_chain_key(selected)
         chain_config = chain_config_for_selection(selected) if include_chain_config else {}
+        flash_loan_protocols = []
+        if chain_id is not None:
+            candidate = protocol_candidates.get(int(chain_id))
+            if candidate:
+                flash_loan_protocols = [
+                    {
+                        "protocol": str(protocol).strip().lower(),
+                        "protocol_id": str(protocol).strip().lower(),
+                        "display_name": protocol_display_name(protocol),
+                    }
+                    for protocol in candidate.get("protocols") or []
+                    if str(protocol).strip()
+                ]
         payload = dict(selected.as_dict())
         payload.update(
             {
@@ -173,6 +194,8 @@ def chain_scope_options(
                 "protocol_summary": ", ".join(protocols) if protocols else "链路",
                 "protocols": protocols,
                 "protocol_options": protocol_options,
+                "flash_loan_protocols": flash_loan_protocols,
+                "flash_loan_protocol_count": len(flash_loan_protocols),
                 "chain_config": chain_config,
                 "market_ids": [item.market_id for item in group],
                 "market_count": len(group),
@@ -205,6 +228,7 @@ def build_chain_selection_payload(
         None,
     )
     protocol_options = list((selected_chain or {}).get("protocol_options") or [])
+    flash_loan_protocols = list((selected_chain or {}).get("flash_loan_protocols") or [])
     requested = [str(item).strip().lower() for item in (requested_protocols or []) if str(item).strip()]
     available_protocols = [
         str(item.get("protocol") or "").strip().lower()
@@ -249,6 +273,8 @@ def build_chain_selection_payload(
             "representative_market_id": representative_market_id,
             "protocol_options": protocol_options,
             "selected_protocols": selected_protocols,
+            "flash_loan_protocols": flash_loan_protocols,
+            "flash_loan_protocol_count": len(flash_loan_protocols),
             "chain_config": selected_chain_config,
             "protocol_summary": (selected_chain or {}).get("protocol_summary")
             or ", ".join(available_protocols)
@@ -264,6 +290,7 @@ def build_chain_selection_payload(
         "available": [item.as_dict() for item in available_rows],
         "chain_options": chain_options,
         "protocol_options": protocol_options,
+        "flash_loan_protocols": flash_loan_protocols,
         "selected_protocols": selected_protocols,
         "query": query_args,
         "query_string": urlencode(query_args),

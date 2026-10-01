@@ -13,9 +13,13 @@ import time
 from typing import Any, Callable
 
 from core.chain_data_registry import chain_data_by_chain_id
+from core.db.storage_cow_execution import load_recent_cow_execution_attempts_jsonl
+from core.error_registry import ErrorCode
 from core.parameter_config import LEGACY_STRATEGY_CONFIG_PATHS, STRATEGY_CONFIG_PATH, read_json_parameter
 from market.binance_market.dex_surfaces import dex_overview_payload, dex_quote_routes_payload
+from dex.runtime.cow_attempt_log import cow_execution_attempt_log_path
 from dex.runtime.dex_onchain_quote_evidence import build_route_onchain_evidence, capture_onchain_trigger_context
+from dex.runtime.dex_closed_loop_review_queue import ClosedLoopReviewQueue, FixedRefreshPipeline
 from dex.runtime.dex_opportunity_auto_execute import (
     DexAutoExecuteRunner,
     auto_execute_callback_from_env as default_auto_execute_callback,
@@ -26,6 +30,7 @@ from dex.runtime.dex_opportunity_helpers import (
     _apply_onchain_evidence_to_attempt,
     _chain_key,
     _chain_network,
+    _evidence_ready_for_auto_execute,
     _env_float,
     _live_profit_percent,
     _merge_onchain_evidence_into_route,
@@ -40,6 +45,7 @@ from dex.runtime.dex_opportunity_helpers import (
     _select_recordable_routes,
     _snapshot_summary,
     _trigger_block_number,
+    merge_recent_manual_review_evidence_into_routes,
 )
 
 
@@ -53,6 +59,18 @@ CACHE_PATH = Path(__file__).resolve().parent / "cache" / "dex_opportunity_snapsh
 _SCANNER: DexOpportunityScanner | None = None
 _SCANNER_LOCK = threading.Lock()
 logger = logging.getLogger(__name__)
+
+
+def _structured_dex_error(message: object, *, flow: str, node_id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "module": "DEX",
+            "code": int(ErrorCode.DEX_INTERNAL),
+            "flow": flow,
+            "nodeId": node_id,
+            "message": str(message or "")[:500],
+        }
+    ]
 
 
 def _route_closed_loop_group_key(route: dict[str, Any]) -> str:
@@ -95,6 +113,49 @@ def _attempt_route_identity(attempt: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(str(item or "").strip().upper() for item in (attempt.get("route_path") or []) if str(item or "").strip())
 
 
+def _route_simple_key(route: dict[str, Any]) -> tuple[Any, ...]:
+    addresses = route.get("routeAddresses") if isinstance(route.get("routeAddresses"), list) else route.get("addresses")
+    if isinstance(addresses, list):
+        selected = [str(item or "").strip().lower() for item in addresses if str(item or "").strip()]
+        if selected:
+            return tuple(selected)
+    symbols = route.get("routeSymbols") if isinstance(route.get("routeSymbols"), list) else route.get("symbols")
+    if isinstance(symbols, list):
+        selected = [str(item or "").strip().upper() for item in symbols if str(item or "").strip()]
+        if selected:
+            return tuple(selected)
+    return (str(route.get("symbolPair") or "").strip().upper(),)
+
+
+def _route_evidence_richness(route: dict[str, Any]) -> int:
+    score = 0
+    evidence = route.get("live_onchain_evidence")
+    if isinstance(evidence, dict):
+        score += 2
+    analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+    steps = analysis.get("steps")
+    if isinstance(steps, list):
+        score += len(steps)
+    if route.get("quoteStatus"):
+        score += 1
+    return score
+
+
+def _dedupe_payload_routes(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    best_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+    order: list[tuple[Any, ...]] = []
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        key = _route_simple_key(route)
+        if key not in best_by_key:
+            order.append(key)
+        existing = best_by_key.get(key)
+        if existing is None or _route_evidence_richness(route) > _route_evidence_richness(existing):
+            best_by_key[key] = route
+    return [best_by_key[key] for key in order if key in best_by_key]
+
+
 def _scanner_snapshot_ttl_seconds() -> float:
     raw = os.getenv("DEX_OPPORTUNITY_SNAPSHOT_MAX_AGE_SECONDS", "600")
     try:
@@ -135,6 +196,41 @@ def _scanner_evidence_timeout_seconds() -> float:
         return max(60.0, float(raw))
     except (TypeError, ValueError):
         return 90.0
+
+
+def _auto_execute_log_stats(chain_id: int | None) -> dict[str, Any]:
+    """Return cumulative auto-execute stats persisted in execution attempts."""
+    if chain_id is None:
+        return {"auto_execute_count": 0, "last_auto_execute_at": None}
+    try:
+        log_path = cow_execution_attempt_log_path(chain_id=int(chain_id))
+        attempts = load_recent_cow_execution_attempts_jsonl(
+            log_path,
+            limit=10000,
+            chain_ids=[int(chain_id)],
+        )
+    except Exception:
+        return {"auto_execute_count": 0, "last_auto_execute_at": None}
+    auto_execute_count = 0
+    last_auto_execute_at = None
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        auto = attempt.get("auto_execute") if isinstance(attempt.get("auto_execute"), dict) else {}
+        if not bool(auto.get("executed")):
+            continue
+        result = auto.get("result") if isinstance(auto.get("result"), dict) else {}
+        tx_hash = str(result.get("txHash") or result.get("tx_hash") or "").strip()
+        if not tx_hash:
+            continue
+        auto_execute_count += 1
+        ts = str(auto.get("observed_at") or attempt.get("created_at") or attempt.get("observed_at") or "").strip()
+        if ts and (last_auto_execute_at is None or ts > last_auto_execute_at):
+            last_auto_execute_at = ts
+    return {
+        "auto_execute_count": auto_execute_count,
+        "last_auto_execute_at": last_auto_execute_at,
+    }
 
 
 def _is_robinhood_family_network(chain_id: int | None) -> bool:
@@ -206,6 +302,26 @@ def _scanner_onchain_evidence_provider(*args, **kwargs):
 
             if succeeded_evidence is not None:
                 evidence = succeeded_evidence
+                try:
+                    confirm_kwargs = {
+                        key: value
+                        for key, value in retry_kwargs.items()
+                        if key not in {"skip_execution_size_probe"}
+                    }
+                    confirm_kwargs["skip_execution_size_probe"] = False
+                    confirmed_evidence = build_route_onchain_evidence(*args, **confirm_kwargs)
+                    if (
+                        str(confirmed_evidence.get("status") or "").lower() == "live_verified"
+                        and (
+                            confirmed_evidence.get("bestAmountConfirmed") is True
+                            or (confirmed_evidence.get("costModel") or {}).get("bestAmountConfirmed") is True
+                        )
+                    ):
+                        evidence = confirmed_evidence
+                except Exception:
+                    # Keep the already-successful halved quote if the deeper
+                    # size probe is not able to confirm a best amount right now.
+                    evidence = succeeded_evidence
             else:
                 evidence = deepcopy(evidence)
             last_attempt = probe_attempts[-1]
@@ -256,7 +372,9 @@ def _evidence_provider_with_timeout(evidence_provider, timeout_seconds: float, *
             "errorStack": [
                 {
                     "module": "DEX",
-                    "code": "rpc_verification_timeout",
+                    "code": int(ErrorCode.DEX_RPC_TIMEOUT),
+                    "flow": "onchain_evidence",
+                    "nodeId": route.get("routeSymbols") or route.get("symbols") or "route",
                     "message": f"on-chain evidence timed out after {timeout_seconds:.1f}s",
                 }
             ],
@@ -347,8 +465,6 @@ def build_dex_opportunity_attempts(
     # scanner behavior; all eligible recordable closed-loop routes must be
     # chain-reviewed in the current scan.
     robinhood_full_scan = _chain_network(payload, chain_id) in {"robinhood", "robinhood-testnet"}
-    if robinhood_full_scan and testnet_max_recordable_routes is not None:
-        recordable_routes = recordable_routes[: max(0, int(testnet_max_recordable_routes))]
     selected_routes = _select_recordable_routes(
         recordable_routes,
         max_routes=max_recordable_routes,
@@ -390,6 +506,15 @@ def build_dex_opportunity_attempts(
                     if isinstance(cached_evidence, dict):
                         cached_evidence["closedLoopGroupEvidence"] = {"shared": True, "groupKey": group_key}
                     return attempt_index, (cached_evidence, route, attempt, original_index)
+            recent_evidence = _route_evidence(route)
+            if _evidence_ready_for_auto_execute(recent_evidence):
+                reusable_evidence = deepcopy(recent_evidence)
+                reusable_evidence["reusedRecentAttemptEvidence"] = True
+                if _route_is_closed_loop_quad(route):
+                    reusable_evidence["closedLoopGroupEvidence"] = {"shared": False, "groupKey": group_key}
+                    with group_evidence_lock:
+                        group_evidence_cache.setdefault(group_key, deepcopy(reusable_evidence))
+                return attempt_index, (reusable_evidence, route, attempt, original_index)
             evidence = _evidence_provider_with_timeout(
                 evidence_provider,
                 evidence_timeout_seconds,
@@ -489,10 +614,16 @@ class DexOpportunityScanner:
         )
         self.quote_payload_provider = quote_payload_provider or default_quote_payload_provider
         self.record_attempts = record_attempts or default_record_attempts
-        self.onchain_evidence_provider = onchain_evidence_provider or _scanner_onchain_evidence_provider
+        self.auto_execute_enabled = bool(auto_execute_enabled if auto_execute_enabled is not None else default_auto_execute_env_enabled())
+        base_evidence_provider = onchain_evidence_provider or _scanner_onchain_evidence_provider
+
+        def evidence_provider(*args, **kwargs):
+            kwargs["skip_execution_size_probe"] = not self.auto_execute_enabled
+            return base_evidence_provider(*args, **kwargs)
+
+        self.onchain_evidence_provider = evidence_provider
         self.trigger_context_provider = trigger_context_provider or capture_onchain_trigger_context
         self.auto_execute_callback = auto_execute_callback
-        self.auto_execute_enabled = bool(auto_execute_enabled if auto_execute_enabled is not None else default_auto_execute_env_enabled())
         self._auto_execute_runner = DexAutoExecuteRunner(
             callback=self.auto_execute_callback,
             enabled=self.auto_execute_enabled,
@@ -522,11 +653,243 @@ class DexOpportunityScanner:
         self._auto_execute_count = 0
         self._last_auto_execute_at: str | None = None
         self._last_error: str | None = None
+        self._last_error_stack: list[dict[str, Any]] | None = None
         self._scan_count = 0
         self._last_scan_started_at: str | None = None
         self._last_scan_finished_at: str | None = None
         self._last_duration_ms: int | None = None
+        self.closed_loop_review_queue = ClosedLoopReviewQueue()
+        self.closed_loop_review_pipeline = FixedRefreshPipeline(
+            queue=self.closed_loop_review_queue,
+            refresh_fn=self._fixed_refresh_group,
+        )
         self._load_cache()
+
+    def _fixed_refresh_group(self, task) -> dict[str, Any]:
+        anchor = str(task.group_key or "").strip().upper()
+        payload = dex_quote_routes_payload(
+            chain_id=task.chain_id,
+            protocols=list(task.protocols),
+            use_static_observation=True,
+            anchor=anchor,
+        )
+        if task.mode in {"deep", "broadcast"}:
+            from market.binance_market.dex_route_test import (
+                estimate_route_live_quote,
+                recommended_route_test_amount,
+            )
+
+            routes = payload.get("routes") or []
+            refreshed = []
+            refresh_attempt_pairs = []
+            for route in routes:
+                route_symbols = [str(item) for item in (route.get("routeSymbols") or []) if str(item).strip()]
+                if not route_symbols:
+                    refreshed.append(route)
+                    continue
+                try:
+                    amount = recommended_route_test_amount(
+                        route_symbols=route_symbols,
+                        chain_id=task.chain_id,
+                        protocols=list(task.protocols),
+                    )
+                    if amount is None:
+                        refreshed.append(route)
+                        continue
+                    result = estimate_route_live_quote(
+                        chain_id=task.chain_id,
+                        protocols=list(task.protocols),
+                        route_symbols=route_symbols,
+                        amount=amount,
+                        route=route,
+                    )
+                    if isinstance(result, dict):
+                        route["__liveEstimate"] = result
+                        attempt = self._fixed_refresh_attempt(route, chain_id=task.chain_id, observed_at=_now_iso())
+                        if attempt is not None:
+                            refresh_attempt_pairs.append((route, attempt))
+                    refreshed.append(route)
+                except Exception as exc:
+                    detail = str(exc)[:300]
+                    route["__liveEstimate"] = {
+                        "ok": False,
+                        "error": detail,
+                        "quoteStatus": "live_quote_failed",
+                        "errorStack": _structured_dex_error(
+                            detail,
+                            flow="closed_loop_refresh",
+                            node_id=anchor,
+                        ),
+                    }
+                    refreshed.append(route)
+            payload["routes"] = refreshed
+            if refresh_attempt_pairs and self.auto_execute_enabled:
+                fixed_auto_execute_result = self._auto_execute_ready_attempts(
+                    [attempt for _, attempt in refresh_attempt_pairs],
+                    chain_id=task.chain_id,
+                    observed_at=_now_iso(),
+                )
+                payload["auto_execute"] = fixed_auto_execute_result
+                for route, attempt in refresh_attempt_pairs:
+                    if isinstance(attempt.get("auto_execute"), dict):
+                        route["auto_execute"] = attempt["auto_execute"]
+        self._merge_fixed_refresh_into_snapshot(task, payload)
+        return {
+            "ok": True,
+            "mode": task.mode,
+            "anchor": anchor,
+            "routeCount": len(payload.get("routes") or []),
+            "routes": payload.get("routes") or [],
+            "auto_execute": payload.get("auto_execute"),
+        }
+
+    def _fixed_refresh_attempt(self, route: dict[str, Any], *, chain_id: int | None, observed_at: str) -> dict[str, Any] | None:
+        estimate = route.get("__liveEstimate")
+        if not isinstance(estimate, dict) or not estimate.get("ok"):
+            return None
+        route_symbols = [str(item) for item in (estimate.get("routeSymbols") or route.get("routeSymbols") or []) if str(item).strip()]
+        if not route_symbols:
+            return None
+        route_addresses = [
+            str(item).strip().lower()
+            for item in (estimate.get("routeAddresses") or route.get("routeAddresses") or [])
+            if str(item).strip()
+        ]
+        best_amount_confirmed = bool(
+            estimate.get("bestAmountConfirmed")
+            or (estimate.get("analysis") or {}).get("bestAmountConfirmed")
+            or (estimate.get("bestAmountCalculation") or {}).get("bestAmountConfirmed")
+        )
+        best_amount_missing = bool(
+            estimate.get("bestAmountMissing") is True
+            or (estimate.get("analysis") or {}).get("bestAmountMissing") is True
+            or (estimate.get("bestAmountCalculation") or {}).get("bestAmountMissing") is True
+            or estimate.get("bestAmount") in (None, "")
+            or not best_amount_confirmed
+        )
+        quote_status = str(estimate.get("quoteStatus") or "").strip().lower()
+        execution_trust = str(estimate.get("executionTrust") or "").strip().lower()
+        if best_amount_missing and (quote_status == "live_verified" or execution_trust == "live_quoter_verified_readonly"):
+            quote_status = "static_reference_pending_live_review"
+            execution_trust = "static_reference_pending_live_review"
+        evidence = {
+            "status": quote_status,
+            "executionTrust": execution_trust,
+            "livePriceVerified": bool(estimate.get("liveVerified")) and not best_amount_missing,
+            "readyForTransactionPreflight": bool(estimate.get("readyForTransactionPreflight")) and not best_amount_missing,
+            "profitable": bool(estimate.get("profitable")),
+            "bestAmountConfirmed": best_amount_confirmed,
+            "routeSymbols": route_symbols,
+            "routeAddresses": route_addresses,
+            "hops": list(estimate.get("steps") or []),
+            "costModel": {
+                "selectedBorrowInputAmount": estimate.get("bestAmount"),
+                "borrowInputAmount": estimate.get("bestAmount"),
+                "bestAmountConfirmed": best_amount_confirmed,
+                "bestAmountMissing": best_amount_missing,
+                "netProfitAmount": (estimate.get("analysis") or {}).get("referenceNetProfitAmount"),
+                "netProfitBps": (estimate.get("analysis") or {}).get("referenceNetReturnBps"),
+            },
+            "validation": {
+                "profitableAfterCosts": bool(estimate.get("profitable")),
+            },
+            "blockers": [
+                "chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight"
+            ] if best_amount_missing else [],
+            "conclusion": "链上报价已验证当前金额，但最佳量未计算成功；复核未通过" if best_amount_missing else None,
+            "errorStack": [
+                {
+                    "module": "DEX",
+                    "code": 3006,
+                    "message": "chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight",
+                }
+            ] if best_amount_missing else [],
+        }
+        quote = dict(route.get("quote") or {})
+        quote["live_onchain_evidence"] = evidence
+        quote["quote_analysis"] = estimate.get("analysis") or {}
+        return {
+            "network": _network_for_chain_id(chain_id),
+            "chain_id": chain_id,
+            "pair": " -> ".join(route_symbols),
+            "route_path": route_symbols,
+            "route_addresses": route_addresses,
+            "routeAddresses": route_addresses,
+            "priority_reason": "closed_loop_fixed_refresh",
+            "quote": quote,
+            "quoteAnalysis": estimate.get("analysis") or {},
+            "observed_at": observed_at,
+        }
+
+    def _merge_fixed_refresh_into_snapshot(self, task, payload: dict[str, Any]) -> None:
+        key = _chain_scope_key(task.chain_id, list(task.protocols))
+        refreshed_routes = payload.get("routes") or []
+        if not refreshed_routes:
+            return
+        with self._lock:
+            existing = self._snapshots.get(key)
+            if existing is None:
+                existing = {
+                    "chain_id": task.chain_id,
+                    "payload": payload,
+                    "summary": _snapshot_summary(payload),
+                    "updated_at": _now_iso(),
+                    "error": None,
+                }
+            else:
+                existing_payload = existing.get("payload") if isinstance(existing.get("payload"), dict) else {}
+                by_key = {
+                    _route_simple_key(route): route
+                    for route in existing_payload.get("routes") or []
+                    if isinstance(route, dict)
+                }
+                for route in refreshed_routes:
+                    by_key[_route_simple_key(route)] = route
+                existing_payload = dict(existing_payload)
+                existing_payload["routes"] = list(by_key.values())
+                _refresh_payload_summary(existing_payload)
+                existing["payload"] = existing_payload
+                existing["summary"] = _snapshot_summary(existing_payload)
+                existing["updated_at"] = _now_iso()
+                existing["error"] = None
+            self._snapshots[key] = existing
+
+    def set_auto_execute_enabled(self, enabled: bool) -> None:
+        self.auto_execute_enabled = bool(enabled)
+        if self.auto_execute_enabled and self.auto_execute_callback is None:
+            self.auto_execute_callback = default_auto_execute_callback()
+        self._auto_execute_runner.enabled = self.auto_execute_enabled
+        self._auto_execute_runner.callback = self.auto_execute_callback
+
+    def _enqueue_closed_loop_groups_from_payload(
+        self,
+        payload: dict[str, Any],
+        *,
+        chain_id: int | None,
+        protocols: list[str] | None,
+    ) -> None:
+        if self._thread is None or not self._thread.is_alive():
+            return
+        seen: set[str] = set()
+        for route in payload.get("routes") or []:
+            if not isinstance(route, dict) or not _route_is_closed_loop_quad(route):
+                continue
+            symbols = route.get("routeSymbols") if isinstance(route.get("routeSymbols"), list) else route.get("symbols")
+            if isinstance(symbols, list) and symbols and str(symbols[0] or "").strip():
+                group_key = str(symbols[0]).strip().upper()
+            else:
+                group_key = _route_closed_loop_group_key(route)
+            if group_key in seen:
+                continue
+            seen.add(group_key)
+            current = self.closed_loop_review_queue.get(group_key)
+            if current is None or current.state in {"done", "error"}:
+                self.closed_loop_review_queue.submit_group(
+                    group_key=group_key,
+                    chain_id=chain_id,
+                    protocols=protocols,
+                    mode="scan",
+                )
 
     def _load_cache(self) -> None:
         if self.cache_path is None or not self.cache_path.exists():
@@ -560,6 +923,12 @@ class DexOpportunityScanner:
                 self._scan_count = int(scanner.get("scan_count") or 0)
                 self._recorded_attempt_count = int(scanner.get("recorded_attempt_count") or 0)
                 self._last_error = scanner.get("last_error")
+                raw_error_stack = scanner.get("last_error_stack")
+                self._last_error_stack = (
+                    list(raw_error_stack)
+                    if isinstance(raw_error_stack, list)
+                    else None
+                )
                 self._last_scan_started_at = scanner.get("last_scan_started_at")
                 self._last_scan_finished_at = scanner.get("last_scan_finished_at")
                 self._last_duration_ms = scanner.get("last_duration_ms")
@@ -573,13 +942,16 @@ class DexOpportunityScanner:
         self.watch(chain_id=chain_id, protocols=protocols)
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
+                self.closed_loop_review_pipeline.start()
                 return
             self._stop.clear()
             self._thread = threading.Thread(target=self.run_forever, name="dex-opportunity-scanner", daemon=True)
             self._thread.start()
+            self.closed_loop_review_pipeline.start()
 
     def stop(self) -> None:
         self._stop.set()
+        self.closed_loop_review_pipeline.stop()
 
     def watch(self, *, chain_id: int | None = None, protocols: list[str] | None = None) -> None:
         normalized_protocols = tuple(str(item).strip().lower() for item in (protocols or []) if str(item).strip())
@@ -604,6 +976,7 @@ class DexOpportunityScanner:
         return deepcopy(candidates[0])
 
     def status(self, *, chain_id: int | None = None) -> dict[str, Any]:
+        log_stats = _auto_execute_log_stats(chain_id)
         thread = self._thread
         with self._lock:
             watched_keys = sorted(self._watched)
@@ -611,6 +984,7 @@ class DexOpportunityScanner:
             snapshot = self._latest_chain_snapshot_for_status(chain_id)
             scan_count = self._scan_count
             last_error = self._last_error
+            last_error_stack = deepcopy(self._last_error_stack)
             last_started = self._last_scan_started_at
             last_finished = self._last_scan_finished_at
             last_duration = self._last_duration_ms
@@ -618,6 +992,14 @@ class DexOpportunityScanner:
             recorded_attempt_count = self._recorded_attempt_count
             auto_execute_count = self._auto_execute_count
             last_auto_execute_at = self._last_auto_execute_at
+        log_auto_execute_count = int(log_stats.get("auto_execute_count") or 0)
+        if log_auto_execute_count > auto_execute_count:
+            auto_execute_count = log_auto_execute_count
+        log_last_auto_execute_at = log_stats.get("last_auto_execute_at")
+        if log_last_auto_execute_at and (
+            last_auto_execute_at is None or str(log_last_auto_execute_at) > str(last_auto_execute_at)
+        ):
+            last_auto_execute_at = log_last_auto_execute_at
         return {
             "running": bool(thread and thread.is_alive()),
             "interval_seconds": self.interval_seconds,
@@ -636,9 +1018,12 @@ class DexOpportunityScanner:
             "scan_count": scan_count,
             "recorded_attempt_count": recorded_attempt_count,
             "auto_execute_count": auto_execute_count,
+            "auto_execute_log_count": log_auto_execute_count,
+            "closed_loop_review_queue": self.closed_loop_review_queue.summary(),
             "last_auto_execute_at": last_auto_execute_at,
             "last_recording": last_recording,
             "last_error": last_error,
+            "last_error_stack": last_error_stack,
             "last_scan_started_at": last_started,
             "last_scan_finished_at": last_finished,
             "last_duration_ms": last_duration,
@@ -659,6 +1044,10 @@ class DexOpportunityScanner:
                 "updated_at": None,
                 "error": None,
             }
+        payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else None
+        if payload is not None and isinstance(payload.get("routes"), list):
+            payload["routes"] = _dedupe_payload_routes(payload["routes"])
+            _refresh_payload_summary(payload)
         return {"ok": True, "scanner": self.status(chain_id=chain_id), "snapshot": snapshot}
 
     def run_forever(self) -> None:
@@ -747,8 +1136,19 @@ class DexOpportunityScanner:
         with self._scan_lock:
             try:
                 payload = self.quote_payload_provider(chain_id=chain_id, protocols=protocols)
+                if isinstance(payload.get("routes"), list):
+                    payload["routes"] = _dedupe_payload_routes(payload["routes"])
                 working_payload = deepcopy(payload)
+                merge_recent_manual_review_evidence_into_routes(
+                    working_payload.setdefault("routes", []) or [],
+                    chain_id=chain_id,
+                )
                 recording = self._record_opportunities(working_payload, chain_id=chain_id, observed_at=started_at, trigger_context=trigger_context)
+                self._enqueue_closed_loop_groups_from_payload(
+                    working_payload,
+                    chain_id=chain_id,
+                    protocols=protocols,
+                )
                 _refresh_payload_summary(working_payload)
                 snapshot = {
                     "chain_id": chain_id,
@@ -760,15 +1160,22 @@ class DexOpportunityScanner:
                     "recording": recording,
                 }
                 error = None
+                error_stack = None
             except Exception as exc:
                 payload = None
                 snapshot = None
                 error = str(exc)
+                error_stack = _structured_dex_error(
+                    error,
+                    flow="opportunity_scan",
+                    node_id=key,
+                )
             finished_at = _now_iso()
             duration_ms = int((time.perf_counter() - started) * 1000)
             with self._lock:
                 self._scan_count += 1
                 self._last_error = error
+                self._last_error_stack = error_stack
                 self._last_scan_finished_at = finished_at
                 self._last_duration_ms = duration_ms
                 if snapshot is not None:
@@ -780,9 +1187,11 @@ class DexOpportunityScanner:
                         "summary": _snapshot_summary(None),
                         "updated_at": None,
                         "error": error,
+                        "errorStack": error_stack,
                     }
                 else:
                     self._snapshots[key]["error"] = error
+                    self._snapshots[key]["errorStack"] = error_stack
             self._write_cache()
 
     def _write_cache(self) -> None:
@@ -804,6 +1213,7 @@ class DexOpportunityScanner:
                 "last_auto_execute_at": self._last_auto_execute_at,
                 "last_recording": deepcopy(self._last_recording),
                 "last_error": self._last_error,
+                "last_error_stack": deepcopy(self._last_error_stack),
                 "last_scan_started_at": self._last_scan_started_at,
                 "last_scan_finished_at": self._last_scan_finished_at,
                 "last_duration_ms": self._last_duration_ms,

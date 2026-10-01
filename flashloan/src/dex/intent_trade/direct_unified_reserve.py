@@ -38,6 +38,15 @@ def usdc_address_for_network(network: str | None = None, cache: dict[str, Any] |
             return entry_x
         if "USDC" in right_symbols and entry_y:
             return entry_y
+    from core.chain_data_registry import chain_contracts
+
+    direct_config = impl.DIRECT_ONCHAIN_NETWORKS.get(normalized_network)
+    if direct_config:
+        chain_value = impl._normalize_pair_address(
+            (chain_contracts(chain_id=int(direct_config["chain_id"])) or {}).get("usdc")
+        )
+        if chain_value:
+            return chain_value
     if normalized_network == "fuji":
         return impl.FUJI_USDC_ADDRESS
     if normalized_network == "bnb":

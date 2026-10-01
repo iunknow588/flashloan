@@ -25,7 +25,11 @@ def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
         "summary": {"closedLoopRouteCount": 1},
         "poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630, "exists": True},
         "chainSpecificObservationPairs": [{"symbolPair": "AAA:BBB", "addressPair": "0xaaa:0xbbb"}],
-        "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+        "closedLoopRoutes": [{
+            "pathText": "ETH -> AAA -> BBB -> ETH",
+            "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+            "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+        }],
     }
     second = {
         "mode": "dex_market_observation",
@@ -37,8 +41,16 @@ def test_market_observation_static_store_full_and_incremental_merge(tmp_path):
             {"symbolPair": "CCC:DDD", "addressPair": "0xccc:0xddd"},
         ],
         "closedLoopRoutes": [
-            {"pathText": "ETH -> AAA -> BBB -> ETH"},
-            {"pathText": "ETH -> CCC -> DDD -> ETH"},
+            {
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+            },
+            {
+                "pathText": "ETH -> CCC -> DDD -> ETH",
+                "pathSymbols": ["ETH", "CCC", "DDD", "ETH"],
+                "routePools": [{"pool": "pool-4"}, {"pool": "pool-5"}, {"pool": "pool-6"}],
+            },
         ],
     }
 
@@ -206,7 +218,11 @@ def test_market_observation_static_payload_backfills_anchor_lists():
             {"anchorSymbol": "ETH"},
             {"anchorSymbol": "USDC"},
         ],
-        "closedLoopRoutes": [{"pathText": "ETH -> A -> B -> ETH"}],
+        "closedLoopRoutes": [{
+            "pathText": "ETH -> A -> B -> ETH",
+            "pathSymbols": ["ETH", "A", "B", "ETH"],
+            "routePools": [{"pool": "pool-a"}, {"pool": "pool-b"}, {"pool": "pool-c"}],
+        }],
     }
 
     payload = observation_payload_from_static(snapshot)
@@ -252,6 +268,109 @@ def test_static_snapshot_drops_full_pool_and_token_exports():
     assert snapshot["observationSequences"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
 
 
+def test_static_snapshot_merges_generic_closed_loop_routes_with_observation_sequences():
+    snapshot = static_snapshot_from_observation(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "chainSpecificObservationPairs": [{"symbolPair": "TB:TA"}],
+            "observationSequences": [
+                {
+                    "anchorSymbol": "ETH",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                    "pathText": "ETH -> AAA -> BBB -> ETH",
+                    "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+                }
+            ],
+            "closedLoopRoutes": [
+                {
+                    "anchorSymbol": "TZ",
+                    "pathSymbols": ["TZ", "TB", "TA", "TZ"],
+                    "pathText": "TZ -> TB -> TA -> TZ",
+                    "routePools": [
+                        {"pool": "pool-4", "routeSymbols": ["TZ", "TB"], "pairSymbol": "TZ:TB"},
+                        {"pool": "pool-5", "routeSymbols": ["TB", "TA"], "pairSymbol": "TB:TA"},
+                        {"pool": "pool-6", "routeSymbols": ["TA", "TZ"], "pairSymbol": "TA:TZ"},
+                    ],
+                }
+            ],
+        }
+    )
+
+    path_texts = [sequence.get("pathText") for sequence in snapshot["observationSequences"]]
+    assert "ETH -> AAA -> BBB -> ETH" in path_texts
+    assert "TZ -> TB -> TA -> TZ" in path_texts
+
+
+def test_static_snapshot_persists_pool_registry_for_restore():
+    snapshot = static_snapshot_from_observation(
+        {
+            "chain_id": 46630,
+            "selected_protocols": ["uniswap_v4"],
+            "closedLoopRoutes": [
+                {
+                    "anchorSymbol": "TZ",
+                    "pathSymbols": ["TZ", "TB", "TA", "TZ"],
+                    "pathText": "TZ -> TB -> TA -> TZ",
+                    "routePools": [
+                        {
+                            "pool": "pool-a",
+                            "poolManager": "0xmanager",
+                            "balances": {"tvlUsd": 10},
+                        },
+                        {"pool": "pool-b"},
+                        {"pool": "pool-c"},
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert snapshot["poolRegistry"] == {
+        "pool-a": {
+            "pool": "pool-a",
+            "poolManager": "0xmanager",
+            "balances": {"tvlUsd": 10},
+        },
+        "pool-b": {"pool": "pool-b"},
+        "pool-c": {"pool": "pool-c"},
+    }
+
+
+def test_observation_payload_from_static_hydrates_route_pools_from_registry():
+    snapshot = {
+        "chain_id": 46630,
+        "protocols": ["uniswap_v4"],
+        "selected_protocols": ["uniswap_v4"],
+        "poolRegistry": {
+            "pool-a": {
+                "pool": "pool-a",
+                "protocol": "uniswap_v4",
+                "poolManager": "0xmanager",
+                "balances": {"tvlUsd": 10},
+            }
+        },
+        "observationSequences": [
+            {
+                "anchorSymbol": "TZ",
+                "pathSymbols": ["TZ", "TB", "TA", "TZ"],
+                "pathText": "TZ -> TB -> TA -> TZ",
+                "routePools": [
+                    {"pool": "pool-a"},
+                    {"pool": "pool-b"},
+                    {"pool": "pool-c"},
+                ],
+            }
+        ],
+    }
+
+    payload = observation_payload_from_static(snapshot)
+
+    assert payload["observationSequences"][0]["routePools"][0]["pool"] == "pool-a"
+    assert payload["observationSequences"][0]["routePools"][0]["poolManager"] == "0xmanager"
+    assert payload["observationSequences"][0]["routePools"][0]["protocol"] == "uniswap_v4"
+
+
 def test_static_snapshot_keeps_only_route_handoff_fields():
     snapshot = static_snapshot_from_observation(
         {
@@ -285,8 +404,16 @@ def test_static_snapshot_keeps_only_route_handoff_fields():
                     "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
                 }
             ],
-            "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
-            "indirectRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+            "closedLoopRoutes": [{
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+            }],
+            "indirectRoutes": [{
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+            }],
             "directPools": [{"symbolPair": "ETH:AAA"}],
             "unmatchedPools": [{"symbolPair": "CCC:DDD"}],
         }
@@ -334,7 +461,11 @@ def test_incremental_merge_removes_legacy_full_exports(tmp_path):
                 "chainSpecificObservationPools": [{"poolId": "legacy"}],
                 "chainSpecificObservationTokens": [{"address": "0xlegacy"}],
                 "chainSpecificObservation": {"legacy": True},
-                "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+                "closedLoopRoutes": [{
+                    "pathText": "ETH -> AAA -> BBB -> ETH",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                    "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+                }],
             }
         ),
         encoding="utf-8",
@@ -344,7 +475,11 @@ def test_incremental_merge_removes_legacy_full_exports(tmp_path):
         {
             "chain_id": 46630,
             "selected_protocols": ["uniswap_v4"],
-            "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+            "closedLoopRoutes": [{
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+            }],
         },
         chain_id=46630,
         protocols=["uniswap_v4"],
@@ -376,7 +511,11 @@ def test_compact_market_observation_static_migrates_legacy_snapshot(tmp_path):
                 "generated_at": "2026-09-01T00:00:00Z",
                 "chainSpecificObservationPools": [{"poolId": "legacy"}],
                 "chainSpecificObservationTokens": [{"address": "0xlegacy"}],
-                "closedLoopRoutes": [{"pathText": "ETH -> AAA -> BBB -> ETH"}],
+                "closedLoopRoutes": [{
+                    "pathText": "ETH -> AAA -> BBB -> ETH",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                    "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}, {"pool": "pool-3"}],
+                }],
             }
         ),
         encoding="utf-8",
@@ -405,3 +544,34 @@ def test_compact_market_observation_static_migrates_legacy_snapshot(tmp_path):
     assert "observationSequences" not in overview
     assert overview["closedLoopRouteSummaries"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
     assert observation_payload_from_static(loaded)["closedLoopRoutes"][0]["pathText"] == "ETH -> AAA -> BBB -> ETH"
+
+
+def test_observation_payload_from_static_filters_two_hop_closed_loop():
+    snapshot = {
+        "network": "robinhood-testnet",
+        "chain_id": 46630,
+        "protocols": ["uniswap_v4"],
+        "selected_protocols": ["uniswap_v4"],
+        "closedLoopRoutes": [
+            {
+                "pathText": "ETH -> AAA -> ETH",
+                "pathSymbols": ["ETH", "AAA", "ETH"],
+                "routePools": [{"pool": "pool-1"}, {"pool": "pool-2"}],
+            },
+            {
+                "pathText": "ETH -> AAA -> BBB -> ETH",
+                "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routePools": [{"pool": "pool-3"}, {"pool": "pool-4"}, {"pool": "pool-5"}],
+            },
+        ],
+    }
+
+    payload = observation_payload_from_static(snapshot)
+
+    assert [route["pathText"] for route in payload["closedLoopRoutes"]] == [
+        "ETH -> AAA -> BBB -> ETH"
+    ]
+    assert all(
+        route.get("routeSemantics") == "x_y_entry_y_z_bridge_z_x_exit"
+        for route in payload["closedLoopRoutes"]
+    )

@@ -1,6 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
 const path = require("path");
 const dotenv = require("dotenv");
+const { loadChainConfig } = require(path.resolve(__dirname, "../../../scripts/tool/load-chain-config.js"));
 
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, "../../../flashloan/app_runtime/.env"), override: false });
@@ -16,22 +17,11 @@ for (const [key, value] of Object.entries(testEnv)) {
   }
 }
 
-const ROBINHOOD_RPC_URL =
-  process.env.ROBINHOOD_RPC_URL ||
-  process.env.ROBINHOOD_RPC ||
-  process.env.ROBINHOOD_RPCS ||
-  process.env.ROBINHOOD_RPC_URLS ||
-  process.env.ROBINHOOD_MAINNET_RPC_URL ||
-  process.env.ROBINHOOD_MAINNET_RPC;
-const ROBINHOOD_TESTNET_RPC_URL =
-  process.env.ROBINHOOD_TESTNET_RPC_URL ||
-  process.env.ROBINHOOD_TESTNET_RPC ||
-  process.env.ROBINHOOD_TESTNET_RPCS ||
-  process.env.ROBINHOOD_TESTNET_RPC_URLS ||
-  process.env.ROBINHOOD_TESTNET_ALCHEMY_RPC_URL ||
-  process.env.ROBINHOOD_TESTNET_ALCHEMY_RPC;
-const DEFAULT_ROBINHOOD_RPC_URL = "https://rpc.mainnet.chain.robinhood.com";
-const DEFAULT_ROBINHOOD_TESTNET_RPC_URL = "https://rpc.testnet.chain.robinhood.com";
+const ROBINHOOD_CHAIN = loadChainConfig(4663);
+const ROBINHOOD_TESTNET_CHAIN = loadChainConfig(46630);
+const LOCAL_CHAIN = loadChainConfig(31337);
+const ROBINHOOD_RPC_URL = ROBINHOOD_CHAIN.rpcUrl;
+const ROBINHOOD_TESTNET_RPC_URL = ROBINHOOD_TESTNET_CHAIN.rpcUrl;
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
 const FALLBACK_PRIVATE_KEY = process.env.LIQUIDATION_EXECUTION_PRIVATE_KEY || process.env.COW_ORDER_SIGNER_PRIVATE_KEY;
 const DEPLOYER_KEYS = PRIVATE_KEY ? [PRIVATE_KEY] : (FALLBACK_PRIVATE_KEY ? [FALLBACK_PRIVATE_KEY] : []);
@@ -56,16 +46,16 @@ module.exports = {
   networks: {
     hardhat: {},
     localhost: {
-      url: "http://127.0.0.1:8545",
+      url: LOCAL_CHAIN.rpcUrl,
       chainId: 31337,
     },
     robinhood: {
-      url: ROBINHOOD_RPC_URL || DEFAULT_ROBINHOOD_RPC_URL,
+      url: ROBINHOOD_RPC_URL,
       accounts: DEPLOYER_KEYS,
       chainId: 4663,
     },
     robinhoodTestnet: {
-      url: ROBINHOOD_TESTNET_RPC_URL || DEFAULT_ROBINHOOD_TESTNET_RPC_URL,
+      url: ROBINHOOD_TESTNET_RPC_URL,
       accounts: DEPLOYER_KEYS,
       chainId: 46630,
     },

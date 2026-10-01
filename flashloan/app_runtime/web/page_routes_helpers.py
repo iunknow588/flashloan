@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -38,9 +40,25 @@ def _request_scope_defaults(
     if not raw_chain_id:
         return market_id, default_chain_id
     try:
-        return market_id, int(raw_chain_id)
+        selected_chain_id = int(raw_chain_id)
     except ValueError:
         return market_id, default_chain_id
+    return _normalize_page_scope_market_id(market_id, selected_chain_id), selected_chain_id
+
+
+def _market_id_chain_component(market_id: str | None) -> str | None:
+    normalized = str(market_id or "").strip().lower()
+    match = re.match(r"^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$", normalized)
+    return match.group(2) if match else None
+
+
+def _normalize_page_scope_market_id(market_id: str | None, chain_id: int | None) -> str | None:
+    if not market_id or chain_id is None:
+        return market_id
+    embedded_chain = _market_id_chain_component(market_id)
+    if embedded_chain and embedded_chain != str(int(chain_id)):
+        return None
+    return market_id
 
 
 def _request_protocol_id() -> str | None:
@@ -58,7 +76,8 @@ def _request_shell_feature() -> str:
     feature = request.args.get("feature", "").strip().lower()
     if feature in {"liquidation", "dex_arbitrage"}:
         return feature
-    return "liquidation"
+    default_feature = str(os.getenv("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage")).strip().lower()
+    return default_feature if default_feature in {"liquidation", "dex_arbitrage"} else "dex_arbitrage"
 
 
 def _html_response(
@@ -406,10 +425,15 @@ def _market_page_response(
     default_chain_id: int | None = None,
 ) -> Response:
     try:
+        requested_chain_id = _request_chain_id()
+        requested_market_id = _normalize_page_scope_market_id(
+            request.args.get("market_id", "").strip() or None,
+            requested_chain_id,
+        )
         variant = resolve_market_page_variant(
             request.path,
-            market_id=request.args.get("market_id", "").strip() or None,
-            chain_id=_request_chain_id(),
+            market_id=requested_market_id,
+            chain_id=requested_chain_id,
             protocol_id=_request_protocol_id(),
             database_url=_panel_database_url(panel),
             default_market_id=default_market_id,
@@ -432,6 +456,8 @@ def _market_page_response(
         selected_template = panel.DEX_QUOTES_TEMPLATE_PATH
     elif variant.feature == "dex_arbitrage" and variant.surface == "submissions":
         selected_template = panel.DEX_SUBMISSIONS_TEMPLATE_PATH
+    elif variant.feature == "dex_arbitrage" and variant.surface == "submissions_failed":
+        selected_template = panel.DEX_SUBMISSIONS_FAILED_TEMPLATE_PATH
     elif variant.template_kind == "single_chain":
         selected_template = panel.DEX_SINGLE_CHAIN_TEMPLATE_PATH
     elif selected_template is None and variant.feature == "dex_arbitrage":

@@ -2,6 +2,21 @@ from eth_abi.abi import decode, encode
 import runtime.dex_onchain_quote_evidence_official_v4 as official_v4
 
 
+def test_official_v4_arb_address_resolution_prefers_external_config(monkeypatch):
+    monkeypatch.delenv("OFFICIAL_V4_ARB_ADDRESS", raising=False)
+    monkeypatch.setattr(official_v4, "_chain_data_official_v4_address", lambda field: "0x" + "c" * 40)
+    monkeypatch.setattr(official_v4, "_manifest_official_v4_address", lambda field, chain_id: "0x" + "d" * 40)
+
+    monkeypatch.setenv("OFFICIAL_V4_ARB_ADDRESS", "0x" + "a" * 40)
+    assert official_v4._official_v4_arb_address() == "0x" + "a" * 40
+
+    monkeypatch.delenv("OFFICIAL_V4_ARB_ADDRESS", raising=False)
+    assert official_v4._official_v4_arb_address() == "0x" + "c" * 40
+
+    monkeypatch.setattr(official_v4, "_chain_data_official_v4_address", lambda field: None)
+    assert official_v4._official_v4_arb_address() == "0x" + "d" * 40
+
+
 def _pool(symbol_a: str, addr_a: str, symbol_b: str, addr_b: str, fee: int, pool_id: str) -> dict:
     return {
         "pool": pool_id,

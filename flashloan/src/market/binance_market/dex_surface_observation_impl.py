@@ -212,7 +212,7 @@ def _route_candidate(
         "rejectedPools": [],
         "rejectReasonCounts": {},
         "flashLoanLinkage": {
-            "strategy": "stable_anchor_candidate_path" if kind == "direct_anchor_pair" else "stable_anchor_bridge_candidate_path",
+            "strategy": "stable_anchor_bridge_candidate_path",
             "borrow_symbols": [anchor],
             "borrow_tokens": [route_addresses[0]] if route_addresses and route_addresses[0] else [],
             "route_symbols": route_symbols,
@@ -315,7 +315,7 @@ def _observation_route_to_path_candidate(route: dict[str, Any], *, chain_id: int
     pools = _route_pools(route)
     anchor = _norm_symbol(route.get("anchorSymbol") or route.get("borrowSymbol") or (route_symbols[0] if route_symbols else ""))
     target = _norm_symbol(route.get("targetSymbol") or route.get("counterSymbol") or (route_symbols[-2] if len(route_symbols) > 2 else ""))
-    kind = "direct_anchor_pair" if str(route.get("kind") or "").lower() == "direct_closed_pair" or len(route_symbols) <= 3 else "bridge_pair"
+    kind = "bridge_pair"
     candidate_pair_symbols = _candidate_pair_symbols_from_observation_route(route)
     symbol_pair = route.get("pathText") or " -> ".join(route_symbols)
     strategy = (
@@ -461,8 +461,7 @@ def _overview_path_candidates(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     pairs = _candidate_pairs(pool_payload.get("pairs") or [])
     anchors = _borrow_anchor_symbols(pool_payload, chain_id, protocols=protocols)
-    token_by_key, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
-    direct_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    _, symbol_to_keys, neighbor_keys, pair_by_edge = _token_graph(pairs)
     routes: list[dict[str, Any]] = []
     route_keys: set[tuple[str, ...]] = set()
     seen_loop_keys: set[tuple[str, tuple[str, ...]]] = set()
@@ -472,38 +471,6 @@ def _overview_path_candidates(
         token_keys = tuple(_token_key(token) for token in path_tokens if isinstance(token, dict))
         return (*token_keys, *pair_keys)
 
-    for anchor in anchors:
-        anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
-        for anchor_key in anchor_keys:
-            neighbor_keys_for_anchor = sorted(neighbor_keys.get(anchor_key) or [])
-            for target_key in neighbor_keys_for_anchor:
-                if target_key == anchor_key:
-                    continue
-                pair = pair_by_edge.get(frozenset((anchor_key, target_key)))
-                if pair is None:
-                    continue
-                anchor_token = _pair_token_entry(pair, anchor_key)
-                target_token = _pair_token_entry(pair, target_key)
-                if anchor_token is None or target_token is None:
-                    continue
-                target = _norm_symbol(target_token.get("symbol"))
-                if not target or not _route_symbol_allowed(target):
-                    continue
-                route = _route_candidate(
-                    kind="direct_anchor_pair",
-                    anchor=anchor,
-                    target=target,
-                    path_symbols=[anchor, target, anchor],
-                    path_tokens=[anchor_token, target_token, anchor_token],
-                    pairs=[pair],
-                )
-                key = (anchor_key, target_key)
-                current = direct_by_key.get(key)
-                if current is None or _route_score(route) > _route_score(current):
-                    direct_by_key[key] = route
-
-    routes.extend(direct_by_key.values())
-    route_keys.update(direct_by_key)
     for anchor in anchors:
         anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
         for anchor_key in anchor_keys:
@@ -548,13 +515,10 @@ def _overview_path_candidates(
                     key = _route_key_from_route(route, str(pair_xy.get("symbolPair") or ""), str(pair_yz.get("symbolPair") or ""), str(pair_zx.get("symbolPair") or ""))
                     if key in route_keys:
                         continue
-                    loop_symbols = [
-                        _norm_symbol(value)
-                        for value in route.get("routeSymbols") or (route.get("overviewRoute") or {}).get("pathSymbols") or []
-                        if _norm_symbol(value)
-                    ]
-                    loop_anchor = _norm_symbol((route.get("overviewRoute") or {}).get("anchorBorrowSymbol")) or (loop_symbols[0] if loop_symbols else "")
-                    loop_mids = tuple(loop_symbols[1:-1]) if len(loop_symbols) >= 3 and loop_symbols[0] == loop_symbols[-1] else tuple(loop_symbols)
+                    token_path = route.get("routeTokenPath") or (route.get("overviewRoute") or {}).get("pathTokens") or []
+                    path_keys = tuple(_token_key(token) for token in token_path if isinstance(token, dict))
+                    loop_anchor = path_keys[0] if path_keys else _norm_symbol((route.get("overviewRoute") or {}).get("anchorBorrowSymbol"))
+                    loop_mids = tuple(path_keys[1:-1]) if len(path_keys) >= 3 and path_keys[0] == path_keys[-1] else tuple(path_keys)
                     if loop_mids and tuple(reversed(loop_mids)) < loop_mids:
                         loop_mids = tuple(reversed(loop_mids))
                     loop_key = (loop_anchor, loop_mids)

@@ -299,3 +299,50 @@ def test_registered_chain_protocol_candidates_are_not_expanded_by_market_rows():
 
     assert candidates[46630]["protocols"] == ["uniswap_v4"]
     assert candidates[46630]["protocol_count"] == 1
+
+
+def test_protocol_options_ignore_stale_protocols_when_chain_config_is_authoritative(tmp_path):
+    snapshot_path = tmp_path / "flash_loan_discovery_snapshot.json"
+    _write_json(
+        snapshot_path,
+        {
+            "ok": True,
+            "schema_version": "flash-loan-pool-discovery-v1",
+            "generated_at": None,
+            "protocol_count": 5,
+            "chain_count": 1,
+            "chains": [
+                {
+                    "chain_key": "chain:46630",
+                    "chain_id": 46630,
+                    "network": "robinhood-testnet",
+                    "protocols": [],
+                }
+            ],
+            "scanned_chains": [],
+            "protocols": [
+                {
+                    "chain_key": "chain:46630",
+                    "chain_id": 46630,
+                    "network": "robinhood-testnet",
+                    "protocol": protocol,
+                    "display_name": protocol,
+                    "pool_count": 1,
+                    "borrowable_pool_count": 0,
+                    "asset_count": 0,
+                    "depth_score_usd": 0.0,
+                    "source": "stale-snapshot",
+                    "refreshed_at": None,
+                    "raw_snapshot_key": None,
+                }
+                for protocol in ["morpho_blue", "uniswap_v2", "uniswap_v3", "uniswap_v4", "aave_v3"]
+            ],
+            "removed_protocols": [],
+            "raw_snapshots": {},
+            "errors": [],
+        },
+    )
+
+    assert discovery.protocol_options_for_chain(chain_id=46630, snapshot_path=snapshot_path) == [
+        {"protocol": "uniswap_v4", "display_name": "Uniswap V4"}
+    ]

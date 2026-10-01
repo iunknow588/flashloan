@@ -101,7 +101,7 @@ def test_sushiswap_v3_pool_can_be_verified_with_v3_quoter(monkeypatch):
 
     assert evidence["status"] == "route_unprofitable"
     assert evidence["trustedForExecution"] is False
-    assert evidence["executionTrust"] == "live_quoter_verified_readonly"
+    assert evidence["executionTrust"] == "static_reference_pending_live_review"
     assert evidence["hops"][0]["quoteMethod"] == "v3_quoter_quoteExactInputSingle_eth_call"
     assert evidence["hops"][0]["pool"] == pool
 
@@ -169,7 +169,7 @@ def test_live_quote_falls_back_to_latest_when_trigger_block_missing(monkeypatch)
         skip_execution_size_probe=True,
     )
 
-    assert evidence["status"] == "live_verified"
+    assert evidence["status"] == "static_reference_pending_live_review"
     assert evidence["blockNumber"] == 999
     assert evidence["quoteBlockSource"] == "latest_onchain_review"
 
@@ -372,7 +372,7 @@ def test_direct_evidence_falls_back_to_latest_when_historical_state_missing(monk
         skip_execution_size_probe=True,
     )
 
-    assert evidence["status"] == "live_verified"
+    assert evidence["status"] == "static_reference_pending_live_review"
     assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert FakeEth.block_number in seen
     assert len(seen) == 1
@@ -460,11 +460,82 @@ def test_scanner_provider_falls_back_to_latest_when_historical_state_missing(mon
         skip_execution_size_probe=True,
     )
 
-    assert evidence["status"] == "live_verified"
+    assert evidence["status"] == "static_reference_pending_live_review"
     assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert FakeEth.block_number in seen
     assert len(seen) == 1
     assert seen[0] == 999
+
+
+def test_scanner_liquidity_retry_uses_confirmed_cost_model_best_amount(monkeypatch):
+    import runtime.dex_opportunity_scanner as dex_opportunity_scanner
+
+    calls = []
+
+    def fake_build_route_onchain_evidence(*args, **kwargs):
+        skip = kwargs.get("skip_execution_size_probe")
+        override = kwargs.get("borrow_input_amount_override_raw")
+        calls.append((skip, override))
+        if skip is not False and override is None:
+            return {
+                "status": "not_enough_liquidity",
+                "selectedBorrowInputAmountRaw": "1000000000000000000",
+                "requestedBorrowInputAmountRaw": "1000000000000000000",
+                "costModel": {
+                    "selectedBorrowInputAmountRaw": "1000000000000000000",
+                    "requestedBorrowInputAmountRaw": "1000000000000000000",
+                },
+                "blockers": ["hop 1 has not enough liquidity"],
+            }
+        if skip is True:
+            return {
+                "status": "static_reference_pending_live_review",
+                "costModel": {
+                    "selectedBorrowInputAmountRaw": str(override),
+                    "requestedBorrowInputAmountRaw": str(override),
+                    "netProfitAmount": 1.0,
+                },
+                "validation": {
+                    "allHopsQuoted": True,
+                    "routeClosed": True,
+                    "tokenContinuity": True,
+                    "profitableAfterCosts": True,
+                },
+            }
+        return {
+            "status": "live_verified",
+            "costModel": {
+                "selectedBorrowInputAmountRaw": str(override),
+                "selectedBorrowInputAmount": 0.5,
+                "bestAmountConfirmed": True,
+                "bestAmountMissing": False,
+            },
+            "validation": {
+                "allHopsQuoted": True,
+                "routeClosed": True,
+                "tokenContinuity": True,
+                "profitableAfterCosts": True,
+            },
+        }
+
+    monkeypatch.setattr(dex_opportunity_scanner, "build_route_onchain_evidence", fake_build_route_onchain_evidence)
+    route = {
+        "routeSymbols": ["TSLA", "0X71178B", "0XF91173", "TSLA"],
+        "quoteAnalysis": {"steps": []},
+    }
+
+    evidence = _scanner_onchain_evidence_provider(
+        route,
+        payload={"poolStaticTable": {"network": "robinhood-testnet", "chainId": 46630}},
+        chain_id=46630,
+        observed_at="2026-10-01T00:00:00+00:00",
+        trigger_context={"triggerBlockNumber": 123},
+        skip_execution_size_probe=True,
+    )
+
+    assert evidence["status"] == "live_verified"
+    assert (evidence.get("costModel") or {}).get("bestAmountConfirmed") is True
+    assert calls[-1] == (False, 500000000000000000)
 
 
 def test_merge_onchain_evidence_preserves_full_static_route_when_live_stops_early():
@@ -823,12 +894,13 @@ def test_live_quote_uses_latest_block_for_review(monkeypatch):
     )
 
     assert seen["block_number"] == 999
-    assert evidence["status"] == "live_verified"
+    assert evidence["status"] == "static_reference_pending_live_review"
     assert evidence["blockNumber"] == 999
     assert evidence["triggerBlockNumber"] == 123
     assert evidence["quoteBlockSource"] == "latest_onchain_review"
     assert evidence["blockTimestamp"] == 1_777_777_777
     assert evidence["trustedForExecution"] is False
+    assert evidence["readyForTransactionPreflight"] is False
 
 
 def test_profitable_live_quote_is_readonly_until_transaction_simulation():

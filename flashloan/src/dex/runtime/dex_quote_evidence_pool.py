@@ -213,6 +213,8 @@ def _quote_v4_hop(
     token_cache: dict[str, int],
     chain_id: int | None = None,
     network: str | None = None,
+    rpc_url: str | None = None,
+    live_pool_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     pool_address = _text(step.get("pool"))
     from_symbol = _norm_symbol(step.get("fromSymbol"))
@@ -262,6 +264,25 @@ def _quote_v4_hop(
         "sqrtPriceX96": pool.get("sqrtPriceX96") or pool.get("sqrt_price_x96"),
         "liquidity": pool.get("liquidity"),
     }
+    if live_pool_state:
+        for key in (
+            "sqrtPriceX96",
+            "liquidity",
+            "tick",
+            "protocolFee",
+            "lpFee",
+            "source",
+            "poolManager",
+            "rpcUrl",
+            "blockNumber",
+            "stateSlot",
+        ):
+            if live_pool_state.get(key) is not None:
+                request["poolState"][key] = live_pool_state[key]
+        request["poolState"]["rpcUrl"] = rpc_url or request["poolState"].get("rpcUrl") or ""
+    request["w3"] = w3
+    if rpc_url:
+        request["rpcUrl"] = rpc_url
     adapter_loader = _evidence_attr_or_default("_load_v4_quote_adapter", _load_v4_quote_adapter)
     adapter = adapter_loader(network=request_network, chain_id=chain_id)
     if adapter is None:

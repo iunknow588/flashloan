@@ -10,6 +10,7 @@ from core.market_config import (
     liquidation_market_config_for,
 )
 from core.market_identity import canonical_market_id_from_legacy
+from core.chain_data_registry import chain_data_file_path
 from core.contracts import source_metadata
 from dex.intent_trade.chains.robinhood.chain_health import probe_robinhood_rpc
 from dex.intent_trade.chains.robinhood.readiness import robinhood_deployment_status
@@ -17,8 +18,14 @@ from core.db.storage_chain_markets import load_current_dex_arbitrage_candidates
 
 
 SRC_ROOT = Path(__file__).resolve().parents[2] / "app_runtime"
-ROBINHOOD_CANDIDATE_CACHE_PATH = SRC_ROOT / "runtime" / "cache" / "robinhood_dex_candidates.json"
-ROBINHOOD_EVIDENCE_ROOT = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
+ROBINHOOD_CANDIDATE_CACHE_PATH = (
+    chain_data_file_path("robinhood", "dex_candidates")
+    or SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_candidates.json"
+)
+ROBINHOOD_EVIDENCE_ROOT = (
+    chain_data_file_path("robinhood", "dex_discovery")
+    or SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
+)
 ROBINHOOD_MARKET_SNAPSHOT_PATH = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "market_snapshot" / "latest.json"
 
 

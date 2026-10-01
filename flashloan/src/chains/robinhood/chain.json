@@ -4,14 +4,21 @@
   "chain_id": 4663,
   "display_name": "Robinhood Chain",
   "native_symbol": "ETH",
-  "rpc_url": "https://rpc.mainnet.chain.robinhood.com",
-  "rpc_urls": [
-    "https://rpc.mainnet.chain.robinhood.com",
-    "https://robinhood-rpc.publicnode.com",
-    "https://rpc.arrowrpc.com",
-    "https://rpc.ordofi.network"
-  ],
-  "explorer_url": "https://robinhoodchain.blockscout.com",
+  "rpc": {
+    "primary": "https://rpc.mainnet.chain.robinhood.com",
+    "fallbacks": [
+      "https://robinhood-rpc.publicnode.com",
+      "https://rpc.ordofi.network"
+    ],
+    "timeout_seconds": 20
+  },
+  "explorer": {
+    "url": "https://robinhoodchain.blockscout.com"
+  },
+  "tooling": {
+    "hardhat_network": "robinhood",
+    "foundry_alias": "robinhood"
+  },
   "defaults": {
     "v4_quote_adapter": "intent_trade.chains.robinhood.v4_quote_adapter:quote_v4_exact_input_single_from_pool_index",
     "v4_pool_index_writer": "intent_trade.chains.robinhood.v4_pool_index:write_v4_pool_index_from_observation_pool_ids",
@@ -31,7 +38,10 @@
     "morpho_blue_core": "0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010",
     "v2_factory": "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f",
     "uniswap_v2_pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
-    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "usdc": "",
+    "unified_executor": "",
+    "owner": ""
   },
   "features": {
     "liquidation": {
@@ -53,9 +63,9 @@
     "supported_protocol_count": 5
   },
   "data_files": {
-    "flash_liquidity": "runtime/cache/flash_loan_pool_discovery_snapshot.json",
-    "dex_candidates": "runtime/cache/robinhood_dex_candidates.json",
-    "dex_market_pools": "runtime/cache/robinhood_dex_market_pools.json",
+    "flash_liquidity": "runtime/cache/robinhood/flash_loan_pool_discovery_snapshot.json",
+    "dex_candidates": "runtime/cache/robinhood/robinhood_dex_candidates.json",
+    "dex_market_pools": "runtime/cache/robinhood/robinhood_dex_market_pools.json",
     "dex_discovery": "runtime/evidence/robinhood/dex_discovery",
     "v4_pool_index": "runtime/evidence/robinhood/v4_pool_index/latest.json",
     "v4_pool_liquidity": "runtime/evidence/robinhood/v4_pool_liquidity/latest.json",

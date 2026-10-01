@@ -239,6 +239,7 @@ def _closed_route_from_sequence(sequence: dict[str, Any]) -> dict[str, Any]:
         "secondLegPairs": second_legs,
         "routePairs": route_pairs,
         "routePools": route_pools,
+        "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
         "source": sequence.get("source") or "yc_zc_bridge_observation",
     }
 
@@ -249,7 +250,6 @@ def _candidate_observation_groups(
     closed_routes: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     sequences_by_anchor: dict[str, list[dict[str, Any]]] = {}
-    direct_routes_by_anchor: dict[str, list[dict[str, Any]]] = {}
     bridge_routes_by_anchor: dict[str, list[dict[str, Any]]] = {}
     closed_routes_by_anchor: dict[str, list[dict[str, Any]]] = {}
 
@@ -264,9 +264,7 @@ def _candidate_observation_groups(
             continue
         closed_routes_by_anchor.setdefault(anchor_symbol, []).append(route)
         kind = str(route.get("kind") or "").strip().lower()
-        if kind == "direct_closed_pair":
-            direct_routes_by_anchor.setdefault(anchor_symbol, []).append(route)
-        elif kind == "bridge_closed_loop":
+        if kind == "bridge_closed_loop":
             bridge_routes_by_anchor.setdefault(anchor_symbol, []).append(route)
 
     def route_sort_key(route: dict[str, Any]) -> tuple[float, int, str]:
@@ -291,7 +289,6 @@ def _candidate_observation_groups(
         if not anchor_symbol:
             continue
         sequences = sorted(sequences_by_anchor.get(anchor_symbol) or [], key=sequence_sort_key)
-        direct_routes = sorted(direct_routes_by_anchor.get(anchor_symbol) or [], key=route_sort_key, reverse=True)
         bridge_routes = sorted(bridge_routes_by_anchor.get(anchor_symbol) or [], key=route_sort_key, reverse=True)
         closed = sorted(closed_routes_by_anchor.get(anchor_symbol) or [], key=route_sort_key, reverse=True)
         yc_token_count = _int(group.get("ycTokenCount"))
@@ -319,8 +316,6 @@ def _candidate_observation_groups(
             "zcTokenCount": zc_token_count,
             "groupCount": len(sequences),
         }
-        copied["directClosedLoopRoutes"] = direct_routes[:10]
-        copied["directClosedLoopCount"] = len(direct_routes)
         copied["bridgeClosedLoopRoutes"] = bridge_routes[:10]
         copied["bridgeClosedLoopCount"] = len(bridge_routes)
         copied["closedLoopRoutes"] = closed[:20]

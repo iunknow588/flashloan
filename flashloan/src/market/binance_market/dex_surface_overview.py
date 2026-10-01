@@ -159,7 +159,7 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                 if _norm_symbol(value)
             ]
         path_text = str(summary.get("pathText") or " -> ".join(path_symbols)).strip()
-        if len(path_symbols) < 2 or not path_text:
+        if len(path_symbols) < 4 or path_symbols[0] != path_symbols[-1] or not path_text:
             continue
         anchor = _norm_symbol(summary.get("anchorSymbol") or path_symbols[0])
         dedup_key = _closed_loop_dedup_key(anchor, path_symbols)
@@ -182,7 +182,7 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
             }
             for index, symbol in enumerate(path_symbols)
         ]
-        kind = "direct_anchor_pair" if len(path_symbols) <= 3 else "bridge_pair"
+        kind = "bridge_pair"
         paths.append(
             {
                 "symbolPair": path_text,
@@ -209,6 +209,7 @@ def _overview_paths_from_static_summary(snapshot: dict[str, Any], *, chain_id: i
                     "nextStep": "quotes_and_route_analysis",
                     "observationSource": summary.get("source") or "market_observation",
                     "marketObservationRoute": True,
+                    "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                 },
                 "flashLoanLinkage": {
                     "strategy": (

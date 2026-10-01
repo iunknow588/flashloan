@@ -5,7 +5,9 @@ const { ethers } = require("./hardhat");
 const DECIMALS = 18n;
 const TOKEN_TOTAL = 10_000_000n * 10n ** DECIMALS;
 const MILLION = 1_000_000n * 10n ** DECIMALS;
-const MANIFEST_PATH = path.resolve(__dirname, "../../config/local-v4-amm/manifest.json");
+const MANIFEST_PATH = process.env.FLASHLOAN_MANIFEST_PATH
+  ? path.resolve(process.env.FLASHLOAN_MANIFEST_PATH)
+  : path.resolve(__dirname, "../../config/local-v4-amm/manifest.json");
 
 function toToken(value) {
   return BigInt(value) * 10n ** DECIMALS;

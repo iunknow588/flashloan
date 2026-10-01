@@ -4,6 +4,18 @@
   "chain_id": 43113,
   "display_name": "Avalanche Testnet",
   "native_symbol": "AVAX",
+  "rpc": {
+    "primary": "https://api.avax-test.network/ext/bc/C/rpc",
+    "fallbacks": [],
+    "timeout_seconds": 20
+  },
+  "explorer": {
+    "url": "https://testnet.snowtrace.io"
+  },
+  "tooling": {
+    "hardhat_network": "fuji",
+    "foundry_alias": "fuji"
+  },
   "features": {
     "dex_arbitrage": {
       "default_market_id": "dex-arbitrage-43113-uniswap-v3",
@@ -15,6 +27,11 @@
     "default_protocols": ["uniswap_v3"],
     "candidate_protocols": ["uniswap_v3", "traderjoe_v2"],
     "supported_protocol_count": 2
+  },
+  "contracts": {
+    "unified_executor": "",
+    "usdc": "0x5425890298aed601595a70ab815c96711a31bc65",
+    "owner": ""
   },
   "data_files": {
     "pool_discovery": "runtime/evidence/avalanche-testnet/pool_discovery/latest.json"

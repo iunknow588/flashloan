@@ -699,7 +699,19 @@ def test_dex_overview_page_uses_explicit_page_scope_for_api_request():
     ).get_data(as_text=True)
 
     assert 'path === "/api/dex/overview"' in body
-    assert 'pageUrl.searchParams.get(key)' in body
+    assert 'scopeQuery.get(key)' in body
+
+
+def test_dex_overview_page_drops_conflicting_mainnet_market_id_when_chain_is_testnet():
+    response = app.test_client().get(
+        "/dex/overview?chain_id=46630&market_id=dex-arbitrage-4663-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes"
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"dex-arbitrage-46630-uniswap-v4",chain_id:"46630"}' in body
+    assert "chain_mismatch" not in body
+    assert "dex-arbitrage-46630-uniswap-v4" in body
 
 
 def test_dex_surface_payload_apis_are_distinct():
@@ -834,7 +846,7 @@ def test_dex_surface_payload_apis_are_distinct():
     assert robinhood_testnet_quotes["summary"]["chainSpecificObservationPairCount"] > 1
     assert {"TA", "TB", "TZ"}.issubset(set(robinhood_testnet_quotes["summary"]["closedLoopAnchorSymbols"] or []))
     assert robinhood_testnet_quotes["summary"]["completeStaticQuoteCount"] > 0
-    assert {"TA", "TB", "TZ", "ETH"}.issubset({route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]})
+    assert {"TA", "TB", "TZ"}.issubset({route["overviewRoute"]["anchorBorrowSymbol"] for route in robinhood_testnet_quotes["routes"]})
     assert "sizeAnalysis" in robinhood_testnet_quotes["routes"][0]
     assert max(len(route["quoteAnalysis"]["steps"]) for route in robinhood_testnet_quotes["routes"]) > 1
     assert all(

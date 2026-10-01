@@ -23,6 +23,7 @@ from dex.intent_trade.chains.robinhood.shared import (
 
 getcontext().prec = 80
 logger = logging.getLogger(__name__)
+_POOL_ROWS_CACHE: dict[str, tuple[int, int, list[dict[str, Any]]]] = {}
 
 _V4_POOLS_SLOT = (6).to_bytes(32, "big")
 _V4_POOL_MANAGER_EXTSLOAD_ABI = [
@@ -454,9 +455,21 @@ def _pool_rows(network: str | None = None, chain_id: int | None = None) -> list[
     path = _pool_index_path(network, chain_id)
     if path is None:
         return []
+    key = str(path)
+    try:
+        stat = os.stat(path)
+    except OSError:
+        stat = None
+    if stat is not None:
+        cached = _POOL_ROWS_CACHE.get(key)
+        if cached is not None and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+            return cached[2]
     payload = _read_json(path)
     rows = payload.get("poolKeys")
-    return [item for item in rows if isinstance(item, dict)] if isinstance(rows, list) else []
+    parsed = [item for item in rows if isinstance(item, dict)] if isinstance(rows, list) else []
+    if stat is not None:
+        _POOL_ROWS_CACHE[key] = (stat.st_mtime_ns, stat.st_size, parsed)
+    return parsed
 
 
 def _pool_sqrt_price_x96(pool: dict[str, Any]) -> int | None:
@@ -578,23 +591,50 @@ def _resolve_v4_quote_context(request: dict[str, Any]) -> dict[str, Any]:
     if not quoter_address:
         raise ValueError(f"{_chain_label(network, chain_id)} quoter address missing")
 
-    try:
-        w3, rpc_url = _connect_chain_rpc(network, chain_id)
-    except RuntimeError:
-        live_state_fn_name = getattr(_read_live_pool_state, "__name__", "")
-        if live_state_fn_name != "_read_live_pool_state":
-            w3, rpc_url = None, ""
-        else:
-            raise
-    live_state = _read_live_pool_state(
-        w3=w3,
-        rpc_url=rpc_url,
-        network=network,
-        chain_id=chain_id,
-        pool_manager=pool_manager,
-        pool_id=pool_id,
-        block_number=block_number,
+    w3 = request.get("w3")
+    rpc_url = _text(request.get("rpcUrl")) or ""
+    if w3 is None:
+        try:
+            w3, rpc_url = _connect_chain_rpc(network, chain_id)
+        except RuntimeError:
+            live_state_fn_name = getattr(_read_live_pool_state, "__name__", "")
+            if live_state_fn_name != "_read_live_pool_state":
+                w3, rpc_url = None, ""
+            else:
+                raise
+    has_cached_live_state = bool(
+        w3 is not None
+        and str(pool_state.get("liquidity") or "").strip()
+        and str(pool_state.get("sqrtPriceX96") or "").strip()
     )
+    if has_cached_live_state:
+        live_state = {
+            "source": _text(pool_state.get("source") or "pool_manager_extsload_live_state_request"),
+            "poolManager": Web3.to_checksum_address(pool_manager),
+            "poolId": pool_id,
+            "stateSlot": _text(pool_state.get("stateSlot")),
+            "sqrtPriceX96": str(pool_state.get("sqrtPriceX96") or "0"),
+            "tick": int(pool_state.get("tick") or 0),
+            "protocolFee": int(pool_state.get("protocolFee") or 0),
+            "lpFee": int(pool_state.get("lpFee") or 0),
+            "liquidity": str(pool_state.get("liquidity") or "0"),
+            "rpcUrl": rpc_url or _text(pool_state.get("rpcUrl")),
+            "blockNumber": (
+                int(pool_state["blockNumber"])
+                if pool_state.get("blockNumber") not in (None, "")
+                else None
+            ),
+        }
+    else:
+        live_state = _read_live_pool_state(
+            w3=w3,
+            rpc_url=rpc_url,
+            network=network,
+            chain_id=chain_id,
+            pool_manager=pool_manager,
+            pool_id=pool_id,
+            block_number=block_number,
+        )
     live_lp_fee = int(live_state["lpFee"])
     amount_in_raw = int(str(request.get("amountInRaw") or "0"))
     if amount_in_raw <= 0:
@@ -718,6 +758,7 @@ def _quote_v4_exact_input_single(
 ) -> tuple[int, int]:
     if w3 is None:
         w3, _ = _connect_chain_rpc(network, chain_id)
+    rpc_url = _text(getattr(getattr(w3, "provider", None), "endpoint_uri", ""))
     contract = w3.eth.contract(address=Web3.to_checksum_address(quoter_address), abi=_V4_QUOTER_ABI)
     call_kwargs: dict[str, Any] = {"gas": int(os.getenv("DEX_ONCHAIN_QUOTE_CALL_GAS_LIMIT", "30000000") or 30000000)}
     if call_from:
@@ -733,7 +774,52 @@ def _quote_v4_exact_input_single(
         )
         # Use the live head, not a numeric snapshot block. The block_number
         # argument is retained only as audit metadata for the evidence record.
-        amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier="latest")
+        call_data = quote_call._encode_transaction_data()
+        if not rpc_url:
+            amount_out, gas_estimate = quote_call.call(call_kwargs, block_identifier="latest")
+        else:
+            tx: dict[str, Any] = {
+                "to": Web3.to_checksum_address(quoter_address),
+                "data": call_data,
+            }
+            if call_kwargs.get("from"):
+                tx["from"] = Web3.to_checksum_address(call_kwargs["from"])
+            if call_kwargs.get("gas"):
+                tx["gas"] = hex(int(call_kwargs["gas"]))
+            timeout = float(os.getenv("DEX_ONCHAIN_RPC_TIMEOUT_SECONDS", "12") or 12)
+            body = json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "eth_call",
+                    "params": [tx, "latest"],
+                }
+            ).encode("utf-8")
+            req = urllib_request.Request(
+                rpc_url,
+                data=body,
+                headers={
+                    "content-type": "application/json",
+                    "user-agent": "flashloan-robinhood-testnet-v4-quote/1.0",
+                },
+                method="POST",
+            )
+            with urllib_request.urlopen(req, timeout=timeout) as response:
+                decoded_response = json.loads(response.read().decode("utf-8"))
+            if isinstance(decoded_response, list):
+                decoded_response = decoded_response[0] if decoded_response else {}
+            error = decoded_response.get("error") if isinstance(decoded_response, dict) else None
+            if error is not None:
+                raw_message = str(error.get("message") if isinstance(error, dict) else error)
+                raw_data = error.get("data") if isinstance(error, dict) else None
+                raised = RuntimeError(f"quoter eth_call reverted: {raw_message}")
+                setattr(raised, "data", raw_data or "0x")
+                raise raised
+            result_hex = decoded_response.get("result") if isinstance(decoded_response, dict) else None
+            if not result_hex or result_hex == "0x":
+                raise RuntimeError("quoter eth_call returned empty result")
+            decoded = abi_decode(["uint256", "uint256"], bytes.fromhex(str(result_hex)[2:]))
+            amount_out, gas_estimate = int(decoded[0]), int(decoded[1])
     except Exception as exc:
         data = _extract_revert_data(exc)
         summary = _summarize_v4_revert_data(data)

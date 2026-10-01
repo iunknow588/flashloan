@@ -1,6 +1,14 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
+const DECIMALS = 18n;
+const TOKEN_TOTAL = 10_000_000n * 10n ** DECIMALS;
+const MILLION = 1_000_000n * 10n ** DECIMALS;
+
+function toToken(value) {
+  return BigInt(value) * 10n ** DECIMALS;
+}
+
 async function deployFixture() {
   const [owner] = await ethers.getSigners();
 
@@ -22,6 +30,71 @@ async function deployOnchainFixture() {
   const Composer = await ethers.getContractFactory("ArbitrageComposer");
   const composer = await Composer.deploy(await poolManager.getAddress(), await executor.getAddress());
   return { owner, executor, composer, poolManager };
+}
+
+async function deployBridgePairsFixture() {
+  const [owner] = await ethers.getSigners();
+  const Token = await ethers.getContractFactory("TestERC20");
+  const tz = await Token.deploy("Test Z", "tz", 18, owner.address);
+  const ta = await Token.deploy("Test A", "ta", 18, owner.address);
+  const tb = await Token.deploy("Test B", "tb", 18, owner.address);
+
+  await tz.mint(owner.address, TOKEN_TOTAL);
+  await ta.mint(owner.address, TOKEN_TOTAL);
+  await tb.mint(owner.address, TOKEN_TOTAL);
+
+  const PoolManager = await ethers.getContractFactory("MockOfficialV4PoolManager");
+  const poolManager = await PoolManager.deploy();
+
+  const tzAddress = await tz.getAddress();
+  const taAddress = await ta.getAddress();
+  const tbAddress = await tb.getAddress();
+  const poolManagerAddress = await poolManager.getAddress();
+
+  await poolManager.createPool(tbAddress, tzAddress);
+  await poolManager.createPool(taAddress, tbAddress);
+  await poolManager.createPool(tzAddress, taAddress);
+
+  await tz.approve(poolManagerAddress, ethers.MaxUint256);
+  await ta.approve(poolManagerAddress, ethers.MaxUint256);
+  await tb.approve(poolManagerAddress, ethers.MaxUint256);
+
+  await poolManager.addLiquidity(tbAddress, tzAddress, MILLION, toToken(100_000));
+  await poolManager.addLiquidity(taAddress, tbAddress, toToken(100_000), MILLION);
+  await poolManager.addLiquidity(tzAddress, taAddress, MILLION, toToken(100_000));
+
+  const Arb = await ethers.getContractFactory("OfficialV4FlashArb");
+  const arb = await Arb.deploy(poolManagerAddress);
+
+  return { owner, tz, ta, tb, poolManager, arb };
+}
+
+function makeBridgePoolKey(currency0, currency1, fee = 3000) {
+  return {
+    currency0,
+    currency1,
+    fee,
+    tickSpacing: 60,
+    hooks: ethers.ZeroAddress,
+  };
+}
+
+async function bridgePairsRoute(owner, tz, ta, tb, poolManager, bridgeKey, bridgeZeroForOne, bridgeFee = 3000) {
+  const tzAddress = await tz.getAddress();
+  const taAddress = await ta.getAddress();
+  const tbAddress = await tb.getAddress();
+  const entryKey = makeBridgePoolKey(tzAddress, tbAddress, bridgeFee);
+  const exitKey = makeBridgePoolKey(tzAddress, taAddress, bridgeFee);
+  return {
+    tokenZ: tzAddress,
+    entryKey,
+    entryZeroForOne: true,
+    exitKey,
+    exitZeroForOne: false,
+    bridgeKeys: [bridgeKey],
+    bridgeZeroForOne: [bridgeZeroForOne],
+    amountIn: toToken(1_000),
+  };
 }
 
 async function slotForPool(poolKey) {
@@ -443,6 +516,156 @@ describe("ArbitrageComposer", function () {
       )
     ).to.be.revertedWithCustomError(arb, "DexError").withArgs(40010401n);
   });
+  it("reverts with CONTRACT.DEX route invalid when bridge pair arrays are empty", async function () {
+    const { poolManager } = await deployOnchainFixture();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const zero = ethers.ZeroAddress;
+    const key = {
+      currency0: "0x1111111111111111111111111111111111111111",
+      currency1: "0x2222222222222222222222222222222222222222",
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: zero,
+    };
+
+    await expect(
+      arb.runArbitrageBestBridgePairs(
+        "0x1111111111111111111111111111111111111111",
+        key,
+        key,
+        true,
+        false,
+        [],
+        [],
+        ethers.parseEther("1000"),
+        1n
+      )
+    ).to.be.revertedWithCustomError(arb, "DexError").withArgs(40010401n);
+  });
+  it("reverts with CONTRACT.DEX route invalid when bridge pair arrays mismatch directions", async function () {
+    const { poolManager } = await deployOnchainFixture();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const zero = ethers.ZeroAddress;
+    const key = {
+      currency0: "0x1111111111111111111111111111111111111111",
+      currency1: "0x2222222222222222222222222222222222222222",
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: zero,
+    };
+
+    await expect(
+      arb.runArbitrageBestBridgePairs(
+        "0x1111111111111111111111111111111111111111",
+        key,
+        key,
+        true,
+        false,
+        [key, key],
+        [true],
+        ethers.parseEther("1000"),
+        1n
+      )
+    ).to.be.revertedWithCustomError(arb, "DexError").withArgs(40010401n);
+  });
+  it("reverts with NoProfitableRoute when every bridge pair fails", async function () {
+    const { poolManager } = await deployOnchainFixture();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const zero = ethers.ZeroAddress;
+    const key = {
+      currency0: "0x1111111111111111111111111111111111111111",
+      currency1: "0x2222222222222222222222222222222222222222",
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: zero,
+    };
+
+    await expect(
+      arb.runArbitrageBestBridgePairs(
+        "0x1111111111111111111111111111111111111111",
+        key,
+        key,
+        true,
+        false,
+        [key],
+        [true],
+        ethers.parseEther("1000"),
+        1n
+      )
+    ).to.be.revertedWithCustomError(arb, "NoProfitableRoute");
+  });
+  it("runArbitrageBestBridgePairs returns a profitable route for one bridge pair", async function () {
+    const { tz, ta, tb, poolManager } = await deployBridgePairsFixture();
+    const tzAddress = await tz.getAddress();
+    const taAddress = await ta.getAddress();
+    const tbAddress = await tb.getAddress();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const bridgeKey = makeBridgePoolKey(tbAddress, taAddress);
+    const route = await bridgePairsRoute(
+      null,
+      tz,
+      ta,
+      tb,
+      poolManager,
+      bridgeKey,
+      true
+    );
+
+    const result = await arb.runArbitrageBestBridgePairs.staticCall(
+      route.tokenZ,
+      route.entryKey,
+      route.exitKey,
+      route.entryZeroForOne,
+      route.exitZeroForOne,
+      route.bridgeKeys,
+      route.bridgeZeroForOne,
+      route.amountIn,
+      1n
+    );
+
+    expect(result[2]).to.be.gt(route.amountIn);
+    expect(result[3]).to.be.gt(0n);
+    expect(result[4]).to.equal(0n);
+    expect(await tz.balanceOf(await arb.getAddress())).to.equal(0n);
+  });
+
+  it("runArbitrageBestBridgePairs selects the most profitable bridge pair", async function () {
+    const { tz, ta, tb, poolManager } = await deployBridgePairsFixture();
+    const tzAddress = await tz.getAddress();
+    const taAddress = await ta.getAddress();
+    const tbAddress = await tb.getAddress();
+    const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
+    const arb = await OfficialV4FlashArb.deploy(await poolManager.getAddress());
+    const bridgeKey1 = makeBridgePoolKey(tbAddress, taAddress, 3000);
+    const bridgeKey2 = makeBridgePoolKey(tbAddress, taAddress, 500);
+    await poolManager.createPoolFromKey(bridgeKey2);
+    await poolManager.addLiquidityFromKey(bridgeKey2, toToken(500_000), toToken(1_000_000));
+
+    const tokenZ = tzAddress;
+    const entryKey = makeBridgePoolKey(tzAddress, tbAddress);
+    const exitKey = makeBridgePoolKey(tzAddress, taAddress);
+    const amountIn = toToken(1_000);
+
+    const result = await arb.runArbitrageBestBridgePairs.staticCall(
+      tokenZ,
+      entryKey,
+      exitKey,
+      true,
+      false,
+      [bridgeKey1, bridgeKey2],
+      [true, true],
+      amountIn,
+      1n
+    );
+
+    expect(result[2]).to.be.gt(amountIn);
+    expect(result[3]).to.be.gt(0n);
+    expect(result[4]).to.equal(1n);
+  });
   it("reverts through runArbitrageBestFromInitialAmount when route keysets mismatch", async function () {
     const { poolManager } = await deployOnchainFixture();
     const OfficialV4FlashArb = await ethers.getContractFactory("OfficialV4FlashArb");
@@ -583,6 +806,29 @@ describe("ArbitrageComposer", function () {
     expect(preview.executed).to.equal(true);
     expect(preview.selectedAmount).to.equal(initialAmount << 24n);
     expect(preview.profit).to.equal(preview.selectedAmount / 1000n);
+  });
+
+  it("preview probes the lower midpoint when the peak sits below the current base", async function () {
+    const { composer, executor } = await deployFixture();
+    const candidate = await makeCandidate(500);
+    const initialAmount = ethers.parseEther("64");
+    const lowerPeakAmount = ethers.parseEther("48");
+
+    await executor.setLeftPeakAmount(lowerPeakAmount);
+    await executor.setLeftPeakMode(true);
+
+    const preview = await composer.previewBestDetailedWithInitialAmount.staticCall(
+      "0x1111111111111111111111111111111111111111",
+      [candidate],
+      initialAmount,
+      1n,
+      200n
+    );
+
+    expect(preview.executed).to.equal(true);
+    expect(preview.selectedAmount).to.be.lessThan(initialAmount);
+    expect(preview.selectedAmount).to.be.greaterThan(ethers.parseEther("32"));
+    expect(preview.profit).to.be.gt(1n);
   });
 
   it("can broadcast a preselected amount through runBestDetailedWithSelectedAmount", async function () {

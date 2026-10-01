@@ -4,6 +4,21 @@
   "chain_id": 43114,
   "display_name": "Avalanche Chain",
   "native_symbol": "AVAX",
+  "rpc": {
+    "primary": "https://api.avax.network/ext/bc/C/rpc",
+    "fallbacks": [
+      "https://rpc.ankr.com/avalanche",
+      "https://avalanche-c-chain-rpc.publicnode.com"
+    ],
+    "timeout_seconds": 20
+  },
+  "explorer": {
+    "url": "https://snowtrace.io"
+  },
+  "tooling": {
+    "hardhat_network": "avalanche",
+    "foundry_alias": "avalanche"
+  },
   "features": {
     "liquidation": {
       "default_market_id": "liquidation-43114-aave-v3",
@@ -20,6 +35,11 @@
     "default_protocols": ["aave_v3", "uniswap_v3", "traderjoe_v2"],
     "candidate_protocols": ["aave_v3", "uniswap_v3", "uniswap_v4", "traderjoe_v2", "curve"],
     "supported_protocol_count": 5
+  },
+  "contracts": {
+    "unified_executor": "",
+    "usdc": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e",
+    "owner": ""
   },
   "data_files": {
     "aave_reserves": "runtime/cache/aave_reserve_assets.json",

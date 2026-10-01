@@ -5,6 +5,7 @@ from core.market_observation_compact import (
     _compact_candidate_group,
     _compact_observation_pair,
     _compact_observation_sequence,
+    _pool_registry_key,
 )
 from core.market_observation_io import (
     DICT_KEYS,
@@ -107,6 +108,17 @@ def _list_counts(payload: dict[str, Any]) -> dict[str, int]:
     }
 
 
+def _merge_pool_registry(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    merged: dict[str, dict[str, Any]] = {}
+    for row in [*(existing or {}).values(), *(incoming or {}).values()]:
+        if not isinstance(row, dict):
+            continue
+        key = _pool_registry_key(row)
+        if key:
+            merged[key] = {**merged.get(key, {}), **row}
+    return merged
+
+
 def merge_market_observation_static(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     merged = {
         **existing,
@@ -127,5 +139,10 @@ def merge_market_observation_static(existing: dict[str, Any], incoming: dict[str
         incoming_rows = incoming.get(key) if isinstance(incoming.get(key), list) else []
         if existing_rows or incoming_rows:
             merged[key] = _merge_list_values(existing_rows, incoming_rows, key=key)
+    if existing.get("poolRegistry") or incoming.get("poolRegistry"):
+        merged["poolRegistry"] = _merge_pool_registry(
+            existing.get("poolRegistry") if isinstance(existing.get("poolRegistry"), dict) else {},
+            incoming.get("poolRegistry") if isinstance(incoming.get("poolRegistry"), dict) else {},
+        )
     merged["list_counts"] = _list_counts(merged)
     return merged

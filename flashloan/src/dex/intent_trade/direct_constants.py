@@ -95,6 +95,7 @@ DIRECT_ONCHAIN_NETWORK_ALIASES = {
     "43114": "avalanche",
     "avalanche-fuji": "fuji",
     "fuji": "fuji",
+    "avalanche-testnet": "fuji",
     "43113": "fuji",
     "bnb": "bnb",
     "bsc": "bnb",

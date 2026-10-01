@@ -87,11 +87,7 @@ def build_triangular_onchain_intent_trade(
     selected_group, intent_route_match = impl._select_runtime_group_for_intent(route_groups, route_path)
     runtime_trades = list(selected_group["trades"]) if selected_group else []
     network, chain_id, testnet = impl._resolve_direct_onchain_network()
-    unified_executor_address = impl._env(
-        "UNIFIED_EXECUTOR_ADDRESS",
-        "TRIANGULAR_UNIFIED_EXECUTOR_ADDRESS",
-        "AAVE_TRIANGULAR_EXECUTOR_ADDRESS",
-    )
+    unified_executor_address = impl._unified_executor_address_for_network(network)
     protocol = {
         "kind": "unified_flashloan_mev_executor_runtime_v1",
         "enabled": impl._unified_executor_supported_for_network(network),
@@ -103,7 +99,7 @@ def build_triangular_onchain_intent_trade(
             if impl._unified_executor_supported_for_network(network)
             else impl._executor_adapter_unverified_status(network)
         ),
-        "owner_address": impl._env("LIQUIDATION_EXECUTOR_OWNER_ADDRESS", "TRIANGULAR_CONTROLLER_OWNER_ADDRESS"),
+        "owner_address": impl._owner_address_for_network(network),
         "unified_executor_address": unified_executor_address,
         "executor_address": unified_executor_address,
         "runtime_trades": runtime_trades,

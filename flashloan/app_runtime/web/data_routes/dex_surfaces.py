@@ -119,6 +119,7 @@ def register_dex_surface_routes(app, panel) -> None:
         register_dex_strategy_routes,
     )
     from web.data_routes.dex_surface_routes_quotes import (
+        register_dex_estimate_fixed_pnl_routes,
         register_dex_quote_request_routes,
         register_dex_quote_route_test_routes,
         register_dex_quote_routes,
@@ -133,6 +134,7 @@ def register_dex_surface_routes(app, panel) -> None:
     register_dex_strategy_routes(app)
     register_dex_overview_routes(app)
     register_dex_quote_routes(app)
+    register_dex_estimate_fixed_pnl_routes(app)
     register_dex_quote_route_test_routes(app)
     register_dex_submission_onchain_check_routes(app)
     register_dex_quote_request_routes(app)

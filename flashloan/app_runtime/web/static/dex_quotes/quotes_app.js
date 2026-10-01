@@ -14,14 +14,35 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
     let autoReviewToken = 0;
     let selectionGeneration = 0;
     let activeSelectionSignature = "";
+    let activeRouteKey = "";
+    let pageState = "init";
+    const PAGE_STATE = Object.freeze({
+      INIT: "init",
+      STATIC_READY: "static_ready",
+      SCAN: "scan",
+      REVIEW: "review",
+      EXECUTION: "execution",
+    });
+    const pageStateIs = (...states) => states.includes(pageState);
+    const setPageState = (nextState, message) => {
+      pageState = nextState;
+      if (message) $("message").textContent = message;
+    };
+    const canRefreshSnapshot = () => !refreshInFlight && !snapshotRefreshing && !pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION);
     const selectionSignature = () => {
       const query = window.ChainSelector?.currentQuery ? window.ChainSelector.currentQuery() : new URLSearchParams(window.location.search);
       return ["chain_id", "market_id", "protocols", "protocol_id", "dex_strategy"].map(key => query.get(key) || "").join("|").toLowerCase();
     };
     const beginSelectionRefresh = message => {
       selectionGeneration += 1; autoReviewToken += 1; autoChainReviewStarted = false; staticRoutesLoaded = false; activeSelectionSignature = selectionSignature(); latestRoutes = [];
+      activeRouteKey = ""; pageState = PAGE_STATE.INIT;
+      activeExecution = { routeKey: "", state: "", txHash: "", startedAt: 0 };
       $("routeList").innerHTML = `<div class="empty">${esc(message)}</div>`;
-      ["routeCount", "completeCount", "readyCount"].forEach(id => $(id).textContent = "0");
+      ["routeCount", "completeCount", "readyCount", "autoExecutableCount"].forEach(id => $(id).textContent = "0");
+    };
+    const focusedRouteKey = () => {
+      if (activeRouteKey && latestRoutes.some(route => routeKey(route) === activeRouteKey)) return activeRouteKey;
+      return latestRoutes.length ? routeKey(latestRoutes[0]) : "";
     };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
@@ -35,7 +56,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
     }
-    async function fetchJsonWithTimeout(path, timeoutMs = 12000) {
+    async function fetchJsonWithTimeout(path, timeoutMs = 20000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -54,10 +75,34 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const responseChainId = response?.chain_id ?? response?.snapshot?.chain_id ?? "";
       const activeChainId = new URLSearchParams(window.location.search).get("chain_id") || "";
       if (responseChainId && activeChainId && String(responseChainId) !== activeChainId) return;
+      if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
       const scanner = response.scanner || {}; const snapshot = response.snapshot || {}; const data = snapshot.payload || {}; const summary = data.summary || snapshot.summary || {};
+      const autoExecuteToggle = document.getElementById("autoExecuteToggle");
+      if (autoExecuteToggle) autoExecuteToggle.checked = Boolean(scanner.auto_execute_enabled);
       $("routeCount").textContent = summary.routeCount ?? summary.route_count ?? 0;
       $("completeCount").textContent = summary.completeStaticQuoteCount ?? summary.complete_static_quote_count ?? 0;
       $("readyCount").textContent = summary.executableCandidateCount ?? summary.executable_candidate_count ?? 0;
+      const autoExecutable = summary.autoExecutableClosedLoopCount ?? summary.auto_executable_closed_loop_count ?? 0;
+      $("autoExecutableCount").textContent = `${autoExecutable}`;
+      $("autoExecutableMeta").textContent = scanner.auto_execute_enabled && scanner.auto_execute_callback_configured
+        ? `${autoExecutable} 条可自动广播`
+        : scanner.auto_execute_enabled
+          ? `${autoExecutable} 条待回调配置`
+          : `${autoExecutable} 条观察模式`;
+      const reviewedCount = summary.onchainEvidenceReviewedRouteCount ?? 0;
+      $("reviewedCount").textContent = `${reviewedCount}`;
+      $("reviewedMeta").textContent = `已复核 ${reviewedCount} 条 / 总 ${summary.routeCount ?? 0} 条`;
+      const profitableCount = summary.liveProfitableRouteCount ?? summary.live_profitable_route_count ?? 0;
+      $("profitableCount").textContent = `${profitableCount}`;
+      $("profitableMeta").textContent = `${profitableCount} 条链上复核为正收益`;
+      const autoExecutedCount = scanner.auto_execute_count ?? 0;
+      $("autoExecutedCount").textContent = `${autoExecutedCount}`;
+      $("autoExecutedMeta").textContent = scanner.last_auto_execute_at
+        ? `最近执行 ${new Date(scanner.last_auto_execute_at).toLocaleString("zh-CN", {hour12: false})}`
+        : "暂未自动执行";
+      const queueCount = (scanner.closed_loop_review_queue?.queued ?? 0) + (scanner.queued_scan_count ?? 0);
+      $("queueCount").textContent = `${queueCount}`;
+      $("queueMeta").textContent = `复核队列 ${scanner.closed_loop_review_queue?.queued ?? 0} | 扫描排队 ${scanner.queued_scan_count ?? 0}`;
       $("routeSourceMeta").textContent = `${summary.pathSource || "market_observation"} | 观察路线 ${summary.marketObservationRouteCount ?? 0}`;
       const reviewed = summary.onchainEvidenceReviewedRouteCount ?? 0;
       const deferred = summary.onchainEvidenceDeferredRouteCount ?? summary.liveQuoterRequiredCount ?? 0;
@@ -98,7 +143,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         $("routeSourceMeta").textContent = `${quoteSummary.pathSource || summary.pathSource || "market_observation"} | 观察路线 ${quoteSummary.marketObservationRouteCount ?? summary.marketObservationRouteCount ?? 0}`;
       }
       $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
-      if (latestRoutes.length) scheduleReviewAllRoutes();
+      if (latestRoutes.length) scheduleReviewActiveRoute();
       if (quoteRoutesPayload && Array.isArray(quoteRoutesPayload.closedLoopGroups)) {
         renderClosedLoopGroups({groups: quoteRoutesPayload.closedLoopGroups});
       }
@@ -112,6 +157,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const generation = selectionGeneration;
       const signature = activeSelectionSignature;
       if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+      if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) return;
       const routes = Array.isArray(payload.routes) ? payload.routes : [];
       latestRoutes = routes.filter(Boolean).map(route => ({...route, reviewMode: "pending_offchain_review", __uiState: ROUTE_UI_STATE.OFFCHAIN_PENDING, __offchainReviewed: false}));
       $("routeCount").textContent = latestRoutes.length;
@@ -122,8 +168,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       if (Array.isArray(payload.closedLoopGroups) && payload.closedLoopGroups.length) {
         renderClosedLoopGroups({groups: payload.closedLoopGroups});
       }
-      $("message").textContent = "已展示闭环；链下估算使用默认初始量";
-      if (latestRoutes.length) scheduleReviewAllRoutes();
+      setPageState(PAGE_STATE.STATIC_READY, "静态闭环已读取，进入扫描状态");
     }
     function renderClosedLoopGroups(payload) {
       const groups = Array.isArray(payload?.groups) ? payload.groups : [];
@@ -131,7 +176,12 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         $("groupList").innerHTML = "";
         return;
       }
-      const groupHtml = groups.map(group => {
+      const groupHtml = groups.slice().sort((a, b) => {
+        const symbolA = String(a.flashLoanToken?.symbol || a.startToken?.symbol || "").toUpperCase();
+        const symbolB = String(b.flashLoanToken?.symbol || b.startToken?.symbol || "").toUpperCase();
+        const borrowDiff = (b.borrowable ? 0 : 1) - (a.borrowable ? 0 : 1);
+        return borrowDiff || symbolA.localeCompare(symbolB);
+      }).map(group => {
         const token = group.flashLoanToken || group.startToken || {};
         const address = token.address ? `<small>${esc(token.address)}</small>` : "";
         const borrowable = group.borrowable ? "" : " <small>(not borrowable)</small>";
@@ -141,7 +191,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
     }
     async function refreshClosedLoopGroups() {
       try {
-        const payload = await fetchJsonWithTimeout("/api/dex/closed-loop-groups", 5000);
+        const payload = await fetchJsonWithTimeout("/api/dex/closed-loop-groups", 20000);
         renderClosedLoopGroups(payload);
       } catch (error) {
         if (!document.querySelector("#groupList .group-card")) {
@@ -150,25 +200,44 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       }
     }
     async function refreshSnapshot() {
-      if (snapshotRefreshing || refreshInFlight) return; snapshotRefreshing = true; refreshInFlight = true;
+      if (!canRefreshSnapshot()) return; snapshotRefreshing = true; refreshInFlight = true;
       const generation = selectionGeneration; const signature = activeSelectionSignature;
+      let snapshotHasRoutes = false;
       try {
         refreshClosedLoopGroups();
-        if (!staticRoutesLoaded || latestRoutes.length === 0) {
-          try {
-            const staticPayload = await fetchJsonWithTimeout("/api/dex/quote-routes/static", 5000);
-            if (generation === selectionGeneration && signature === activeSelectionSignature && staticPayload?.routes?.length) {
-              renderStaticRoutes(staticPayload);
-              staticRoutesLoaded = true;
+        loadLatestSubmissions().catch(() => {});
+        const staticPromise = (!staticRoutesLoaded || latestRoutes.length === 0)
+          ? fetchJsonWithTimeout("/api/dex/quote-routes/static", 25000)
+              .then(staticPayload => {
+                if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+                if (!staticPayload?.routes?.length) return;
+                staticRoutesLoaded = true;
+                if (!snapshotHasRoutes) renderStaticRoutes(staticPayload);
+              })
+              .catch(() => ({}))
+          : Promise.resolve({});
+        const snapshotPromise = staticPromise
+          .then(() => {
+            if (generation === selectionGeneration && signature === activeSelectionSignature) setPageState(PAGE_STATE.SCAN, "静态闭环已读取，开始扫描实时快照");
+            return fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
+          })
+          .then(snapshotPayload => {
+            if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+            snapshotHasRoutes = Array.isArray(snapshotPayload?.snapshot?.payload?.routes) && snapshotPayload.snapshot.payload.routes.length > 0;
+            renderScannerResponse(snapshotPayload);
+            (async () => {
+              let quoteRoutesPayload = null;
+              try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
+              if (generation === selectionGeneration && signature === activeSelectionSignature && snapshotPayload && quoteRoutesPayload) renderScannerResponse(snapshotPayload, quoteRoutesPayload);
+            })();
+          })
+          .catch(snapshotError => {
+            if (generation === selectionGeneration && signature === activeSelectionSignature) {
+              $("message").textContent = `实时扫描快照暂不可用（${uiError(snapshotError.message)}）；静态闭环已展示，稍后自动重试`;
+              if (latestRoutes.length) scheduleReviewActiveRoute();
             }
-          } catch (_) {}
-        }
-        if (latestRoutes.length) scheduleReviewAllRoutes();
-        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
-        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
-        let quoteRoutesPayload = null;
-        try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-        if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(response, quoteRoutesPayload);
+          });
+        await snapshotPromise.catch(() => {});
       }
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
       finally { snapshotRefreshing = false; refreshInFlight = false; }
@@ -176,8 +245,8 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
     async function startScanner() {
       const generation = selectionGeneration; const signature = activeSelectionSignature;
       try {
-        await fetchJsonWithTimeout("/api/dex/opportunity-scanner/start", 8000);
-        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000);
+        await fetchJsonWithTimeout("/api/dex/opportunity-scanner/start", 20000);
+        const response = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
         if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(response);
         if (!scanNowInFlight) {
           scanNowInFlight = true;
@@ -196,43 +265,83 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
     }
     async function refresh() {
-      const generation = selectionGeneration; const signature = activeSelectionSignature; $("message").textContent = "正在后台扫描当前链，先显示当前快照...";
+      const generation = selectionGeneration; const signature = activeSelectionSignature; setPageState(PAGE_STATE.INIT, "正在加载静态闭环...");
+      let snapshot = null;
+      let snapshotHasRoutes = false;
+      let quoteRoutesPayloadPromise = null;
+      let reviewScheduled = false;
       try {
         refreshClosedLoopGroups();
-        if (!staticRoutesLoaded || latestRoutes.length === 0) {
-          try {
-            const staticPayload = await fetchJsonWithTimeout("/api/dex/quote-routes/static", 5000);
-            if (generation === selectionGeneration && signature === activeSelectionSignature && staticPayload?.routes?.length) {
-              renderStaticRoutes(staticPayload);
-              staticRoutesLoaded = true;
-            }
-          } catch (_) {}
-        }
-        if (latestRoutes.length) scheduleReviewAllRoutes();
-        const [snapshot] = await Promise.all([
-          fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 8000),
-          loadLatestSubmissions().catch(() => {}),
-        ]);
-        if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(snapshot);
-        let quoteRoutesPayload = null;
-        try { quoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-        if (generation === selectionGeneration && signature === activeSelectionSignature && quoteRoutesPayload) renderScannerResponse(snapshot, quoteRoutesPayload);
-        if (scanNowInFlight) return;
-        if (snapshotAgeSeconds(snapshot) <= 600) {
-          $("message").textContent = "当前扫描快照未过期，直接展示实时复核结果";
-          return;
-        }
-        scanNowInFlight = true;
-        (async () => {
-          const rendered = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now?wait=1", 240000);
-          let refreshedQuoteRoutesPayload = quoteRoutesPayload;
-          try { refreshedQuoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
-          if (generation === selectionGeneration && signature === activeSelectionSignature) renderScannerResponse(rendered, refreshedQuoteRoutesPayload);
-        })()
-          .catch(error => {
-            if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
+        loadLatestSubmissions().catch(() => {});
+        const staticPromise = (!staticRoutesLoaded || latestRoutes.length === 0)
+          ? fetchJsonWithTimeout("/api/dex/quote-routes/static", 25000)
+              .then(staticPayload => {
+                if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+                if (!staticPayload?.routes?.length) return;
+                staticRoutesLoaded = true;
+                if (!snapshotHasRoutes) renderStaticRoutes(staticPayload);
+              })
+              .catch(() => ({}))
+          : Promise.resolve({});
+        const snapshotPromise = staticPromise
+          .then(() => {
+            if (generation === selectionGeneration && signature === activeSelectionSignature) setPageState(PAGE_STATE.SCAN, "静态闭环已读取，开始扫描实时快照");
+            return fetchJsonWithTimeout("/api/dex/opportunity-scanner/snapshot", 45000);
           })
-          .finally(() => { scanNowInFlight = false; });
+          .then(snapshotPayload => {
+            if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+            snapshot = snapshotPayload;
+            snapshotHasRoutes = Array.isArray(snapshotPayload?.snapshot?.payload?.routes) && snapshotPayload.snapshot.payload.routes.length > 0;
+            renderScannerResponse(snapshotPayload);
+            reviewScheduled = true;
+            quoteRoutesPayloadPromise = fetchJsonWithTimeout("/api/dex/quote-routes").catch(() => null);
+            quoteRoutesPayloadPromise.then(quoteRoutesPayload => {
+              if (generation === selectionGeneration && signature === activeSelectionSignature && snapshotPayload && quoteRoutesPayload) renderScannerResponse(snapshotPayload, quoteRoutesPayload);
+            });
+          })
+          .catch(snapshotError => {
+            if (generation === selectionGeneration && signature === activeSelectionSignature) {
+              $("message").textContent = `实时扫描快照暂不可用（${uiError(snapshotError.message)}）；静态闭环已展示，稍后自动重试`;
+              if (latestRoutes.length) scheduleReviewActiveRoute();
+              reviewScheduled = true;
+            }
+          });
+        const staticSettled = staticPromise.then(() => {}, () => {});
+        const snapshotSettled = snapshotPromise.then(() => {}, () => {});
+        await staticSettled;
+        snapshotSettled.finally(() => {
+          if (generation !== selectionGeneration || signature !== activeSelectionSignature) return;
+          if (latestRoutes.length && !reviewScheduled) {
+            scheduleReviewActiveRoute();
+            reviewScheduled = true;
+          }
+          if (scanNowInFlight) return;
+          if (snapshot && snapshotAgeSeconds(snapshot) <= 600) {
+            $("message").textContent = "当前扫描快照未过期，直接展示实时复核结果";
+            return;
+          }
+          if (!snapshot) return;
+          scanNowInFlight = true;
+          (async () => {
+            const rendered = await fetchJsonWithTimeout("/api/dex/opportunity-scanner/scan-now?wait=1", 240000);
+            if (generation === selectionGeneration && signature === activeSelectionSignature) {
+              renderScannerResponse(rendered);
+              if (latestRoutes.length) scheduleReviewActiveRoute();
+            }
+            let refreshedQuoteRoutesPayload = null;
+            if (quoteRoutesPayloadPromise) {
+              try { refreshedQuoteRoutesPayload = await quoteRoutesPayloadPromise; } catch (_) {}
+            }
+            if (!refreshedQuoteRoutesPayload) {
+              try { refreshedQuoteRoutesPayload = await fetchJsonWithTimeout("/api/dex/quote-routes"); } catch (_) {}
+            }
+            if (generation === selectionGeneration && signature === activeSelectionSignature && refreshedQuoteRoutesPayload) renderScannerResponse(rendered, refreshedQuoteRoutesPayload);
+          })()
+            .catch(error => {
+              if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
+            })
+            .finally(() => { scanNowInFlight = false; });
+        });
       }
       catch (error) { if (generation === selectionGeneration && signature === activeSelectionSignature) $("message").textContent = uiError(error.message); }
     }
@@ -247,10 +356,24 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
     }
     async function copyRoute(rawRoute, button) {
       const route = normalizeRouteForRender(rawRoute);
-      const latestExecution = latestBroadcastAdvice(route);
-      const reviewStage = normalizedReviewStage(route, latestExecution);
+      const activeExecutionRoute = Boolean(activeExecution?.routeKey && routeExecutionKey(route) === activeExecution.routeKey);
+      const latestExecution = activeExecutionRoute
+        ? {
+            text: activeExecution?.broadcastDisabled || route?.__broadcastDisabled
+              ? "链上执行未提交：链上执行开关未开启，本次未发起链上交易。"
+              : activeExecution?.state === ROUTE_UI_STATE.EXECUTION_PENDING
+              ? "链上执行提交中，请稍候查看本次链上结果。"
+              : activeExecution?.state === ROUTE_UI_STATE.EXECUTION_FAILED
+                ? (route?.__broadcastError ? `链上执行失败/未提交：${route.__broadcastError}` : "链上执行失败/未提交；请检查网络、RPC 或开关后重试。")
+                : "链上执行已提交；请到提交记录或区块浏览器确认交易哈希与链上验证结果。",
+            txHash: activeExecution?.txHash || "",
+            txHashes: activeExecution?.txHash ? [activeExecution.txHash] : [],
+          }
+        : latestBroadcastAdvice(route);
+      const reviewStage = normalizedReviewStage(route, latestExecution, activeExecution);
       const execPending = reviewStage === "execution_pending";
       const execFailed = reviewStage === "execution_failed";
+      const notSubmitted = activeExecution?.broadcastDisabled || route?.__broadcastDisabled;
       const executionSubmission = latestExecution?.txHash ? latestBroadcastSubmissionForRoute(route) : null;
       const executionQuote = (executionSubmission && executionSubmission.quote) || {};
       const executionAnalysis = executionQuote.quote_analysis || executionQuote.analysis || {};
@@ -270,7 +393,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       };
       const copySteps = executionSteps.length
         ? executionSteps
-        : ((reviewStage === "execution" && latestExecution?.txHashes?.length) ? [] : (Array.isArray(sourceAnalysis.steps) ? sourceAnalysis.steps.filter(Boolean) : []));
+        : (Array.isArray(sourceAnalysis.steps) ? sourceAnalysis.steps.filter(Boolean) : []);
       const firstCopyStep = copySteps[0] || null;
       const lastCopyStep = copySteps[copySteps.length - 1] || null;
       const copyDirection = pathFromSteps(copySteps, (route.routeSymbols || []).join(" -> "));
@@ -286,8 +409,8 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         executionAnalysis.best_amount,
         executionQuote.input_amount,
         validation.borrowInputAmount,
-        costs.borrowInputAmount,
         costs.selectedBorrowInputAmount,
+        costs.borrowInputAmount,
         costs.requestedBorrowInputAmount,
         sourceAnalysis.referenceInputAmount,
         Number.isFinite(firstHopInputNumber) ? firstHopInputNumber : null
@@ -298,8 +421,8 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         executionAnalysis.bestAmount,
         executionAnalysis.best_amount,
         validation.borrowInputAmount,
-        costs.borrowInputAmount,
         costs.selectedBorrowInputAmount,
+        costs.borrowInputAmount,
         sourceAnalysis.bestAmount,
         sourceAnalysis.best_amount,
         size.recommendedBorrowInputAmount,
@@ -308,15 +431,41 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         route.bestAmountCalculation?.bestAmount,
         route.bestAmountCalculation?.recommendedBorrowInputAmount
       );
+      const confirmedCopyBestAmount = evidenceFirst(
+        executionSubmission?.best_amount,
+        executionQuote.best_amount,
+        executionAnalysis.bestAmount,
+        executionAnalysis.best_amount,
+        validation.borrowInputAmount,
+        costs.selectedBorrowInputAmount,
+        costs.borrowInputAmount
+      );
+      const finalRawBestAmountCopy = pendingCopy
+        ? null
+        : (costs.bestAmountMissing === true || sourceAnalysis.bestAmountMissing === true || route.bestAmountMissing === true
+            ? null
+            : rawBestAmountCopy);
       const bestAmountCopy = pendingCopy ? null : (reviewStage === "estimate"
-        ? (offchainProbeAmount(route, evidence) ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.initialProbeAmount ?? rawBestAmountCopy ?? 1)
-        : rawBestAmountCopy);
+        ? (offchainProbeAmount(route, evidence) ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.initialProbeAmount ?? finalRawBestAmountCopy ?? 1)
+        : finalRawBestAmountCopy);
       const evidenceStatusLower = String(evidence.status || "").toLowerCase();
       const evidenceTrustLower = String(evidence.executionTrust || "").toLowerCase();
+      const staticReview = routeNeedsLiveReview(route) || evidenceStatusLower === "static_reference_pending_live_review" || evidenceTrustLower === "static_reference_pending_live_review";
       const estimateFailed = terminalEvidenceStatus(evidence.status);
       const liveTrust = ["live_v4_adapter", "live_quoter_verified_readonly", "live_verified"].includes(evidenceTrustLower);
       const liveStatus = ["live_verified", "route_unprofitable", "slippage_limit_exceeded", "pool_insufficient_for_profitable_execution"].includes(evidenceStatusLower);
-      const live = Boolean(analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified" || liveStatus || liveTrust);
+      const hardEvidenceFailure = [
+        "rpc_verification_failed",
+        "rpc_verification_timeout",
+        "adapter_required",
+        "missing_trigger_block",
+        "live_quote_failed",
+        "quote_failed",
+        "pool_not_initialized",
+        "not_enough_liquidity",
+        "missing_effective_pool",
+      ].includes(evidenceStatusLower);
+      const live = Boolean(!hardEvidenceFailure && (analysis.livePriceVerified || analysis.priceEvidenceMode === "live_verified" || liveStatus || liveTrust));
       const gateBlocked = Object.keys(evidence).length > 0
         && live
         && ["route_unprofitable", "pool_insufficient_for_profitable_execution"].includes(String(evidence.status || "").toLowerCase());
@@ -365,7 +514,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
           `报价状态=${display(label(route.quoteStatus))}`,
           `状态=${display(evidenceStatusEx(evidence.status))}`,
           `区块=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
-          `依据=${display(executionTrustText(evidence.executionTrust))}`,
+          `依据=${display(evidenceTrustText(evidence, sourceAnalysis))}`,
           `失败输入=${failedIsLiquidity ? `${display(failedHop.amountIn ?? failedHop.inputAmount ?? failedStep?.inputAmount)} ${display(failedHop.fromSymbol)}` : "-"}`,
           `错误定位=第 ${display(failedHop.hop)} 步 ${display(failedHop.fromSymbol)} -> ${display(failedHop.toSymbol)}`,
           `链上错误=${display(focusErrorText)}`,
@@ -384,6 +533,14 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         costs.borrowInputSymbol,
         sourceAnalysis.referenceInputSymbol
       );
+      const firstCopyStepInput = firstCopyStep ? Number(firstCopyStep.inputAmount ?? firstCopyStep.amountIn ?? firstCopyStep.referenceInputAmount) : NaN;
+      const copyAmountMismatch = Number.isFinite(Number(bestAmountCopy))
+        && Number.isFinite(firstCopyStepInput)
+        && firstCopyStepInput > 0
+        && Math.abs(Number(bestAmountCopy) - firstCopyStepInput) > Math.max(Math.abs(Number(bestAmountCopy)), Math.abs(firstCopyStepInput), 1) * 1e-9;
+      const copyAmountMismatchLine = copyAmountMismatch
+        ? `步骤金额提示=复制步骤首跳金额 ${display(firstCopyStepInput)} ${display(referenceInputSymbol)} 与当前最佳量 ${display(bestAmountCopy)} ${display(referenceInputSymbol)} 不一致；请以链上复核确认金额为准。`
+        : "";
       const referenceOutputAmount = evidenceFirst(
         executionSubmission?.final_amount,
         executionQuote.final_amount,
@@ -418,7 +575,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         costs.netProfitAmountBps,
         sourceAnalysis.referenceNetReturnBps
       );
-      const netProfit = humanTokenValue(evidenceFirst(
+      const netProfit = hardEvidenceFailure ? null : ((staticReview && !live && !latestExecution?.txHash) ? null : humanTokenValue(evidenceFirst(
         executionSubmission?.profit_amount,
         executionQuote.profit_amount,
         analysis.netProfitUsd,
@@ -430,8 +587,11 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         costs.submissionNetProfitAmount,
         sourceAnalysis.referenceNetProfitAmount,
         derivedNetProfitAmount
-      ));
+      )));
       const netProfitSymbol = analysis.netProfitUsd != null || sourceAnalysis.netProfitUsd != null || costs.netProfitUsd != null ? "USD" : (executionAnalysis.referenceInputSymbol || validation.netProfitAmountSymbol || costs.netProfitAmountSymbol || sourceAnalysis.referenceInputSymbol || "token");
+      const staticReferenceNotice = staticReview && reviewStage === "estimate"
+        ? "静态参考提示=当前净利为静态参考估算，尚未经链上逐 hop 复核；实际产出可能因流动性和滑点显著低于参考值"
+        : "";
       const offchainProbe = offchainProbeAmount(route, evidence);
       const requestedAmountValue = pendingCopy ? autoRouteAmount(route) : (reviewStage === "execution"
         ? evidenceFirst(
@@ -456,14 +616,14 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
             executionAnalysis.initialProbeAmount,
             executionAnalysis.requestedAmount,
             executionAnalysis.amountOptimizedFrom,
-            offchainProbe,
             costs.requestedBorrowInputAmount,
             costs.selectedBorrowInputAmount,
             sourceAnalysis.requestedAmount,
             sourceAnalysis.amountOptimizedFrom,
+            offchainProbe,
             referenceInputAmount
           )
-        : (offchainProbe ?? costs.requestedBorrowInputAmount ?? costs.selectedBorrowInputAmount ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.amountOptimizedFrom ?? referenceInputAmount ?? size.recommendedBorrowInputAmount ?? size.tokenAmountSteps?.[0]));
+        : (costs.requestedBorrowInputAmount ?? offchainProbe ?? costs.selectedBorrowInputAmount ?? sourceAnalysis.requestedAmount ?? sourceAnalysis.amountOptimizedFrom ?? referenceInputAmount ?? size.recommendedBorrowInputAmount ?? size.tokenAmountSteps?.[0]));
       const initialProbeSymbol = pendingCopy ? autoRouteAmountSymbol(route) : (executionQuote.initial_probe_symbol || executionAnalysis.referenceInputSymbol || costs.borrowInputSymbol || sourceAnalysis.referenceInputSymbol || size.recommendedBorrowInputAmountBasis || "token");
       const amountScaleHint = Number.isFinite(Number(bestAmountCopy))
         && Number.isFinite(Number(initialProbeValue))
@@ -515,15 +675,18 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         if (execPending) return "链上执行正在提交；请稍候查看本次链上结果。";
         if (reviewStage === "execution") return "链上执行已提交；请到提交记录或区块浏览器确认交易哈希与链上验证结果";
         if (reviewStage === "preflight_failed") return "链上复核失败：RPC 或链上报价未返回有效结果，请稍后重试或检查 RPC 配置。";
-        if (reviewStage === "preflight") return "链上复核完成；尚未执行链上交易。当前最佳交易量已通过，若要执行请点击链上执行。";
+        if (staticReview && reviewStage === "estimate") return "当前为静态参考，尚未通过链上逐 hop 复核；不能作为已确认最佳量，不建议直接链上执行。";
         const status = String(evidence.status || "").toLowerCase();
         if (status === "route_unprofitable") return "链上报价已验证，但净收益未转正；禁止链上执行";
         if (status === "slippage_limit_exceeded") return "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认；禁止链上执行";
-        if (estimateFailed) return recommendationAction(sourceAnalysis.recommendation?.action || evidence.conclusion || "链上报价失败，无法进入链上执行");
+        if (estimateFailed) return terminalFailureAdvice(evidence.status);
+        if (reviewStage === "preflight" && bestAmountMissingOf(route, evidence, sourceAnalysis)) return "链上复核未通过：最佳量未计算成功，不能作为已确认最佳量；请重新链上复核并完成最佳量计算后再执行。";
+        if (reviewStage === "preflight") return "链上复核完成；尚未执行链上交易。当前最佳交易量已通过，若要执行请点击链上执行。";
         if (live && (evidence.readyForTransactionPreflight || analysis.readyForTransactionPreflight || (sourceAnalysis.recommendation || {}).readyForTransactionPreflight)) return "链下估算完成：当前初始量已生成；最佳量与可执行性需点击链上复核确认。";
         if (live) return "链上复核已验证，但当前状态不满足交易提交条件；禁止链上执行";
         return "链上报价未完成";
       })();
+      const domTrustedForCopy = !estimateFailed && !focusOnError && !execFailed && !execPending && reviewStage !== "preflight_failed" && !pendingCopy;
       const routeTestResultElement = button ? document.querySelector(`[data-route-test-result="${button.dataset.copyRoute}"]`) : null;
       const domRouteTestResultLine = routeTestResultElement && routeTestResultElement.textContent
         && !["", "处理中..."].includes(String(routeTestResultElement.textContent).trim())
@@ -532,13 +695,20 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const latestExecutionResultLine = latestExecution?.txHash
         ? `本次结果=链上执行已提交：${latestExecution.txHash}`
         : null;
-      const routeTestResultLine = latestExecutionResultLine || domRouteTestResultLine;
+      const routeTestResultLine = latestExecutionResultLine || (domTrustedForCopy ? domRouteTestResultLine : null);
       const routeRecommendationElement = button ? document.querySelector(`[data-route-recommendation="${button.dataset.copyRoute}"]`) : null;
       const domRouteRecommendationText = routeRecommendationElement && routeRecommendationElement.textContent
         ? String(routeRecommendationElement.textContent).trim().replace(/^建议：/, "")
         : "";
-      const routeRecommendationText = latestExecution?.text || domRouteRecommendationText;
+      const routeRecommendationText = latestExecution?.text || (domTrustedForCopy ? domRouteRecommendationText : recommendationText);
       const bestAmountLabel = bestAmountDisplayLabel({evidence, analysis: sourceAnalysis, stage: reviewStage});
+      const bestAmountMissingCopy = pendingCopy
+        || estimateFailed
+        || (reviewStage !== "estimate" && (costs.bestAmountMissing === true || sourceAnalysis.bestAmountMissing === true || route.bestAmountMissing === true))
+        || (bestAmountCopy === null || bestAmountCopy === undefined || bestAmountCopy === "");
+      const bestAmountCopyText = bestAmountMissingCopy
+        ? "未计算"
+        : `${display(bestAmountCopy)} ${display(referenceInputSymbol)}`;
       const actionRequested = Number(route.__requestedAmount);
       const hasActionRequest = Number.isFinite(actionRequested) && actionRequested > 0;
       const requestedNumber = Number(requestedAmountValue);
@@ -547,22 +717,28 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         && Number.isFinite(probeNumber)
         && probeNumber > 0
         && Math.abs(requestedNumber - probeNumber) <= Math.max(Math.abs(requestedNumber), Math.abs(probeNumber)) * 1e-9;
+      const initialProbeDisplay = display(initialProbeValue);
+      const referenceOutputAmountDisplay = display(referenceOutputAmount);
+      const referenceNetProfitAmountDisplay = display(referenceNetProfitAmount);
       const text = [
         `路线=${display(copyDirection || route.symbolPair || (route.routeSymbols || []).join(" -> "))}`,
         `路径=${display(copyDirection || (route.routeSymbols || []).join(" -> "))}`,
         `方向=${display(copyDirection)}`,
-        `${bestAmountLabel}=${display(bestAmountCopy)} ${display(referenceInputSymbol)}`,
-        `报价状态=${pendingCopy ? "链下估算完成" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight" ? "链上复核" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed ? display(evidenceStatusEx(evidence.status)) : "链下估算完成"}`,
-        `状态=${pendingCopy ? "链下估算完成" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight" ? "链上复核完成" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : "链下估算完成"}`,
+        `${bestAmountLabel}=${bestAmountCopyText}`,
+        `报价状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核" : "链下估算完成"}`,
+        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（广播未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
         `区块=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
-        `依据=${display(executionTrustText(evidence.executionTrust))}`,
-        [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${display(initialProbeValue)} ${display(initialProbeSymbol)}`],
-        `初始探测依据=${display(offchainProbeReasonText(evidence.offchainInitialProbeReason))}`,
+        `依据=${display(evidenceTrustText(evidence, sourceAnalysis))}`,
+        [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${initialProbeDisplay}${initialProbeDisplay !== "-" ? ` ${display(initialProbeSymbol)}` : ""}`],
+        `初始探测依据=${display(evidenceProbeReasonText(evidence.offchainInitialProbeReason, evidence))}`,
         ...(amountScaleHint ? [amountScaleHint] : []),
         ...(backendAmountHint ? [`优化提示=${display(backendAmountHint)}`] : []),
-        `参考输出=${display(referenceOutputAmount)} ${display(referenceOutputSymbol)}`,
-        `参考净利=${display(referenceNetProfitAmount)} ${display(referenceInputSymbol)}`,
+        ...(copyAmountMismatchLine ? [copyAmountMismatchLine] : []),
+        `盈亏=${netProfit !== null && netProfit !== undefined && netProfit !== "" ? `${display(netProfit)} ${netProfitSymbol}` : (referenceNetProfitAmount != null ? `${display(referenceNetProfitAmount)} ${display(referenceInputSymbol)}` : "-")}`,
+        `参考输出=${referenceOutputAmountDisplay}${referenceOutputAmountDisplay !== "-" ? ` ${display(referenceOutputSymbol)}` : ""}`,
+        `参考净利=${referenceNetProfitAmountDisplay}${referenceNetProfitAmountDisplay !== "-" ? ` ${display(referenceInputSymbol)}` : ""}`,
         `参考净利 BPS=${display(referenceNetReturnBps)}`,
+        ...(staticReferenceNotice ? [staticReferenceNotice] : []),
         `净利=${netProfit !== null && netProfit !== undefined && netProfit !== "" ? `${display(netProfit)} ${netProfitSymbol}` : "-"}`,
         `深度状态=${display(live ? "链上实时深度已验证" : sourceAnalysis.staticDepthStatus)}`,
         `最大静态深度影响 BPS=${display(live ? liveMaxDepthImpactBps : sourceAnalysis.maxStaticDepthImpactBps)}`,
@@ -585,11 +761,48 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         body: JSON.stringify(payload),
       });
       const data = await response.json();
-      if (!response.ok && data?.ok !== true) {
+      const broadcastDisabledByBackend = Boolean(
+        data?.broadcastDisabled
+        || data?.error === "official_arb_broadcast_disabled"
+        || String(data?.detail || data?.error || "").toLowerCase().includes("broadcast disabled")
+      );
+      if (!response.ok && data?.ok !== true && !broadcastDisabledByBackend) {
         const detail = data?.detail || data?.error || `请求失败（HTTP ${response.status}）`;
         throw new Error(detail);
       }
       return data;
+    }
+    async function refreshClosedLoopGroup(groupKey, button) {
+      const signature = activeSelectionSignature;
+      const old = button ? button.textContent : "";
+      if (button) {
+        button.disabled = true;
+        button.textContent = "刷新中";
+      }
+      $("message").textContent = `正在定点刷新闭环 ${groupKey} ...`;
+      try {
+        const data = await postJson(`/api/dex/closed-loop-groups/${encodeURIComponent(groupKey)}/refresh?wait=1`, {mode: "deep"});
+        if (signature !== activeSelectionSignature) return;
+        const routes = Array.isArray(data?.task?.result?.routes) ? data.task.result.routes : [];
+        if (routes.length) {
+          const incoming = new Map(routes.map(route => [routeKey(route), route]));
+          latestRoutes = latestRoutes.map(route => {
+            const replacement = incoming.get(routeKey(route));
+            return replacement || route;
+          });
+          $("routeList").innerHTML = renderPoolDirectories(latestRoutes);
+          $("message").textContent = `闭环 ${groupKey} 已定点刷新`;
+        } else {
+          $("message").textContent = data?.task?.result?.message || `闭环 ${groupKey} 无可刷新路线`;
+        }
+      } catch (error) {
+        if (signature === activeSelectionSignature) $("message").textContent = uiError(error.message);
+      } finally {
+        if (button) {
+          button.textContent = old;
+          button.disabled = false;
+        }
+      }
     }
     function routeTestSymbols(route) {
       if (route?.routeSymbols?.length) return route.routeSymbols;
@@ -623,22 +836,11 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const symbol = payload.amountSymbol || payload.initialProbeSymbol || incomingAnalysis.referenceInputSymbol || (Array.isArray(route.routeSymbols) ? route.routeSymbols[0] : "");
       const probeRecords = payload.probeRecords || payload.probe_records || payload.bestAmountCalculation?.probeRecords || payload.bestAmountCalculation?.probe_records || [];
       const oldSteps = Array.isArray(route.quoteAnalysis?.steps) ? route.quoteAnalysis.steps : Array.isArray(incomingAnalysis.steps) ? incomingAnalysis.steps : [];
-      const oldFirstInput = Number(oldSteps.find(step => Number(step?.inputAmount ?? step?.amountIn) > 0)?.inputAmount ?? oldSteps[0]?.inputAmount ?? NaN);
-      const selectedAmountNumber = Number(bestAmount) || Number(requestedAmount) || NaN;
-      const stepScaleFactor = Number.isFinite(oldFirstInput) && Number.isFinite(selectedAmountNumber) && oldFirstInput > 0 && Math.abs(selectedAmountNumber - oldFirstInput) > 1e-12
-        ? selectedAmountNumber / oldFirstInput
-        : 1;
-      const scaledSteps = oldSteps.map(step => {
-        const input = Number(step?.inputAmount ?? step?.amountIn ?? step?.referenceInputAmount);
-        const output = Number(step?.outputAmount ?? step?.referenceOutputAmount ?? step?.referenceFinalOutputAmount);
-        const next = { ...step };
-        if (Number.isFinite(input)) next.inputAmount = input * stepScaleFactor;
-        if (Number.isFinite(output)) {
-          next.referenceOutputAmount = output * stepScaleFactor;
-          next.outputAmount = output * stepScaleFactor;
-        }
-        return next;
-      });
+      const scaledSteps = Array.isArray(payload.steps)
+        ? payload.steps
+        : Array.isArray(incomingAnalysis.steps)
+          ? incomingAnalysis.steps
+          : oldSteps;
       const finalOutputValue = payload.outAmountHuman ?? (Number.isFinite(Number(payload.outAmount)) ? Number(payload.outAmount) : null);
       const netProfitValue = payload.profitHuman ?? (Number.isFinite(Number(payload.profit)) ? Number(payload.profit) : null);
       const computedNetProfitBps = Number.isFinite(Number(bestAmount)) && Number(bestAmount) > 0 && Number.isFinite(Number(netProfitValue))
@@ -648,16 +850,29 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const lastScaledOutput = scaledSteps.length ? Number(scaledSteps[scaledSteps.length - 1]?.outputAmount ?? scaledSteps[scaledSteps.length - 1]?.referenceOutputAmount) : NaN;
       const referenceFinalOutputAmount = Number.isFinite(Number(finalOutputValue)) ? Number(finalOutputValue) : Number.isFinite(lastScaledOutput) ? lastScaledOutput : incomingAnalysis.referenceFinalOutputAmount ?? null;
       const referenceNetProfitAmount = Number.isFinite(Number(netProfitValue)) ? Number(netProfitValue) : incomingAnalysis.referenceNetProfitAmount ?? null;
-      const blockers = Array.isArray(route.live_onchain_evidence?.blockers)
-        ? route.live_onchain_evidence.blockers
-        : payload.detail
-          ? [payload.detail]
+      const routeEvidenceBlockers = Array.isArray(payload.evidence?.blockers)
+        ? payload.evidence.blockers
+        : Array.isArray(route.live_onchain_evidence?.blockers)
+          ? route.live_onchain_evidence.blockers
           : [];
+      const preflightPassed = payload.ok !== false
+        && (payload.staticCallPassed || payload.readyForTransactionPreflight || payload.bestAmountConfirmed === true)
+        && !payload.bestAmountMissing
+        && !terminalEvidenceStatus(payload.quoteStatus || payload.evidenceStatus || "");
+      const blockers = preflightPassed
+        ? routeEvidenceBlockers
+        : (routeEvidenceBlockers.length
+            ? routeEvidenceBlockers
+            : payload.detail ? [payload.detail] : []);
       const mergedAnalysis = {
         ...(route.quoteAnalysis && typeof route.quoteAnalysis === "object" ? route.quoteAnalysis : {}),
         ...incomingAnalysis,
         steps: scaledSteps.length ? scaledSteps : incomingAnalysis.steps,
         bestAmount,
+        bestAmountMissing: payload.bestAmountMissing === true
+          || incomingAnalysis.bestAmountMissing === true
+          || payload.bestAmountCalculation?.bestAmountMissing === true
+          || !(payload.bestAmountConfirmed === true || incomingAnalysis.bestAmountConfirmed === true || payload.bestAmountCalculation?.bestAmountConfirmed === true),
         bestAmountConfirmed: payload.bestAmountConfirmed === true
           || incomingAnalysis.bestAmountConfirmed === true
           || payload.bestAmountCalculation?.bestAmountConfirmed === true,
@@ -690,11 +905,20 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         bestAmountCalculation: payload.bestAmountCalculation || {} ,
       };
       const routeEvidenceExisting = route.live_onchain_evidence || {};
+      const mergedQuoteStatus = payload.quoteStatus
+        || routeEvidenceExisting.status
+        || route.quoteStatus
+        || route.quoteAnalysis?.onchainEvidenceStatus
+        || (route.quoteAnalysis?.livePriceVerified ? "live_verified" : "static_reference_pending_live_review");
+      const mergedExecutionTrust = payload.executionTrust
+        || routeEvidenceExisting.executionTrust
+        || route.quoteAnalysis?.executionTrust
+        || (route.quoteAnalysis?.livePriceVerified ? "live_quoter_verified_readonly" : "static_reference_pending_live_review");
       route.quoteAnalysis = mergedAnalysis;
       route.live_onchain_evidence = {
         ...routeEvidenceExisting,
-        status: payload.quoteStatus || routeEvidenceExisting.status || "live_verified",
-        executionTrust: payload.executionTrust || routeEvidenceExisting.executionTrust || "live_quoter_verified_readonly",
+        status: mergedQuoteStatus,
+        executionTrust: mergedExecutionTrust,
         offchainInitialProbeReason: (
           payload.evidence?.offchainInitialProbeReason
           || (["preflight", "preflight_failed", "execution", "execution_pending", "execution_failed"].includes(stage)
@@ -710,6 +934,10 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
           selectedBorrowInputAmount: bestAmount,
           requestedBorrowInputAmount: requestedAmount,
           amountIsBest: payload.amountIsBest === true || incomingAnalysis.amountIsBest === true,
+          bestAmountMissing: payload.bestAmountMissing === true
+            || incomingAnalysis.bestAmountMissing === true
+            || payload.bestAmountCalculation?.bestAmountMissing === true
+            || !(payload.bestAmountConfirmed === true || incomingAnalysis.bestAmountConfirmed === true || payload.bestAmountCalculation?.bestAmountConfirmed === true),
           bestAmountConfirmed: payload.bestAmountConfirmed === true
             || incomingAnalysis.bestAmountConfirmed === true
             || payload.bestAmountCalculation?.bestAmountConfirmed === true,
@@ -728,8 +956,12 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         },
         blockers,
       };
-      setRouteUiState(route, uiStateFromStage(stage || "estimate"), {
-        quoteStatus: String(payload.quoteStatus || routeEvidenceExisting.status || route.quoteStatus || "live_verified"),
+      const mergedBestAmountUnconfirmed = mergedAnalysis.bestAmountMissing === true;
+      route.bestAmountMissing = mergedAnalysis.bestAmountMissing === true;
+      route.bestAmountConfirmed = mergedAnalysis.bestAmountConfirmed === true;
+      const resolvedStage = stage === "preflight" && mergedBestAmountUnconfirmed ? "estimate" : (stage || "estimate");
+      setRouteUiState(route, uiStateFromStage(resolvedStage), {
+        quoteStatus: String(mergedQuoteStatus),
       });
       return route;
     }
@@ -748,10 +980,32 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
           : estimateRouteTestAdvice(result);
     }
     async function runRouteTest(route, button, mode, resultElement) {
-      const currentBestAmount = Number(route?.quoteAnalysis?.bestAmount ?? route?.quoteAnalysis?.best_amount ?? route?.live_onchain_evidence?.costModel?.selectedBorrowInputAmount ?? NaN);
+      const sizeAnalysis = route?.sizeAnalysis || {};
+      const calcBest = route?.quoteAnalysis?.bestAmountCalculation || route?.bestAmountCalculation || {};
+      const costModel = route?.live_onchain_evidence?.costModel || {};
+      const bestConfirmed = route?.quoteAnalysis?.bestAmountConfirmed === true
+        || route?.quoteAnalysis?.best_amount_confirmed === true
+        || costModel?.bestAmountConfirmed === true
+        || route?.live_onchain_evidence?.bestAmountConfirmed === true;
+      const confirmedHistorical = bestConfirmed
+        ? Number(route?.quoteAnalysis?.bestAmount ?? route?.quoteAnalysis?.best_amount ?? costModel?.selectedBorrowInputAmount ?? NaN)
+        : NaN;
+      const tokenSteps = Array.isArray(sizeAnalysis?.tokenAmountSteps) ? sizeAnalysis.tokenAmountSteps : [];
+      const recommendedInitial = Number(
+        calcBest?.recommendedBorrowInputAmount
+        ?? sizeAnalysis?.recommendedBorrowInputAmount
+        ?? (tokenSteps.length ? tokenSteps[tokenSteps.length - 1] : null)
+        ?? null
+      );
+      const currentBestAmount = Number.isFinite(confirmedHistorical) && confirmedHistorical > 0
+        ? confirmedHistorical
+        : (Number.isFinite(recommendedInitial) && recommendedInitial > 0 ? recommendedInitial : NaN);
+      const actionRequestedAmount = Number(route.__requestedAmount);
       const previousBestAmount = Number.isFinite(currentBestAmount) && currentBestAmount > 0
         ? currentBestAmount
-        : autoRouteAmount(route);
+        : (Number.isFinite(actionRequestedAmount) && actionRequestedAmount > 0
+            ? actionRequestedAmount
+            : autoRouteAmount(route));
       const hasHistoricalReview = Number.isFinite(currentBestAmount) && currentBestAmount > 0;
       const initialAmountLabel = hasHistoricalReview ? "历史复核金额" : "初始测试金额";
       const amount = previousBestAmount;
@@ -762,6 +1016,16 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const requestMode = mode === "estimate" ? "estimate" : (mode === "static_call" ? "static_call" : "auto");
       const old = button ? button.textContent : `${mode === "estimate" ? "链下估算" : "链上复核"}中`;
       if (button) button.disabled = true;
+      if (mode !== "broadcast") setPageState(PAGE_STATE.REVIEW);
+      if (mode === "broadcast") {
+        setPageState(PAGE_STATE.EXECUTION);
+        activeExecution = {
+          routeKey: routeExecutionKey(route),
+          state: ROUTE_UI_STATE.EXECUTION_PENDING,
+          txHash: "",
+          startedAt: Date.now(),
+        };
+      }
       setRouteUiState(route, mode === "broadcast" ? ROUTE_UI_STATE.EXECUTION_PENDING : (mode === "static_call" ? ROUTE_UI_STATE.PREFLIGHT_RUNNING : ROUTE_UI_STATE.OFFCHAIN_PENDING), {
         quoteStatus: route.quoteStatus || "",
       });
@@ -780,6 +1044,11 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
           mode: requestMode,
           broadcast,
         });
+        const broadcastDisabledPayload = mode === "broadcast" && Boolean(
+          payload?.broadcastDisabled
+          || payload?.error === "official_arb_broadcast_disabled"
+          || String(payload?.detail || payload?.error || "").toLowerCase().includes("broadcast disabled")
+        );
         if (mode === "estimate") {
           if (payload?.ok) mergeRouteTestPayload(route, payload);
         } else if (mode === "broadcast" || payload?.ok || payload?.txHash || payload?.bestAmount || payload?.bestAmountCalculation) {
@@ -787,7 +1056,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
             route,
             payload,
             mode === "broadcast"
-              ? (payload?.txHash ? "execution" : "execution_failed")
+              ? (payload?.txHash ? "execution" : broadcastDisabledPayload ? "preflight" : "execution_failed")
               : mode === "static_call"
                 ? "preflight"
                 : (uiStageFromUiState(uiStateOf(route)) || "estimate")
@@ -808,10 +1077,32 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         const advice = routeTestAdvice(payload, mode);
         if (mode === "broadcast" && payload?.txHash) {
           setRouteUiState(route, ROUTE_UI_STATE.EXECUTION_SUBMITTED, {quoteStatus: "broadcast_submitted"});
+          activeExecution = {
+            routeKey: routeExecutionKey(route),
+            state: ROUTE_UI_STATE.EXECUTION_SUBMITTED,
+            txHash: payload.txHash,
+            startedAt: Date.now(),
+          };
           route.__broadcastError = "";
+          route.__broadcastDisabled = false;
         } else if (mode === "broadcast") {
-          setRouteUiState(route, ROUTE_UI_STATE.EXECUTION_FAILED, {quoteStatus: "broadcast_failed"});
-          route.__broadcastError = advice ? String(advice).replace(/^建议：/, "") : "链上执行未提交";
+          if (broadcastDisabledPayload) {
+            route.__broadcastDisabled = true;
+            route.__broadcastError = "";
+            activeExecution = {
+              routeKey: routeExecutionKey(route),
+              state: ROUTE_UI_STATE.PREFLIGHT_DONE,
+              broadcastDisabled: true,
+              txHash: "",
+              startedAt: Date.now(),
+            };
+            setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_DONE, {quoteStatus: "broadcast_disabled"});
+          } else {
+            setRouteUiState(route, ROUTE_UI_STATE.EXECUTION_FAILED, {quoteStatus: "broadcast_failed"});
+            activeExecution.state = ROUTE_UI_STATE.EXECUTION_FAILED;
+            route.__broadcastError = advice ? String(advice).replace(/^建议：/, "") : "链上执行未提交";
+          }
+          renderPoolDirectories(latestRoutes.slice());
         }
         if (broadcast && payload?.txHash) {
           await loadLatestSubmissions().catch(() => {});
@@ -827,7 +1118,8 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       } catch (error) {
         if (mode === "broadcast") {
           setRouteUiState(route, ROUTE_UI_STATE.EXECUTION_FAILED, {quoteStatus: "broadcast_failed"});
-          route.__broadcastError = "请检查网络或稍后重试；仍失败可重启服务";
+          activeExecution.state = ROUTE_UI_STATE.EXECUTION_FAILED;
+          route.__broadcastError = uiError(error.message) || "请检查网络或稍后重试；仍失败可重启服务";
         } else if (mode === "static_call") {
           markPreflightFailed(route, `链上复核失败：${uiError(error.message)}`, "rpc_verification_failed");
         } else {
@@ -856,7 +1148,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         $("message").textContent = `${uiError(error.message)} | 建议：请检查网络或稍后重试；仍失败可重启服务。`;
         if (Number.isFinite(routeIndex)) {
           document.querySelectorAll(`[data-route-recommendation="${routeIndex}"]`).forEach(el => {
-            el.innerHTML = "<strong>建议：请检查网络或稍后重试；仍失败可重启服务</strong>";
+            el.innerHTML = `<strong>建议：${esc(uiError(error.message) || "请检查网络或稍后重试；仍失败可重启服务")}</strong>`;
           });
         }
       } finally {
@@ -864,29 +1156,35 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
           button.textContent = old;
           button.disabled = false;
         }
+        if (pageStateIs(PAGE_STATE.REVIEW, PAGE_STATE.EXECUTION)) setPageState(PAGE_STATE.SCAN);
         if (!resultElement?.textContent) $("message").textContent = oldMessage;
       }
     }
-    function scheduleReviewAllRoutes() {
+    function scheduleReviewActiveRoute() {
+      if (pageStateIs(PAGE_STATE.EXECUTION)) return;
       if (autoReviewRunning) {
         autoReviewQueued = true;
         return;
       }
       autoReviewRunning = true;
       autoReviewQueued = false;
-      autoReviewLatestRoutes()
+      setPageState(PAGE_STATE.REVIEW);
+      autoReviewActiveRoute()
         .catch(() => {})
         .finally(() => {
           autoReviewRunning = false;
+          setPageState(PAGE_STATE.SCAN);
           if (autoReviewQueued) {
             autoReviewQueued = false;
-            scheduleReviewAllRoutes();
+            scheduleReviewActiveRoute();
           }
         });
     }
-    async function autoReviewLatestRoutes() {
+    async function autoReviewActiveRoute() {
       const generation = ++autoReviewToken;
-      const routes = latestRoutes.slice();
+      const targetKey = focusedRouteKey();
+      const targetIndex = targetKey ? latestRoutes.findIndex(route => routeKey(route) === targetKey) : -1;
+      const routes = targetIndex >= 0 ? latestRoutes.slice(targetIndex, targetIndex + 1) : latestRoutes.slice(0, 1);
       for (let index = 0; index < routes.length; index += 1) {
         if (generation !== autoReviewToken) return;
         const initialRoute = routes[index];
@@ -905,11 +1203,21 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       }
     }
     $("routeList").addEventListener("click", event => {
+      const refreshButton = event.target.closest("[data-closed-loop-refresh]");
+      if (refreshButton) {
+        refreshClosedLoopGroup(refreshButton.dataset.closedLoopRefresh, refreshButton);
+        return;
+      }
       const copyButton = event.target.closest("[data-copy-route]");
-      if (copyButton) copyRoute(latestRoutes[Number(copyButton.dataset.copyRoute)], copyButton);
+      if (copyButton) {
+        const copyIndex = Number(copyButton.dataset.copyRoute);
+        if (Number.isFinite(copyIndex) && latestRoutes[copyIndex]) activeRouteKey = routeKey(latestRoutes[copyIndex]);
+        copyRoute(latestRoutes[copyIndex], copyButton);
+      }
       const button = event.target.closest("[data-route-static-call], [data-route-broadcast]");
       if (!button) return;
       const index = Number(button.dataset.routeIndex ?? button.dataset.routeLiveEstimate ?? button.dataset.routeStaticCall ?? button.dataset.routeBroadcast);
+      if (Number.isFinite(index) && latestRoutes[index]) activeRouteKey = routeKey(latestRoutes[index]);
       const mode = button.hasAttribute("data-route-broadcast") ? "broadcast" : button.hasAttribute("data-route-static-call") ? "static_call" : "estimate";
       const resultElement = document.querySelector(`[data-route-test-result="${index}"]`);
       return runRouteTest(latestRoutes[index], button, mode, resultElement);
@@ -932,5 +1240,19 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
     try {
       $("refreshInterval").value = normalizeRefreshInterval(window.localStorage.getItem(refreshIntervalKey) || defaultRefreshIntervalSeconds);
     } catch (_) {}
+    function setupAutoExecuteToggle() {
+      const toggle = document.getElementById("autoExecuteToggle");
+      if (!toggle) return;
+      toggle.addEventListener("change", async () => {
+        try {
+          await postJson("/api/dex/opportunity-scanner/auto-execute", {enabled: toggle.checked});
+          $("message").textContent = toggle.checked ? "自动执行已开启" : "自动执行已关闭";
+        } catch (error) {
+          toggle.checked = !toggle.checked;
+          $("message").textContent = uiError(error.message);
+        }
+      });
+    }
+    setupAutoExecuteToggle();
     $("refreshInterval").addEventListener("change", scheduleRefresh);
     scheduleRefresh();

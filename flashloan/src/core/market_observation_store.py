@@ -10,8 +10,10 @@ from core.market_observation_compact import (
     _compact_observation_pair,
     _compact_observation_sequence,
     _compact_route_pool,
+    _hydrate_route_pools_from_registry,
     _observation_sequences_from_observation,
     _overview_route_summary,
+    _pool_registry_from_sequences,
     _route_pairs_from_sequence,
     _sequence_from_route,
 )
@@ -113,6 +115,13 @@ def static_snapshot_from_observation(
         if isinstance(value, dict):
             snapshot[key] = value
     sequences = _observation_sequences_from_observation(observation)
+    sequence_anchors = sorted(
+        {
+            _text(sequence.get("anchorSymbol")).upper()
+            for sequence in sequences
+            if isinstance(sequence, dict) and _text(sequence.get("anchorSymbol"))
+        }
+    )
     anchors = [
         _text(symbol).upper()
         for symbol in (
@@ -122,10 +131,13 @@ def static_snapshot_from_observation(
         )
         if _text(symbol)
     ]
+    if not anchors:
+        anchors = sequence_anchors
     raw_groups = observation.get("candidateObservationGroups")
     if not isinstance(raw_groups, list):
         raw_groups = observation.get("anchorGroups")
     snapshot["observationSequences"] = sequences
+    snapshot["poolRegistry"] = _pool_registry_from_sequences(sequences)
     snapshot["candidateObservationGroups"] = _candidate_groups_from_sequences(
         raw_groups if isinstance(raw_groups, list) else [],
         sequences,
@@ -377,14 +389,15 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
         if not isinstance(payload.get(key), list):
             payload[key] = []
     payload["observationSequences"] = _observation_sequences_from_observation(payload)
+    payload["observationSequences"] = _hydrate_route_pools_from_registry(
+        payload["observationSequences"],
+        payload.get("poolRegistry") or snapshot.get("poolRegistry") or {},
+    )
+    payload["poolRegistry"] = _pool_registry_from_sequences(payload["observationSequences"])
     payload["closedLoopRoutes"] = _closed_routes_from_sequences(payload["observationSequences"])
     payload["indirectRoutes"] = [
         route for route in payload["closedLoopRoutes"]
         if route.get("kind") == "bridge_closed_loop"
-    ]
-    payload["directClosedLoopRoutes"] = [
-        route for route in payload["closedLoopRoutes"]
-        if route.get("kind") == "direct_closed_pair"
     ]
     payload["candidateObservationGroups"] = _candidate_groups_from_sequences(
         payload.get("candidateObservationGroups") or payload.get("anchorGroups") or [],
@@ -400,13 +413,17 @@ def observation_payload_from_static(snapshot: dict[str, Any], *, source: str = "
         ],
     )
     if not payload.get("observationAnchorSymbols"):
-        anchors = sorted(
-            {
-                _text(group.get("anchorSymbol")).upper()
-                for group in payload.get("anchorGroups") or []
-                if isinstance(group, dict) and _text(group.get("anchorSymbol"))
-            }
-        )
+        anchor_set: set[str] = set()
+        for group in payload.get("anchorGroups") or []:
+            if isinstance(group, dict) and _text(group.get("anchorSymbol")):
+                anchor_set.add(_text(group.get("anchorSymbol")).upper())
+        for group in payload.get("candidateObservationGroups") or []:
+            if isinstance(group, dict) and _text(group.get("anchorSymbol")):
+                anchor_set.add(_text(group.get("anchorSymbol")).upper())
+        for sequence in payload["observationSequences"]:
+            if isinstance(sequence, dict) and _text(sequence.get("anchorSymbol")):
+                anchor_set.add(_text(sequence.get("anchorSymbol")).upper())
+        anchors = sorted(anchor_set)
         payload["observationAnchorSymbols"] = anchors
     if not payload.get("borrowableSymbols"):
         payload["borrowableSymbols"] = list(payload.get("observationAnchorSymbols") or [])

@@ -7,8 +7,11 @@ from market.binance_market.dex_route_test import (
     _official_route_addresses,
     _quote_failure_status,
     _raw_amount_to_human,
+    _resolve_route_addresses_from_market_payload,
     _step_failure_status,
     estimate_route_live_quote,
+    estimate_fixed_amount_pnl,
+    estimate_fixed_amount_pnl_quick,
     is_official_triangle_route,
     normalize_route_symbols,
     recommended_route_test_amount,
@@ -55,9 +58,9 @@ def test_estimate_route_live_quote_marks_unprofitable_even_with_live_adapter(mon
             "maxStaticDepthImpactBps": None,
             "warnings": ["reference_usd_price_missing_or_untrusted"],
             "steps": [
-                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "outputAmount": 52.369752540558274},
-                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "outputAmount": 1.9862697254812829},
-                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "outputAmount": 10.348436749171217},
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": 52.369752540558274},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": 1.9862697254812829},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": 10.348436749171217},
             ],
         }
 
@@ -120,9 +123,9 @@ def test_estimate_route_live_quote_builds_best_amount_ladder(monkeypatch):
             "referenceNetReturnBps": 1000.0,
             "maxStaticDepthImpactBps": None,
             "steps": [
-                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "outputAmount": amount * 0.188},
-                {"hop": 2, "fromSymbol": "TA", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.875},
-                {"hop": 3, "fromSymbol": "TB", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": amount * 0.188},
+                {"hop": 2, "fromSymbol": "TA", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": amount * 1.875},
+                {"hop": 3, "fromSymbol": "TB", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": amount * 1.1},
             ],
         }
 
@@ -139,7 +142,9 @@ def test_estimate_route_live_quote_builds_best_amount_ladder(monkeypatch):
         },
     )
 
-    assert result["quoteStatus"] == "live_verified"
+    assert result["quoteStatus"] == "static_reference_pending_live_review"
+    assert result["bestAmountConfirmed"] is False
+    assert result["readyForTransactionPreflight"] is False
     assert result["requestedAmount"] == 1.0
     assert result["bestAmount"] == 131072.0
     assert len(result["probeRecords"]) >= 7
@@ -149,6 +154,267 @@ def test_estimate_route_live_quote_builds_best_amount_ladder(monkeypatch):
     assert result["bestAmountCalculation"]["method"] == "live_route_amount_ladder"
     assert result["bestAmountCalculation"]["requestedAmount"] == 1.0
     assert result["analysis"]["bestAmountCalculation"]["probeRecords"][-1]["isBest"] is True
+
+
+def test_estimate_fixed_amount_pnl_returns_single_amount_without_ladder(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    import market.binance_market.dex_surface_graph as dex_surface_graph
+    import market.binance_market.dex_surface_quotes as dex_surface_quotes
+    import market.binance_market.pool_candidates as pool_candidates
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {"routes": []},
+    )
+    monkeypatch.setattr(
+        pool_candidates,
+        "dex_pool_candidates_payload",
+        lambda **kwargs: {"pairs": []},
+    )
+    monkeypatch.setattr(
+        dex_surface_graph,
+        "_price_map_from_pairs",
+        lambda pairs: {},
+    )
+
+    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+        amount = float(token_basis_input_amount or 0)
+        return {
+            "routeAddresses": [
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+                "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+                "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            ],
+            "referenceInputSymbol": "TZ",
+            "referenceInputAmount": amount,
+            "referenceFinalOutputAmount": amount * 0.7,
+            "referenceFinalOutputSymbol": "TZ",
+            "referenceNetProfitAmount": amount * -0.3,
+            "referenceNetReturnBps": -3000.0,
+            "maxStaticDepthImpactBps": None,
+            "steps": [
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": amount * 1.7},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": amount * 1.1},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "quoteSource": "uniswap_v4_live_adapter_quote", "priceEvidenceSource": "chain_live_quote", "livePriceVerified": True, "outputAmount": amount * 0.7},
+            ],
+        }
+
+    monkeypatch.setattr(dex_surface_quotes, "_route_quote_analysis", fake_route_quote_analysis)
+
+    result = estimate_fixed_amount_pnl(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        amount=8.0,
+        route={
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "routeAddresses": [],
+        },
+    )
+
+    assert result["ok"] is True
+    assert result["mode"] == "dex_route_fixed_amount_pnl"
+    assert result["amount"] == 8.0
+    assert result["quoteStatus"] == "route_unprofitable"
+    assert result["profitable"] is False
+    assert result["referenceNetProfitAmount"] == -2.4
+    assert result["referenceNetReturnBps"] == -3000.0
+    assert "probeRecords" not in result
+    assert result["bestAmount"] is None
+    assert result["bestAmountMissing"] is True
+    assert result["bestAmountConfirmed"] is False
+
+
+def test_estimate_fixed_amount_pnl_without_hop_evidence_is_pending_review(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    import market.binance_market.dex_surface_graph as dex_surface_graph
+    import market.binance_market.dex_surface_quotes as dex_surface_quotes
+    import market.binance_market.pool_candidates as pool_candidates
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {"routes": []},
+    )
+    monkeypatch.setattr(
+        pool_candidates,
+        "dex_pool_candidates_payload",
+        lambda **kwargs: {"pairs": []},
+    )
+    monkeypatch.setattr(
+        dex_surface_graph,
+        "_price_map_from_pairs",
+        lambda pairs: {},
+    )
+
+    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+        amount = float(token_basis_input_amount or 0)
+        return {
+            "routeAddresses": [
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+                "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+                "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            ],
+            "referenceInputSymbol": "TZ",
+            "referenceInputAmount": amount,
+            "referenceFinalOutputAmount": amount * 1.1,
+            "referenceFinalOutputSymbol": "TZ",
+            "referenceNetProfitAmount": amount * 0.1,
+            "referenceNetReturnBps": 1000.0,
+            "maxStaticDepthImpactBps": None,
+            "steps": [
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.7},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+            ],
+        }
+
+    monkeypatch.setattr(dex_surface_quotes, "_route_quote_analysis", fake_route_quote_analysis)
+
+    result = estimate_fixed_amount_pnl(
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        amount=8.0,
+        route={
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "routeAddresses": [],
+        },
+    )
+
+    assert result["ok"] is True
+    assert result["quoteStatus"] == "static_reference_pending_live_review", result
+    assert result["liveVerified"] is False
+    assert result["bestAmountMissing"] is True
+
+
+def test_estimate_fixed_amount_pnl_quick_uses_observation_route_without_ladder(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    import market.binance_market.dex_surface_quotes as dex_surface_quotes
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_observation_fixed_route",
+        lambda **kwargs: {
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "routeAddresses": [
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+                "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+                "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            ],
+            "routePools": [],
+        },
+    )
+
+    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+        amount = float(token_basis_input_amount or 0)
+        return {
+            "routeAddresses": route.get("routeAddresses"),
+            "routeSymbols": route.get("routeSymbols"),
+            "referenceInputSymbol": "TZ",
+            "referenceInputAmount": amount,
+            "referenceFinalOutputAmount": amount * 1.1,
+            "referenceFinalOutputSymbol": "TZ",
+            "referenceNetProfitAmount": amount * 0.1,
+            "referenceNetReturnBps": 1000.0,
+            "maxStaticDepthImpactBps": None,
+            "steps": [
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.7},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+            ],
+        }
+
+    monkeypatch.setattr(dex_surface_quotes, "_route_quote_analysis", fake_route_quote_analysis)
+
+    result = estimate_fixed_amount_pnl_quick(
+        chain_id=46630,
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        amount=8.0,
+        protocols=["uniswap_v4"],
+    )
+
+    assert result["ok"] is True
+    assert result["mode"] == "dex_route_fixed_amount_pnl"
+    assert result["quoteStatus"] == "static_reference_pending_live_review"
+    assert result["liveVerified"] is False
+    assert result["referenceFinalOutputAmount"] == 8.8
+    assert result["referenceNetProfitAmount"] == 0.8
+    assert result["bestAmountMissing"] is True
+    assert "probeRecords" not in result
+
+
+def test_fixed_amount_quick_case_8_16_32_scales_linearly(monkeypatch):
+    """Test-case aid for auditing best-amount algorithm results.
+
+    The fixed-amount quick path is intentionally a test/debug helper, not a
+    production endpoint. This case checks that a single requested amount is
+    never mistaken for a confirmed best amount, and that reference P&L scales
+    with the fixed amount when the route analysis is linear.
+    """
+    import market.binance_market.dex_route_test as route_test_module
+    import market.binance_market.dex_surface_quotes as dex_surface_quotes
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_observation_fixed_route",
+        lambda **kwargs: {
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "routeAddresses": [
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+                "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+                "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+                "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            ],
+            "routePools": [],
+        },
+    )
+
+    def fake_route_quote_analysis(route, *, price_map, chain_id, token_basis_input_amount):
+        amount = float(token_basis_input_amount or 0)
+        return {
+            "routeAddresses": route.get("routeAddresses"),
+            "routeSymbols": route.get("routeSymbols"),
+            "referenceInputSymbol": "TZ",
+            "referenceInputAmount": amount,
+            "referenceFinalOutputAmount": amount * 1.1,
+            "referenceFinalOutputSymbol": "TZ",
+            "referenceNetProfitAmount": amount * 0.1,
+            "referenceNetReturnBps": 1000.0,
+            "maxStaticDepthImpactBps": None,
+            "steps": [
+                {"hop": 1, "fromSymbol": "TZ", "toSymbol": "TB", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.7},
+                {"hop": 2, "fromSymbol": "TB", "toSymbol": "TA", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+                {"hop": 3, "fromSymbol": "TA", "toSymbol": "TZ", "executionTrust": "live_v4_adapter", "outputAmount": amount * 1.1},
+            ],
+        }
+
+    monkeypatch.setattr(dex_surface_quotes, "_route_quote_analysis", fake_route_quote_analysis)
+
+    rows = []
+    for amount in (8.0, 16.0, 32.0):
+        result = estimate_fixed_amount_pnl_quick(
+            chain_id=46630,
+            route_symbols=["TZ", "TB", "TA", "TZ"],
+            amount=amount,
+            protocols=["uniswap_v4"],
+        )
+        rows.append(result)
+        assert result["ok"] is True
+        assert result["amount"] == amount
+        assert result["referenceFinalOutputAmount"] == amount * 1.1
+        assert result["referenceNetProfitAmount"] == amount * 0.1
+        assert result["bestAmount"] is None
+        assert result["bestAmountMissing"] is True
+        assert result["bestAmountConfirmed"] is False
+        assert "probeRecords" not in result
+
+    assert [row["amount"] for row in rows] == [8.0, 16.0, 32.0]
+    assert [row["referenceNetProfitAmount"] for row in rows] == [0.8, 1.6, 3.2]
 
 
 def test_live_quote_applies_initial_amount_as_base_multiplier():
@@ -228,6 +494,37 @@ def test_official_route_addresses_rejects_ambiguous_weth():
 
 def test_official_route_addresses_rejects_unknown_symbol_instead_of_guessing():
     assert _official_route_addresses(["WETH", "UNKNOWN_BAD_TOKEN", "WETH"]) == []
+
+
+def test_resolve_route_addresses_from_market_payload_falls_back_to_observed_route(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    route_symbols = ["TSLA", "0X102154", "0X5884AD", "TSLA"]
+    addresses = [
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "0x102154e70d8485ff466bab229be90a763bf33264",
+        "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+    ]
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": route_symbols,
+                    "routeAddresses": addresses,
+                }
+            ]
+        },
+    )
+
+    resolved = _resolve_route_addresses_from_market_payload(
+        route_symbols=route_symbols,
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+    assert resolved == addresses
 
 
 def test_unsupported_route_returns_friendly_blocked_result():
@@ -673,7 +970,10 @@ def test_amount_ladder_halves_between_profitable_and_unprofitable_neighbors():
     assert best_profit == 2.5
     assert best_amount == 0.75
     assert any(abs(float(record.get("amount") or 0) - 0.75) < 1e-9 for record in records)
-    assert not any(abs(float(record.get("amount") or 0) - 0.875) < 1e-9 for record in records)
+    # The two-midpoint refinement explicitly probes both sides of the current
+    # peak, so 0.875 is expected to appear while narrowing toward the better
+    # left-side candidate around 0.75.
+    assert any(abs(float(record.get("amount") or 0) - 0.875) < 1e-9 for record in records)
 
 
 def test_amount_ladder_stops_at_first_non_improving_probe_without_crossing_valley():
@@ -816,6 +1116,179 @@ def test_run_official_v4_arb_route_test_payload_includes_best_amount_calculation
     assert result["analysis"]["bestAmountCalculation"]["recommendedBorrowInputAmount"] == 10.0
 
 
+def test_run_official_v4_arb_route_test_uses_python_preview_without_hardhat(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import market.binance_market.dex_route_test as route_test_module
+
+    script = tmp_path / "official-arb.js"
+    script.write_text("", encoding="utf-8")
+    dex_dir = tmp_path / "DEX"
+    dex_dir.mkdir()
+    monkeypatch.setattr(route_test_module, "OFFICIAL_ARB_SCRIPT", script)
+    monkeypatch.setattr(route_test_module, "OFFICIAL_DEX_DIR", dex_dir)
+    monkeypatch.setattr(
+        route_test_module,
+        "_probe_robinhood_testnet_rpc",
+        lambda: ("https://rpc.testnet.chain.robinhood.com", 12345),
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {"routes": []},
+    )
+
+    route_symbols = ["TSLA", "0X102154", "0X5884AD", "TSLA"]
+    addresses = [
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+        "0x102154e70d8485ff466bab229be90a763bf33264",
+        "0x5884ad2f920c162cfbbacc88c9c51aa75ec09e02",
+        "0xc9f9c86933092bbbfff3ccb4b105a4a94bf3bd4e",
+    ]
+    fake_pool_keys = [
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[0],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[1],
+            "currency1": addresses[2],
+            "fee": 3000,
+            "tickSpacing": 60,
+            "hooks": "0x0000000000000000000000000000000000000000",
+        },
+        {
+            "currency0": addresses[2],
+            "currency1": addresses[0],
+            "fee": 8388608,
+            "tickSpacing": 60,
+            "hooks": "0x60a29f76185a76cc52c070be69d775480c112080",
+        },
+    ]
+    monkeypatch.setattr(
+        route_test_module,
+        "_official_v4_route_pool_keys",
+        lambda **kwargs: fake_pool_keys,
+    )
+
+    def fake_python_preview(**kwargs):
+        return (
+            {
+                "ok": True,
+                "routeSymbols": route_symbols,
+                "routeAddresses": addresses,
+                "amount": 1.0,
+                "initialAmount": 1.0,
+                "bestAmount": "1.0",
+                "bestAmountRaw": "1000000000000000000",
+                "profit": "613134726082983284",
+                "profitHuman": "0.6131347260829833",
+                "outTb": "269276225",
+                "outTa": "4584440719730730590",
+                "outTz": "1613134726082983284",
+                "outAmount": "1.6131347260829833",
+                "outAmountHuman": "1.6131347260829833",
+                "selectedAmount": "1000000000000000000",
+                "selectedAmountMethod": "onchain_preview_adaptive_best_amount",
+                "selectedAmountAttemptedCount": "1",
+                "staticCall": "ok",
+                "bestAmountMethod": "onchain_preview_adaptive_best_amount",
+                "bestAmountAttemptedCount": "1",
+            },
+            "official V4 on-chain previewArbitrageBestAmount selected from Python",
+        )
+
+    monkeypatch.setattr(route_test_module, "_official_v4_preview_python", fake_python_preview)
+
+    def fail_subprocess(*args, **kwargs):
+        raise AssertionError("hardhat subprocess must not run after successful python preview")
+
+    monkeypatch.setattr(
+        route_test_module,
+        "subprocess",
+        SimpleNamespace(run=fail_subprocess),
+    )
+
+    result = route_test_module.run_official_v4_arb_route_test(
+        route_symbols=route_symbols,
+        amount=1.0,
+        broadcast=False,
+        chain_id=46630,
+        route_addresses=addresses,
+    )
+
+    assert result["ok"] is True
+    assert result["routeAddresses"] == addresses
+    assert result["bestAmount"] == pytest.approx(1.0)
+    assert result["bestAmountConfirmed"] is True
+    assert result["bestAmountMissing"] is False
+    assert result["bestAmountMethod"] == "onchain_preview_adaptive_best_amount"
+    assert result["bestAmountAttemptedCount"] in {"1", 1}
+    assert result["quoteStatus"] == "live_verified", result
+    assert result["readyForTransactionPreflight"] is True
+    assert result["evidence"]["blockers"] == []
+    assert result["bestAmountCalculation"]["bestAmountConfirmed"] is True
+    assert float(result["evidence"]["costModel"]["netProfitAmount"]) == pytest.approx(0.6131347260829833)
+    assert float(result["evidence"]["costModel"]["finalOutputAmount"]) == pytest.approx(1.6131347260829833)
+    assert float(result["analysis"]["referenceNetProfitAmount"]) == pytest.approx(0.6131347260829833)
+    assert float(result["analysis"]["referenceFinalOutputAmount"]) == pytest.approx(1.6131347260829833)
+
+
+def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_preflight(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    import market.binance_market.dex_route_test as route_test_module
+
+    script = tmp_path / "official-arb.js"
+    script.write_text("", encoding="utf-8")
+    dex_dir = tmp_path / "DEX"
+    dex_dir.mkdir()
+    monkeypatch.setattr(route_test_module, "OFFICIAL_ARB_SCRIPT", script)
+    monkeypatch.setattr(route_test_module, "OFFICIAL_DEX_DIR", dex_dir)
+    monkeypatch.setattr(
+        route_test_module,
+        "_probe_robinhood_testnet_rpc",
+        lambda: ("https://rpc.testnet.chain.robinhood.com", 12345),
+    )
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {"routes": []},
+    )
+
+    class FakeProc:
+        returncode = 0
+        stdout = (
+            'OFFICIAL_V4_ARB_RESULT_JSON {"ok":true,"staticCall":"ok",'
+            '"hops":[true],'
+            '"profit":"1000000000000000","outAmount":"2000000000000000"}'
+        )
+        stderr = ""
+
+    monkeypatch.setattr(
+        route_test_module,
+        "subprocess",
+        SimpleNamespace(run=lambda *args, **kwargs: FakeProc()),
+    )
+
+    result = route_test_module.run_official_v4_arb_route_test(
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        amount=1.0,
+        broadcast=False,
+        chain_id=46630,
+    )
+
+    assert result["ok"] is True
+    assert result["bestAmountConfirmed"] is False
+    assert result["bestAmountMissing"] is True
+    assert result["readyForTransactionPreflight"] is False
+    assert result["quoteStatus"] == "static_reference_pending_live_review", result
+    assert result["evidence"]["blockers"]
+
+
 def test_raw_amount_to_human_converts_raw_wei_before_ui_display():
     assert _raw_amount_to_human("16000000000000000000") == pytest.approx(16.0)
     assert _raw_amount_to_human("1000000000000000") == pytest.approx(0.001)
@@ -859,3 +1332,75 @@ def test_dex_submission_onchain_check_route(monkeypatch):
     assert data["ok"] is True
     assert data["status"] == "confirmed"
     assert data["receipt"]["blockNumber"] == 12345
+
+
+def test_official_v4_manifest_route_pool_keys_uses_no_hook_middle_pool():
+    from market.binance_market.dex_route_helpers import _official_v4_manifest_route_pool_keys
+
+    keys = _official_v4_manifest_route_pool_keys(["TZ", "TB", "TA", "TZ"])
+    assert len(keys) == 3
+    assert all(
+        str(key.get("hooks") or "").lower() == "0x0000000000000000000000000000000000000000"
+        for key in keys
+    )
+    assert all(int(key["fee"]) > 0 and int(key["tickSpacing"]) > 0 for key in keys)
+    assert keys[0]["currency0"].lower() == "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e"
+    assert keys[1]["currency0"].lower() == "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4"
+
+
+def test_official_v4_route_pool_keys_ignores_observed_hook_middle_pool(monkeypatch):
+    from market.binance_market import dex_route_helpers
+    from market.binance_market.dex_route_helpers import _official_v4_route_pool_keys
+
+    route_pools = []
+    pairs = [
+        (
+            "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+            "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+        ),
+        (
+            "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+            "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+        ),
+        (
+            "0xb169fe96425783d7ba7a9f905fe8de5f80e3fdc8",
+            "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+        ),
+    ]
+    for pair in pairs:
+        route_pools.append(
+            {
+                "routeAddresses": list(pair),
+                "poolKey": {
+                    "currency0": pair[0],
+                    "currency1": pair[1],
+                    "fee": 3000,
+                    "tickSpacing": 60,
+                    "hooks": "0xE40667755994Fa91D5F67E00EEb66ED90e4AC040",
+                },
+            }
+        )
+
+    monkeypatch.setattr(
+        dex_route_helpers,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+                    "routePools": route_pools,
+                }
+            ]
+        },
+    )
+
+    keys = _official_v4_route_pool_keys(
+        route_symbols=["TZ", "TB", "TA", "TZ"],
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+    assert len(keys) == 3
+    assert all(
+        str(key.get("hooks") or "").lower() == "0x0000000000000000000000000000000000000000"
+        for key in keys
+    )

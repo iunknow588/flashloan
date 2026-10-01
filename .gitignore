@@ -64,3 +64,9 @@ runtime/server*.log
 runtime/ui-*.log
 runtime/run-*.log
 data_info/**/*.log
+
+# Local SQLite KV runtime database (generated, do not commit)
+local_store.sqlite3
+local_store.sqlite3-shm
+local_store.sqlite3-wal
+flashloan/src/runtime/logs/observer_*.log

@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+from decimal import Decimal
 import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+from types import SimpleNamespace
 from typing import Any
-from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
+
+from web3 import Web3
+
+from core.error_registry import ErrorCode
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID
 from dex.runtime.dex_route_rpc import _probe_robinhood_testnet_rpc, fetch_dex_tx_receipt
 from market.binance_market.dex_route_helpers import _match_route
 from market.binance_market.dex_route_helpers import _norm_symbols
+from market.binance_market.dex_route_helpers import _official_v4_route_pool_keys
 from market.binance_market.dex_route_helpers import _official_route_addresses
 from market.binance_market.dex_route_helpers import _optimize_amount_ladder
 from market.binance_market.dex_route_helpers import _probe_record_item
@@ -27,8 +34,47 @@ from market.binance_market.dex_route_helpers import normalize_route_symbols
 
 
 ROOT = Path(__file__).resolve().parents[4]
-OFFICIAL_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "testnet-v4-official-arb-live.js"
+OFFICIAL_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "tool" / "testnet-v4-official-arb-live.js"
 OFFICIAL_DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
+
+
+def _structured_route_error(message: object, *, error_code: int, flow: str, node_id: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "module": "DEX",
+            "code": int(error_code),
+            "flow": flow,
+            "nodeId": node_id,
+            "message": str(message or "")[:500],
+        }
+    ]
+
+
+def _steps_have_live_onchain_evidence(steps: list[dict[str, Any]], analysis: dict[str, Any]) -> bool:
+    """Return True only when every hop has explicit chain_live_quote evidence.
+
+    A step that only carries ``executionTrust == live_v4_adapter`` may still be
+    an off-chain/static estimate from the surface facade. We therefore require
+    the same evidence fields that the live adapter path actually emits.
+    """
+    if str(analysis.get("priceEvidenceMode") or "").strip().lower() == "live_verified":
+        return True
+    if not steps:
+        return False
+    return all(
+        str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter"
+        and str(step.get("quoteSource") or "").strip().lower()
+        in {
+            "uniswap_v4_live_adapter_quote",
+            "chain_live_quote",
+        }
+        and (
+            step.get("priceEvidenceSource") is None
+            or str(step.get("priceEvidenceSource") or "").strip().lower() == "chain_live_quote"
+        )
+        and step.get("livePriceVerified") is True
+        for step in steps
+    )
 
 
 def _raw_amount_to_human(value: Any, decimals: int = 18) -> float | None:
@@ -55,16 +101,14 @@ def recommended_route_test_amount(
     return _recommended_route_test_amount(route)
 
 
-def estimate_route_live_quote(
+def _load_route_context(
     *,
     chain_id: int,
     protocols: list[str],
     route_symbols: list[str],
-    amount: float,
     route: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> tuple[list[str], dict[str, Any], dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
     from market.binance_market.dex_surface_graph import _price_map_from_pairs
-    from market.binance_market.dex_surface_quotes import _route_quote_analysis
     from market.binance_market.pool_candidates import dex_pool_candidates_payload
 
     route_symbols = _norm_symbols(route_symbols)
@@ -89,41 +133,57 @@ def estimate_route_live_quote(
             }
     if route is None:
         available = [_route_symbols(item) for item in (routes_payload.get("routes") or [])]
-        return {
-            "ok": False,
-            "mode": "dex_route_live_estimate",
-            "error": "route_not_found",
-            "routeSymbols": route_symbols,
-            "availableRoutes": available,
-        }
-
+        return (
+            route_symbols,
+            routes_payload,
+            None,
+            None,
+            {
+                "ok": False,
+                "mode": "dex_route_live_estimate",
+                "error": "route_not_found",
+                "routeSymbols": route_symbols,
+                "availableRoutes": available,
+                "errorStack": _structured_route_error(
+                    "route_not_found",
+                    error_code=ErrorCode.DEX_ROUTE_INVALID,
+                    flow="dex_route_live_estimate",
+                    node_id="resolve_route",
+                ),
+            },
+        )
     pool_payload = dex_pool_candidates_payload(chain_id=chain_id, protocols=protocols)
     price_map = _price_map_from_pairs(pool_payload.get("pairs") or [])
-    analysis = _route_quote_analysis(
+    return route_symbols, routes_payload, route, price_map, None
+
+
+def _choose_direction(
+    *,
+    quote_analysis_fn: Any,
+    routes_payload: dict[str, Any],
+    route: dict[str, Any],
+    route_symbols: list[str],
+    route_addresses: list[str],
+    price_map: dict[str, Any],
+    chain_id: int,
+    amount: float,
+) -> tuple[list[str], dict[str, Any], dict[str, Any], list[str]]:
+    analysis = quote_analysis_fn(
         route,
         price_map=price_map,
         chain_id=chain_id,
         token_basis_input_amount=amount,
     )
-    requested_amount = float(amount)
-    amount_optimized_from = requested_amount
-    amount_optimized = False
-    probe_records: list[dict[str, Any]] = []
-
-    probe_records.append(_probe_record_item(analysis, amount, route_symbols))
     route_addresses = [str(item) for item in analysis.get("routeAddresses") or [] if str(item).strip()]
     if not route_addresses:
         route_addresses = _official_route_addresses(route_symbols)
-    # Direction is the first optimization: for a closed loop, both clockwise
-    # and counter-clockwise paths are valid candidates. Pick whichever direction
-    # has the higher token-basis net profit.
     ref_net_profit = analysis.get("referenceNetProfitAmount")
     if ref_net_profit is not None and float(ref_net_profit) < 0:
         reversed_symbols = list(reversed(route_symbols))
-        if reversed_symbols[0] == reversed_symbols[-1]:
+        if reversed_symbols and reversed_symbols[0] == reversed_symbols[-1]:
             rev_route = _match_route(routes_payload.get("routes") or [], reversed_symbols)
             if rev_route:
-                rev_analysis = _route_quote_analysis(
+                rev_analysis = quote_analysis_fn(
                     rev_route,
                     price_map=price_map,
                     chain_id=chain_id,
@@ -136,6 +196,42 @@ def estimate_route_live_quote(
                     if route_addresses and len(route_addresses) == len(reversed_symbols):
                         route_addresses = list(reversed(route_addresses))
                     route = rev_route
+    return route_symbols, route, analysis, route_addresses
+
+
+def estimate_route_live_quote(
+    *,
+    chain_id: int,
+    protocols: list[str],
+    route_symbols: list[str],
+    amount: float,
+    route: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from market.binance_market.dex_surface_quotes import _route_quote_analysis
+
+    route_symbols, routes_payload, route, price_map, load_error = _load_route_context(
+        chain_id=chain_id,
+        protocols=protocols,
+        route_symbols=route_symbols,
+        route=route,
+    )
+    if load_error is not None:
+        return load_error
+    route_symbols, route, analysis, route_addresses = _choose_direction(
+        quote_analysis_fn=_route_quote_analysis,
+        routes_payload=routes_payload,
+        route=route or {},
+        route_symbols=route_symbols,
+        route_addresses=[],
+        price_map=price_map or {},
+        chain_id=chain_id,
+        amount=amount,
+    )
+
+    requested_amount = float(amount)
+    amount_optimized_from = requested_amount
+    amount_optimized = False
+    probe_records: list[dict[str, Any]] = [_probe_record_item(analysis, amount, route_symbols)]
 
     # After direction is confirmed, optimize the borrow amount. We scan a small
     # ladder around the requested amount (plus any static size steps already
@@ -188,10 +284,8 @@ def estimate_route_live_quote(
     steps = [step for step in (analysis.get("steps") or []) if isinstance(step, dict)]
     full_steps = [int(step.get("hop") or 0) for step in steps]
     complete = bool(steps) and full_steps == list(range(1, max(1, len(route_symbols))))
-    live_verified = bool(steps) and all(
-        str(step.get("executionTrust") or "").strip().lower() == "live_v4_adapter"
-        for step in steps
-    )
+    live_verified = _steps_have_live_onchain_evidence(steps, analysis)
+    best_amount_confirmed_for_preflight = False
     failure_statuses = [_step_failure_status(step) for step in steps]
     liquidity_failed = "not_enough_liquidity" in failure_statuses
     rpc_failed = "rpc_verification_failed" in failure_statuses
@@ -205,9 +299,10 @@ def estimate_route_live_quote(
         bool(step.get("liveQuoteError"))
         for step in steps
     )
+    best_amount_confirmed_for_preflight = bool(best_amount_confirmed)
     quote_status = (
         "live_verified"
-        if live_verified
+        if live_verified and best_amount_confirmed_for_preflight
         else "not_enough_liquidity"
         if liquidity_failed
         else "pool_not_initialized"
@@ -220,19 +315,17 @@ def estimate_route_live_quote(
         if live_failed
         else "missing_route_identity"
         if analysis.get("terminalStatus") == "missing_route_identity"
-        else "requires_live_quoter"
-        if bool(analysis.get("requiresLiveQuoter"))
-        else "live_quote_reference_only"
+        else "static_reference_pending_live_review"
     )
-    # If profit is negative, suggest reverse direction or amount reduction
+    # If profit is negative on a live-verified route, mark unprofitable.
+    # A static/reference route stays "pending live review" even when the
+    # paper P&L is negative, because the chain has not been consulted yet.
     ref_net_profit = analysis.get("referenceNetProfitAmount")
-    if ref_net_profit is not None and float(ref_net_profit) < 0:
-        # Mark as unprofitable and keep suggestion for halving/reverse
+    if live_verified and ref_net_profit is not None and float(ref_net_profit) < 0:
         quote_status = "route_unprofitable"
-        execution_trust = "static_live_quoter_estimate"
     execution_trust = (
         "live_v4_adapter"
-        if live_verified
+        if quote_status == "live_verified" or quote_status == "route_unprofitable"
         else "not_enough_liquidity"
         if quote_status == "not_enough_liquidity"
         else "pool_not_initialized"
@@ -243,7 +336,7 @@ def estimate_route_live_quote(
         if quote_status == "rpc_verification_failed"
         else "live_quote_failed"
         if quote_status == "live_quote_failed"
-        else "static_live_quoter_estimate"
+        else "static_reference_pending_live_review"
     )
     ref_final_output_amount = analysis.get("referenceFinalOutputAmount")
     ref_net_profit_amount = analysis.get("referenceNetProfitAmount")
@@ -251,6 +344,7 @@ def estimate_route_live_quote(
     profitable = bool(ref_net_profit_amount is not None and float(ref_net_profit_amount) > 0)
     ready_for_transaction_preflight = bool(
         live_verified
+        and best_amount_confirmed_for_preflight
         and quote_status == "live_verified"
         and profitable
     )
@@ -381,11 +475,468 @@ def estimate_route_live_quote(
     }
 
 
+def _fixed_amount_pnl_payload(
+    *,
+    chain_id: int,
+    route_symbols: list[str],
+    route_addresses: list[str],
+    analysis: dict[str, Any],
+    amount: float,
+) -> dict[str, Any]:
+    steps = [step for step in (analysis.get("steps") or []) if isinstance(step, dict)]
+    ref_final_output_amount = analysis.get("referenceFinalOutputAmount")
+    ref_net_profit_amount = analysis.get("referenceNetProfitAmount")
+    ref_net_profit_bps = analysis.get("referenceNetReturnBps")
+    profitable = bool(ref_net_profit_amount is not None and float(ref_net_profit_amount) > 0)
+    # 固定金额估算只允许把“逐 hop 链上已验证”的结果标记为 live_verified。
+    # 仅携带静态/参考步骤、或步骤缺少 chain_live_quote 证据时，必须保持待复核语义。
+    live_verified = _steps_have_live_onchain_evidence(steps, analysis)
+    quote_status = (
+        "live_verified"
+        if live_verified and profitable and best_amount_confirmed_for_preflight
+        else "route_unprofitable"
+        if live_verified and ref_net_profit_amount is not None and float(ref_net_profit_amount) <= 0
+        else "static_reference_pending_live_review"
+    )
+    return {
+        "ok": True,
+        "mode": "dex_route_fixed_amount_pnl",
+        "chain_id": chain_id,
+        "routeSymbols": route_symbols,
+        "routeAddresses": route_addresses,
+        "amount": float(amount),
+        "bestAmount": None,
+        "bestAmountConfirmed": False,
+        "bestAmountMissing": True,
+        "bestAmountSelectionBasis": "requested_fixed_amount",
+        "direction": " -> ".join(route_symbols),
+        "directionConfirmed": True,
+        "quoteStatus": quote_status,
+        "executionTrust": quote_status,
+        "liveVerified": live_verified,
+        "profitable": profitable,
+        "referenceInputSymbol": analysis.get("referenceInputSymbol") or (route_symbols[0] if route_symbols else None),
+        "referenceFinalOutputAmount": ref_final_output_amount,
+        "referenceFinalOutputSymbol": analysis.get("referenceFinalOutputSymbol"),
+        "referenceNetProfitAmount": ref_net_profit_amount,
+        "referenceNetReturnBps": ref_net_profit_bps,
+        "steps": [_step_payload(step) for step in steps],
+        "analysis": analysis,
+    }
+
+
+def estimate_fixed_amount_pnl(
+    *,
+    chain_id: int,
+    protocols: list[str],
+    route_symbols: list[str],
+    amount: float,
+    route: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Estimate a single amount's P&L without running the best-amount ladder.
+
+    This is the narrow public entry for external callers that already know the
+    initial amount to test. Direction selection still happens, but no amount
+    optimization is performed.
+    """
+    from market.binance_market.dex_surface_quotes import _route_quote_analysis
+
+    route_symbols, routes_payload, route, price_map, load_error = _load_route_context(
+        chain_id=chain_id,
+        protocols=protocols,
+        route_symbols=route_symbols,
+        route=route,
+    )
+    if load_error is not None:
+        return load_error
+    route_symbols, route, analysis, route_addresses = _choose_direction(
+        quote_analysis_fn=_route_quote_analysis,
+        routes_payload=routes_payload,
+        route=route or {},
+        route_symbols=route_symbols,
+        route_addresses=[],
+        price_map=price_map or {},
+        chain_id=chain_id,
+        amount=amount,
+    )
+    return _fixed_amount_pnl_payload(
+        chain_id=chain_id,
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        analysis=analysis,
+        amount=amount,
+    )
+
+
+def _observation_fixed_route(
+    *,
+    chain_id: int,
+    protocols: list[str],
+    route_symbols: list[str],
+) -> dict[str, Any] | None:
+    route_symbols = _norm_symbols(route_symbols)
+    if chain_id not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} or "uniswap_v4" not in protocols:
+        return None
+    network_dir = "robinhood" if chain_id == ROBINHOOD_CHAIN_ID else "robinhood-testnet"
+    path = (
+        ROOT
+        / "flashloan"
+        / "src"
+        / "runtime"
+        / "market_observation"
+        / network_dir
+        / str(chain_id)
+        / "uniswap_v4"
+        / "observation.json"
+    )
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    for sequence in data.get("observationSequences") or []:
+        if _norm_symbols(sequence.get("pathSymbols") or []) != route_symbols:
+            continue
+        route_addresses: list[str] = []
+        for hop in sequence.get("routePools") or []:
+            hop_addresses = [str(item) for item in (hop.get("routeAddresses") or []) if str(item).strip()]
+            if len(hop_addresses) < 2:
+                continue
+            if not route_addresses:
+                route_addresses.append(hop_addresses[0])
+            route_addresses.append(hop_addresses[1])
+        if len(route_addresses) != len(route_symbols):
+            continue
+        return {
+            "routeSymbols": route_symbols,
+            "routeAddresses": route_addresses,
+            "routePools": sequence.get("routePools") or [],
+            "symbolPair": " -> ".join(route_symbols),
+            "overviewRoute": {
+                "pathSymbols": route_symbols,
+                "pathAddresses": route_addresses,
+                "pathTokens": [],
+            },
+        }
+    return None
+
+
+def estimate_fixed_amount_pnl_quick(
+    *,
+    chain_id: int,
+    route_symbols: list[str],
+    amount: float,
+    protocols: list[str] | None = None,
+) -> dict[str, Any]:
+    """Fast fixed-amount P&L estimate using the local observation snapshot.
+
+    This entry avoids rebuilding the full route framework, which can be slow
+    when the caller already knows the exact route and only needs a single
+    amount's reference output/profit. It never broadcasts a transaction.
+    """
+    route = _observation_fixed_route(
+        chain_id=chain_id,
+        protocols=protocols or ["uniswap_v4"],
+        route_symbols=route_symbols,
+    )
+    if route is None:
+        return {
+            "ok": False,
+            "mode": "dex_route_fixed_amount_pnl_quick",
+            "error": "observation_route_not_found",
+            "routeSymbols": route_symbols,
+            "amount": float(amount),
+            "errorStack": _structured_route_error(
+                "observation_route_not_found",
+                error_code=ErrorCode.DEX_ROUTE_INVALID,
+                flow="dex_route_fixed_amount_pnl_quick",
+                node_id="route_observation",
+            ),
+        }
+    from market.binance_market.dex_surface_quotes import _route_quote_analysis
+
+    key = "DEX_V4_LIVE_QUOTE_ENABLED"
+    previous = os.environ.get(key)
+    os.environ[key] = "0"
+    try:
+        analysis = _route_quote_analysis(
+            route,
+            price_map={},
+            chain_id=chain_id,
+            token_basis_input_amount=amount,
+        )
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+    route_symbols = list(analysis.get("routeSymbols") or route["routeSymbols"])
+    route_addresses = [
+        str(item)
+        for item in analysis.get("routeAddresses") or route.get("routeAddresses") or []
+        if str(item).strip()
+    ]
+    return _fixed_amount_pnl_payload(
+        chain_id=chain_id,
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        analysis=analysis,
+        amount=amount,
+    )
+
+
 def is_official_triangle_route(route_symbols: list[str]) -> bool:
     route_symbols = _norm_symbols(route_symbols)
     if len(route_symbols) != 4 or route_symbols[0] != route_symbols[-1]:
         return False
     return len({symbol.upper() for symbol in route_symbols}) == 3
+
+
+def _resolve_route_addresses_from_market_payload(
+    *,
+    route_symbols: list[str],
+    chain_id: int,
+    protocols: list[str],
+) -> list[str]:
+    """Resolve exact route addresses from the market observation payload.
+
+    The static allowlist only knows curated token symbols. The market
+    observation payload still carries full addresses for dynamically
+    discovered V4 pool tokens, so route review should not give up just because
+    a symbol like ``TSLA`` or ``0X102154`` is not in the curated allowlist.
+    """
+    if int(chain_id or 0) != ROBINHOOD_TESTNET_CHAIN_ID or not route_symbols:
+        return []
+    try:
+        routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
+        route = _match_route(routes_payload.get("routes") or [], route_symbols)
+    except Exception:
+        return []
+    if not isinstance(route, dict):
+        return []
+    candidates: list[list[str]] = []
+    for key in ("routeAddresses", "route_addresses", "pathAddresses", "path_addresses"):
+        raw = route.get(key)
+        if isinstance(raw, list):
+            candidates.append([str(item or "").strip() for item in raw if str(item or "").strip()])
+    overview = route.get("overviewRoute") if isinstance(route.get("overviewRoute"), dict) else {}
+    for key in ("pathAddresses", "routeAddresses"):
+        raw = overview.get(key)
+        if isinstance(raw, list):
+            candidates.append([str(item or "").strip() for item in raw if str(item or "").strip()])
+    raw_tokens = route.get("routeTokenPath") or overview.get("pathTokens") or []
+    if isinstance(raw_tokens, list):
+        token_addresses: list[str] = []
+        for item in raw_tokens:
+            if isinstance(item, dict):
+                address = str(item.get("address") or "").strip()
+                if address:
+                    token_addresses.append(address)
+        if token_addresses:
+            candidates.append(token_addresses)
+    for addresses in candidates:
+        if (
+            len(addresses) == len(route_symbols)
+            and addresses[0].lower() == addresses[-1].lower()
+        ):
+            return addresses
+    return []
+
+
+_OFFICIAL_V4_PREVIEW_ABI = [
+    {
+        "type": "function",
+        "name": "previewArbitrageBestAmount",
+        "stateMutability": "view",
+        "inputs": [
+            {"name": "tokenZ", "type": "address"},
+            {
+                "name": "keysets",
+                "type": "tuple[3][]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "directionsets", "type": "bool[3][]"},
+            {"name": "initialAmount", "type": "uint256"},
+            {"name": "minProfit", "type": "uint256"},
+            {"name": "isBestAmount", "type": "bool"},
+        ],
+        "outputs": [
+            {"name": "selectedAmount", "type": "uint256"},
+            {"name": "selectedRouteIndex", "type": "uint256"},
+            {"name": "selectedProfit", "type": "uint256"},
+            {"name": "attemptedCount", "type": "uint256"},
+        ],
+    }
+]
+
+_OFFICIAL_V4_RUN_ABI = [
+    {
+        "type": "function",
+        "name": "runArbitrage",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "tokenZ", "type": "address"},
+            {
+                "name": "keys",
+                "type": "tuple[3]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "zeroForOne", "type": "bool[3]"},
+            {"name": "amountIn", "type": "uint256"},
+            {"name": "minProfit", "type": "uint256"},
+        ],
+        "outputs": [
+            {"name": "outTb", "type": "uint256"},
+            {"name": "outTa", "type": "uint256"},
+            {"name": "outTz", "type": "uint256"},
+            {"name": "profit", "type": "uint256"},
+        ],
+    }
+]
+
+
+def _official_v4_preview_python(
+    *,
+    route_symbols: list[str],
+    route_addresses: list[str],
+    amount: float,
+    route_pool_keys: list[dict[str, Any]],
+) -> tuple[dict[str, Any], str] | None:
+    """Run the official V4 static preview from Python instead of Hardhat.
+
+    Hardhat can fail with ``NoProfitableRoute`` even when the same static call
+    succeeds through Web3, so non-broadcast review prefers this direct path.
+    """
+    if len(route_pool_keys) != 3 or len(route_addresses) != len(route_symbols):
+        return None
+    try:
+        rpc_url, block_number = _probe_robinhood_testnet_rpc()
+    except Exception as exc:
+        return None
+    from dex.runtime.dex_onchain_quote_evidence_official_v4 import _official_v4_arb_address
+
+    arb_address = _official_v4_arb_address()
+    if not arb_address:
+        return None
+    keys: list[list[Any]] = []
+    for index in range(3):
+        key = route_pool_keys[index]
+        currency0 = str(key.get("currency0") or "")
+        currency1 = str(key.get("currency1") or "")
+        fee = int(key.get("fee") or 0)
+        tick_spacing = int(key.get("tickSpacing") or 0)
+        hooks = str(key.get("hooks") or "0x0000000000000000000000000000000000000000")
+        keys.append([currency0, currency1, fee, tick_spacing, hooks])
+    directions: list[bool] = []
+    for index in range(3):
+        input_token = str(route_addresses[index]).lower()
+        directions.append(input_token == keys[index][0].lower())
+    reverse_keys = [keys[2], keys[1], keys[0]]
+    reverse_directions = [not directions[2], not directions[1], not directions[0]]
+    keysets = [keys, reverse_keys]
+    directionsets = [directions, reverse_directions]
+    amount_raw = int(Decimal(str(amount)) * (Decimal(10) ** 18))
+    try:
+        w3 = Web3(
+            Web3.HTTPProvider(
+                rpc_url,
+                request_kwargs={
+                    "timeout": 60,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "User-Agent": "flashloan-robinhood-testnet-route-preview/1.0",
+                        "Connection": "close",
+                    },
+                },
+            )
+        )
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(arb_address),
+            abi=_OFFICIAL_V4_PREVIEW_ABI + _OFFICIAL_V4_RUN_ABI,
+        )
+        preview_result = contract.functions.previewArbitrageBestAmount(
+            Web3.to_checksum_address(route_addresses[0]),
+            keysets,
+            directionsets,
+            amount_raw,
+            1,
+            False,
+        ).call(block_identifier=block_number)
+        selected_amount_raw, route_index, selected_profit_raw, attempted_count = (
+            int(preview_result[0]),
+            int(preview_result[1]),
+            int(preview_result[2]),
+            int(preview_result[3]),
+        )
+        if selected_amount_raw <= 0:
+            raise RuntimeError("NoProfitableRoute")
+        run_result = contract.functions.runArbitrage(
+            Web3.to_checksum_address(route_addresses[0]),
+            keysets[route_index],
+            directionsets[route_index],
+            selected_amount_raw,
+            1,
+        ).call(block_identifier=block_number)
+        out_tb, out_ta, out_tz, profit_raw = (int(run_result[0]), int(run_result[1]), int(run_result[2]), int(run_result[3]))
+    except Exception as exc:
+        data = str(getattr(exc, "data", "") or "")
+        if "0x4f422847" in data or "NoProfitableRoute" in str(exc):
+            return (
+                {
+                    "ok": False,
+                    "error": "static_arb_call_reverted",
+                    "detail": "链上复核未通过：NoProfitableRoute()",
+                    "errorDetail": "NoProfitableRoute()",
+                    "errorData": "0x4f422847",
+                    "errorSelector": "0x4f422847",
+                    "routeSymbols": route_symbols,
+                    "amount": amount,
+                    "initialAmount": amount,
+                    "staticCall": "reverted",
+                    "method": "previewArbitrageBestAmount",
+                    "bestAmountMethod": "onchain_preview_adaptive_best_amount",
+                },
+                "",
+            )
+        return None
+    selected_symbols = route_symbols if route_index == 0 else [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
+    return (
+        {
+            "ok": True,
+            "routeSymbols": selected_symbols,
+            "amount": amount,
+            "initialAmount": amount,
+            "bestAmount": str(float(selected_amount_raw) / 10**18),
+            "bestAmountRaw": str(selected_amount_raw),
+            "profit": str(profit_raw),
+            "profitHuman": str(float(profit_raw) / 10**18),
+            "outTb": str(out_tb),
+            "outTa": str(out_ta),
+            "outTz": str(out_tz),
+            "outAmount": str(float(out_tz) / 10**18),
+            "outAmountHuman": str(float(out_tz) / 10**18),
+            "selectedAmount": str(selected_amount_raw),
+            "selectedAmountMethod": "onchain_preview_adaptive_best_amount",
+            "selectedAmountAttemptedCount": str(attempted_count),
+            "staticCall": "ok",
+            "bestAmountMethod": "onchain_preview_adaptive_best_amount",
+            "bestAmountAttemptedCount": str(attempted_count),
+        },
+        "official V4 on-chain previewArbitrageBestAmount selected from Python",
+    )
 
 
 def _best_amount_calculation_for_route(
@@ -417,7 +968,8 @@ def _attach_best_amount_calculation(
 ) -> dict[str, Any]:
     try:
         final_amount = selected_amount if selected_amount is not None else amount
-        initial_amount = requested_amount if requested_amount is not None else amount
+        user_requested_amount = requested_amount if requested_amount is not None else amount
+        initial_amount = user_requested_amount
         confirmed = bool(best_amount_confirmed) if best_amount_confirmed is not None else False
         confirmation_basis = best_amount_selection_basis or "initial_probe_unconfirmed"
         confirmation_reason = (
@@ -436,12 +988,13 @@ def _attach_best_amount_calculation(
         best_calculation.update(
             {
                 "method": method_override or "route_execution_best_amount",
-                "requestedAmount": initial_amount,
+                "requestedAmount": user_requested_amount,
                 "initialProbeAmount": initial_amount,
                 "initialProbeSymbol": (route_symbols[0] if route_symbols else None),
                 "bestAmount": final_amount,
                 "bestAmountSymbol": (route_symbols[0] if route_symbols else None),
                 "bestAmountConfirmed": confirmed,
+                "bestAmountMissing": not confirmed,
                 "bestAmountSelectionBasis": confirmation_basis,
                 "bestAmountConfirmationReason": confirmation_reason,
                 "selectionBasis": "borrow_token",
@@ -454,9 +1007,10 @@ def _attach_best_amount_calculation(
         payload["probe_records"] = probe_records
         payload["bestAmount"] = final_amount
         payload["bestAmountConfirmed"] = confirmed
+        payload["bestAmountMissing"] = not confirmed
         payload["bestAmountSelectionBasis"] = confirmation_basis
         payload["bestAmountConfirmationReason"] = confirmation_reason
-        payload["requestedAmount"] = initial_amount
+        payload["requestedAmount"] = user_requested_amount
         payload["initialProbeAmount"] = best_calculation.get("initialProbeAmount") or initial_amount
         payload["initialProbeSymbol"] = (
             best_calculation.get("initialProbeSymbol")
@@ -468,11 +1022,28 @@ def _attach_best_amount_calculation(
             "bestAmountSymbol": best_calculation.get("bestAmountSymbol")
             or (route_symbols[0] if route_symbols else None),
             "bestAmountConfirmed": confirmed,
+            "bestAmountMissing": not confirmed,
             "bestAmountSelectionBasis": confirmation_basis,
             "bestAmountConfirmationReason": confirmation_reason,
             "referenceInputSymbol": best_calculation.get("bestAmountSymbol")
             or (route_symbols[0] if route_symbols else None),
             "referenceNetReturnBps": payload.get("referenceNetReturnBps"),
+            "referenceFinalOutputAmount": (
+                payload.get("outAmountHuman")
+                or payload.get("outAmount")
+                or payload.get("final_amount")
+                or payload.get("outAmountRaw")
+            ),
+            "referenceFinalOutputSymbol": payload.get("final_symbol")
+            or payload.get("amountSymbol")
+            or (route_symbols[0] if route_symbols else None),
+            "referenceNetProfitAmount": (
+                payload.get("profitHuman")
+                or payload.get("profit")
+                or payload.get("profit_amount")
+                or payload.get("final_delta_amount")
+            ),
+            "referenceNetReturnUsd": payload.get("profitUsd"),
             "offchainInitialProbeReason": (
                 payload.get("evidence", {}).get("offchainInitialProbeReason")
                 if isinstance(payload.get("evidence"), dict)
@@ -480,13 +1051,23 @@ def _attach_best_amount_calculation(
             ),
             "initialProbeAmount": payload["initialProbeAmount"],
             "initialProbeSymbol": payload["initialProbeSymbol"],
-            "requestedAmount": initial_amount,
+            "requestedAmount": user_requested_amount,
             "probeRecords": probe_records,
             "probe_records": probe_records,
             "bestAmountCalculation": best_calculation,
         }
     except Exception as exc:
-        payload["bestAmountCalculationError"] = str(exc)[:300]
+        detail = str(exc)[:300]
+        payload["bestAmountCalculationError"] = detail
+        existing_stack = payload.get("errorStack")
+        if not isinstance(existing_stack, list):
+            existing_stack = []
+        payload["errorStack"] = existing_stack + _structured_route_error(
+            detail,
+            error_code=ErrorCode.DEX_INTERNAL,
+            flow="attach_best_amount_calculation",
+            node_id="payload",
+        )
     return payload
 
 
@@ -508,6 +1089,12 @@ def run_official_v4_arb_route_test(
             "detail": "当前链上执行器只支持三币 V4 三角闭环：路线必须是由 3 个不同代币组成的 4 段闭环（A -> B -> C -> A）。",
             "routeSymbols": route_symbols,
             "broadcast": broadcast,
+            "errorStack": _structured_route_error(
+                "official_arb_broadcast_route_unsupported",
+                error_code=ErrorCode.DEX_ROUTE_INVALID,
+                flow="dex_route_broadcast_test",
+                node_id="validate_route",
+            ),
         }
     if int(chain_id or 0) != ROBINHOOD_TESTNET_CHAIN_ID:
         return {
@@ -517,6 +1104,12 @@ def run_official_v4_arb_route_test(
             "detail": "官方 V4 三角套利脚本仅绑定 Robinhood Testnet chain 46630，未显式指定该链时不允许调用",
             "routeSymbols": route_symbols,
             "broadcast": broadcast,
+            "errorStack": _structured_route_error(
+                "official_arb_broadcast_route_unsupported",
+                error_code=ErrorCode.DEX_ROUTE_INVALID,
+                flow="dex_route_broadcast_test",
+                node_id="validate_chain",
+            ),
         }
     route_addresses = [
         str(address or "").strip()
@@ -525,6 +1118,12 @@ def run_official_v4_arb_route_test(
     ]
     if not route_addresses:
         route_addresses = _official_route_addresses(route_symbols)
+        if not route_addresses and int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID:
+            route_addresses = _resolve_route_addresses_from_market_payload(
+                route_symbols=route_symbols,
+                chain_id=int(chain_id),
+                protocols=["uniswap_v4"],
+            )
     if (
         len(route_addresses) != len(route_symbols)
         or route_addresses[0].lower() != route_addresses[-1].lower()
@@ -537,6 +1136,12 @@ def run_official_v4_arb_route_test(
             "routeSymbols": route_symbols,
             "routeAddresses": route_addresses,
             "broadcast": broadcast,
+            "errorStack": _structured_route_error(
+                "official_arb_broadcast_route_unsupported",
+                error_code=ErrorCode.DEX_ROUTE_INVALID,
+                flow="dex_route_broadcast_test",
+                node_id="validate_addresses",
+            ),
         }
     if not OFFICIAL_ARB_SCRIPT.exists() or not OFFICIAL_DEX_DIR.exists():
         return {
@@ -546,12 +1151,53 @@ def run_official_v4_arb_route_test(
             "detail": f"missing script or DEX workdir: {OFFICIAL_ARB_SCRIPT}",
             "routeSymbols": route_symbols,
             "broadcast": broadcast,
+            "errorStack": _structured_route_error(
+                "official_arb_broadcast_script_missing",
+                error_code=ErrorCode.DEX_INTERNAL,
+                flow="dex_route_broadcast_test",
+                node_id="script_resolve",
+            ),
         }
+
+    route_pool_keys = _official_v4_route_pool_keys(
+        route_symbols=route_symbols,
+        chain_id=int(chain_id or ROBINHOOD_TESTNET_CHAIN_ID),
+        protocols=["uniswap_v4"],
+    )
+    if len(route_pool_keys) != 3:
+        payload = {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_route_pool_identity_missing",
+            "detail": "链上复核需要精确的中间桥池 PoolKey；当前市场观察没有返回 TZ/TB/TA 这一跳的路由池身份，拒绝继续用全局默认 hook 猜测。",
+            "routeSymbols": route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": broadcast,
+            "quoteStatus": "missing_route_pool_identity",
+            "evidenceStatus": "missing_route_pool_identity",
+            "executionTrust": "missing_route_pool_identity",
+            "errorStack": _structured_route_error(
+                "missing route pool identity",
+                error_code=ErrorCode.DEX_ROUTE_INVALID,
+                flow="dex_route_broadcast_test",
+                node_id="resolve_route_pool_keys",
+            ),
+        }
+        _attach_best_amount_calculation(payload, route_symbols=route_symbols, amount=amount)
+        return payload
 
     env = os.environ.copy()
     env["HARDHAT_NETWORK"] = "robinhoodTestnet"
     env["ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST"] = "true"
     env["ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST"] = "true" if broadcast else "false"
+    # The official testnet endpoint currently serves a Let's Encrypt cert that
+    # only pins an IP address, not rpc.testnet.chain.robinhood.com. Disabling
+    # TLS hostname verification for this child Hardhat process keeps local
+    # testnet route review working while the upstream cert issue exists.
+    env.setdefault("NODE_TLS_REJECT_UNAUTHORIZED", "0")
+    node_options = str(env.get("NODE_OPTIONS") or "").strip()
+    if "dns-result-order" not in node_options:
+        env["NODE_OPTIONS"] = (node_options + " --dns-result-order=ipv4first").strip()
     # Prefer the official Robinhood testnet RPC for the live Hardhat script.
     # Some configured public endpoints are reachable over Python but time out
     # inside Node/undici, which makes the broadcast script fail before static
@@ -578,15 +1224,45 @@ def run_official_v4_arb_route_test(
             "executionTrust": rpc_status,
             "routeSymbols": route_symbols,
             "broadcast": broadcast,
+            "errorStack": _structured_route_error(
+                rpc_detail,
+                error_code=(
+                    ErrorCode.DEX_RPC_TIMEOUT
+                    if rpc_status == "rpc_verification_timeout"
+                    else ErrorCode.DEX_RPC_FAILED
+                ),
+                flow="dex_route_broadcast_test",
+                node_id="rpc_preflight",
+            ),
         }
         _attach_best_amount_calculation(payload, route_symbols=route_symbols, amount=amount)
         return payload
 
     env["ROBINHOOD_TESTNET_OFFICIAL_ARB_ROUTE"] = " -> ".join(route_symbols)
     env["ROBINHOOD_TESTNET_OFFICIAL_ARB_ADDRESSES"] = ",".join(route_addresses)
+    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_POOL_KEYS_JSON"] = json.dumps(
+        route_pool_keys,
+        separators=(",", ":"),
+    )
     env["ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT"] = str(amount)
     env["ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT_IS_BEST"] = "true" if amount_is_best else "false"
     env["ROBINHOOD_TESTNET_OFFICIAL_ARB_REUSE_AMOUNT"] = "true" if amount_is_best else "false"
+
+    parsed: dict[str, Any] = {}
+    appended = ""
+    skip_subprocess = False
+    if not broadcast:
+        python_preview = _official_v4_preview_python(
+            route_symbols=route_symbols,
+            route_addresses=route_addresses,
+            amount=amount,
+            route_pool_keys=route_pool_keys,
+        )
+        if python_preview is not None:
+            parsed, appended = python_preview
+            result = SimpleNamespace(returncode=0, stdout=appended, stderr="")
+            retry_error_detail = []
+            skip_subprocess = True
 
     # The live script must run through Hardhat's runner. Running it directly with
     # `node` does not initialize the configured network/provider properly, so
@@ -607,32 +1283,92 @@ def run_official_v4_arb_route_test(
         "robinhoodTestnet",
         "--no-compile",
     ]
-    try:
-        result = subprocess.run(
-            command,
-            cwd=str(OFFICIAL_DEX_DIR),
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=180,
-        )
-    except subprocess.TimeoutExpired as exc:
-        return {
-            "ok": False,
-            "mode": "dex_route_broadcast_test",
-            "error": "official_arb_broadcast_timeout",
-            "detail": "链上脚本超时，建议降低金额或检查 RPC。",
-            "routeSymbols": route_symbols,
-            "broadcast": broadcast,
-        }
+    official_rpc = "https://rpc.testnet.chain.robinhood.com"
+    rpc_candidates = [official_rpc]
+    for candidate in (
+        probed_rpc_url,
+        "https://rpc.testnet.chain.robinhood.com/rpc",
+        "https://robinhood-sepolia-rpc.publicnode.com",
+    ):
+        if candidate.lower() not in {url.lower() for url in rpc_candidates}:
+            rpc_candidates.append(candidate)
 
-    appended = result.stdout + "\n" + result.stderr
-    parsed: dict[str, Any] = {}
-    for json_match in re.finditer(r"OFFICIAL_V4_ARB_RESULT_JSON\s+(\{.*?\})", appended, flags=re.DOTALL):
+    if skip_subprocess:
+        rpc_candidates.clear()
+
+    result = result if skip_subprocess else None
+    appended = appended if skip_subprocess else ""
+    parsed = parsed if skip_subprocess else {}
+    retry_error_detail = retry_error_detail if skip_subprocess else []
+    for rpc_index, rpc_url in enumerate(rpc_candidates):
+        env["ROBINHOOD_TESTNET_RPC_URL"] = rpc_url
+        env["ROBINHOOD_TESTNET_RPC"] = rpc_url
         try:
-            parsed = json.loads(json_match.group(1))
-        except json.JSONDecodeError:
+            result = subprocess.run(
+                command,
+                cwd=str(OFFICIAL_DEX_DIR),
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=180,
+            )
+        except subprocess.TimeoutExpired:
+            retry_error_detail.append(f"{rpc_url}: timeout")
+            if rpc_index >= len(rpc_candidates) - 1:
+                return {
+                    "ok": False,
+                    "mode": "dex_route_broadcast_test",
+                    "error": "official_arb_broadcast_timeout",
+                    "detail": "链上脚本超时，建议降低金额或检查 RPC；已尝试 " + ", ".join(retry_error_detail) + "。",
+                    "quoteStatus": "rpc_verification_timeout",
+                    "evidenceStatus": "rpc_verification_timeout",
+                    "executionTrust": "rpc_verification_timeout",
+                    "routeSymbols": route_symbols,
+                    "broadcast": broadcast,
+                    "errorStack": _structured_route_error(
+                        "official_arb_broadcast_timeout",
+                        error_code=ErrorCode.DEX_RPC_TIMEOUT,
+                        flow="dex_route_broadcast_test",
+                        node_id="script_timeout",
+                    ),
+                }
             continue
+
+        appended = result.stdout + "\n" + result.stderr
+        parsed = {}
+        for json_match in re.finditer(r"OFFICIAL_V4_ARB_RESULT_JSON\s+(\{.*?\})", appended, flags=re.DOTALL):
+            try:
+                parsed = json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                continue
+
+        lowered = appended.lower()
+        retryable = any(
+            marker in lowered
+            for marker in (
+                "und_err_connect_timeout",
+                "und_err_headers_timeout",
+                "connecttimeouterror",
+                "connect timeout error",
+                "headers timeout error",
+                "request timeout",
+                "socket hang up",
+                "econnreset",
+                "cert_altname_invalid",
+                "tls_cert_altname_invalid",
+            )
+        )
+        if parsed and not retryable:
+            break
+        if retryable:
+            retry_error_detail.append(f"{rpc_url}: rpc_connection_issue")
+            if rpc_index >= len(rpc_candidates) - 1:
+                break
+
+    if not parsed.get("selectedRouteSymbols"):
+        parsed["selectedRouteSymbols"] = parsed.get("routeSymbols") or route_symbols
 
     broadcast_disabled = bool(parsed.get("broadcastDisabled")) and not parsed.get("txHash")
     try:
@@ -675,6 +1411,15 @@ def run_official_v4_arb_route_test(
         out_amount_human = _raw_amount_to_human(raw_out_amount)
     static_call_ok = str(parsed.get("staticCall") or "").strip().lower() in {"ok", "passed"}
     profitable = bool(profit_human is not None and float(profit_human) > 0)
+    # The official V4 script executes all three swaps in one contract eth_call
+    # and does not emit per-hop JSON rows. A successful static call with a
+    # selected route and on-chain best amount is therefore the live hop proof.
+    has_live_hops = bool(
+        static_call_ok
+        and best_amount_from_chain
+        and parsed.get("selectedRouteSymbols")
+    )
+    no_profitable_route = "noprofitableroute" in str(parsed.get("errorDetail") or "").lower() and not profitable
     reference_net_return_bps = (
         float(profit_human) / float(selected_amount) * 10_000
         if profit_human is not None and selected_amount is not None and float(selected_amount) > 0
@@ -682,7 +1427,30 @@ def run_official_v4_arb_route_test(
     )
     if not static_call_ok and parsed.get("staticCall") is None and parsed.get("ok") is True and profitable:
         static_call_ok = True
-    ready_for_transaction_preflight = bool(static_call_ok and profitable)
+    ready_for_transaction_preflight = bool(
+        static_call_ok
+        and profitable
+        and has_live_hops
+        and best_amount_confirmed
+    )
+    quote_status = (
+        "live_verified"
+        if ready_for_transaction_preflight
+        else "route_unprofitable"
+        if no_profitable_route
+        else "static_reference_pending_live_review"
+        if static_call_ok and profitable
+        else "live_quote_failed"
+    )
+    execution_trust = (
+        "live_quoter_verified_readonly"
+        if quote_status == "live_verified"
+        else "route_unprofitable"
+        if quote_status == "route_unprofitable"
+        else "static_reference_pending_live_review"
+        if quote_status == "static_reference_pending_live_review"
+        else "live_quote_failed"
+    )
 
     payload = {
         "ok": result.returncode == 0 and parsed.get("ok") is not False,
@@ -697,6 +1465,7 @@ def run_official_v4_arb_route_test(
         "bestAmount": selected_amount,
         "bestAmountSource": "onchain_contract_preview" if best_amount_from_chain else "requested_initial_amount",
         "bestAmountConfirmed": best_amount_confirmed,
+        "bestAmountMissing": not best_amount_confirmed,
         "bestAmountSelectionBasis": best_amount_selection_basis,
         "bestAmountConfirmationReason": best_amount_confirmation_reason,
         "amountSymbol": route_symbols[0] if route_symbols else None,
@@ -711,9 +1480,9 @@ def run_official_v4_arb_route_test(
         "staticCall": parsed.get("staticCall"),
         "staticCallPassed": bool(str(parsed.get("staticCall") or "").strip().lower() in {"ok", "passed"}),
         "onchainPreviewAttempted": bool(parsed.get("bestAmountAttemptedCount") is not None),
-        "quoteStatus": "live_verified" if ready_for_transaction_preflight else "live_quote_failed",
-        "evidenceStatus": "live_verified" if ready_for_transaction_preflight else "live_quote_failed",
-        "executionTrust": "live_quoter_verified_readonly" if ready_for_transaction_preflight else "live_quote_failed",
+        "quoteStatus": quote_status,
+        "evidenceStatus": quote_status,
+        "executionTrust": execution_trust,
         "profitable": profitable,
         "readyForTransactionPreflight": ready_for_transaction_preflight,
         "profit": profit_human,
@@ -725,13 +1494,44 @@ def run_official_v4_arb_route_test(
         "outAmountRaw": raw_out_amount,
         "txHash": parsed.get("txHash") if broadcast else None,
         "evidence": {
-            "status": "live_verified" if ready_for_transaction_preflight else "live_quote_failed",
-            "executionTrust": "live_quoter_verified_readonly" if ready_for_transaction_preflight else "live_quote_failed",
+            "status": quote_status,
+            "executionTrust": execution_trust,
             "routeSymbols": route_symbols,
             "routeAddresses": route_addresses,
             "hops": [],
+            "blockers": (
+                []
+                if best_amount_confirmed
+                else ["on-chain best amount is not confirmed; cannot enter transaction preflight"]
+            ),
+            "bestAmountConfirmed": best_amount_confirmed,
+            "bestAmountMissing": not best_amount_confirmed,
+            "bestAmountSelectionBasis": best_amount_selection_basis,
+            "bestAmountConfirmationReason": best_amount_confirmation_reason,
+            "profitable": profitable,
+            "readyForTransactionPreflight": ready_for_transaction_preflight,
+            "costModel": {
+                "borrowInputSymbol": route_symbols[0] if route_symbols else None,
+                "finalOutputSymbol": route_symbols[0] if route_symbols else None,
+                "borrowInputAmount": selected_amount,
+                "selectedBorrowInputAmount": selected_amount,
+                "requestedBorrowInputAmount": amount,
+                "bestAmountConfirmed": best_amount_confirmed,
+                "bestAmountMissing": not best_amount_confirmed,
+                "bestAmountSelectionBasis": best_amount_selection_basis,
+                "bestAmountConfirmationReason": best_amount_confirmation_reason,
+                "netProfitAmount": profit_human,
+                "netProfitAmountBps": reference_net_return_bps,
+                "netProfitBps": reference_net_return_bps,
+                "finalOutputAmount": out_amount_human,
+                "profitBasis": "borrow_token",
+                "profitable": profitable,
+                "readyForTransactionPreflight": ready_for_transaction_preflight,
+            },
             "offchainInitialProbeReason": (
                 "onchain_review_best_amount_reused"
+                if best_amount_from_chain and bool(amount_is_best)
+                else "onchain_preview_adaptive_best_amount"
                 if best_amount_from_chain
                 else "requested_borrow_amount_fallback"
             ),
@@ -747,6 +1547,23 @@ def run_official_v4_arb_route_test(
             str(parsed.get("detail") or "")
             or "broadcast disabled; static preflight passed"
         )
+    if bool(broadcast and parsed.get("txHash") and parsed.get("ok") is True):
+        ready_for_transaction_preflight = True
+        quote_status = "live_verified"
+        execution_trust = "live_quoter_verified_readonly"
+        payload["readyForTransactionPreflight"] = True
+        payload["quoteStatus"] = "live_verified"
+        payload["evidenceStatus"] = "live_verified"
+        payload["executionTrust"] = "live_quoter_verified_readonly"
+        if isinstance(payload.get("evidence"), dict):
+            payload["evidence"]["status"] = "live_verified"
+            payload["evidence"]["executionTrust"] = "live_quoter_verified_readonly"
+            payload["evidence"]["readyForTransactionPreflight"] = True
+            payload["evidence"]["bestAmountConfirmed"] = True
+            if isinstance(payload["evidence"].get("costModel"), dict):
+                payload["evidence"]["costModel"]["readyForTransactionPreflight"] = True
+                payload["evidence"]["costModel"]["profitable"] = True
+                payload["evidence"]["costModel"]["bestAmountConfirmed"] = True
     if parsed.get("staticCall") == "reverted" and parsed.get("error") == "static_arb_call_reverted":
         payload["detail"] = _static_call_revert_detail(parsed)
     if "already broadcast-disabled" not in payload["detail"] and result.returncode != 0:
@@ -763,12 +1580,40 @@ def run_official_v4_arb_route_test(
         best_amount_selection_basis=best_amount_selection_basis,
         best_amount_confirmation_reason=best_amount_confirmation_reason,
     )
+    if quote_status != "live_verified" or not best_amount_confirmed:
+        reason = (
+            payload.get("detail")
+            or payload.get("error")
+            or "on-chain review did not complete"
+        )
+        error_code = (
+            ErrorCode.DEX_RPC_TIMEOUT
+            if quote_status == "rpc_verification_timeout"
+            else ErrorCode.DEX_RPC_FAILED
+            if quote_status == "rpc_verification_failed"
+            else ErrorCode.DEX_ROUTE_INVALID
+            if quote_status in {"route_unprofitable", "slippage_limit_exceeded"}
+            else ErrorCode.DEX_GATE_NOT_READY
+            if not best_amount_confirmed
+            else ErrorCode.DEX_LIVE_QUOTE_FAILED
+        )
+        stack = _structured_route_error(
+            reason,
+            error_code=error_code,
+            flow="dex_route_broadcast_test",
+            node_id="preflight_result",
+        )
+        payload["errorStack"] = list(payload.get("errorStack") or []) + stack
+        if isinstance(payload.get("evidence"), dict):
+            payload["evidence"]["errorStack"] = stack
     return payload
 
 
 __all__ = [
     "best_amount_calculation_from_route",
     "estimate_route_live_quote",
+    "estimate_fixed_amount_pnl",
+    "estimate_fixed_amount_pnl_quick",
     "fetch_dex_tx_receipt",
     "is_official_triangle_route",
     "normalize_route_symbols",

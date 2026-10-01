@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>失败提交记录</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; color: #17202a; background: #f6f7f9; }
+    header, main { padding: 18px 28px; }
+    header { display: flex; justify-content: space-between; gap: 12px; background: #fff; border-bottom: 1px solid #d9dee7; }
+    main { width: min(1480px, 100%); margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    nav a { color: #0f766e; font-weight: 700; text-decoration: none; }
+    button { min-height: 34px; border: 1px solid #0f766e; border-radius: 6px; padding: 0 12px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+    button.copy-btn { min-height: 28px; border-color: #d0d5dd; background: #fff; color: #344054; font-size: 12px; }
+    button.danger { border-color: #b42318; background: #b42318; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric, .panel { border: 1px solid #d9dee7; border-radius: 8px; background: #fff; padding: 14px; }
+    .metric small { display: block; color: #667085; margin-bottom: 7px; }
+    .metric strong { display: block; font-size: 18px; }
+    .muted, .metric span { color: #667085; font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #e4e7ec; padding: 8px; text-align: right; white-space: nowrap; vertical-align: top; }
+    th:first-child, td:first-child, th:nth-child(3), td:nth-child(3), th:nth-child(8), td:nth-child(8) { text-align: left; }
+    td.route-cell { min-width: 300px; max-width: 460px; white-space: normal; line-height: 1.45; }
+    .route-addresses { margin-top: 4px; font-family: Consolas, "Courier New", monospace; word-break: break-all; }
+    td.reason { max-width: 360px; white-space: normal; line-height: 1.45; }
+    td.review-cell { min-width: 420px; max-width: 560px; white-space: normal; line-height: 1.45; }
+    td.review-cell .review-line { margin-bottom: 3px; }
+    td.review-cell .review-line.muted { color: #667085; font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 2px 8px; font-weight: 700; background: #eef2f6; color: #344054; }
+    .badge.live { background: #dcfae6; color: #067647; }
+    .badge.static { background: #fff3cd; color: #8a6116; }
+    .badge.fail { background: #fee4e2; color: #b42318; }
+    @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } main, header { padding-left: 18px; padding-right: 18px; } }
+  </style>
+</head>
+<body data-dex-surface-template="submissions_failed">
+  <header>
+    <h1>失败提交记录</h1>
+    <nav>
+      <a data-surface-link href="/dex">报价与路由</a>
+      <a data-surface-link href="/dex/overview">DEX 总览</a>
+      <a data-surface-link href="/dex/market-observation">市场观察</a>
+      <a data-surface-link href="/dex/candidates">候选池</a>
+      <a data-surface-link href="/dex/submissions">提交记录</a>
+      <a data-surface-link href="/dex/submissions/failed">失败记录</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <button id="refreshBtn">刷新记录</button>
+      <span id="message" class="muted">等待失败记录</span>
+        </div>
+    <section class="grid" id="routeFrameworkPanel">
+      <div class="metric"><small>当前框架</small><strong id="frameworkSource">-</strong><span id="frameworkDecision">-</span></div>
+      <div class="metric"><small>候选路由</small><strong id="frameworkRouteCount">-</strong><span id="frameworkRouteText">-</span></div>
+      <div class="metric"><small>观察闭环</small><strong id="frameworkObservationCount">-</strong><span id="frameworkObservationSource">-</span></div>
+      <div class="metric"><small>参考净利</small><strong id="frameworkProfit">-</strong><span id="frameworkProfitText">-</span></div>
+    </section>
+    <section class="grid">
+      <div class="metric"><small>提交/观察总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
+      <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>链上执行/提交成功</span></div>
+      <div class="metric"><small>失败</small><strong id="failedCount">-</strong><span>链上执行或复核失败</span></div>
+      <div class="metric"><small>阻断</small><strong id="blockedCount">-</strong><span>报价后未满足链上复核或链上执行条件</span></div>
+    </section>
+    <section class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>网络</th>
+              <th>路径</th>
+              <th>证据来源</th>
+              <th>链上区块</th>
+              <th>盈亏/复盘</th>
+              <th>结果/状态</th>
+              <th>原因与复盘要点</th>
+              <th>订单/交易</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    let latestRows = [];
+    const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const uiError = value => {
+      const text = String(value || "请求失败");
+      if (/^HTTP \d+$/.test(text)) return `请求失败（${text}）`;
+      if (/[\u4e00-\u9fff]/.test(text)) return text;
+      return `接口错误（${text}）`;
+    };
+    const fmtTime = value => value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
+    const recordTimeValue = row => {
+      const raw = row.created_at || row.observed_at || row.updated_at || "";
+      const parsed = raw ? new Date(raw).getTime() : NaN;
+      return Number.isFinite(parsed) ? parsed : -1;
+    };
+    const apiPath = path => {
+      const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
+      const url = new URL(scoped, window.location.origin);
+      url.searchParams.delete("protocols");
+      return url.pathname + (url.search ? url.search : "");
+    };
+    async function fetchJson(path) {
+      const response = await fetch(apiPath(path), {cache: "no-cache", headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
+      return data;
+    }
+    async function postJson(path) {
+      const response = await fetch(apiPath(path), {method: "POST", cache: "no-cache", headers: {"Accept": "application/json"}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
+      return data;
+    }
+    function numberValue(value) {
+      if (value === null || value === undefined || value === "") return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    function humanTokenValue(value) {
+      const parsed = numberValue(value);
+      if (parsed === null) return null;
+      const abs = Math.abs(parsed);
+      if (abs >= 1e18 && Number.isInteger(parsed)) return parsed / 1e18;
+      return parsed;
+    }
+    function money(value) {
+      const parsed = numberValue(value);
+      if (parsed === null) return "-";
+      return `$${parsed.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+    function evidence(row) {
+      return row.review_summary?.onchain_evidence || row.quote?.live_onchain_evidence || {};
+    }
+    function evidenceNeedsLiveReview(row) {
+      if (rowIsConfirmedExecutionSuccess(row)) return false;
+      const ev = evidence(row);
+      const lower = String(ev.status || ev.executionTrust || "").toLowerCase();
+      return lower === "static_reference_pending_live_review" || lower === "static_reference_only" || lower === "static_live_quoter_estimate" || lower === "live_quote_reference_only";
+    }
+    function rowIsConfirmedExecutionSuccess(row) {
+      const raw = String(row.review_category || row.category || row.status || row.state || row.submission_status || "").toLowerCase();
+      return ["execution_success", "confirmed_success", "settled", "executed", "success"].includes(raw) || raw.includes("confirmed");
+    }
+    function routeIdentity(row) {
+      const ev = evidence(row);
+      return ev.routeIdentity || ev.route_identity || row.review_summary?.route_identity || {};
+    }
+    function shortAddress(value) {
+      const text = String(value || "").trim();
+      return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-4)}` : text;
+    }
+    function routeAddresses(row) {
+      const quote = row.quote || {};
+      const route = quote.route || {};
+      const identity = routeIdentity(row);
+      return identity.routeAddresses || identity.route_addresses || evRouteAddresses(row) || row.route_addresses || row.routeAddresses || quote.routeAddresses || quote.route_addresses || route.pathAddresses || [];
+    }
+    function evRouteAddresses(row) {
+      const ev = evidence(row);
+      return ev.routeAddresses || ev.route_addresses || [];
+    }
+    function routeAddressText(row, {short = false} = {}) {
+      const addresses = routeAddresses(row);
+      if (!Array.isArray(addresses) || !addresses.length) return "";
+      return addresses.map(address => short ? shortAddress(address) : address).join(" -> ");
+    }
+    function profitPercent(row) {
+      const ev = evidence(row);
+      const liveBps = numberValue(ev.net_profit_bps || ev.costModel?.netProfitBps);
+      if (liveBps !== null) return {value: liveBps / 100, source: "链上复核"};
+      const review = row.review_summary || {};
+      const plan = review.plan || {};
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const precheck = row.precheck || {};
+      const status = String(ev.status || "").toLowerCase();
+      const staticSource = status === "not_live_verified" && analysis.requiresLiveQuoter ? "第三方参考价" : "静态观察";
+      const direct = numberValue(plan.profit_percent ?? quote.profit_percent ?? precheck.expected_profit_percent);
+      if (direct !== null) return {value: direct, source: staticSource};
+      const bps = numberValue(analysis.netProfitBps);
+      if (bps !== null) return {value: bps / 100, source: staticSource};
+      const profitUsd = numberValue(analysis.netProfitUsd ?? humanTokenValue(row.final_delta_amount));
+      const notional = numberValue(analysis.notionalUsd ?? quote.input_amount ?? precheck.notional_usd);
+      if (profitUsd !== null && notional !== null && notional > 0) return {value: profitUsd / notional * 100, source: staticSource};
+      return {value: null, source: "-"};
+    }
+    function fmtPct(result) {
+      const parsed = numberValue(result?.value);
+      if (parsed === null) return "-";
+      return `${result.source} ${parsed >= 0 ? "+" : ""}${parsed.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`;
+    }
+    function executionOutcome(row) {
+      const ev = evidence(row);
+      const evStatus = String(ev.status || ev.executionTrust || row.quote?.quote_status || "").toLowerCase();
+      const raw = row.review_category || row.category || row.status || row.state || row.submission_status || "";
+      const normalized = String(raw).toLowerCase();
+      if (["submitted_success", "broadcast_success", "broadcasted", "submission_success", "broadcast_complete"].includes(normalized)) {
+        return {label: "链上执行/提交成功", cls: "live"};
+      }
+      if (["execution_success", "confirmed_success", "settled", "executed", "success"].includes(normalized)) {
+        return {label: "执行成功/已确认", cls: "live"};
+      }
+      if (["submission_failed", "broadcast_failed", "broadcast_error", "broadcast_disabled"].includes(normalized)) {
+        return {label: "链上执行/提交失败", cls: "fail"};
+      }
+      if (["execution_failed", "failed", "error", "confirmed_failed", "settlement_failed"].includes(normalized)) {
+        return {label: "执行失败", cls: "fail"};
+      }
+      if (["quote_failed", "rpc_verification_failed", "rpc_verification_timeout", "live_quote_failed"].includes(normalized)) {
+        return {label: "链上报价/复核失败", cls: "fail"};
+      }
+      if (["quote_failed", "rpc_verification_failed", "rpc_verification_timeout", "live_quote_failed"].includes(evStatus)) {
+        return {label: "链上报价/复核失败", cls: "fail"};
+      }
+      if (["not_executable", "quote_required", "blocked", "unsupported_route"].includes(normalized)) {
+        return {label: "未执行/未提交", cls: "static"};
+      }
+      return {label: raw || "未知", cls: "static"};
+    }
+    function fmtAmount(value, digits = 6) {
+      const parsed = numberValue(value);
+      return parsed === null ? "-" : parsed.toLocaleString("zh-CN", {minimumFractionDigits: digits, maximumFractionDigits: digits});
+    }
+    function fmtSignedAmount(value, digits = 6) {
+      const parsed = numberValue(value);
+      return parsed === null ? "-" : `${parsed >= 0 ? "+" : ""}${fmtAmount(parsed, digits)}`;
+    }
+    function probeRecords(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const candidates = row.probe_records || row.probeRecords || quote.probe_records || quote.probeRecords || analysis.probe_records || analysis.probeRecords || analysis.rows || quote.rows || calc.probe_records || calc.probeRecords || calc.rows || [];
+      return (Array.isArray(candidates) ? candidates : []).filter(item => item && typeof item === "object");
+    }
+    function submissionInitialAmount(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = quote.live_onchain_evidence || analysis.live_onchain_evidence || {};
+      const costs = ev.costModel || {};
+      return numberValue(
+        row.initial_probe_amount
+        ?? quote.initial_probe_amount
+        ?? quote.input_amount
+        ?? analysis.initialProbeAmount
+        ?? analysis.requestedAmount
+        ?? analysis.amountOptimizedFrom
+        ?? costs.requestedBorrowInputAmount
+      );
+    }
+    function submissionBestAmount(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = quote.live_onchain_evidence || analysis.live_onchain_evidence || {};
+      const costs = ev.costModel || {};
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      if (evidenceNeedsLiveReview(row) || costs.bestAmountMissing === true || analysis.bestAmountMissing === true || row.bestAmountMissing === true) return null;
+      return numberValue(
+        row.best_amount
+        ?? quote.best_amount
+        ?? costs.selectedBorrowInputAmount
+        ?? costs.borrowInputAmount
+        ?? calc.bestAmount
+        ?? calc.recommendedBorrowInputAmount
+        ?? calc.selectedBorrowInputAmount
+        ?? analysis.bestAmount
+        ?? analysis.best_amount
+      );
+    }
+    function submissionInputSymbol(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = quote.live_onchain_evidence || analysis.live_onchain_evidence || {};
+      const costs = ev.costModel || {};
+      return quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || costs.borrowInputSymbol || "";
+    }
+    function reviewProbeText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const records = probeRecords(row);
+      const bestAmount = submissionBestAmount(row);
+      const symbol = submissionInputSymbol(row);
+      if (!records.length) return bestAmount === null ? "探测记录=未保存前后探测数据；最佳量暂未计算" : "探测记录=未保存前后探测数据；当前仅有最佳量可复盘";
+      const rows = records
+        .map(item => ({value: item, amount: numberValue(item.borrowAmount ?? item.amount ?? item.inputAmount ?? item.input_amount ?? item.bestAmount)}))
+        .filter(item => item.amount !== null)
+        .sort((a, b) => a.amount - b.amount);
+      if (!rows.length) return bestAmount === null ? "探测记录=未计算；原始探测记录字段缺失" : `探测记录=${fmtAmount(bestAmount, 8)} ${symbol}（原始探测记录字段缺失）`;
+      const exact = bestAmount !== null ? rows.findIndex(item => Math.abs(item.amount - bestAmount) < Math.max(Math.abs(bestAmount), 1) * 1e-9) : -1;
+      const trend = (item, label) => {
+        if (!item) return "";
+        const profit = humanTokenValue(item.value.referenceNetProfitAmount ?? item.value.netProfitAmount ?? item.value.profitAmount ?? item.value.profit_amount ?? item.value.netProfit ?? item.value.profit);
+        return `${label} ${fmtAmount(item.amount, 8)} ${symbol}=净利 ${fmtSignedAmount(profit, 6)}${item.value.executableCandidate ? "（可执行）" : ""}`;
+      };
+      if (exact >= 0) {
+        const prevRow = rows[exact - 1];
+        const nextRow = rows[exact + 1];
+        return `探测记录=最佳量 ${fmtAmount(bestAmount, 8)} ${symbol}${prevRow ? `；前一个 ${trend(prevRow, "前一个")}` : ""}${nextRow ? `；后一个 ${trend(nextRow, "后一个")}` : ""}`;
+      }
+      return `探测记录=${rows.map(item => trend(item, item.amount === bestAmount ? "最佳" : "探测")).filter(Boolean).join("；")}`;
+    }
+    function reviewBestAmountCalculationText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const calcSymbol = analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || quote.input_symbol || quote.final_symbol || calc.bestAmountSymbol || calc.requestedSymbol || "";
+      const calcRows = (Array.isArray(calc.probe_records) ? calc.probe_records : [])
+        .concat(Array.isArray(calc.probeRecords) ? calc.probeRecords : [])
+        .concat(Array.isArray(calc.rows) ? calc.rows : [])
+        .filter(item => item && typeof item === "object");
+      if (!calcRows.length) return "";
+      const lines = calcRows.map(item => {
+        const amountValue = numberValue(item.borrowAmount ?? item.amount ?? item.inputAmount ?? item.input_amount ?? item.referenceInputAmount);
+        const profit = humanTokenValue(item.referenceNetProfitAmount ?? item.netProfitAmount ?? item.profitAmount ?? item.profit_amount ?? item.netProfit ?? item.profit);
+        const mark = item.isRecommended ? "推荐" : item.isBest ? "本次最佳" : (profit !== null && profit > 0 ? "盈利" : "");
+        return `${fmtAmount(amountValue, 8)} ${calcSymbol}=净利${fmtSignedAmount(profit, 6)}${mark ? `(${mark})` : ""}`;
+      }).filter(Boolean);
+      return `最佳量计算过程=${lines.join("；")}`;
+    }
+    function profitReviewText(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = evidence(row);
+      const pair = row.pair || quote.pair || row.route_key || "-";
+      const direction = row.direction || quote.direction || analysis.direction || pair;
+      const initialAmount = submissionInitialAmount(row);
+      let initialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      if (evidenceNeedsLiveReview(row) && String(initialProbeReason) === "onchain_review_best_amount_reused") initialProbeReason = "static_reference_pending_live_review";
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      const bestAmount = submissionBestAmount(row);
+      const symbol = submissionInputSymbol(row);
+      const pct = profitPercent(row);
+      const profitAmount = humanTokenValue(quote.profit_amount ?? row.profit_amount ?? analysis.referenceNetProfitAmount ?? analysis.netProfitAmount ?? analysis.netProfitUsd ?? analysis.profit_amount);
+      const finalAmount = numberValue(quote.final_amount ?? row.final_amount ?? analysis.referenceFinalOutputAmount ?? analysis.finalOutputAmount ?? analysis.final_amount ?? analysis.referenceFinalOutputUsd);
+      const referenceNetReturnBps = numberValue(analysis.referenceNetReturnBps ?? quote.referenceNetReturnBps ?? calc.referenceNetReturnBps);
+      const parts = [];
+      parts.push(`方向=${direction}`);
+      if (initialAmount !== null) parts.push(`初始测试量=${fmtAmount(initialAmount, 8)} ${symbol || ""}`.trim());
+      else parts.push("初始测试量=未记录");
+      if (initialProbeReason) parts.push(`初始探测依据=${offchainProbeReasonText(initialProbeReason)}`);
+      if (bestAmount !== null) parts.push(`最佳量=${fmtAmount(bestAmount, 8)} ${symbol || ""}`.trim());
+      else parts.push("最佳量=未计算");
+      if (profitAmount !== null) parts.push(`盈亏=${fmtSignedAmount(profitAmount, 6)} ${symbol || ""}`.trim());
+      if (referenceNetReturnBps !== null) parts.push(`参考净利 BPS=${fmtAmount(referenceNetReturnBps, 2)}`);
+      if (pct?.value != null) parts.push(`比例=${pct.value >= 0 ? "+" : ""}${pct.value.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`);
+      if (finalAmount !== null) parts.push(`期末=${fmtAmount(finalAmount, 6)} ${symbol || ""}`.trim());
+      const bestCalcText = reviewBestAmountCalculationText(row);
+      if (bestCalcText) parts.push(bestCalcText);
+      parts.push(reviewProbeText(row));
+      return parts.filter(Boolean).join(" | ");
+    }
+    function offchainProbeReasonText(reason) {
+      return ({
+        "stablecoin_usd_1000u_anchor": "按约 1000 USD 等价换算",
+        "one_basic_unit_fallback": "使用 1 个基础代币单位",
+        "onchain_review_best_amount_reused": "使用链上复核确认金额作为初始量",
+        "static_reference_pending_live_review": "当前为静态参考；初始量仅作为探测起点，不能作为已确认最佳量",
+        "liquidity_cap_pool_reserve_2pct": "受池子流动性 2% 上限约束",
+        "no_offchain_initial_anchor": "暂无可用于价格/流动性锚点",
+        "requested_borrow_amount_fallback": "使用请求量作为初始探测起点（兼容旧数据）",
+      })[String(reason || "")] || reason || "";
+    }
+    function profitReviewHtml(row) {
+      return String(profitReviewText(row) || "-")
+        .split(" | ")
+        .filter(Boolean)
+        .map((line, index) => `<div class="review-line ${index === 0 ? "" : "muted"}">${esc(line)}</div>`)
+        .join("");
+    }
+    function lines(items) {
+      return (items || []).filter(item => item !== null && item !== undefined && String(item).trim() !== "");
+    }
+    async function copyText(text, button) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.setAttribute("readonly", "");
+          area.style.position = "fixed";
+          area.style.left = "-9999px";
+          document.body.appendChild(area);
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+        }
+        const old = button.textContent;
+        button.textContent = "已复制";
+        setTimeout(() => { button.textContent = old; }, 1200);
+      } catch (error) {
+        $("message").textContent = `复制失败：${uiError(error.message)}`;
+      }
+    }
+    function evidenceBadge(row) {
+      const ev = evidence(row);
+      const status = String(ev.status || "").toLowerCase();
+      const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || routeIdentity(row).status || "").toLowerCase();
+      if (identityStatus === "token_discontinuity") return '<span class="badge fail">token 地址不连续</span>';
+      if (rowIsConfirmedExecutionSuccess(row)) return '<span class="badge live">执行成功/已确认</span>';
+      const failureLabels = {
+        not_enough_liquidity: "池当前没有 LP 流动性",
+        pool_not_initialized: "池未初始化",
+        missing_effective_pool: "池未初始化或缺少有效池",
+        rpc_verification_failed: "链上复核失败：RPC 不可用",
+        rpc_verification_timeout: "链上复核超时：RPC 未在期限内返回",
+        live_quote_failed: "链上报价未完成",
+        missing_trigger_block: "缺失复核区块",
+        not_live_verified: "未通过链上复核"
+      };
+      if (failureLabels[status]) return `<span class="badge fail">${failureLabels[status]}</span>`;
+      if (status === "static_reference_pending_live_review") return '<span class="badge fail">静态参考，待链上复核</span>';
+      if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可进入链上执行</span>';
+      if (status === "live_verified") return '<span class="badge live">链上报价已复核</span>';
+      if (status === "not_live_verified") return '<span class="badge fail">未通过链上复核</span>';
+      if (status && status !== "not_live_verified") return `<span class="badge fail">${esc(status)}</span>`;
+      if (identityStatus === "symbol_only" || identityStatus === "address_partial") return '<span class="badge fail">地址身份不完整</span>';
+      return '<span class="badge static">静态观察</span>';
+    }
+    function reasonText(row) {
+      const ev = evidence(row);
+      const evReasons = ev.blockers || ev.blockers?.blockers || [];
+      const rawReasons = lines([
+        row.reason,
+        row.blocked_reason,
+        ...(Array.isArray(row.blocked_reasons) ? row.blocked_reasons : []),
+        ...(Array.isArray(row.reasons) ? row.reasons : []),
+        row.error,
+      ]);
+      const reasonLabel = reason => {
+        const normalized = String(reason || "").trim();
+        const lower = normalized.toLowerCase();
+        const timeoutEvidence = normalized.match(/^on-chain evidence timed out after ([0-9.]+)s$/i);
+        if (timeoutEvidence) return `链上复核超时：RPC 未在期限内返回（${timeoutEvidence[1]} 秒）`;
+        if (rowIsConfirmedExecutionSuccess(row)) {
+          if (lower.includes("static_reference_pending_live_review") || lower.includes("static_live_quoter_estimate") || lower.includes("live_quote_reference_only") || lower.includes("static_reference_only")) {
+            return "已确认链上执行结果；以链上确认后的实际成交为准，不再依据静态参考状态";
+          }
+          return "执行成功/已确认；以链上确认结果为准";
+        }
+        if (["broadcast_complete", "submitted_success", "broadcast_success", "broadcasted", "execution_success", "confirmed_success"].includes(lower)) {
+          return "已提交链上交易；等待链上确认后才算最终成交确认";
+        }
+        if (lower === "broadcast disabled; static preflight passed") {
+          return "链上执行开关未开启；链上执行条件已通过但未发起交易，请开启执行配置后重试";
+        }
+        if (lower.startsWith("broadcast disabled")) {
+          return "链上执行开关未开启；请检查测试网执行配置后重试";
+        }
+        if (lower === "missing_route_identity" || normalized.includes("missing_route_identity")) {
+          return "路线缺少完整 token 地址身份；symbol 只能用于展示，不能作为链上复核或执行依据";
+        }
+        return normalized;
+      };
+      const base = rawReasons.map(reasonLabel).filter(Boolean).join("；") || "-";
+      const hop = ev.hop_count || ev.hops?.length;
+      const prefix = hop ? `每跳复核 ${hop} 跳。` : "";
+      const reasons = Array.isArray(evReasons) && evReasons.length ? evReasons.map(reasonLabel).filter(Boolean).join("，") : base;
+      const issues = ev.tokenContinuityIssues || ev.token_continuity_issues || routeIdentity(row).tokenContinuityIssues || [];
+      const issueText = Array.isArray(issues) && issues.length
+        ? ` token 连续性异常：${issues.map(item => `${item.fromHop || "?"}->${item.toHop || "?"} ${shortAddress(item.previousTokenOut)} != ${shortAddress(item.currentTokenIn)}`).join("；")}`
+        : "";
+      return `${prefix}${reasons}${issueText}`;
+    }
+    function recordCopyText(row) {
+      const ev = evidence(row);
+      const outcome = executionOutcome(row);
+      const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const hops = ev.hops?.length ? ev.hops : (quote.hops || analysis.steps || []);
+      const identity = routeIdentity(row);
+      const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || identity.status || "").toLowerCase();
+      const identityLabel = identityStatus === "token_discontinuity" ? "token 地址不连续" : (identityStatus === "symbol_only" || identityStatus === "address_partial") ? "地址身份不完整" : identityStatus;
+      const addressPath = routeAddressText(row);
+      const reviewDirection = row.direction || quote.direction || analysis.direction || pair;
+      const reviewInitialAmount = submissionInitialAmount(row);
+      const reviewBestAmount = submissionBestAmount(row);
+      const reviewSymbol = submissionInputSymbol(row);
+      let reviewInitialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      if (evidenceNeedsLiveReview(row) && String(reviewInitialProbeReason) === "onchain_review_best_amount_reused") reviewInitialProbeReason = "static_reference_pending_live_review";
+      const reviewReferenceNetReturnBps = numberValue(analysis.referenceNetReturnBps ?? quote.referenceNetReturnBps);
+      return lines([
+        `时间：${fmtTime(row.created_at || row.observed_at || row.updated_at)}`,
+        `网络：${row.network || row.cow_network || "-"}`,
+        `路径：${pair}`,
+        `地址路径：${addressPath || "-"}`,
+        `地址身份：${identityLabel || "-"}`,
+        `状态：${outcome.label}`,
+        `执行方向：${reviewDirection}`,
+        `初始测试量：${reviewInitialAmount === null ? "未记录" : `${fmtAmount(reviewInitialAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
+        `初始探测依据：${reviewInitialProbeReason ? offchainProbeReasonText(reviewInitialProbeReason) : "-"}`,
+        `最佳交易量：${reviewBestAmount === null ? "未计算" : `${fmtAmount(reviewBestAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
+        `参考净利 BPS：${reviewReferenceNetReturnBps === null ? "-" : fmtAmount(reviewReferenceNetReturnBps, 2)}`,
+        `复核状态：${evidenceBadge(row).replace(/<[^>]+>/g, "") || ev.status || "-"}`,
+        `复核可信：${rowIsConfirmedExecutionSuccess(row) || ev.trustedForExecution || ev.trusted_for_execution || String(ev.status || "").toLowerCase() === "live_verified" ? "是" : "否"}`,
+        `触发区块：${ev.triggerBlockNumber || ev.trigger_block_number || "-"}`,
+        `复核区块：${ev.blockNumber || ev.block_number || "-"}`,
+        `复盘：${profitReviewText(row)}`,
+        `订单/交易：${row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-"}`,
+        "",
+        "原因与复盘要点：",
+        reasonText(row),
+        "",
+        "逐跳数据：",
+        ...(hops.length ? hops.map(step => [
+          `${step.hop || "-"}。${step.fromSymbol || step.from_symbol || "-"} -> ${step.toSymbol || step.to_symbol || "-"}`,
+          `协议：${step.protocol || step.dex || "-"}`,
+          `池子：${step.pool || "-"}`,
+          `输入代币：${step.tokenIn || step.token_in || step.fromSymbol || step.from_symbol || "-"}`,
+          `输出代币：${step.tokenOut || step.token_out || step.toSymbol || step.to_symbol || "-"}`,
+          `输入：${step.amountIn || step.inputAmount || "-"} ${step.fromSymbol || step.from_symbol || ""}`,
+          `输出：${step.amountOut || step.outputAmount || "-"} ${step.toSymbol || step.to_symbol || ""}`,
+          `报价方式：${step.quoteMethodLabel || step.quoteSourceLabel || step.quoteMethod || step.quoteSource || "-"}`,
+        ].join(" | ")) : ["-"]),
+      ]).join("\n");
+    }
+    function rowHtml(row, index) {
+      const status = row.review_category || row.category || row.status || row.state || row.submission_status || "-";
+      const outcome = executionOutcome(row);
+      const pair = row.pair || row.symbol_pair || row.route_key || row.order_uid || "-";
+      const ev = evidence(row);
+      const order = row.order_uid || row.tx_hash || row.transaction_hash || row.uid || "-";
+      const addresses = routeAddressText(row, {short: true});
+      const pathCell = `${esc(pair)}${addresses ? `<div class="muted route-addresses">${esc(addresses)}</div>` : ""}`;
+      const outcomeCell = `<span class="badge ${outcome.cls}">${esc(outcome.label)}</span>${status && String(status).toLowerCase() !== outcome.label ? `<div class="muted">${esc(status)}</div>` : ""}`;
+      const onchainButton = (row.tx_hash || row.transaction_hash || row.quote?.tx_hash || row.quote?.transaction_hash || row.order_uid)
+        ? ` <button class="copy-btn" type="button" data-check-onchain="${index}">链上查询</button>`
+        : "";
+      return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td class="route-cell">${pathCell}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td class="review-cell">${profitReviewHtml(row)}</td><td>${outcomeCell}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button>${onchainButton}</td></tr>`;
+    }
+    async function refresh() {
+      $("message").textContent = "正在加载失败提交记录...";
+      try {
+        const data = await fetchJson("/api/dex/submissions/failed?limit=300");
+        const framework = data.routeFramework || {};
+        $("frameworkSource").textContent = framework.routeFrameworkLabel || frameworkLabel(framework.routeFrameworkSource || framework.marketObservationSource || "-");
+        $("frameworkDecision").textContent = framework.decisionBasis || "-";
+        $("frameworkRouteCount").textContent = framework.routeCount ?? framework.candidateRouteCount ?? 0;
+        $("frameworkRouteText").textContent = framework.topRouteText || "-";
+        $("frameworkObservationCount").textContent = framework.observationSequenceCount ?? framework.observationAnchorCount ?? 0;
+        const frameworkObservationSourceText = framework.marketObservationLabel || frameworkLabel(framework.marketObservationSource || "-");
+        const frameworkObservationStageText = framework.marketObservationSourceStageLabel || marketObservationSourceStageLabel(framework.marketObservationSourceStage || framework.marketObservationSource || "-");
+        $("frameworkObservationSource").textContent = [frameworkObservationSourceText, frameworkObservationStageText].filter(Boolean).join(" · ");
+        $("frameworkProfit").textContent = money(framework.bestObservedNetProfitUsd ?? framework.bestExecutableNetProfitUsd);
+        $("frameworkProfitText").textContent = framework.topRouteStatus || "-";
+        $("attemptCount").textContent = data.summary?.attemptCount ?? 0;
+        $("successCount").textContent = data.summary?.successCount ?? 0;
+        $("failedCount").textContent = data.summary?.failedCount ?? 0;
+        $("blockedCount").textContent = data.summary?.blockedCount ?? 0;
+        $("source").textContent = data.source || "-";
+        latestRows = [...(data.attempts || [])].sort((a, b) => recordTimeValue(b) - recordTimeValue(a));
+        $("rows").innerHTML = latestRows.map(rowHtml).join("") || '<tr><td colspan="9">暂无失败提交记录。</td></tr>';
+        $("message").textContent = "已更新";
+      } catch (error) {
+        $("message").textContent = uiError(error.message);
+      }
+    }
+    $("refreshBtn").onclick = refresh;
+    async function checkOnchain(row, button) {
+      const quote = row.quote || {};
+      const txHash = row.tx_hash || row.transaction_hash || quote.tx_hash || quote.transaction_hash || row.order_uid || "";
+      if (!txHash) {
+        $("message").textContent = "当前记录没有可查询的交易哈希";
+        return;
+      }
+      const old = button.textContent;
+      button.disabled = true;
+      button.textContent = "查询中...";
+      try {
+        const response = await fetch(apiPath("/api/dex/submissions/check-onchain"), {
+          method: "POST",
+          cache: "no-cache",
+          headers: {"Content-Type": "application/json", "Accept": "application/json"},
+          body: JSON.stringify({tx_hash: txHash}),
+        });
+        const responseText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          const head = responseText.trim().replace(/\s+/g, " ").slice(0, 120);
+          throw new Error(`链上查询接口没有返回 JSON，当前服务可能未加载该接口或版本过旧，请重启服务后重试（返回内容：${head}）`);
+        }
+        if (!response.ok) throw new Error(data.error || data.detail || `查询失败（HTTP ${response.status}）`);
+        const statusText = data.status === "confirmed" ? "已确认" : data.status === "failed" ? "已失败" : data.status === "pending" ? "待确认" : data.status || "-";
+        const blockNumber = data.receipt?.blockNumber ?? data.transaction?.blockNumber ?? "-";
+        button.textContent = statusText;
+        const explorerLink = data.explorer_tx_url ? ` | <a href="${esc(data.explorer_tx_url)}" target="_blank" rel="noreferrer">区块浏览器</a>` : "";
+        $("message").innerHTML = esc(`链上查询：${txHash} | ${statusText} | 区块 ${blockNumber}`) + explorerLink;
+        setTimeout(() => { button.textContent = old; button.disabled = false; }, 4000);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = old;
+        $("message").textContent = uiError(error.message);
+      }
+    }
+    $("rows").addEventListener("click", event => {
+      const chainButton = event.target.closest("[data-check-onchain]");
+      if (chainButton) {
+        const row = latestRows[Number(chainButton.dataset.checkOnchain)];
+        if (row) checkOnchain(row, chainButton);
+        return;
+      }
+      const button = event.target.closest("[data-copy-record]");
+      if (!button) return;
+      const row = latestRows[Number(button.dataset.copyRecord)];
+      if (row) copyText(recordCopyText(row), button);
+    });
+    window.addEventListener("chainselectionchanged", event => {
+      if (String(event?.detail?.selected?.feature || "").toLowerCase() === "dex_arbitrage") refresh();
+    });
+    refresh();
+  </script>
+</body>
+</html>

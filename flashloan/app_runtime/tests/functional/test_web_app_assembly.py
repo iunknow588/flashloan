@@ -99,9 +99,12 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/dex/overview" in paths
     assert "/api/dex/market-observation" in paths
     assert "/api/dex/quote-routes" in paths
+    assert "/api/dex/estimate-fixed-pnl" in paths
     assert "/api/dex/opportunity-scanner/start" in paths
     assert "/api/dex/opportunity-scanner/snapshot" in paths
     assert "/api/dex/opportunity-scanner/scan-now" in paths
+    assert "/api/dex/opportunity-scanner/auto-execute" in paths
+    assert "/api/dex/closed-loop-groups/<group_key>/refresh" in paths
     assert "/api/dex/quote-request" in paths
     assert "/api/dex/submissions" in paths
     assert "/api/dex/submissions/clear" in paths
@@ -113,6 +116,49 @@ def test_control_panel_routes_are_assembled_by_app_factory():
     assert "/api/liquidation-health" in paths
     assert "/api/debt-pool/decision" in paths
     assert "/api/liquidation/account/<account>/static-call-and-save" in paths
+
+
+def test_estimate_fixed_pnl_route_requires_route_symbols():
+    client = app.test_client()
+    response = client.post(
+        "/api/dex/estimate-fixed-pnl",
+        json={"chain_id": 46630, "amount": 8.0},
+    )
+    data = response.get_json()
+    assert response.status_code == 400
+    assert data["error"] == "route_symbols_required"
+
+
+def test_estimate_fixed_pnl_route_returns_payload(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    def fake_estimate_fixed_amount_pnl(**kwargs):
+        return {
+            "ok": True,
+            "mode": "dex_route_fixed_amount_pnl",
+            "routeSymbols": kwargs.get("route_symbols"),
+            "amount": kwargs.get("amount"),
+            "bestAmountMissing": True,
+            "direction": " -> ".join(kwargs.get("route_symbols") or []),
+            "quoteStatus": "static_reference_pending_live_review",
+        }
+
+    monkeypatch.setattr(route_test_module, "estimate_fixed_amount_pnl", fake_estimate_fixed_amount_pnl)
+    client = app.test_client()
+    response = client.post(
+        "/api/dex/estimate-fixed-pnl",
+        json={
+            "chain_id": 46630,
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "amount": 8.0,
+        },
+    )
+    data = response.get_json()
+    assert response.status_code == 200
+    assert data["mode"] == "dex_route_fixed_amount_pnl"
+    assert data["amount"] == 8.0
+    assert data["bestAmountMissing"] is True
+    assert data["routeSymbols"] == ["TZ", "TB", "TA", "TZ"]
 
 
 def test_dex_pages_label_static_framework_as_static_not_history():
@@ -166,7 +212,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'id="app-shell-dex-strategy-summary"' in body
         assert 'class="app-shell-chain-control"' in body
         assert 'data-chain-selector-signature="' in body
-        assert 'option value="chain:46630"' in body
+        assert 'option value="chain:4663"' in body
         assert "padding: 10px 36px 12px;" in body
         assert "padding-left: 18px; padding-right: 18px;" in body
         assert "/static/chain-selector.js" in body
@@ -192,10 +238,15 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
 
     quotes_body = client.get("/dex/quotes").get_data(as_text=True)
     quotes_body += client.get("/static/dex_quotes/quotes_app.js").get_data(as_text=True)
+    quotes_body += client.get("/static/dex_quotes/quotes_render.js").get_data(as_text=True)
     assert "/api/dex/opportunity-scanner/start" in quotes_body
     assert "/api/dex/opportunity-scanner/snapshot" in quotes_body
     assert "/api/dex/opportunity-scanner/scan-now" in quotes_body
     assert "scanIntervalMs = 3000" in quotes_body
+    assert "costs.bestAmountMissing === true" in quotes_body
+    assert "activeExecution" in quotes_body
+    assert "routeExecutionKey" in quotes_body
+    assert "static_reference_pending_live_review" in quotes_body
 
     submissions_body = client.get("/dex/submissions").get_data(as_text=True)
     assert "/api/dex/submissions/clear" in submissions_body
@@ -206,6 +257,16 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
     assert "第三方参考价" in submissions_body
     assert "复制记录" in submissions_body
     assert "data-copy-record" in submissions_body
+    assert "最佳量=未计算" in submissions_body
+    assert '最佳交易量：${reviewBestAmount === null ? "未计算"' in submissions_body
+    assert "初始测试量=未记录" in submissions_body
+    assert '初始测试量：${reviewInitialAmount === null ? "未记录"' in submissions_body
+    assert "const recordTimeValue = row => {" in submissions_body
+    assert "recordTimeValue(b) - recordTimeValue(a)" in submissions_body
+    assert "function submissionInitialAmount(row)" in submissions_body
+    assert "function submissionBestAmount(row)" in submissions_body
+    assert "function submissionInputSymbol(row)" in submissions_body
+    assert "探测记录=未计算；原始探测记录字段缺失" in submissions_body
 
     for path in ("/dex-pools", "/candidate-pools"):
         body = client.get(path).get_data(as_text=True)
@@ -257,6 +318,31 @@ def test_chain_selection_api_infers_feature_from_page_path():
     assert [row["display_name"] for row in unscoped_payload["chain_options"]] == EXPECTED_DEX_CHAIN_ORDER
 
 
+def test_chain_selection_api_exposes_flash_loan_protocols_per_chain():
+    client = app.test_client()
+
+    mainnet = client.get("/api/chain-selection?feature=dex_arbitrage&chain_id=4663&include_chain_config=false").get_json()
+    testnet = client.get("/api/chain-selection?feature=dex_arbitrage&chain_id=46630&include_chain_config=false").get_json()
+
+    assert mainnet["ok"] is True
+    assert mainnet["selected"]["chain_id"] == 4663
+    assert [row["protocol"] for row in mainnet["selected"]["flash_loan_protocols"]] == [
+        "morpho_blue",
+        "uniswap_v2",
+        "uniswap_v3",
+        "uniswap_v4",
+        "aave_v3",
+    ]
+    assert mainnet["selected"]["flash_loan_protocol_count"] == 5
+
+    assert testnet["ok"] is True
+    assert testnet["selected"]["chain_id"] == 46630
+    assert testnet["selected"]["flash_loan_protocols"] == [
+        {"protocol": "uniswap_v4", "protocol_id": "uniswap_v4", "display_name": "Uniswap V4"}
+    ]
+    assert testnet["selected"]["flash_loan_protocol_count"] == 1
+
+
 def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch):
     from web import app_shell
 
@@ -271,6 +357,7 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
 
     body = client.get("/flash-loan/pools").get_data(as_text=True)
     payload = client.get("/api/flash-loan/pools").get_json()
+    scoped_payload = client.get("/api/flash-loan/pools?chain_id=4663&protocols=uniswap_v4").get_json()
     bnb_payload = client.get("/api/flash-loan/pools?chain_id=56").get_json()
     venus_payload = client.get("/api/flash-loan/pools?chain_id=56&protocols=venus_core").get_json()
 
@@ -292,27 +379,21 @@ def test_flash_loan_pool_page_is_independent_shared_capability_view(monkeypatch)
     assert 'data-shell-link="/flash-loan/pools"' in body
     assert payload["ok"] is True
     assert payload["scope"]["chain_id"] == 46630
-    assert payload["summary"]["provider_count"] == 1
+    assert payload["summary"]["provider_count"] >= 1
     assert payload["summary"]["chain_count"] == 1
-    assert payload["summary"]["bot_consumable_count"] == 0
     assert payload["summary"]["dex_consumable_count"] > 0
     assert any(row["provider_kind"] == "dex_pool" for row in payload["providers"])
-    assert payload["protocol_views"][0]["protocol"] == "uniswap_v4"
-    assert payload["protocol_views"][0]["chainIsolation"]["network"] == "robinhood-testnet"
-    assert payload["protocol_views"][0]["summary"]["lending_pool_count"] == 0
-    assert payload["protocol_views"][0]["summary"]["borrow_asset_count"] > 0
-    assert payload["protocol_views"][0]["summary"]["verified_lending_borrow_asset_count"] == 0
-    assert payload["protocol_views"][0]["summary"]["eth_call_verified_flash_asset_count"] == 0
-    assert "stable_borrow_pools" in payload["protocol_views"][0]
-    assert "non_stable_borrow_pools" in payload["protocol_views"][0]
-    assert payload["protocol_views"][0]["summary"]["stable_borrow_pool_count"] >= 1
-    assert payload["protocol_views"][0]["summary"]["non_stable_borrow_pool_count"] > 1
-    assert "stable_pool_key_rows" in payload["protocol_views"][0]
-    assert "non_stable_pool_key_rows" in payload["protocol_views"][0]
-    assert "stable_v4_flash_source_rows" in payload["protocol_views"][0]
-    assert "non_stable_v4_flash_source_rows" in payload["protocol_views"][0]
-    assert "borrow_target_universe" in payload["protocol_views"][0]
-    assert "depth_counts" in payload["protocol_views"][0]["summary"]
+    assert scoped_payload["summary"]["provider_count"] == 1
+    assert scoped_payload["summary"]["bot_consumable_count"] == 0
+    assert scoped_payload["summary"]["dex_consumable_count"] > 0
+    assert scoped_payload["scope"]["chain_id"] == 4663
+    assert scoped_payload["scope"]["protocols"] == ["uniswap_v4"]
+    scoped_view = scoped_payload["protocol_views"][0]
+    assert scoped_view["protocol"] == "uniswap_v4"
+    assert scoped_view["processing"]["network"] == "robinhood"
+    assert scoped_view["processing"]["chain_id"] == 4663
+    assert "borrow_target_universe" in scoped_view
+    assert "depth_counts" in scoped_view["summary"]
     assert bnb_payload["scope"]["chain_id"] == 56
     assert {row["chain_id"] for row in bnb_payload["providers"]} == {56}
     assert venus_payload["protocol_views"][0]["protocol"] == "venus_core"

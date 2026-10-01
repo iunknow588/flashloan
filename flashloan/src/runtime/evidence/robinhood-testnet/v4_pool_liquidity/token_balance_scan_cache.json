@@ -6776,8 +6776,8 @@
       "decimals": 18,
       "metadataScannedAt": "2026-09-13T03:37:36.798640Z",
       "poolIds": [
-        "0xfea96fd612fe1657cf8f36b6cb64cde74c94471054bc09c5e8e2459be3adcc4e",
-        "0x4bf2043e54c7355849bb4052af44d5e1920e926807a6bee2a878848cb657659d"
+        "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157"
       ],
       "scanScope": "full_index_recent_swaps",
       "scannedAt": "2026-09-13T03:37:36.798640Z",
@@ -48606,8 +48606,8 @@
       "decimals": 18,
       "metadataScannedAt": "2026-09-13T03:37:36.798640Z",
       "poolIds": [
-        "0xfea96fd612fe1657cf8f36b6cb64cde74c94471054bc09c5e8e2459be3adcc4e",
-        "0x735b044d2274b6d6449376a91ad77733edc569b846925e819be7b7415844cad6"
+        "0x56f5e256ddc14dcc08a5f059cd126cc1d50724fae30ce4a7dfbf553c1f29ef66",
+        "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea"
       ],
       "scanScope": "full_index_recent_swaps",
       "scannedAt": "2026-09-13T03:37:36.798640Z",
@@ -211079,8 +211079,8 @@
       "decimals": 18,
       "metadataScannedAt": "2026-09-13T03:37:36.798640Z",
       "poolIds": [
-        "0x735b044d2274b6d6449376a91ad77733edc569b846925e819be7b7415844cad6",
-        "0x4bf2043e54c7355849bb4052af44d5e1920e926807a6bee2a878848cb657659d"
+        "0xb396fc25e38939d34d68e4ddbbc5b2f1d962a6753a316df25c96bf665e1d27ea",
+        "0x47dbe57e46c680c947def5a11bd9c0a6d6b124475dea35e61729fd63118e8157"
       ],
       "scanScope": "full_index_recent_swaps",
       "scannedAt": "2026-09-13T03:37:36.798640Z",
@@ -302119,6 +302119,6 @@
   "network": "robinhood-testnet",
   "poolIndexSource": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
   "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-  "refreshedAt": "2026-09-26T06:21:19.356004Z",
+  "refreshedAt": "2026-10-01T01:40:04.962783Z",
   "schemaVersion": "robinhood-testnet-v4-poolmanager-token-balance-scan-v1"
 }

@@ -68,6 +68,59 @@ _OFFICIAL_V4_ARB_ABI = [
             {"name": "routeIndex", "type": "uint256"},
         ],
     },
+    {
+        "type": "function",
+        "name": "runArbitrageBestBridgePairs",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "tokenZ", "type": "address"},
+            {
+                "name": "entryKey",
+                "type": "tuple",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {
+                "name": "exitKey",
+                "type": "tuple",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "entryZeroForOne", "type": "bool"},
+            {"name": "exitZeroForOne", "type": "bool"},
+            {
+                "name": "bridgeKeys",
+                "type": "tuple[]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "bridgeZeroForOne", "type": "bool[]"},
+            {"name": "amountIn", "type": "uint256"},
+            {"name": "minProfit", "type": "uint256"},
+        ],
+        "outputs": [
+            {"name": "outY", "type": "uint256"},
+            {"name": "outZ", "type": "uint256"},
+            {"name": "outTokenZ", "type": "uint256"},
+            {"name": "profit", "type": "uint256"},
+            {"name": "routeIndex", "type": "uint256"},
+        ],
+    },
 ]
 
 
@@ -114,7 +167,66 @@ _OFFICIAL_V4_COMPOSER_ABI = [
 ]
 
 
-def _official_v4_arb_address() -> str | None:
+def _env_official_v4_address(field: str) -> str | None:
+    env_name = {
+        "arb": "OFFICIAL_V4_ARB_ADDRESS",
+        "composer": "OFFICIAL_V4_COMPOSER_ADDRESS",
+    }.get(field)
+    if not env_name:
+        return None
+    value = os.getenv(env_name, "").strip()
+    return value or None
+
+
+def _official_v4_chain_id() -> int | None:
+    raw_chain_id = os.getenv("OFFICIAL_V4_CHAIN_ID", "").strip()
+    if raw_chain_id:
+        try:
+            return int(raw_chain_id)
+        except ValueError:
+            return None
+    try:
+        from core.chain_data_registry import default_chain_scope
+
+        scope = default_chain_scope("dex_arbitrage")
+        return int(scope["chain_id"]) if scope.get("chain_id") is not None else None
+    except Exception:
+        return None
+
+
+def _chain_data_official_v4_address(field: str) -> str | None:
+    try:
+        from core.chain_data_registry import chain_data_by_chain_id
+    except Exception:
+        return None
+    chain_id = _official_v4_chain_id()
+    if chain_id is None:
+        return None
+    chain = chain_data_by_chain_id(chain_id)
+    if not chain:
+        return None
+    official = None
+    for key in ("officialV4", "official_v4", "v4_arbitrage"):
+        candidate = chain.get(key) if isinstance(chain.get(key), dict) else None
+        if candidate:
+            official = candidate
+            break
+    if official is None:
+        contracts = chain.get("contracts") if isinstance(chain.get("contracts"), dict) else {}
+        for key in ("officialV4", "official_v4", "v4_arbitrage"):
+            candidate = contracts.get(key) if isinstance(contracts.get(key), dict) else None
+            if candidate:
+                official = candidate
+                break
+    if official is None:
+        return None
+    value = str(official.get(field) or "").strip()
+    return value or None
+
+
+def _manifest_official_v4_address(field: str, chain_id: int | None = None) -> str | None:
+    if chain_id is not None and int(chain_id) != ROBINHOOD_TESTNET_CHAIN_ID:
+        return None
     for base in (Path(__file__).resolve().parents[4], Path.cwd()):
         manifest_path = base / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
         if not manifest_path.exists():
@@ -124,24 +236,27 @@ def _official_v4_arb_address() -> str | None:
         except Exception:
             return None
         official = manifest.get("officialV4") if isinstance(manifest.get("officialV4"), dict) else {}
-        arb = str(official.get("arb") or "").strip()
-        return arb or None
+        value = str(official.get(field) or "").strip()
+        return value or None
     return None
+
+
+def _official_v4_arb_address() -> str | None:
+    chain_id = _official_v4_chain_id()
+    return (
+        _env_official_v4_address("arb")
+        or _chain_data_official_v4_address("arb")
+        or _manifest_official_v4_address("arb", chain_id)
+    )
 
 
 def _official_v4_composer_address() -> str | None:
-    for base in (Path(__file__).resolve().parents[4], Path.cwd()):
-        manifest_path = base / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
-        if not manifest_path.exists():
-            continue
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
-            return None
-        official = manifest.get("officialV4") if isinstance(manifest.get("officialV4"), dict) else {}
-        composer = str(official.get("composer") or "").strip()
-        return composer or None
-    return None
+    chain_id = _official_v4_chain_id()
+    return (
+        _env_official_v4_address("composer")
+        or _chain_data_official_v4_address("composer")
+        or _manifest_official_v4_address("composer", chain_id)
+    )
 
 
 def _reverse_step(step: dict[str, Any]) -> dict[str, Any]:
@@ -163,17 +278,25 @@ def _official_v4_arb_candidate_route(
     keys: list[tuple[Any, Any, Any, Any, Any]] = []
     zero_for_one: list[bool] = []
     pool_ids: list[str] = []
-    for step in steps:
+    for step_index, step in enumerate(steps):
         pool = _pool_for_step(step, pools)
         pool_key = pool.get("poolKey") if isinstance(pool.get("poolKey"), dict) else {}
         currency0 = _text(pool_key.get("currency0") or pool.get("token0") or "")
         currency1 = _text(pool_key.get("currency1") or pool.get("token1") or "")
+        if not (currency0 and currency1):
+            hop_addresses = [str(item).strip() for item in (pool.get("routeAddresses") or []) if str(item).strip()]
+            if len(hop_addresses) >= 2:
+                currency0, currency1 = hop_addresses[0], hop_addresses[1]
+            elif step_index + 1 < len(route_addresses):
+                currency0, currency1 = route_addresses[step_index], route_addresses[step_index + 1]
         if not (currency0 and currency1):
             return None
         fee = int(pool_key.get("fee") if pool_key.get("fee") is not None else pool.get("fee") if pool.get("fee") is not None else step.get("fee") if step.get("fee") is not None else 0)
         tick_spacing = int(pool_key.get("tickSpacing") if pool_key.get("tickSpacing") is not None else pool.get("tickSpacing") if pool.get("tickSpacing") is not None else 0)
         hooks = _text(pool_key.get("hooks") or pool.get("hooks") or "0x0000000000000000000000000000000000000000")
         input_token = _text(step.get("tokenIn") or _pool_side(pool, step.get("fromSymbol"))[0] or "")
+        if not input_token and step_index < len(route_addresses):
+            input_token = _text(route_addresses[step_index])
         if not input_token:
             return None
         keys.append((currency0, currency1, fee, tick_spacing, hooks))

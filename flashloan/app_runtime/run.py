@@ -48,6 +48,10 @@ def _runtime_environment():
         os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_MIN_PROFIT_PERCENT", "0.618")
         os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_GAS_RESERVE_USDC", "0")
         os.environ.setdefault("COW_FLASHLOAN_PURE_INTENT_OTHER_KNOWN_COSTS_USDC", "0")
+        os.environ.setdefault("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage")
+        os.environ.setdefault("BNB_VENUS_WATCHER_ENABLED", "false")
+        os.environ.setdefault("LIQUIDATION_UI_SCAN_ENABLED", "false")
+        os.environ.setdefault("LIQUIDATION_BACKGROUND_REFRESH", "false")
         os.environ["BINANCE_SCAN_PROFILE"] = "1000ms"
         os.environ["BINANCE_CHANGE_WINDOW_SECONDS"] = "1.0"
         os.environ["SAMPLE_SECONDS"] = "1.0"

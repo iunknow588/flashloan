@@ -55,6 +55,67 @@
     return unique(protocols).sort().join(",");
   }
 
+  function marketIdChainComponent(marketId) {
+    const normalized = String(marketId || "").trim().toLowerCase();
+    const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+    return match ? match[2] : "";
+  }
+
+  function normalizeScopeQuery(query) {
+    const normalized = new URLSearchParams(query);
+    const chainId = String(normalized.get("chain_id") || "").trim();
+    const marketId = String(normalized.get("market_id") || "").trim();
+    const marketChainId = marketIdChainComponent(marketId);
+    if (chainId && marketChainId && marketChainId !== chainId) {
+      normalized.delete("market_id");
+    }
+    return normalized;
+  }
+
+  function protocolDisplayName(protocol) {
+    const text = String(protocol || "").trim().replace(/_/g, " ");
+    return text ? text.replace(/\b\w/g, function (char) { return char.toUpperCase(); }) : "Protocol";
+  }
+
+  function syncFlashLoanProtocolNav(selection) {
+    const protocolList = Array.isArray(selection && selection.flash_loan_protocols)
+      ? selection.flash_loan_protocols
+      : (selection && selection.protocol_options) || [];
+    const normalizedProtocols = unique(protocolList.map(function (item) {
+      return item && item.protocol;
+    }));
+    const chainId = selection && selection.chain_id !== null && selection.chain_id !== undefined
+      ? String(selection.chain_id)
+      : "";
+    const selectedProtocol = selectedProtocols()[0] || "";
+    document.querySelectorAll("[data-flash-loan-protocol-nav]").forEach(function (nav) {
+      nav.textContent = "";
+      if (!normalizedProtocols.length) {
+        const note = document.createElement("span");
+        note.className = "app-shell-subnote";
+        note.textContent = "暂无可用闪电贷池";
+        nav.appendChild(note);
+        return;
+      }
+      normalizedProtocols.forEach(function (protocol) {
+        if (!protocol) return;
+        const option = protocolList.find(function (item) {
+          return normalizeProtocol(item && item.protocol) === protocol;
+        }) || {};
+        const label = option.display_name || protocolDisplayName(protocol);
+        const link = document.createElement("a");
+        link.className = "app-shell-sublink" + (protocol === selectedProtocol ? " active" : "");
+        link.setAttribute("data-flash-loan-protocol-link", protocol);
+        const query = new URLSearchParams();
+        if (chainId) query.set("chain_id", chainId);
+        query.set("protocols", protocol);
+        link.href = "/flash-loan/pools?" + query.toString();
+        link.textContent = label;
+        nav.appendChild(link);
+      });
+    });
+  }
+
   function orderedCowNetworks(networks) {
     return unique(networks).sort(function (left, right) {
       const leftIndex = COW_NETWORK_ORDER.indexOf(left);
@@ -134,6 +195,7 @@
 
   function applyStoredShellScope(query, stored, targetFeature) {
     if (!stored || hasExplicitScope(query)) return query;
+    if (query.get("chain_id")) return query;
     const storedFeature = String(stored.feature || "").trim().toLowerCase();
     const requestedFeature = String(targetFeature || "").trim().toLowerCase();
     if (stored.chain_id !== null && stored.chain_id !== undefined && String(stored.chain_id)) {
@@ -236,7 +298,7 @@
 
   function rootPathForFeature(feature) {
     const normalized = String(feature || "").toLowerCase();
-    if (normalized === "dex_arbitrage") return "/dex";
+    if (normalized === "dex_arbitrage") return "/flash-loan/pools";
     if (normalized === "liquidation") return "/bot";
     return window.location.pathname;
   }
@@ -383,24 +445,34 @@
   function withSelection(path) {
     const url = new URL(path, window.location.origin);
     const targetFeature = pathFeature(url.pathname);
-    const current = applyStoredShellScope(currentQuery(), readStoredShellSelection(targetFeature), targetFeature);
+    const currentQueryValue = currentQuery();
+    const current = applyStoredShellScope(currentQueryValue, readStoredShellSelection(targetFeature), targetFeature);
     const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
     const currentFeatureValue = pathFeature(window.location.pathname);
+    // Defaults and stored selections must only apply when the current page and
+    // the target URL do not already carry a concrete chain.
+    const effectiveCurrentChainId = currentQueryValue.get("chain_id") ||
+      (current.get("chain_id") || "") ||
+      "";
     if (targetFeature && currentFeatureValue && targetFeature !== currentFeatureValue) {
-      const chainId = current.get("chain_id") || fallback.chain_id;
+      const chainId = effectiveCurrentChainId || fallback.chain_id;
       clearMarketScope(url);
       if (chainId && !url.searchParams.get("chain_id")) {
         url.searchParams.set("chain_id", String(chainId));
       }
       return url.pathname + (url.search ? url.search : "");
     }
-    if (!current.get("chain_id") && !fallback.chain_id && fallback.market_id && !url.searchParams.get("market_id")) {
+    if (!effectiveCurrentChainId && !url.searchParams.get("chain_id") && !fallback.chain_id && fallback.market_id && !url.searchParams.get("market_id")) {
       url.searchParams.set("market_id", String(fallback.market_id));
     }
-    if (!current.get("chain_id") && fallback.chain_id && !url.searchParams.get("chain_id")) {
+    if (!effectiveCurrentChainId && !url.searchParams.get("chain_id") && fallback.chain_id) {
       url.searchParams.set("chain_id", String(fallback.chain_id));
     }
     ["chain_id", "workflow", "execution_mode", "scope", "protocols", "protocol_id"].forEach(function (key) {
+      if (key === "chain_id") {
+        if (url.searchParams.get("chain_id")) return;
+        if (effectiveCurrentChainId && !currentQueryValue.get("chain_id")) return;
+      }
       if (current.get(key) && !url.searchParams.get(key)) {
         url.searchParams.set(key, current.get(key));
       }
@@ -422,7 +494,10 @@
       url.searchParams.delete("cow_network");
       url.searchParams.delete("scope");
     }
-    return url.pathname + (url.search ? url.search : "");
+    const normalizedUrl = new URL(url.href);
+    const normalizedSearch = normalizeScopeQuery(normalizedUrl.searchParams);
+    normalizedUrl.search = normalizedSearch.toString();
+    return normalizedUrl.pathname + (normalizedUrl.search ? normalizedUrl.search : "");
   }
 
   function preserveSelectionLinks(selection) {
@@ -450,6 +525,7 @@
       });
       link.setAttribute("href", url.pathname + (url.search ? url.search : ""));
     });
+    syncFlashLoanProtocolNav(selection);
   }
 
   function renderSelectOptions(select, options) {
@@ -756,10 +832,17 @@
     if (!mount) return null;
     const originalQuery = currentQuery();
     const storedShellSelection = readStoredShellSelection(feature);
-    const query = applyStoredShellScope(
-      new URLSearchParams(originalQuery),
-      storedShellSelection,
-      feature
+    // A chain that is already present on the page wins over the stored
+    // selection and the server default. This prevents refreshes and API calls
+    // from reverting to an earlier BNB selection after a user switched chains.
+    const query = normalizeScopeQuery(
+      originalQuery.get("chain_id")
+        ? new URLSearchParams(originalQuery)
+        : applyStoredShellScope(
+            new URLSearchParams(originalQuery),
+            storedShellSelection,
+            feature
+          )
     );
     const requestQuery = new URLSearchParams();
     requestQuery.set("page_path", window.location.pathname);
@@ -913,6 +996,8 @@
     query: queryFromSelection,
     currentQuery: currentQuery,
     withSelection: withSelection,
+    marketIdChainComponent: marketIdChainComponent,
+    normalizeScopeQuery: normalizeScopeQuery,
     invalidateScopeCaches: invalidateScopeCaches,
     selectedProtocols: selectedProtocols,
     protocolOptions: protocolOptions,

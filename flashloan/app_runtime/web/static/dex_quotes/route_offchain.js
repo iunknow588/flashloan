@@ -4,17 +4,33 @@ function mergeRouteTestPayload(route, payload) {
   if (!route || typeof route !== "object" || !payload || typeof payload !== "object") return route;
   const analysis = payload.analysis && typeof payload.analysis === "object" ? payload.analysis : {};
   const steps = Array.isArray(payload.steps) ? payload.steps : Array.isArray(analysis.steps) ? analysis.steps : [];
-  const quoteStatus = String(payload.quoteStatus || (payload.liveVerified ? "live_verified" : "live_quote_reference_only")).toLowerCase();
-  const executionTrust = payload.executionTrust || (payload.liveVerified ? "live_quoter_verified_readonly" : "static_live_quoter_estimate");
+  const quoteStatus = String(payload.quoteStatus || (payload.liveVerified ? "live_verified" : "static_reference_pending_live_review")).toLowerCase();
+  const executionTrust = payload.executionTrust || (payload.liveVerified ? "live_quoter_verified_readonly" : "static_reference_pending_live_review");
+  const pendingLiveReview = !payload.liveVerified && quoteStatus === "static_reference_pending_live_review";
+  const staticEvidenceModes = ["static_reference_pending_live_review", "static_reference_only", "static_live_quoter_estimate", "live_quote_reference_only"];
+  const payloadStaticReference = !payload.liveVerified && (
+    pendingLiveReview
+    || staticEvidenceModes.includes(quoteStatus)
+    || staticEvidenceModes.includes(String(payload.executionTrust || "").toLowerCase())
+    || staticEvidenceModes.includes(String(payload.priceEvidenceMode || "").toLowerCase())
+  );
+  const bestAmountConfirmed = payload.bestAmountConfirmed === true
+    || analysis.bestAmountConfirmed === true
+    || payload.bestAmountCalculation?.bestAmountConfirmed === true;
+  const bestAmountMissing = payload.bestAmountMissing === true
+    || analysis.bestAmountMissing === true
+    || !bestAmountConfirmed;
   const amount = payload.bestAmount ?? payload.bestAmountCalculation?.bestAmount ?? payload.bestAmountCalculation?.recommendedBorrowInputAmount ?? analysis.bestAmount ?? analysis.best_amount ?? route.quoteAnalysis?.bestAmount ?? route.quoteAnalysis?.bestAmountCalculation?.bestAmount ?? route.quoteAnalysis?.bestAmountCalculation?.recommendedBorrowInputAmount ?? null;
   const symbol = payload.amountSymbol || payload.initialProbeSymbol || analysis.referenceInputSymbol || (Array.isArray(route.routeSymbols) ? route.routeSymbols[0] : "");
+  const confirmedBestAmount = bestAmountMissing ? null : amount;
   const mergedAnalysis = {
     ...(route.quoteAnalysis && typeof route.quoteAnalysis === "object" ? route.quoteAnalysis : {}),
     ...analysis,
     steps,
     referenceInputAmount: amount,
     referenceInputSymbol: symbol,
-    bestAmount: amount,
+    bestAmount: confirmedBestAmount,
+    bestAmountMissing,
     bestAmountConfirmed: payload.bestAmountConfirmed === true
       || analysis.bestAmountConfirmed === true
       || payload.bestAmountCalculation?.bestAmountConfirmed === true,
@@ -36,8 +52,8 @@ function mergeRouteTestPayload(route, payload) {
     initialProbeAmount: payload.initialProbeAmount ?? analysis.initialProbeAmount ?? payload.requestedAmount ?? amount,
     initialProbeSymbol: payload.initialProbeSymbol || analysis.initialProbeSymbol || symbol,
     livePriceVerified: Boolean(payload.liveVerified),
-    priceEvidenceMode: payload.liveVerified ? "live_verified" : "live_required",
-    priceEvidenceSource: payload.liveVerified ? "chain_live_quote" : "chain_live_quote_required",
+    priceEvidenceMode: payload.priceEvidenceMode || (payload.liveVerified ? "live_verified" : (payloadStaticReference ? "static_reference_pending_live_review" : "live_required")),
+    priceEvidenceSource: payload.priceEvidenceSource || (payload.liveVerified ? "chain_live_quote" : (payloadStaticReference ? "static_reference_pending_live_review" : "chain_live_quote_required")),
     onchainEvidenceStatus: quoteStatus,
   };
   const evidence = {
@@ -48,8 +64,10 @@ function mergeRouteTestPayload(route, payload) {
     routeSymbols: payload.routeSymbols || route.routeSymbols || [],
     costModel: {
       borrowInputSymbol: symbol,
-      borrowInputAmount: amount,
-      selectedBorrowInputAmount: amount,
+      borrowInputAmount: confirmedBestAmount,
+      selectedBorrowInputAmount: confirmedBestAmount,
+      bestAmountComputed: !bestAmountMissing,
+      bestAmountMissing,
       requestedBorrowInputAmount: payload.requestedAmount ?? analysis.requestedAmount ?? amount,
       bestAmountConfirmed: payload.bestAmountConfirmed === true
         || analysis.bestAmountConfirmed === true
@@ -77,6 +95,8 @@ function mergeRouteTestPayload(route, payload) {
   route.reviewMode = "estimate";
   route.__offchainReviewed = true;
   route.__reviewStage = "estimate";
+  route.bestAmountMissing = bestAmountMissing;
+  route.bestAmountConfirmed = bestAmountConfirmed;
   setRouteUiState(route, ROUTE_UI_STATE.OFFCHAIN_ESTIMATE, {quoteStatus});
   return route;
 }

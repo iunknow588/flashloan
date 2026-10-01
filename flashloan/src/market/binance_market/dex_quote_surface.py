@@ -16,6 +16,7 @@ from market.binance_market.dex_quote_surface_helpers import (
     _v4_pool_index_by_id,
 )
 from market.binance_market.dex_quote_surface_routes_builder import _build_quote_routes_and_best
+from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 from dex.error_stack import route_error_stack
 from market.binance_market.dex_quote_route_common import (
     build_quote_analysis_defaults,
@@ -34,12 +35,16 @@ def build_quote_routes_payload_from_overview(
     route_size_analysis_fn: Callable[..., dict[str, Any]],
     quote_probe_notional_usd: float = DEFAULT_QUOTE_PROBE_NOTIONAL_USD,
     price_map: dict[str, float] | None = None,
+    anchor: str | None = None,
+    route_live_test_policy: QuoteLiveTestPolicy | None = None,
 ) -> dict[str, Any]:
     paths = [path for path in overview.get("arbitragePaths") or [] if isinstance(path, dict)]
     summary = dict(overview.get("summary") or {})
     market_observation = overview.get("marketObservation") if isinstance(overview.get("marketObservation"), dict) else {}
     settlement = overview.get("dexSettlement") if isinstance(overview.get("dexSettlement"), dict) else {}
     pool_static_table = overview.get("poolStaticTable") if isinstance(overview.get("poolStaticTable"), dict) else {}
+    route_policy = route_live_test_policy or QuoteLiveTestPolicy(anchor=anchor)
+    unfiltered_route_count = len(paths)
     routes: list[dict[str, Any]] = []
     v4_index_by_pool = _v4_pool_index_by_id(chain_id)
     observed_net_profits: list[float] = []
@@ -54,22 +59,6 @@ def build_quote_routes_payload_from_overview(
     best_token_basis_bps = None
     best_token_basis_profit = None
     best_token_basis_profit_basis = None
-    force_live_refresh = str(os.getenv("DEX_QUOTE_ROUTE_FORCE_REFRESH", "")).strip().lower() in {"1", "true", "yes", "on"}
-    # Robinhood Chain/Testnet route pages are quote/review-first: run live
-    # Quoter/eth_call by default so routes do not sit in "requires live quoter"
-    # before the background scanner snapshot arrives. Operators can set
-    # DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT=0 to keep a static fast page.
-    live_route_env = os.getenv("DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT")
-    live_route_limit = (
-        max(0, int(live_route_env))
-        if live_route_env not in (None, "")
-    # Robinhood route pages stay responsive by default while the background
-    # scanner performs the live Quoter/eth_call pass. Operators can raise this
-    # limit (DEX_QUOTE_ROUTE_LIVE_ROUTE_LIMIT=999) when they want every
-    # discovered route reviewed synchronously, or leave it at 0 for a static
-    # fast page that consumes the scanner evidence when it is available.
-    else 0
-  )
     mainnet_fast_page = bool(chain_id in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID})
     size_probe_env = os.getenv("DEX_QUOTE_ROUTE_SIZE_PROBE_LIMIT")
     size_probe_limit = (
@@ -77,12 +66,6 @@ def build_quote_routes_payload_from_overview(
         if size_probe_env not in (None, "")
         else (0 if mainnet_fast_page else 3)
     )
-    probe_all_testnet_routes = (
-        chain_id == ROBINHOOD_TESTNET_CHAIN_ID
-        and str(os.getenv("DEX_QUOTE_ROUTE_PROBE_ALL_TESTNET_ROUTES", "")).strip().lower()
-        in {"1", "true", "yes", "on"}
-    )
-
     routes, observed_net_profits, executable_net_profits, best_routes_state = _build_quote_routes_and_best(
         paths=paths,
         overview=overview,
@@ -93,10 +76,8 @@ def build_quote_routes_payload_from_overview(
         price_map=price_map,
         v4_index_by_pool=v4_index_by_pool,
         settlement=settlement,
-        force_live_refresh=force_live_refresh,
-        live_route_limit=live_route_limit,
+        route_live_test_policy=route_policy,
         size_probe_limit=size_probe_limit,
-        probe_all_testnet_routes=probe_all_testnet_routes,
     )
     best_observed_notional = best_routes_state["best_observed_notional"]
     best_observed_profit = best_routes_state["best_observed_profit"]
@@ -136,7 +117,6 @@ def build_quote_routes_payload_from_overview(
             "bestTokenBasisNetReturnBps": best_token_basis_bps,
             "bestTokenBasisProfitAmount": best_token_basis_profit,
             "bestTokenBasisProfitBasis": best_token_basis_profit_basis,
-            "directAnchorRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
             "bridgeRouteCount": sum(1 for route in routes if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
             "marketObservationRouteCount": int(
                 summary.get("marketObservationRouteCount")
@@ -151,6 +131,9 @@ def build_quote_routes_payload_from_overview(
                 for request in (route.get("quoteInputs") or {}).get("quoteRequests") or []
                 if request.get("venue") == "uniswapx"
             ),
+            "unfilteredRouteCount": unfiltered_route_count,
+            "anchorFilter": route_policy.anchor or None,
+            "liveRouteLimit": route_policy.live_route_limit,
         }
     )
     return {
@@ -250,6 +233,17 @@ def build_submission_review_payload(
         return str(row.get("created_at") or row.get("observed_at") or row.get("updated_at") or "")
     def row_status(row: dict[str, Any]) -> str:
         return str(row.get("review_category") or row.get("category") or row.get("status") or row.get("state") or "").lower()
+    def _auto_execute_tx_hash(row: dict[str, Any]) -> str:
+        auto = row.get("auto_execute") if isinstance(row.get("auto_execute"), dict) else {}
+        quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+        quote_auto = quote.get("auto_execute") if isinstance(quote.get("auto_execute"), dict) else {}
+        for candidate in (auto, quote_auto):
+            result = candidate.get("result") if isinstance(candidate.get("result"), dict) else {}
+            for key in ("txHash", "tx_hash", "transactionHash", "transaction_hash"):
+                value = str(result.get(key) or "").strip()
+                if value:
+                    return value
+        return ""
     def row_tx_hash(row: dict[str, Any]) -> str:
         quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
         return str(
@@ -257,6 +251,7 @@ def build_submission_review_payload(
             or row.get("transaction_hash")
             or quote.get("tx_hash")
             or quote.get("transaction_hash")
+            or _auto_execute_tx_hash(row)
             or ""
         ).strip()
     # The submission review page is for chain-submitted transactions only.
@@ -294,7 +289,26 @@ def build_submission_review_payload(
     # The review page shows only records where a chain transaction was actually
     # submitted. A failed broadcast without a tx hash has no chain submission
     # record to review, so it is not shown here.
-    rows = [row for row in rows if row_tx_hash(row)]
+    rows_with_tx_hash = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if not row_tx_hash(row):
+            continue
+        auto_tx = _auto_execute_tx_hash(row)
+        if auto_tx and not (row.get("tx_hash") or row.get("transaction_hash")):
+            row = {
+                **row,
+                "tx_hash": auto_tx,
+                "transaction_hash": auto_tx,
+                "review_category": "submitted_success",
+                "state": "submitted_success",
+            }
+            quote = row.get("quote") if isinstance(row.get("quote"), dict) else {}
+            if quote:
+                row["quote"] = {**quote, "tx_hash": auto_tx, "transaction_hash": auto_tx}
+        rows_with_tx_hash.append(row)
+    rows = rows_with_tx_hash
     # Keep off-chain estimate data available for review. A submission attempt
     # must not lose the latest off-chain probe records / best-amount calculation
     # just because the on-chain broadcast row has no probe rows itself.

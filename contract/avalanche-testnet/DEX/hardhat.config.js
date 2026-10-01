@@ -1,12 +1,13 @@
 require("@nomicfoundation/hardhat-toolbox");
 const path = require("path");
 const dotenv = require("dotenv");
+const { loadChainConfig } = require(path.resolve(__dirname, "../../../scripts/tool/load-chain-config.js"));
 
 dotenv.config({ path: path.resolve(__dirname, ".env"), override: false });
 dotenv.config({ path: path.resolve(__dirname, "../../../flashloan/app_runtime/.env"), override: false });
 
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || process.env.LIQUIDATION_EXECUTION_PRIVATE_KEY || "";
-const FUJI_RPC_URL = process.env.FUJI_RPC_URL || process.env.AVALANCHE_FUJI_RPC_URL;
+const FUJI_CHAIN = loadChainConfig(43113);
 // Forking is an explicit diagnostic mode. The normal test suite uses local mocks
 // and must not depend on archive data from a public Fuji RPC endpoint.
 const FORK_RPC_URL = process.env.FUJI_FORK_RPC_URL || process.env.AVALANCHE_FORK_RPC_URL;
@@ -31,7 +32,7 @@ module.exports = {
       },
     } : {},
     fuji: {
-      url: FUJI_RPC_URL || "https://api.avax-test.network/ext/bc/C/rpc",
+      url: FUJI_CHAIN.rpcUrl,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       chainId: 43113,
     },

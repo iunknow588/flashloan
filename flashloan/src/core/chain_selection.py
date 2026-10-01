@@ -400,12 +400,21 @@ def resolve_chain_selection(
                 ),
             )
         if requested_market:
-            _raise_market_scope_mismatch(
-                requested_market=requested_market,
-                selected=selected,
-                database_url=database_url,
-                selections=None,
-            )
+            try:
+                _raise_market_scope_mismatch(
+                    requested_market=requested_market,
+                    selected=selected,
+                    database_url=database_url,
+                    selections=None,
+                )
+            except ChainSelectionError as exc:
+                # A stale market_id from another chain is common after a
+                # chain switch. When the caller explicitly supplies the new
+                # chain and protocol, prefer that triplet over the stale id.
+                if exc.code == "chain_mismatch" and requested_chain_id is not None and requested_protocol_id:
+                    pass
+                else:
+                    raise
 
     if selected is None and requested_market:
         selected = _find_market(available, requested_market)

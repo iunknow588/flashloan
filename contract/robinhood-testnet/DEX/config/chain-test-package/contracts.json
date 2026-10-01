@@ -18,11 +18,11 @@
     "usesNativeBorrow": false
   },
   "executionRequest": {
-    "amount": "100000000000000",
+    "amount": "1000000000000000000",
     "borrowTokenIsNative": false,
     "calldataStatus": "pending",
     "executorContract": "RobinhoodPausedFlashLoanExecutor",
-    "finalToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    "finalToken": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
     "function": "requestV4FlashLoan",
     "gasReserve": "0",
     "minProfit": "1",
@@ -48,7 +48,7 @@
       "0",
       "0"
     ],
-    "token": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    "token": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
     "transactionValueRaw": "0"
   },
   "flashSourceKind": "uniswap_v4_poolmanager_flash_accounting",
@@ -58,18 +58,18 @@
   "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
   "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "repaymentConstraint": {
-    "borrowAmountRaw": "100000000000000",
-    "borrowSymbol": "TZ",
-    "borrowToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
-    "finalAmountRaw": "991022300317058",
-    "finalSymbol": "TZ",
-    "finalToken": "0x05a31b34a1bf8edb08cbfa2e9d860e6d0939313e",
+    "borrowAmountRaw": "1000000000000000000",
+    "borrowSymbol": "TB",
+    "borrowToken": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
+    "finalAmountRaw": "1400474927233633304",
+    "finalSymbol": "TB",
+    "finalToken": "0x28cc9a0b94ad34a3a0cb2734c8d58ad95862c6c4",
     "flashLoanFeeBps": 5.0,
     "gasReserveRaw": "0",
     "minProfitRaw": "1",
     "minProfitRule": "positive_x_profit_min_raw_unit",
     "profitBasis": "borrow_token",
-    "repayAmountRaw": "100050000000000"
+    "repayAmountRaw": "1000500000000000000"
   },
   "routePreflightStatus": "ready_for_fork_staticcall",
   "scope": "robinhood_testnet_46630_only",

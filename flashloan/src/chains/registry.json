@@ -37,6 +37,10 @@
     "46630": {
       "network": "robinhood-testnet",
       "directory": "robinhood-testnet"
+    },
+    "31337": {
+      "network": "local-hardhat",
+      "directory": "local-hardhat"
     }
   }
 }

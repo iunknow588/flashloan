@@ -1,0 +1,11 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.4:5000
+Press CTRL+C to quit
+127.0.0.1 - - [01/Oct/2026 18:56:07] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 18:56:16] "GET /api/dex/submissions?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes&limit=300 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 18:57:18] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&protocols=uniswap_v4&dex_strategy=closed_loop_routes&v=2026.09.11.07 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 18:57:18] "GET /api/dex/closed-loop-groups?chain_id=46630&protocols=uniswap_v4&dex_strategy=closed_loop_routes&v=2026.09.11.07 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 18:57:25] "GET /api/dex/submissions?limit=120&chain_id=46630&protocols=uniswap_v4&dex_strategy=closed_loop_routes&v=2026.09.11.07 HTTP/1.1" 200 -
+127.0.0.1 - - [01/Oct/2026 18:57:29] "GET /api/dex/quote-routes?chain_id=46630&protocols=uniswap_v4&dex_strategy=closed_loop_routes&v=2026.09.11.07 HTTP/1.1" 200 -

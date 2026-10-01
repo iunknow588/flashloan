@@ -486,6 +486,6 @@ def test_app_shell_owns_one_visible_global_chain_selector():
     for body in (settings, analytics):
         assert 'data-global-chain-selector="true"' in body
         assert 'data-feature-selector-select="true"' in body
-        assert '<option value="liquidation" selected>BOT</option>' in body
+        assert '<option value="dex_arbitrage" selected>DEX</option>' in body
 
 

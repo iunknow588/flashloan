@@ -1,10 +1,60 @@
 // 链上复核状态：结果汇总、建议文案与失败落盘。
 
+function routeTestStatusText(result) {
+  const status = String(
+    result?.quoteStatus || result?.evidenceStatus || result?.executionTrust || ""
+  ).toLowerCase();
+  const map = {
+    "rpc_verification_timeout": "链上复核超时：RPC 未在期限内返回",
+    "rpc_verification_failed": "链上复核失败：RPC 不可用",
+    "live_quote_failed": "链上报价失败",
+    "quote_failed": "链上报价失败",
+    "not_enough_liquidity": "链上复核：池当前没有 LP 流动性",
+    "pool_not_initialized": "V4 池未初始化",
+    "missing_effective_pool": "链上复核：池未初始化或缺少有效池",
+    "missing_trigger_block": "链上复核未执行：缺少触发区块上下文",
+    "adapter_required": "链上复核失败：缺少 V4 报价适配器",
+    "slippage_limit_exceeded": "链上已验证，但至少一个单跳价格影响超过 10 bps 或无法确认",
+    "route_unprofitable": "链上报价已验证，但净收益未转正",
+    "pool_insufficient_for_profitable_execution": "链上已验证，池深度不足以盈利执行",
+  };
+  return map[status] || "";
+}
+
+function routeTestTerminalStatus(result) {
+  return Boolean(routeTestStatusText(result));
+}
+
+function preflightResultPassed(result) {
+  if (!result || typeof result !== "object") return false;
+  const analysis = result.analysis && typeof result.analysis === "object" ? result.analysis : {};
+  const calc = result.bestAmountCalculation && typeof result.bestAmountCalculation === "object" ? result.bestAmountCalculation : {};
+  const bestAmountUnconfirmed = result.bestAmountMissing === true
+    || analysis.bestAmountMissing === true
+    || calc.bestAmountMissing === true;
+  const bestAmountConfirmed = result.bestAmountConfirmed === true
+    || analysis.bestAmountConfirmed === true
+    || calc.bestAmountConfirmed === true;
+  const ready = result.readyForTransactionPreflight === true
+    || result.recommendation?.readyForTransactionPreflight === true;
+  const readyBlockedExplicit = result.readyForTransactionPreflight === false
+    || result.recommendation?.readyForTransactionPreflight === false;
+  return Boolean(
+    !bestAmountUnconfirmed
+    && !readyBlockedExplicit
+    && bestAmountConfirmed
+    && (ready || result.staticCallPassed)
+  );
+}
+
 function preflightRouteTestSummary(result) {
-  if (result?.txHash) return `链上复核完成 | 已返回链上复核结果：${result.txHash}`;
-  if (result?.staticCallPassed) return "链上复核通过";
   const failureText = result?.detail || result?.errorDetail || result?.error;
-  if (result?.ok === false) return failureText ? `链上复核失败：${failureText}` : "链上复核失败：后台未返回链上结果";
+  const terminalText = routeTestStatusText(result);
+  if (result?.ok === false) return failureText ? `链上复核失败：${failureText}` : (terminalText ? `链上复核失败：${terminalText}` : "链上复核失败：后台未返回链上结果");
+  if (terminalText) return `链上复核失败：${terminalText}`;
+  if (result?.txHash) return `链上复核完成 | 已返回链上复核结果：${result.txHash}`;
+  if (!preflightResultPassed(result)) return "链上复核未通过：最佳量未计算成功";
+  if (result?.staticCallPassed) return "链上复核通过";
   if (result?.broadcastDisabled && result?.detail) return `链上复核通过 | 未提交链上交易：${result.detail}`;
   if (result?.detail && !result?.steps) return String(result.detail);
   if (result?.steps && result.steps.length) {
@@ -18,13 +68,18 @@ function preflightRouteTestSummary(result) {
 
 function preflightRouteTestAdvice(result) {
   if (result?.txHash) return "建议：链上复核通过；当前金额已通过链上复核，请确认金额后点击链上执行。";
-  if (result?.ok === false) return `建议：链上复核未通过；原因：${result?.detail || result?.error || "后台未返回结果"}，请稍后重试或降低金额/检查流动性。`;
+  const terminalText = routeTestStatusText(result);
+  if (result?.ok === false) return `建议：链上复核未通过；原因：${result?.detail || result?.error || terminalText || "后台未返回结果"}，请稍后重试或降低金额/检查流动性。`;
+  if (terminalText) return `建议：链上复核未通过；原因：${terminalText}，请稍后重试或检查 RPC 配置。`;
+  if (!preflightResultPassed(result)) return "建议：链上复核未通过：最佳量未计算成功，不能进入链上执行；请重新链上复核并完成最佳量计算后再执行。";
   return "建议：链上复核通过；尚未执行链上交易。请确认金额后点击链上执行。";
 }
 
 function markPreflightFailed(route, detail, status = "rpc_verification_failed") {
   if (!route || typeof route !== "object") return route;
   route.__broadcastError = detail || "链上复核失败";
+  route.bestAmountMissing = true;
+  route.bestAmountConfirmed = false;
   setRouteUiState(route, ROUTE_UI_STATE.PREFLIGHT_FAILED, {quoteStatus: status});
   if (route.live_onchain_evidence && typeof route.live_onchain_evidence === "object") {
     const costs = route.live_onchain_evidence.costModel || {};

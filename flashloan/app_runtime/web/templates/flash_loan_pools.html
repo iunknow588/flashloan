@@ -152,6 +152,12 @@
     };
     let refreshInFlight = false;
     const requestedProtocol = () => (new URLSearchParams(location.search).get("protocols") || "aave_v3").split(",")[0].trim().toLowerCase() || "aave_v3";
+    function scopedQuery() {
+      const current = new URLSearchParams(location.search);
+      return window.ChainSelector?.normalizeScopeQuery
+        ? window.ChainSelector.normalizeScopeQuery(current)
+        : current;
+    }
     function setRefreshBusy(busy, label) {
       refreshInFlight = Boolean(busy);
       ["refreshBtn", "incrementalRefreshBtn", "fullRefreshBtn"].forEach(id => $(id).disabled = refreshInFlight);
@@ -334,7 +340,7 @@
     }
     async function refresh() {
       $("message").textContent = "加载中";
-      const query = new URLSearchParams(location.search);
+      const query = scopedQuery();
       const response = await fetch(`/api/flash-loan/pools?${query.toString()}`, {cache: "no-cache"});
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -344,7 +350,7 @@
       if (refreshInFlight) return;
       setRefreshBusy(true, full ? "全量刷新资金池中" : "增量补全资金池中");
       try {
-        const query = new URLSearchParams(location.search);
+        const query = scopedQuery();
         if (full) query.set("full", "1");
         const response = await fetch(`/api/flash-loan/pools/refresh?${query.toString()}`, {
           method: "POST",

@@ -348,7 +348,7 @@ def liquidation_borrow_pool_display_limit() -> int:
 
 
 def liquidation_background_refresh_enabled() -> bool:
-    return os.getenv("LIQUIDATION_BACKGROUND_REFRESH", "true").strip().lower() not in {"0", "false", "no"}
+    return os.getenv("LIQUIDATION_BACKGROUND_REFRESH", "false").strip().lower() not in {"0", "false", "no"}
 
 
 def liquidation_retention_days() -> int:

@@ -1,8 +1,10 @@
 ﻿const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
+const { loadChainConfig } = require(path.resolve(__dirname, "../../../../scripts/tool/load-chain-config.js"));
 
 const ROBINHOOD_TESTNET_CHAIN_JSON = path.resolve(__dirname, "../config/chain.json");
+const TESTNET_RPC = loadChainConfig(46630).rpcUrl;
 const V4_SWAP_TOPIC = hre.ethers.id("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)");
 
 function normalizeAddress(value) {
@@ -55,7 +57,7 @@ function configuredRpcSource(configuredUrl = hre.network?.config?.url || "") {
       return { configured: true, source: "env", envName: name, host: rpcHost(process.env[name]) };
     }
   }
-  if (rpcHost(configuredUrl) === "rpc.testnet.chain.robinhood.com") {
+  if (rpcHost(configuredUrl) === rpcHost(TESTNET_RPC)) {
     return { configured: true, source: "default_public_rpc", envName: "", host: rpcHost(configuredUrl) };
   }
   return { configured: false, source: "missing", envName: "", host: rpcHost(configuredUrl) };

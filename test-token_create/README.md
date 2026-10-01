@@ -2,6 +2,20 @@
 
 这个目录保存 Robinhood 测试代币相关的创建、注入流动性和链上套利测试脚本。脚本统一依赖 `contract/robinhood-testnet/DEX` 的 Hardhat 项目、合约源码和 `node_modules`。
 
+## 启动主界面（多链中文 CLI）
+
+在 `test-token_create` 目录下直接运行：
+
+```powershell
+python main.py
+```
+
+默认进入多链中文菜单。当前默认链为 Robinhood 主网（`4663`），可在切换链菜单中选择测试网（`46630`）、本地 Hardhat（`31337`）或其他已注册链（Ethereum `1`、BNB `56`、Polygon `137`、Avalanche `43114` 等）。
+
+也可以使用 `--menu english` 临时切换为英文菜单，或通过环境变量 `FLASHLOAN_MENU_LANG=chinese` 保持中文默认。
+
+主界面会随当前链展示对应菜单：主网链显示主网预检/就绪、桥接、索引等二级操作，测试网链显示测试网 V4 二级菜单，本地 Hardhat 链显示本地 V4 二级菜单。二级菜单项会直接展示在主界面中，也可以输入 `3.1` / `3.2`、`4.1`、`5.1`、`6.1` / `6.3` 或 `7.1` / `7.4` 这类编号直接执行；菜单里的 `6` / `7` 只提示快捷方式，不会再进入一层重复的子菜单。
+
 ## 目录结构
 
 ```text
@@ -16,15 +30,16 @@ test-token_create/
     lib/
       hardhat.js
       local-v4-amm-common.js
-    local-v4-amm-create-tokens.js
-    local-v4-amm-inject-liquidity.js
-    local-v4-amm-create-arb-opportunity.js
-    local-v4-amm-run-arb.js
-    local-v4-amm-run-arb-100.js
-    simulate-imbalanced-triangle.js
-    testnet-v4-amm-live-test.js
-    testnet-v4-official-pool-create-live.js
-    testnet-v4-official-arb-live.js
+    tool/
+      local-v4-amm-create-tokens.js
+      local-v4-amm-inject-liquidity.js
+      local-v4-amm-create-arb-opportunity.js
+      local-v4-amm-run-arb.js
+      local-v4-amm-run-arb-100.js
+      simulate-imbalanced-triangle.js
+      testnet-v4-amm-live-test.js
+      testnet-v4-official-pool-create-live.js
+      testnet-v4-official-arb-live.js
 ```
 
 ## 本地 Hardhat 流程
@@ -87,22 +102,11 @@ npm run testnet:v4-official-arb:live
 
 测试网 manifest 写入 `test-token_create/config/testnet-v4-amm/manifest.json`。
 
-如果要在官方 V4 池创建时启用 `TzTieredInjectionHook`，需要显式开启：
-
-```powershell
-$env:ROBINHOOD_V4_TESTNET_USE_TZ_INJECTION_HOOK="true"
-npm run deploy:robinhood:testnet:v4-official-pool
-```
-
-该 hook 会在每次 swap 回调用记录 `tz` 被换出的累计数量，保存为 `pendingReplenishAmount` / `totalObservedSwappedAmount`，代币保留在 hook 内，不在 swap 回调里转账或捐赠。后续由延迟补仓/制造套利机会的脚本读取信号，再调用 `PositionManager` 增加实际 swap 深度或执行失衡操作。对应合约测试：
+`TzTieredInjectionHook` 只保留为独立合约单元测试，不再作为官方 V4 测试网三角池的 live 创建路径。官方池创建/注水/套利/复核统一只使用 manifest 中的无 hook PoolKey，避免同一币对出现第二套带 hook 独立池子。对应合约测试：
 
 ```powershell
 npm run test:robinhood:tz-injection-hook
 ```
-
-官方 V4 通过 hook 地址最低 14 位决定回调权限，因此脚本会使用 `Create2Deployer` 将 hook 部署到只设置 `afterSwap`（0x40）的地址，避免意外触发 initialize/addLiquidity 等回调导致建池失败。
-
-当前测试网启用成功的延迟记录模式 hook 为 `0x995324d98aDaf57E4a7E3e436D8E8A2fF6454040`，最近一笔带 hook 的官方 V4 小额实盘广播为 `0x39692d41d3d608dff33b3de0564d5d6ac80372ba817f9c8c97767e2f4204b70d`。
 
 `officialV4.hooks` 必须和实际部署的 PoolKey 一致。如果当前池子按普通零 hooks 方式创建，脚本也会使用 `0x0000000000000000000000000000000000000000`，不会强制要求非零 hook。诊断脚本会打印当前 manifest 使用到的三个池子 ID，可对照路由/扫描页面确认。
 
@@ -128,7 +132,7 @@ npm run testnet:v4-official-replenish:live
 cd contract/robinhood-testnet/DEX
 $env:HARDHAT_NETWORK="robinhoodTestnet"
 $env:ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_REPLENISH_BROADCAST="true"
-node ..\..\..\test-token_create\scripts\testnet-v4-official-inject-liquidity-live.js --amount 100
+node ..\..\..\test-token_create\scripts\tool\testnet-v4-official-inject-liquidity-live.js --amount 100
 ```
 
 `--amount` 传的是锚定代币数量，脚本会按池子原有 `reserveA/reserveB` 比例自动换算另一边代币，并基于全范围 V4 流动性公式算出应 mint 的 `liquidity`；`--broadcast` 可替代环境变量授权广播。
@@ -136,7 +140,7 @@ node ..\..\..\test-token_create\scripts\testnet-v4-official-inject-liquidity-liv
 Python 入口（内部调用同一套 Hardhat/ethers.js 脚本，避免重写 V4 合约调用）：
 
 ```powershell
-python test-token_create/scripts/manual_official_v4_replenish.py --amount 100 --broadcast
+python test-token_create/scripts/tool/manual_official_v4_replenish.py --amount 100 --broadcast
 ```
 
 ## 制作套利机会
@@ -157,7 +161,7 @@ npm run testnet:v4-official-make-arb:live
 ```powershell
 cd contract/robinhood-testnet/DEX
 $env:HARDHAT_NETWORK="robinhoodTestnet"
-node ..\..\..\test-token_create\scripts\testnet-v4-official-make-arb-opportunity-live.js --amount 100 --broadcast
+node ..\..\..\test-token_create\scripts\tool\testnet-v4-official-make-arb-opportunity-live.js --amount 100 --broadcast
 ```
 
 `--amount` 传的是 TZ 数量，默认 `0.001`，是制造失衡时的主观参数；不依赖链上套利程序是否运行，也不会要求先注入 LP 深度来兜底。广播前脚本会先 `staticCall` 预检：如果当前池子深度无法承载该金额，或预检没有形成缺口（`spent=0`），脚本会直接失败且不广播。失败时会额外探测当前能通过预检的最大金额，并提示先补充三角池深度或改用该金额重试。
@@ -171,23 +175,23 @@ node ..\..\..\test-token_create\scripts\testnet-v4-official-make-arb-opportunity
 Python 入口：
 
 ```powershell
-python test-token_create/scripts/manual_official_v4_make_arb.py --amount 100 --broadcast
+python test-token_create/scripts/tool/manual_official_v4_make_arb.py --amount 100 --broadcast
 ```
 
 ## 自动流程：先补池，再制造失衡
 
-新增可复用编排脚本 `test-token_create/scripts/manual_official_v4_prepare_imbalance.py`，把“只读诊断深度 -> 补池 -> 制造失衡”串成一个入口，内部仍调用既有 Hardhat/ethers.js 脚本，不重写合约 calldata。
+新增可复用编排脚本 `test-token_create/scripts/tool/manual_official_v4_prepare_imbalance.py`，把“只读诊断深度 -> 补池 -> 制造失衡”串成一个入口，内部仍调用既有 Hardhat/ethers.js 脚本，不重写合约 calldata。
 
 只读/预检模式（不广播）：
 
 ```powershell
-python test-token_create/scripts/manual_official_v4_prepare_imbalance.py --target-amount 100 --replenish-amount 500
+python test-token_create/scripts/tool/manual_official_v4_prepare_imbalance.py --target-amount 100 --replenish-amount 500
 ```
 
 实际广播模式（会补池并制造失衡）：
 
 ```powershell
-python test-token_create/scripts/manual_official_v4_prepare_imbalance.py --target-amount 100 --replenish-amount 500 --broadcast
+python test-token_create/scripts/tool/manual_official_v4_prepare_imbalance.py --target-amount 100 --replenish-amount 500 --broadcast
 ```
 
 参数说明：
@@ -238,7 +242,7 @@ npm run testnet:v4-official-composer:live
 
 ```powershell
 cd contract/robinhood-testnet/DEX
-python ../../../test-token_create/scripts/periodic_official_v4_composer.py --interval 60 --broadcast
+python ../../../test-token_create/scripts/tool/periodic_official_v4_composer.py --interval 60 --broadcast
 ```
 
 `--once` 表示只跑一轮；不加 `--broadcast` 时只做 `runBest.staticCall`，不会广播链上交易。
@@ -339,7 +343,7 @@ tb/tz: 1,000,000 tb : 100,000 tz
 新增 `manual_official_v4_menu.py`，把常见链上操作做成固定选择项，不需要每次传参数：
 
 ```powershell
-python test-token_create/scripts/manual_official_v4_menu.py
+python test-token_create/scripts/tool/manual_official_v4_menu.py
 ```
 
 菜单包含：
@@ -369,7 +373,7 @@ npm run testnet:v4-official-diagnose
 也可以非交互指定编号执行：
 
 ```powershell
-python test-token_create/scripts/manual_official_v4_menu.py --choice 3
+python test-token_create/scripts/tool/manual_official_v4_menu.py --choice 3
 ```
 
 菜单项只负责人工注入流动性或制造失衡，不包含套利发现、pending 信号读取或套利静态模拟。套利发现与执行仍由套利程序统一处理。
@@ -396,13 +400,13 @@ python -m uvicorn app_runtime.web.app:app --host 127.0.0.1 --port 5010
 如果页面长时间停在“链上复核状态未确认”，先看 scanner 是否卡在链上 Quoter 复核。扫描器默认开启链上复核超时，避免一条慢 RPC 阻塞整个页面：
 
 ```powershell
-$env:DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS="45"
+$env:DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS="60"
 $env:DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE="1"
 ```
 
-`DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS` 控制每条路线链上复核的最长等待时间；超过后返回明确的 `rpc_verification_failed`，不会转为延后状态。`DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE=1` 会跳过全量执行规模探测，先快速给出单跳链上报价结论；需要专门做规模探测时再设为 `0`。并行复核线程数默认是 `1`，用户可在控制面板左侧“系统配置/系统设置”的“策略参数”中随时修改 `DEX 链上复核并发线程数`；程序自己的 `.env` 可以保留，但不要通过 Windows 系统环境变量来传这个参数。
+`DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS` 控制每条路线链上复核的最长等待时间；该值有 60 秒下限，低于 60 会按 60 秒执行。超过预算后返回明确的 `rpc_verification_timeout`，不会转为延后状态。`DEX_OPPORTUNITY_SCANNER_SKIP_EXECUTION_SIZE_PROBE=1` 会跳过全量执行规模探测，先快速给出单跳链上报价结论；需要专门做规模探测时再设为 `0`。并行复核线程数默认是 `1`，用户可在控制面板左侧“系统配置/系统设置”的“策略参数”中随时修改 `DEX 链上复核并发线程数`；程序自己的 `.env` 可以保留，但不要通过 Windows 系统环境变量来传这个参数。
 
-Robinhood Testnet 的小额测试池没有稳定 USD 深度表，若直接按 `notionalUsd=1000` 报价会把池子整个撞穿，导致绝大多数路线显示为“流动性不足/不盈利”。scanner 在没有参考金额、参考规模和路线规模建议时，默认会从 `0.1` 个基础代币开始链上复核；官方 V4 套利脚本用 `0.0001` 代币验证利润也是同一个思路。这样小池子也能返回真实 Quoter 结果，而不是把所有路线都变成 1000 代币下的假性亏损。
+Robinhood Testnet 的小额测试池没有稳定 USD 深度表，若直接按 `notionalUsd=1000` 报价会把池子整个撞穿，导致绝大多数路线显示为“流动性不足/不盈利”。scanner 在没有参考金额、参考规模和路线规模建议时，默认会从 `0.1` 个基础代币开始链上复核；官方 V4 套利脚本用 `1` 个基础代币作为自适应最佳交易量的初始探测额。这样既能返回真实 Quoter 结果，也不会把小额测试池直接撞穿。
 
 对于 `TZ -> TB -> TA -> TZ` 这类官方 `TA/TB/TZ` 闭环，链上证据会优先尝试调用已部署的 `OfficialV4FlashArb.runArbitrage.staticCall`，把 3 跳逐笔 Quoter 调用合并为一次 `eth_call`。该路径成功后，hop 的 `quoteMethod` / `quoteSource` 会显示 `official_v4_arb_static_call`；若静默失败，代码会自动回退到原来的逐跳 V4 Quoter 复核，不影响其它路线。
 当链上证据需要同时确认两条闭环方向时，合约新增 `OfficialV4FlashArb.runArbitrageBest`：调用方一次传入多条 `keys + zeroForOne`，合约逐个尝试，返回第一个可盈利方向；失败方向会被 `try/catch` 隔离，不会把整次 `eth_call` 弄回滚。这样链下只负责发现闭环机会，链上负责复核并选择方向。

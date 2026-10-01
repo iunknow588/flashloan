@@ -284,7 +284,6 @@ def dex_overview_payload(
                     **(compact_snapshot.get("summary") or {}),
                     "arbitragePathCount": len(overview_paths),
                     "candidatePathCount": len(overview_paths),
-                    "directAnchorPathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
                     "bridgePathCount": sum(1 for route in overview_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
                     "overviewPathGroupCount": len(overview_path_groups),
                     "watchPairCount": len(compact_snapshot.get("chainSpecificObservationPairs") or []),
@@ -422,7 +421,6 @@ def dex_overview_payload(
             "observationAnchorCount": len(observation_anchor_symbols),
             "arbitragePathCount": len(ready_paths),
             "candidatePathCount": len(ready_paths),
-            "directAnchorPathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "direct_anchor_pair"),
             "bridgePathCount": sum(1 for route in ready_paths if (route.get("overviewRoute") or {}).get("kind") == "bridge_pair"),
             "overviewPathGroupCount": len(overview_path_groups),
             "watchPairCount": len(watch_pairs),
@@ -489,16 +487,19 @@ def dex_quote_routes_payload(
     chain_id: int | None = None,
     protocols: list[str] | None = None,
     use_static_observation: bool = False,
+    anchor: str | None = None,
 ) -> dict[str, Any]:
-    cached = _cached_framework_surface_payload(
-        "dex_quote_routes",
-        chain_id=chain_id,
-        protocols=protocols,
-        use_static_observation=use_static_observation,
-    )
-    if cached is not None:
-        cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
-        return cached
+    cached = None
+    if not anchor:
+        cached = _cached_framework_surface_payload(
+            "dex_quote_routes",
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        )
+        if cached is not None:
+            cached["marketObservationSourceStage"] = cached.get("marketObservationSourceStage") or cached.get("marketObservationSource") or "computed"
+            return cached
     scope_protocols = _robinhood_static_scope_protocols(
         chain_id=chain_id,
         protocols=protocols,
@@ -513,15 +514,17 @@ def dex_quote_routes_payload(
             protocols=scope_protocols,
             use_static_observation=use_static_observation,
             price_map=price_map,
+            anchor=anchor,
         )
         payload["selected_protocols"] = protocols or scope_protocols
-        _cache_surface_payload(
-            "dex_quote_routes",
-            payload,
-            chain_id=chain_id,
-            protocols=protocols,
-            use_static_observation=use_static_observation,
-        )
+        if not anchor:
+            _cache_surface_payload(
+                "dex_quote_routes",
+                payload,
+                chain_id=chain_id,
+                protocols=protocols,
+                use_static_observation=use_static_observation,
+            )
         return payload
 
     observation = dex_market_observation_surface_payload(
@@ -549,19 +552,21 @@ def dex_quote_routes_payload(
         route_size_analysis_fn=_route_size_analysis,
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
+        anchor=anchor,
     )
     payload["marketObservationSource"] = observation.get("marketObservationSource") or "computed"
     payload["marketObservationSourceStage"] = (
         observation.get("marketObservationSourceStage")
         or payload["marketObservationSource"]
     )
-    _cache_surface_payload(
-        "dex_quote_routes",
-        payload,
-        chain_id=chain_id,
-        protocols=scope_protocols,
-        use_static_observation=use_static_observation,
-    )
+    if not anchor:
+        _cache_surface_payload(
+            "dex_quote_routes",
+            payload,
+            chain_id=chain_id,
+            protocols=scope_protocols,
+            use_static_observation=use_static_observation,
+        )
     return payload
 
 
@@ -571,6 +576,7 @@ def _quote_routes_payload_from_overview(
     chain_id: int | None,
     protocols: list[str] | None,
     price_map: dict[str, float] | None = None,
+    anchor: str | None = None,
 ) -> dict[str, Any]:
     return build_quote_routes_payload_from_overview(
         overview,
@@ -580,6 +586,7 @@ def _quote_routes_payload_from_overview(
         route_size_analysis_fn=_route_size_analysis,
         quote_probe_notional_usd=QUOTE_PROBE_NOTIONAL_USD,
         price_map=price_map,
+        anchor=anchor,
     )
 
 
@@ -589,7 +596,9 @@ def _quote_routes_payload_for_robinhood_family(
     protocols: list[str] | None,
     use_static_observation: bool,
     price_map: dict[str, float],
+    anchor: str | None = None,
 ) -> dict[str, Any]:
+    overview = None
     observation = _cached_framework_surface_payload(
         "dex_market_observation",
         chain_id=chain_id,
@@ -602,7 +611,7 @@ def _quote_routes_payload_for_robinhood_family(
             protocols=protocols,
             use_static_observation=True,
         )
-    if observation is not None:
+    if overview is None and observation is not None:
         pool_payload = _candidate_payload(chain_id, protocols)
         frame_context = _route_framework_context_from_observation(
             observation,
@@ -641,6 +650,7 @@ def _quote_routes_payload_for_robinhood_family(
         chain_id=chain_id,
         protocols=protocols,
         price_map=price_map,
+        anchor=anchor,
     )
     source_observation = observation if observation is not None else overview
     payload["marketObservationSource"] = source_observation.get("marketObservationSource") or "computed"
@@ -648,20 +658,25 @@ def _quote_routes_payload_for_robinhood_family(
         source_observation.get("marketObservationSourceStage")
         or payload["marketObservationSource"]
     )
-    observed_anchor_symbols = list(observation.get("observationAnchorSymbols") or []) if observation is not None else []
+    observed_anchor_symbols = (
+        list(observation.get("observationAnchorSymbols") or [])
+        if observation is not None
+        else list((overview.get("summary") or {}).get("observationAnchorSymbols") or [])
+    )
     if observed_anchor_symbols:
         payload_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
         payload_summary["observationAnchorSymbols"] = observed_anchor_symbols
         payload_summary.setdefault("anchorBorrowSymbols", observed_anchor_symbols)
         payload_summary.setdefault("closedLoopAnchorSymbols", observed_anchor_symbols)
         payload["summary"] = payload_summary
-    _cache_surface_payload(
-        "dex_quote_routes",
-        payload,
-        chain_id=chain_id,
-        protocols=protocols,
-        use_static_observation=use_static_observation,
-    )
+    if not anchor:
+        _cache_surface_payload(
+            "dex_quote_routes",
+            payload,
+            chain_id=chain_id,
+            protocols=protocols,
+            use_static_observation=use_static_observation,
+        )
     return payload
 
 

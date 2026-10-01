@@ -7,7 +7,12 @@ import re
 from typing import Any
 
 from core.chain_flow_dispatcher import ChainFlowDispatchError, dispatch_chain_flow
-from core.chain_data_registry import chain_data_by_chain_id, chain_data_files, chain_flow_spec_by_chain_id
+from core.chain_data_registry import (
+    chain_data_by_chain_id,
+    chain_data_file_path,
+    chain_data_files,
+    chain_flow_spec_by_chain_id,
+)
 from core.contracts import source_metadata
 from core.flash_loan_pool_discovery import query_flash_loan_pool_discovery
 from market.binance_market.pool_candidate_chain_profiles import (
@@ -58,8 +63,14 @@ from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_can
 
 SRC_ROOT = Path(__file__).resolve().parents[2]
 DEX_POOL_STATIC_TABLE_PATH = SRC_ROOT / "runtime" / "cache" / "bnb_arbitrage_pool_static_table.json"
-ROBINHOOD_DEX_CANDIDATE_PATH = SRC_ROOT / "runtime" / "cache" / "robinhood_dex_candidates.json"
-ROBINHOOD_DEX_MARKET_POOL_PATH = SRC_ROOT / "runtime" / "cache" / "robinhood_dex_market_pools.json"
+ROBINHOOD_DEX_CANDIDATE_PATH = (
+    chain_data_file_path("robinhood", "dex_candidates")
+    or SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_candidates.json"
+)
+ROBINHOOD_DEX_MARKET_POOL_PATH = (
+    chain_data_file_path("robinhood", "dex_market_pools")
+    or SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_market_pools.json"
+)
 ROBINHOOD_DEX_EVIDENCE_ROOT = SRC_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
 
 STABLE_SYMBOLS = {

@@ -1,0 +1,29 @@
+{
+  "schema_version": "chain-flow-v1",
+  "network": "local-hardhat",
+  "chain_id": 31337,
+  "isolation": {
+    "scope_fields": ["network", "chain_id", "market_id"],
+    "forbid_cross_chain_fallback": true,
+    "forbidden_source_networks": [
+      "avalanche",
+      "avalanche-testnet",
+      "bnb",
+      "ethereum",
+      "polygon",
+      "robinhood",
+      "robinhood-testnet"
+    ],
+    "forbidden_source_chain_ids": [1, 56, 137, 43113, 43114, 4663, 46630],
+    "missing_evidence_policy": "close_gate"
+  },
+  "flows": {
+    "flash_loan_pools": {
+      "handler": "chain_specific_placeholder",
+      "allowed_protocols": ["uniswap_v4"],
+      "data_file_keys": ["local_state"],
+      "requires_scope_match": true,
+      "mainnet_evidence_allowed": false
+    }
+  }
+}

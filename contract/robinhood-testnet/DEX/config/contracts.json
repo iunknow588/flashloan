@@ -189,7 +189,6 @@
   ],
   "morphoBlueTestnetStatus": "not_publicly_verified_on_chain_46630",
   "testedWith": "npm run test:robinhood && npm run ready:robinhood:testnet && npm run readback:robinhood:testnet",
-  "officialRpc": "https://rpc.testnet.chain.robinhood.com",
   "deploymentFile": "contract/robinhood-testnet/DEX/deployments/robinhood-paused-flashloan-robinhoodTestnet.json",
   "lastReadbackEvidence": "contract/robinhood-testnet/DEX/deployments/evidence/20260829T112029944Z-1592_robinhoodTestnet-robinhood-paused-readback/report.json",
   "readbackCodeHash": "0x76462e1b798aa127d5a585681b871e0906f55ffd2a4efe7d80d0e3483e6faee4",

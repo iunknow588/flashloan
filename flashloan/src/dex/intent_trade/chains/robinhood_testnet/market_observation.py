@@ -227,7 +227,7 @@ def _associated_observation_pair_rows(pools: list[dict[str, Any]]) -> list[dict[
                 "closedLoopReady": False,
                 "observationReason": pool.get("observationReason")
                 or "pair_tokens_are_associated_with_flash_fund_assets",
-                "routeSemantics": "x_y_entry_y_z_direct_z_x_exit",
+                "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                 "directSwapRequired": True,
             }
             grouped[edge] = row
@@ -299,7 +299,7 @@ def _attach_route_evidence_to_associated_pairs(
                     "ycPool": sequence.get("ycPool"),
                     "bridgePool": bridge,
                     "zcPool": sequence.get("zcPool"),
-                    "routeSemantics": "x_y_entry_y_z_direct_z_x_exit",
+                    "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                 }
             )
         pair["closedLoopRoutePreviews"] = previews
@@ -762,7 +762,10 @@ def robinhood_testnet_v4_fund_anchor_pair_observation(
                 (token0_address, token0_associations),
                 (token1_address, token1_associations),
             ):
-                token = token_by_address.get(address) or {"symbol": address[:8].upper(), "address": address}
+                token = token_by_address.get(address) or {
+                    "symbol": "ETH" if address == ZERO_ADDRESS.lower() else address[:8].upper(),
+                    "address": address,
+                }
                 associated_observation_tokens[address] = {
                     **token,
                     "associatedFunds": _association_summary(associations),

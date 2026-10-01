@@ -1,8 +1,11 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+const path = require("path");
+const { loadChainConfig } = require(path.resolve(__dirname, "../../../scripts/tool/load-chain-config.js"));
 
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || "";
 const FORK_RPC_URL = process.env.AVALANCHE_FORK_RPC_URL || "";
+const AVALANCHE_CHAIN = loadChainConfig(43114);
 
 module.exports = {
   paths: {
@@ -31,7 +34,7 @@ module.exports = {
         : undefined,
     },
     avalanche: {
-      url: process.env.AVALANCHE_RPC_URL || process.env.AVALANCHE_RPC || "https://api.avax.network/ext/bc/C/rpc",
+      url: AVALANCHE_CHAIN.rpcUrl,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       chainId: 43114,
     },

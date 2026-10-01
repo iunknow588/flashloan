@@ -52,11 +52,12 @@ def dex_overview_flow(*, request: ChainFlowRequest, protocols: list[str] | None 
     )
 
 
-def dex_quote_routes_flow(*, request: ChainFlowRequest, protocols: list[str] | None = None, **_: Any) -> dict[str, Any]:
+def dex_quote_routes_flow(*, request: ChainFlowRequest, protocols: list[str] | None = None, **kwargs: Any) -> dict[str, Any]:
     payload = dex_quote_routes_payload(
         chain_id=request.chain_id,
         protocols=_request_protocols(request, protocols),
         use_static_observation=True,
+        anchor=kwargs.get("anchor"),
     )
     # The quote-routes page is a review surface, not a scanner snapshot. The
     # opportunity scanner attaches evidence to its working route copies while

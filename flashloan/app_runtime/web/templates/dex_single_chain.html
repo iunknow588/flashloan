@@ -91,7 +91,9 @@
     };
 
     function selectedParams() {
-      const current = new URLSearchParams(location.search);
+      const current = window.ChainSelector?.normalizeScopeQuery
+        ? window.ChainSelector.normalizeScopeQuery(new URLSearchParams(location.search))
+        : new URLSearchParams(location.search);
       const query = new URLSearchParams();
       query.set("feature", "dex_arbitrage");
       query.set("include_chain_config", "false");

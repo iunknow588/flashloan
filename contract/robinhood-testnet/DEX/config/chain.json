@@ -7,7 +7,7 @@
   "displayName": "Robinhood Testnet",
   "network": "robinhood-testnet",
   "nativeSymbol": "ETH",
-  "officialRpc": "https://rpc.testnet.chain.robinhood.com",
+  "source_chain_config": "../../../../flashloan/src/chains/robinhood-testnet/chain.json",
   "explorerUrl": "https://explorer.testnet.chain.robinhood.com",
   "marketId": "robinhood-testnet-dex-paused",
   "feature": "dex_arbitrage",

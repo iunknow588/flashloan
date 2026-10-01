@@ -49,6 +49,7 @@
       <a data-surface-link href="/dex/market-observation">市场观察</a>
       <a data-surface-link href="/dex/candidates">候选池</a>
       <a data-surface-link href="/dex/submissions">提交记录</a>
+      <a data-surface-link href="/dex/submissions/failed">失败记录</a>
     </nav>
   </header>
   <main>
@@ -101,6 +102,11 @@
       return `接口错误（${text}）`;
     };
     const fmtTime = value => value ? new Date(value).toLocaleString("zh-CN", {hour12: false}) : "-";
+    const recordTimeValue = row => {
+      const raw = row.created_at || row.observed_at || row.updated_at || "";
+      const parsed = raw ? new Date(raw).getTime() : NaN;
+      return Number.isFinite(parsed) ? parsed : -1;
+    };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
@@ -138,6 +144,16 @@
     }
     function evidence(row) {
       return row.review_summary?.onchain_evidence || row.quote?.live_onchain_evidence || {};
+    }
+    function evidenceNeedsLiveReview(row) {
+      if (rowIsConfirmedExecutionSuccess(row)) return false;
+      const ev = evidence(row);
+      const lower = String(ev.status || ev.executionTrust || "").toLowerCase();
+      return lower === "static_reference_pending_live_review" || lower === "static_reference_only" || lower === "static_live_quoter_estimate" || lower === "live_quote_reference_only";
+    }
+    function rowIsConfirmedExecutionSuccess(row) {
+      const raw = String(row.review_category || row.category || row.status || row.state || row.submission_status || "").toLowerCase();
+      return ["execution_success", "confirmed_success", "settled", "executed", "success"].includes(raw) || raw.includes("confirmed");
     }
     function routeIdentity(row) {
       const ev = evidence(row);
@@ -188,6 +204,8 @@
       return `${result.source} ${parsed >= 0 ? "+" : ""}${parsed.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`;
     }
     function executionOutcome(row) {
+      const ev = evidence(row);
+      const evStatus = String(ev.status || ev.executionTrust || row.quote?.quote_status || "").toLowerCase();
       const raw = row.review_category || row.category || row.status || row.state || row.submission_status || "";
       const normalized = String(raw).toLowerCase();
       if (["submitted_success", "broadcast_success", "broadcasted", "submission_success", "broadcast_complete"].includes(normalized)) {
@@ -202,7 +220,13 @@
       if (["execution_failed", "failed", "error", "confirmed_failed", "settlement_failed"].includes(normalized)) {
         return {label: "执行失败", cls: "fail"};
       }
-      if (["not_executable", "quote_required", "quote_failed", "blocked", "unsupported_route"].includes(normalized)) {
+      if (["quote_failed", "rpc_verification_failed", "rpc_verification_timeout", "live_quote_failed"].includes(normalized)) {
+        return {label: "链上报价/复核失败", cls: "fail"};
+      }
+      if (["quote_failed", "rpc_verification_failed", "rpc_verification_timeout", "live_quote_failed"].includes(evStatus)) {
+        return {label: "链上报价/复核失败", cls: "fail"};
+      }
+      if (["not_executable", "quote_required", "blocked", "unsupported_route"].includes(normalized)) {
         return {label: "未执行/未提交", cls: "static"};
       }
       return {label: raw || "未知", cls: "static"};
@@ -222,19 +246,59 @@
       const candidates = row.probe_records || row.probeRecords || quote.probe_records || quote.probeRecords || analysis.probe_records || analysis.probeRecords || analysis.rows || quote.rows || calc.probe_records || calc.probeRecords || calc.rows || [];
       return (Array.isArray(candidates) ? candidates : []).filter(item => item && typeof item === "object");
     }
+    function submissionInitialAmount(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = quote.live_onchain_evidence || analysis.live_onchain_evidence || {};
+      const costs = ev.costModel || {};
+      return numberValue(
+        row.initial_probe_amount
+        ?? quote.initial_probe_amount
+        ?? quote.input_amount
+        ?? analysis.initialProbeAmount
+        ?? analysis.requestedAmount
+        ?? analysis.amountOptimizedFrom
+        ?? costs.requestedBorrowInputAmount
+      );
+    }
+    function submissionBestAmount(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = quote.live_onchain_evidence || analysis.live_onchain_evidence || {};
+      const costs = ev.costModel || {};
+      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
+      if (evidenceNeedsLiveReview(row) || costs.bestAmountMissing === true || analysis.bestAmountMissing === true || row.bestAmountMissing === true) return null;
+      return numberValue(
+        row.best_amount
+        ?? quote.best_amount
+        ?? costs.selectedBorrowInputAmount
+        ?? costs.borrowInputAmount
+        ?? calc.bestAmount
+        ?? calc.recommendedBorrowInputAmount
+        ?? calc.selectedBorrowInputAmount
+        ?? analysis.bestAmount
+        ?? analysis.best_amount
+      );
+    }
+    function submissionInputSymbol(row) {
+      const quote = row.quote || {};
+      const analysis = quote.quote_analysis || quote.analysis || {};
+      const ev = quote.live_onchain_evidence || analysis.live_onchain_evidence || {};
+      const costs = ev.costModel || {};
+      return quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || costs.borrowInputSymbol || "";
+    }
     function reviewProbeText(row) {
       const quote = row.quote || {};
       const analysis = quote.quote_analysis || quote.analysis || {};
       const records = probeRecords(row);
-      const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
-      const bestAmount = numberValue(row.best_amount ?? quote.best_amount ?? calc.bestAmount ?? calc.recommendedBorrowInputAmount ?? calc.selectedBorrowInputAmount ?? analysis.bestAmount ?? analysis.best_amount);
-      const symbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
-      if (!records.length) return "探测记录=未保存前后探测数据；当前仅有最佳量可复盘";
+      const bestAmount = submissionBestAmount(row);
+      const symbol = submissionInputSymbol(row);
+      if (!records.length) return bestAmount === null ? "探测记录=未保存前后探测数据；最佳量暂未计算" : "探测记录=未保存前后探测数据；当前仅有最佳量可复盘";
       const rows = records
         .map(item => ({value: item, amount: numberValue(item.borrowAmount ?? item.amount ?? item.inputAmount ?? item.input_amount ?? item.bestAmount)}))
         .filter(item => item.amount !== null)
         .sort((a, b) => a.amount - b.amount);
-      if (!rows.length) return `探测记录=${fmtAmount(bestAmount, 8)} ${symbol}（原始探测记录字段缺失）`;
+      if (!rows.length) return bestAmount === null ? "探测记录=未计算；原始探测记录字段缺失" : `探测记录=${fmtAmount(bestAmount, 8)} ${symbol}（原始探测记录字段缺失）`;
       const exact = bestAmount !== null ? rows.findIndex(item => Math.abs(item.amount - bestAmount) < Math.max(Math.abs(bestAmount), 1) * 1e-9) : -1;
       const trend = (item, label) => {
         if (!item) return "";
@@ -272,11 +336,12 @@
       const ev = evidence(row);
       const pair = row.pair || quote.pair || row.route_key || "-";
       const direction = row.direction || quote.direction || analysis.direction || pair;
-      const initialAmount = numberValue(row.initial_probe_amount ?? quote.initial_probe_amount ?? quote.input_amount ?? analysis.initialProbeAmount ?? analysis.requestedAmount);
-      const initialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      const initialAmount = submissionInitialAmount(row);
+      let initialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      if (evidenceNeedsLiveReview(row) && String(initialProbeReason) === "onchain_review_best_amount_reused") initialProbeReason = "static_reference_pending_live_review";
       const calc = row.best_amount_calculation || row.bestAmountCalculation || quote.best_amount_calculation || quote.bestAmountCalculation || analysis.best_amount_calculation || analysis.bestAmountCalculation || {};
-      const bestAmount = numberValue(row.best_amount ?? quote.best_amount ?? calc.bestAmount ?? calc.recommendedBorrowInputAmount ?? calc.selectedBorrowInputAmount ?? analysis.bestAmount ?? analysis.best_amount);
-      const symbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
+      const bestAmount = submissionBestAmount(row);
+      const symbol = submissionInputSymbol(row);
       const pct = profitPercent(row);
       const profitAmount = humanTokenValue(quote.profit_amount ?? row.profit_amount ?? analysis.referenceNetProfitAmount ?? analysis.netProfitAmount ?? analysis.netProfitUsd ?? analysis.profit_amount);
       const finalAmount = numberValue(quote.final_amount ?? row.final_amount ?? analysis.referenceFinalOutputAmount ?? analysis.finalOutputAmount ?? analysis.final_amount ?? analysis.referenceFinalOutputUsd);
@@ -284,8 +349,10 @@
       const parts = [];
       parts.push(`方向=${direction}`);
       if (initialAmount !== null) parts.push(`初始测试量=${fmtAmount(initialAmount, 8)} ${symbol || ""}`.trim());
+      else parts.push("初始测试量=未记录");
       if (initialProbeReason) parts.push(`初始探测依据=${offchainProbeReasonText(initialProbeReason)}`);
       if (bestAmount !== null) parts.push(`最佳量=${fmtAmount(bestAmount, 8)} ${symbol || ""}`.trim());
+      else parts.push("最佳量=未计算");
       if (profitAmount !== null) parts.push(`盈亏=${fmtSignedAmount(profitAmount, 6)} ${symbol || ""}`.trim());
       if (referenceNetReturnBps !== null) parts.push(`参考净利 BPS=${fmtAmount(referenceNetReturnBps, 2)}`);
       if (pct?.value != null) parts.push(`比例=${pct.value >= 0 ? "+" : ""}${pct.value.toLocaleString("zh-CN", {minimumFractionDigits: 2, maximumFractionDigits: 4})}%`);
@@ -300,6 +367,7 @@
         "stablecoin_usd_1000u_anchor": "按约 1000 USD 等价换算",
         "one_basic_unit_fallback": "使用 1 个基础代币单位",
         "onchain_review_best_amount_reused": "使用链上复核确认金额作为初始量",
+        "static_reference_pending_live_review": "当前为静态参考；初始量仅作为探测起点，不能作为已确认最佳量",
         "liquidity_cap_pool_reserve_2pct": "受池子流动性 2% 上限约束",
         "no_offchain_initial_anchor": "暂无可用于价格/流动性锚点",
         "requested_borrow_amount_fallback": "使用请求量作为初始探测起点（兼容旧数据）",
@@ -342,6 +410,7 @@
       const status = String(ev.status || "").toLowerCase();
       const identityStatus = String(ev.routeIdentityStatus || ev.route_identity_status || routeIdentity(row).status || "").toLowerCase();
       if (identityStatus === "token_discontinuity") return '<span class="badge fail">token 地址不连续</span>';
+      if (rowIsConfirmedExecutionSuccess(row)) return '<span class="badge live">执行成功/已确认</span>';
       const failureLabels = {
         not_enough_liquidity: "池当前没有 LP 流动性",
         pool_not_initialized: "池未初始化",
@@ -353,6 +422,7 @@
         not_live_verified: "未通过链上复核"
       };
       if (failureLabels[status]) return `<span class="badge fail">${failureLabels[status]}</span>`;
+      if (status === "static_reference_pending_live_review") return '<span class="badge fail">静态参考，待链上复核</span>';
       if (ev.trusted_for_execution || ev.trustedForExecution) return '<span class="badge live">可进入链上执行</span>';
       if (status === "live_verified") return '<span class="badge live">链上报价已复核</span>';
       if (status === "not_live_verified") return '<span class="badge fail">未通过链上复核</span>';
@@ -373,6 +443,14 @@
       const reasonLabel = reason => {
         const normalized = String(reason || "").trim();
         const lower = normalized.toLowerCase();
+        const timeoutEvidence = normalized.match(/^on-chain evidence timed out after ([0-9.]+)s$/i);
+        if (timeoutEvidence) return `链上复核超时：RPC 未在期限内返回（${timeoutEvidence[1]} 秒）`;
+        if (rowIsConfirmedExecutionSuccess(row)) {
+          if (lower.includes("static_reference_pending_live_review") || lower.includes("static_live_quoter_estimate") || lower.includes("live_quote_reference_only") || lower.includes("static_reference_only")) {
+            return "已确认链上执行结果；以链上确认后的实际成交为准，不再依据静态参考状态";
+          }
+          return "执行成功/已确认；以链上确认结果为准";
+        }
         if (["broadcast_complete", "submitted_success", "broadcast_success", "broadcasted", "execution_success", "confirmed_success"].includes(lower)) {
           return "已提交链上交易；等待链上确认后才算最终成交确认";
         }
@@ -390,7 +468,7 @@
       const base = rawReasons.map(reasonLabel).filter(Boolean).join("；") || "-";
       const hop = ev.hop_count || ev.hops?.length;
       const prefix = hop ? `每跳复核 ${hop} 跳。` : "";
-      const reasons = Array.isArray(evReasons) && evReasons.length ? evReasons.join("，") : base;
+      const reasons = Array.isArray(evReasons) && evReasons.length ? evReasons.map(reasonLabel).filter(Boolean).join("，") : base;
       const issues = ev.tokenContinuityIssues || ev.token_continuity_issues || routeIdentity(row).tokenContinuityIssues || [];
       const issueText = Array.isArray(issues) && issues.length
         ? ` token 连续性异常：${issues.map(item => `${item.fromHop || "?"}->${item.toHop || "?"} ${shortAddress(item.previousTokenOut)} != ${shortAddress(item.currentTokenIn)}`).join("；")}`
@@ -409,10 +487,11 @@
       const identityLabel = identityStatus === "token_discontinuity" ? "token 地址不连续" : (identityStatus === "symbol_only" || identityStatus === "address_partial") ? "地址身份不完整" : identityStatus;
       const addressPath = routeAddressText(row);
       const reviewDirection = row.direction || quote.direction || analysis.direction || pair;
-      const reviewInitialAmount = numberValue(row.initial_probe_amount ?? quote.initial_probe_amount ?? quote.input_amount ?? analysis.initialProbeAmount ?? analysis.requestedAmount);
-      const reviewBestAmount = numberValue(row.best_amount ?? quote.best_amount ?? analysis.bestAmount ?? analysis.best_amount ?? analysis.bestAmountCalculation?.bestAmount ?? analysis.bestAmountCalculation?.recommendedBorrowInputAmount);
-      const reviewSymbol = quote.input_symbol || quote.final_symbol || analysis.referenceInputSymbol || analysis.referenceFinalOutputSymbol || "";
-      const reviewInitialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      const reviewInitialAmount = submissionInitialAmount(row);
+      const reviewBestAmount = submissionBestAmount(row);
+      const reviewSymbol = submissionInputSymbol(row);
+      let reviewInitialProbeReason = ev.offchainInitialProbeReason || row.offchainInitialProbeReason || quote.offchainInitialProbeReason || analysis.offchainInitialProbeReason || "";
+      if (evidenceNeedsLiveReview(row) && String(reviewInitialProbeReason) === "onchain_review_best_amount_reused") reviewInitialProbeReason = "static_reference_pending_live_review";
       const reviewReferenceNetReturnBps = numberValue(analysis.referenceNetReturnBps ?? quote.referenceNetReturnBps);
       return lines([
         `时间：${fmtTime(row.created_at || row.observed_at || row.updated_at)}`,
@@ -422,12 +501,12 @@
         `地址身份：${identityLabel || "-"}`,
         `状态：${outcome.label}`,
         `执行方向：${reviewDirection}`,
-        `初始测试量：${fmtAmount(reviewInitialAmount, 8)} ${reviewSymbol || ""}`.trimEnd(),
+        `初始测试量：${reviewInitialAmount === null ? "未记录" : `${fmtAmount(reviewInitialAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
         `初始探测依据：${reviewInitialProbeReason ? offchainProbeReasonText(reviewInitialProbeReason) : "-"}`,
-        `最佳交易量：${fmtAmount(reviewBestAmount, 8)} ${reviewSymbol || ""}`.trimEnd(),
+        `最佳交易量：${reviewBestAmount === null ? "未计算" : `${fmtAmount(reviewBestAmount, 8)} ${reviewSymbol || ""}`.trimEnd()}`,
         `参考净利 BPS：${reviewReferenceNetReturnBps === null ? "-" : fmtAmount(reviewReferenceNetReturnBps, 2)}`,
         `复核状态：${evidenceBadge(row).replace(/<[^>]+>/g, "") || ev.status || "-"}`,
-        `复核可信：${ev.trustedForExecution || ev.trusted_for_execution || String(ev.status || "").toLowerCase() === "live_verified" ? "是" : "否"}`,
+        `复核可信：${rowIsConfirmedExecutionSuccess(row) || ev.trustedForExecution || ev.trusted_for_execution || String(ev.status || "").toLowerCase() === "live_verified" ? "是" : "否"}`,
         `触发区块：${ev.triggerBlockNumber || ev.trigger_block_number || "-"}`,
         `复核区块：${ev.blockNumber || ev.block_number || "-"}`,
         `复盘：${profitReviewText(row)}`,
@@ -483,7 +562,7 @@
         $("failedCount").textContent = data.summary?.failedCount ?? 0;
         $("blockedCount").textContent = data.summary?.blockedCount ?? 0;
         $("source").textContent = data.source || "-";
-        latestRows = data.attempts || [];
+        latestRows = [...(data.attempts || [])].sort((a, b) => recordTimeValue(b) - recordTimeValue(a));
         $("rows").innerHTML = latestRows.map(rowHtml).join("") || '<tr><td colspan="9">暂无提交记录。</td></tr>';
         $("message").textContent = "已更新";
       } catch (error) {

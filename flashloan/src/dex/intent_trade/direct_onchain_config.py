@@ -1,12 +1,15 @@
 """Configuration, network, and address helpers for direct on-chain execution."""
-
 from __future__ import annotations
-
 import json
 import os
 import re
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from typing import Any
+from dex.intent_trade.direct_chain_addresses import (
+    chain_contracts_for_network,
+    owner_address_for_network,
+    unified_executor_address_for_network,
+)
 
 _ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$", re.IGNORECASE)
 
@@ -15,8 +18,6 @@ def _impl():
     from dex.intent_trade import direct_impl
 
     return direct_impl
-
-
 def env(*names: str, default: str = "") -> str:
     for name in names:
         value = os.getenv(name, "").strip()
@@ -77,8 +78,6 @@ def normalize_pair_address(value: Any) -> str:
     if text.lower() == "0x..." or not _ADDRESS_RE.match(text):
         return ""
     return "0x" + text[2:].lower()
-
-
 def max_broadcast_gas_price_wei() -> int:
     return positive_int_value(
         env(

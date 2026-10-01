@@ -1,6 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
 const path = require("path");
 const dotenv = require("dotenv");
+const { loadChainConfig } = require(path.resolve(__dirname, "../../../scripts/tool/load-chain-config.js"));
 
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, "../../../flashloan/app_runtime/.env"), override: false });
@@ -16,6 +17,7 @@ for (const [key, value] of Object.entries(testEnv)) {
 }
 
 const AVALANCHE_RPC_URL = process.env.AVALANCHE_RPC_URL || process.env.AVALANCHE_RPC;
+const AVALANCHE_CHAIN = loadChainConfig(43114);
 const AVALANCHE_FORK_BLOCK_NUMBER = process.env.AVALANCHE_FORK_BLOCK_NUMBER;
 const AVALANCHE_FORK_RPC_URL =
   process.env.AVALANCHE_FORK_RPC_URL ||
@@ -58,7 +60,7 @@ module.exports = {
   networks: {
     hardhat: hardhatNetworkConfig(),
     avalanche: {
-      url: AVALANCHE_RPC_URL || "http://127.0.0.1:8545",
+      url: AVALANCHE_CHAIN.rpcUrl,
       accounts: DEPLOYER_KEYS,
       chainId: 43114,
     },

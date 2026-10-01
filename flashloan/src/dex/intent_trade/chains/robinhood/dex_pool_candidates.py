@@ -11,8 +11,14 @@ from dex.intent_trade.chains.common.dex_candidate_tables import build_anchor_can
 
 
 APP_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_ROBINHOOD_DEX_CANDIDATE_PATH = APP_ROOT / "runtime" / "cache" / "robinhood_dex_candidates.json"
-DEFAULT_ROBINHOOD_DEX_MARKET_POOL_PATH = APP_ROOT / "runtime" / "cache" / "robinhood_dex_market_pools.json"
+DEFAULT_ROBINHOOD_DEX_CANDIDATE_PATH = (
+    chain_data_file_path("robinhood", "dex_candidates")
+    or APP_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_candidates.json"
+)
+DEFAULT_ROBINHOOD_DEX_MARKET_POOL_PATH = (
+    chain_data_file_path("robinhood", "dex_market_pools")
+    or APP_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_market_pools.json"
+)
 DEFAULT_ROBINHOOD_DEX_EVIDENCE_ROOT = APP_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
 
 _ROBINHOOD_ROW = chain_data_by_network("robinhood") or {}

@@ -48,6 +48,10 @@ def main() -> None:
     os.environ["UNIFIED_EXECUTOR_BROADCAST_ENABLED"] = "false"
     os.environ["COW_ORDER_SUBMISSION_ENABLED"] = "false"
     os.environ["LIQUIDATION_EXECUTION_ENABLED"] = "false"
+    os.environ.setdefault("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage")
+    os.environ.setdefault("BNB_VENUS_WATCHER_ENABLED", "false")
+    os.environ.setdefault("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    os.environ.setdefault("LIQUIDATION_BACKGROUND_REFRESH", "false")
 
     from web.control_panel import app
 

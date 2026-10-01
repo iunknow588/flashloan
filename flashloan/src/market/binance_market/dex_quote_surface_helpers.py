@@ -92,7 +92,7 @@ def _static_hop_steps(
                 "protocol": str(pool.get("protocol") or pool.get("dex") or "uniswap_v4").lower(),
                 "feeBps": _hop_fee_bps(pool),
                 "priceImpactBps": pool.get("priceImpactBps"),
-                "status": "static_reference_pending_live_quote",
+                "status": "static_reference_pending_live_review",
                 "quoteSource": "market_observation_static_pool_route",
                 "inputAmount": ref_input_amount if index == 0 else None,
                 "outputAmount": None,

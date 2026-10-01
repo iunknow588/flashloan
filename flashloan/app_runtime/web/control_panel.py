@@ -154,6 +154,7 @@ DEX_POOL_CANDIDATES_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_pool_candidates
 DEX_OVERVIEW_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_overview.html"
 DEX_QUOTES_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_quotes.html"
 DEX_SUBMISSIONS_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_submissions.html"
+DEX_SUBMISSIONS_FAILED_TEMPLATE_PATH = WEB_DIR / "templates" / "dex_submissions_failed.html"
 FLASH_LOAN_POOLS_TEMPLATE_PATH = WEB_DIR / "templates" / "flash_loan_pools.html"
 ROBINHOOD_DEX_TEMPLATE_PATH = WEB_DIR / "templates" / "robinhood_dex_candidates.html"
 LATEST_ARBITRAGE_PATH = STATE_DIR / "latest_arbitrage.json"
@@ -783,7 +784,31 @@ def start_liquidation_engine_runtime(*, force: bool = False) -> dict:
             "manual_test_completed": liquidation_engine_instance.config.manual_test_completed,
         }
 def bnb_venus_watcher_enabled() -> bool:
-    return os.getenv("BNB_VENUS_WATCHER_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    return os.getenv("BNB_VENUS_WATCHER_ENABLED", "false").strip().lower() not in {"0", "false", "no", "off"}
+
+def control_panel_default_feature() -> str:
+    raw = os.getenv("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage").strip().lower()
+    if raw in {"dex", "dex_arbitrage"}:
+        return "dex_arbitrage"
+    if raw in {"liquidation", "bot", "liquidation_engine"}:
+        return "liquidation"
+    return "dex_arbitrage"
+
+def liquidation_runtime_background_requested() -> bool:
+    if control_panel_default_feature() == "liquidation":
+        return True
+    return any(
+        os.getenv(name, "false").strip().lower() in {"1", "true", "yes", "on"}
+        for name in (
+            "LIQUIDATION_ENGINE_ENABLED",
+            "LIQUIDATION_EXECUTION_ENABLED",
+            "LIQUIDATION_AUTO_EXECUTE",
+            "LIQUIDATION_UI_SCAN_ENABLED",
+            "LIQUIDATION_BACKGROUND_REFRESH",
+            "BNB_VENUS_WATCHER_ENABLED",
+        )
+    )
+
 def start_bnb_venus_watcher_runtime() -> dict:
     global bnb_venus_watcher_thread
     if not bnb_venus_watcher_enabled():
@@ -832,10 +857,13 @@ def initialize_liquidation_runtime() -> None:
             start_observer_runtime_async()
         except Exception as exc:
             set_control_status("error", "start observer", redact_sensitive_text(exc), 0)
-    try:
-        start_bnb_venus_watcher_runtime()
-    except Exception as exc:
-        set_control_status("error", "start BNB Venus watcher", redact_sensitive_text(exc), 0)
+    if bnb_venus_watcher_enabled():
+        try:
+            start_bnb_venus_watcher_runtime()
+        except Exception as exc:
+            set_control_status("error", "start BNB Venus watcher", redact_sensitive_text(exc), 0)
+    if not liquidation_runtime_background_requested():
+        return
     ui_scan_enabled = os.getenv("LIQUIDATION_UI_SCAN_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
     if ui_scan_enabled:
         _scan_initialize_liquidation_runtime()
@@ -854,6 +882,10 @@ def initialize_cow_arbitrage_runtime() -> None:
 app = create_control_panel_app(sys.modules[__name__])
 
 if __name__ == "__main__":
+    os.environ.setdefault("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage")
+    os.environ.setdefault("BNB_VENUS_WATCHER_ENABLED", "false")
+    os.environ.setdefault("LIQUIDATION_UI_SCAN_ENABLED", "false")
+    os.environ.setdefault("LIQUIDATION_BACKGROUND_REFRESH", "false")
     disable_cow_submission_for_startup()
     initialize_liquidation_runtime()
     initialize_cow_arbitrage_runtime()

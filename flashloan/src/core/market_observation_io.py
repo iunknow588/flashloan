@@ -17,7 +17,6 @@ LIST_KEYS = (
     "candidateObservationGroups",
     "observationSequences",
     "directPools",
-    "directClosedLoopRoutes",
     "closedLoopRoutes",
     "indirectRoutes",
     "unmatchedPools",
@@ -40,12 +39,14 @@ DICT_KEYS = (
     "chainSpecificObservation",
     "dexSettlement",
     "flashLoanLiquidity",
+    "poolRegistry",
     "poolStaticTable",
 )
 
 PERSISTED_DICT_KEYS = (
     "dexSettlement",
     "flashLoanLiquidity",
+    "poolRegistry",
     "poolStaticTable",
 )
 

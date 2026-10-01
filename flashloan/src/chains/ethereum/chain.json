@@ -4,6 +4,20 @@
   "chain_id": 1,
   "display_name": "Ethereum Chain",
   "native_symbol": "ETH",
+  "rpc": {
+    "primary": "https://eth.llamarpc.com",
+    "fallbacks": [
+      "https://ethereum.publicnode.com"
+    ],
+    "timeout_seconds": 20
+  },
+  "explorer": {
+    "url": "https://etherscan.io"
+  },
+  "tooling": {
+    "hardhat_network": "ethereum",
+    "foundry_alias": "ethereum"
+  },
   "features": {
     "dex_arbitrage": {
       "default_market_id": "dex-arbitrage-1-uniswap-v3",

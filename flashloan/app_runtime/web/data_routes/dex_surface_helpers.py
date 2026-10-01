@@ -17,6 +17,16 @@ from dex.runtime.dex_opportunity_helpers import (
 logger = logging.getLogger(__name__)
 
 
+def _number_or_none(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
 def _route_symbol_key(items: object) -> str:
     if isinstance(items, str):
         items = [part for part in items.split(" -> ") if str(part).strip()]
@@ -244,19 +254,58 @@ def _merge_live_route_estimate(
         ):
             if live_analysis.get(key) is not None:
                 analysis[key] = live_analysis[key]
+    live_calc = live_payload.get("bestAmountCalculation")
+    if not isinstance(live_calc, dict):
+        live_calc = {}
+    best_amount_missing = (
+        live_payload.get("bestAmountMissing") is True
+        or live_analysis.get("bestAmountMissing") is True
+        or live_calc.get("bestAmountMissing") is True
+    )
+    live_best_amount_confirmed = bool(
+        live_payload.get("bestAmountConfirmed")
+        or live_analysis.get("bestAmountConfirmed")
+        or live_calc.get("bestAmountConfirmed")
+    )
+    live_best_amount = (
+        next(
+            (
+                candidate
+                for candidate in (
+                    live_payload.get("bestAmount"),
+                    live_analysis.get("bestAmount"),
+                    live_analysis.get("best_amount"),
+                    live_calc.get("bestAmount"),
+                    live_calc.get("recommendedBorrowInputAmount"),
+                    live_calc.get("selectedBorrowInputAmount"),
+                    analysis.get("bestAmount"),
+                    analysis.get("best_amount"),
+                )
+                if _number_or_none(candidate) is not None
+            ),
+            None,
+        )
+        if not best_amount_missing and live_best_amount_confirmed
+        else None
+    )
+    if live_best_amount is not None:
+        live_best_amount = _number_or_none(live_best_amount)
+    if live_best_amount is not None:
+        analysis["referenceInputAmount"] = live_best_amount
+        analysis["bestAmount"] = live_best_amount
     live_recommendation = live_payload.get("recommendation") or live_analysis.get("recommendation")
     if isinstance(live_recommendation, dict):
         analysis["recommendation"] = live_recommendation
     status = str(live_payload.get("quoteStatus") or "").strip().lower()
     if status == "requires_live_quoter" and (live_payload.get("steps") or []):
-        status = "live_quote_reference_only"
+        status = "static_reference_pending_live_review"
     evidence = {
         "evidenceVersion": 1,
         "observedAt": live_payload.get("observedAt"),
         "network": live_payload.get("network"),
         "chainId": live_payload.get("chain_id"),
-        "status": status or ("live_verified" if live_payload.get("liveVerified") else "live_quote_reference_only"),
-        "executionTrust": live_payload.get("executionTrust") or "static_reference_only",
+        "status": status or ("live_verified" if live_payload.get("liveVerified") else "static_reference_pending_live_review"),
+        "executionTrust": live_payload.get("executionTrust") or "static_reference_pending_live_review",
         "trustedForExecution": False,
         "readyForTransactionPreflight": bool(
             live_payload.get("readyForTransactionPreflight")
@@ -264,14 +313,25 @@ def _merge_live_route_estimate(
             or (live_recommendation.get("readyForTransactionPreflight") if isinstance(live_recommendation, dict) else False)
         ),
         "profitable": bool(live_payload.get("profitable") or live_analysis.get("profitable")),
+        "bestAmountConfirmed": live_best_amount_confirmed,
         "blockNumber": live_payload.get("blockNumber"),
         "quoteBlockSource": live_payload.get("quoteBlockSource") or "route_live_estimate",
         "routeSymbols": live_payload.get("routeSymbols") or route.get("routeSymbols") or [],
         "hops": steps,
         "costModel": {
             "borrowInputSymbol": analysis.get("referenceInputSymbol") or (live_payload.get("routeSymbols") or [""])[0],
-            "borrowInputAmount": analysis.get("referenceInputAmount") or live_payload.get("amount"),
-            "selectedBorrowInputAmount": live_payload.get("bestAmount") or analysis.get("bestAmount") or analysis.get("referenceInputAmount") or live_payload.get("amount"),
+            "borrowInputAmount": live_best_amount,
+            "selectedBorrowInputAmount": live_best_amount,
+            "bestAmountComputed": live_best_amount is not None,
+            "bestAmountConfirmed": live_best_amount_confirmed,
+            "bestAmountMissing": live_best_amount is None or not live_best_amount_confirmed,
+            "requestedBorrowInputAmount": (
+                live_payload.get("requestedAmount")
+                or live_analysis.get("requestedAmount")
+                or live_payload.get("initialProbeAmount")
+                or live_analysis.get("initialProbeAmount")
+                or live_payload.get("amount")
+            ),
             "netProfitAmount": analysis.get("referenceNetProfitAmount"),
             "netProfitBps": analysis.get("referenceNetProfitBps"),
             "finalOutputAmount": analysis.get("referenceFinalOutputAmount"),
@@ -303,17 +363,42 @@ def _merge_live_route_estimate(
             }
         ]
     live_verified = bool(live_payload.get("liveVerified"))
+    existing_evidence_mode = str(analysis.get("priceEvidenceMode") or "").strip().lower()
+    existing_evidence_source = str(analysis.get("priceEvidenceSource") or "").strip().lower()
+    static_evidence_modes = {
+        "static_reference_pending_live_review",
+        "static_reference_only",
+        "static_live_quoter_estimate",
+        "live_quote_reference_only",
+        "reference_only",
+    }
+    price_evidence_mode = (
+        "live_verified"
+        if live_verified
+        else "static_reference_pending_live_review"
+        if existing_evidence_mode in static_evidence_modes or not live_verified
+        else "live_required"
+    )
+    price_evidence_source = (
+        "chain_live_quote"
+        if live_verified
+        else "static_reference_pending_live_review"
+        if existing_evidence_source in static_evidence_modes or not live_verified
+        else "chain_live_quote_required"
+    )
     analysis.update(
         {
             "live_onchain_evidence": evidence,
             "onchainEvidenceStatus": status,
             "livePriceVerified": live_verified,
-            "priceEvidenceMode": "live_verified" if live_verified else "live_required",
-            "priceEvidenceSource": "chain_live_quote" if live_verified else "chain_live_quote_required",
+            "priceEvidenceMode": price_evidence_mode,
+            "priceEvidenceSource": price_evidence_source,
             "requiresLiveQuoter": not live_verified,
             "quote_verified": live_verified,
             "executableCandidate": False,
             "chainSubmissionCandidate": False,
+            "bestAmountMissing": live_best_amount is None or not live_best_amount_confirmed,
+            "bestAmountConfirmed": live_best_amount_confirmed,
         }
     )
     route["quoteAnalysis"] = analysis

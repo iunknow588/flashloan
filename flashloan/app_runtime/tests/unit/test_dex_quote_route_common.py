@@ -6,6 +6,7 @@ from market.binance_market.dex_quote_route_common import (
     quote_route_status,
 )
 from market.binance_market.dex_surface_analysis import build_route_size_analysis
+from market.binance_market.dex_quote_route_policy import QuoteLiveTestPolicy
 from market.binance_market.dex_quote_surface import build_quote_request_payload, build_quote_routes_payload_from_overview
 
 
@@ -574,3 +575,193 @@ def test_route_steps_order_and_continuity():
         # No route steps mismatch warning
         warnings = analysis.get("warnings") or []
         assert "route_steps_mismatch" not in warnings, "route steps mismatch detected"
+
+
+def _anchor_overview_with_two_routes():
+    return {
+        "arbitragePaths": [
+            {
+                "symbolPair": "ETH -> AAA -> BBB -> ETH",
+                "routeSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                "routeAddresses": ["0xA", "0xB", "0xC", "0xA"],
+                "routeTokenPath": [{"symbol": "ETH"}, {"symbol": "AAA"}, {"symbol": "BBB"}, {"symbol": "ETH"}],
+                "routePools": [{"pool": "0x1", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {
+                    "kind": "bridge_pair",
+                    "anchorBorrowSymbol": "ETH",
+                    "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+                },
+            },
+            {
+                "symbolPair": "USDC -> AAA -> BBB -> USDC",
+                "routeSymbols": ["USDC", "AAA", "BBB", "USDC"],
+                "routeAddresses": ["0xD", "0xB", "0xC", "0xD"],
+                "routeTokenPath": [{"symbol": "USDC"}, {"symbol": "AAA"}, {"symbol": "BBB"}, {"symbol": "USDC"}],
+                "routePools": [{"pool": "0x2", "protocol": "uniswap_v4", "fee": 0}],
+                "overviewRoute": {
+                    "kind": "bridge_pair",
+                    "anchorBorrowSymbol": "USDC",
+                    "pathSymbols": ["USDC", "AAA", "BBB", "USDC"],
+                },
+            },
+        ],
+        "summary": {},
+        "marketObservation": {"summary": {}, "chainSpecificObservationPairs": []},
+        "dexSettlement": {"uniswapx": {"supported": False}},
+        "poolStaticTable": {},
+    }
+
+
+def test_quote_routes_payload_anchor_filter_limits_routes_and_live_quote_calls(monkeypatch):
+    monkeypatch.delenv("DEX_QUOTE_ROUTE_ANCHOR_FILTER", raising=False)
+    calls = {"quote": 0, "size": 0}
+
+    def route_quote_analysis_fn(route, price_map, chain_id):
+        calls["quote"] += 1
+        return {
+            "steps": [{"fromSymbol": route["routeSymbols"][0]}],
+            "complete": True,
+            "requiresLiveQuoter": False,
+            "adapterRequired": False,
+            "livePriceVerified": True,
+            "priceEvidenceSource": "chain_live_quote",
+            "priceEvidenceMode": "live_verified",
+            "executableCandidate": False,
+            "chainSubmissionCandidate": False,
+            "chainSubmissionPolicy": "live_framework_reuse",
+            "netProfitUsd": None,
+        }
+
+    def route_size_analysis_fn(route, price_map, chain_id):
+        calls["size"] += 1
+        return {"rows": [{"size": 1}]}
+
+    payload = build_quote_routes_payload_from_overview(
+        _anchor_overview_with_two_routes(),
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+        route_live_test_policy=QuoteLiveTestPolicy(anchor="eth", live_route_limit=10),
+    )
+
+    assert [route["symbolPair"] for route in payload["routes"]] == ["ETH -> AAA -> BBB -> ETH"]
+    assert payload["summary"]["unfilteredRouteCount"] == 2
+    assert payload["summary"]["anchorFilter"] == "ETH"
+    assert calls["quote"] == 1
+    assert calls["size"] == 1
+
+
+def test_quote_routes_payload_anchor_filter_uses_explicit_arg_over_env(monkeypatch):
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_ANCHOR_FILTER", "USDC")
+    calls = {"quote": 0, "size": 0}
+
+    def route_quote_analysis_fn(route, price_map, chain_id):
+        calls["quote"] += 1
+        return {"steps": [{"fromSymbol": route["routeSymbols"][0]}], "complete": True, "livePriceVerified": True}
+
+    def route_size_analysis_fn(route, price_map, chain_id):
+        calls["size"] += 1
+        return {"rows": [{"size": 1}]}
+
+    payload = build_quote_routes_payload_from_overview(
+        _anchor_overview_with_two_routes(),
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=route_quote_analysis_fn,
+        route_size_analysis_fn=route_size_analysis_fn,
+        route_live_test_policy=QuoteLiveTestPolicy(anchor="eth", live_route_limit=10),
+    )
+
+    assert [route["symbolPair"] for route in payload["routes"]] == ["ETH -> AAA -> BBB -> ETH"]
+    assert payload["summary"]["anchorFilter"] == "ETH"
+    assert calls["quote"] == 1
+
+
+def test_quote_routes_payload_anchor_filter_env_default(monkeypatch):
+    monkeypatch.setenv("DEX_QUOTE_ROUTE_ANCHOR_FILTER", "USDC")
+
+    payload = build_quote_routes_payload_from_overview(
+        _anchor_overview_with_two_routes(),
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda route, price_map, chain_id: {"complete": True},
+        route_size_analysis_fn=lambda route, price_map, chain_id: {"rows": []},
+    )
+
+    assert [route["symbolPair"] for route in payload["routes"]] == ["USDC -> AAA -> BBB -> USDC"]
+    assert payload["summary"]["anchorFilter"] == "USDC"
+    assert payload["summary"]["unfilteredRouteCount"] == 2
+
+
+def test_quote_route_policy_matches_anchor_when_route_symbols_are_absent():
+    policy = QuoteLiveTestPolicy(anchor="eth")
+    path = {
+        "symbolPair": "ETH -> AAA -> BBB -> ETH",
+        "overviewRoute": {
+            "anchorBorrowSymbol": "ETH",
+            "pathSymbols": ["ETH", "AAA", "BBB", "ETH"],
+        },
+    }
+
+    assert policy.matches_anchor(path) is True
+
+
+def test_quote_routes_payload_anchor_filter_supports_multiple_anchors():
+    payload = build_quote_routes_payload_from_overview(
+        _anchor_overview_with_two_routes(),
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        route_quote_analysis_fn=lambda route, price_map, chain_id: {"complete": True},
+        route_size_analysis_fn=lambda route, price_map, chain_id: {"rows": []},
+        route_live_test_policy=QuoteLiveTestPolicy(anchor="usdc, ETH"),
+    )
+
+    assert {route["symbolPair"] for route in payload["routes"]} == {
+        "ETH -> AAA -> BBB -> ETH",
+        "USDC -> AAA -> BBB -> USDC",
+    }
+    assert payload["summary"]["anchorFilter"] == "ETH, USDC"
+
+
+def test_quote_routes_payload_anchor_skips_unscoped_cache(monkeypatch):
+    from market.binance_market import dex_surfaces
+
+    old_cache = dict(dex_surfaces._DEX_SURFACE_CACHE)
+    dex_surfaces._DEX_SURFACE_CACHE.clear()
+    monkeypatch.delenv("DEX_QUOTE_ROUTE_ANCHOR_FILTER", raising=False)
+    calls = {"build": 0}
+
+    def fake_build(**kwargs):
+        calls["build"] += 1
+        return {
+            "mode": "dex_quote_routes",
+            "routes": [{"symbolPair": "ETH -> AAA -> BBB -> ETH"}],
+            "summary": {"anchorFilter": kwargs.get("anchor"), "routeCount": 0},
+        }
+
+    monkeypatch.setattr(dex_surfaces, "_quote_routes_payload_for_robinhood_family", fake_build)
+    try:
+        first = dex_surfaces.dex_quote_routes_payload(
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+        )
+        second = dex_surfaces.dex_quote_routes_payload(
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+        )
+        third = dex_surfaces.dex_quote_routes_payload(
+            chain_id=46630,
+            protocols=["uniswap_v4"],
+            use_static_observation=True,
+            anchor="ETH",
+        )
+    finally:
+        dex_surfaces._DEX_SURFACE_CACHE.clear()
+        dex_surfaces._DEX_SURFACE_CACHE.update(old_cache)
+
+    assert calls["build"] == 2
+    assert third["summary"]["anchorFilter"] == "ETH"
+    assert first["summary"]["anchorFilter"] is None

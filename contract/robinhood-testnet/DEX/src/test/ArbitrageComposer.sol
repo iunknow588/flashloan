@@ -54,7 +54,7 @@ contract ArbitrageComposer {
         uint256 minProfit,
         uint256 minDeviationBps
     ) external returns (bool executed, uint256 candidateIndex, uint256 profit, bytes memory resultData) {
-        if (tokenZ == address(0) || amountIn == 0) revert InvalidRequest();
+        if (amountIn == 0) revert InvalidRequest();
         (uint256[] memory order, uint256 orderLen, bool sawInvalidAnchor) = _selectionOrder(
             candidates, tokenZ, minDeviationBps
         );
@@ -82,7 +82,7 @@ contract ArbitrageComposer {
         uint256 minProfit,
         uint256 minDeviationBps
     ) external returns (bool executed, uint256 candidateIndex, uint256 profit, bytes memory resultData, PoolKey[3] memory selectedKeys, bool[3] memory selectedDirections) {
-        if (tokenZ == address(0) || amountIn == 0) revert InvalidRequest();
+        if (amountIn == 0) revert InvalidRequest();
         (uint256[] memory order, uint256 orderLen, bool sawInvalidAnchor) = _selectionOrder(
             candidates, tokenZ, minDeviationBps
         );
@@ -111,9 +111,10 @@ contract ArbitrageComposer {
     /// @notice Read-only adaptive peak search from a caller-provided
     /// initialAmount. The initial amount is only the search origin. The contract
     /// doubles a profitable origin until the first non-improving probe is found,
-    /// then searches the interval with midpoints. It returns the first midpoint
-    /// that improves the profitable base instead of scanning every fixed ladder
-    /// amount to completion.
+    /// then probes midpoints on both sides of the profitable base to determine
+    /// whether the peak lies toward the lower or upper neighbor. It returns the
+    /// better improving midpoint instead of scanning every fixed ladder amount
+    /// to completion.
     function previewBestDetailedWithInitialAmount(
         address tokenZ,
         Candidate[] calldata candidates,
@@ -131,7 +132,7 @@ contract ArbitrageComposer {
             bytes memory resultData
         )
     {
-        if (tokenZ == address(0) || initialAmount == 0) revert InvalidRequest();
+        if (initialAmount == 0) revert InvalidRequest();
         (uint256[] memory order, uint256 orderLen, bool sawInvalidAnchor) = _selectionOrder(
             candidates, tokenZ, minDeviationBps
         );
@@ -140,6 +141,7 @@ contract ArbitrageComposer {
         uint256 selectedRouteIndex;
         bytes memory selectedResultData;
         uint256 baseAmount;
+        uint256 lowerAmount;
         uint256 upperAmount;
         bool hasUpperAmount;
 
@@ -153,16 +155,20 @@ contract ArbitrageComposer {
             selectedRouteIndex = initialRouteIndex;
             selectedResultData = initialResultData;
             baseAmount = initialAmount;
+            lowerAmount = initialAmount / 2;
 
             uint256 candidate = _doubleAmount(baseAmount);
             for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS && candidate > 0; step++) {
-                (bool ok, uint256 p, bytes memory rd, ) =
-                    _probeCandidateRouteFixed(candidates[selectedCandidateIndex], tokenZ, candidate, minProfit, selectedRouteIndex);
-                if (ok && p > selectedProfit) {
+                (bool ok, uint256 ci, uint256 candidateProfit, uint256 ri, bytes memory rd) =
+                    _probeAmountForCandidates(tokenZ, candidates, order, orderLen, candidate, minProfit);
+                if (ok && candidateProfit > selectedProfit) {
                     selectedAmount = candidate;
-                    selectedProfit = p;
+                    selectedProfit = candidateProfit;
+                    selectedCandidateIndex = ci;
+                    selectedRouteIndex = ri;
                     selectedResultData = rd;
                     baseAmount = candidate;
+                    lowerAmount = candidate / 2;
                     hasUpperAmount = false;
                     upperAmount = 0;
                     candidate = _doubleAmount(baseAmount);
@@ -176,16 +182,17 @@ contract ArbitrageComposer {
             upperAmount = initialAmount;
             uint256 candidate = initialAmount / 2;
             for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS && candidate > 0; step++) {
-                (bool ok, uint256 p, bytes memory rd, ) =
-                    _probeCandidateRouteFixed(candidates[initialCandidateIndex], tokenZ, candidate, minProfit, initialRouteIndex);
+                (bool ok, uint256 ci, uint256 candidateProfit, uint256 ri, bytes memory rd) =
+                    _probeAmountForCandidates(tokenZ, candidates, order, orderLen, candidate, minProfit);
                 if (ok) {
                     executed = true;
                     selectedAmount = candidate;
-                    selectedProfit = p;
-                    selectedCandidateIndex = initialCandidateIndex;
-                    selectedRouteIndex = initialRouteIndex;
+                    selectedProfit = candidateProfit;
+                    selectedCandidateIndex = ci;
+                    selectedRouteIndex = ri;
                     selectedResultData = rd;
                     baseAmount = candidate;
+                    lowerAmount = candidate / 2;
                     hasUpperAmount = true;
                     break;
                 }
@@ -196,19 +203,79 @@ contract ArbitrageComposer {
 
         if (hasUpperAmount && executed) {
             for (uint256 step = 0; step < MAX_AMOUNT_SEARCH_STEPS; step++) {
-                if (upperAmount <= baseAmount + 1) break;
-                uint256 midpoint = baseAmount + (upperAmount - baseAmount) / 2;
-                if (midpoint <= baseAmount || midpoint >= upperAmount) break;
+                if (upperAmount <= baseAmount + 1 || lowerAmount >= baseAmount) break;
+                if (upperAmount <= lowerAmount) break;
 
-                (bool ok, uint256 p, bytes memory rd, ) =
-                    _probeCandidateRouteFixed(candidates[selectedCandidateIndex], tokenZ, midpoint, minProfit, selectedRouteIndex);
-                if (ok && p > selectedProfit) {
-                    selectedAmount = midpoint;
-                    selectedProfit = p;
-                    selectedResultData = rd;
-                    break;
+                // Probe both directions around the current best amount: the
+                // midpoint between the lower neighbor and the best, and the
+                // midpoint between the best and the first non-improving upper.
+                uint256 leftMid = lowerAmount + (baseAmount - lowerAmount) / 2;
+                uint256 rightMid = baseAmount + (upperAmount - baseAmount) / 2;
+                if (leftMid <= lowerAmount || leftMid >= baseAmount) break;
+                if (rightMid <= baseAmount || rightMid >= upperAmount) break;
+
+                (bool leftOk, uint256 leftCi, uint256 leftProfit, uint256 leftRi, bytes memory leftRd) =
+                    _probeAmountForCandidates(tokenZ, candidates, order, orderLen, leftMid, minProfit);
+                (bool rightOk, uint256 rightCi, uint256 rightProfit, uint256 rightRi, bytes memory rightRd) =
+                    _probeAmountForCandidates(tokenZ, candidates, order, orderLen, rightMid, minProfit);
+                if (!leftOk && !rightOk) break;
+
+                bool leftImproves = leftOk && leftProfit > selectedProfit;
+                bool rightImproves = rightOk && rightProfit > selectedProfit;
+                if (!leftImproves && !rightImproves) break;
+
+                if (leftOk && rightOk) {
+                    if (leftProfit >= rightProfit) {
+                        if (leftImproves) {
+                            selectedAmount = leftMid;
+                            selectedProfit = leftProfit;
+                            selectedCandidateIndex = leftCi;
+                            selectedRouteIndex = leftRi;
+                            selectedResultData = leftRd;
+                        }
+                    } else {
+                        if (rightImproves) {
+                            selectedAmount = rightMid;
+                            selectedProfit = rightProfit;
+                            selectedCandidateIndex = rightCi;
+                            selectedRouteIndex = rightRi;
+                            selectedResultData = rightRd;
+                        }
+                    }
+                } else if (leftOk) {
+                    if (leftImproves) {
+                        selectedAmount = leftMid;
+                        selectedProfit = leftProfit;
+                        selectedCandidateIndex = leftCi;
+                        selectedRouteIndex = leftRi;
+                        selectedResultData = leftRd;
+                    }
+                } else if (rightOk) {
+                    if (rightImproves) {
+                        selectedAmount = rightMid;
+                        selectedProfit = rightProfit;
+                        selectedCandidateIndex = rightCi;
+                        selectedRouteIndex = rightRi;
+                        selectedResultData = rightRd;
+                    }
                 }
-                upperAmount = midpoint;
+
+                uint256 oldBase = baseAmount;
+                if (leftOk && rightOk) {
+                    if (leftProfit >= rightProfit) {
+                        upperAmount = oldBase;
+                        baseAmount = leftMid;
+                    } else {
+                        lowerAmount = oldBase;
+                        baseAmount = rightMid;
+                    }
+                } else if (leftOk) {
+                    upperAmount = oldBase;
+                    baseAmount = leftMid;
+                } else {
+                    lowerAmount = oldBase;
+                    baseAmount = rightMid;
+                }
             }
         }
 
@@ -534,8 +601,7 @@ contract ArbitrageComposer {
     ) private pure returns (bool) {
         if (
             candidate.routePools.length == 0 ||
-            candidate.routePools.length != candidate.routeDirections.length ||
-            tokenZ == address(0)
+            candidate.routePools.length != candidate.routeDirections.length
         ) {
             return false;
         }
@@ -552,9 +618,6 @@ contract ArbitrageComposer {
         bool[3] calldata routeDirections,
         address tokenZ
     ) private pure returns (bool) {
-        if (tokenZ == address(0)) {
-            return false;
-        }
         if (_routeTokenInput(routePools[0], routeDirections[0]) != tokenZ) {
             return false;
         }

@@ -30,13 +30,11 @@ def build_market_observation_payload(
     _route_symbol_allowed = surface._route_symbol_allowed
     _best_pool_rows = surface._best_pool_rows
     _pool_address = surface._pool_address
-    _reentry_route_has_reference_profit = surface._reentry_route_has_reference_profit
     _closed_route_from_sequence = surface._closed_route_from_sequence
     _candidate_observation_groups = surface._candidate_observation_groups
     _unique_symbols = surface._unique_symbols
     _int = surface._int
     _number = surface._number
-    _price_map_from_pairs = surface._price_map_from_pairs
 
     pool_payload = _candidate_payload(chain_id, protocols)
     pairs = _candidate_pairs(pool_payload.get("pairs") or [])
@@ -91,73 +89,11 @@ def build_market_observation_payload(
 
     route_seen: set[tuple[str, ...]] = set()
     closed_routes: list[dict[str, Any]] = []
-    direct_closed_routes: list[dict[str, Any]] = []
     bridge_routes: list[dict[str, Any]] = []
     used_pair_symbols: set[str] = {str(row.get("symbolPair") or "") for row in direct}
-    price_map = _price_map_from_pairs(pairs)
 
     for anchor in observation_anchors:
         anchor_keys = sorted(symbol_to_keys.get(anchor) or [])
-        for anchor_key in anchor_keys:
-            for target_key in sorted(neighbor_keys.get(anchor_key) or []):
-                if target_key == anchor_key:
-                    continue
-                first_pair = pair_by_edge.get(frozenset((anchor_key, target_key)))
-                if first_pair is None:
-                    continue
-                target_token = _pair_token_entry(first_pair, target_key)
-                anchor_token = _pair_token_entry(first_pair, anchor_key)
-                if target_token is None or anchor_token is None:
-                    continue
-                target_symbol = _norm_symbol(target_token.get("symbol"))
-                if not target_symbol or not _route_symbol_allowed(target_symbol):
-                    continue
-                first_pair_pools = _best_pool_rows(_pools_for_pair(first_pair))
-                if len(first_pair_pools) < 2:
-                    continue
-                for first_pool_index, first_pool in enumerate(first_pair_pools):
-                    for second_pool in first_pair_pools[first_pool_index + 1 :]:
-                        first_pool_id = _pool_address(first_pool)
-                        second_pool_id = _pool_address(second_pool)
-                        if not first_pool_id or not second_pool_id or first_pool_id == second_pool_id:
-                            continue
-                        if not _reentry_route_has_reference_profit(
-                            anchor_token=anchor_token,
-                            counter_token=target_token,
-                            first_pool=first_pool,
-                            second_pool=second_pool,
-                            price_map=price_map,
-                        ):
-                            continue
-                        route_key = ("direct", anchor_key, target_key, first_pool_id.lower(), second_pool_id.lower())
-                        if route_key in route_seen:
-                            continue
-                        route_seen.add(route_key)
-                        used_pair_symbols.add(str(first_pair.get("symbolPair") or ""))
-                        first_route_row = pair_row(first_pair, limit=3)
-                        first_route_row["pool"] = first_pool_id
-                        first_route_row["pools"] = [first_pool]
-                        second_route_row = pair_row(first_pair, limit=3)
-                        second_route_row["pool"] = second_pool_id
-                        second_route_row["pools"] = [second_pool]
-                        route = {
-                            "kind": "direct_closed_pair",
-                            "borrowSymbol": anchor,
-                            "anchorSymbol": anchor,
-                            "targetSymbol": target_symbol,
-                            "bridgeSymbol": target_symbol,
-                            "pathSymbols": [anchor, target_symbol, anchor],
-                            "pathText": f"{anchor} -> {target_symbol} -> {anchor}",
-                            "closedLoop": True,
-                            "firstLegCount": 1,
-                            "secondLegCount": 1,
-                            "firstLegPair": first_route_row,
-                            "secondLegPairs": [second_route_row],
-                            "routePairs": [first_route_row, second_route_row],
-                        }
-                        direct_closed_routes.append(route)
-                        closed_routes.append(route)
-
         for anchor_key in anchor_keys:
             # General case: X -> Y -> Z -> X, where Y and Z are distinct and the
             # Y-Z bridge pool exists.
@@ -222,6 +158,7 @@ def build_market_observation_payload(
                         "firstLegPair": first_row,
                         "secondLegPairs": [second_row, third_row],
                         "routePairs": [first_row, second_row, third_row],
+                        "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                     }
                     bridge_routes.append(route)
                     closed_routes.append(route)
@@ -270,7 +207,6 @@ def build_market_observation_payload(
             deduped.append(route)
         return deduped
 
-    direct_closed_routes = sorted(dedupe_routes(direct_closed_routes), key=route_sort_key, reverse=True)
     bridge_routes = sorted(dedupe_routes(bridge_routes), key=route_sort_key, reverse=True)
     closed_routes = sorted(dedupe_routes(closed_routes), key=route_sort_key, reverse=True)[:200]
     bridges = bridge_routes[:120]
@@ -328,7 +264,6 @@ def build_market_observation_payload(
         "candidateObservationGroups": candidate_observation_groups,
         "observationSequences": observation_sequences,
         "directPools": direct,
-        "directClosedLoopRoutes": direct_closed_routes[:120],
         "closedLoopRoutes": closed_routes,
         "indirectRoutes": bridges,
         "unmatchedPools": unmatched[:20],
@@ -392,14 +327,12 @@ def build_market_observation_payload(
             ),
             "nonEthPairFirstPoolCount": _int(fund_anchor_pair_observation.get("nonEthPairCount")),
             "candidateObservationSequenceCount": len(observation_sequences),
-            "candidateObservationDirectCount": len(direct_closed_routes),
             "candidateObservationBridgeCount": len(bridge_routes),
             "candidateObservationPoolCount": len(group_pool_ids),
             "observationSequenceCount": len(observation_sequences),
             "observationSequenceAnchorCount": len(sequence_anchor_symbols),
             "observationSequencePoolCount": len(sequence_pool_ids),
             "directPairCount": len(direct),
-            "directClosedLoopCount": len(direct_closed_routes),
             "indirectRouteCount": len(bridges),
             "closedLoopRouteCount": len(closed_routes),
             "unmatchedPairCount": len(unmatched),

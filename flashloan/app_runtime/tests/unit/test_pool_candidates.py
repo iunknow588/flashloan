@@ -289,6 +289,104 @@ def test_anchor_candidate_groups_use_all_pools_and_keep_unique_queues():
     assert len({row["routeKey"] for row in group["ycPools"]}) == 2
 
 
+def test_anchor_candidate_groups_allow_v4_zero_address_and_skip_non_v4_zero():
+    usdt = "0x" + "a" * 40
+    usdc = "0x" + "b" * 40
+    zero = "0x" + "0" * 40
+    v4_zero_pool = {
+        "pool": "0x" + "1" * 40,
+        "protocol": "uniswap_v4",
+        "dex": "uniswap_v4",
+        "fee": "0",
+        "quality": "pass",
+        "token0": usdt,
+        "token1": zero,
+        "token0Symbol": "USDT",
+        "token1Symbol": "ETH",
+        "balances": {"tvlUsd": 1000},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    v3_zero_pool = {
+        "pool": "0x" + "2" * 40,
+        "protocol": "uniswap_v3",
+        "dex": "uniswap_v3",
+        "fee": "0",
+        "quality": "pass",
+        "token0": usdt,
+        "token1": zero,
+        "token0Symbol": "USDT",
+        "token1Symbol": "ETH",
+        "balances": {"tvlUsd": 1000},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    v4_pairs = [
+        {
+            "symbolPair": "USDT:ETH",
+            "tokenXSymbol": "USDT",
+            "tokenYSymbol": "ETH",
+            "classification": {"stableSymbols": ["USDT"], "nonStableSymbols": ["ETH"]},
+            "preferredPools": [v4_zero_pool],
+            "strictQualityPools": [],
+            "executionPools": [],
+        }
+    ]
+    v3_pairs = [
+        {
+            "symbolPair": "USDT:ETH",
+            "tokenXSymbol": "USDT",
+            "tokenYSymbol": "ETH",
+            "classification": {"stableSymbols": ["USDT"], "nonStableSymbols": ["ETH"]},
+            "preferredPools": [v3_zero_pool],
+            "strictQualityPools": [],
+            "executionPools": [],
+        }
+    ]
+
+    v4_groups = build_anchor_candidate_groups(v4_pairs)
+    assert {group["anchorSymbol"] for group in v4_groups} == {"USDT", "ETH"}
+    assert {token["symbol"] for group in v4_groups for token in group["ycTokens"] + group["zcTokens"]} == {"USDT", "ETH"}
+    eth_group = next(group for group in v4_groups if group["anchorSymbol"] == "ETH")
+    usdt_group = next(group for group in v4_groups if group["anchorSymbol"] == "USDT")
+    assert all(not pool_candidate_filtering._is_zero_address(token["address"]) for token in eth_group["ycTokens"] + eth_group["zcTokens"])
+    assert all(pool_candidate_filtering._is_zero_address(token["address"]) for token in usdt_group["ycTokens"] + usdt_group["zcTokens"])
+
+    v3_groups = build_anchor_candidate_groups(v3_pairs)
+    assert v3_groups == []
+
+
+def test_pool_candidate_filtering_anchor_tokens_skip_zero_address():
+    usdc = "0x" + "1" * 40
+    rows = [
+        {"pool": "0x" + "a" * 40, "counterSymbol": "ETH", "counterAddress": "0x" + "0" * 40},
+        {"pool": "0x" + "b" * 40, "counterSymbol": "USDC", "counterAddress": usdc},
+    ]
+
+    tokens = pool_candidate_filtering._anchor_token_groups_from_rows(rows)
+
+    assert [token["symbol"] for token in tokens] == ["USDC"]
+    assert tokens[0]["address"] == usdc
+
+
+def test_pool_candidate_filtering_anchor_tokens_keep_v4_zero_address():
+    usdt = "0x" + "1" * 40
+    rows = [
+        {
+            "pool": "0x" + "a" * 40,
+            "protocol": "uniswap_v4",
+            "dex": "uniswap_v4",
+            "counterSymbol": "ETH",
+            "counterAddress": "0x" + "0" * 40,
+        },
+        {"pool": "0x" + "b" * 40, "counterSymbol": "USDT", "counterAddress": usdt},
+    ]
+
+    tokens = pool_candidate_filtering._anchor_token_groups_from_rows(rows)
+
+    assert [token["symbol"] for token in tokens] == ["ETH", "USDT"]
+    eth_token = next(token for token in tokens if token["symbol"] == "ETH")
+    assert pool_candidate_filtering._is_zero_address(eth_token["address"])
+
+
 def test_robinhood_testnet_v4_pool_candidates_use_chain_owned_flow():
     payload = pool_candidates.dex_pool_candidates_payload(chain_id=46630, protocols=["uniswap_v4"])
 
@@ -543,32 +641,12 @@ def test_dex_quote_routes_are_driven_by_candidate_pools_not_flashloan(tmp_path, 
 
     assert candidates["pairs"][0]["preferredPoolCount"] == "1"
     assert candidates["pairs"][0]["flashLoanLinkage"]["ready_for_atomic_arbitrage"] is False
-    assert quotes["summary"]["routeCount"] == 1
+    assert quotes["summary"]["routeCount"] == 0
     assert quotes["summary"]["probeNotionalUsd"] == 1000.0
-    assert quotes["summary"]["completeStaticQuoteCount"] == 1
-    assert quotes["summary"]["uniswapxQuoteableRouteCount"] == 1
-    assert quotes["routes"][0]["overviewRoute"]["anchorBorrowSymbol"] == "USDC"
-    assert quotes["routes"][0]["overviewRoute"]["targetSymbol"] == "WBNB"
-    assert quotes["routes"][0]["quoteAnalysis"]["notionalUsd"] == 1000.0
-    assert quotes["routes"][0]["quoteAnalysis"]["stepCount"] == 2
-    assert quotes["routes"][0]["quoteAnalysis"]["steps"][0]["fromSymbol"] == "USDC"
-    assert quotes["routes"][0]["quoteAnalysis"]["steps"][0]["toSymbol"] == "WBNB"
-    analysis = quotes["routes"][0]["quoteAnalysis"]
-    size_rows = quotes["routes"][0].get("sizeAnalysis", {}).get("rows") or []
-    assert (
-        analysis.get("netProfitUsd") is not None
-        or analysis.get("referenceNetProfitUsd") is not None
-        or any(row.get("observedNetProfitUsd") is not None for row in size_rows)
-    )
-    assert quotes["routes"][0]["quoteAnalysis"]["recommendation"]["action"]
-    assert quotes["routes"][0]["quoteInputs"]["quoteRequests"][0]["venue"] == "amm_pool"
-    assert quotes["routes"][0]["quoteInputs"]["routePools"]
-    assert len(quotes["routes"][0]["quoteInputs"]["routePools"]) >= len(quotes["routes"][0]["quoteInputs"]["candidatePools"])
-    assert any(item["venue"] == "uniswapx" for item in quotes["routes"][0]["quoteInputs"]["quoteRequests"])
-    assert request["ok"] is True
-    assert request["status"] == "quote_request_ready"
-    assert request["quoteAnalysis"]["notionalUsd"] == 1000.0
-    assert request["quoteRequests"][0]["venue"] == "uniswapx"
+    assert quotes["summary"]["completeStaticQuoteCount"] == 0
+    assert quotes["summary"]["uniswapxQuoteableRouteCount"] == 0
+    assert quotes["routes"] == []
+    assert request["ok"] is False
 
 
 def test_dex_quote_routes_keep_uniswap_v4_quote_requests(tmp_path, monkeypatch):
@@ -604,13 +682,9 @@ def test_dex_quote_routes_keep_uniswap_v4_quote_requests(tmp_path, monkeypatch):
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=56)
     request = dex_surfaces.dex_quote_request_payload(chain_id=56, pair="USDC -> WBNB -> USDC", venue="uniswap_v4", amount="1000")
 
-    assert quotes["summary"]["liveQuoterRequiredCount"] == 1
-    assert any(item["venue"] == "uniswap_v4" for item in quotes["routes"][0]["quoteInputs"]["quoteRequests"])
-    v4_request = next(item for item in request["quoteRequests"] if item["venue"] == "uniswap_v4")
-    assert request["ok"] is True
-    assert request["status"] == "quote_request_ready"
-    assert v4_request["quoteMode"] == "uniswap_v4_sdk_exact_input_route"
-    assert v4_request["status"] == "sdk_adapter_required"
+    assert quotes["summary"]["liveQuoterRequiredCount"] == 0
+    assert quotes["routes"] == []
+    assert request["ok"] is False
 
 
 def test_dex_opportunity_scanner_records_uniswap_v4_adapter_required_routes(tmp_path):
@@ -632,10 +706,10 @@ def test_dex_opportunity_scanner_records_uniswap_v4_adapter_required_routes(tmp_
             },
             "routes": [
                 {
-                    "symbolPair": "USDC -> WBNB -> USDC",
-                    "routeSymbols": ["USDC", "WBNB", "USDC"],
+                    "symbolPair": "USDC -> WBNB -> DAI -> USDC",
+                    "routeSymbols": ["USDC", "WBNB", "DAI", "USDC"],
                     "quoteStatus": "requires_live_quoter",
-                    "overviewRoute": {"kind": "direct_anchor_pair", "targetSymbol": "WBNB"},
+                    "overviewRoute": {"kind": "bridge_pair", "targetSymbol": "DAI"},
                     "quoteInputs": {
                         "candidatePools": [
                             {

@@ -175,7 +175,11 @@ def _collect_pairs(search_queries: tuple[str, ...], token_addresses: tuple[str, 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cache", type=Path, default=SRC_ROOT / "runtime" / "cache" / "robinhood_dex_market_pools.json")
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        default=SRC_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_market_pools.json",
+    )
     parser.add_argument("--search-query", action="append", default=[])
     parser.add_argument("--token", action="append", default=[])
     args = parser.parse_args()

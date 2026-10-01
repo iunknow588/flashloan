@@ -13,16 +13,10 @@
   "broadcastEnabled": false,
   "readyForPausedDeploy": false,
   "routePreflightStatus": "not_ready",
-  "lastPreflightEvidence": "contract/robinhood/DEX/deployments/evidence/20260911T220100837Z-49588_robinhood-robinhood-mainnet-preflight/report.json",
+  "lastPreflightEvidence": "contract/robinhood/DEX/deployments/evidence/20260928T113307897Z-24476_robinhood-robinhood-mainnet-preflight/report.json",
   "lastReadinessEvidence": "contract/robinhood/DEX/deployments/evidence/20260911T220437175Z-54556_robinhood-robinhood-mainnet-preflight/report.json",
   "deploymentGate": "blocked_until_fork_staticcall_pass",
-  "officialRpc": "https://rpc.mainnet.chain.robinhood.com",
-  "officialRpcUrls": [
-    "https://rpc.mainnet.chain.robinhood.com",
-    "https://robinhood-rpc.publicnode.com",
-    "https://rpc.arrowrpc.com",
-    "https://rpc.ordofi.network"
-  ],
+  "source_chain_config": "../../../../flashloan/src/chains/robinhood/chain.json",
   "explorerUrl": "https://explorer.mainnet.chain.robinhood.com",
   "defaultFlashSourceKind": 4,
   "defaultPermit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",

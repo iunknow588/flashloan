@@ -227,5 +227,6 @@
     "observationSequencePoolCount": 0,
     "unmatchedPairCount": 2
   },
-  "surface": "dex_market_observation"
+  "surface": "dex_market_observation",
+  "poolRegistry": {}
 }

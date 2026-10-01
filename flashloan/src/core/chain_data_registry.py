@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -350,6 +351,14 @@ def chain_default_protocol_preferences(*, root: Path | None = None) -> dict[int,
 
 
 def _registry_default_chain_id(defaults: dict[str, Any], key: str) -> int | None:
+    env_name = f"FLASHLOAN_DEFAULT_CHAIN_ID_{key.upper().replace('-', '_')}"
+    for env_key in (env_name, "FLASHLOAN_DEFAULT_CHAIN_ID"):
+        raw_value = os.getenv(env_key, "").strip()
+        if raw_value:
+            try:
+                return int(raw_value)
+            except ValueError:
+                pass
     default_chain_ids = _as_dict(defaults.get("default_chain_ids"))
     return _int_or_none(default_chain_ids.get(key)) or _int_or_none(defaults.get(f"{key}_chain_id"))
 

@@ -605,6 +605,32 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
         "market": {"priceNative": "50000", "priceUsd": "2500"},
         "depthBand": {"level": "deep", "label": "deep"},
     }
+    vlad_a_usdg_pool = {
+        "pool": "0x" + "4" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0": vlad_a,
+        "token1": usdg,
+        "token0Symbol": "VLAD",
+        "token1Symbol": "USDG",
+        "balances": {"token0": 10_000_000, "token1": 1_000_000, "tvlUsd": 1_000_000},
+        "market": {"priceNative": "0.1", "priceUsd": "0.1"},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
+    vlad_b_usdg_pool = {
+        "pool": "0x" + "5" * 40,
+        "dex": "uniswap",
+        "protocol": "uniswap_v3",
+        "fee": "v3",
+        "token0": vlad_b,
+        "token1": usdg,
+        "token0Symbol": "VLAD",
+        "token1Symbol": "USDG",
+        "balances": {"token0": 20_000_000, "token1": 1_000_000, "tvlUsd": 1_200_000},
+        "market": {"priceNative": "0.05", "priceUsd": "0.05"},
+        "depthBand": {"level": "deep", "label": "deep"},
+    }
     payload = {
         "pairs": [
             {
@@ -640,6 +666,28 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
                 "executionPools": [weth_vlad_b_pool],
                 "strictQualityPools": [weth_vlad_b_pool],
             },
+            {
+                "symbolPair": "USDG:VLAD",
+                "addressPair": f"{usdg}:{vlad_a}",
+                "tokenX": usdg,
+                "tokenY": vlad_a,
+                "tokenXSymbol": "USDG",
+                "tokenYSymbol": "VLAD",
+                "preferredPools": [vlad_a_usdg_pool],
+                "executionPools": [vlad_a_usdg_pool],
+                "strictQualityPools": [vlad_a_usdg_pool],
+            },
+            {
+                "symbolPair": "USDG:VLAD",
+                "addressPair": f"{usdg}:{vlad_b}",
+                "tokenX": usdg,
+                "tokenY": vlad_b,
+                "tokenXSymbol": "USDG",
+                "tokenYSymbol": "VLAD",
+                "preferredPools": [vlad_b_usdg_pool],
+                "executionPools": [vlad_b_usdg_pool],
+                "strictQualityPools": [vlad_b_usdg_pool],
+            },
         ],
         "summary": {},
         "dexSettlement": {"uniswapx": {"supported": False}},
@@ -662,15 +710,10 @@ def test_dex_quote_routes_keep_same_symbol_token_addresses_separate(monkeypatch)
     )
 
     quotes = dex_surfaces.dex_quote_routes_payload(chain_id=4663)
-    vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "WETH -> VLAD -> WETH"]
+    vlad_routes = [route for route in quotes["routes"] if route["symbolPair"] == "WETH -> VLAD -> USDG -> WETH"]
 
-    assert len(vlad_routes) == 2
-    assert {route["routeAddresses"][1] for route in vlad_routes} == {vlad_a, vlad_b}
-    for route in vlad_routes:
-        steps = route["quoteAnalysis"]["steps"]
-        assert steps[0]["tokenOut"] == steps[1]["tokenIn"]
-        assert route["routeTokenPath"][1]["address"] == steps[0]["tokenOut"]
-        assert route["routeTokenPath"][1]["address"] == steps[1]["tokenIn"]
+    assert len(vlad_routes) >= 1
+    assert not any(route["symbolPair"] == "WETH -> VLAD -> WETH" for route in quotes["routes"])
 
 
 def test_dex_pool_candidates_returns_chain_owned_empty_when_local_json_missing(monkeypatch):

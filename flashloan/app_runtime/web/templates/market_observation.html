@@ -79,13 +79,12 @@
       <div class="metric"><small>闭环观察序列</small><strong id="sequenceCount">-</strong><span id="sequenceNames">-</span></div>
       <div class="metric"><small>资金锚点可接入交易对</small><strong id="associatedPairCount">-</strong><span id="associatedPairNames">-</span></div>
       <div class="metric"><small>关联观察池</small><strong id="observationPoolCount">-</strong><span id="observationTokenCount">-</span></div>
-      <div class="metric"><small>直接闭环</small><strong id="directCount">-</strong><span>锚点代币直接回到自身</span></div>
       <div class="metric"><small>桥接闭环</small><strong id="bridgeCount">-</strong><span>通过中间代币回到锚点</span></div>
       <div class="metric"><small>未匹配池</small><strong id="unmatchedCount">-</strong><span>暂不能进入闭环观察</span></div>
     </section>
 
     <section class="note" id="scopeNotice">
-      本页按候选代币分组展示观察序列，合并显示直接闭环、桥接闭环与全部闭环路径。页面只负责候选结构与观察结果，不负责最终报价、盈亏或执行决策。
+      本页按候选代币分组展示观察序列，合并显示桥接闭环与全部闭环路径。页面只负责候选结构与观察结果，不负责最终报价、盈亏或执行决策。
     </section>
 
     <section class="panel" style="margin-bottom:14px">
@@ -128,32 +127,21 @@
       <div id="associatedObservationPoolList" class="list"></div>
     </section>
 
-    <section class="split" style="margin-bottom:14px">
-      <div class="panel">
-        <div class="route-head">
-          <div>
-            <h2>直接闭环候选</h2>
-            <div class="route-subtitle">单个候选池即可形成闭环的路径。</div>
-          </div>
+    <section class="panel" style="margin-bottom:14px">
+      <div class="route-head">
+        <div>
+          <h2>桥接闭环候选</h2>
+          <div class="route-subtitle">需要两个或三个候选池串联形成闭环的路径。</div>
         </div>
-        <div id="directList" class="list"></div>
       </div>
-      <div class="panel">
-        <div class="route-head">
-          <div>
-            <h2>桥接闭环候选</h2>
-            <div class="route-subtitle">需要两个或三个候选池串联形成闭环的路径。</div>
-          </div>
-        </div>
-        <div id="indirectList" class="list"></div>
-      </div>
+      <div id="indirectList" class="list"></div>
     </section>
 
     <section class="panel" style="margin-bottom:14px">
       <div class="route-head">
         <div>
           <h2>全部闭环路径</h2>
-          <div class="route-subtitle">将直接闭环与桥接闭环合并展示，便于整体查看。</div>
+          <div class="route-subtitle">展示当前筛选条件下的桥接闭环路径，便于整体查看。</div>
         </div>
       </div>
       <div id="closedLoopList" class="list"></div>
@@ -212,7 +200,6 @@
 
     function routeBadge(kind) {
       const value = String(kind || "").toLowerCase();
-      if (value === "direct_closed_pair") return '<span class="badge good">直接闭环</span>';
       if (value === "bridge_closed_loop") return '<span class="badge warn">桥接闭环</span>';
       return '<span class="badge neutral">闭环</span>';
     }
@@ -229,12 +216,22 @@
       </div>`;
     }
 
+    function sequenceTitle(row) {
+      const rawPath = String(row?.pathText || "").trim();
+      if (rawPath) return rawPath;
+      const symbols = list(row?.pathSymbols).map(s => String(s || "").trim()).filter(Boolean);
+      if (symbols.length >= 4 && symbols[0].toUpperCase() === symbols[symbols.length - 1].toUpperCase()) {
+        return symbols.join(" -> ");
+      }
+      return "-";
+    }
+
     function sequenceHtml(row) {
       const routePools = list(row?.routePools);
       return `<div class="route-card">
         <div class="route-head">
           <div class="route-title">
-            <strong>${esc(row?.pathText || `${row?.anchorSymbol || "-"} -> ${row?.counterSymbol || "-"} -> ${row?.anchorSymbol || "-"}`)}</strong>
+            <strong>${esc(sequenceTitle(row))}</strong>
             <div class="route-subtitle">锚点 ${esc(row?.anchorSymbol || "-")} · 候选 ${esc(row?.counterSymbol || "-")} · 池子 ${esc(row?.pool || "-")}</div>
           </div>
           <div class="chip-row">
@@ -480,7 +477,6 @@
       const ycTokens = groupTokens(group, "yc");
       const zcTokens = groupTokens(group, "zc");
       const observationSequences = list(group?.observationSequences);
-      const directRoutes = list(group?.directClosedLoopRoutes);
       const bridgeRoutes = list(group?.bridgeClosedLoopRoutes);
       const closedRoutes = list(group?.closedLoopRoutes);
       const anchorAddresses = list(group?.anchorAddresses);
@@ -524,7 +520,7 @@
           </div>
           <div class="pair-line">
             <strong>闭环统计</strong>
-            <div class="meta-line">直接 ${esc(directRoutes.length || 0)} / 桥接 ${esc(bridgeRoutes.length || 0)} / 全部 ${esc(closedRoutes.length || 0)}</div>
+            <div class="meta-line">桥接 ${esc(bridgeRoutes.length || 0)} / 全部 ${esc(closedRoutes.length || 0)}</div>
           </div>
         </div>
       </div>`;
@@ -543,7 +539,6 @@
         const query = new URLSearchParams(window.location.search);
         if (!query.get("feature")) query.set("feature", "dex_arbitrage");
         const data = await fetchJson(`/api/dex/market-observation?${query.toString()}`);
-        const directClosedRoutes = list(data.directClosedLoopRoutes);
         const closedLoopRoutes = list(data.closedLoopRoutes);
         const bridgeRoutes = closedLoopRoutes.filter(route => String(route?.kind || "").toLowerCase() === "bridge_closed_loop");
         const fallbackBridgeRoutes = firstNonEmptyList(list(data.indirectRoutes).filter(route => String(route?.kind || "").toLowerCase() === "bridge_closed_loop"));
@@ -576,7 +571,6 @@
         $("associatedPairNames").textContent = effectiveAssociatedPairs.slice(0, 4).map(item => item?.symbolPair || "-").join(", ") || "-";
         $("observationPoolCount").textContent = data.summary?.fundAnchorPairObservationAssociatedObservationPoolCount ?? data.summary?.nonEthPairFirstAssociatedObservationPoolCount ?? associatedObservationPools.length ?? 0;
         $("observationTokenCount").textContent = `关联代币 ${data.summary?.fundAnchorPairObservationAssociatedObservationTokenCount ?? data.summary?.nonEthPairFirstAssociatedObservationTokenCount ?? associatedObservationTokens.length ?? 0}`;
-        $("directCount").textContent = data.summary?.directClosedLoopCount ?? directClosedRoutes.length ?? 0;
         $("bridgeCount").textContent = data.summary?.indirectRouteCount ?? effectiveBridgeRoutes.length ?? 0;
         $("unmatchedCount").textContent = data.summary?.unmatchedPairCount ?? 0;
 
@@ -590,7 +584,6 @@
           ? `<div class="empty">已生成 ${esc(totalObservationPools)} 个关联观察池，页面仅预览前 ${esc(associatedObservationPools.length)} 个；全量数据保存在市场观察静态文件中。</div>`
           : "";
         $("associatedObservationPoolList").innerHTML = poolPreview + poolPreviewNotice || '<div class="empty">当前选择下没有关联观察池。</div>';
-        $("directList").innerHTML = directClosedRoutes.map(routeHtml).join("") || '<div class="empty">当前选择下没有直接闭环候选。</div>';
         $("indirectList").innerHTML = effectiveBridgeRoutes.map(routeHtml).join("") || '<div class="empty">当前选择下没有桥接闭环候选。</div>';
         $("closedLoopList").innerHTML = closedLoopRoutes.map(routeHtml).join("") || '<div class="empty">当前选择下没有闭环路径。</div>';
         $("unmatchedList").innerHTML = list(data.unmatchedPools).map(unmatchedHtml).join("") || '<div class="empty">没有未匹配候选池。</div>';

@@ -40,24 +40,48 @@ def _probe_robinhood_testnet_route_execution_size(
     attempts = 0
     candidate_rows: list[dict[str, Any]] = []
 
-    def _passes(evidence: dict[str, Any]) -> bool:
+    def _all_hop_gates_ok(evidence: dict[str, Any]) -> bool:
         validation = _as_dict(evidence.get("validation"))
-        profit_gate = validation.get("profitableAfterCosts", True)
         return bool(
-            _text(evidence.get("status")).lower()
-            in {"live_verified", "slippage_limit_exceeded", "route_unprofitable"}
-            and validation.get("allHopsQuoted", True) is True
+            validation.get("allHopsQuoted", True) is True
             and validation.get("routeClosed", True) is True
             and validation.get("tokenContinuity", True) is True
-            and profit_gate is True
+            and validation.get("profitableAfterCosts", True) is True
+        )
+
+    def _passes(evidence: dict[str, Any]) -> bool:
+        status = _text(evidence.get("status")).lower()
+        # During a size search each candidate is built with
+        # skip_execution_size_probe=True, so a fully-quoted candidate can
+        # legitimately arrive as static_reference_pending_live_review (the
+        # best amount confirmation is what this outer probe is trying to
+        # produce). Treat that as a usable lower-bound candidate.
+        return bool(
+            (
+                status
+                in {
+                    "live_verified",
+                    "slippage_limit_exceeded",
+                    "route_unprofitable",
+                    "static_reference_pending_live_review",
+                }
+            )
+            and _all_hop_gates_ok(evidence)
         )
 
     def _failure_reason(evidence: dict[str, Any]) -> str | None:
         validation = _as_dict(evidence.get("validation"))
         status = _text(evidence.get("status")).lower()
+        if _all_hop_gates_ok(evidence):
+            return None
         if validation.get("profitableAfterCosts") is False and validation.get("allHopsQuoted") is True:
             return "not_profitable_after_costs"
-        if status not in {"live_verified", "slippage_limit_exceeded", "route_unprofitable"}:
+        if status not in {
+            "live_verified",
+            "slippage_limit_exceeded",
+            "route_unprofitable",
+            "static_reference_pending_live_review",
+        }:
             return status or "live_quote_failed"
         if validation.get("allHopsQuoted") is not True:
             return "not_all_hops_quoted"
@@ -182,10 +206,11 @@ def _probe_robinhood_testnet_route_execution_size(
             if reason not in {"not_profitable_after_costs"}:
                 if reason == "not_enough_liquidity" or (reason == "live_quote_failed" and _has_not_enough_liquidity_blocker(evidence)):
                     first_ineligible_amount_raw = probe
-                    return _stop_without_size("not_enough_liquidity")
+                    last_failure_reason = "not_enough_liquidity"
                 else:
                     return _stop_without_size(reason or "not_eligible")
-            first_ineligible_amount_raw = probe
+            else:
+                first_ineligible_amount_raw = probe
         except Exception as exc:
             quote_failure_reason = _is_rpc_verification_error(exc) or ("pool_not_initialized" if _is_pool_not_initialized_error(exc) else ("not_enough_liquidity" if _is_not_enough_liquidity_error(exc) else "live_quote_failed"))
             candidate_rows.append(
@@ -207,7 +232,11 @@ def _probe_robinhood_testnet_route_execution_size(
             if quote_failure_reason in {"live_quote_failed", "not_enough_liquidity"} and _is_not_enough_liquidity_error(exc):
                 first_ineligible_amount_raw = probe
                 last_failure_reason = quote_failure_reason
-                return _stop_without_size("not_enough_liquidity", raw_error=str(exc))
+                next_probe = max(min_probe_amount_raw, probe // 2)
+                if next_probe == probe or next_probe < min_probe_amount_raw:
+                    return _stop_without_size("not_enough_liquidity", raw_error=str(exc))
+                probe = next_probe
+                continue
             else:
                 return _stop_without_size(quote_failure_reason, raw_error=str(exc))
         if lower_bound is not None:

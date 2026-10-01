@@ -1,10 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
+const { loadChainConfig } = require(path.resolve(__dirname, "../../../../scripts/tool/load-chain-config.js"));
 
 const MAINNET_CHAIN_JSON = path.resolve(__dirname, "../config/chain.json");
 const CONTRACTS_JSON = path.resolve(__dirname, "../config/contracts.json");
-const DEFAULT_MAINNET_RPC = "https://rpc.mainnet.chain.robinhood.com";
+const MAINNET_RPC = loadChainConfig(4663).rpcUrl;
 const EXPECTED_CHAIN_ID = 4663;
 
 function readJson(filePath) {
@@ -231,7 +232,7 @@ module.exports = {
   EXPECTED_CHAIN_ID,
   MAINNET_CHAIN_JSON,
   CONTRACTS_JSON,
-  DEFAULT_MAINNET_RPC,
+  DEFAULT_MAINNET_RPC: MAINNET_RPC,
   envBool,
   normalizeAddress,
   writeEvidence,

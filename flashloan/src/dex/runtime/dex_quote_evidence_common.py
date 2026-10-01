@@ -175,6 +175,7 @@ DEX_STATUS_ERROR_KEYS = {
     "slippage_limit_exceeded": "DEX.GATE.NOT_READY",
     "live_evidence_deferred": "DEX.GATE.NOT_READY",
     "live_quote_reference_only": "DEX.GATE.NOT_READY",
+    "static_reference_pending_live_review": "DEX.GATE.NOT_READY",
     "missing_effective_pool": "DEX.GATE.NOT_READY",
     "depth_insufficient": "DEX.GATE.NOT_READY",
 }

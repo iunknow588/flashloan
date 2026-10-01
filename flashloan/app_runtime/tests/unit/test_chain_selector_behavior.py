@@ -131,3 +131,23 @@ def test_dex_overview_refreshes_on_any_chain_selection_change():
     assert "chainselectionchanged" in body
     assert 'selected.feature || "").toLowerCase() !== "dex_arbitrage"' not in body
     assert "refresh(true).then(() => refreshCowSupport())" in body
+
+
+def test_chain_defaults_do_not_override_current_page_chain():
+    script = _read("web/static/chain_selector.js")
+
+    assert "function applyStoredShellScope(query, stored, targetFeature) {" in script
+    assert "if (query.get(\"chain_id\")) return query;" in script
+    assert "const effectiveCurrentChainId = currentQueryValue.get(\"chain_id\")" in script
+    assert "!effectiveCurrentChainId && !url.searchParams.get(\"chain_id\") && fallback.chain_id" in script
+    assert "originalQuery.get(\"chain_id\")" in script
+    assert "const query = normalizeScopeQuery(" in script
+
+
+def test_chain_selector_drops_market_id_that_conflicts_with_explicit_chain():
+    script = _read("web/static/chain_selector.js")
+
+    assert "function marketIdChainComponent(marketId)" in script
+    assert "function normalizeScopeQuery(query)" in script
+    assert "marketChainId !== chainId" in script
+    assert "normalized.delete(\"market_id\");" in script

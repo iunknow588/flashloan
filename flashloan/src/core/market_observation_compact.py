@@ -3,6 +3,54 @@ from typing import Any
 from core.market_observation_io import _text
 
 
+def _pool_registry_key(pool: dict[str, Any]) -> str:
+    return str(pool.get("poolId") or pool.get("pool") or "").strip().lower()
+
+
+def _pool_registry_from_sequences(sequences: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract the minimal pool rows referenced by every persisted route."""
+    registry: dict[str, Any] = {}
+    for sequence in sequences:
+        if not isinstance(sequence, dict):
+            continue
+        for step in sequence.get("routePools") or []:
+            if not isinstance(step, dict):
+                continue
+            key = _pool_registry_key(step)
+            if key:
+                registry[key] = {**registry.get(key, {}), **step}
+    return registry
+
+
+def _hydrate_route_pools_from_registry(
+    sequences: list[dict[str, Any]],
+    registry: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Merge registry rows back into routePools so static routes can be restored."""
+    pool_rows = {
+        str(key or "").lower(): row
+        for key, row in (registry or {}).items()
+        if isinstance(row, dict) and str(key or "").strip()
+    }
+    hydrated: list[dict[str, Any]] = []
+    for sequence in sequences:
+        if not isinstance(sequence, dict):
+            hydrated.append(sequence)
+            continue
+        copied = dict(sequence)
+        route_pools: list[dict[str, Any]] = []
+        for step in copied.get("routePools") or []:
+            if not isinstance(step, dict):
+                route_pools.append(step)
+                continue
+            key = _pool_registry_key(step)
+            registry_row = pool_rows.get(key) if key else None
+            route_pools.append({**(registry_row or {}), **step})
+        copied["routePools"] = route_pools
+        hydrated.append(copied)
+    return hydrated
+
+
 def _compact_route_pool(step: dict[str, Any]) -> dict[str, Any]:
     """Keep only the hop evidence needed to rebuild quote-route inputs."""
     keys = (
@@ -96,7 +144,6 @@ def _compact_candidate_group(group: dict[str, Any]) -> dict[str, Any]:
         "observationState",
         "observationCombinationCount",
         "observationCombinationPreview",
-        "directClosedLoopCount",
         "bridgeClosedLoopCount",
         "closedLoopRouteCount",
     )
@@ -235,10 +282,15 @@ def _sequence_from_route(route: dict[str, Any]) -> dict[str, Any]:
 def _closed_loop_dedup_key(sequence: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
     symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
     anchor = symbols[0] if symbols else _text(sequence.get("anchorSymbol")).upper()
-    mids = tuple(symbols[1:-1]) if len(symbols) >= 3 and symbols[0] == symbols[-1] else tuple(symbols)
+    mids = tuple(symbols[1:-1]) if len(symbols) >= 4 and symbols[0] == symbols[-1] else tuple(symbols)
     if mids and tuple(reversed(mids)) < mids:
         mids = tuple(reversed(mids))
     return (anchor, mids)
+
+
+def _is_closed_loop_sequence(sequence: dict[str, Any]) -> bool:
+    symbols = [_text(value).upper() for value in sequence.get("pathSymbols") or [] if _text(value)]
+    return bool(symbols) and len(symbols) >= 4 and symbols[0] == symbols[-1]
 
 
 def _observation_sequences_from_observation(observation: dict[str, Any]) -> list[dict[str, Any]]:
@@ -247,10 +299,18 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
         for sequence in observation.get("observationSequences") or []
         if isinstance(sequence, dict)
     ]
+    route_sources = [
+        route
+        for key in ("closedLoopRoutes", "indirectRoutes")
+        for route in observation.get(key) or []
+        if isinstance(route, dict)
+    ]
     if sequences:
         seen: set[tuple[str, tuple[str, ...]]] = set()
         deduped: list[dict[str, Any]] = []
         for sequence in sequences:
+            if not _is_closed_loop_sequence(sequence):
+                continue
             identity = _closed_loop_dedup_key(sequence)
             if not identity:
                 continue
@@ -258,17 +318,26 @@ def _observation_sequences_from_observation(observation: dict[str, Any]) -> list
                 continue
             seen.add(identity)
             deduped.append(sequence)
+        for route in route_sources:
+            sequence = _sequence_from_route(route)
+            if not _is_closed_loop_sequence(sequence):
+                continue
+            if len(sequence.get("routePools") or []) < 3:
+                continue
+            identity = _closed_loop_dedup_key(sequence)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            deduped.append(sequence)
         return deduped
-    routes = [
-        route
-        for key in ("closedLoopRoutes", "indirectRoutes", "directClosedLoopRoutes")
-        for route in observation.get(key) or []
-        if isinstance(route, dict)
-    ]
     seen: set[tuple[str, tuple[str, ...]]] = set()
     recovered: list[dict[str, Any]] = []
-    for route in routes:
+    for route in route_sources:
         sequence = _sequence_from_route(route)
+        if not _is_closed_loop_sequence(sequence):
+            continue
+        if len(sequence.get("routePools") or []) < 3:
+            continue
         identity = _closed_loop_dedup_key(sequence)
         if identity in seen:
             continue
@@ -302,14 +371,18 @@ def _closed_routes_from_sequences(sequences: list[dict[str, Any]]) -> list[dict[
     routes: list[dict[str, Any]] = []
     seen: set[tuple[str, tuple[str, ...]]] = set()
     for sequence in sequences:
+        if not _is_closed_loop_sequence(sequence):
+            continue
         identity = _closed_loop_dedup_key(sequence)
         if identity in seen:
             continue
         seen.add(identity)
         route_pairs = _route_pairs_from_sequence(sequence)
+        if len(route_pairs) < 3:
+            continue
         routes.append(
             {
-                "kind": "direct_closed_pair" if len(route_pairs) <= 2 else "bridge_closed_loop",
+                "kind": "bridge_closed_loop",
                 "borrowSymbol": sequence.get("anchorSymbol"),
                 "anchorSymbol": sequence.get("anchorSymbol"),
                 "bridgeSymbol": sequence.get("bridgeSymbol"),
@@ -317,6 +390,7 @@ def _closed_routes_from_sequences(sequences: list[dict[str, Any]]) -> list[dict[
                 "pathSymbols": list(sequence.get("pathSymbols") or []),
                 "pathText": sequence.get("pathText") or "",
                 "closedLoop": True,
+                "routeSemantics": "x_y_entry_y_z_bridge_z_x_exit",
                 "firstLegCount": 1 if route_pairs else 0,
                 "secondLegCount": max(0, len(route_pairs) - 1),
                 "firstLegPair": route_pairs[0] if route_pairs else {},

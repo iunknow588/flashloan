@@ -23,17 +23,23 @@ def _offchain_initial_probe_amount_raw(
 ) -> tuple[int, str, str, list[str]]:
     """估算链下初始探测借币量，是所有初始探测量的唯一起点。
 
-    本函数不读取路由或规模分析中已有的 initialProbeAmountRaw /
-    offchainInitialProbeAmountRaw，也不读取 recommended / maxExecutable 作为起点。
+    当路由/规模分析已经显式携带 initialProbeAmount、offchainInitialProbeAmount、
+    requestedAmount 或 recommendedBorrowInputAmount 时，优先使用这些外部给定值，
+    避免把用户/上游已经确定的初始量覆盖掉。
     规则：
     - 只使用传入 price_map 的可信稳定币/稳定池价格锚点；
       绝不从 referenceInputAmount/notionalUsd 反推 TZ_USDT 价格；
-    - 没有可信价格时，使用一个基础代币单位 10 ** input_decimals；
-    - 若路由包含池子余额信息，会将初始探测值限制在池子流动性的 2% 以内，
+    - 没有显式初始量且没有可信价格时，使用一个基础代币单位 10 ** input_decimals；
+    - 仅在推导默认初始量时，若路由包含池子余额信息，会将初始探测值限制在池子流动性的 2% 以内，
       避免一开始就把过度资金穿透整个池子；
     - 无法计算时返回 0，由调用方决定是否回退到请求量。
     """
     route_analysis = analysis if isinstance(analysis, dict) else _as_dict(route.get("quoteAnalysis"))
+    size_analysis = (
+        _as_dict(route_analysis.get("sizeAnalysis"))
+        if isinstance(route_analysis.get("sizeAnalysis"), dict)
+        else _as_dict(route.get("sizeAnalysis"))
+    )
     pools = pools or _pool_map(route)
     price_map = price_map or {}
     input_symbol = _norm_symbol(
@@ -41,6 +47,19 @@ def _offchain_initial_probe_amount_raw(
         or (route.get("routeSymbols") or [None])[0]
         or route.get("tokenXSymbol")
     )
+    explicit_amount_raw = _explicit_initial_probe_amount_raw(
+        route=route,
+        route_analysis=route_analysis,
+        size_analysis=size_analysis,
+        input_decimals=input_decimals,
+    )
+    if explicit_amount_raw is not None and explicit_amount_raw > 0:
+        return (
+            explicit_amount_raw,
+            "borrow_token",
+            "requested_borrow_amount_fallback",
+            ["requested_borrow_amount_fallback"],
+        )
     input_price = price_map.get(input_symbol) if input_symbol else None
     if input_price is not None and input_price > 0:
         amount_raw = max(1, _raw_from_human(Decimal(str(1000.0 / input_price)), input_decimals))
@@ -65,6 +84,59 @@ def _offchain_initial_probe_amount_raw(
         reason = liquidity_reason or "liquidity_cap"
         reasons.append(liquidity_reason or "liquidity_cap")
     return amount_raw, "borrow_token", reason, reasons
+
+
+def _explicit_initial_probe_amount_raw(
+    *,
+    route: dict[str, Any],
+    route_analysis: dict[str, Any],
+    size_analysis: dict[str, Any],
+    input_decimals: int,
+) -> int | None:
+    """Return a caller/upstream-provided initial probe amount when present.
+
+    Explicit fields are preferred over automatic anchors. This is the fix for
+    cases where an external initial amount (for example 0.001 TZ or 1 TZ) was
+    ignored and the runtime recomputed 1000 / price or one basic unit instead.
+    """
+    raw_candidates = [
+        route.get("offchainInitialProbeAmountRaw"),
+        route.get("initialProbeAmountRaw"),
+        route.get("requestedAmountRaw"),
+        route_analysis.get("offchainInitialProbeAmountRaw"),
+        route_analysis.get("initialProbeAmountRaw"),
+        route_analysis.get("requestedAmountRaw"),
+        size_analysis.get("offchainInitialProbeAmountRaw"),
+        size_analysis.get("initialProbeAmountRaw"),
+        size_analysis.get("recommendedBorrowInputAmountRaw"),
+    ]
+    for candidate in raw_candidates:
+        try:
+            raw = int(str(candidate))
+        except (TypeError, ValueError):
+            continue
+        if raw > 0:
+            return raw
+    human_candidates = [
+        route.get("offchainInitialProbeAmount"),
+        route.get("initialProbeAmount"),
+        route.get("requestedAmount"),
+        route_analysis.get("offchainInitialProbeAmount"),
+        route_analysis.get("initialProbeAmount"),
+        route_analysis.get("requestedAmount"),
+        route_analysis.get("amountOptimizedFrom"),
+        size_analysis.get("offchainInitialProbeAmount"),
+        size_analysis.get("initialProbeAmount"),
+        size_analysis.get("recommendedBorrowInputAmount"),
+    ]
+    for candidate in human_candidates:
+        positive = _positive_decimal_or_none(candidate)
+        if positive is None or positive <= 0:
+            continue
+        raw = max(1, _raw_from_human(positive, input_decimals))
+        if raw > 0:
+            return raw
+    return None
 
 def _step_token_rate(step: dict[str, Any]) -> Decimal | None:
     input_amount = _positive_decimal_or_none(step.get("referenceInputAmount") or step.get("inputAmount") or step.get("amountIn"))

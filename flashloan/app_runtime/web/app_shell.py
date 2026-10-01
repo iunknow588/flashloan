@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from html import escape
+import os
 import re
 from urllib.parse import urlencode
 
@@ -318,9 +319,13 @@ def inject_app_shell_markup(
         return html
 
     feature_value = str(feature or "").strip().lower()
-    selector_feature_value = feature_value or feature_from_page_path(current_path) or str(request.args.get("feature", "")).strip().lower() or "liquidation"
+    default_feature = str(os.getenv("CONTROL_PANEL_DEFAULT_FEATURE", "dex_arbitrage")).strip().lower()
+    if current_path == "/" and not feature_value and not str(request.args.get("feature", "")).strip():
+        selector_feature_value = default_feature
+    else:
+        selector_feature_value = feature_value or feature_from_page_path(current_path) or str(request.args.get("feature", "")).strip().lower() or default_feature
     if selector_feature_value not in {"liquidation", "dex_arbitrage"}:
-        selector_feature_value = "liquidation"
+        selector_feature_value = default_feature if default_feature in {"liquidation", "dex_arbitrage"} else "dex_arbitrage"
     selected_market_value = str(selected_market_id or default_market_id or "").strip()
     selected_chain_value = selected_chain_id if selected_chain_id is not None else default_chain_id
     current_strategy_key = dex_strategy_key_for_path(current_path)

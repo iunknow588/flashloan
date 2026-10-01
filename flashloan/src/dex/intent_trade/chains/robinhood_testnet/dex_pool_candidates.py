@@ -456,6 +456,7 @@ def dex_pool_candidates_payload(
     )
     shared_group_count = sum(1 for group in anchor_groups if group.get("ycZcSameSet"))
     shared_pool_count = sum(int(group.get("sharedPoolCount") or 0) for group in anchor_groups)
+    candidate_pool_ids = {str(row.get("pool") or "").strip().lower() for row in rows if row.get("pool")}
     return {
         "mode": "dex_pool_candidates",
         "source": "chain_flow",
@@ -476,6 +477,8 @@ def dex_pool_candidates_payload(
         "filters": {"source": source_mode, "identity": "poolKey/poolId"},
         "summary": {
             "candidateRouteCount": str(len(rows)),
+            "staticPoolCount": str(len(candidate_pool_ids)),
+            "staticPairCount": str(len(pairs)),
             "pairTableCount": str(len(pairs)),
             "anchorGroupCount": str(len(anchor_groups)),
             "ycPoolCount": str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups)),

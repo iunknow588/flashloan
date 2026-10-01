@@ -16,6 +16,28 @@ from market.binance_market.pool_candidate_normalization import (
     _token_address,
 )
 
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+def _is_zero_address(value: object) -> bool:
+    text = str(value or "").strip().lower()
+    if not text.startswith("0x"):
+        return False
+    try:
+        return int(text, 16) == 0
+    except ValueError:
+        return False
+
+def _v4_zero_address_allowed(row: dict[str, Any]) -> bool:
+    """Uniswap V4 uses the zero address as the native-ETH sentinel in PoolKey.
+
+    This is not a synthetic fallback: decoded PoolKeys that come from on-chain
+    logs legitimately carry ``0x0`` for plain ETH, so we keep those rows instead
+    of dropping them as invalid token addresses.
+    """
+    protocol = str(row.get("protocol") or row.get("dex") or "").strip().lower()
+    return protocol in {"uniswap_v4", "v4"}
+
+
 def _reject_reason_counts(rows: list[dict]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for row in rows:
@@ -219,6 +241,8 @@ def _anchor_token_groups_from_rows(rows: list[dict[str, Any]]) -> list[dict[str,
         if not token_symbol:
             continue
         token_address = _token_address(row.get("counterAddress"))
+        if not token_address or (_is_zero_address(token_address) and not _v4_zero_address_allowed(row)):
+            continue
         bucket = token_groups.setdefault(
             token_symbol,
             {"symbol": token_symbol, "address": token_address, "pools": [], "poolIds": set()},
@@ -231,6 +255,12 @@ def _anchor_token_groups_from_rows(rows: list[dict[str, Any]]) -> list[dict[str,
             bucket["pools"].append(row)
     tokens: list[dict[str, Any]] = []
     for token in sorted(token_groups.values(), key=lambda item: (-len(item["pools"]), str(item["symbol"]))):
+        if not token.get("address"):
+            continue
+        if _is_zero_address(token.get("address")) and not any(
+            _v4_zero_address_allowed(row) for row in token.get("pools") or []
+        ):
+            continue
         tokens.append(
             {
                 "symbol": token["symbol"],
