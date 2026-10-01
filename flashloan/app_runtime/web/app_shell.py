@@ -402,6 +402,6 @@ def inject_app_shell_markup(
     shell += (
         '<script src="/static/app-shell.js"></script>'
         '<script src="/static/workflow-context.js"></script>'
-        '<script>(function(){window.addEventListener("workflowcontextready",function(event){var c=event.detail&&event.detail.context||{};var e=document.querySelector("[data-shell-gate]");if(e)e.textContent=(c.execution_gate&&c.execution_gate.broadcast_enabled)?"Broadcast enabled":"Observation mode";});window.addEventListener("chainselectionready",function(event){var p=event.detail||{};var e=document.querySelector("[data-shell-gate]");if(e&&p.selected)e.title=(p.selected.market_id||"")+" / "+(p.selected.chain_id||"");});})();</script>'
+        '<script>(function(){window.addEventListener("workflowcontextready",function(event){var c=event.detail&&event.detail.context||{};var e=document.querySelector("[data-shell-gate]");if(e)e.textContent=(c.execution_gate&&c.execution_gate.broadcast_enabled)?"链上执行开关已开启":"链上执行开关未授权";});window.addEventListener("chainselectionready",function(event){var p=event.detail||{};var e=document.querySelector("[data-shell-gate]");if(e&&p.selected)e.title=(p.selected.market_id||"")+" / "+(p.selected.chain_id||"");});})();</script>'
     )
     return _inject_after_body_open(html, shell)

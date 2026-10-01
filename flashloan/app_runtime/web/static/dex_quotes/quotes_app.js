@@ -85,10 +85,10 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       const autoExecutable = summary.autoExecutableClosedLoopCount ?? summary.auto_executable_closed_loop_count ?? 0;
       $("autoExecutableCount").textContent = `${autoExecutable}`;
       $("autoExecutableMeta").textContent = scanner.auto_execute_enabled && scanner.auto_execute_callback_configured
-        ? `${autoExecutable} 条可自动广播`
+        ? `${autoExecutable} 条链上执行开关已开启`
         : scanner.auto_execute_enabled
-          ? `${autoExecutable} 条待回调配置`
-          : `${autoExecutable} 条观察模式`;
+          ? `${autoExecutable} 条链上执行开关未授权`
+          : `${autoExecutable} 条链上执行开关未开启`;
       const reviewedCount = summary.onchainEvidenceReviewedRouteCount ?? 0;
       $("reviewedCount").textContent = `${reviewedCount}`;
       $("reviewedMeta").textContent = `已复核 ${reviewedCount} 条 / 总 ${summary.routeCount ?? 0} 条`;
@@ -733,7 +733,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
         `方向=${display(copyDirection)}`,
         `${bestAmountLabel}=${bestAmountCopyText}`,
         `报价状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交" : execFailed ? "链上执行失败" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核" : "链下估算完成"}`,
-        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（广播未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
+        `状态=${pendingCopy ? "链下估算完成" : notSubmitted ? "链上执行未提交（链上执行开关未开启）" : execFailed ? "链上执行失败/未提交" : execPending ? "链上执行提交中" : reviewStage === "execution" ? "链上执行已提交，等待链上确认" : reviewStage === "preflight_failed" ? "链上复核失败" : estimateFailed || focusOnError ? display(evidenceStatusEx(evidence.status)) : staticReview ? display(evidenceStatusEx(evidence.status)) : reviewStage === "preflight" ? "链上复核完成" : "链下估算完成"}`,
         `区块=${display(evidence.blockNumber || evidence.triggerBlockNumber)}`,
         `依据=${display(evidenceTrustText(evidence, sourceAnalysis))}`,
         [`${reviewStage === "preflight" ? "初始测试量" : "初始探测"}=${initialProbeDisplay}${initialProbeDisplay !== "-" ? ` ${display(initialProbeSymbol)}` : ""}`],
@@ -1253,7 +1253,7 @@ const refreshIntervalKey = "dex-quotes-refresh-interval-seconds";
       toggle.addEventListener("change", async () => {
         try {
           await postJson("/api/dex/opportunity-scanner/auto-execute", {enabled: toggle.checked});
-          $("message").textContent = toggle.checked ? "自动执行已开启" : "自动执行已关闭";
+          $("message").textContent = toggle.checked ? "链上执行开关已开启" : "链上执行开关未开启";
         } catch (error) {
           toggle.checked = !toggle.checked;
           $("message").textContent = uiError(error.message);
