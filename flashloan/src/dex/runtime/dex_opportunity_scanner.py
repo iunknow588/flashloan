@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError, as_completed
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
@@ -191,11 +191,18 @@ def _scanner_evidence_worker_count() -> int:
 
 def _scanner_evidence_timeout_seconds() -> float:
     saved = read_json_parameter(STRATEGY_CONFIG_PATH, legacy_paths=LEGACY_STRATEGY_CONFIG_PATHS) or {}
-    raw = saved.get("DEX_EVIDENCE_TIMEOUT_SECONDS", os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "90"))
+    raw = saved.get("DEX_EVIDENCE_TIMEOUT_SECONDS", os.getenv("DEX_OPPORTUNITY_SCANNER_EVIDENCE_TIMEOUT_SECONDS", "120"))
     try:
         return max(60.0, float(raw))
     except (TypeError, ValueError):
-        return 90.0
+        return 120.0
+
+
+def _closed_loop_workers() -> int:
+    try:
+        return max(1, min(8, int(os.getenv("DEX_CLOSED_LOOP_WORKERS", "3") or "3")))
+    except (TypeError, ValueError):
+        return 3
 
 
 def _auto_execute_log_stats(chain_id: int | None) -> dict[str, Any]:
@@ -684,6 +691,8 @@ class DexOpportunityScanner:
         self._recorded_signatures: dict[tuple[Any, ...], float] = {}
         self._last_recording: dict[str, Any] = {"recorded": 0, "source": "empty", "error": None}
         self._recorded_attempt_count = 0
+        self._closed_loop_scan_count = 0
+        self._closed_loop_review_count = 0
         self._auto_execute_count = 0
         self._last_auto_execute_at: str | None = None
         self._session_reset_at = _now_iso()
@@ -726,70 +735,87 @@ class DexOpportunityScanner:
             auto_broadcast_count = 0
             auto_broadcast_failed = 0
             auto_broadcast_errors: list[str] = []
-            for route in routes:
-                route_symbols = [str(item) for item in (route.get("routeSymbols") or []) if str(item).strip()]
-                if not route_symbols:
-                    refreshed.append(route)
-                    continue
-                try:
-                    amount = recommended_route_test_amount(
-                        route_symbols=route_symbols,
-                        chain_id=task.chain_id,
-                        protocols=list(task.protocols),
-                    )
-                    if amount is None:
-                        refreshed.append(route)
-                        continue
-                    if self.auto_execute_enabled:
-                        manual_result = self._run_manual_route_review_and_broadcast(
+            per_route_recorded = 0
+            per_route_error: str | None = None
+
+            def _consume_result(work: dict[str, Any]) -> None:
+                nonlocal manual_review_count, auto_broadcast_count, auto_broadcast_failed, auto_broadcast_errors
+                nonlocal per_route_recorded, per_route_error
+                route = work["route"]
+                refreshed.append(route)
+                if work["manual_reviewed"]:
+                    manual_review_count += 1
+                if work["broadcast_executed"]:
+                    auto_broadcast_count += 1
+                    self._record_session_executed(work["broadcast_payload"], auto=True)
+                if work["broadcast_failed"]:
+                    auto_broadcast_failed += 1
+                    auto_broadcast_errors.extend(work["broadcast_errors"])
+                attempt = work.get("attempt")
+                if attempt is not None:
+                    refresh_attempt_pairs.append((route, attempt))
+                if attempt is not None and self.record_opportunities:
+                    broadcast_payload = work.get("broadcast_payload")
+                    if isinstance(broadcast_payload, dict):
+                        self._attach_auto_execute_to_attempt(attempt, route, broadcast_payload)
+                    elif work.get("manual_reviewed"):
+                        attempt["auto_execute"] = {
+                            "skipped": True,
+                            "reason": "manual_review_not_profitable",
+                        }
+                    try:
+                        route_recording = self.record_attempts([attempt]) or {}
+                    except Exception as exc:
+                        route_recording = {
+                            "recorded": 0,
+                            "source": "closed_loop_deep_review",
+                            "error": str(exc)[:300],
+                        }
+                    per_route_recorded += int(route_recording.get("recorded") or 0)
+                    if route_recording.get("error"):
+                        per_route_error = str(route_recording.get("error") or "")[:300]
+                    with self._lock:
+                        self._recorded_attempt_count += int(route_recording.get("recorded") or 0)
+                        self._closed_loop_review_count += 1
+                        self._last_recording = {
+                            "candidate_count": 1,
+                            "review_count": 1,
+                            "recorded": int(route_recording.get("recorded") or 0),
+                            "source": "closed_loop_deep_review",
+                            "error": route_recording.get("error"),
+                        }
+
+            workers = _closed_loop_workers()
+            if workers <= 1 or len(routes) <= 1:
+                for route in routes:
+                    _consume_result(
+                        self._closed_loop_review_one_route(
                             route=route,
-                            route_symbols=route_symbols,
-                            amount=amount,
                             chain_id=task.chain_id,
                             protocols=list(task.protocols),
+                            recommended_route_test_amount=recommended_route_test_amount,
                             run_official_v4_arb_route_test=run_official_v4_arb_route_test,
+                            estimate_route_live_quote=estimate_route_live_quote,
+                            anchor=anchor,
                         )
-                        result = manual_result["result"]
-                        route["__manualPreflight"] = manual_result["preflight"]
-                        route["__manualBroadcast"] = manual_result["broadcast"]
-                        manual_review_count += 1
-                        broadcast_payload = manual_result["broadcast"]
-                        if broadcast_payload is not None:
-                            if bool(broadcast_payload.get("ok")) and broadcast_payload.get("txHash"):
-                                auto_broadcast_count += 1
-                                self._record_session_executed(broadcast_payload, auto=True)
-                            else:
-                                auto_broadcast_failed += 1
-                                auto_broadcast_errors.append(
-                                    str(broadcast_payload.get("error") or "official_arb_auto_broadcast_failed")[:300]
-                                )
-                    else:
-                        result = estimate_route_live_quote(
+                    )
+            else:
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    futures = [
+                        executor.submit(
+                            self._closed_loop_review_one_route,
+                            route=route,
                             chain_id=task.chain_id,
                             protocols=list(task.protocols),
-                            route_symbols=route_symbols,
-                            amount=amount,
-                            route=route,
+                            recommended_route_test_amount=recommended_route_test_amount,
+                            run_official_v4_arb_route_test=run_official_v4_arb_route_test,
+                            estimate_route_live_quote=estimate_route_live_quote,
+                            anchor=anchor,
                         )
-                    if isinstance(result, dict):
-                        route["__liveEstimate"] = result
-                        attempt = self._fixed_refresh_attempt(route, chain_id=task.chain_id, observed_at=_now_iso())
-                        if attempt is not None:
-                            refresh_attempt_pairs.append((route, attempt))
-                    refreshed.append(route)
-                except Exception as exc:
-                    detail = str(exc)[:300]
-                    route["__liveEstimate"] = {
-                        "ok": False,
-                        "error": detail,
-                        "quoteStatus": "live_quote_failed",
-                        "errorStack": _structured_dex_error(
-                            detail,
-                            flow="closed_loop_refresh",
-                            node_id=anchor,
-                        ),
-                    }
-                    refreshed.append(route)
+                        for route in routes
+                    ]
+                    for future in as_completed(futures):
+                        _consume_result(future.result())
             payload["routes"] = refreshed
             if self.auto_execute_enabled and manual_review_count:
                 payload["auto_execute"] = {
@@ -825,6 +851,41 @@ class DexOpportunityScanner:
                     for _, attempt in refresh_attempt_pairs:
                         if attempt.get("route_path") == route.get("routeSymbols"):
                             attempt["auto_execute"] = auto_execute_payload
+                            self._apply_fixed_refresh_evidence_to_route(route, attempt)
+            attempts_to_record = [] if self.record_opportunities else [attempt for _, attempt in refresh_attempt_pairs]
+            recorded_result = {
+                "recorded": per_route_recorded if self.record_opportunities else 0,
+                "source": "closed_loop_deep_review",
+                "error": per_route_error,
+            }
+            if self.record_opportunities and attempts_to_record:
+                try:
+                    recorded_result = self.record_attempts(attempts_to_record) or {}
+                except Exception as exc:
+                    recorded_result = {
+                        "recorded": 0,
+                        "source": "closed_loop_deep_review",
+                        "error": str(exc)[:300],
+                    }
+            recording = {
+                "candidate_count": len(refresh_attempt_pairs),
+                "review_count": len(refresh_attempt_pairs),
+                "recorded": int(recorded_result.get("recorded") or 0),
+                "source": "closed_loop_deep_review",
+                "error": recorded_result.get("error"),
+                "autoExecuteEnabled": self.auto_execute_enabled,
+                "autoExecuted": auto_broadcast_count,
+                "autoExecuteSkipped": max(0, manual_review_count - auto_broadcast_count - auto_broadcast_failed),
+                "autoExecuteFailed": auto_broadcast_failed,
+                "autoExecuteErrors": auto_broadcast_errors,
+            }
+            with self._lock:
+                self._last_recording = recording
+                self._closed_loop_scan_count += 1
+                if not self.record_opportunities:
+                    self._recorded_attempt_count += int(recording.get("recorded") or 0)
+                    self._closed_loop_review_count += len(refresh_attempt_pairs)
+            payload["recording"] = recording
         self._merge_fixed_refresh_into_snapshot(task, payload)
         return {
             "ok": True,
@@ -833,6 +894,7 @@ class DexOpportunityScanner:
             "routeCount": len(payload.get("routes") or []),
             "routes": payload.get("routes") or [],
             "auto_execute": payload.get("auto_execute"),
+            "recording": payload.get("recording"),
         }
 
     def _run_manual_route_review_and_broadcast(
@@ -884,14 +946,116 @@ class DexOpportunityScanner:
             return False
         if bool(payload.get("profitable")):
             return True
+        analysis = payload.get("analysis") if isinstance(payload.get("analysis"), dict) else {}
+        for key in (
+            "profit",
+            "netProfitAmount",
+            "referenceNetProfitAmount",
+            "pureProfitAmount",
+            "referencePureProfitAmount",
+        ):
+            try:
+                if float(payload.get(key) or analysis.get(key) or 0) > 0:
+                    return True
+            except (TypeError, ValueError):
+                continue
+        evidence = payload.get("live_onchain_evidence") if isinstance(payload.get("live_onchain_evidence"), dict) else {}
+        costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
         try:
-            return float(payload.get("profit") or 0) > 0
+            return float(costs.get("netProfitUsd") or costs.get("netProfitAmount") or 0) > 0
         except (TypeError, ValueError):
             return False
 
+    def _closed_loop_review_one_route(
+        self,
+        *,
+        route: dict[str, Any],
+        chain_id: int | None,
+        protocols: list[str],
+        recommended_route_test_amount: Callable[..., float | None],
+        run_official_v4_arb_route_test: Callable[..., dict[str, Any]],
+        estimate_route_live_quote: Callable[..., dict[str, Any]],
+        anchor: str,
+    ) -> dict[str, Any]:
+        route_symbols = [str(item) for item in (route.get("routeSymbols") or []) if str(item).strip()]
+        result: dict[str, Any] = {
+            "route": route,
+            "attempt": None,
+            "manual_reviewed": False,
+            "broadcast_executed": False,
+            "broadcast_failed": False,
+            "broadcast_payload": None,
+            "broadcast_errors": [],
+            "result_payload": None,
+        }
+        if not route_symbols:
+            return result
+        try:
+            amount = recommended_route_test_amount(
+                route_symbols=route_symbols,
+                chain_id=chain_id,
+                protocols=protocols,
+            )
+            if amount is None:
+                return result
+            if self.auto_execute_enabled:
+                manual_result = self._run_manual_route_review_and_broadcast(
+                    route=route,
+                    route_symbols=route_symbols,
+                    amount=amount,
+                    chain_id=chain_id,
+                    protocols=protocols,
+                    run_official_v4_arb_route_test=run_official_v4_arb_route_test,
+                )
+                route["__manualPreflight"] = manual_result["preflight"]
+                route["__manualBroadcast"] = manual_result["broadcast"]
+                result["manual_reviewed"] = True
+                result["result_payload"] = manual_result["result"]
+                broadcast_payload = manual_result["broadcast"]
+                if broadcast_payload is not None:
+                    if bool(broadcast_payload.get("ok")) and broadcast_payload.get("txHash"):
+                        result["broadcast_executed"] = True
+                        result["broadcast_payload"] = broadcast_payload
+                    else:
+                        result["broadcast_failed"] = True
+                        result["broadcast_errors"] = [
+                            str(broadcast_payload.get("error") or "official_arb_auto_broadcast_failed")[:300]
+                        ]
+            else:
+                result["result_payload"] = estimate_route_live_quote(
+                    chain_id=chain_id,
+                    protocols=protocols,
+                    route_symbols=route_symbols,
+                    amount=amount,
+                    route=route,
+                )
+            if isinstance(result["result_payload"], dict):
+                route["__liveEstimate"] = result["result_payload"]
+                attempt = self._fixed_refresh_attempt(route, chain_id=chain_id, observed_at=_now_iso())
+                if attempt is not None:
+                    self._apply_fixed_refresh_evidence_to_route(route, attempt)
+                    result["attempt"] = attempt
+        except Exception as exc:
+            detail = str(exc)[:300]
+            route["__liveEstimate"] = {
+                "ok": False,
+                "error": detail,
+                "quoteStatus": "live_quote_failed",
+                "errorStack": _structured_dex_error(
+                    detail,
+                    flow="closed_loop_refresh",
+                    node_id=anchor,
+                ),
+            }
+            attempt = self._fixed_refresh_attempt(route, chain_id=chain_id, observed_at=_now_iso())
+            if attempt is not None:
+                self._apply_fixed_refresh_evidence_to_route(route, attempt)
+                result["attempt"] = attempt
+        return result
+
     def _fixed_refresh_attempt(self, route: dict[str, Any], *, chain_id: int | None, observed_at: str) -> dict[str, Any] | None:
         estimate = route.get("__liveEstimate")
-        if not isinstance(estimate, dict) or not estimate.get("ok"):
+        if not isinstance(estimate, dict):
             return None
         route_symbols = [str(item) for item in (estimate.get("routeSymbols") or route.get("routeSymbols") or []) if str(item).strip()]
         if not route_symbols:
@@ -915,15 +1079,45 @@ class DexOpportunityScanner:
         )
         quote_status = str(estimate.get("quoteStatus") or "").strip().lower()
         execution_trust = str(estimate.get("executionTrust") or "").strip().lower()
+        if not quote_status:
+            quote_status = str(estimate.get("evidenceStatus") or "").strip().lower()
+        if not quote_status:
+            quote_status = "live_quote_failed" if not estimate.get("ok") else "static_reference_pending_live_review"
+        if not execution_trust:
+            execution_trust = quote_status
         if best_amount_missing and (quote_status == "live_verified" or execution_trust == "live_quoter_verified_readonly"):
             quote_status = "static_reference_pending_live_review"
             execution_trust = "static_reference_pending_live_review"
+        failure_detail = ""
+        if not estimate.get("ok"):
+            failure_detail = str(estimate.get("detail") or estimate.get("error") or "").strip()[:300]
+        blockers = [
+            "chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight"
+        ] if best_amount_missing else []
+        if failure_detail and failure_detail not in blockers:
+            blockers.append(failure_detail)
+        error_stack = [
+            {
+                "module": "DEX",
+                "code": 3006,
+                "message": "chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight",
+            }
+        ] if best_amount_missing else []
+        if not estimate.get("ok") and not error_stack:
+            error_stack = [
+                {
+                    "module": "DEX",
+                    "code": 3007,
+                    "message": failure_detail or "on-chain review did not complete",
+                }
+            ]
         evidence = {
             "status": quote_status,
             "executionTrust": execution_trust,
             "livePriceVerified": bool(estimate.get("liveVerified")) and not best_amount_missing,
             "readyForTransactionPreflight": bool(estimate.get("readyForTransactionPreflight")) and not best_amount_missing,
             "profitable": bool(estimate.get("profitable")),
+            "trustedForExecution": bool(estimate.get("trustedForExecution")) and not best_amount_missing,
             "bestAmountConfirmed": best_amount_confirmed,
             "routeSymbols": route_symbols,
             "routeAddresses": route_addresses,
@@ -939,17 +1133,9 @@ class DexOpportunityScanner:
             "validation": {
                 "profitableAfterCosts": bool(estimate.get("profitable")),
             },
-            "blockers": [
-                "chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight"
-            ] if best_amount_missing else [],
+            "blockers": blockers,
             "conclusion": "链上报价已验证当前金额，但最佳量未计算成功；复核未通过" if best_amount_missing else None,
-            "errorStack": [
-                {
-                    "module": "DEX",
-                    "code": 3006,
-                    "message": "chain hops passed for current amount, but best amount is not confirmed; cannot enter transaction preflight",
-                }
-            ] if best_amount_missing else [],
+            "errorStack": error_stack,
         }
         quote = dict(route.get("quote") or {})
         quote["live_onchain_evidence"] = evidence
@@ -967,6 +1153,109 @@ class DexOpportunityScanner:
             "observed_at": observed_at,
         }
 
+    def _apply_fixed_refresh_evidence_to_route(self, route: dict[str, Any], attempt: dict[str, Any]) -> None:
+        quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+        evidence = quote.get("live_onchain_evidence") if isinstance(quote, dict) else {}
+        if not isinstance(evidence, dict):
+            return
+        route["live_onchain_evidence"] = deepcopy(evidence)
+        existing_analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
+        route["quoteAnalysis"] = {
+            **deepcopy(existing_analysis),
+            **deepcopy(attempt.get("quoteAnalysis") or {}),
+        }
+        route["onchainEvidenceStatus"] = evidence.get("status")
+        route["quoteStatus"] = evidence.get("status")
+        route["quoteVerification"] = {
+            "status": evidence.get("status"),
+            "executionTrust": evidence.get("executionTrust"),
+            "trustedForExecution": evidence.get("trustedForExecution"),
+            "readyForTransactionPreflight": evidence.get("readyForTransactionPreflight"),
+            "livePriceVerified": evidence.get("livePriceVerified"),
+            "bestAmountConfirmed": evidence.get("bestAmountConfirmed"),
+            "blockers": list(evidence.get("blockers") or []),
+        }
+        costs = evidence.get("costModel") if isinstance(evidence.get("costModel"), dict) else {}
+        route["bestAmountConfirmed"] = bool(evidence.get("bestAmountConfirmed")) or bool(costs.get("bestAmountConfirmed"))
+        route["bestAmountMissing"] = bool(evidence.get("bestAmountMissing")) or bool(costs.get("bestAmountMissing")) or not route["bestAmountConfirmed"]
+        if "auto_execute" in attempt:
+            route["auto_execute"] = deepcopy(attempt.get("auto_execute") or {})
+
+    def _attach_auto_execute_to_attempt(
+        self,
+        attempt: dict[str, Any],
+        route: dict[str, Any],
+        broadcast_payload: dict[str, Any],
+    ) -> None:
+        route_symbols = [
+            str(item)
+            for item in (route.get("routeSymbols") or attempt.get("route_path") or [])
+            if str(item).strip()
+        ]
+        tx_hash = str(
+            broadcast_payload.get("txHash")
+            or broadcast_payload.get("transactionHash")
+            or broadcast_payload.get("transaction_hash")
+            or ""
+        ).strip()
+        executed = bool(broadcast_payload.get("ok")) and bool(tx_hash)
+        auto_execute_payload = {
+            "observed_at": attempt.get("observed_at") or _now_iso(),
+            "route_symbols": route_symbols,
+            "broadcast": True,
+            "attempted": True,
+            "amount": broadcast_payload.get("amount") or attempt.get("best_amount"),
+            "result": dict(broadcast_payload),
+            "executed": executed,
+        }
+        attempt["auto_execute"] = auto_execute_payload
+        quote = attempt.get("quote") if isinstance(attempt.get("quote"), dict) else {}
+        precheck = attempt.get("precheck") if isinstance(attempt.get("precheck"), dict) else {}
+        attempt["broadcast"] = True
+        attempt["broadcastAttempted"] = True
+        attempt["broadcastPerformed"] = executed
+        attempt["auto_execute_requested"] = True
+        if executed:
+            attempt["state"] = "execution_success"
+            attempt["execution_phase"] = "order_submission"
+            attempt["checks_passed"] = True
+            attempt["can_submit_order"] = True
+            attempt["order_submission_enabled"] = True
+            attempt["blocked_reasons"] = []
+            attempt["error"] = None
+            attempt["tx_hash"] = tx_hash
+            quote["tx_hash"] = tx_hash
+            precheck.update(
+                {
+                    "status": "execution_success",
+                    "checks_passed": True,
+                    "can_submit_order": True,
+                    "order_submission_enabled": True,
+                    "auto_execute_requested": True,
+                    "broadcast": True,
+                }
+            )
+        else:
+            error = str(broadcast_payload.get("error") or broadcast_payload.get("detail") or "auto_execute_failed")
+            attempt["state"] = "broadcast_failed"
+            attempt["execution_phase"] = "submission"
+            attempt["checks_passed"] = False
+            attempt["can_submit_order"] = False
+            attempt["order_submission_enabled"] = True
+            attempt["blocked_reasons"] = [error]
+            attempt["error"] = error
+            precheck.update(
+                {
+                    "status": "broadcast_failed",
+                    "checks_passed": False,
+                    "can_submit_order": False,
+                    "order_submission_enabled": True,
+                    "auto_execute_requested": True,
+                    "broadcast": True,
+                    "reasons": [error],
+                }
+            )
+
     def _merge_fixed_refresh_into_snapshot(self, task, payload: dict[str, Any]) -> None:
         key = _chain_scope_key(task.chain_id, list(task.protocols))
         refreshed_routes = payload.get("routes") or []
@@ -975,10 +1264,12 @@ class DexOpportunityScanner:
         with self._lock:
             existing = self._snapshots.get(key)
             if existing is None:
+                _refresh_payload_summary(payload)
                 existing = {
                     "chain_id": task.chain_id,
                     "payload": payload,
                     "summary": _snapshot_summary(payload),
+                    "recording": payload.get("recording"),
                     "updated_at": _now_iso(),
                     "error": None,
                 }
@@ -996,6 +1287,8 @@ class DexOpportunityScanner:
                 _refresh_payload_summary(existing_payload)
                 existing["payload"] = existing_payload
                 existing["summary"] = _snapshot_summary(existing_payload)
+                if payload.get("recording") is not None:
+                    existing["recording"] = payload.get("recording")
                 existing["updated_at"] = _now_iso()
                 existing["error"] = None
             self._snapshots[key] = existing
@@ -1024,6 +1317,10 @@ class DexOpportunityScanner:
             self._session_auto_executed_count = 0
             self._session_positive_profit_count = 0
             self._session_positive_profit_amount = 0.0
+            self._closed_loop_scan_count = 0
+            self._closed_loop_review_count = 0
+            self._auto_execute_count = 0
+            self._last_auto_execute_at = None
             self._recorded_signatures.clear()
             self._auto_execute_runner.reset_cooldowns()
         self._write_cache()
@@ -1090,6 +1387,8 @@ class DexOpportunityScanner:
             with self._lock:
                 self._scan_count = int(scanner.get("scan_count") or 0)
                 self._recorded_attempt_count = int(scanner.get("recorded_attempt_count") or 0)
+                self._closed_loop_scan_count = int(scanner.get("closed_loop_scan_count") or 0)
+                self._closed_loop_review_count = int(scanner.get("closed_loop_review_count") or 0)
                 self._last_error = scanner.get("last_error")
                 raw_error_stack = scanner.get("last_error_stack")
                 self._last_error_stack = (
@@ -1166,6 +1465,8 @@ class DexOpportunityScanner:
             last_duration = self._last_duration_ms
             last_recording = deepcopy(self._last_recording)
             recorded_attempt_count = self._recorded_attempt_count
+            closed_loop_scan_count = self._closed_loop_scan_count
+            closed_loop_review_count = self._closed_loop_review_count
             auto_execute_count = self._auto_execute_count
             last_auto_execute_at = self._last_auto_execute_at
             session_reset_at = self._session_reset_at
@@ -1198,7 +1499,10 @@ class DexOpportunityScanner:
             "chain_id": chain_id,
             "scan_count": scan_count,
             "recorded_attempt_count": recorded_attempt_count,
+            "closed_loop_scan_count": closed_loop_scan_count,
+            "closed_loop_review_count": closed_loop_review_count,
             "auto_execute_count": auto_execute_count,
+            "auto_broadcast_count": auto_execute_count,
             "auto_execute_log_count": log_auto_execute_count,
             "closed_loop_review_queue": self.closed_loop_review_queue.summary(),
             "last_auto_execute_at": last_auto_execute_at,
@@ -1327,18 +1631,39 @@ class DexOpportunityScanner:
                 if isinstance(payload.get("routes"), list):
                     payload["routes"] = _dedupe_payload_routes(payload["routes"])
                 working_payload = deepcopy(payload)
+                # Keep evidence already stored in the live snapshot so a fresh
+                # scan does not make previously reviewed routes look unreviewed
+                # while the background closed-loop pipeline works through the
+                # current queue.
+                with self._lock:
+                    existing_snapshot = self._snapshots.get(key)
+                if isinstance(existing_snapshot, dict):
+                    existing_payload = existing_snapshot.get("payload")
+                    if isinstance(existing_payload, dict):
+                        existing_by_key = {
+                            _route_simple_key(route): route
+                            for route in existing_payload.get("routes") or []
+                            if isinstance(route, dict)
+                        }
+                        for route in working_payload.get("routes") or []:
+                            if not isinstance(route, dict):
+                                continue
+                            if isinstance(route.get("live_onchain_evidence"), dict) and route["live_onchain_evidence"].get("status"):
+                                continue
+                            previous = existing_by_key.get(_route_simple_key(route))
+                            if not isinstance(previous, dict):
+                                continue
+                            previous_evidence = previous.get("live_onchain_evidence")
+                            if not isinstance(previous_evidence, dict) or not previous_evidence.get("status"):
+                                continue
+                            route["live_onchain_evidence"] = deepcopy(previous_evidence)
+                            route["onchainEvidenceStatus"] = previous_evidence.get("status")
+                            route["quoteStatus"] = previous_evidence.get("status")
                 merge_recent_manual_review_evidence_into_routes(
                     working_payload.setdefault("routes", []) or [],
                     chain_id=chain_id,
                 )
                 recording = self._record_opportunities(working_payload, chain_id=chain_id, observed_at=started_at, trigger_context=trigger_context)
-                self._enqueue_closed_loop_groups_from_payload(
-                    working_payload,
-                    chain_id=chain_id,
-                    protocols=protocols,
-                )
-                if self.auto_execute_enabled and (self._thread is None or not self._thread.is_alive()):
-                    self.closed_loop_review_pipeline.run_once()
                 _refresh_payload_summary(working_payload)
                 snapshot = {
                     "chain_id": chain_id,
@@ -1349,6 +1674,22 @@ class DexOpportunityScanner:
                     "error": None,
                     "recording": recording,
                 }
+                # Persist the full route universe before the background
+                # closed-loop pipeline starts, so its first refresh never sees
+                # only a single anchor group and accidentally becomes the
+                # base snapshot for the next scan.
+                with self._lock:
+                    self._snapshots[key] = snapshot
+                self._enqueue_closed_loop_groups_from_payload(
+                    snapshot["payload"],
+                    chain_id=chain_id,
+                    protocols=protocols,
+                )
+                if self.auto_execute_enabled and (self._thread is None or not self._thread.is_alive()):
+                    # If the background scanner is not running, start the
+                    # closed-loop pipeline so every queued anchor group is
+                    # processed instead of only the first task per scan call.
+                    self.closed_loop_review_pipeline.start()
                 error = None
                 error_stack = None
             except Exception as exc:
@@ -1369,7 +1710,39 @@ class DexOpportunityScanner:
                 self._last_scan_finished_at = finished_at
                 self._last_duration_ms = duration_ms
                 if snapshot is not None:
-                    self._snapshots[key] = snapshot
+                    existing = self._snapshots.get(key)
+                    if existing is None:
+                        self._snapshots[key] = snapshot
+                    else:
+                        existing_payload = existing.get("payload") if isinstance(existing.get("payload"), dict) else {}
+                        by_key = {
+                            _route_simple_key(route): route
+                            for route in existing_payload.get("routes") or []
+                            if isinstance(route, dict)
+                        }
+                        for route in snapshot.get("payload", {}).get("routes") or []:
+                            if not isinstance(route, dict):
+                                continue
+                            key_route = _route_simple_key(route)
+                            current = by_key.get(key_route)
+                            if isinstance(current, dict):
+                                current_evidence = current.get("live_onchain_evidence")
+                                if isinstance(current_evidence, dict) and current_evidence.get("status"):
+                                    # The background closed-loop pipeline may have
+                                    # already written fresher evidence for this
+                                    # route while this scan was building. Keep it.
+                                    continue
+                            by_key[key_route] = route
+                        merged_payload = dict(existing_payload)
+                        merged_payload["routes"] = list(by_key.values())
+                        _refresh_payload_summary(merged_payload)
+                        existing["payload"] = merged_payload
+                        existing["summary"] = _snapshot_summary(merged_payload)
+                        existing["trigger_context"] = snapshot.get("trigger_context")
+                        existing["recording"] = snapshot.get("recording")
+                        existing["updated_at"] = snapshot.get("updated_at") or existing.get("updated_at")
+                        existing["error"] = None
+                        existing["errorStack"] = None
                 elif key not in self._snapshots:
                     self._snapshots[key] = {
                         "chain_id": chain_id,
@@ -1399,6 +1772,8 @@ class DexOpportunityScanner:
                 "chain_id": None,
                 "scan_count": self._scan_count,
                 "recorded_attempt_count": self._recorded_attempt_count,
+                "closed_loop_scan_count": self._closed_loop_scan_count,
+                "closed_loop_review_count": self._closed_loop_review_count,
                 "auto_execute_count": self._auto_execute_count,
                 "last_auto_execute_at": self._last_auto_execute_at,
                 "session_reset_at": self._session_reset_at,

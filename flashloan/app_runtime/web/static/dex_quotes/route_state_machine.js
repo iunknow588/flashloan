@@ -165,10 +165,12 @@ const hasConfirmedBestAmount = route => {
   const evidence = routeEvidence(route);
   const analysis = route?.quoteAnalysis && typeof route.quoteAnalysis === "object" ? route.quoteAnalysis : {};
   const costs = evidence && typeof evidence === "object" && evidence.costModel && typeof evidence.costModel === "object" ? evidence.costModel : {};
+  const liveVerifiedStatus = String(evidence?.status || "").toLowerCase() === "live_verified";
   const bestAmountConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
     || costs.bestAmountConfirmed === true
     || evidence?.bestAmountConfirmed === true
     || evidence?.readyForTransactionPreflight === true
+    || liveVerifiedStatus
     || analysis.bestAmountConfirmed === true
     || route?.bestAmountConfirmed === true;
   if (
@@ -204,10 +206,12 @@ const routeBestAmountPick = (route, evidence, analysis) => {
   const safeEvidence = evidence && typeof evidence === "object" ? evidence : {};
   const safeAnalysis = analysis && typeof analysis === "object" ? analysis : {};
   const costs = safeEvidence.costModel && typeof safeEvidence.costModel === "object" ? safeEvidence.costModel : {};
+  const liveVerifiedStatus = String(safeEvidence.status || "").toLowerCase() === "live_verified";
   const evidenceConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
     || costs.bestAmountConfirmed === true
     || safeEvidence.bestAmountConfirmed === true
     || safeEvidence.readyForTransactionPreflight === true
+    || liveVerifiedStatus
     || safeAnalysis.bestAmountConfirmed === true;
   if (
     (costs.bestAmountMissing === true
@@ -235,10 +239,12 @@ const bestAmountMissingOf = (route, evidence, analysis) => {
   const safeEvidence = evidence && typeof evidence === "object" ? evidence : {};
   const safeAnalysis = analysis && typeof analysis === "object" ? analysis : {};
   const costs = safeEvidence.costModel && typeof safeEvidence.costModel === "object" ? safeEvidence.costModel : {};
+  const liveVerifiedStatus = String(safeEvidence.status || "").toLowerCase() === "live_verified";
   const bestAmountConfirmed = costs.selectedBorrowInputAmountConfirmedMax === true
     || costs.bestAmountConfirmed === true
     || safeEvidence.bestAmountConfirmed === true
     || safeEvidence.readyForTransactionPreflight === true
+    || liveVerifiedStatus
     || safeAnalysis.bestAmountConfirmed === true;
   if (
     (route?.bestAmountMissing === true

@@ -118,6 +118,9 @@ API_RESPONSE_REQUIRED_KEYS = {
     # is the stable discriminator shared by both response generations.
     "/api/dex-pools/candidates/refresh": ("refresh_state",),
     "/api/dex/submissions": ("mode", "summary", "attempts"),
+    "/api/dex/submissions/failed": ("mode", "summary", "attempts"),
+    "/api/dex/submissions/failed/<category>": ("mode", "summary", "attempts"),
+    "/api/dex/submissions/success": ("mode", "summary", "attempts"),
     "/api/dex/submissions/clear": ("ok", "mode", "cleared", "results"),
     "/api/dex/submissions/check-onchain": ("ok", "tx_hash", "status"),
     "/api/flash-loan/pool-discovery/refresh": ("protocol_count", "protocols"),

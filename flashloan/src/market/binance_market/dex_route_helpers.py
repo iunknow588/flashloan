@@ -162,7 +162,9 @@ def _match_route(routes: list[dict[str, Any]], requested_symbols: list[str]) -> 
     return None
 
 
-def _recommended_route_test_amount(route: dict[str, Any] | None) -> float | None:
+def _recommended_route_test_amount(
+    route: dict[str, Any] | None,
+) -> float | None:
     if not isinstance(route, dict):
         return None
     analysis = route.get("quoteAnalysis") if isinstance(route.get("quoteAnalysis"), dict) else {}
@@ -182,7 +184,7 @@ def _recommended_route_test_amount(route: dict[str, Any] | None) -> float | None
             continue
         if amount > 0:
             return amount
-    return None
+    return _route_initial_probe_human(route)
 
 
 def recommended_route_test_amount(
@@ -194,6 +196,32 @@ def recommended_route_test_amount(
     routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
     route = _match_route(routes_payload.get("routes") or [], route_symbols)
     return _recommended_route_test_amount(route)
+
+
+def _route_initial_probe_human(route: dict[str, Any]) -> float | None:
+    """Use the system per-token initial probe handler as the sole fallback."""
+    try:
+        from dex.runtime.dex_quote_evidence_common import _pool_map
+        from dex.runtime.dex_quote_evidence_pool import _pool_side
+        from dex.runtime.dex_quote_evidence_size import _offchain_initial_probe_amount_raw
+    except Exception:
+        return None
+    pools = _pool_map(route)
+    input_symbol = route.get("routeSymbols") or []
+    input_symbol = input_symbol[0] if input_symbol else None
+    first_pool = next(iter(pools.values()), {})
+    _, _, input_decimals = _pool_side(first_pool, input_symbol or "")
+    if input_decimals is None:
+        input_decimals = 18
+    raw, _, _, _ = _offchain_initial_probe_amount_raw(
+        route,
+        input_decimals=input_decimals,
+        analysis=route.get("quoteAnalysis"),
+        pools=pools,
+    )
+    if not raw or raw <= 0:
+        return None
+    return float(raw / (10 ** input_decimals))
 
 
 def _amount_float(value: object) -> float:

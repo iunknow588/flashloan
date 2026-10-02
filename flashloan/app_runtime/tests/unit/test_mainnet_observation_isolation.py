@@ -229,7 +229,7 @@ def test_dex_quotes_broadcast_disabled_is_a_not_submitted_state_not_failure():
     assert "official_arb_broadcast_disabled" in text
     assert "route.__broadcastDisabled = true" in text
     assert "activeExecution?.broadcastDisabled" in text
-    assert "链上执行未提交：链上执行开关未开启，本次未发起链上交易。" in text
+    assert "链上执行未提交：自动扫描复核并链上广播未开启，本次未发起链上交易。" in text
 
 
 def test_dex_quotes_summary_shows_uncomputed_best_amount_instead_of_looking_confirmed():

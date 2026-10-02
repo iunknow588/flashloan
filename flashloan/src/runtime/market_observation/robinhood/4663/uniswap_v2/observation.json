@@ -102,7 +102,7 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "market_observation",
-  "generated_at": "2026-10-01T06:21:12.175455Z",
+  "generated_at": "2026-10-01T23:36:57.260446Z",
   "handler": "intent_trade.chains.robinhood.dex_surfaces:market_observation_flow",
   "list_counts": {
     "borrowableSymbols": 3,

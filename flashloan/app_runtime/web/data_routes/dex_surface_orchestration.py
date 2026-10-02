@@ -77,11 +77,10 @@ def _bootstrap_dex_surface_dependencies(
             lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
             lambda: quote_routes_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
         ),
-        "dex_submission_review": (
-            lambda: pool_candidates_payload(chain_id=chain_id, protocols=protocols),
-            lambda: observation_surface_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
-            lambda: overview_payload(chain_id=chain_id, protocols=protocols, use_static_observation=True),
-        ),
+        # The submission review page does not need the full candidate pool
+        # universe warmed synchronously.  Its route-framework panel uses the
+        # overview payload directly, which is already cached/static.
+        "dex_submission_review": (),
     }
     warm_surfaces = {
         "dex_market_observation": [],

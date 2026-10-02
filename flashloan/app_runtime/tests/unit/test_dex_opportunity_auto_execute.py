@@ -101,7 +101,10 @@ def _scanner(tmp_path, *, evidence=None, callback=None, enabled=None, cooldown=6
     )
 
 
-def test_auto_execute_disabled_by_default_keeps_callback_unused(tmp_path):
+def test_auto_execute_disabled_by_default_keeps_callback_unused(tmp_path, monkeypatch):
+    import runtime.dex_opportunity_scanner as scanner_module
+
+    monkeypatch.setattr(scanner_module, "default_auto_execute_env_enabled", lambda: False)
     calls = []
 
     def callback(*, route_symbols, amount, broadcast, chain_id):
@@ -143,6 +146,28 @@ def test_summary_counts_static_reference_as_pending_live_review():
     assert summary["onchainEvidencePendingRouteCount"] == 1
     assert summary["liveQuoterRequiredCount"] == 1
     assert summary["autoExecutableClosedLoopCount"] == 0
+
+
+def test_summary_counts_readonly_live_reference_as_reviewed():
+    from runtime.dex_opportunity_helpers import _refresh_payload_summary
+
+    payload = {
+        "summary": {},
+        "routes": [
+            {
+                "routeSymbols": ["TSLA", "ETH", "0X71178B", "TSLA"],
+                "live_onchain_evidence": {
+                    "status": "live_quote_reference_only",
+                    "costModel": {},
+                },
+            }
+        ],
+    }
+
+    summary = _refresh_payload_summary(payload)
+
+    assert summary["onchainEvidenceReviewedRouteCount"] == 1
+    assert summary["onchainEvidencePendingRouteCount"] == 0
 
 
 def test_auto_execute_scan_now_defers_to_closed_loop_deep_review(tmp_path):
@@ -262,6 +287,11 @@ def test_fixed_refresh_deep_mode_runs_auto_execute_when_enabled(tmp_path, monkey
         },
     ]
     assert (done.result or {}).get("auto_execute", {}).get("autoExecuted") == 1
+    assert (done.result or {}).get("recording", {}).get("review_count") == 1
+    status = scanner.status(chain_id=46630)
+    assert status["closed_loop_scan_count"] == 1
+    assert status["closed_loop_review_count"] == 1
+    assert status["auto_broadcast_count"] >= 1
     assert scanner._auto_execute_count == 1
 
 
@@ -312,6 +342,253 @@ def test_fixed_refresh_deep_mode_skips_broadcast_when_manual_review_not_profitab
     assert auto_execute.get("autoExecuted") == 0
     assert auto_execute.get("autoExecuteSkipped") == 1
     assert (done.result or {}).get("routes", [])[0].get("auto_execute", {}).get("skipped") is True
+
+
+def test_fixed_refresh_deep_mode_broadcasts_when_net_profit_is_positive_even_if_profit_field_is_missing(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = _quote_payload_for_robinhood_testnet()
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.5)
+
+    def fake_run_official(**kwargs):
+        symbols = kwargs.get("route_symbols") or []
+        broadcast = bool(kwargs.get("broadcast"))
+        calls.append({"broadcast": broadcast, "symbols": symbols})
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": True,
+            "profitable": False,
+            "profit": None,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "analysis": {"referenceNetProfitAmount": 0.5, "referenceNetReturnBps": 33.3},
+            "txHash": "0xtx" if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert calls == [
+        {"broadcast": False, "symbols": ["TZ", "TA", "TB", "TZ"]},
+        {"broadcast": True, "symbols": ["TZ", "TA", "TB", "TZ"]},
+    ]
+    auto_execute = (done.result or {}).get("auto_execute", {})
+    assert auto_execute.get("autoExecuted") == 1
+    assert (done.result or {}).get("routes", [])[0].get("auto_execute", {}).get("executed") is True
+
+
+def test_fixed_refresh_deep_mode_uses_system_initial_probe_when_route_has_no_amount_fields(tmp_path, monkeypatch):
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    calls = []
+    scanner = _scanner(tmp_path, enabled=True)
+    payload = {
+        "summary": {
+            "routeCount": 1,
+            "completeStaticQuoteCount": 1,
+            "executableCandidateCount": 0,
+            "profitableRouteCount": 1,
+            "liveQuoterRequiredCount": 1,
+            "bestNetProfitUsd": 0.5,
+        },
+        "routes": [
+            {
+                "symbolPair": "WETH -> 0XC9F9C8 -> ETH -> WETH",
+                "routeSymbols": ["WETH", "0XC9F9C8", "ETH", "WETH"],
+                "routeAddresses": [
+                    "0x" + "1" * 40,
+                    "0x" + "2" * 40,
+                    "0x" + "3" * 40,
+                    "0x" + "1" * 40,
+                ],
+                "quoteStatus": "requires_live_quoter",
+                "quoteInputs": {
+                    "candidatePools": [
+                        {
+                            "pool": "0x" + "a" * 40,
+                            "token0": "0x" + "1" * 40,
+                            "token0Symbol": "WETH",
+                            "token0Decimals": 18,
+                            "token1": "0x" + "2" * 40,
+                            "token1Symbol": "0XC9F9C8",
+                            "token1Decimals": 18,
+                        }
+                    ]
+                },
+            }
+        ],
+    }
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "_routes_payload", lambda **kwargs: payload)
+
+    def fake_run_official(**kwargs):
+        symbols = kwargs.get("route_symbols") or []
+        broadcast = bool(kwargs.get("broadcast"))
+        calls.append({"amount": kwargs.get("amount"), "broadcast": broadcast, "symbols": symbols})
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": True,
+            "profitable": True,
+            "profit": 0.5,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": kwargs.get("route_addresses") or [],
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "analysis": {"referenceNetProfitAmount": 0.5, "referenceNetReturnBps": 33.3},
+            "txHash": "0xtx" if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="WETH",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert calls == [
+        {"amount": 1.0, "broadcast": False, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
+        {"amount": 1.0, "broadcast": True, "symbols": ["WETH", "0XC9F9C8", "ETH", "WETH"]},
+    ]
+    assert (done.result or {}).get("recording", {}).get("source") == "closed_loop_deep_review"
+    assert (done.result or {}).get("recording", {}).get("review_count") == 1
+    status = scanner.status(chain_id=46630)
+    assert status["closed_loop_scan_count"] == 1
+    assert status["closed_loop_review_count"] == 1
+    assert status["auto_broadcast_count"] >= 1
+
+
+def test_fixed_refresh_deep_mode_records_each_route_when_parallel(tmp_path, monkeypatch):
+    import threading
+
+    from runtime.dex_opportunity_scanner import DexOpportunityScanner
+    from runtime import dex_opportunity_scanner as scanner_module
+    from market.binance_market import dex_route_test
+
+    monkeypatch.setenv("DEX_CLOSED_LOOP_WORKERS", "2")
+    calls = []
+    recorded_batches = []
+    calls_lock = threading.Lock()
+
+    def fake_record_attempts(attempts):
+        recorded_batches.append(list(attempts))
+        return {"recorded": len(attempts), "source": "closed_loop_deep_review"}
+
+    payload = {
+        "summary": {
+            "routeCount": 2,
+            "completeStaticQuoteCount": 2,
+            "executableCandidateCount": 0,
+            "profitableRouteCount": 2,
+            "liveQuoterRequiredCount": 2,
+            "bestNetProfitUsd": 0.5,
+        },
+        "routes": [
+            {
+                "routeSymbols": ["TZ", "TA", "TB", "TZ"],
+                "routeAddresses": [
+                    "0x" + "1" * 40,
+                    "0x" + "2" * 40,
+                    "0x" + "3" * 40,
+                    "0x" + "1" * 40,
+                ],
+                "quoteStatus": "requires_live_quoter",
+            },
+            {
+                "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+                "routeAddresses": [
+                    "0x" + "4" * 40,
+                    "0x" + "3" * 40,
+                    "0x" + "2" * 40,
+                    "0x" + "4" * 40,
+                ],
+                "quoteStatus": "requires_live_quoter",
+            },
+        ],
+    }
+    scanner = DexOpportunityScanner(
+        quote_payload_provider=lambda **kwargs: payload,
+        onchain_evidence_provider=_profitable_live_evidence,
+        trigger_context_provider=lambda **kwargs: {},
+        auto_execute_enabled=True,
+        record_attempts=fake_record_attempts,
+        record_opportunities=True,
+        cache_path=tmp_path / "dex_opportunity_snapshot.json",
+        periodic_scan_enabled=False,
+    )
+    monkeypatch.setattr(scanner_module, "dex_quote_routes_payload", lambda **kwargs: payload)
+    monkeypatch.setattr(dex_route_test, "recommended_route_test_amount", lambda **kwargs: 1.5)
+
+    def fake_run_official(**kwargs):
+        symbols = list(kwargs.get("route_symbols") or [])
+        addresses = list(kwargs.get("route_addresses") or [])
+        broadcast = bool(kwargs.get("broadcast"))
+        with calls_lock:
+            calls.append((symbols, broadcast))
+        return {
+            "ok": True,
+            "quoteStatus": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "readyForTransactionPreflight": True,
+            "profitable": True,
+            "profit": 0.5,
+            "bestAmountConfirmed": True,
+            "routeSymbols": symbols,
+            "routeAddresses": addresses,
+            "amount": kwargs.get("amount"),
+            "bestAmount": kwargs.get("amount"),
+            "steps": [],
+            "analysis": {"referenceNetProfitAmount": 0.5, "referenceNetReturnBps": 33.3},
+            "txHash": "0xtx" if broadcast else None,
+            "broadcast": broadcast,
+        }
+
+    monkeypatch.setattr(dex_route_test, "run_official_v4_arb_route_test", fake_run_official)
+    task = scanner.closed_loop_review_queue.submit_group(
+        group_key="TZ",
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+        mode="deep",
+    )
+    done = scanner.closed_loop_review_pipeline.run_once()
+
+    assert done is not None
+    assert done.state == "done"
+    assert len(recorded_batches) == 2
+    assert all(len(batch) == 1 for batch in recorded_batches)
+    assert len(calls) == 4
+    status = scanner.status(chain_id=46630)
+    assert status["closed_loop_scan_count"] == 1
+    assert status["closed_loop_review_count"] == 2
+    assert status["recorded_attempt_count"] == 2
 
 
 def test_closed_loop_groups_use_deep_mode_when_auto_execute_enabled(tmp_path):
@@ -556,6 +833,98 @@ def test_failed_submission_classifier_includes_quote_timeout_without_tx_hash():
     assert len(merged["attempts"]) == 2
     assert any(row.get("pair") == "TZ -> TB -> TA -> TZ" for row in merged["attempts"])
     assert any(row.get("tx_hash") for row in merged["attempts"])
+
+
+def test_failed_submission_merge_keeps_multiple_rows_for_same_pair_with_different_timestamps():
+    from web.data_routes.dex_surface_routes_ops import (
+        _failed_submission_rows,
+        _merge_failed_submission_rows_into_payload,
+    )
+
+    first_timeout = {
+        "pair": "TZ -> TB -> TA -> TZ",
+        "created_at": "2026-10-02T06:50:00+00:00",
+        "state": "quote_required",
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "rpc_verification_timeout",
+                "costModel": {},
+            }
+        },
+    }
+    second_timeout = {
+        "pair": "TZ -> TB -> TA -> TZ",
+        "created_at": "2026-10-02T06:55:00+00:00",
+        "state": "quote_required",
+        "quote": {
+            "live_onchain_evidence": {
+                "status": "rpc_verification_timeout",
+                "costModel": {},
+            }
+        },
+    }
+
+    failed_rows = _failed_submission_rows([first_timeout, second_timeout])
+    merged = _merge_failed_submission_rows_into_payload({"attempts": [], "summary": {}}, failed_rows)
+
+    assert len(failed_rows) == 2
+    assert len(merged["attempts"]) == 2
+    assert merged["summary"]["failedCount"] == 2
+    assert merged["summary"]["attemptCount"] == 2
+
+
+def test_failed_submission_classifier_excludes_business_reverts_from_system_error_count():
+    from web.data_routes.dex_surface_routes_ops import (
+        _business_blocked_submission_rows,
+        _failed_submission_rows,
+        _is_system_failure_row,
+        _system_failed_submission_rows,
+    )
+
+    rows = [
+        {
+            "pair": "ETH -> 0X102154 -> 0X1FBE1A -> ETH",
+            "state": "quote_required",
+            "quote": {
+                "live_onchain_evidence": {
+                    "status": "live_quote_failed",
+                    "executionTrust": "live_quote_failed",
+                    "blockers": ["ArbitrageNotProfitable(received, required) received=0.015407157132245466 required=0.015625000000000001"],
+                }
+            },
+        },
+        {
+            "pair": "ETH -> 0X102154 -> 0X71178B -> ETH",
+            "state": "quote_required",
+            "quote": {
+                "live_onchain_evidence": {
+                    "status": "live_quote_failed",
+                    "executionTrust": "live_quote_failed",
+                    "blockers": ["revert selector 0x486aa307"],
+                }
+            },
+        },
+        {
+            "pair": "TZ -> TB -> TA -> TZ",
+            "state": "quote_required",
+            "quote": {
+                "live_onchain_evidence": {
+                    "status": "rpc_verification_timeout",
+                    "executionTrust": "rpc_verification_timeout",
+                }
+            },
+        },
+    ]
+
+    failed = _failed_submission_rows(rows)
+    system = _system_failed_submission_rows(failed)
+    business = _business_blocked_submission_rows(failed)
+
+    assert len(failed) == 3
+    assert len(system) == 1
+    assert len(business) == 2
+    assert all(not _is_system_failure_row(row) for row in business)
+    assert system[0]["quote"]["live_onchain_evidence"]["status"] == "rpc_verification_timeout"
 
 
 def test_summary_always_exports_auto_executable_closed_loop_count():

@@ -9,6 +9,7 @@ from core.db.storage_cow_execution import (
     COW_ATTEMPT_CATEGORY_RETENTION_DAYS,
     COW_ATTEMPT_CATEGORY_RETENTION_POLICY,
     load_recent_cow_execution_attempts_jsonl,
+    load_recent_cow_execution_attempts_jsonl_grouped,
 )
 from web.chain_selection import resolve_request_chain_selection
 from web import control_panel_data_routes as shared
@@ -52,6 +53,11 @@ def register_binance_market_admin_routes(app, panel) -> None:
             limit=limit,
             networks=networks,
             dedupe_by_route_evidence=False,
+            group_loader=lambda **kwargs: load_recent_cow_execution_attempts_jsonl_grouped(
+                shared.COW_EXECUTION_ATTEMPT_LOG_ROOT,
+                retention_days=COW_EXECUTION_RETENTION_DAYS,
+                **kwargs,
+            ),
         )
         return jsonify(
             {

@@ -9,6 +9,7 @@ from core.db.storage_cow_execution_jsonl import (
     append_cow_execution_attempts_jsonl,
     clear_cow_execution_attempts_jsonl,
     load_recent_cow_execution_attempts_jsonl,
+    load_recent_cow_execution_attempts_jsonl_grouped,
 )
 from core.db.storage_cow_candidate_builders import (
     build_cow_execution_attempts,
@@ -116,6 +117,7 @@ __all__ = [
     "ensure_cow_execution_attempts_table",
     "load_recent_cow_execution_attempts",
     "load_recent_cow_execution_attempts_jsonl",
+    "load_recent_cow_execution_attempts_jsonl_grouped",
     "prune_cow_execution_attempts",
     "record_cow_execution_attempts",
 ]

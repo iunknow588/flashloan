@@ -598,7 +598,7 @@
       const activeBroadcast = activeExecutionRoute
         ? {
             text: activeExecution?.broadcastDisabled || route?.__broadcastDisabled
-              ? "链上执行未提交：链上执行开关未开启，本次未发起链上交易。"
+              ? "链上执行未提交：自动扫描复核并链上广播未开启，本次未发起链上交易。"
               : activeExecution?.state === ROUTE_UI_STATE.EXECUTION_PENDING
               ? "链上执行提交中，请稍候查看本次链上结果。"
               : activeExecution?.state === ROUTE_UI_STATE.EXECUTION_FAILED

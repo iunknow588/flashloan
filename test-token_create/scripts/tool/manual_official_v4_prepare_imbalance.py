@@ -68,7 +68,7 @@ def parse_args():
         "--rpc-url",
         default=os.getenv(
             "ROBINHOOD_TESTNET_RPC_URL",
-            "https://rpc.testnet.chain.robinhood.com",
+            "https://rpc.testnet.chain.robinhood.com/rpc",
         ),
         help="Robinhood testnet RPC URL",
     )

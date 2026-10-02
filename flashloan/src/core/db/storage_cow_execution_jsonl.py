@@ -8,6 +8,9 @@ from typing import Any
 from core.evidence_scope import evidence_scope_matches, infer_evidence_scope
 from core.db.cow_execution_mapping import scope_consistency_reasons
 from core.db.storage_cow_policy import (
+    COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
+    COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
+    COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
     _category_within_retention,
     _decorate_attempt_review,
     _json_text,
@@ -87,6 +90,37 @@ def _jsonl_source_paths(path: Path) -> list[Path]:
     return [path]
 
 
+def _scope_network_paths(root: Path, source_paths: list[Path], wanted: set[str]) -> list[Path]:
+    """Keep only source files that belong to a wanted network scope.
+
+    Files at the root (for example a tmp_path legacy attempts file) are kept
+    because their rows may be mixed-scope or belong to the requested network.
+    Files under a known but different network directory are dropped so a
+    network-scoped request does not repeatedly read unrelated log files.
+    """
+    if not wanted or not source_paths:
+        return source_paths
+    known_scope_dirs = set()
+    try:
+        known_scope_dirs = {
+            str(item.name).strip().lower()
+            for item in root.iterdir()
+            if item.is_dir()
+            and not str(item.name).strip().isdigit()
+        }
+    except OSError:
+        known_scope_dirs = set()
+    lower_parts_by_path = {}
+    for source_path in source_paths:
+        lower_parts = {part.strip().lower() for part in source_path.parts}
+        lower_parts_by_path[source_path] = lower_parts
+    return [
+        source_path
+        for source_path in source_paths
+        if not bool(lower_parts_by_path[source_path].intersection(known_scope_dirs - wanted))
+    ]
+
+
 def clear_cow_execution_attempts_jsonl(
     path: Path,
     *,
@@ -143,9 +177,17 @@ def load_recent_cow_execution_attempts_jsonl(
     wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
     wanted_market_ids = {str(item).strip().lower() for item in market_ids or [] if str(item).strip()}
     wanted_category = str(category or "").strip().lower()
+    if path.is_dir() and wanted:
+        source_paths = _scope_network_paths(path, source_paths, wanted)
+        source_paths = sorted(
+            source_paths,
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
     now = datetime.now(timezone.utc)
     rows: list[dict[str, Any]] = []
     global_limit = max(1, int(limit))
+    network_counts: dict[str, int] = {}
     for source_path in source_paths:
         try:
             lines = source_path.read_text(encoding="utf-8").splitlines()
@@ -170,10 +212,20 @@ def load_recent_cow_execution_attempts_jsonl(
                 continue
             if not _category_within_retention(payload, now=now):
                 continue
-            rows.append(_decorate_attempt_review(payload))
+            if wanted:
+                network = infer_evidence_scope(payload).network
+                if network_counts.get(network, 0) >= global_limit:
+                    continue
+                network_counts[network] = network_counts.get(network, 0) + 1
+            rows.append(payload)
+            if not wanted and len(rows) >= global_limit:
+                break
+            if wanted and all(network_counts.get(network, 0) >= global_limit for network in wanted):
+                break
     rows.sort(key=lambda item: (str(item.get("created_at") or item.get("observed_at") or ""), int(item.get("id") or 0)), reverse=True)
+    rows = [_decorate_attempt_review(row) for row in rows]
     if wanted:
-        network_counts: dict[str, int] = {}
+        network_counts = {}
         limited_rows: list[dict[str, Any]] = []
         for row in rows:
             network = infer_evidence_scope(row).network
@@ -185,5 +237,121 @@ def load_recent_cow_execution_attempts_jsonl(
                 break
         return limited_rows
     return rows[:global_limit]
+
+
+def load_recent_cow_execution_attempts_jsonl_grouped(
+    path: Path,
+    limit: int = 50,
+    *,
+    networks: list[str] | None = None,
+    chain_ids: list[int] | None = None,
+    market_ids: list[str] | None = None,
+    retention_days: int = DEFAULT_COW_EXECUTION_RETENTION_DAYS,
+) -> dict[str, list[dict[str, Any]]]:
+    """Load recent attempts for all review categories in one file pass.
+
+    The per-category loader used by the review pages was calling the JSONL
+    reader once for every category, which repeatedly re-parsed the same log
+    files.  This grouped variant reads the file once and buckets matching rows
+    by category while still honoring the per-network/limit semantics used by
+    the existing loaders.
+    """
+    source_paths = [item for item in _jsonl_source_paths(path) if item.exists()]
+    if not source_paths:
+        return {category: [] for category in (
+            COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
+            COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
+            COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
+        )}
+    wanted = {str(item).strip().lower() for item in networks or [] if str(item).strip()}
+    wanted_chain_ids = {int(item) for item in chain_ids or [] if item is not None}
+    wanted_market_ids = {str(item).strip().lower() for item in market_ids or [] if str(item).strip()}
+    if path.is_dir() and wanted:
+        source_paths = _scope_network_paths(path, source_paths, wanted)
+        source_paths = sorted(
+            source_paths,
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+    now = datetime.now(timezone.utc)
+    categories = [
+        COW_ATTEMPT_CATEGORY_NOT_EXECUTABLE,
+        COW_ATTEMPT_CATEGORY_EXECUTION_FAILED,
+        COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS,
+    ]
+    global_limit = max(1, int(limit))
+    raw_by_category: dict[str, list[dict[str, Any]]] = {category: [] for category in categories}
+    counts_by_category: dict[str, dict[str, int]] = {category: {} for category in categories}
+
+    def _category_satisfied(category: str) -> bool:
+        if wanted:
+            return all(
+                counts_by_category[category].get(network, 0) >= global_limit
+                for network in wanted
+            )
+        return len(raw_by_category[category]) >= global_limit
+
+    for source_path in source_paths:
+        try:
+            lines = source_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in reversed(lines):
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            if not evidence_scope_matches(
+                payload,
+                networks=wanted,
+                chain_ids=wanted_chain_ids,
+                market_ids=wanted_market_ids,
+            ):
+                continue
+            payload_category = cow_execution_attempt_category(payload)
+            if payload_category not in raw_by_category:
+                continue
+            if not _category_within_retention(payload, now=now):
+                continue
+            if wanted:
+                network = infer_evidence_scope(payload).network
+                if counts_by_category[payload_category].get(network, 0) >= global_limit:
+                    continue
+                counts_by_category[payload_category][network] = (
+                    counts_by_category[payload_category].get(network, 0) + 1
+                )
+            raw_by_category[payload_category].append(payload)
+            if all(_category_satisfied(category) for category in categories):
+                break
+        if all(_category_satisfied(category) for category in categories):
+            break
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for category in categories:
+        rows = [_decorate_attempt_review(row) for row in raw_by_category[category]]
+        rows.sort(
+            key=lambda item: (
+                str(item.get("created_at") or item.get("observed_at") or ""),
+                int(item.get("id") or 0),
+            ),
+            reverse=True,
+        )
+        if wanted:
+            network_counts: dict[str, int] = {}
+            limited_rows: list[dict[str, Any]] = []
+            for row in rows:
+                network = infer_evidence_scope(row).network
+                if network_counts.get(network, 0) >= global_limit:
+                    continue
+                network_counts[network] = network_counts.get(network, 0) + 1
+                limited_rows.append(row)
+                if wanted.issubset({key for key, count in network_counts.items() if count >= global_limit}):
+                    break
+            grouped[category] = limited_rows
+        else:
+            grouped[category] = rows[:global_limit]
+    return grouped
 
 

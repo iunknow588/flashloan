@@ -112,10 +112,10 @@ def _rows():
             "feature": "dex_arbitrage",
             "network": "robinhood-testnet",
             "protocol": "uniswap_v4",
-            "display_name": "Robinhood Testnet Paused Executor",
+            "display_name": "Robinhood Testnet DEX Arbitrage",
             "native_symbol": "ETH",
-            "protocol_supported": False,
-            "observation_only": True,
+            "protocol_supported": True,
+            "observation_only": False,
             "market_type": "native_chain",
         },
         {
@@ -176,7 +176,7 @@ def test_selection_filters_by_feature_and_default_market(monkeypatch):
     assert selected.network == "robinhood-testnet"
     assert selected.market_type == "native_chain"
     assert selected.capabilities["robinhood_shadow"] is False
-    assert selected.capabilities["execution"] is False
+    assert selected.capabilities["execution"] is True
 
 
 def test_selection_without_feature_defaults_to_avalanche_aave(monkeypatch):

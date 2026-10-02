@@ -801,7 +801,7 @@ def build_route_onchain_evidence(
     if pool_not_initialized:
         blockers.append("V4 pool is not initialized or cannot be quoted; route cannot enter the on-chain execution gate")
     if not_enough_liquidity:
-        blockers.append("current borrow size exceeds available liquidity for at least one hop; reduce borrow size and retry")
+        blockers.append("current borrow size is not executable for at least one hop (not enough liquidity or not profitable after costs); reduce borrow size and retry")
     if adapter_required:
         blockers.append("V4 quote adapter is required; pool interpretation deferred until the mainnet V4 adapter is configured")
     ready_for_transaction_preflight = bool(
@@ -1281,7 +1281,7 @@ def _quote_route_hops(
             elif hop_status == "pool_not_initialized":
                 blockers.append(f"V4 pool is not initialized or cannot be quoted at hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))}: {exc}")
             elif hop_status == "not_enough_liquidity":
-                blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} has not enough liquidity for requested amount: {exc}")
+                blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} is not executable for requested amount (not profitable / liquidity): {exc}")
             else:
                 blockers.append(f"hop {hop_number} {_norm_symbol(step.get('fromSymbol'))}->{_norm_symbol(step.get('toSymbol'))} verification failed: {exc}")
             break

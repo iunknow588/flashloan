@@ -196,6 +196,18 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
     phase = str(row.get("execution_phase") or "").strip().lower()
     checks_passed = bool(row.get("checks_passed"))
     can_submit_order = bool(row.get("can_submit_order"))
+    auto_execute = row.get("auto_execute") if isinstance(row.get("auto_execute"), dict) else {}
+    auto_execute_result = auto_execute.get("result") if isinstance(auto_execute.get("result"), dict) else {}
+    auto_tx_hash = str(
+        row.get("tx_hash")
+        or row.get("transaction_hash")
+        or auto_execute_result.get("txHash")
+        or auto_execute_result.get("transactionHash")
+        or auto_execute_result.get("transaction_hash")
+        or (row.get("quote") or {}).get("tx_hash")
+        or (row.get("quote") or {}).get("transaction_hash")
+        or ""
+    ).strip()
     sdk = _cow_sdk_result_from_attempt(row)
     sdk_status = _cow_sdk_status_from_attempt(row)
     submission_attempted = bool(
@@ -204,6 +216,10 @@ def cow_execution_attempt_category(row: dict[str, Any]) -> str:
         or sdk.get("submission_tx_hash")
     )
 
+    if bool(auto_execute.get("executed")) and auto_tx_hash:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
+    if auto_tx_hash and state in _SUCCESS_STATES:
+        return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
     if sdk_status in _SUCCESS_STATES or sdk_status in _SUCCESS_PHASES or state in _SUCCESS_STATES or phase in _SUCCESS_PHASES:
         return COW_ATTEMPT_CATEGORY_EXECUTION_SUCCESS
     if not submission_attempted and (sdk_status in {"quote_failed", "quote_unavailable"} or state in {"quote_failed", "quote_unavailable"}):

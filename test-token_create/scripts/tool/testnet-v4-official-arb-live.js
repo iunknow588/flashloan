@@ -353,12 +353,65 @@ async function main() {
   ).toLowerCase() === "true"
     && String(process.env.ROBINHOOD_TESTNET_OFFICIAL_ARB_REUSE_AMOUNT || "false").toLowerCase() === "true";
   const reportedInitialAmount = amountAlreadyBest ? amountText : searchStartText;
+  const previewBestAmountMethod = amountAlreadyBest
+    ? "preselected_best_amount"
+    : "onchain_preview_adaptive_best_amount";
   let preview = null;
   let selectedAmountBig;
   let selectedAmountText;
   if (amountAlreadyBest) {
     selectedAmountBig = amountIn;
     selectedAmountText = amountText;
+    // A preselected amount still needs a route index. Re-verify the exact
+    // amount once with previewArbitrageBestAmount(isBestAmount=true) instead
+    // of defaulting to the forward route, otherwise a reverse-route preflight
+    // would be broadcast on the wrong direction.
+    try {
+      const result = await arb.previewArbitrageBestAmount.staticCall(
+        routeAddresses[0],
+        keysets,
+        directionsets,
+        amountIn,
+        minProfit,
+        true
+      );
+      const profit = result.selectedProfit ?? result[2] ?? 0n;
+      const routeIndex = Number(result.selectedRouteIndex ?? result[1] ?? 0n);
+      if (profit <= 0n) throw new Error("NoProfitableRoute");
+      preview = {
+        selectedAmount: amountIn,
+        selectedRouteIndex: routeIndex,
+        selectedProfit: profit,
+        attemptedCount: Number(result.attemptedCount ?? result[3] ?? 1n),
+      };
+    } catch (error) {
+      const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
+      console.log(
+        "\nOFFICIAL_V4_ARB_RESULT_JSON " +
+          JSON.stringify({
+            ok: false,
+            error: "static_arb_call_reverted",
+            detail: revertInfo.errorDetail || error.shortMessage || error.reason || error.message || error,
+            errorData: revertInfo.data,
+            errorSelector: revertInfo.selector,
+            errorDetail: revertInfo.errorDetail,
+            routeSymbols: symbols,
+            amount: amountText,
+            initialAmount: reportedInitialAmount,
+            bestAmount: selectedAmountText,
+            bestAmountMethod: previewBestAmountMethod,
+            amountIsBest: true,
+            staticCall: "reverted",
+            method: "previewArbitrageBestAmount",
+          })
+      );
+      console.error("official V4 preselected amount re-verification reverted");
+      console.error(`  shortMessage=${error.shortMessage || error.message || ""}`);
+      console.error(`  data=${revertInfo.data}`);
+      console.error(`  errorDetail=${revertInfo.errorDetail}`);
+      throw error;
+    }
+    console.log(`official V4 preselected amount re-verified routeIndex=${preview.selectedRouteIndex} attempted=${preview.attemptedCount}`);
   } else {
     try {
       // Probe each amount as a separate eth_call. Running the on-chain adaptive
@@ -540,9 +593,11 @@ async function main() {
             routeSymbols: symbols,
             amount: amountText,
             initialAmount: reportedInitialAmount,
+            bestAmount: selectedAmountText,
+            bestAmountMethod: previewBestAmountMethod,
+            amountIsBest: amountAlreadyBest,
             staticCall: "reverted",
             method: "previewArbitrageBestAmount",
-            bestAmountMethod: "onchain_preview_adaptive_best_amount",
           })
       );
       console.error("official V4 on-chain previewArbitrageBestAmount reverted");
@@ -556,9 +611,7 @@ async function main() {
       console.log(`  initialSearchOrigin=${searchStartText} ${symbols[0]}`);
     }
   }
-  const bestAmountMethod = amountAlreadyBest
-    ? "preselected_best_amount"
-    : "onchain_preview_adaptive_best_amount";
+  const bestAmountMethod = previewBestAmountMethod;
   const bestAmountAttemptedCount = preview ? String(preview.attemptedCount || "1") : "1";
   let result;
   try {

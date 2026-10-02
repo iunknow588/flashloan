@@ -184,8 +184,28 @@ def _cow_execution_attempt_groups(
     limit: int,
     networks: list[str],
     dedupe_by_route_evidence: bool = True,
+    group_loader=None,
 ) -> dict[str, dict]:
     groups = {}
+    if group_loader is not None:
+        grouped_rows = group_loader(limit=limit, networks=networks)
+        for category in COW_EXECUTION_REVIEW_CATEGORIES:
+            rows = list(grouped_rows.get(category) or [])
+            rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)
+            rows = _dedupe_attempts_by_route_evidence(
+                rows,
+                limit=limit,
+                dedupe_by_route_evidence=dedupe_by_route_evidence,
+            )
+            groups[category] = {
+                "attempts": rows,
+                "count": len(rows),
+                "retention_days": COW_ATTEMPT_CATEGORY_RETENTION_DAYS.get(category),
+                "analysis_days": COW_ATTEMPT_CATEGORY_ANALYSIS_DAYS.get(category),
+                "retention_policy": COW_ATTEMPT_CATEGORY_RETENTION_POLICY.get(category),
+                "page_size": 10,
+            }
+        return groups
     for category in COW_EXECUTION_REVIEW_CATEGORIES:
         rows = loader(limit=limit, networks=networks, category=category)
         rows.sort(key=lambda item: str(item.get("created_at") or item.get("observed_at") or ""), reverse=True)

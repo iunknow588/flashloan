@@ -1283,7 +1283,7 @@ def run_official_v4_arb_route_test(
         "robinhoodTestnet",
         "--no-compile",
     ]
-    official_rpc = "https://rpc.testnet.chain.robinhood.com"
+    official_rpc = "https://rpc.testnet.chain.robinhood.com/rpc"
     rpc_candidates = [official_rpc]
     for candidate in (
         probed_rpc_url,
@@ -1300,6 +1300,10 @@ def run_official_v4_arb_route_test(
     appended = appended if skip_subprocess else ""
     parsed = parsed if skip_subprocess else {}
     retry_error_detail = retry_error_detail if skip_subprocess else []
+    try:
+        script_timeout_seconds = max(10, int(os.getenv("DEX_OFFICIAL_ARB_TIMEOUT_SECONDS", "60")))
+    except (TypeError, ValueError):
+        script_timeout_seconds = 60
     for rpc_index, rpc_url in enumerate(rpc_candidates):
         env["ROBINHOOD_TESTNET_RPC_URL"] = rpc_url
         env["ROBINHOOD_TESTNET_RPC"] = rpc_url
@@ -1312,7 +1316,7 @@ def run_official_v4_arb_route_test(
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=180,
+                timeout=script_timeout_seconds,
             )
         except subprocess.TimeoutExpired:
             retry_error_detail.append(f"{rpc_url}: timeout")

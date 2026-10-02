@@ -5,10 +5,10 @@
   "display_name": "Robinhood Testnet",
   "native_symbol": "ETH",
   "rpc": {
-    "primary": "https://rpc.testnet.chain.robinhood.com",
+    "primary": "https://rpc.testnet.chain.robinhood.com/rpc",
     "fallbacks": [
-      "https://rpc.testnet.chain.robinhood.com/rpc",
-      "https://robinhood-sepolia-rpc.publicnode.com"
+      "https://robinhood-sepolia-rpc.publicnode.com",
+      "https://rpc.testnet.chain.robinhood.com"
     ],
     "timeout_seconds": 20
   },
@@ -34,7 +34,9 @@
     "dex_arbitrage": {
       "default_market_id": "dex-arbitrage-46630-uniswap-v4",
       "legacy_default_market_id": "robinhood-testnet-dex-paused",
-      "protocol": "uniswap_v4"
+      "protocol": "uniswap_v4",
+      "observation_only": false,
+      "protocol_supported": true
     }
   },
   "flash_loan": {

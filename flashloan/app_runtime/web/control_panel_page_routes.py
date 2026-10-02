@@ -129,8 +129,10 @@ def register_page_routes(app, panel) -> None:
     @app.get("/dex/overview")
     @app.get("/dex/quotes")
     @app.get("/dex/submissions")
+    @app.get("/dex/submissions/success")
     @app.get("/dex/submissions/failed")
-    def binance_market_panel():
+    @app.get("/dex/submissions/failed/<category>")
+    def binance_market_panel(category=None):
         return _market_page_response(
             panel,
             **_default_scope_kwargs("dex_arbitrage"),

@@ -660,6 +660,47 @@ def test_recommended_route_test_amount_falls_back_to_token_steps(monkeypatch):
     assert amount == 0.01
 
 
+def test_recommended_route_test_amount_uses_system_initial_probe_when_no_amount_fields(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+
+    monkeypatch.setattr(
+        route_test_module,
+        "_routes_payload",
+        lambda **kwargs: {
+            "routes": [
+                {
+                    "routeSymbols": ["WETH", "0XC9F9C8", "ETH", "WETH"],
+                    "routeAddresses": [
+                        "0x" + "1" * 40,
+                        "0x" + "2" * 40,
+                        "0x" + "3" * 40,
+                        "0x" + "1" * 40,
+                    ],
+                    "quoteInputs": {
+                        "candidatePools": [
+                            {
+                                "pool": "0x" + "a" * 40,
+                                "token0": "0x" + "1" * 40,
+                                "token0Symbol": "WETH",
+                                "token0Decimals": 18,
+                                "token1": "0x" + "2" * 40,
+                                "token1Symbol": "0XC9F9C8",
+                                "token1Decimals": 18,
+                            }
+                        ]
+                    },
+                }
+            ]
+        },
+    )
+    amount = recommended_route_test_amount(
+        route_symbols=["WETH", "0XC9F9C8", "ETH", "WETH"],
+        chain_id=46630,
+        protocols=["uniswap_v4"],
+    )
+    assert amount == 1.0
+
+
 def test_quote_failure_status_detects_liquidity_zero():
     assert _quote_failure_status("robinhood testnet v4 pool manager live liquidity is zero") == "not_enough_liquidity"
     assert _quote_failure_status("robinhood testnet v4 quoter reverted: NotEnoughLiquidity(bytes32)") == "not_enough_liquidity"

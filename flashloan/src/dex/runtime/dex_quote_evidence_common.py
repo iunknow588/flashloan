@@ -111,13 +111,16 @@ def _is_missing_v4_adapter_error(exc: BaseException) -> bool:
 
 def _is_not_enough_liquidity_error(exc: BaseException) -> bool:
     message = _text(exc).lower()
+    compact = message.replace("_", "").replace("(", "").replace(")", "")
     if (
-        "notenoughliquidity" in message.replace("_", "").replace("(", "").replace(")", "")
+        "notenoughliquidity" in compact
         or "not enough liquidity" in message
         or "insufficient liquidity" in message
         or "live liquidity is zero" in message
         or "liquidity is zero" in message
         or "no lp liquidity" in message
+        or "arbitragenotprofitable" in compact
+        or ("received" in message and "required" in message)
     ):
         return True
     cause = getattr(exc, "__cause__", None)

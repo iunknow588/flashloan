@@ -37,6 +37,12 @@
     .badge.live { background: #dcfae6; color: #067647; }
     .badge.static { background: #fff3cd; color: #8a6116; }
     .badge.fail { background: #fee4e2; color: #b42318; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .tabs button, .tabs a { display: inline-flex; align-items: center; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-weight: 700; min-height: 32px; border-radius: 999px; padding: 0 12px; text-decoration: none; }
+    .tabs button.active, .tabs a.active { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .pagination { display: flex; gap: 10px; align-items: center; margin-top: 14px; font-size: 13px; color: #344054; }
+    .pagination button { min-height: 30px; border: 1px solid #d0d5dd; background: #fff; color: #344054; font-weight: 700; }
+    .pagination button:disabled { opacity: .45; cursor: not-allowed; }
     @media (max-width: 860px) { header { display: block; } nav { margin-top: 10px; } main, header { padding-left: 18px; padding-right: 18px; } }
   </style>
 </head>
@@ -48,7 +54,7 @@
       <a data-surface-link href="/dex/overview">DEX 总览</a>
       <a data-surface-link href="/dex/market-observation">市场观察</a>
       <a data-surface-link href="/dex/candidates">候选池</a>
-      <a data-surface-link href="/dex/submissions">提交记录</a>
+      <a data-surface-link href="/dex/submissions/success">成功记录</a>
       <a data-surface-link href="/dex/submissions/failed">失败记录</a>
     </nav>
   </header>
@@ -66,10 +72,15 @@
     <section class="grid">
       <div class="metric"><small>提交/观察总数</small><strong id="attemptCount">-</strong><span id="source">-</span></div>
       <div class="metric"><small>成功</small><strong id="successCount">-</strong><span>链上执行/提交成功</span></div>
-      <div class="metric"><small>失败</small><strong id="failedCount">-</strong><span>链上执行或复核失败</span></div>
-      <div class="metric"><small>阻断</small><strong id="blockedCount">-</strong><span>报价后未满足链上复核或链上执行条件</span></div>
+      <div class="metric"><small>系统错误</small><strong id="failedCount">-</strong><span>RPC/连接/程序异常</span></div>
+      <div class="metric"><small>业务不可执行</small><strong id="blockedCount">-</strong><span>无利可图/池未初始化/兑换未解析</span></div>
     </section>
     <section class="panel">
+      <div class="tabs">
+        <a href="/dex/submissions/success">成功记录</a>
+        <a href="/dex/submissions/failed" class="active">失败总览</a>
+      </div>
+      <div class="tabs" id="errorTabs"></div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -88,11 +99,22 @@
           <tbody id="rows"></tbody>
         </table>
       </div>
+      <div class="pagination">
+        <button id="prevPageBtn" type="button">上一页</button>
+        <span id="pageInfo">第 1 / 1 页</span>
+        <button id="nextPageBtn" type="button">下一页</button>
+      </div>
     </section>
   </main>
   <script>
     const $ = id => document.getElementById(id);
     let latestRows = [];
+    let visibleRows = [];
+    let currentPage = 0;
+    let allCategoryCounts = {};
+    const failedCategoryFromUrl = window.location.pathname.split("/").filter(Boolean).pop();
+    let currentErrorCategory = ["all", "broadcast", "submission", "code", "rpc", "execution", "quote", "blocked", "other"].includes(failedCategoryFromUrl) ? failedCategoryFromUrl : "all";
+    const pageSize = 25;
     const esc = value => String(value ?? "-").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     const uiError = value => {
       const text = String(value || "请求失败");
@@ -117,6 +139,21 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
       return data;
+    }
+    async function fetchJsonWithTimeout(path, timeoutMs = 12000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(apiPath(path), {cache: "no-cache", signal: controller.signal, headers: {"Accept": "application/json"}});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);
+        return data;
+      } catch (error) {
+        if (error && error.name === "AbortError") throw new Error("请求超时，已停止等待数据");
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
     }
     async function postJson(path) {
       const response = await fetch(apiPath(path), {method: "POST", cache: "no-cache", headers: {"Accept": "application/json"}});
@@ -454,10 +491,10 @@
           return "已提交链上交易；等待链上确认后才算最终成交确认";
         }
         if (lower === "broadcast disabled; static preflight passed") {
-          return "链上执行开关未开启；链上执行条件已通过但未发起交易，请开启执行配置后重试";
+          return "自动扫描复核并链上广播未开启；链上执行条件已通过但未发起交易，请开启执行配置后重试";
         }
         if (lower.startsWith("broadcast disabled")) {
-          return "链上执行开关未开启；请检查测试网执行配置后重试";
+          return "自动扫描复核并链上广播未开启；请检查测试网执行配置后重试";
         }
         if (lower === "missing_route_identity" || normalized.includes("missing_route_identity")) {
           return "路线缺少完整 token 地址身份；symbol 只能用于展示，不能作为链上复核或执行依据";
@@ -541,10 +578,63 @@
         : "";
       return `<tr><td>${esc(fmtTime(row.created_at || row.observed_at || row.updated_at))}</td><td>${esc(row.network || row.cow_network || "-")}</td><td class="route-cell">${pathCell}</td><td>${evidenceBadge(row)}</td><td>${esc(ev.block_number || ev.blockNumber || "-")}</td><td class="review-cell">${profitReviewHtml(row)}</td><td>${outcomeCell}</td><td class="reason">${esc(reasonText(row))}</td><td>${esc(order)} <button class="copy-btn" type="button" data-copy-record="${index}">复制记录</button>${onchainButton}</td></tr>`;
     }
+    function errorCategoryOf(row) {
+      const status = String(row.review_category || row.category || row.status || row.state || row.submission_status || "").toLowerCase();
+      const evidenceStatus = String(evidence(row).status || evidence(row).executionTrust || "").toLowerCase();
+      const reason = String(reasonText(row) || "").toLowerCase();
+      if (["syntaxerror", "typeerror", "referenceerror", "unexpected token", "module_not_found", "cannot find module", "enoent", "stack trace", "child_process", "exit code 1"].some(marker => reason.includes(marker))) return "code";
+      if (["broadcast_failed", "broadcast_error", "broadcast_disabled"].includes(status) || evidenceStatus.includes("broadcast")) return "broadcast";
+      if (["submission_failed", "submit_failed", "order_failed"].includes(status)) return "submission";
+      if (["rpc_verification_failed", "rpc_verification_timeout"].includes(status) || evidenceStatus.includes("rpc")) return "rpc";
+      if (["execution_failed", "confirmed_failed", "settlement_failed"].includes(status)) return "execution";
+      if (["live_quote_failed", "quote_failed"].includes(status) || evidenceStatus.includes("quote_failed")) return "quote";
+      if (["code"].includes(status)) return "code";
+      if (["not_executable", "blocked", "unsupported_route", "quote_required"].includes(status)) return "blocked";
+      return "other";
+    }
+    function errorCategoryLabel(category) {
+      return ({
+        all: "全部失败",
+        broadcast: "广播失败",
+        submission: "提交失败",
+        code: "代码/脚本错误",
+        rpc: "RPC/连接错误",
+        execution: "执行失败",
+        quote: "报价/复核失败",
+        blocked: "业务不可执行",
+        other: "其他错误",
+      })[category] || category;
+    }
+    function renderErrorTabs() {
+      const counts = Object.keys(allCategoryCounts).length
+        ? {...allCategoryCounts}
+        : {all: latestRows.length};
+      counts.all = Object.values(counts).reduce((total, value) => total + (Number(value) || 0), 0);
+      const categories = ["all", "broadcast", "submission", "code", "rpc", "execution", "quote", "blocked", "other"].filter(category => category === "all" || counts[category] > 0);
+      $("errorTabs").innerHTML = categories.map(category => {
+        const href = category === "all" ? "/dex/submissions/failed" : `/dex/submissions/failed/${category}`;
+        const cls = category === currentErrorCategory ? "active" : "";
+        return `<a data-error-category="${category}" class="${cls}" href="${href}">${esc(errorCategoryLabel(category))} (${counts[category] || 0})</a>`;
+      }).join("");
+    }
+    function renderRows() {
+      visibleRows = currentErrorCategory === "all" ? latestRows : latestRows.filter(row => errorCategoryOf(row) === currentErrorCategory);
+      const totalPages = Math.max(1, Math.ceil(visibleRows.length / pageSize));
+      currentPage = Math.min(currentPage, totalPages - 1);
+      const start = currentPage * pageSize;
+      const pageRows = visibleRows.slice(start, start + pageSize);
+      $("rows").innerHTML = pageRows.map((row, offset) => rowHtml(row, start + offset)).join("") || '<tr><td colspan="9">暂无失败记录。</td></tr>';
+      $("pageInfo").textContent = `第 ${currentPage + 1} / ${totalPages} 页 · ${visibleRows.length} 条`;
+      $("prevPageBtn").disabled = currentPage <= 0;
+      $("nextPageBtn").disabled = currentPage >= totalPages - 1;
+    }
     async function refresh() {
       $("message").textContent = "正在加载失败提交记录...";
       try {
-        const data = await fetchJson("/api/dex/submissions/failed?limit=300");
+        const failedApiPath = currentErrorCategory === "all"
+          ? "/api/dex/submissions/failed?limit=300"
+          : `/api/dex/submissions/failed/${currentErrorCategory}?limit=300`;
+        const data = await fetchJsonWithTimeout(failedApiPath, 12000);
         const framework = data.routeFramework || {};
         $("frameworkSource").textContent = framework.routeFrameworkLabel || frameworkLabel(framework.routeFrameworkSource || framework.marketObservationSource || "-");
         $("frameworkDecision").textContent = framework.decisionBasis || "-";
@@ -561,14 +651,20 @@
         $("failedCount").textContent = data.summary?.failedCount ?? 0;
         $("blockedCount").textContent = data.summary?.blockedCount ?? 0;
         $("source").textContent = data.source || "-";
-        latestRows = [...(data.attempts || [])].sort((a, b) => recordTimeValue(b) - recordTimeValue(a));
-        $("rows").innerHTML = latestRows.map(rowHtml).join("") || '<tr><td colspan="9">暂无失败提交记录。</td></tr>';
-        $("message").textContent = "已更新";
+        allCategoryCounts = data.categoryCounts || {};
+        latestRows = [...(data.attempts || [])].sort((a, b) => recordTimeValue(b) - recordTimeValue(a)).slice(0, 200);
+        currentPage = 0;
+        renderErrorTabs();
+        renderRows();
+        const totalAttempts = data.summary?.attemptCount ?? latestRows.length;
+        $("message").textContent = totalAttempts > latestRows.length ? `已更新（仅展示最近 ${latestRows.length} 条，共 ${totalAttempts} 条）` : "已更新";
       } catch (error) {
         $("message").textContent = uiError(error.message);
       }
     }
     $("refreshBtn").onclick = refresh;
+    $("prevPageBtn").onclick = () => { currentPage = Math.max(0, currentPage - 1); renderRows(); };
+    $("nextPageBtn").onclick = () => { currentPage += 1; renderRows(); };
     async function checkOnchain(row, button) {
       const quote = row.quote || {};
       const txHash = row.tx_hash || row.transaction_hash || quote.tx_hash || quote.transaction_hash || row.order_uid || "";

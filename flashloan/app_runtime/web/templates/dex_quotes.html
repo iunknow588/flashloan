@@ -90,7 +90,7 @@
       <button id="resetStatsBtn" type="button">清零统计</button>
       <label for="refreshInterval">刷新间隔（秒）</label>
       <input id="refreshInterval" type="number" min="10" max="3600" step="1" value="180" inputmode="numeric">
-      <label><input id="autoExecuteToggle" type="checkbox"> 链上执行开关</label>
+      <label><input id="autoExecuteToggle" type="checkbox"> 自动扫描复核并进行链上广播</label>
       <span id="message" class="muted">等待数据</span>
     </div>
     <section class="grid">
@@ -99,8 +99,11 @@
       <div class="metric"><small>链上复核候选</small><strong id="readyCount">-</strong><span id="profitMeta">已扣除闪电贷和 Gas 成本</span></div>
       <div class="metric"><small>可自动执行闭环</small><strong id="autoExecutableCount">-</strong><span id="autoExecutableMeta">链上复核通过且可盈利</span></div>
       <div class="metric"><small>链上复核总数</small><strong id="reviewedCount">-</strong><span id="reviewedMeta">本轮已完成链上复核</span></div>
+      <div class="metric"><small>闭环扫描</small><strong id="closedLoopScanCount">-</strong><span id="closedLoopScanMeta">累计已完成闭环刷新</span></div>
+      <div class="metric"><small>链上复核次数</small><strong id="closedLoopReviewCount">-</strong><span id="closedLoopReviewMeta">累计链上复核尝试</span></div>
       <div class="metric"><small>正盈利空间</small><strong id="profitableCount">-</strong><span id="profitableMeta">链上复核正收益</span></div>
       <div class="metric"><small>已自动执行</small><strong id="autoExecutedCount">-</strong><span id="autoExecutedMeta">已广播链上交易</span></div>
+      <div class="metric"><small>上链广播</small><strong id="autoBroadcastCount">-</strong><span id="autoBroadcastMeta">累计已广播链上交易</span></div>
       <div class="metric"><small>正在排队</small><strong id="queueCount">-</strong><span id="queueMeta">待复核/待扫描</span></div>
       <div class="metric"><small>结算</small><strong id="settlement">-</strong><span id="settlementMeta">-</span></div>
     </section>

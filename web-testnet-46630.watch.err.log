@@ -1,0 +1,121 @@
+port 5000 is occupied; selected port 5001 instead
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.4:5001
+Press CTRL+C to quit
+127.0.0.1 - - [02/Oct/2026 16:37:07] "GET /api/dex/submissions/success?limit=10&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:37:08] "GET /api/dex/submissions?limit=10&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:37:09] "GET /api/dex/submissions/failed?limit=10&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:37:39] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:37:43] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:37:45] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:38:23] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:38:25] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:38:59] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:39:03] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:39:38] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:39:41] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:40:14] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:40:22] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:40:57] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:41:03] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:41:36] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:41:39] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:42:18] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:42:21] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:42:54] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:42:58] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:43:31] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:43:33] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:44:06] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:44:09] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:44:43] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 16:44:45] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+port 5000 is occupied; selected port 5002 instead
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5002
+ * Running on http://192.168.1.4:5002
+Press CTRL+C to quit
+port 5000 is occupied; selected port 5001 instead
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.4:5001
+Press CTRL+C to quit
+127.0.0.1 - - [02/Oct/2026 20:23:01] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:23:03] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:23:22] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:23:35] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:23:37] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:24:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:24:14] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:24:19] "GET /api/dex/opportunity-scanner/scan-now?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes&wait=1 HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:24:47] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:24:50] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:25:08] "POST /api/dex/closed-loop-groups/TZ/refresh?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes&mode=deep&wait=1 HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:25:22] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:25:24] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:25:58] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:26:02] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:26:35] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:26:39] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:27:11] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:27:13] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:27:48] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:27:50] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:28:23] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:28:26] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:28:59] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:00] "GET /dex/submissions?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:01] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:25] "GET /api/dex/submissions?limit=300&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:28] "GET /api/dex/submissions/success?limit=300&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:33] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:42] "GET /api/dex/submissions/failed?limit=300&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:42] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:29:53] "GET /api/dex/submissions/failed/quote?limit=300&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:30:07] "GET /api/dex/submissions/failed/blocked?limit=300&chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:30:15] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:30:17] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:30:50] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:30:54] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:31:27] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:31:30] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:32:04] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:32:08] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:32:42] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:32:45] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:33:18] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:33:41] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:34:16] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:34:23] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:34:55] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:34:58] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:35:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:35:32] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:36:10] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:36:12] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:36:45] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:36:48] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:37:20] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:37:23] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:37:55] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:37:58] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:38:30] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:38:33] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:39:05] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:39:07] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:39:40] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:39:42] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:40:14] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:40:21] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:40:54] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:40:56] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:41:28] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:41:30] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:42:02] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:42:05] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:42:37] "GET /api/dex/opportunity-scanner/snapshot?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -
+127.0.0.1 - - [02/Oct/2026 20:42:39] "GET /api/dex/submissions/failed?chain_id=46630&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes HTTP/1.1" 200 -

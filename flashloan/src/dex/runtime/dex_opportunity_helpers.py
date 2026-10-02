@@ -309,13 +309,14 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "depth_insufficient",
             "rpc_verification_failed",
             "rpc_verification_timeout",
+            "live_quote_reference_only",
         }
         for status in statuses
     )
     deferred_count = sum(status == "live_evidence_deferred" for status in statuses)
     not_reviewed_count = sum(status == "not_reviewed_this_scan" for status in statuses)
     pending_reference_count = sum(
-        status in {"static_reference_pending_live_review", "live_quote_reference_only"}
+        status in {"static_reference_pending_live_review"}
         for status in statuses
     )
     failed_count = sum(status in {"live_quote_failed", "rpc_verification_failed", "rpc_verification_timeout"} for status in statuses)
@@ -328,10 +329,24 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
         for route, status in zip(routes, statuses)
     )
     live_profits = []
+    live_profitable_count = 0
     for row in evidence_rows:
         if str(row.get("status") or "").strip().lower() != "live_verified":
             continue
         costs = row.get("costModel") if isinstance(row.get("costModel"), dict) else {}
+        profitable = bool(row.get("profitable")) or bool((row.get("validation") or {}).get("profitableAfterCosts"))
+        net_profit_amount = None
+        try:
+            net_profit_amount = float(costs.get("netProfitAmount"))
+        except (TypeError, ValueError):
+            net_profit_amount = None
+        if not profitable:
+            try:
+                profitable = float(costs.get("netProfitUsd") or net_profit_amount or 0) > 0
+            except (TypeError, ValueError):
+                profitable = False
+        if profitable:
+            live_profitable_count += 1
         try:
             value = float(costs.get("netProfitUsd"))
         except (TypeError, ValueError):
@@ -356,7 +371,7 @@ def _refresh_payload_summary(payload: dict[str, Any]) -> dict[str, Any]:
         summary["autoExecutableClosedLoopCount"] = auto_executable_closed_loop_count
         summary["sdkAdapterRequiredCount"] = adapter_count
         summary["liveVerifiedRouteCount"] = sum(status == "live_verified" for status in statuses)
-        summary["liveProfitableRouteCount"] = sum(value > 0 for value in live_profits)
+        summary["liveProfitableRouteCount"] = live_profitable_count
         summary["bestLiveNetProfitUsd"] = max(live_profits) if live_profits else None
         summary["profitableRouteCount"] = summary["liveProfitableRouteCount"]
         summary["bestNetProfitUsd"] = summary["bestLiveNetProfitUsd"]

@@ -375,7 +375,7 @@ def test_robinhood_market_never_inherits_avalanche_router(monkeypatch):
     assert market.dex_router_address == ""
 
 
-def test_robinhood_testnet_is_independent_paused_deploy_chain(monkeypatch):
+def test_robinhood_testnet_dex_is_live_execution_chain(monkeypatch):
     _clear_market_env(monkeypatch)
 
     market = liquidation_market_config_for(chain_id=46630, feature="dex_arbitrage")
@@ -385,10 +385,10 @@ def test_robinhood_testnet_is_independent_paused_deploy_chain(monkeypatch):
     assert market.network == "robinhood-testnet"
     assert market.chain_id == 46630
     assert market.protocol == "uniswap_v4"
-    assert market.rpc_urls[0] == "https://rpc.testnet.chain.robinhood.com"
+    assert market.rpc_urls[0] == "https://rpc.testnet.chain.robinhood.com/rpc"
     assert market.explorer_url == "https://explorer.testnet.chain.robinhood.com"
-    assert market.protocol_supported is False
-    assert market.observation_only is True
+    assert market.protocol_supported is True
+    assert market.observation_only is False
     assert market.dex_router_address == ""
 
 
@@ -405,7 +405,7 @@ def test_robinhood_testnet_liquidation_shadow_is_available_to_bot(monkeypatch):
     assert market.protocol == "morpho_blue"
     assert market.protocol_supported is False
     assert market.observation_only is True
-    assert market.rpc_urls[0] == "https://rpc.testnet.chain.robinhood.com"
+    assert market.rpc_urls[0] == "https://rpc.testnet.chain.robinhood.com/rpc"
 
 
 def test_market_scan_policy_prefers_database_rows(monkeypatch):

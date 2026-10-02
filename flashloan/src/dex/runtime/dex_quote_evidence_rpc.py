@@ -128,9 +128,9 @@ def _connect_robinhood_family(chain_id: int | None, network: str) -> tuple[Any, 
                 )
             )
             try:
-                if w3.is_connected() and int(w3.eth.chain_id) == ROBINHOOD_TESTNET_CHAIN_ID:
+                if int(w3.eth.chain_id) == ROBINHOOD_TESTNET_CHAIN_ID:
                     return w3, probed_url
-                failures.append(f"{probed_url}: post-probe web3 handshake failed")
+                failures.append(f"{probed_url}: post-probe chain id mismatch")
             except Exception as exc:
                 failures.append(f"{probed_url}: post-probe web3 handshake failed: {exc}")
         if not probed_url and not failures:

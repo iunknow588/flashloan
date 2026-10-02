@@ -22,7 +22,7 @@ SCRIPT = REPO_ROOT / "test-token_create" / "scripts" / "tool" / "testnet-v4-offi
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--amount", default=os.getenv("ROBINHOOD_TESTNET_MAKE_ARB_AMOUNT", "0.001"))
-    parser.add_argument("--rpc-url", default=os.getenv("ROBINHOOD_TESTNET_RPC_URL", "https://rpc.testnet.chain.robinhood.com"))
+    parser.add_argument("--rpc-url", default=os.getenv("ROBINHOOD_TESTNET_RPC_URL", "https://rpc.testnet.chain.robinhood.com/rpc"))
     parser.add_argument("--chain", type=int, default=int(os.getenv("FLASHLOAN_CHAIN_ID", os.getenv("FLASHLOAN_DEFAULT_CHAIN_ID", "46630"))))
     parser.add_argument("--manifest-path", default=os.getenv("FLASHLOAN_MANIFEST_PATH", ""))
     parser.add_argument("--hardhat-network", default=os.getenv("FLASHLOAN_HARDHAT_NETWORK", ""))

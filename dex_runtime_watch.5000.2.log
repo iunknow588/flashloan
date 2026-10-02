@@ -1,0 +1,2 @@
+2026-10-02 21:06:38,267 INFO dex runtime watcher started: base_url=http://127.0.0.1:5000 chain_id=46630
+2026-10-02 21:07:17,739 INFO heartbeat auto_execute=True running=True last_error= scan_count=93 review_count=747 failed=6 blocked=57

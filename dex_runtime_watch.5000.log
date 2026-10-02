@@ -1,0 +1,8 @@
+2026-10-02 20:57:34,841 INFO dex runtime watcher started: base_url=http://127.0.0.1:5000 chain_id=46630
+2026-10-02 20:58:12,012 INFO heartbeat auto_execute=True running=True last_error= scan_count=88 review_count=699 failed=6 blocked=65
+2026-10-02 20:59:22,241 INFO heartbeat auto_execute=True running=True last_error= scan_count=89 review_count=711 failed=6 blocked=64
+2026-10-02 21:00:30,350 INFO heartbeat auto_execute=True running=True last_error= scan_count=89 review_count=720 failed=6 blocked=62
+2026-10-02 21:01:38,309 INFO heartbeat auto_execute=True running=True last_error= scan_count=89 review_count=731 failed=6 blocked=59
+2026-10-02 21:02:49,536 INFO heartbeat auto_execute=True running=True last_error= scan_count=90 review_count=736 failed=6 blocked=59
+2026-10-02 21:03:57,553 INFO heartbeat auto_execute=True running=True last_error= scan_count=92 review_count=743 failed=6 blocked=59
+2026-10-02 21:05:06,394 INFO heartbeat auto_execute=True running=True last_error= scan_count=92 review_count=753 failed=6 blocked=59
