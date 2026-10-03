@@ -77,7 +77,7 @@ DEFAULT_ROBINHOOD_BOT_MARKET_ID = "liquidation-4663-aave-v3"
 LEGACY_ROBINHOOD_TESTNET_BOT_MARKET_ID = "robinhood-testnet-liquidation-shadow"
 DEFAULT_ROBINHOOD_TESTNET_BOT_MARKET_ID = "liquidation-46630-morpho-blue"
 LEGACY_ROBINHOOD_DEX_MARKET_ID = "robinhood-dex-shadow"
-DEFAULT_ROBINHOOD_DEX_MARKET_ID = "dex-arbitrage-4663-uniswap-v3"
+DEFAULT_ROBINHOOD_DEX_MARKET_ID = "dex-arbitrage-4663-uniswap-v4"
 LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID = "robinhood-testnet-dex-paused"
 DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID = "dex-arbitrage-46630-uniswap-v4"
 DEFAULT_ROBINHOOD_CHAIN_ID = _chain_int_value("robinhood", "ROBINHOOD_CHAIN_ID", 4663)
@@ -420,8 +420,8 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "market_type": MARKET_TYPE_EXECUTION_RAIL,
         "migration_type": "dex_cross_chain_execution_rail",
     },
-    DEFAULT_ROBINHOOD_DEX_MARKET_ID: {
-        "legacy_market_id": LEGACY_ROBINHOOD_DEX_MARKET_ID,
+    "dex-arbitrage-4663-uniswap-v3": {
+        "legacy_market_id": "robinhood-dex-v3-shadow",
         "feature": "dex_arbitrage",
         "display_name": "Robinhood DEX Shadow",
         "network": "robinhood",
@@ -434,11 +434,10 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "explorer_url": DEFAULT_ROBINHOOD_EXPLORER_URL,
         "observation_only": True,
         "market_type": MARKET_TYPE_SHADOW_CHAIN,
-        "chain_default": True,
         "migration_type": "dex_shadow_market_registry",
     },
-    "dex-arbitrage-4663-uniswap-v4": {
-        "legacy_market_id": "robinhood-dex-v4-shadow",
+    DEFAULT_ROBINHOOD_DEX_MARKET_ID: {
+        "legacy_market_id": LEGACY_ROBINHOOD_DEX_MARKET_ID,
         "feature": "dex_arbitrage",
         "display_name": "Robinhood Uniswap V4",
         "network": "robinhood",
@@ -452,6 +451,7 @@ KNOWN_EVM_MARKETS: dict[str, dict[str, Any]] = {
         "observation_only": True,
         "protocol_supported": True,
         "market_type": MARKET_TYPE_SHADOW_CHAIN,
+        "chain_default": True,
         "migration_type": "robinhood_mainnet_v4_read_only_quote_supported_execution_deferred",
     },
     DEFAULT_ROBINHOOD_TESTNET_DEX_MARKET_ID: {

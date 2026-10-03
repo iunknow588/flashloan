@@ -20,6 +20,13 @@ from core.chain_data_registry import chain_data_file_path, chain_data_by_network
 
 from eth_utils import event_signature_to_log_topic
 
+from dex.intent_trade.chains.robinhood_common.v4_pool_index_core import (
+    build_v4_pool_index_from_initialize_logs as _build_core,
+    keep_token_addresses_from_payload,
+    load_robinhood_v4_pool_index as _load_core,
+    write_v4_pool_index_from_initialize_logs as _write_core,
+)
+
 
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 V4_INITIALIZE_TOPIC = event_signature_to_log_topic(
@@ -321,6 +328,7 @@ def build_v4_pool_index_from_initialize_logs(
     pool_limit: int = 0,
     non_eth_only: bool = False,
     include_metadata: bool = False,
+    keep_token_addresses: set[str] | None = None,
     mark_recent_swaps: bool = True,
     recent_swap_lookback_blocks: int = 20_000,
 ) -> dict[str, Any]:
@@ -329,103 +337,60 @@ def build_v4_pool_index_from_initialize_logs(
     if not resolved_rpc_url:
         raise ValueError("Robinhood mainnet RPC URL is not configured")
     resolved_pool_manager = Web3.to_checksum_address(pool_manager or _contract_address("v4_pool_manager"))
-    w3 = _connect_rpc(resolved_rpc_url)
-    actual_chain_id = int(w3.eth.chain_id)
-    if actual_chain_id != CHAIN_ID:
-        raise ValueError(f"RPC returned chainId {actual_chain_id}, expected {CHAIN_ID}")
-    latest_block = int(w3.eth.block_number)
-    resolved_to_block = latest_block if to_block is None else int(to_block)
-    logs = _get_logs_chunked(
-        w3,
+    return _build_core(
+        network=NETWORK,
+        chain_id=CHAIN_ID,
         pool_manager=resolved_pool_manager,
-        topic=V4_INITIALIZE_TOPIC,
-        from_block=max(0, int(from_block)),
-        to_block=resolved_to_block,
-        chunk_size=max(1, int(chunk_size)),
-        min_chunk_size=1_000,
+        rpc_url=resolved_rpc_url,
+        schema_version="robinhood-v4-pool-index-v1",
+        include_currency_metadata=False,
+        from_block=from_block,
+        to_block=to_block,
+        chunk_size=chunk_size,
+        pool_limit=pool_limit,
+        non_eth_only=non_eth_only,
+        include_metadata=include_metadata,
+        keep_token_addresses=keep_token_addresses,
+        mark_recent_swaps=mark_recent_swaps,
+        recent_swap_lookback_blocks=recent_swap_lookback_blocks,
+        rpc_user_agent="flashloan-robinhood-mainnet-v4/1.0",
     )
-    metadata_cache: dict[str, dict[str, Any]] = {}
-    pools: list[dict[str, Any]] = []
-    pool_keys: list[dict[str, Any]] = []
-    seen_pool_ids: set[str] = set()
-    eth_related_count = 0
-    non_eth_count = 0
-    for log in logs:
-        pool = _pool_row_from_initialize_log(
-            w3,
-            log,
-            pool_manager=resolved_pool_manager,
-            include_metadata=include_metadata,
-            metadata_cache=metadata_cache,
-        )
-        pool_id = str(pool.get("poolId") or "").lower()
-        if not pool_id or pool_id in seen_pool_ids:
-            continue
-        seen_pool_ids.add(pool_id)
-        is_eth_related = (
-            str(pool.get("token0") or "").lower() == ZERO_ADDRESS.lower()
-            or str(pool.get("token1") or "").lower() == ZERO_ADDRESS.lower()
-        )
-        if is_eth_related:
-            eth_related_count += 1
-        else:
-            non_eth_count += 1
-        if non_eth_only and is_eth_related:
-            continue
-        pool_keys.append(pool["poolKey"])
-        pools.append(pool)
-        if pool_limit > 0 and len(pools) >= int(pool_limit):
-            break
-    activity = {}
-    if mark_recent_swaps and pools:
-        activity = _mark_recent_swap_activity(
-            w3,
-            pools,
-            pool_manager=resolved_pool_manager,
-            latest_block=latest_block,
-            lookback_blocks=max(1, int(recent_swap_lookback_blocks)),
-        )
-    return {
-        "schemaVersion": "robinhood-v4-pool-index-v1",
-        "network": NETWORK,
-        "chainId": CHAIN_ID,
-        "poolManager": resolved_pool_manager,
-        "generatedAt": _stamp(),
-        "generatedBlockNumber": latest_block,
-        "fromBlock": max(0, int(from_block)),
-        "toBlock": resolved_to_block,
-        "scanChunkSize": int(chunk_size),
-        "poolLimit": int(pool_limit),
-        "nonEthOnly": bool(non_eth_only),
-        "includeMetadata": bool(include_metadata),
-        "initializeLogCount": len(logs),
-        "initializedPoolCount": len(seen_pool_ids),
-        "ethRelatedPoolCount": eth_related_count,
-        "nonEthPoolCount": non_eth_count,
-        "selectedPoolCount": len(pools),
-        "discoveryMethod": "poolmanager_initialize_log_index",
-        "rpcUrl": resolved_rpc_url,
-        **activity,
-        "poolKeys": pool_keys,
-        "pools": pools,
-        "blockingReasons": [],
-    }
 
 
 def write_v4_pool_index_from_initialize_logs(output_path: Path | None = None, **kwargs: Any) -> dict[str, Any]:
-    payload = build_v4_pool_index_from_initialize_logs(**kwargs)
-    resolved = output_path or default_v4_pool_index_path()
-    if resolved is None:
-        raise ValueError("Robinhood mainnet v4_pool_index data file is not configured")
-    resolved.parent.mkdir(parents=True, exist_ok=True)
-    resolved.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {**payload, "outputPath": str(resolved)}
+    row = _chain_row()
+    resolved_rpc_url = kwargs.pop("rpc_url", None) or str(row.get("rpc_url") or "").strip()
+    if not resolved_rpc_url:
+        raise ValueError("Robinhood mainnet RPC URL is not configured")
+    resolved_pool_manager = Web3.to_checksum_address(kwargs.pop("pool_manager", None) or _contract_address("v4_pool_manager"))
+    return _write_core(
+        output_path=output_path,
+        default_output_path=default_v4_pool_index_path(),
+        network=NETWORK,
+        chain_id=CHAIN_ID,
+        pool_manager=resolved_pool_manager,
+        rpc_url=resolved_rpc_url,
+        schema_version="robinhood-v4-pool-index-v1",
+        include_currency_metadata=False,
+        rpc_user_agent="flashloan-robinhood-mainnet-v4/1.0",
+        **kwargs,
+    )
+
+
+def load_robinhood_mainnet_v4_pool_index(path: Path | None = None) -> dict[str, Any]:
+    return _load_core(
+        path=path or default_v4_pool_index_path(),
+        network=NETWORK,
+        chain_id=CHAIN_ID,
+    )
 
 
 __all__ = [
     "build_v4_pool_index_from_initialize_logs",
     "build_v4_pool_index_from_observation_pool_ids",
     "default_v4_pool_index_path",
+    "keep_token_addresses_from_payload",
+    "load_robinhood_mainnet_v4_pool_index",
     "write_v4_pool_index_from_observation_pool_ids",
     "write_v4_pool_index_from_initialize_logs",
 ]

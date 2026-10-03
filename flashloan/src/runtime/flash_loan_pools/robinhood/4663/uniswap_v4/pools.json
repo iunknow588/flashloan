@@ -1,0 +1,270 @@
+{
+  "borrow_target_universe": null,
+  "cache": {
+    "asset_count": 1,
+    "block_number": 78608812,
+    "capabilities": {
+      "borrowable": false,
+      "execution_enabled": false,
+      "flash_capable": true,
+      "has_concrete_pools": true,
+      "observable": true,
+      "priced_depth": false
+    },
+    "chain_id": 4663,
+    "identities": [
+      {
+        "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "is_concrete_pool": false,
+        "kind": "pool_manager",
+        "label": "PoolManager",
+        "role": "protocol_interface",
+        "value": "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+      }
+    ],
+    "pool_address": "",
+    "refreshed_at": "2026-10-02T23:01:21.149090Z",
+    "rpc_url": "https://rpc.mainnet.chain.robinhood.com",
+    "schema_version": "robinhood-v4-pool-index-v1",
+    "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood\\v4_pool_index\\latest.json"
+  },
+  "chain_id": 4663,
+  "chain_isolation": {},
+  "display_name": "Robinhood Uniswap V4",
+  "exists": true,
+  "generated_at": "2026-10-03T00:51:25.748726Z",
+  "network": "robinhood",
+  "ok": true,
+  "path": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\flash_loan_pools\\robinhood\\4663\\uniswap_v4\\pools.json",
+  "pool_evidence": {
+    "executability": {
+      "allowed": false,
+      "blocked_reasons": [
+        "execution_enabled_false_or_missing"
+      ],
+      "status": "blocked"
+    },
+    "liquidity": {
+      "allowed": true,
+      "blocked_reasons": [],
+      "status": "ready"
+    },
+    "marketability": {
+      "allowed": true,
+      "blocked_reasons": [],
+      "status": "ready"
+    },
+    "profitability": {
+      "allowed": false,
+      "blocked_reasons": [
+        "profitability_requires_live_quoter"
+      ],
+      "status": "requires_live_quoter"
+    }
+  },
+  "pool_evidence_observed_at": "2026-10-03T00:51:25.748726Z",
+  "pool_evidence_schema_version": "flash-loan-pool-evidence-v1",
+  "protocol": "uniswap_v4",
+  "protocol_view": {
+    "active": true,
+    "borrow_target_universe": null,
+    "cache": {
+      "asset_count": 1,
+      "block_number": 78608812,
+      "capabilities": {
+        "borrowable": false,
+        "execution_enabled": false,
+        "flash_capable": true,
+        "has_concrete_pools": true,
+        "observable": true,
+        "priced_depth": false
+      },
+      "chain_id": 4663,
+      "identities": [
+        {
+          "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+          "is_concrete_pool": false,
+          "kind": "pool_manager",
+          "label": "PoolManager",
+          "role": "protocol_interface",
+          "value": "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+        }
+      ],
+      "pool_address": "",
+      "refreshed_at": "2026-10-02T23:01:21.149090Z",
+      "rpc_url": "https://rpc.mainnet.chain.robinhood.com",
+      "schema_version": "robinhood-v4-pool-index-v1",
+      "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood\\v4_pool_index\\latest.json"
+    },
+    "display_mode": "observable_dex_pool",
+    "display_name": "Robinhood Uniswap V4",
+    "non_stable_borrow_pools": [
+      {
+        "anchor_symbol": "ETH",
+        "available_liquidity": 1272.0,
+        "binance_symbol": "ETH",
+        "borrowable": false,
+        "decimals": 18,
+        "depth_class": "ok",
+        "depth_label": "可观察",
+        "depth_level": "observable",
+        "depth_score_usd": 0.0,
+        "depth_status": "initialized_unpriced_eth_pool",
+        "dex": "uniswap_v4",
+        "fee": 8388608,
+        "flash_borrowable": false,
+        "flash_capable": true,
+        "is_stable": false,
+        "liquidity_units": 0,
+        "observed_block": 58859062,
+        "paired_symbol": "ETH",
+        "paired_symbol_count": 242,
+        "pool_count": 1272,
+        "pool_ids": [
+          "0x003afc98f071d09999ec566cd53cf13679222d87449a1109951dd49a0bbdf48f",
+          "0x0115a48c046e8776f95f9d52fddc85d8d88f7ddc73ea65015a465ae04977077d",
+          "0x0160b5d80b51332fe73af478e6a183694f237b53d8122fac5ac79967b40aa340",
+          "0x01d7cc3863338e9c958525df8842b0d5bf25223bf959434bf60db8bc4ec71bf4",
+          "0x024bbff99907331f627e49f4467328f0cc447d364733da7e465a5902405d00fd",
+          "0x028b3ebfd24bd68acd0e79c41a7e0b0674fce0605157fae70750c10204b7477b",
+          "0x02a9ea921da9971c05c9925898f7f78d207ee090dc3bdd230bb5b272c2acb68a",
+          "0x02af9a24a5816f2f3d1d6aae1a0f924b3bf77371f8ab435392cecc6405c9f709",
+          "0x03ad2659a16d202a55eabad5294f1941d21e4ddfbd52ee0f3ba6a091b5c95e15",
+          "0x04e6d745797953aceaf63a924d05f75f2316d948ca896de44e37237d995a7899",
+          "0x05cba5fec2a0f4706786b4389651028edab2bf116de365450472b996803d4fd6",
+          "0x063d12e128bfeca658fff197a38bf5b52992b7e4970d5a03722108f420a5492f",
+          "0x06941f3219b58e951692df169b3ef027e6be7e9f1eb5f0773ab9b218a4712680",
+          "0x07a5cad3fb747e2300f4fe6ee4d81a93f4c885b87c335366cacba827f30644e7",
+          "0x0800a3338fc2da6802bb448c2a24bad13073db8241e4f4c9934fc00453197c5b",
+          "0x0847aa1dda97e03454a1e7af9280da50fe1c226905edbe5dbd4c1ca05b6dacb9"
+        ],
+        "pool_manager_address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "pool_role": "eth_only_v4_borrow_token",
+        "reserve_data_liquidity": 0,
+        "source": "robinhood_mainnet_v4_pool_index_eth_only_token",
+        "token_address": "0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH"
+      }
+    ],
+    "pool_role_label": "V4 PoolKey 池",
+    "processing": {
+      "allowed_protocols": [
+        "morpho_blue",
+        "uniswap_v2",
+        "uniswap_v3",
+        "uniswap_v4",
+        "aave_v3"
+      ],
+      "chain_id": 4663,
+      "chain_key": "chain:4663",
+      "data_file_keys": [
+        "flash_liquidity",
+        "dex_discovery",
+        "v4_pool_index"
+      ],
+      "flow_name": "flash_loan_pools",
+      "global_chain_id": "chain:4663",
+      "handler": "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view",
+      "network": "robinhood",
+      "protocol": "uniswap_v4",
+      "requires_scope_match": true
+    },
+    "protocol": "uniswap_v4",
+    "stable_borrow_pools": [],
+    "status_note": "Robinhood Uniswap V4 池数据来自主网 PoolManager Initialize 日志；当前只展示已解码 PoolKey，尚未验证余额/可借额度。",
+    "summary": {
+      "borrow_asset_count": 1,
+      "borrow_target_count": 0,
+      "depth_counts": {
+        "observable": 1
+      },
+      "flash_capable_pool_count": 1272,
+      "flashloan_borrowable_pool_count": 0,
+      "flashloan_unverified_pool_count": 1,
+      "non_stable_borrow_pool_count": 1,
+      "non_stable_observable_pool_count": 1,
+      "observable_pool_count": 1,
+      "observed_borrow_token_count": 1,
+      "stable_borrow_pool_count": 0,
+      "stable_observable_pool_count": 0,
+      "v4_decoded_pool_key_count": 1272,
+      "v4_pool_key_count": 1272
+    }
+  },
+  "refresh_mode": "incremental",
+  "schema_version": "flash-loan-pool-static-store-v1",
+  "section_counts": {
+    "non_stable_borrow_pools": 1,
+    "stable_borrow_pools": 0
+  },
+  "sections": {
+    "non_stable_borrow_pools": [
+      {
+        "anchor_symbol": "ETH",
+        "available_liquidity": 1272.0,
+        "binance_symbol": "ETH",
+        "borrowable": false,
+        "decimals": 18,
+        "depth_class": "ok",
+        "depth_label": "可观察",
+        "depth_level": "observable",
+        "depth_score_usd": 0.0,
+        "depth_status": "initialized_unpriced_eth_pool",
+        "dex": "uniswap_v4",
+        "fee": 8388608,
+        "flash_borrowable": false,
+        "flash_capable": true,
+        "is_stable": false,
+        "liquidity_units": 0,
+        "observed_block": 58859062,
+        "paired_symbol": "ETH",
+        "paired_symbol_count": 242,
+        "pool_count": 1272,
+        "pool_ids": [
+          "0x003afc98f071d09999ec566cd53cf13679222d87449a1109951dd49a0bbdf48f",
+          "0x0115a48c046e8776f95f9d52fddc85d8d88f7ddc73ea65015a465ae04977077d",
+          "0x0160b5d80b51332fe73af478e6a183694f237b53d8122fac5ac79967b40aa340",
+          "0x01d7cc3863338e9c958525df8842b0d5bf25223bf959434bf60db8bc4ec71bf4",
+          "0x024bbff99907331f627e49f4467328f0cc447d364733da7e465a5902405d00fd",
+          "0x028b3ebfd24bd68acd0e79c41a7e0b0674fce0605157fae70750c10204b7477b",
+          "0x02a9ea921da9971c05c9925898f7f78d207ee090dc3bdd230bb5b272c2acb68a",
+          "0x02af9a24a5816f2f3d1d6aae1a0f924b3bf77371f8ab435392cecc6405c9f709",
+          "0x03ad2659a16d202a55eabad5294f1941d21e4ddfbd52ee0f3ba6a091b5c95e15",
+          "0x04e6d745797953aceaf63a924d05f75f2316d948ca896de44e37237d995a7899",
+          "0x05cba5fec2a0f4706786b4389651028edab2bf116de365450472b996803d4fd6",
+          "0x063d12e128bfeca658fff197a38bf5b52992b7e4970d5a03722108f420a5492f",
+          "0x06941f3219b58e951692df169b3ef027e6be7e9f1eb5f0773ab9b218a4712680",
+          "0x07a5cad3fb747e2300f4fe6ee4d81a93f4c885b87c335366cacba827f30644e7",
+          "0x0800a3338fc2da6802bb448c2a24bad13073db8241e4f4c9934fc00453197c5b",
+          "0x0847aa1dda97e03454a1e7af9280da50fe1c226905edbe5dbd4c1ca05b6dacb9"
+        ],
+        "pool_manager_address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "pool_role": "eth_only_v4_borrow_token",
+        "reserve_data_liquidity": 0,
+        "source": "robinhood_mainnet_v4_pool_index_eth_only_token",
+        "token_address": "0x0000000000000000000000000000000000000000",
+        "token_symbol": "ETH"
+      }
+    ],
+    "stable_borrow_pools": []
+  },
+  "source": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood\\v4_pool_index\\latest.json",
+  "summary": {
+    "borrow_asset_count": 1,
+    "borrow_target_count": 0,
+    "depth_counts": {
+      "observable": 1
+    },
+    "flash_capable_pool_count": 1272,
+    "flashloan_borrowable_pool_count": 0,
+    "flashloan_unverified_pool_count": 1,
+    "non_stable_borrow_pool_count": 1,
+    "non_stable_observable_pool_count": 1,
+    "observable_pool_count": 1,
+    "observed_borrow_token_count": 1,
+    "stable_borrow_pool_count": 0,
+    "stable_observable_pool_count": 0,
+    "v4_decoded_pool_key_count": 1272,
+    "v4_pool_key_count": 1272
+  }
+}

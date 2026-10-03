@@ -151,3 +151,6 @@ def test_chain_selector_drops_market_id_that_conflicts_with_explicit_chain():
     assert "function normalizeScopeQuery(query)" in script
     assert "marketChainId !== chainId" in script
     assert "normalized.delete(\"market_id\");" in script
+    assert "window.__CHAIN_SELECTOR_DEFAULT__ || {}" in script
+    assert "normalized.set(\"market_id\", fallbackMarketId);" in script
+    assert "window.history.replaceState({}, \"\", normalizedUrl);" in script

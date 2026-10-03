@@ -253,7 +253,7 @@ def _robinhood_market(market_id: str, chain_id: int):
     )
     robinhood_market_id = canonical_market_id_from_legacy(DEFAULT_ROBINHOOD_DEX_MARKET_ID) or DEFAULT_ROBINHOOD_DEX_MARKET_ID
     if market.market_id != robinhood_market_id or market.network != "robinhood":
-        raise ValueError("Robinhood DEX observation requires the dex-arbitrage-4663-uniswap-v3 market scope")
+        raise ValueError("Robinhood DEX observation requires the dex-arbitrage-4663-uniswap-v4 market scope")
     return market
 
 

@@ -96,11 +96,11 @@ def test_flash_loan_pool_default_scope_is_robinhood_testnet_v4():
 def test_feature_default_scope_comes_from_chain_registry():
     scope = default_chain_scope("dex_arbitrage")
 
-    assert scope["network"] == "robinhood-testnet"
-    assert scope["chain_id"] == 46630
-    assert scope["market_id"] == "dex-arbitrage-46630-uniswap-v4"
-    assert scope["legacy_market_id"] == "robinhood-testnet-dex-paused"
-    assert default_market_id_for_feature("dex_arbitrage") == "dex-arbitrage-46630-uniswap-v4"
+    assert scope["network"] == "robinhood"
+    assert scope["chain_id"] == 4663
+    assert scope["market_id"] == "dex-arbitrage-4663-uniswap-v4"
+    assert scope["legacy_market_id"] == "robinhood-dex-shadow"
+    assert default_market_id_for_feature("dex_arbitrage") == "dex-arbitrage-4663-uniswap-v4"
     assert default_market_id_for_feature("liquidation") == "liquidation-46630-morpho-blue"
 
 
@@ -190,8 +190,11 @@ def test_supported_protocol_counts_are_owned_by_chain_config():
     assert chain_supported_protocol_count("robinhood-testnet") == 1
     assert chain_supported_protocols("robinhood-testnet") == ["uniswap_v4"]
     assert chain_supported_protocols("robinhood-testnet", protocol_set="default") == ["uniswap_v4"]
-    assert inventory["robinhood"]["supportedProtocolCount"] == 5
-    assert "uniswap_v4" in inventory["robinhood"]["candidateProtocols"]
+    assert inventory["robinhood"]["supportedProtocolCount"] == 1
+    assert inventory["robinhood"]["candidateProtocols"] == ["uniswap_v4"]
+    assert chain_supported_protocol_count("robinhood") == 1
+    assert chain_supported_protocols("robinhood") == ["uniswap_v4"]
+    assert chain_supported_protocols("robinhood", protocol_set="default") == ["uniswap_v4"]
 
 
 def test_flow_allowed_protocols_are_subsets_of_chain_supported_protocols():

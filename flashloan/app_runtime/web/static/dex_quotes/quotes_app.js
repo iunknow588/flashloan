@@ -46,9 +46,39 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
       if (activeRouteKey && latestRoutes.some(route => routeKey(route) === activeRouteKey)) return activeRouteKey;
       return latestRoutes.length ? routeKey(latestRoutes[0]) : "";
     };
+    const marketIdChainComponent = marketId => {
+      const normalized = String(marketId || "").trim().toLowerCase();
+      const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+      return match ? match[2] : "";
+    };
+    const normalizeScopeQuery = query => {
+      const normalized = new URLSearchParams(query);
+      const chainId = String(normalized.get("chain_id") || "").trim();
+      const marketId = String(normalized.get("market_id") || "").trim();
+      const marketChainId = marketIdChainComponent(marketId);
+      if (chainId && marketChainId && marketChainId !== chainId) {
+        normalized.delete("market_id");
+        normalized.delete("protocols");
+        normalized.delete("protocol_id");
+      }
+      if (chainId && !normalized.get("market_id")) {
+        const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+        const fallbackMarketId = String(fallback.market_id || "").trim();
+        const fallbackChainId = marketIdChainComponent(fallbackMarketId);
+        if (fallbackChainId && fallbackChainId === chainId) {
+          normalized.set("market_id", fallbackMarketId);
+        }
+      }
+      return normalized;
+    };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
+      if (!window.ChainSelector?.withSelection) {
+        url.search = normalizeScopeQuery(new URLSearchParams(window.location.search)).toString();
+      } else if (window.ChainSelector?.normalizeScopeQuery) {
+        url.search = window.ChainSelector.normalizeScopeQuery(url.searchParams).toString();
+      }
       url.searchParams.set("v", APP_VERSION);
       return url.pathname + url.search;
     };
@@ -1087,7 +1117,7 @@ const autoExecuteEnabledKey = "dex-quotes-auto-execute-enabled";
           : null;
       };
       const broadcast = mode === "broadcast";
-      if (broadcast && !window.confirm(`确认执行这笔测试网上链交易？执行前会把${initialAmountLabel}作为初始量，重新链上复核当前最佳量后再提交链上交易。`)) return;
+      if (broadcast && !window.confirm(`确认执行这笔链上交易？执行前会把${initialAmountLabel}作为初始量，重新链上复核当前最佳量后再提交链上交易。`)) return;
       const requestMode = mode === "estimate" ? "estimate" : (mode === "static_call" ? "static_call" : "auto");
       const old = button ? button.textContent : `${mode === "estimate" ? "链下估算" : "链上复核"}中`;
       if (button) button.disabled = true;

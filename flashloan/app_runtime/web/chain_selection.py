@@ -82,6 +82,20 @@ def validate_explicit_request_scope() -> dict[str, object] | None:
         "network": value("network"),
         "protocol": value("protocol") or value("protocol_id") or value("protocols"),
     }
+    # A canonical market_id explicitly names the chain/protocol/network, so it
+    # can complete the scope contract without a separate chain_id query arg.
+    if values["market_id"] and not all((values["chain_id"], values["network"], values["protocol"])):
+        try:
+            resolved = resolve_chain_selection(
+                market_id=str(values["market_id"]),
+                feature=None,
+                database_url=None,
+            )
+            values["chain_id"] = str(resolved.chain_id or "")
+            values["network"] = str(resolved.network or "")
+            values["protocol"] = str(resolved.protocol or "")
+        except Exception:
+            pass
     # Without a chain selector there is no safe feature default to resolve
     # against. Keep the API boundary fail-closed for unknown/partial scopes;
     # chain-qualified requests may still be completed by the route registry.

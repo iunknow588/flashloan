@@ -1,0 +1,1513 @@
+{
+  "chain_id": 4663,
+  "description": "Static token allowlist for Robinhood mainnet V4 pool scanning and official route resolution.",
+  "network": "robinhood",
+  "schema_version": "robinhood-v4-token-allowlist-v1",
+  "tokens": {
+    "0x007d": {
+      "address": "0x007defdb60b9aa23058d268b7f77516a4ad7d3f0",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BEHALF"
+    },
+    "0x0172": {
+      "address": "0x01725ae97af327922b40afcc6bfa1c75d95e7afd",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TRUMPTV"
+    },
+    "0x020d": {
+      "address": "0x020d42f87e3a7b647d450dd8f08c574f5448ebaf",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "YZUY"
+    },
+    "0x0377": {
+      "address": "0x037723199b6201c789d19e948f751cf704ed3e62",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LTSL"
+    },
+    "0x03d5": {
+      "address": "0x03d53a253bc346e7661e75fe423d4153d89d1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RUSHCOIN"
+    },
+    "0x058e": {
+      "address": "0x058e7009bd76e92b5e026872d5a0e43b5c0ca5ab",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PRGE"
+    },
+    "0x0647": {
+      "address": "0x06476873f2cb13877994329be67f05b1c25d7777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "EGGSTEIN"
+    },
+    "0x07f0": {
+      "address": "0x07f036f09f7a1c760a4f4409df5eda4e4d0088c2",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CREATURE"
+    },
+    "0x08a6": {
+      "address": "0x08a6f336d965949cb9f36e03c84f60ec1af2ec88",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "EIDR"
+    },
+    "0x098e": {
+      "address": "0x098e9f2c512e7723c7ec55eaec8488d7a1e7c63b",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "AIGYR"
+    },
+    "0x0afb": {
+      "address": "0x0afb2a60a63d3534d29a15a67b2902ec38d0bfb3",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "KLPK"
+    },
+    "0x0b32": {
+      "address": "0x0b329adf43200107ce85d9fff1748ef184e12c8d",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "GROK"
+    },
+    "0x0c4c": {
+      "address": "0x0c4c6bcaaa3520a14d10184df2c8e0e9a5c0d777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "STONKERS"
+    },
+    "0x0c60": {
+      "address": "0x0c603e21bed70b173bf4ec1a8be5d57a3dbbfa2f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DEXTINY"
+    },
+    "0x0c88": {
+      "address": "0x0c8890df6c91923cc1935b4ea3d797114a7e1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "QUOTEDCOIN"
+    },
+    "0x0d0a": {
+      "address": "0x0d0a2a82f0d3897600902cd08e6a5be1b65f74d1",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WHATS"
+    },
+    "0x0f90": {
+      "address": "0x0f90d8f5a9a89ba362537555d9dd4217fe8945f4",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SQUEEZE"
+    },
+    "0x104c": {
+      "address": "0x104cfd504e878141e251025d2d2c88d28edc6cb5",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FIX6900"
+    },
+    "0x10e2": {
+      "address": "0x10e29e1ac407a559c70610da855ee8b73e8ece76",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ZAFFT"
+    },
+    "0x1221": {
+      "address": "0x1221f5e12f3ae43b2d7aa485a2ba4cbce3131e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SCORE"
+    },
+    "0x1232": {
+      "address": "0x1232da38a953dfc4c4a926ec3e52a4440bafec0b",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "POCKET"
+    },
+    "0x1259": {
+      "address": "0x1259b5249dd034f348609d719c41b0753efc9085",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CSI"
+    },
+    "0x126f": {
+      "address": "0x126fb199219dda5d7f11aab50f64d64ab9fbf7fa",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "YZUYT"
+    },
+    "0x131d": {
+      "address": "0x131dc101bee62c8dfdbbf706922d2d4edf60abed",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ZAFF"
+    },
+    "0x1339": {
+      "address": "0x1339d98c7ee6c3cd6ab964572b066d9301651e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ORBACLE"
+    },
+    "0x13fa": {
+      "address": "0x13fa7c4353479cc2bcdf0524fa218e4a088496d3",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "VERVT"
+    },
+    "0x1773": {
+      "address": "0x177306b1938cdb6ff7ec4322b2c6356e6e818188",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SLOWLY"
+    },
+    "0x1903": {
+      "address": "0x190329f185a3b1f7e16656d3d2f9bd6211d21e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DIGCOIN"
+    },
+    "0x1bf6": {
+      "address": "0x1bf64a21733ccbc66e6181b0ec4e451492db3bd1",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RNRK"
+    },
+    "0x1c03": {
+      "address": "0x1c03ced29e2ca7e063f6fd61e0a8c6aeb1c696a7",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MOONLET"
+    },
+    "0x1c91": {
+      "address": "0x1c91b92cbeab3bd5b413555eecae4663e66edd00",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RNRKT"
+    },
+    "0x1f85": {
+      "address": "0x1f858a3b92164434d858970be5d794ab64048bb4",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "IGGY"
+    },
+    "0x1faa": {
+      "address": "0x1faab2d3deb644d994eee097f777268dcd7672d8",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HONKADE"
+    },
+    "0x2128": {
+      "address": "0x21289353d3822d6181152d3d1bbb28b7d5110404",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ART"
+    },
+    "0x2295": {
+      "address": "0x22955aa52f8b732c0f118c9fe859e13869eed355",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FOLY"
+    },
+    "0x238e": {
+      "address": "0x238e40b75ae78a1388a14e517d855893e92e58db",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SGT"
+    },
+    "0x244b": {
+      "address": "0x244bd118a64ddd1fbbab24acc9fe3c1cfcd4e0e0",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BRYL"
+    },
+    "0x24a6": {
+      "address": "0x24a6b60caec571b3cf18cb89b19cecd3af30dbcc",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PHIDEV"
+    },
+    "0x2719": {
+      "address": "0x2719c7d315ac467cc362ebde1d96351b4366998f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SABLE"
+    },
+    "0x276a": {
+      "address": "0x276aca021b8003b9a9b27ebd9801d9c9b8881e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RUSH"
+    },
+    "0x285a": {
+      "address": "0x285a9ddf53bef60ebcc55f5752724a30ef7b2d17",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CRADLE"
+    },
+    "0x2876": {
+      "address": "0x2876498a4fad8799ceb68684552067fa900c0f12",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "IRWKT"
+    },
+    "0x299c": {
+      "address": "0x299c56137871b8e9fe5193b5a370cf4249df52a5",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PEPE"
+    },
+    "0x2a5c": {
+      "address": "0x2a5c7bb9086888ec16604b169c54caf5216e15ae",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "QRTZ"
+    },
+    "0x2ad6": {
+      "address": "0x2ad60243c1bfd46a2851d1e1368457a739061e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BEHALFCOIN"
+    },
+    "0x2c35": {
+      "address": "0x2c35a15ca2baf95a36d0c1c1b8de82ae6c8f4070",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "OVT"
+    },
+    "0x2c61": {
+      "address": "0x2c612e2f811f106f1baa1dbc5fbae88f1ac561c7",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ZKD"
+    },
+    "0x2c8d": {
+      "address": "0x2c8da977c47cf0bd262d3e38edf5cc65fe0978a4",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MNTD"
+    },
+    "0x2cad": {
+      "address": "0x2cadf817458b86099b3743414a61be504ace3dce",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "GLMTT"
+    },
+    "0x2de4": {
+      "address": "0x2de4c875148d8b522e98552c29c956a8a7fd655d",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MONTAGE"
+    },
+    "0x2e22": {
+      "address": "0x2e22c90fe7f7070491ebce18506a1b3f39a6d85c",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HARDLEDGER"
+    },
+    "0x33cc": {
+      "address": "0x33cc97fe06d2c1933d1397c4689e86e3e4c44266",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "GLMT"
+    },
+    "0x34e7": {
+      "address": "0x34e7ccf5f4a4310b3bfeadd05e2beee21bc4bbc1",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LPS"
+    },
+    "0x35c5": {
+      "address": "0x35c52ef8069ae2827b458dba12066fcafa78c777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HOOKED"
+    },
+    "0x3715": {
+      "address": "0x3715530b3d0ed3686d765257bae25ff37b64d22e",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LAGPROBE"
+    },
+    "0x37a2": {
+      "address": "0x37a2afaa98648f2e13658623885f821ac8365609",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PGLD5X"
+    },
+    "0x38b5": {
+      "address": "0x38b5f0562d40431df2c96df8be0316979cf81e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WITNESSCOIN"
+    },
+    "0x3964": {
+      "address": "0x396452c1e11b7869cf7a19c8c5030323133834b7",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TLLW"
+    },
+    "0x3a0a": {
+      "address": "0x3a0a00618217e21dbc833d9f0f35c4ffcbd83cce",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SGI"
+    },
+    "0x3c57": {
+      "address": "0x3c570fb67334c8cc51f3fd07a88facc8972b1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "OTTOCOIN"
+    },
+    "0x3d40": {
+      "address": "0x3d40cef9f3186eec44404e3e3429fa0d71486ba3",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "UNDERDOG"
+    },
+    "0x3d78": {
+      "address": "0x3d78f4f0ff8337d1596a1a5ac2926795d2b13a41",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "JBLMT"
+    },
+    "0x3e17": {
+      "address": "0x3e17c94ba8112380ef81a43fc33b08ca6284fb33",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "U"
+    },
+    "0x3ff3": {
+      "address": "0x3ff353217aff145daf0e3973baa7b641b47ce7af",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "QRTZT"
+    },
+    "0x4439": {
+      "address": "0x44395baa91820399b97e7fba11fc733e785f1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "EAGLECOIN"
+    },
+    "0x480b": {
+      "address": "0x480b924fdc7291c0348fe79aba2c75470bd3d960",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LIEGE"
+    },
+    "0x4821": {
+      "address": "0x4821f878aafddfb909d66718305ba089f2a3f6f4",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "IPTZ"
+    },
+    "0x498a": {
+      "address": "0x498a30269f4b5527a661d7e3694536673f49ad55",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PONMATH"
+    },
+    "0x49e5": {
+      "address": "0x49e507165fc39c19ad08fc5eed5106882f9f2202",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SPROUT"
+    },
+    "0x4a61": {
+      "address": "0x4a61706f211eabad31cd142610a385e04f848295",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SAEGIS"
+    },
+    "0x4aae": {
+      "address": "0x4aae2ab9aca596d368aa5410e90ce458b5321e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MARKETRUSH"
+    },
+    "0x4d23": {
+      "address": "0x4d23f07b11497d00765847a2e1eb86c774a43463",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PIPO"
+    },
+    "0x4dd9": {
+      "address": "0x4dd967055ac0e9b9c64f3bcb4dfbc92f29e9f6d8",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "EIDRT"
+    },
+    "0x4e03": {
+      "address": "0x4e03ae17e8d879c99a33a4e8dbe07085b52abbc2",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WINK"
+    },
+    "0x500a": {
+      "address": "0x500ae7e10210763d6f5b8583eb8524200d5afcef",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "AGNET"
+    },
+    "0x50e5": {
+      "address": "0x50e53e8a02f12557c069d51e775fe300879503bd",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "INVESTINU"
+    },
+    "0x52b7": {
+      "address": "0x52b73fbd9287af8d5c08df9e2b81b2850faa1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SURGE"
+    },
+    "0x52f1": {
+      "address": "0x52f15b8600781f1db181825da552b244626e1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CUACKY"
+    },
+    "0x5372": {
+      "address": "0x5372c70d42f01d10451c0436cecfff26b50d1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SURGEPAD"
+    },
+    "0x56b8": {
+      "address": "0x56b8bbcc0c462ef3e07920525e2e36ea2e372b6a",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BLACKMINE"
+    },
+    "0x575f": {
+      "address": "0x575faee721e8537b91a8ee507dc8a789397c4636",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DOMA"
+    },
+    "0x5884": {
+      "address": "0x5884f5ec3d7a1de50d7f86dd5b965c3f64766163",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TEST12"
+    },
+    "0x590e": {
+      "address": "0x590ed9b6c439e260320674e9fd3de316477f1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TRYDIGFUN"
+    },
+    "0x59e8": {
+      "address": "0x59e8ae5c2e1edf77d2169e0ae67524c43aaca393",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "VISOR"
+    },
+    "0x5aee": {
+      "address": "0x5aee6f4eed7038bd06dc95deed5f0385f07fbc2b",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HARMONIC"
+    },
+    "0x5c15": {
+      "address": "0x5c15614e5cbef0bfb75555a27d59ca4dc687692c",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CLVCT"
+    },
+    "0x5d3a": {
+      "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "USDE"
+    },
+    "0x5dbd": {
+      "address": "0x5dbdd21e484f6bbc34a9ba09402b46ca4c115210",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WLWP"
+    },
+    "0x5e04": {
+      "address": "0x5e04ad8a48db28e9921e3478e6e85614c334c334",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MNQLT"
+    },
+    "0x5fc5": {
+      "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+      "category": "yc_zc",
+      "decimals": 6,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "USDG"
+    },
+    "0x673f": {
+      "address": "0x673f253836b849576542ca395e13958471e53b1d",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BDBID"
+    },
+    "0x67bc": {
+      "address": "0x67bc49e8dfa46026485d8038f6abcfe2e2660036",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FGMT"
+    },
+    "0x69fd": {
+      "address": "0x69fd9ed7504cabe1a961bbd0c347db1aa579e7ae",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CORVUS"
+    },
+    "0x6a6a": {
+      "address": "0x6a6a57d1e94eb586c5b505a1c81434bda3d6ed97",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BABY"
+    },
+    "0x6a82": {
+      "address": "0x6a82aade87c2df2dd27064eda60fa8619a739774",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ORCA"
+    },
+    "0x6b63": {
+      "address": "0x6b63ce33c9a276c854ecab3c352caeab84e61e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "QUOTED"
+    },
+    "0x6bde": {
+      "address": "0x6bde8a5aa75440f60b22dbe90835cbfc133bd0c1",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DYNAMITE"
+    },
+    "0x6d17": {
+      "address": "0x6d1766b9dbca19ff6437cb4fe4763cb24a96e490",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FEEL"
+    },
+    "0x6df1": {
+      "address": "0x6df1d7ad52f7702d09b059e34f152d6d2ccbc776",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WITNESS"
+    },
+    "0x6f77": {
+      "address": "0x6f77b013d951bf50ce1de9c61b91a49efdd00334",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "VERV"
+    },
+    "0x70e7": {
+      "address": "0x70e7ff5ac5c6ee358dbae755b1072d5fc5ca80d7",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FOMOGPT"
+    },
+    "0x71e5": {
+      "address": "0x71e5a08054a4e7fdead7fd099fb06a7513cd0d90",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ORCAT"
+    },
+    "0x7240": {
+      "address": "0x72402ac1d04e913e7770cd20523f6b64b331e49f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SEDGT"
+    },
+    "0x72cd": {
+      "address": "0x72cd188ed6d73d1cc55eaf6e5dda653381f61e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SURGECOIN"
+    },
+    "0x7466": {
+      "address": "0x746644da151e9b7de5345690440b078a0ca5073f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "VRAD"
+    },
+    "0x7859": {
+      "address": "0x7859dfc99f4db48e1aecd8cb1a42f1ba0b0a7012",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "GENIE"
+    },
+    "0x789f": {
+      "address": "0x789f48eb09e9def503e8e8fb604e5acd7f42992d",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DAPLT"
+    },
+    "0x799d": {
+      "address": "0x799d391a9eb47c11050baef1002634927617ead5",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PRWS"
+    },
+    "0x7bc5": {
+      "address": "0x7bc5a81458453de233ee3204169e053767deb3ca",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "THESEAN"
+    },
+    "0x7e8e": {
+      "address": "0x7e8ec4c88fbc002bf77d4e622834c39184561e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MATTRESS"
+    },
+    "0x8087": {
+      "address": "0x80877fe12ede96f807422d5d4ee4f4c47cebc8ff",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "KUDO"
+    },
+    "0x8110": {
+      "address": "0x8110f66619a8debe0faaebe5cef3b9268eb31149",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "KARAT"
+    },
+    "0x8200": {
+      "address": "0x820012a9bfb19db161a1a059a6d83c2777fc0777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DJT"
+    },
+    "0x8479": {
+      "address": "0x8479560358bc8b0a44965d80a0126a47fdbfc22f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FUGU"
+    },
+    "0x84c8": {
+      "address": "0x84c83162f943a9675b67f311f6aec19552b21e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "EAGIE"
+    },
+    "0x85ff": {
+      "address": "0x85ff4ac2fcfd81495d81368cbe5483792b56be92",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "AGENT"
+    },
+    "0x8826": {
+      "address": "0x8826ffea474dadb69957c4385d6ad9e9de787915",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DIG"
+    },
+    "0x8861": {
+      "address": "0x886171bd2fa8a77aa2132aeb213cb2090374a733",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RMC"
+    },
+    "0x898e": {
+      "address": "0x898e1a7d99fd8f4b3ed0b36f0fee0d59a693beee",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RECURVE"
+    },
+    "0x8b3e": {
+      "address": "0x8b3e04a657af9d141e8f61df56560e3f7f971a50",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CLVC"
+    },
+    "0x8ff0": {
+      "address": "0x8ff07c49307ffa3a5ece14adceae19be0b141e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LETSWAGR"
+    },
+    "0x9031": {
+      "address": "0x903165be11f0e847297fa32530c51b396abd1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "AIGYRAI"
+    },
+    "0x90e8": {
+      "address": "0x90e8fa19ae1a01431da01c6f80b3bc5cebb19438",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TMF"
+    },
+    "0x935f": {
+      "address": "0x935f5a0f72301f1dc70c28f777629df5782c5bfc",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PPERP"
+    },
+    "0x9464": {
+      "address": "0x94641b97010608c3827fb058074889f19868ff33",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "VRAX"
+    },
+    "0x951f": {
+      "address": "0x951fe06f8059f2a9073fa5d22c775787fda3ed5d",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "VEIL"
+    },
+    "0x9924": {
+      "address": "0x992450b070e1c0a0e2f80ccb9e46bea7211fc378",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HUMAN"
+    },
+    "0x9b4c": {
+      "address": "0x9b4cf34f9f5c62f2882a44a54c3e8587414d1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TMFCOIN"
+    },
+    "0x9c41": {
+      "address": "0x9c41c25355434c7f2aaa7bcad7d1b5d991b8cb44",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BNTEST"
+    },
+    "0x9c57": {
+      "address": "0x9c57e13c4105c4f64ab4cb19ace21ec3b91ce635",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BROCCOLI"
+    },
+    "0x9da6": {
+      "address": "0x9da615898459ffd65b239eebfd87fa8a6e42be01",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "POKEMON"
+    },
+    "0x9e79": {
+      "address": "0x9e795209be691654fb908ab86b3a651551939e16",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TALON"
+    },
+    "0x9ecf": {
+      "address": "0x9ecf5c82d754787fcb640930d594ab55b5412ffd",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WEB1"
+    },
+    "0xa09d": {
+      "address": "0xa09d3998641b078c1198e147544a982b3fe04777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "AEV-20"
+    },
+    "0xa16e": {
+      "address": "0xa16ec9a9d796a1415b05d689243b48292d708979",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "32145SA"
+    },
+    "0xa3b6": {
+      "address": "0xa3b66a03b10b847984a2d55035e38d32f9884fba",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LTSLT"
+    },
+    "0xa471": {
+      "address": "0xa471ba8b55783ba1c8e7720aaff064f8330c4104",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PONSUNI"
+    },
+    "0xa4dd": {
+      "address": "0xa4ddf89a40a35264e9d7f896a1ef01c59b1e977a",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ANYR"
+    },
+    "0xa5d1": {
+      "address": "0xa5d19247ef8b3105ca6af724416d8d70b2728f4f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FILLED"
+    },
+    "0xa7e7": {
+      "address": "0xa7e751c3c613a9f725b89f9347fade4df42a1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "OTTOBOTFUN"
+    },
+    "0xa968": {
+      "address": "0xa968d072f131672d4d76e79442441fde485bbcd3",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SEDG"
+    },
+    "0xab21": {
+      "address": "0xab2135bfa61c5f08372feb89e2f90408cf7290da",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "URSVT"
+    },
+    "0xae4d": {
+      "address": "0xae4dcbe4e84a92b581a0bdfde32946e16e53ad5b",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "XENCT"
+    },
+    "0xaed8": {
+      "address": "0xaed853349282c6047a103b990a623b866c9333d2",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WLWPT"
+    },
+    "0xafab": {
+      "address": "0xafabf90a7b31fc258a3e7d69b8f26e73bf1eeaab",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "KLPKT"
+    },
+    "0xb0ab": {
+      "address": "0xb0ab82fe5bca923695a93718ed6eaa8febde759e",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TYESDSTRE"
+    },
+    "0xb2f9": {
+      "address": "0xb2f9955fbd040b51ee9098bf71b0731749e0decd",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DAPL"
+    },
+    "0xb329": {
+      "address": "0xb329b5c03be16a939ceed25e74135b1a83f4bd93",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BOB"
+    },
+    "0xb591": {
+      "address": "0xb5917d2f13edeff8dea78a2cadaeace1afdbc05a",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SHROOMSFUN"
+    },
+    "0xb86e": {
+      "address": "0xb86e6600623ea5dc5123dd20c2557bba4e7c9150",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "POND"
+    },
+    "0xb957": {
+      "address": "0xb957b31b3fcbb0acdd1f16c4965a89ca684693e9",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "XENC"
+    },
+    "0xb978": {
+      "address": "0xb97817b76cc1319a4d96f7e3fc179ea005171e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DOTTY"
+    },
+    "0xb9dc": {
+      "address": "0xb9dcfe5004590278c8d74ef714bedaa747821e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SCORECOIN"
+    },
+    "0xba1a": {
+      "address": "0xba1a2d9783ebe2b76493c5c12eb9813a0e062843",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SI"
+    },
+    "0xbade": {
+      "address": "0xbade75ad15f357199410b8f0e9bcce7c127f4163",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BEEZIE"
+    },
+    "0xbd39": {
+      "address": "0xbd395e2b24422c1e05521a59bfa83acfb2ad1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "AIGYRCOIN"
+    },
+    "0xbe5d": {
+      "address": "0xbe5d432a0b30443987d261b664cc6bb8bccb80d6",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "OGATE"
+    },
+    "0xbe7e": {
+      "address": "0xbe7e289ca1c9cf1aae8936a19734dda7ff4e6001",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BRMBT"
+    },
+    "0xbeb4": {
+      "address": "0xbeb4e112eb724df0613444e4c9ed2d6e10b58777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "DKNG"
+    },
+    "0xc406": {
+      "address": "0xc406938756478f9401ef30a2b2337f3e7a8a0b03",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "UMBRELLA"
+    },
+    "0xc422": {
+      "address": "0xc4223e465e131276ceeb8163e4c7fd578d521e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LEAKEDFILE"
+    },
+    "0xc4d9": {
+      "address": "0xc4d95b584b08f10f82f0a07009a0988987be1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LEAKEDCOIN"
+    },
+    "0xc4fc": {
+      "address": "0xc4fc18e88950deb61be0cf2b602f6de63e361e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CHAINSCORE"
+    },
+    "0xc780": {
+      "address": "0xc780d8611723d154e8ca0e31c12efedb71155777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FISH"
+    },
+    "0xc849": {
+      "address": "0xc849fbe9f292c9db201012993a95a3f70e1e1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "OTTO"
+    },
+    "0xcc92": {
+      "address": "0xcc926aaa4ac404f626a23aedc4ed16f67a437236",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "IRWK"
+    },
+    "0xce6b": {
+      "address": "0xce6b10ab6059b0404cb88b2c42130cdefa0bf0a1",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "OZZY"
+    },
+    "0xce99": {
+      "address": "0xce9976a1bd5ac404d079822e861871bb5f1fed73",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "POT"
+    },
+    "0xd0c0": {
+      "address": "0xd0c07b64c9810888d8a1dc665f270edaa4da1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MATTRESSCOIN"
+    },
+    "0xd166": {
+      "address": "0xd166f2c802febb0a56286157fd8f9f39245750e0",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FGMTT"
+    },
+    "0xd1c5": {
+      "address": "0xd1c5bbde0a0a988e5b41ca338330ea91e9561e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "NOTOAI"
+    },
+    "0xd24c": {
+      "address": "0xd24c9093515e654cf1a502a13a260b2eb1b25b0d",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "FOMOEGG"
+    },
+    "0xd2b6": {
+      "address": "0xd2b642c0f013c4efab500649f63f2a808c1848a5",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "CROSSRATE"
+    },
+    "0xd2e0": {
+      "address": "0xd2e00809caf0c07b0c34bf797d08f37ba9d99929",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "COZY"
+    },
+    "0xd450": {
+      "address": "0xd4505321820e9bd25b1991dd460442c206671e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WAGR"
+    },
+    "0xd502": {
+      "address": "0xd5027a5b0e9a8285f9b37a77964cf6c9a95a529b",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TLLWT"
+    },
+    "0xd5db": {
+      "address": "0xd5dbcf88bbbca7948d53a025e9e22e9fbf1ebe3f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LEAKED"
+    },
+    "0xd647": {
+      "address": "0xd6470223588ba5f6a60776f6c335a47a10f30b19",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": ">_"
+    },
+    "0xd860": {
+      "address": "0xd860a87d463f7792d79036146375bebe2d7c8e24",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TESTER1"
+    },
+    "0xd9b2": {
+      "address": "0xd9b2a397b2d5fec1c1788fb9416297ea7dc2bd0c",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "URSV"
+    },
+    "0xdea5": {
+      "address": "0xdea5d38ccab0e03b43fe8911f4d0fb0cc09b0777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TOPENAI"
+    },
+    "0xdfe9": {
+      "address": "0xdfe9d23a2a0e028e8db85349cce4e737b66e13ec",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MOONVEIL"
+    },
+    "0xe0dd": {
+      "address": "0xe0dd1e6bb68adc7182a080de694463fbc1f3c948",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HYAC"
+    },
+    "0xe1ed": {
+      "address": "0xe1ed24b06b83cea27676c6b26ad9268e81531e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PACKZ"
+    },
+    "0xe2e0": {
+      "address": "0xe2e0d27c7771c9dbbf7f6d9a6fb47f4e2424906e",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BRYLT"
+    },
+    "0xe497": {
+      "address": "0xe4979be27d9eda383622d0fb068c401b1d071e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "WAGRCOIN"
+    },
+    "0xe551": {
+      "address": "0xe551960e504c0a09dda59cf596fc8d4829bba000",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TUBION"
+    },
+    "0xe580": {
+      "address": "0xe58005b0bb7fe59895f8868562ad13cf58004e9c",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "NTTL"
+    },
+    "0xe64a": {
+      "address": "0xe64ad9de48bf5c7e571b3d36fd9862537767b755",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SI.GOV"
+    },
+    "0xe762": {
+      "address": "0xe76284f7480675de4393ee159270853fec0c0777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BILI"
+    },
+    "0xe7f5": {
+      "address": "0xe7f5069b406a8cf2a386db331e36c776e837a00a",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "KASPAFUN"
+    },
+    "0xe844": {
+      "address": "0xe84433717b4b08d3259bf730062ff07f55ca1777",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TLC"
+    },
+    "0xea50": {
+      "address": "0xea50eef25586df54c3ccc1f1d1e925862a1b1e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PACKZCOIN"
+    },
+    "0xeafa": {
+      "address": "0xeafac31fe1334e3656211b7f01aae28f7a82513c",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "NTTLT"
+    },
+    "0xeb2a": {
+      "address": "0xeb2aff211c1cf136e2e7abe5c30ce4959b5b6dcf",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SOCKET"
+    },
+    "0xece6": {
+      "address": "0xece632f25940ecfd48e9ccef071eee0cfe642bec",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SIGH"
+    },
+    "0xed68": {
+      "address": "0xed6860f23a9b638689d496f2de433e00dc4fd591",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "JBLM"
+    },
+    "0xed73": {
+      "address": "0xed73ee61d3b2bdee20f7394501956741537a3514",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "TRENCH"
+    },
+    "0xedbf": {
+      "address": "0xedbf91223639800bcd5756815caf908df3b890be",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PRIORS"
+    },
+    "0xee84": {
+      "address": "0xee84b6fcdabb5881c7ce3658f6e3506f1f50d7c5",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "JSON"
+    },
+    "0xf10d": {
+      "address": "0xf10df442f712912e4d1ad79852b3f9695dd989d8",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "LEMON"
+    },
+    "0xf15a": {
+      "address": "0xf15aab29c3d22cf2b469d4a9b0c0a72f31ba0711",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "SC"
+    },
+    "0xf1ab": {
+      "address": "0xf1ab029b898d4d55bcca5d1815e565422056edba",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PLMP"
+    },
+    "0xf1d0": {
+      "address": "0xf1d086505f25099138987073b8137b7a455181dd",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PIE"
+    },
+    "0xf227": {
+      "address": "0xf2271d31b2e8e9cc40fc2ea3d482c752ee036c97",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "HYACT"
+    },
+    "0xf511": {
+      "address": "0xf511244704908abb16d10b2a3986f301b839fb87",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BZL"
+    },
+    "0xf850": {
+      "address": "0xf85042182bdc90cec96fd51d89e455df6a56c808",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ORBIOBOOK"
+    },
+    "0xf8c6": {
+      "address": "0xf8c662c796a7e7afb215da93357d2c43bff11e18",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "ORBACLECOIN"
+    },
+    "0xfc88": {
+      "address": "0xfc887ca73df1f6ba3e4c35c732fe652ac182ed06",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "PLMPT"
+    },
+    "0xfcec": {
+      "address": "0xfcec6838d80374aa520ca9c353c0ea495d7c3ab7",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "BRUME"
+    },
+    "0xfdcf": {
+      "address": "0xfdcf99b76e0317ab34f181b9cb0567b4f1fb89f5",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "P2"
+    },
+    "0xff25": {
+      "address": "0xff25c8b29340eb00efbebb8896b4884e1fee0031",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "RSVL"
+    },
+    "0xff74": {
+      "address": "0xff74a64905f68048b3886ade27486b0ada99153f",
+      "category": "yc_zc",
+      "decimals": 18,
+      "source": "runtime/evidence/robinhood/yc_zc_tokens.json",
+      "symbol": "MNQL"
+    },
+    "eth": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "category": "native",
+      "decimals": 18,
+      "source": "chain.json.native_symbol",
+      "symbol": "ETH"
+    },
+    "weth": {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "category": "wrapped_native",
+      "decimals": 18,
+      "source": "chain.json.contracts.wrapped_native",
+      "symbol": "WETH"
+    }
+  }
+}

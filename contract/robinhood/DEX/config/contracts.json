@@ -25,6 +25,10 @@
   "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
   "v3Router": "0xCaf681a66D020601342297493863E78C959E5cb2",
   "flashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "officialV4": {
+    "arb": "0xf73f921f0EcA56c8e5816390d2Af378fC8173D3F",
+    "composer": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282"
+  },
   "note": "read-only evidence package; no broadcast-ready executor has been deployed for this chain test",
   "uniswapV2Pool": "0x8803c117ccae7B5146297876c2A25DF135141C4d",
   "v3Quoter": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7",

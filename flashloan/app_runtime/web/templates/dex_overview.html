@@ -105,13 +105,38 @@
       const parsed = Number(value);
       return Number.isFinite(parsed) ? `${parsed.toLocaleString("zh-CN", {maximumFractionDigits: digits})} ${symbol || ""}`.trim() : "-";
     };
+    const marketIdChainComponent = marketId => {
+      const normalized = String(marketId || "").trim().toLowerCase();
+      const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+      return match ? match[2] : "";
+    };
+    const normalizeScopeQuery = query => {
+      const normalized = new URLSearchParams(query);
+      const chainId = String(normalized.get("chain_id") || "").trim();
+      const marketId = String(normalized.get("market_id") || "").trim();
+      const marketChainId = marketIdChainComponent(marketId);
+      if (chainId && marketChainId && marketChainId !== chainId) {
+        normalized.delete("market_id");
+        normalized.delete("protocols");
+        normalized.delete("protocol_id");
+      }
+      if (chainId && !normalized.get("market_id")) {
+        const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+        const fallbackMarketId = String(fallback.market_id || "").trim();
+        const fallbackChainId = marketIdChainComponent(fallbackMarketId);
+        if (fallbackChainId && fallbackChainId === chainId) {
+          normalized.set("market_id", fallbackMarketId);
+        }
+      }
+      return normalized;
+    };
     const apiPath = path => {
       if (path === "/api/dex/overview") {
         const pageUrl = new URL(window.location.href);
         const url = new URL(path, window.location.origin);
         const scopeQuery = window.ChainSelector?.normalizeScopeQuery
           ? window.ChainSelector.normalizeScopeQuery(pageUrl.searchParams)
-          : new URLSearchParams(pageUrl.searchParams);
+          : normalizeScopeQuery(pageUrl.searchParams);
         ["chain_id", "market_id", "protocols", "dex_strategy"].forEach(key => {
           const value = scopeQuery.get(key);
           if (value) url.searchParams.set(key, value);

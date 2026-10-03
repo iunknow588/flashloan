@@ -44,6 +44,227 @@ def _chain_id_for_network(network: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+
+def _is_robinhood_mainnet_scope(payload: dict[str, Any]) -> bool:
+    """Reject evidence clearly scoped to another Robinhood network/chain."""
+    expected_chain_id = _chain_id_for_network("robinhood", 4663)
+    network = str(payload.get("network") or "").strip().lower()
+    if network and network != "robinhood":
+        return False
+    raw_chain_id = payload.get("chainId", payload.get("chain_id"))
+    if raw_chain_id is None:
+        return True
+    try:
+        return int(str(raw_chain_id).strip()) == expected_chain_id
+    except (TypeError, ValueError):
+        return False
+
+
+def _robinhood_v4_pool_index_path() -> Path:
+    try:
+        path = chain_data_file_path("robinhood", "v4_pool_index", chain_id=4663)
+        if path is not None:
+            return Path(path)
+    except Exception:
+        pass
+    return Path(__file__).resolve().parents[4] / "runtime" / "evidence" / "robinhood" / "v4_pool_index" / "latest.json"
+
+
+def _robinhood_v4_token_symbol(address: str, fallback: str = "", contracts: dict[str, Any] | None = None) -> str:
+    normalized = str(address or "").strip().lower()
+    if normalized == "0x0000000000000000000000000000000000000000":
+        return "ETH"
+    if contracts is None:
+        try:
+            row = chain_data_by_network("robinhood") or {}
+            contracts = row.get("contracts")
+        except Exception:
+            contracts = {}
+        contracts = contracts if isinstance(contracts, dict) else {}
+    else:
+        contracts = contracts if isinstance(contracts, dict) else {}
+    if normalized == str(contracts.get("wrapped_native") or "").strip().lower():
+        return "WETH"
+    if normalized == str(contracts.get("usdg") or "").strip().lower():
+        return "USDG"
+    fallback_symbol = str(fallback or "").strip()
+    if fallback_symbol:
+        return fallback_symbol.upper()
+    if normalized.startswith("0x"):
+        return normalized[:10].upper()
+    return str(address or "").upper()
+
+
+def _robinhood_v4_borrow_asset_rows(pools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    """Collapse ETH-anchored V4 pools into a single ETH borrowable token.
+
+    The pool discovery page currently only needs to show ETH as the borrowable
+    token. Partner token symbols are kept behind the scenes as supporting evidence.
+    """
+    try:
+        chain_row = chain_data_by_network("robinhood") or {}
+        contracts = chain_row.get("contracts")
+        contracts = contracts if isinstance(contracts, dict) else {}
+    except Exception:
+        contracts = {}
+    zero_address = "0x0000000000000000000000000000000000000000"
+    eth_addresses = {
+        zero_address,
+        str(contracts.get("wrapped_native") or "").strip().lower(),
+    }
+    eth_addresses.discard("")
+    zero_address = str(zero_address)
+    eth_row: dict[str, Any] | None = None
+    total_pool_count = 0
+    for pool in pools:
+        if not isinstance(pool, dict):
+            continue
+        pool_key = pool.get("poolKey")
+        pool_key = pool_key if isinstance(pool_key, dict) else {}
+        token0_address = str(pool.get("token0") or pool_key.get("token0") or pool_key.get("currency0") or "").strip()
+        token1_address = str(pool.get("token1") or pool_key.get("token1") or pool_key.get("currency1") or "").strip()
+        token0_symbol = _robinhood_v4_token_symbol(token0_address, pool.get("token0Symbol"), contracts=contracts) if token0_address else ""
+        token1_symbol = _robinhood_v4_token_symbol(token1_address, pool.get("token1Symbol"), contracts=contracts) if token1_address else ""
+        token0_is_eth = token0_address.lower() in eth_addresses or token0_symbol.upper() in {"ETH", "WETH"}
+        token1_is_eth = token1_address.lower() in eth_addresses or token1_symbol.upper() in {"ETH", "WETH"}
+        eth_side_count = int(token0_is_eth) + int(token1_is_eth)
+        if eth_side_count == 0 or eth_side_count == 2:
+            continue
+        total_pool_count += 1
+        pool_id = str(pool.get("poolId") or pool.get("pool") or pool.get("pool_id") or "").strip()
+        if eth_row is None:
+            eth_row = _asset_row(
+                {
+                    "token_symbol": "ETH",
+                    "binance_symbol": "ETH",
+                    "is_stable": False,
+                    "anchor_symbol": "ETH",
+                    "paired_symbol": "ETH",
+                    "depth_score_usd": 0.0,
+                    "available_liquidity": 0,
+                    "pool_count": 0,
+                    "token_address": zero_address,
+                    "pool_manager_address": pool.get("poolManager") or "",
+                    "fee": pool.get("fee") if pool.get("fee") is not None else pool_key.get("fee"),
+                    "dex": "uniswap_v4",
+                    "flash_capable": True,
+                    "flash_borrowable": False,
+                    "borrowable": False,
+                    "pool_role": "eth_only_v4_borrow_token",
+                    "decimals": 18,
+                    "observed_block": pool.get("initializeBlockNumber"),
+                    "pool_ids": [],
+                }
+            )
+        row = eth_row
+        row["pool_count"] = int(row.get("pool_count") or 0) + 1
+        if pool_id:
+            pool_ids = row.setdefault("pool_ids", [])
+            if len(pool_ids) < 16 and pool_id not in pool_ids:
+                pool_ids.append(pool_id)
+        for address, symbol, is_eth, decimals in (
+            (token0_address, token0_symbol, token0_is_eth, pool.get("token0Decimals")),
+            (token1_address, token1_symbol, token1_is_eth, pool.get("token1Decimals")),
+        ):
+            if is_eth or not symbol or symbol.upper() in {"ETH", "WETH"}:
+                continue
+            paired_symbols = row.setdefault("paired_symbols", [])
+            if symbol.upper() not in paired_symbols:
+                paired_symbols.append(symbol.upper())
+    assets = [eth_row] if eth_row is not None else []
+    for asset in assets:
+        asset["available_liquidity"] = float(asset.get("pool_count") or 0)
+        asset["reserve_data_liquidity"] = 0
+        asset["source"] = "robinhood_mainnet_v4_pool_index_eth_only_token"
+        asset["depth_status"] = "initialized_unpriced_eth_pool"
+        paired_symbols = asset.pop("paired_symbols", [])
+        asset["paired_symbol_count"] = len(paired_symbols) if isinstance(paired_symbols, list) else int(paired_symbols or 0)
+        if not _as_float(asset.get("depth_score_usd")):
+            asset["depth_level"] = "observable"
+            asset["depth_label"] = "可观察"
+            asset["depth_class"] = "ok"
+    return assets, total_pool_count
+
+
+def _robinhood_v4_sort_key(asset: dict[str, Any]) -> tuple[bool, str]:
+    symbol = str(asset.get("token_symbol") or "").strip().upper()
+    has_eth = symbol == "ETH" or symbol.startswith("ETH:")
+    return (not has_eth, symbol)
+
+
+def _robinhood_v4_protocol_view(
+    protocol: str,
+    *,
+    index_loader: Callable[[], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    loader = index_loader or (lambda: read_json(_robinhood_v4_pool_index_path()) or {})
+    try:
+        index = loader() or {}
+    except Exception as exc:
+        view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
+        view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} 池证据包读取失败:{str(exc)[:160]}"
+        return view
+    pools = [pool for pool in index.get("pools") or [] if isinstance(pool, dict)]
+    if not pools:
+        view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
+        view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} 池证据包尚未生成"
+        return view
+    if not _is_robinhood_mainnet_scope(index):
+        view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
+        view["status_message"] = "Robinhood Uniswap V4 pool index is not scoped to the Robinhood mainnet chain"
+        return view
+    assets, total_pool_count = _robinhood_v4_borrow_asset_rows(pools)
+    stable_assets = [asset for asset in assets if asset.get("is_stable")]
+    non_stable_assets = [asset for asset in assets if not asset.get("is_stable")]
+    stable_assets.sort(key=_robinhood_v4_sort_key)
+    non_stable_assets.sort(key=_robinhood_v4_sort_key)
+    return {
+        "protocol": protocol,
+        "display_name": f"Robinhood {_protocol_display_name(protocol)}",
+        "active": True,
+        "display_mode": "observable_dex_pool",
+        "pool_role_label": "V4 PoolKey 池",
+        "status_note": "Robinhood Uniswap V4 池数据来自主网 PoolManager Initialize 日志；当前只展示已解码 PoolKey，尚未验证余额/可借额度。",
+        "cache": {
+            "schema_version": index.get("schemaVersion"),
+            "chain_id": index.get("chainId") or 4663,
+            "block_number": index.get("generatedBlockNumber"),
+            "refreshed_at": index.get("generatedAt"),
+            "pool_address": "",
+            "identities": _cache_identities(
+                _cache_identity("pool_manager", index.get("poolManager"), label="PoolManager"),
+            ),
+            "capabilities": _pool_view_capabilities(
+                concrete_pool_count=len(assets),
+                flash_capable=True,
+                observable=True,
+            ),
+            "rpc_url": index.get("rpcUrl") or "",
+            "asset_count": len(assets),
+            "source": str(_robinhood_v4_pool_index_path()),
+        },
+        "summary": {
+            "stable_borrow_pool_count": len(stable_assets),
+            "non_stable_borrow_pool_count": len(non_stable_assets),
+            "observed_borrow_token_count": len(assets),
+            "borrow_target_count": 0,
+            "borrow_asset_count": len(assets),
+            "observable_pool_count": len(assets),
+            "stable_observable_pool_count": len(stable_assets),
+            "non_stable_observable_pool_count": len(non_stable_assets),
+            "flash_capable_pool_count": total_pool_count,
+            "v4_pool_key_count": total_pool_count,
+            "v4_decoded_pool_key_count": total_pool_count,
+            "flashloan_borrowable_pool_count": 0,
+            "flashloan_unverified_pool_count": len(assets),
+            "depth_counts": _depth_counts(assets),
+        },
+        "stable_borrow_pools": stable_assets,
+        "non_stable_borrow_pools": non_stable_assets,
+        "borrow_target_universe": None,
+    }
+
+
 def _latest_robinhood_pool_static_table(evidence_root: Path | None = None) -> tuple[dict[str, Any] | None, Path | None]:
     root = evidence_root
     if root is None:
@@ -269,10 +490,15 @@ def _robinhood_flash_protocol_view(
         view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
         view["status_message"] = f"Robinhood {_protocol_display_name(protocol)} 闪电流动性读取失败：{str(exc)[:160]}"
         return view
+    if not _is_robinhood_mainnet_scope(snapshot):
+        view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
+        view["status_message"] = "Robinhood flash liquidity snapshot is not scoped to the Robinhood mainnet chain"
+        return view
     sources = [
         source
         for source in snapshot.get("sources") or []
-        if isinstance(source, dict) and str(source.get("protocol") or "").strip().lower() == protocol
+        if isinstance(source, dict)
+        and str(source.get("protocol") or "").strip().lower() == protocol
     ]
     if not sources:
         view = _empty_protocol_view(protocol, status="protocol_pool_cache_not_available")
@@ -343,5 +569,6 @@ def _robinhood_flash_protocol_view(
 
 robinhood_dex_protocol_view = _robinhood_dex_protocol_view
 robinhood_flash_protocol_view = _robinhood_flash_protocol_view
+robinhood_v4_protocol_view = _robinhood_v4_protocol_view
 
-__all__ = ["robinhood_dex_protocol_view", "robinhood_flash_protocol_view"]
+__all__ = ["robinhood_dex_protocol_view", "robinhood_flash_protocol_view", "robinhood_v4_protocol_view"]

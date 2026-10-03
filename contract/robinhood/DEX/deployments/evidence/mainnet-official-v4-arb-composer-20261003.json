@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "robinhood-mainnet-official-v4-deploy-v1",
+  "network": "robinhood",
+  "chainId": 4663,
+  "deployer": "0xF9C5525792dF4D70C287b872BeA21C2E44df87Ac",
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "arb": "0xf73f921f0EcA56c8e5816390d2Af378fC8173D3F",
+  "composer": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282",
+  "transactions": {
+    "arb": "0xe5947f91372492a6a8bba812ee29b84a1171a5d082773ab87e95fac97c713a27",
+    "composer": "0x2cad1007202688e1fd10185e09d56aeb5f4c1267e5fdaad604c19e6bd7411280"
+  },
+  "deployedAt": "2026-10-03T07:00:00Z"
+}

@@ -2,8 +2,31 @@ from __future__ import annotations
 
 from flask import jsonify, request
 
+from core.chain_data_registry import chain_supported_protocols
 from core.chain_selection import ChainSelectionError
 from web.data_routes import dex_surfaces as _root
+
+
+def _protocol_not_supported_response(chain_id: int | None, protocols: list[str]):
+    if chain_id is None:
+        return None
+    supported = {str(item).strip().lower() for item in chain_supported_protocols(chain_id=chain_id)}
+    unsupported = [
+        str(protocol).strip().lower()
+        for protocol in protocols
+        if str(protocol).strip().lower() and str(protocol).strip().lower() not in supported
+    ]
+    if not unsupported:
+        return None
+    return jsonify({
+        "ok": False,
+        "code": "protocol_not_supported",
+        "error": "protocol_not_supported",
+        "detail": "requested protocol is not enabled for this chain",
+        "chain_id": chain_id,
+        "protocols": protocols,
+        "supported_protocols": sorted(supported),
+    }), 400
 
 
 def register_dex_strategy_routes(app) -> None:
@@ -131,6 +154,9 @@ def register_dex_overview_routes(app) -> None:
         except ChainSelectionError as exc:
             return _root.shared._chain_selection_error_response(exc)
         protocols = _root.request_dex_protocols_arg()
+        rejected = _protocol_not_supported_response(selected_chain_id, protocols)
+        if rejected is not None:
+            return rejected
         _root._bootstrap_dex_surface_dependencies(
             chain_id=selected_chain_id,
             protocols=protocols,
@@ -166,6 +192,9 @@ def register_dex_overview_routes(app) -> None:
         except ChainSelectionError as exc:
             return _root.shared._chain_selection_error_response(exc)
         protocols = _root.request_dex_protocols_arg()
+        rejected = _protocol_not_supported_response(selected_chain_id, protocols)
+        if rejected is not None:
+            return rejected
         full_refresh = str(request.args.get("full") or "").strip().lower() in {"1", "true", "yes", "full"}
         refresh_mode = "full" if full_refresh else "incremental"
         payload = _root._dex_surface_payload_for_chain(

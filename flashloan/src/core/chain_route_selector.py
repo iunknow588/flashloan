@@ -145,6 +145,18 @@ def chain_scope_options(
         for item in group:
             if not is_route_only_protocol(item.protocol):
                 protocol_groups.setdefault(item.protocol, []).append(item)
+        chain_candidate = protocol_candidates.get(int(chain_id)) if chain_id is not None else None
+        candidate_protocols = (
+            {str(protocol or "").strip().lower() for protocol in (chain_candidate or {}).get("protocols") or []}
+            if chain_candidate
+            else None
+        )
+        if str(feature or "").strip().lower() == "dex_arbitrage" and candidate_protocols is not None:
+            protocol_groups = {
+                protocol: entries
+                for protocol, entries in protocol_groups.items()
+                if str(protocol).strip().lower() in candidate_protocols
+            }
         protocols = sorted(protocol_groups)
         protocol_options = []
         for protocol in protocols:

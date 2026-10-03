@@ -20,12 +20,18 @@ DEFAULT_ROBINHOOD_DEX_MARKET_POOL_PATH = (
     or APP_ROOT / "runtime" / "cache" / "robinhood" / "robinhood_dex_market_pools.json"
 )
 DEFAULT_ROBINHOOD_DEX_EVIDENCE_ROOT = APP_ROOT / "runtime" / "evidence" / "robinhood" / "dex_discovery"
+DEFAULT_ROBINHOOD_YC_ZC_TOKEN_CACHE = (
+    chain_data_file_path("robinhood", "yc_zc_tokens")
+    or APP_ROOT / "runtime" / "evidence" / "robinhood" / "yc_zc_tokens.json"
+)
 
 _ROBINHOOD_ROW = chain_data_by_network("robinhood") or {}
 _ROBINHOOD_CONTRACTS = _ROBINHOOD_ROW.get("contracts") if isinstance(_ROBINHOOD_ROW.get("contracts"), dict) else {}
 _WETH_ADDRESS = str(_ROBINHOOD_CONTRACTS.get("wrapped_native") or "").strip().lower()
 _USDG_ADDRESS = str(_ROBINHOOD_CONTRACTS.get("usdg") or "").strip().lower()
 _ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+_ETH_SYMBOLS = {"ETH", "WETH"}
+_ETH_ADDRESSES = {_ZERO_ADDRESS, _WETH_ADDRESS}
 
 
 def _known_v4_token_metadata(address: str) -> tuple[str, int | None] | None:
@@ -60,6 +66,29 @@ def _v4_symbol(row: dict[str, Any], index: int) -> str:
     if address.lower() == _ZERO_ADDRESS:
         return "ETH"
     return address[:10].upper() if address else ""
+
+
+def _v4_is_eth_symbol_symbol(address: str, symbol: str) -> bool:
+    return str(address or "").strip().lower() in _ETH_ADDRESSES or str(symbol or "").strip().upper() in _ETH_SYMBOLS
+
+
+def _v4_eth_neighbor_candidate(
+    candidate: dict[str, Any],
+) -> dict[str, Any] | None:
+    token0 = str(candidate.get("token0") or "").strip()
+    token1 = str(candidate.get("token1") or "").strip()
+    symbol0 = str(candidate.get("token0Symbol") or "").strip()
+    symbol1 = str(candidate.get("token1Symbol") or "").strip()
+    eth0 = _v4_is_eth_symbol_symbol(token0, symbol0)
+    eth1 = _v4_is_eth_symbol_symbol(token1, symbol1)
+    if eth0 and eth1:
+        # Native/wrapped ETH pair is not a useful y-z route candidate.
+        return None
+    if eth0:
+        return {"token": token1, "symbol": symbol1, "candidate": candidate}
+    if eth1:
+        return {"token": token0, "symbol": symbol0, "candidate": candidate}
+    return None
 
 
 def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any] | None:
@@ -120,9 +149,208 @@ def _v4_pool_candidate(row: dict[str, Any], pool_manager: str) -> dict[str, Any]
     }
 
 
+def _symbol(value: object) -> str:
+    return str(value or "").strip().upper()
+
+
+def _address(value: object) -> str:
+    text = str(value or "").strip()
+    return text if text.startswith("0x") and len(text) == 42 else ""
+
+
+def _shared_candidate_key(row: dict[str, Any]) -> str:
+    pool_id = str(row.get("pool") or "").strip().lower()
+    counter_address = _address(row.get("counterAddress")).lower()
+    counter_symbol = _symbol(row.get("counterSymbol"))
+    fee = str(row.get("fee") or "").strip().lower()
+    if pool_id:
+        return ":".join(("pool", pool_id, counter_address or counter_symbol, fee))
+    token0 = _address(row.get("token0")).lower()
+    token1 = _address(row.get("token1")).lower()
+    token_pair = ":".join(sorted(address for address in (token0, token1) if address))
+    return ":".join(("pair", token_pair, counter_address or counter_symbol, fee))
+
+
+def _shared_candidate_row(anchor_symbol: str, yc_row: dict[str, Any] | None, zc_row: dict[str, Any] | None) -> dict[str, Any]:
+    base = dict(yc_row or zc_row or {})
+    counter_symbol = _symbol(base.get("counterSymbol"))
+    route_text = f"{anchor_symbol} <-> {counter_symbol}" if counter_symbol else str(base.get("routeText") or "")
+    base.update(
+        {
+            "direction": "shared",
+            "directions": ["yc", "zc"],
+            "candidateSetMode": "bidirectional_same_pool_key",
+            "routeText": route_text,
+            "ycRouteText": (yc_row or {}).get("routeText"),
+            "zcRouteText": (zc_row or {}).get("routeText"),
+            "ycRouteKey": (yc_row or {}).get("routeKey"),
+            "zcRouteKey": (zc_row or {}).get("routeKey"),
+        }
+    )
+    return base
+
+
+def _shared_tokens_from_pools(shared_pools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for row in shared_pools:
+        symbol = _symbol(row.get("counterSymbol"))
+        if not symbol:
+            continue
+        address = _address(row.get("counterAddress"))
+        pool_id = str(row.get("pool") or "").strip()
+        bucket = buckets.setdefault(symbol, {"symbol": symbol, "address": address, "pools": [], "poolIds": set()})
+        if address and not bucket.get("address"):
+            bucket["address"] = address
+        if pool_id and pool_id not in bucket["poolIds"]:
+            bucket["poolIds"].add(pool_id)
+            bucket["pools"].append(row)
+    tokens = []
+    for token in sorted(buckets.values(), key=lambda item: (-len(item["pools"]), str(item["symbol"]))):
+        tokens.append(
+            {
+                "symbol": token["symbol"],
+                "address": token.get("address") or "",
+                "poolCount": str(len(token["pools"])),
+                "pools": token["pools"][:10],
+            }
+        )
+    return tokens
+
+
+def _yc_zc_token_cache_path(request: ChainFlowRequest) -> Path | None:
+    try:
+        return chain_data_file_path(request.network, "yc_zc_tokens", chain_id=request.chain_id)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _load_yc_zc_token_cache(request: ChainFlowRequest) -> dict[str, Any] | None:
+    path = _yc_zc_token_cache_path(request) or DEFAULT_ROBINHOOD_YC_ZC_TOKEN_CACHE
+    if not path.exists():
+        return None
+    payload = read_json_object(path)
+    tokens = payload.get("tokens") if isinstance(payload.get("tokens"), list) else []
+    if not tokens:
+        return None
+    return payload
+
+
+def _shared_tokens_from_cache(
+    cache: dict[str, Any],
+    shared_pools: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    pool_by_symbol: dict[str, list[dict[str, Any]]] = {}
+    pool_by_address: dict[str, list[dict[str, Any]]] = {}
+    for row in shared_pools:
+        symbol = _symbol(row.get("counterSymbol"))
+        address = _address(row.get("counterAddress")).lower()
+        if symbol:
+            pool_by_symbol.setdefault(symbol, []).append(row)
+        if address:
+            pool_by_address.setdefault(address, []).append(row)
+    tokens: list[dict[str, Any]] = []
+    seen_symbols: set[str] = set()
+    for cached in cache.get("tokens") or []:
+        if not isinstance(cached, dict):
+            continue
+        symbol = _symbol(cached.get("symbol"))
+        if not symbol or symbol in seen_symbols:
+            continue
+        seen_symbols.add(symbol)
+        address = _address(cached.get("address"))
+        address_key = address.lower()
+        pools = pool_by_symbol.get(symbol) or pool_by_address.get(address_key) or []
+        tokens.append(
+            {
+                "symbol": symbol,
+                "address": address,
+                "decimals": cached.get("decimals"),
+                "poolCount": str(cached.get("poolCount") or len(pools)),
+                "source": cached.get("source") or "yc_zc_token_cache",
+                "pools": pools[:10],
+            }
+        )
+    return tokens
+
+
+def _mark_v4_shared_yc_zc_sets(
+    anchor_groups: list[dict[str, Any]],
+    stable_token_cache: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    marked: list[dict[str, Any]] = []
+    for group in anchor_groups:
+        if not isinstance(group, dict):
+            continue
+        yc_rows = [row for row in group.get("ycPools") or [] if isinstance(row, dict)]
+        zc_rows = [row for row in group.get("zcPools") or [] if isinstance(row, dict)]
+        yc_by_key = {_shared_candidate_key(row): row for row in yc_rows}
+        zc_by_key = {_shared_candidate_key(row): row for row in zc_rows}
+        same_set = bool(yc_by_key) and set(yc_by_key) == set(zc_by_key)
+        if not same_set:
+            marked.append(group)
+            continue
+        anchor_symbol = _symbol(group.get("anchorSymbol"))
+        shared_pools = [
+            _shared_candidate_row(anchor_symbol, yc_by_key.get(key), zc_by_key.get(key))
+            for key in sorted(yc_by_key)
+        ]
+        shared_tokens = (
+            _shared_tokens_from_cache(stable_token_cache, shared_pools)
+            if stable_token_cache
+            else _shared_tokens_from_pools(shared_pools)
+        )
+        marked.append(
+            {
+                **group,
+                "candidateSetMode": "bidirectional_same_pool_key_set",
+                "ycZcSameSet": True,
+                "ycZcSharedPoolSet": True,
+                "sharedPools": shared_pools,
+                "sharedTokens": shared_tokens,
+                "sharedPoolCount": str(len(shared_pools)),
+                "sharedTokenCount": str(len(shared_tokens)),
+                "ycPools": [],
+                "zcPools": [],
+                "ycTokens": [],
+                "zcTokens": [],
+                "ycPoolsRef": "sharedPools",
+                "zcPoolsRef": "sharedPools",
+                "ycTokensRef": "sharedTokens",
+                "zcTokensRef": "sharedTokens",
+                "ycPoolCount": str(len(shared_pools)),
+                "zcPoolCount": str(len(shared_pools)),
+                "ycTokenCount": str(len(shared_tokens)),
+                "zcTokenCount": str(len(shared_tokens)),
+                "candidatePoolCount": str(len(shared_pools)),
+                "candidateQueueCount": str(len(shared_pools) * 2),
+            }
+        )
+    return marked
+
+
 def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
     pool_manager = str(index_payload.get("poolManager") or "").strip()
-    candidates = [candidate for row in rows if (candidate := _v4_pool_candidate(row, pool_manager)) is not None]
+    all_candidates = [candidate for row in rows if (candidate := _v4_pool_candidate(row, pool_manager)) is not None]
+    eth_neighbor_tokens: dict[str, str] = {}
+    for candidate in all_candidates:
+        neighbor = _v4_eth_neighbor_candidate(candidate)
+        if neighbor:
+            eth_neighbor_tokens.setdefault(neighbor["token"].lower(), neighbor["symbol"])
+    eth_token_set = {address for address in eth_neighbor_tokens if address}
+    candidates: list[dict[str, Any]] = []
+    for candidate in all_candidates:
+        token0 = str(candidate.get("token0") or "").strip().lower()
+        token1 = str(candidate.get("token1") or "").strip().lower()
+        symbol0 = str(candidate.get("token0Symbol") or "").strip()
+        symbol1 = str(candidate.get("token1Symbol") or "").strip()
+        eth0 = _v4_is_eth_symbol_symbol(token0, symbol0)
+        eth1 = _v4_is_eth_symbol_symbol(token1, symbol1)
+        if eth0 and eth1:
+            continue
+        if eth0 or eth1:
+            candidates.append(candidate)
+        elif token0 in eth_token_set and token1 in eth_token_set:
+            candidates.append(candidate)
     grouped: dict[str, dict[str, Any]] = {}
     for candidate in candidates:
         token_pair = tuple(sorted((str(candidate.get("token0") or "").lower(), str(candidate.get("token1") or "").lower())))
@@ -162,7 +390,13 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
         pairs.append(pair)
 
     pairs.sort(key=lambda item: str(item.get("symbolPair") or ""))
-    anchor_groups = build_anchor_candidate_groups(pairs)
+    yc_zc_token_cache = _load_yc_zc_token_cache(request)
+    anchor_groups = _mark_v4_shared_yc_zc_sets(
+        build_anchor_candidate_groups(pairs, anchor_symbols=["ETH"]),
+        stable_token_cache=yc_zc_token_cache,
+    )
+    shared_group_count = sum(1 for group in anchor_groups if group.get("ycZcSameSet"))
+    shared_pool_count = sum(int(group.get("sharedPoolCount") or 0) for group in anchor_groups)
     return {
         "mode": "dex_pool_candidates",
         "source": "mainnet_v4_pool_index",
@@ -184,6 +418,16 @@ def _mainnet_v4_payload(request: ChainFlowRequest, path: Path, index_payload: di
             "staticPairCount": str(len(pairs)),
             "pairTableCount": str(len(pairs)),
             "anchorGroupCount": str(len(anchor_groups)),
+            "ycPoolCount": str(sum(int(group.get("ycPoolCount") or 0) for group in anchor_groups)),
+            "zcPoolCount": str(sum(int(group.get("zcPoolCount") or 0) for group in anchor_groups)),
+            "ycTokenCount": str(sum(int(group.get("ycTokenCount") or 0) for group in anchor_groups)),
+            "zcTokenCount": str(sum(int(group.get("zcTokenCount") or 0) for group in anchor_groups)),
+            "ycZcSameSetGroupCount": str(shared_group_count),
+            "sharedPoolSetCount": str(shared_pool_count),
+            "candidateSetStorageMode": "shared_yc_zc_pool_set" if shared_group_count else "directional_pool_sets",
+            "ycZcTokenCache": "loaded" if yc_zc_token_cache else "missing",
+            "ycZcTokenCacheCount": str(len(yc_zc_token_cache.get("tokens") or [])) if yc_zc_token_cache else "0",
+            "ycZcTokenCacheSource": str(_yc_zc_token_cache_path(request) or "") if yc_zc_token_cache else "",
             "preferredPoolCount": str(len(candidates)),
             "executionPoolCount": str(sum(len(pair["executionPools"]) for pair in pairs)),
             "strictQualityPoolCount": str(len(candidates)),

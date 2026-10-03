@@ -13,8 +13,9 @@ from typing import Any
 from web3 import Web3
 
 from core.error_registry import ErrorCode
+from core.chain_data_registry import chain_data_by_chain_id
 from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID
-from dex.runtime.dex_route_rpc import _probe_robinhood_testnet_rpc, fetch_dex_tx_receipt
+from dex.runtime.dex_route_rpc import _probe_robinhood_family_rpc, fetch_dex_tx_receipt
 from market.binance_market.dex_route_helpers import _match_route
 from market.binance_market.dex_route_helpers import _norm_symbols
 from market.binance_market.dex_route_helpers import _official_v4_route_pool_keys
@@ -34,8 +35,54 @@ from market.binance_market.dex_route_helpers import normalize_route_symbols
 
 
 ROOT = Path(__file__).resolve().parents[4]
+# Compatibility aliases kept for tests that still reference the old module
+# constants. The live helpers resolve script/dex dir from chain configuration.
 OFFICIAL_ARB_SCRIPT = ROOT / "test-token_create" / "scripts" / "tool" / "testnet-v4-official-arb-live.js"
 OFFICIAL_DEX_DIR = ROOT / "contract" / "robinhood-testnet" / "DEX"
+
+
+def _probe_robinhood_testnet_rpc() -> tuple[str, int]:
+    """Compatibility wrapper used by older tests/scripts."""
+    return _probe_robinhood_family_rpc(ROBINHOOD_TESTNET_CHAIN_ID)
+
+
+def _robinhood_network_name(chain_id: int) -> str:
+    row = chain_data_by_chain_id(int(chain_id)) or {}
+    return str(row.get("network") or "robinhood").strip().lower()
+
+
+def _chain_supports_official_v4_arb(chain_id: int | None) -> bool:
+    if chain_id is None:
+        return False
+    row = chain_data_by_chain_id(int(chain_id)) or {}
+    features = row.get("features") if isinstance(row.get("features"), dict) else {}
+    dex = features.get("dex_arbitrage") if isinstance(features.get("dex_arbitrage"), dict) else {}
+    flash_loan = row.get("flash_loan") if isinstance(row.get("flash_loan"), dict) else {}
+    protocols = {
+        str(protocol or "").strip().lower()
+        for protocol in flash_loan.get("candidate_protocols") or []
+    }
+    return bool(dex.get("protocol_supported")) and "uniswap_v4" in protocols
+
+
+def _official_arb_script_for_chain(chain_id: int) -> Path:
+    network = _robinhood_network_name(chain_id)
+    return ROOT / "test-token_create" / "scripts" / "tool" / f"{network}-v4-official-arb-live.js"
+
+
+def _official_dex_dir_for_chain(chain_id: int) -> Path:
+    network = _robinhood_network_name(chain_id)
+    return ROOT / "contract" / network / "DEX"
+
+
+def _hardhat_network_for_chain(chain_id: int) -> str:
+    row = chain_data_by_chain_id(int(chain_id)) or {}
+    tooling = row.get("tooling") if isinstance(row.get("tooling"), dict) else {}
+    return str(tooling.get("hardhat_network") or "robinhoodTestnet").strip()
+
+
+def _robinhood_env_prefix(chain_id: int) -> str:
+    return "ROBINHOOD_MAINNET" if _robinhood_network_name(int(chain_id)) == "robinhood" else "ROBINHOOD_TESTNET"
 
 
 def _structured_route_error(message: object, *, error_code: int, flow: str, node_id: str) -> list[dict[str, Any]]:
@@ -176,7 +223,7 @@ def _choose_direction(
     )
     route_addresses = [str(item) for item in analysis.get("routeAddresses") or [] if str(item).strip()]
     if not route_addresses:
-        route_addresses = _official_route_addresses(route_symbols)
+        route_addresses = _official_route_addresses(route_symbols, chain_id=chain_id)
     ref_net_profit = analysis.get("referenceNetProfitAmount")
     if ref_net_profit is not None and float(ref_net_profit) < 0:
         reversed_symbols = list(reversed(route_symbols))
@@ -263,7 +310,7 @@ def estimate_route_live_quote(
 
     route_addresses = [str(item) for item in analysis.get("routeAddresses") or [] if str(item).strip()] or route_addresses
     if not route_addresses:
-        route_addresses = _official_route_addresses(route_symbols)
+        route_addresses = _official_route_addresses(route_symbols, chain_id=chain_id)
     if analysis.get("terminalStatus") == "missing_route_identity" and not route_addresses:
         return {
             "ok": False,
@@ -575,9 +622,9 @@ def _observation_fixed_route(
     route_symbols: list[str],
 ) -> dict[str, Any] | None:
     route_symbols = _norm_symbols(route_symbols)
-    if chain_id not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} or "uniswap_v4" not in protocols:
+    if not _chain_supports_official_v4_arb(chain_id) or "uniswap_v4" not in protocols:
         return None
-    network_dir = "robinhood" if chain_id == ROBINHOOD_CHAIN_ID else "robinhood-testnet"
+    network_dir = _robinhood_network_name(chain_id)
     path = (
         ROOT
         / "flashloan"
@@ -706,7 +753,7 @@ def _resolve_route_addresses_from_market_payload(
     discovered V4 pool tokens, so route review should not give up just because
     a symbol like ``TSLA`` or ``0X102154`` is not in the curated allowlist.
     """
-    if int(chain_id or 0) != ROBINHOOD_TESTNET_CHAIN_ID or not route_symbols:
+    if not _chain_supports_official_v4_arb(int(chain_id or 0)) or not route_symbols:
         return []
     try:
         routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
@@ -808,12 +855,46 @@ _OFFICIAL_V4_RUN_ABI = [
 ]
 
 
+_OFFICIAL_V4_RUN_BEST_ABI = [
+    {
+        "type": "function",
+        "name": "runArbitrageBest",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "tokenZ", "type": "address"},
+            {
+                "name": "keysets",
+                "type": "tuple[3][]",
+                "components": [
+                    {"name": "currency0", "type": "address"},
+                    {"name": "currency1", "type": "address"},
+                    {"name": "fee", "type": "uint24"},
+                    {"name": "tickSpacing", "type": "int24"},
+                    {"name": "hooks", "type": "address"},
+                ],
+            },
+            {"name": "directionsets", "type": "bool[3][]"},
+            {"name": "amountIn", "type": "uint256"},
+            {"name": "minProfit", "type": "uint256"},
+        ],
+        "outputs": [
+            {"name": "outTb", "type": "uint256"},
+            {"name": "outTa", "type": "uint256"},
+            {"name": "outTz", "type": "uint256"},
+            {"name": "profit", "type": "uint256"},
+            {"name": "routeIndex", "type": "uint256"},
+        ],
+    }
+]
+
+
 def _official_v4_preview_python(
     *,
     route_symbols: list[str],
     route_addresses: list[str],
     amount: float,
     route_pool_keys: list[dict[str, Any]],
+    chain_id: int,
 ) -> tuple[dict[str, Any], str] | None:
     """Run the official V4 static preview from Python instead of Hardhat.
 
@@ -823,12 +904,12 @@ def _official_v4_preview_python(
     if len(route_pool_keys) != 3 or len(route_addresses) != len(route_symbols):
         return None
     try:
-        rpc_url, block_number = _probe_robinhood_testnet_rpc()
+        rpc_url, block_number = _probe_robinhood_family_rpc(chain_id)
     except Exception as exc:
         return None
     from dex.runtime.dex_onchain_quote_evidence_official_v4 import _official_v4_arb_address
 
-    arb_address = _official_v4_arb_address()
+    arb_address = _official_v4_arb_address(chain_id=chain_id)
     if not arb_address:
         return None
     keys: list[list[Any]] = []
@@ -849,6 +930,7 @@ def _official_v4_preview_python(
     keysets = [keys, reverse_keys]
     directionsets = [directions, reverse_directions]
     amount_raw = int(Decimal(str(amount)) * (Decimal(10) ** 18))
+    selected_amount_method = "onchain_preview_adaptive_best_amount"
     try:
         w3 = Web3(
             Web3.HTTPProvider(
@@ -874,7 +956,7 @@ def _official_v4_preview_python(
             amount_raw,
             1,
             False,
-        ).call(block_identifier=block_number)
+        ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
         selected_amount_raw, route_index, selected_profit_raw, attempted_count = (
             int(preview_result[0]),
             int(preview_result[1]),
@@ -889,7 +971,7 @@ def _official_v4_preview_python(
             directionsets[route_index],
             selected_amount_raw,
             1,
-        ).call(block_identifier=block_number)
+        ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
         out_tb, out_ta, out_tz, profit_raw = (int(run_result[0]), int(run_result[1]), int(run_result[2]), int(run_result[3]))
     except Exception as exc:
         data = str(getattr(exc, "data", "") or "")
@@ -911,6 +993,111 @@ def _official_v4_preview_python(
                 },
                 "",
             )
+        # Some RPCs cannot execute the adaptive best-amount preview within
+        # eth_call gas limits.  Fall back to a fixed-amount runArbitrageBest
+        # static call so mainnet review can still confirm a closed loop with
+        # the caller-provided initial amount.
+        try:
+            w3 = Web3(
+                Web3.HTTPProvider(
+                    rpc_url,
+                    request_kwargs={
+                        "timeout": 60,
+                        "headers": {
+                            "Content-Type": "application/json",
+                            "User-Agent": "flashloan-robinhood-mainnet-route-preview/1.0",
+                            "Connection": "close",
+                        },
+                    },
+                )
+            )
+            run_contract = w3.eth.contract(
+                address=Web3.to_checksum_address(arb_address),
+                abi=_OFFICIAL_V4_RUN_BEST_ABI,
+            )
+            best_result = run_contract.functions.runArbitrageBest(
+                Web3.to_checksum_address(route_addresses[0]),
+                keysets,
+                directionsets,
+                amount_raw,
+                1,
+            ).call(block_identifier=block_number, transaction={"gas": 50_000_000})
+            out_tb, out_ta, out_tz, profit_raw, route_index = (
+                int(best_result[0]),
+                int(best_result[1]),
+                int(best_result[2]),
+                int(best_result[3]),
+                int(best_result[4]),
+            )
+            if profit_raw <= 0:
+                return (
+                    {
+                        "ok": False,
+                        "error": "static_arb_call_reverted",
+                        "detail": "fixed amount runArbitrageBest was not profitable on chain",
+                        "errorDetail": "NoProfitableRoute()",
+                        "errorData": "0x4f422847",
+                        "errorSelector": "0x4f422847",
+                        "routeSymbols": route_symbols,
+                        "amount": amount,
+                        "initialAmount": amount,
+                        "staticCall": "reverted",
+                        "method": "runArbitrageBest",
+                        "bestAmountMethod": "fixed_amount_runArbitrageBest",
+                    },
+                    "",
+                )
+            selected_amount_raw = amount_raw
+            selected_profit_raw = profit_raw
+            attempted_count = 2
+            selected_amount_method = "fixed_amount_runArbitrageBest"
+            selected_symbols = route_symbols if route_index == 0 else [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
+            return (
+                {
+                    "ok": True,
+                    "routeSymbols": selected_symbols,
+                    "amount": amount,
+                    "initialAmount": amount,
+                    "bestAmount": str(float(selected_amount_raw) / 10**18),
+                    "bestAmountRaw": str(selected_amount_raw),
+                    "profit": str(profit_raw),
+                    "profitHuman": str(float(profit_raw) / 10**18),
+                    "outTb": str(out_tb),
+                    "outTa": str(out_ta),
+                    "outTz": str(out_tz),
+                    "outAmount": str(float(out_tz) / 10**18),
+                    "outAmountHuman": str(float(out_tz) / 10**18),
+                    "selectedAmount": str(selected_amount_raw),
+                    "selectedAmountMethod": selected_amount_method,
+                    "selectedAmountAttemptedCount": str(attempted_count),
+                    "selectedRouteIndex": route_index,
+                    "staticCall": "ok",
+                    "bestAmountMethod": selected_amount_method,
+                    "bestAmountAttemptedCount": str(attempted_count),
+                },
+                "official V4 on-chain preview selected from Python",
+            )
+        except Exception as fallback_exc:
+            fallback_data = str(getattr(fallback_exc, "data", "") or "")
+            if "0x4f422847" in fallback_data or "NoProfitableRoute" in str(fallback_exc):
+                return (
+                    {
+                        "ok": False,
+                        "error": "static_arb_call_reverted",
+                        "detail": "閾句笂澶嶆牳鏈€氳繃锛歂oProfitableRoute()",
+                        "errorDetail": "NoProfitableRoute()",
+                        "errorData": "0x4f422847",
+                        "errorSelector": "0x4f422847",
+                        "routeSymbols": route_symbols,
+                        "amount": amount,
+                        "initialAmount": amount,
+                        "staticCall": "reverted",
+                        "method": "runArbitrageBest",
+                        "bestAmountMethod": "fixed_amount_runArbitrageBest",
+                    },
+                    "",
+                )
+            return None
         return None
     selected_symbols = route_symbols if route_index == 0 else [route_symbols[0], route_symbols[2], route_symbols[1], route_symbols[0]]
     return (
@@ -929,14 +1116,295 @@ def _official_v4_preview_python(
             "outAmount": str(float(out_tz) / 10**18),
             "outAmountHuman": str(float(out_tz) / 10**18),
             "selectedAmount": str(selected_amount_raw),
-            "selectedAmountMethod": "onchain_preview_adaptive_best_amount",
+            "selectedAmountMethod": selected_amount_method,
             "selectedAmountAttemptedCount": str(attempted_count),
+            "selectedRouteIndex": route_index,
             "staticCall": "ok",
-            "bestAmountMethod": "onchain_preview_adaptive_best_amount",
+            "bestAmountMethod": selected_amount_method,
             "bestAmountAttemptedCount": str(attempted_count),
         },
-        "official V4 on-chain previewArbitrageBestAmount selected from Python",
+        "official V4 on-chain preview selected from Python",
     )
+
+
+def _env_flag(*names: str) -> bool:
+    for name in names:
+        if str(os.getenv(name, "") or "").strip().lower() in {"1", "true", "yes", "on"}:
+            return True
+    return False
+
+
+def _official_v4_signer_for_chain(chain_id: int) -> tuple[str | None, str | None]:
+    prefix = _robinhood_env_prefix(int(chain_id))
+    names = [
+        f"{prefix}_DEX_PRIVATE_KEY",
+        f"{prefix}_EXECUTION_PRIVATE_KEY",
+        "DEX_EXECUTION_PRIVATE_KEY",
+        "OFFICIAL_V4_PRIVATE_KEY",
+        "DEX_OFFICIAL_V4_PRIVATE_KEY",
+    ]
+    if int(chain_id) == ROBINHOOD_TESTNET_CHAIN_ID:
+        names.extend(
+            [
+                "ROBINHOOD_TESTNET_DEX_PRIVATE_KEY",
+                "ROBINHOOD_TESTNET_EXECUTION_PRIVATE_KEY",
+            ]
+        )
+    if int(chain_id) == ROBINHOOD_CHAIN_ID:
+        names.extend(
+            [
+                "ROBINHOOD_MAINNET_DEX_PRIVATE_KEY",
+                "ROBINHOOD_MAINNET_EXECUTION_PRIVATE_KEY",
+            ]
+        )
+    # Keep the liquidation signer as a compatibility fallback; the operator
+    # has instructed that mainnet uses the same key as the testnet suite.
+    names.append("LIQUIDATION_EXECUTION_PRIVATE_KEY")
+    for name in names:
+        value = str(os.getenv(name, "") or "").strip()
+        if value:
+            return value, name
+    return None, None
+
+
+def _official_v4_broadcast_python(
+    *,
+    route_symbols: list[str],
+    route_addresses: list[str],
+    amount: float,
+    route_pool_keys: list[dict[str, Any]],
+    chain_id: int,
+) -> dict[str, Any] | None:
+    """Broadcast through Python when the Hardhat JS live script is unavailable.
+
+    This path keeps mainnet usable after the operator configures an official
+    V4 arb/composer address plus a chain-scoped signer. The static preview still
+    runs first and no transaction is sent unless it reports a positive profit.
+    """
+    preview = _official_v4_preview_python(
+        route_symbols=route_symbols,
+        route_addresses=route_addresses,
+        amount=amount,
+        route_pool_keys=route_pool_keys,
+        chain_id=int(chain_id),
+    )
+    if preview is None:
+        return None
+    parsed, appended = preview
+    if parsed.get("ok") is not True:
+        parsed["broadcast"] = False
+        parsed["broadcastAttempted"] = False
+        return parsed
+    try:
+        profit_human = float(parsed.get("profitHuman") or 0)
+    except (TypeError, ValueError):
+        profit_human = 0.0
+    if profit_human <= 0:
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "not_profitable",
+            "detail": "on-chain preview did not return positive profit; broadcast skipped",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": True,
+            "broadcastAttempted": False,
+            "quoteStatus": "route_unprofitable",
+            "evidenceStatus": "route_unprofitable",
+            "executionTrust": "route_unprofitable",
+            "staticCall": "ok",
+            "profitHuman": profit_human,
+            "profitable": False,
+        }
+
+    prefix = _robinhood_env_prefix(int(chain_id))
+    if not _env_flag(
+        f"{prefix}_ALLOW_OFFICIAL_V4_ARB_BROADCAST",
+        "OFFICIAL_V4_ALLOW_ARB_BROADCAST",
+    ):
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_disabled",
+            "detail": "Python broadcast gate is not enabled; set the chain broadcast switch before sending a transaction",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": True,
+            "broadcastAttempted": False,
+            "broadcastDisabled": True,
+            "quoteStatus": "live_verified",
+            "evidenceStatus": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "staticCall": "ok",
+            "bestAmount": parsed.get("bestAmount"),
+            "bestAmountConfirmed": True,
+            "profitHuman": profit_human,
+            "profitable": True,
+        }
+
+    private_key, key_name = _official_v4_signer_for_chain(int(chain_id))
+    if not private_key:
+        return None
+    from dex.runtime.dex_onchain_quote_evidence_official_v4 import _official_v4_arb_address
+
+    arb_address = _official_v4_arb_address(chain_id=int(chain_id))
+    if not arb_address:
+        return None
+    try:
+        rpc_url, _block_number = _probe_robinhood_family_rpc(int(chain_id))
+    except Exception as exc:
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_rpc_unavailable",
+            "detail": f"Robinhood chain {chain_id} RPC preflight failed: {str(exc)[:300]}",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": True,
+            "broadcastAttempted": False,
+        }
+
+    keys: list[list[Any]] = []
+    for key in route_pool_keys:
+        keys.append(
+            [
+                str(key.get("currency0") or ""),
+                str(key.get("currency1") or ""),
+                int(key.get("fee") or 0),
+                int(key.get("tickSpacing") or 0),
+                str(key.get("hooks") or "0x0000000000000000000000000000000000000000"),
+            ]
+        )
+    directions: list[bool] = []
+    for index in range(3):
+        input_token = str(route_addresses[index]).lower()
+        directions.append(input_token == keys[index][0].lower())
+    reverse_keys = [keys[2], keys[1], keys[0]]
+    reverse_directions = [not directions[2], not directions[1], not directions[0]]
+    keysets = [keys, reverse_keys]
+    directionsets = [directions, reverse_directions]
+    route_index = 0
+    try:
+        route_index = int(parsed.get("selectedRouteIndex") or parsed.get("routeIndex") or 0)
+    except (TypeError, ValueError):
+        route_index = 0
+    if route_index >= len(keysets):
+        route_index = 0
+    selected_amount_raw = int(parsed.get("selectedAmount") or parsed.get("bestAmountRaw") or 0)
+    if selected_amount_raw <= 0:
+        selected_amount_raw = int(Decimal(str(parsed.get("bestAmount") or amount)) * (Decimal(10) ** 18))
+
+    try:
+        w3 = Web3(
+            Web3.HTTPProvider(
+                rpc_url,
+                request_kwargs={
+                    "timeout": 60,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "User-Agent": "flashloan-robinhood-official-v4-broadcast/1.0",
+                        "Connection": "close",
+                    },
+                },
+            )
+        )
+        account = w3.eth.account.from_key(private_key)
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(arb_address),
+            abi=_OFFICIAL_V4_RUN_ABI,
+        )
+        tx_fn = contract.functions.runArbitrage(
+            Web3.to_checksum_address(route_addresses[0]),
+            keysets[route_index],
+            directionsets[route_index],
+            selected_amount_raw,
+            1,
+        )
+        gas_estimate = int(tx_fn.estimate_gas({"from": account.address}))
+        nonce = int(w3.eth.get_transaction_count(account.address))
+        tx = tx_fn.build_transaction(
+            {
+                "from": account.address,
+                "nonce": nonce,
+                "gas": int(gas_estimate * 1.15) + 50_000,
+                "gasPrice": int(w3.eth.gas_price),
+                "chainId": int(w3.eth.chain_id),
+            }
+        )
+        signed = account.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction).hex()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_failed",
+            "detail": f"Python broadcast failed: {str(exc)[:500]}",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": True,
+            "broadcastAttempted": True,
+            "broadcastFailed": True,
+        }
+
+    return {
+        "ok": True,
+        "mode": "dex_route_broadcast_test",
+        "actionStage": "onchain_execution",
+        "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+        "routeAddresses": route_addresses,
+        "amount": amount,
+        "requestedAmount": amount,
+        "initialProbeAmount": amount,
+        "bestAmount": parsed.get("bestAmount"),
+        "bestAmountConfirmed": True,
+        "bestAmountMissing": False,
+        "bestAmountMethod": parsed.get("bestAmountMethod") or "onchain_preview_adaptive_best_amount",
+        "bestAmountAttemptedCount": parsed.get("bestAmountAttemptedCount"),
+        "broadcast": True,
+        "broadcastAttempted": True,
+        "broadcastDisabled": False,
+        "broadcastChannel": "public_rpc_python",
+        "staticCall": "ok",
+        "staticCallPassed": True,
+        "quoteStatus": "live_verified",
+        "evidenceStatus": "live_verified",
+        "executionTrust": "live_quoter_verified_readonly",
+        "profitable": True,
+        "profit": parsed.get("profitHuman"),
+        "profitHuman": parsed.get("profitHuman"),
+        "profitRaw": parsed.get("profit"),
+        "outAmount": parsed.get("outAmountHuman"),
+        "outAmountHuman": parsed.get("outAmountHuman"),
+        "outAmountRaw": parsed.get("outAmount"),
+        "txHash": tx_hash,
+        "detail": "broadcast_complete",
+        "evidence": {
+            "status": "live_verified",
+            "executionTrust": "live_quoter_verified_readonly",
+            "routeSymbols": parsed.get("routeSymbols") or route_symbols,
+            "routeAddresses": route_addresses,
+            "blockers": [],
+            "bestAmountConfirmed": True,
+            "bestAmountMissing": False,
+            "profitable": True,
+            "readyForTransactionPreflight": True,
+            "costModel": {
+                "borrowInputSymbol": route_symbols[0],
+                "finalOutputSymbol": route_symbols[0],
+                "borrowInputAmount": parsed.get("bestAmount"),
+                "selectedBorrowInputAmount": parsed.get("bestAmount"),
+                "requestedBorrowInputAmount": amount,
+                "bestAmountConfirmed": True,
+                "bestAmountMissing": False,
+                "netProfitAmount": parsed.get("profitHuman"),
+                "netProfitBps": parsed.get("referenceNetReturnBps"),
+                "profitable": True,
+                "readyForTransactionPreflight": True,
+            },
+        },
+        "stdoutTail": appended,
+        "stderrTail": "",
+    }
 
 
 def _best_amount_calculation_for_route(
@@ -958,6 +1426,7 @@ def _attach_best_amount_calculation(
     *,
     route_symbols: list[str],
     amount: float,
+    chain_id: int | None = None,
     requested_amount: float | None = None,
     selected_amount: float | None = None,
     method_override: str | None = None,
@@ -981,7 +1450,7 @@ def _attach_best_amount_calculation(
         except (TypeError, ValueError):
             attempted_count_int = None
         best_calculation = _best_amount_calculation_for_route(
-            chain_id=ROBINHOOD_TESTNET_CHAIN_ID,
+            chain_id=chain_id or ROBINHOOD_TESTNET_CHAIN_ID,
             route_symbols=route_symbols,
             amount=final_amount,
         )
@@ -1096,12 +1565,12 @@ def run_official_v4_arb_route_test(
                 node_id="validate_route",
             ),
         }
-    if int(chain_id or 0) != ROBINHOOD_TESTNET_CHAIN_ID:
+    if not _chain_supports_official_v4_arb(int(chain_id or 0)):
         return {
             "ok": False,
             "mode": "dex_route_broadcast_test",
             "error": "official_arb_broadcast_route_unsupported",
-            "detail": "官方 V4 三角套利脚本仅绑定 Robinhood Testnet chain 46630，未显式指定该链时不允许调用",
+            "detail": "official V4 triangle arbitrage is only supported on Robinhood chain 4663 or Robinhood Testnet 46630 when explicitly requested",
             "routeSymbols": route_symbols,
             "broadcast": broadcast,
             "errorStack": _structured_route_error(
@@ -1117,8 +1586,8 @@ def run_official_v4_arb_route_test(
         if str(address or "").strip()
     ]
     if not route_addresses:
-        route_addresses = _official_route_addresses(route_symbols)
-        if not route_addresses and int(chain_id or 0) == ROBINHOOD_TESTNET_CHAIN_ID:
+        route_addresses = _official_route_addresses(route_symbols, chain_id=int(chain_id or 0))
+        if not route_addresses:
             route_addresses = _resolve_route_addresses_from_market_payload(
                 route_symbols=route_symbols,
                 chain_id=int(chain_id),
@@ -1143,21 +1612,10 @@ def run_official_v4_arb_route_test(
                 node_id="validate_addresses",
             ),
         }
-    if not OFFICIAL_ARB_SCRIPT.exists() or not OFFICIAL_DEX_DIR.exists():
-        return {
-            "ok": False,
-            "mode": "dex_route_broadcast_test",
-            "error": "official_arb_broadcast_script_missing",
-            "detail": f"missing script or DEX workdir: {OFFICIAL_ARB_SCRIPT}",
-            "routeSymbols": route_symbols,
-            "broadcast": broadcast,
-            "errorStack": _structured_route_error(
-                "official_arb_broadcast_script_missing",
-                error_code=ErrorCode.DEX_INTERNAL,
-                flow="dex_route_broadcast_test",
-                node_id="script_resolve",
-            ),
-        }
+    official_script = _official_arb_script_for_chain(int(chain_id))
+    official_dex_dir = _official_dex_dir_for_chain(int(chain_id))
+    hardhat_network = _hardhat_network_for_chain(int(chain_id))
+    env_prefix = _robinhood_env_prefix(int(chain_id))
 
     route_pool_keys = _official_v4_route_pool_keys(
         route_symbols=route_symbols,
@@ -1183,13 +1641,61 @@ def run_official_v4_arb_route_test(
                 node_id="resolve_route_pool_keys",
             ),
         }
-        _attach_best_amount_calculation(payload, route_symbols=route_symbols, amount=amount)
+        _attach_best_amount_calculation(
+            payload,
+            route_symbols=route_symbols,
+            amount=amount,
+            chain_id=int(chain_id or 0),
+        )
         return payload
 
+    script_available = bool(official_script.exists() and official_dex_dir.exists())
+    if broadcast and not script_available:
+        python_broadcast = _official_v4_broadcast_python(
+            route_symbols=route_symbols,
+            route_addresses=route_addresses,
+            amount=amount,
+            route_pool_keys=route_pool_keys,
+            chain_id=int(chain_id or 0),
+        )
+        if python_broadcast is not None:
+            _attach_best_amount_calculation(
+                python_broadcast,
+                route_symbols=python_broadcast.get("routeSymbols") or route_symbols,
+                amount=python_broadcast.get("bestAmount") or amount,
+                chain_id=int(chain_id or 0),
+                requested_amount=amount,
+                selected_amount=python_broadcast.get("bestAmount") or amount,
+                method_override=python_broadcast.get("bestAmountMethod"),
+                attempted_count=python_broadcast.get("bestAmountAttemptedCount"),
+                best_amount_confirmed=python_broadcast.get("bestAmountConfirmed"),
+            )
+            return python_broadcast
+        return {
+            "ok": False,
+            "mode": "dex_route_broadcast_test",
+            "error": "official_arb_broadcast_config_missing",
+            "detail": (
+                f"missing script or DEX workdir: {official_script}; "
+                "configure officialV4 arb/composer address plus a chain-scoped "
+                "signer private key, or provide the chain's v4-official-arb-live.js"
+            ),
+            "routeSymbols": route_symbols,
+            "routeAddresses": route_addresses,
+            "broadcast": broadcast,
+            "broadcastAttempted": False,
+            "errorStack": _structured_route_error(
+                "official_arb_broadcast_config_missing",
+                error_code=ErrorCode.DEX_INTERNAL,
+                flow="dex_route_broadcast_test",
+                node_id="script_resolve",
+            ),
+        }
+
     env = os.environ.copy()
-    env["HARDHAT_NETWORK"] = "robinhoodTestnet"
-    env["ROBINHOOD_TESTNET_ALLOW_V4_AMM_LIVE_TEST"] = "true"
-    env["ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST"] = "true" if broadcast else "false"
+    env["HARDHAT_NETWORK"] = hardhat_network
+    env[f"{env_prefix}_ALLOW_V4_AMM_LIVE_TEST"] = "true"
+    env[f"{env_prefix}_ALLOW_OFFICIAL_V4_ARB_BROADCAST"] = "true" if broadcast else "false"
     # The official testnet endpoint currently serves a Let's Encrypt cert that
     # only pins an IP address, not rpc.testnet.chain.robinhood.com. Disabling
     # TLS hostname verification for this child Hardhat process keeps local
@@ -1203,11 +1709,13 @@ def run_official_v4_arb_route_test(
     # inside Node/undici, which makes the broadcast script fail before static
     # call or broadcast can run.
     try:
-        probed_rpc_url, probed_block = _probe_robinhood_testnet_rpc()
-        env["ROBINHOOD_TESTNET_RPC_URL"] = probed_rpc_url
-        env["ROBINHOOD_TESTNET_RPC"] = probed_rpc_url
+        probed_rpc_url, probed_block = _probe_robinhood_family_rpc(int(chain_id))
+        env[f"{env_prefix}_RPC_URL"] = probed_rpc_url
+        env[f"{env_prefix}_RPC"] = probed_rpc_url
+        env["ROBINHOOD_RPC_URL"] = probed_rpc_url
+        env["ROBINHOOD_RPC"] = probed_rpc_url
     except Exception as exc:
-        rpc_detail = f"Robinhood Testnet RPC preflight failed: {str(exc)[:300]}"
+        rpc_detail = f"Robinhood chain {chain_id} RPC preflight failed: {str(exc)[:300]}"
         lowered = rpc_detail.lower()
         rpc_status = (
             "rpc_verification_timeout"
@@ -1235,18 +1743,23 @@ def run_official_v4_arb_route_test(
                 node_id="rpc_preflight",
             ),
         }
-        _attach_best_amount_calculation(payload, route_symbols=route_symbols, amount=amount)
+        _attach_best_amount_calculation(
+            payload,
+            route_symbols=route_symbols,
+            amount=amount,
+            chain_id=int(chain_id or 0),
+        )
         return payload
 
-    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_ROUTE"] = " -> ".join(route_symbols)
-    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_ADDRESSES"] = ",".join(route_addresses)
-    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_POOL_KEYS_JSON"] = json.dumps(
+    env[f"{env_prefix}_OFFICIAL_ARB_ROUTE"] = " -> ".join(route_symbols)
+    env[f"{env_prefix}_OFFICIAL_ARB_ADDRESSES"] = ",".join(route_addresses)
+    env[f"{env_prefix}_OFFICIAL_ARB_POOL_KEYS_JSON"] = json.dumps(
         route_pool_keys,
         separators=(",", ":"),
     )
-    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT"] = str(amount)
-    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_AMOUNT_IS_BEST"] = "true" if amount_is_best else "false"
-    env["ROBINHOOD_TESTNET_OFFICIAL_ARB_REUSE_AMOUNT"] = "true" if amount_is_best else "false"
+    env[f"{env_prefix}_OFFICIAL_ARB_AMOUNT"] = str(amount)
+    env[f"{env_prefix}_OFFICIAL_ARB_AMOUNT_IS_BEST"] = "true" if amount_is_best else "false"
+    env[f"{env_prefix}_OFFICIAL_ARB_REUSE_AMOUNT"] = "true" if amount_is_best else "false"
 
     parsed: dict[str, Any] = {}
     appended = ""
@@ -1257,12 +1770,41 @@ def run_official_v4_arb_route_test(
             route_addresses=route_addresses,
             amount=amount,
             route_pool_keys=route_pool_keys,
+            chain_id=int(chain_id),
         )
         if python_preview is not None:
             parsed, appended = python_preview
             result = SimpleNamespace(returncode=0, stdout=appended, stderr="")
             retry_error_detail = []
             skip_subprocess = True
+        elif not official_script.exists():
+            # Read-only review must not depend on a JS broadcast script. If the
+            # Python preview cannot run (e.g. official V4 arb contract is not
+            # configured for this chain), return a config error instead of
+            # trying to launch a missing Hardhat script.
+            return {
+                "ok": False,
+                "mode": "dex_route_broadcast_test",
+                "error": "official_v4_readonly_preview_unavailable",
+                "detail": (
+                    "official V4 Python preview is not available for this chain; "
+                    "check officialV4 arb/composer addresses and route pool keys; "
+                    "set OFFICIAL_V4_ARB_ADDRESS / OFFICIAL_V4_COMPOSER_ADDRESS or "
+                    "ROBINHOOD_MAINNET_OFFICIAL_V4_ARB_ADDRESS / "
+                    "ROBINHOOD_MAINNET_OFFICIAL_V4_COMPOSER_ADDRESS for Robinhood mainnet"
+                ),
+                "quoteStatus": "missing_configuration",
+                "evidenceStatus": "missing_configuration",
+                "executionTrust": "missing_configuration",
+                "routeSymbols": route_symbols,
+                "broadcast": broadcast,
+                "errorStack": _structured_route_error(
+                    "official_v4_readonly_preview_unavailable",
+                    error_code=ErrorCode.DEX_INTERNAL,
+                    flow="dex_route_broadcast_test",
+                    node_id="python_preview",
+                ),
+            }
 
     # The live script must run through Hardhat's runner. Running it directly with
     # `node` does not initialize the configured network/provider properly, so
@@ -1278,20 +1820,23 @@ def run_official_v4_arb_route_test(
         "--no-install",
         "hardhat",
         "run",
-        str(OFFICIAL_ARB_SCRIPT),
+        str(official_script),
         "--network",
-        "robinhoodTestnet",
+        hardhat_network,
         "--no-compile",
     ]
-    official_rpc = "https://rpc.testnet.chain.robinhood.com/rpc"
-    rpc_candidates = [official_rpc]
-    for candidate in (
-        probed_rpc_url,
-        "https://rpc.testnet.chain.robinhood.com/rpc",
-        "https://robinhood-sepolia-rpc.publicnode.com",
-    ):
-        if candidate.lower() not in {url.lower() for url in rpc_candidates}:
-            rpc_candidates.append(candidate)
+    if _robinhood_network_name(int(chain_id)) == "robinhood":
+        rpc_candidates = [probed_rpc_url]
+    else:
+        official_rpc = "https://rpc.testnet.chain.robinhood.com/rpc"
+        rpc_candidates = [official_rpc]
+        for candidate in (
+            probed_rpc_url,
+            "https://rpc.testnet.chain.robinhood.com/rpc",
+            "https://robinhood-sepolia-rpc.publicnode.com",
+        ):
+            if candidate.lower() not in {url.lower() for url in rpc_candidates}:
+                rpc_candidates.append(candidate)
 
     if skip_subprocess:
         rpc_candidates.clear()
@@ -1305,12 +1850,14 @@ def run_official_v4_arb_route_test(
     except (TypeError, ValueError):
         script_timeout_seconds = 60
     for rpc_index, rpc_url in enumerate(rpc_candidates):
-        env["ROBINHOOD_TESTNET_RPC_URL"] = rpc_url
-        env["ROBINHOOD_TESTNET_RPC"] = rpc_url
+        env[f"{env_prefix}_RPC_URL"] = rpc_url
+        env[f"{env_prefix}_RPC"] = rpc_url
+        env["ROBINHOOD_RPC_URL"] = rpc_url
+        env["ROBINHOOD_RPC"] = rpc_url
         try:
             result = subprocess.run(
                 command,
-                cwd=str(OFFICIAL_DEX_DIR),
+                cwd=str(official_dex_dir),
                 env=env,
                 capture_output=True,
                 text=True,
@@ -1576,6 +2123,7 @@ def run_official_v4_arb_route_test(
         payload,
         route_symbols=route_symbols,
         amount=selected_amount,
+        chain_id=int(chain_id or 0),
         requested_amount=amount,
         selected_amount=selected_amount,
         method_override=best_amount_method,

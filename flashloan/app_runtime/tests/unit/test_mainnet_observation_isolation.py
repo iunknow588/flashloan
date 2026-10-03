@@ -41,18 +41,32 @@ def test_mainnet_v4_pool_liquidity_does_not_import_or_reference_testnet():
 def test_mainnet_observation_hooks_refuse_other_chain_scopes():
     mainnet = fund_anchor_pair_observation(chain_id=4663, protocols=["uniswap_v4"])
     assert mainnet["enabled"] is True
-    assert mainnet["status"] == "robinhood_mainnet_v4_shadow_observation"
+    assert mainnet["status"] == "robinhood_mainnet_v4_eth_anchor_observation"
+    assert "candidateEthPairTokenCount" in mainnet
+    assert "candidateYzPairCount" in mainnet
+    assert "verifiedYzPairCount" in mainnet
+    assert "missingYzPairCount" in mainnet
+    assert mainnet["candidateYzPairCount"] >= mainnet["verifiedYzPairCount"]
+    assert mainnet["sourceTokenEvidence"] == "robinhood_eth_pair_tokens"
 
     invalid = fund_anchor_pair_observation(chain_id=46630, protocols=["uniswap_v4"])
     assert invalid["enabled"] is False
     assert invalid["status"] == "chain_scope_invalid"
 
 
+def test_mainnet_observation_does_not_prefilter_yc_zc_by_symbol_or_stablecoin():
+    source = (SRC_ROOT / "dex" / "intent_trade" / "chains" / "robinhood" / "market_observation.py").read_text(encoding="utf-8")
+    assert "STABLE_SYMBOLS" not in source
+    assert "_is_stable_symbol" not in source
+    assert '"TA", "TB", "TZ"' not in source
+    assert 'text not in {"TA", "TB", "TZ"}' not in source
+
+
 def test_mainnet_chain_json_declares_shadow_and_pool_liquidity_evidence():
     path = SRC_ROOT / "chains" / "robinhood" / "chain.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     dex_arb = payload["features"]["dex_arbitrage"]
-    assert dex_arb["protocol_supported"] is False
+    assert dex_arb["protocol_supported"] is True
     assert dex_arb["observation_only"] is True
     assert "v4_pool_liquidity" in payload["data_files"]
 

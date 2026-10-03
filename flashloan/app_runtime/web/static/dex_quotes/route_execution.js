@@ -29,8 +29,11 @@ function executionRouteTestAdvice(result) {
   if (result?.error === "official_arb_broadcast_route_unsupported" || error.includes("route_unsupported")) {
     return "建议：当前三币闭环无法解析完整代币地址，或不在当前链的链上执行范围内，暂不能执行链上交易；可先查看链下估算，再通过链上复核确认可执行性。";
   }
+  if (result?.error === "official_arb_broadcast_config_missing" || error.includes("config_missing")) {
+    return "建议：链上广播未提交。请先为当前链配置 officialV4 arb/composer 地址和链级签名私钥，或提供该链的 v4-official-arb-live.js 脚本后再执行。";
+  }
   if (result?.error === "official_arb_broadcast_disabled" || result?.broadcastDisabled || error.includes("broadcast_disabled")) {
-    return "建议：链上执行未提交；自动扫描复核并链上广播未开启，请检查 ROBINHOOD_TESTNET_ALLOW_OFFICIAL_V4_ARB_BROADCAST 配置，并重启服务后重试。";
+    return "建议：链上执行未提交；自动扫描复核并链上广播未开启，请检查当前链的广播开关配置，并重启服务后重试。";
   }
   if (result?.error === "official_arb_broadcast_timeout" || error.includes("timeout") || error.includes("timed out") || error.includes("rpc_verification_timeout")) {
     return "建议：RPC 网络超时，请稍后重试链上执行；若持续失败，请检查 RPC/节点连接或重启服务。";

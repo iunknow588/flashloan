@@ -35,7 +35,8 @@ CANONICAL_AVALANCHE_AAVE = "liquidation-43114-aave-v3"
 CANONICAL_ROBINHOOD_BOT = "liquidation-4663-aave-v3"
 CANONICAL_ROBINHOOD_MORPHO = "liquidation-4663-morpho-blue"
 CANONICAL_ROBINHOOD_TESTNET_BOT = "liquidation-46630-morpho-blue"
-CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v3"
+CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v4"
+CANONICAL_ROBINHOOD_DEX_V3 = "dex-arbitrage-4663-uniswap-v3"
 CANONICAL_ROBINHOOD_DEX_V2 = "dex-arbitrage-4663-uniswap-v2"
 CANONICAL_ROBINHOOD_DEX_V4 = "dex-arbitrage-4663-uniswap-v4"
 CANONICAL_ROBINHOOD_DEX_MORPHO = "dex-arbitrage-4663-morpho-blue"
@@ -714,6 +715,18 @@ def test_dex_overview_page_drops_conflicting_mainnet_market_id_when_chain_is_tes
     assert "dex-arbitrage-46630-uniswap-v4" in body
 
 
+def test_dex_overview_page_drops_conflicting_testnet_market_id_when_chain_is_mainnet():
+    response = app.test_client().get(
+        "/dex/overview?chain_id=4663&market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4&dex_strategy=closed_loop_routes"
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'window.__CHAIN_SELECTOR_DEFAULT__={market_id:"dex-arbitrage-4663-uniswap-v4",chain_id:"4663"}' in body
+    assert "chain_mismatch" not in body
+    assert "dex-arbitrage-4663-uniswap-v4" in body
+
+
 def test_dex_surface_payload_apis_are_distinct():
     client = app.test_client()
 
@@ -722,17 +735,19 @@ def test_dex_surface_payload_apis_are_distinct():
     robinhood_observation = client.get(
         "/api/dex/market-observation?market_id=robinhood-dex-shadow&chain_id=4663"
     ).get_json()
-    robinhood_observation_with_single_protocol = client.get(
+    robinhood_observation_with_single_protocol_response = client.get(
         f"/api/dex/market-observation?market_id={CANONICAL_ROBINHOOD_DEX_V2}&chain_id=4663&protocols=uniswap_v2"
-    ).get_json()
+    )
+    robinhood_observation_with_single_protocol = robinhood_observation_with_single_protocol_response.get_json()
     quotes = client.get("/api/dex/quote-routes?market_id=bnb-dex-arbitrage&chain_id=56").get_json()
     submissions = client.get("/api/dex/submissions?limit=5").get_json()
     robinhood_testnet_submissions = client.get(
         "/api/dex/submissions?market_id=robinhood-testnet-dex-paused&chain_id=46630&protocols=uniswap_v4&limit=5"
     ).get_json()
-    robinhood_candidates = client.get(
+    robinhood_candidates_response = client.get(
         "/api/dex-pools/candidates?market_id=robinhood-dex-shadow&chain_id=4663&protocols=uniswap_v3"
-    ).get_json()
+    )
+    robinhood_candidates = robinhood_candidates_response.get_json()
     robinhood_candidates_with_lending_protocol = client.get(
         f"/api/dex-pools/candidates?market_id={CANONICAL_ROBINHOOD_DEX_MORPHO}&chain_id=4663&protocols=morpho_blue"
     ).get_json()
@@ -773,7 +788,9 @@ def test_dex_surface_payload_apis_are_distinct():
     assert overview["mode"] == "dex_overview"
     assert observation["mode"] == "dex_market_observation"
     assert robinhood_observation["mode"] == "dex_market_observation"
-    assert robinhood_observation_with_single_protocol["selected_protocols"] == ["uniswap_v2"]
+    assert robinhood_observation_with_single_protocol_response.status_code == 400
+    assert robinhood_observation_with_single_protocol.get("ok") is False
+    assert robinhood_observation_with_single_protocol.get("error") == "protocol_not_supported"
     assert quotes["mode"] == "dex_quote_routes"
     assert quote_request["mode"] == "dex_quote_request"
     assert quote_request["processing"]["flow_name"] == "dex_quote_request"
@@ -794,9 +811,9 @@ def test_dex_surface_payload_apis_are_distinct():
     assert "routes" in quotes
     assert "quoteRequests" in quote_request
     assert "attempts" in submissions
-    assert robinhood_candidates["poolStaticTable"]["chainId"] == 4663
-    assert robinhood_candidates["poolStaticTable"]["network"] == "robinhood"
-    assert "pairTableCount" in robinhood_candidates["summary"]
+    assert robinhood_candidates_response.status_code == 400
+    assert robinhood_candidates.get("ok") is False
+    assert robinhood_candidates.get("code") == "scope_mismatch"
     assert robinhood_candidates_with_lending_protocol.get("selected_protocols", []) == []
     assert "summary" in robinhood_candidates_with_lending_protocol or "error" in robinhood_candidates_with_lending_protocol
     assert robinhood_candidates_with_single_dex_protocol.get("selected_protocols") in (["uniswap_v2"], None)

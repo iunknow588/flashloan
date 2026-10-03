@@ -47,10 +47,10 @@
       "source": "chain.json.contracts.wrapped_native"
     },
     "weth_alt": {
-      "symbol": "WETH",
+      "symbol": "0x33E419",
       "address": "0x33e4191705c386532ba27cBF171Db86919200B94",
       "decimals": 18,
-      "category": "wrapped_native",
+      "category": "observed",
       "source": "v4_pool_liquidity/token_balance_scan_cache.json"
     },
     "bonk": {

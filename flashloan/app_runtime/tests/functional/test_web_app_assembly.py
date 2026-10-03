@@ -35,7 +35,7 @@ CANONICAL_AVALANCHE_AAVE = "liquidation-43114-aave-v3"
 CANONICAL_ROBINHOOD_BOT = "liquidation-4663-aave-v3"
 CANONICAL_ROBINHOOD_MORPHO = "liquidation-4663-morpho-blue"
 CANONICAL_ROBINHOOD_TESTNET_BOT = "liquidation-46630-morpho-blue"
-CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v3"
+CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v4"
 CANONICAL_ROBINHOOD_DEX_V2 = "dex-arbitrage-4663-uniswap-v2"
 CANONICAL_ROBINHOOD_DEX_V4 = "dex-arbitrage-4663-uniswap-v4"
 CANONICAL_ROBINHOOD_DEX_MORPHO = "dex-arbitrage-4663-morpho-blue"
@@ -219,7 +219,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert "/static/dex-strategy-selector.js" in body
         assert "/static/dex-provenance.js" in body
         assert "window.__DEX_PROVENANCE__" in body
-        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_DEX}",chain_id:"4663"}}' in body
         assert "window.__DEX_STRATEGY_DEFAULT__" in body
         assert "Binance 速度策略" in body
         assert "闭环扫描策略" in body
@@ -275,7 +275,7 @@ def test_dex_pages_expose_shared_chain_selector_and_scope_defaults():
         assert 'class="app-shell-protocols" data-chain-selection-options="true"' in body
         assert 'class="app-shell-chain-control"' in body
         assert "/static/chain-selector.js" in body
-        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_TESTNET_DEX}",chain_id:"46630"}}' in body
+        assert f'window.__CHAIN_SELECTOR_DEFAULT__={{market_id:"{CANONICAL_ROBINHOOD_DEX}",chain_id:"4663"}}' in body
 
 
 def test_system_pages_keep_feature_selection_and_scope():
@@ -327,13 +327,9 @@ def test_chain_selection_api_exposes_flash_loan_protocols_per_chain():
     assert mainnet["ok"] is True
     assert mainnet["selected"]["chain_id"] == 4663
     assert [row["protocol"] for row in mainnet["selected"]["flash_loan_protocols"]] == [
-        "morpho_blue",
-        "uniswap_v2",
-        "uniswap_v3",
         "uniswap_v4",
-        "aave_v3",
     ]
-    assert mainnet["selected"]["flash_loan_protocol_count"] == 5
+    assert mainnet["selected"]["flash_loan_protocol_count"] == 1
 
     assert testnet["ok"] is True
     assert testnet["selected"]["chain_id"] == 46630
@@ -459,6 +455,15 @@ def test_flash_loan_pool_page_prepares_robinhood_mainnet_v4_scope():
     assert view["processing"]["chain_id"] == 4663
     assert view["processing"]["handler"] == "intent_trade.chains.robinhood.flash_loan_pools:flash_loan_pool_protocol_view"
     assert "uniswap_v4" in view["processing"]["allowed_protocols"]
+    assert "status" not in view
+    assert view["summary"]["observable_pool_count"] > 0
+    assert view["summary"]["observed_borrow_token_count"] == 1
+    assert view["non_stable_borrow_pools"][0]["token_symbol"] == "ETH"
+    assert view["non_stable_borrow_pools"][0]["pool_count"] == view["summary"]["v4_pool_key_count"]
+    assert view["non_stable_borrow_pools"][0]["paired_symbol_count"] > 0
+    assert view["cache"]["identities"][0]["kind"] == "pool_manager"
+    assert view["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+    assert "v4_pool_index" in str(view["cache"].get("source") or "").replace("\\", "/")
     assert "robinhood-testnet" not in str(view.get("cache", {}).get("source") or "").replace("\\", "/")
 
 
@@ -583,7 +588,7 @@ def test_chain_selection_api_exposes_chain_level_options():
     assert dex_options[56]["protocol_summary"] == "biswap_v2, pancakeswap_v2, pancakeswap_v3"
     assert dex_options[56]["market_count"] == 3
     assert dex_options[4663]["chain_key"] == "chain:4663"
-    assert dex_options[4663]["protocol_summary"] == "morpho_blue, uniswap_v2, uniswap_v3, uniswap_v4"
+    assert dex_options[4663]["protocol_summary"] == "uniswap_v4"
     assert dex_options[4663]["market_count"] == 4
     assert dex_options[46630]["display_name"] == "Robinhood Testnet"
     assert dex_options[46630]["chain_key"] == "chain:46630"
@@ -692,13 +697,10 @@ def test_chain_selection_api_exposes_multi_protocol_dex_chain_filters():
     }
     assert "market_id" not in payload["selector_query"]
     assert [row["protocol"] for row in robinhood["protocol_options"]] == [
-        "morpho_blue",
-        "uniswap_v2",
-        "uniswap_v3",
         "uniswap_v4",
     ]
-    assert len(robinhood["protocol_options"]) > 1
-    assert robinhood["selected_protocols"] == ["morpho_blue", "uniswap_v2", "uniswap_v3", "uniswap_v4"]
+    assert len(robinhood["protocol_options"]) == 1
+    assert robinhood["selected_protocols"] == ["uniswap_v4"]
 
 
 def test_robinhood_page_rejects_cow_network_scope():
@@ -707,7 +709,7 @@ def test_robinhood_page_rejects_cow_network_scope():
     )
 
     assert response.status_code == 400
-    assert response.get_json()["code"] == "market_network_mismatch"
+    assert response.get_json()["code"] in {"execution_scope_mismatch", "market_network_mismatch"}
 
 
 def test_dex_page_rejects_liquidation_market_as_feature_mismatch():

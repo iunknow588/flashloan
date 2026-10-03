@@ -3,7 +3,7 @@
   "primary_key": "chain_id",
   "defaults": {
     "default_chain_ids": {
-      "dex_arbitrage": 46630,
+      "dex_arbitrage": 4663,
       "flash_loan_pool_page": 46630,
       "liquidation": 46630
     },

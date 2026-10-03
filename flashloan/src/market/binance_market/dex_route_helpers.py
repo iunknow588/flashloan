@@ -22,6 +22,9 @@ from market.binance_market.dex_best_amount_snapshots import (
 
 
 ROOT = Path(__file__).resolve().parents[4]
+from dex.intent_trade.chains.robinhood.shared import ROBINHOOD_TESTNET_CHAIN_ID
+from core.chain_data_registry import chain_data_by_chain_id
+
 ROBINHOOD_TESTNET_TOKEN_ALLOWLIST = (
     ROOT
     / "flashloan"
@@ -38,9 +41,38 @@ ROBINHOOD_TESTNET_OFFICIAL_V4_MANIFEST = (
     / "manifest.json"
 )
 
+
+def _chain_official_v4_manifest_path(chain_id: int | None) -> Path:
+    network = "robinhood-testnet"
+    if chain_id is not None:
+        row = chain_data_by_chain_id(chain_id) or {}
+        network = str(row.get("network") or network).strip().lower()
+    manifest_network = "testnet" if network == "robinhood-testnet" else network
+    return ROOT / "test-token_create" / "config" / f"{manifest_network}-v4-amm" / "manifest.json"
+
+
 _OFFICIAL_TEST_ROUTE_SYMBOLS = {"TZ", "TA", "TB"}
 
-def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]]:
+_SYMBOL_ADDRESS_CACHE: dict[int, tuple[dict[str, str], set[str]]] = {}
+
+
+def _chain_token_allowlist_path(chain_id: int | None) -> Path | None:
+    row = chain_data_by_chain_id(chain_id) if chain_id is not None else {}
+    if not row:
+        return None
+    data_files = row.get("data_files") if isinstance(row.get("data_files"), dict) else {}
+    relative = str(data_files.get("v4_token_allowlist") or "").strip()
+    if relative:
+        return ROOT / "flashloan" / "src" / relative
+    network = str(row.get("network") or "").strip()
+    if network:
+        candidate = ROOT / "flashloan" / "src" / "chains" / network / "v4_token_allowlist.json"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _load_chain_symbol_addresses(chain_id: int | None) -> tuple[dict[str, str], set[str]]:
     """Build symbol->address identity from the chain-owned token allowlist.
 
     The allowlist is the single source of truth for Robinhood Testnet token
@@ -49,10 +81,13 @@ def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]
     as an incomplete-address error instead of sending guessed addresses into
     on-chain review.
     """
+    if chain_id in _SYMBOL_ADDRESS_CACHE:
+        return _SYMBOL_ADDRESS_CACHE[chain_id]
     mapping: dict[str, str] = {}
     ambiguous: set[str] = set()
+    allowlist_path = _chain_token_allowlist_path(chain_id) or ROBINHOOD_TESTNET_TOKEN_ALLOWLIST
     try:
-        data = json.loads(ROBINHOOD_TESTNET_TOKEN_ALLOWLIST.read_text(encoding="utf-8"))
+        data = json.loads(allowlist_path.read_text(encoding="utf-8"))
         for item in (data.get("tokens") or {}).values():
             if not isinstance(item, dict):
                 continue
@@ -68,23 +103,27 @@ def _load_robinhood_testnet_symbol_addresses() -> tuple[dict[str, str], set[str]
     except Exception:
         mapping = {}
         ambiguous = set()
+    _SYMBOL_ADDRESS_CACHE[chain_id] = (mapping, ambiguous)
     return mapping, ambiguous
 
 
-_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES, _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS = (
-    _load_robinhood_testnet_symbol_addresses()
-)
-
-
-def _official_route_addresses(route_symbols: list[str]) -> list[str]:
+def _official_route_addresses(
+    route_symbols: list[str],
+    *,
+    chain_id: int | None = None,
+) -> list[str]:
+    if chain_id is None:
+        return []
+    chain_id = int(chain_id)
+    symbol_addresses, ambiguous_symbols = _load_chain_symbol_addresses(chain_id)
     normalized = [symbol.upper() for symbol in route_symbols]
     if (
         not normalized
-        or any(symbol in _ROBINHOOD_TESTNET_AMBIGUOUS_SYMBOLS for symbol in normalized)
-        or any(symbol not in _ROBINHOOD_TESTNET_SYMBOL_ADDRESSES for symbol in normalized)
+        or any(symbol in ambiguous_symbols for symbol in normalized)
+        or any(symbol not in symbol_addresses for symbol in normalized)
     ):
         return []
-    return [_ROBINHOOD_TESTNET_SYMBOL_ADDRESSES[symbol] for symbol in normalized]
+    return [symbol_addresses[symbol] for symbol in normalized]
 
 
 def _quote_failure_status(error: object) -> str:
@@ -290,7 +329,7 @@ def _official_v4_route_pool_keys(
     routes the market observation bridge pool identities are used so hooks are
     not lost.
     """
-    manifest_pool_keys = _official_v4_manifest_route_pool_keys(route_symbols)
+    manifest_pool_keys = _official_v4_manifest_route_pool_keys(route_symbols, chain_id=chain_id)
     if manifest_pool_keys:
         return manifest_pool_keys
     routes_payload = _routes_payload(chain_id=chain_id, protocols=protocols)
@@ -329,7 +368,11 @@ def _official_v4_route_pool_keys(
     return pool_keys
 
 
-def _official_v4_manifest_route_pool_keys(route_symbols: list[str]) -> list[dict[str, Any]]:
+def _official_v4_manifest_route_pool_keys(
+    route_symbols: list[str],
+    *,
+    chain_id: int | None = None,
+) -> list[dict[str, Any]]:
     normalized = [str(symbol or "").strip().upper() for symbol in route_symbols]
     if (
         len(normalized) != 4
@@ -339,7 +382,7 @@ def _official_v4_manifest_route_pool_keys(route_symbols: list[str]) -> list[dict
     ):
         return []
     try:
-        data = json.loads(ROBINHOOD_TESTNET_OFFICIAL_V4_MANIFEST.read_text(encoding="utf-8"))
+        data = json.loads(_chain_official_v4_manifest_path(chain_id).read_text(encoding="utf-8"))
     except Exception:
         return []
     official = data.get("officialV4") if isinstance(data, dict) else None
@@ -351,7 +394,7 @@ def _official_v4_manifest_route_pool_keys(route_symbols: list[str]) -> list[dict
     except (TypeError, ValueError):
         return []
     hooks = str(official.get("hooks") or "0x0000000000000000000000000000000000000000")
-    addresses = _official_route_addresses(normalized)
+    addresses = _official_route_addresses(normalized, chain_id=chain_id)
     if len(addresses) != 4 or addresses[0].lower() != addresses[-1].lower():
         return []
     pool_keys: list[dict[str, Any]] = []

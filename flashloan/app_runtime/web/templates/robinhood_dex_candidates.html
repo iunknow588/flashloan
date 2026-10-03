@@ -99,12 +99,25 @@
       unknown: "未知",
     }[String(value || "")] || value || "-");
     const reasonText = value => (value || []).map(item => reasonLabels[item] || (/[\u4e00-\u9fff]/.test(String(item)) ? item : `原因：${item}`)).join("、");
+    function defaultScopeParams() {
+      const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+      const scope = window.__FLASHLOAN_MARKET_SCOPE__ || {};
+      return {
+        market_id: scope.market_id || fallback.market_id || "",
+        chain_id: scope.chain_id ?? fallback.chain_id ?? "",
+      };
+    }
     function applyLinks() {
       const current = new URLSearchParams(location.search);
+      const defaults = defaultScopeParams();
       document.querySelectorAll("[data-surface-link]").forEach(link => {
         const target = new URL(link.getAttribute("href"), location.origin);
-        target.searchParams.set("market_id", current.get("market_id") || "dex-arbitrage-4663-uniswap-v3");
-        target.searchParams.set("chain_id", current.get("chain_id") || "4663");
+        if (current.get("market_id") || defaults.market_id) {
+          target.searchParams.set("market_id", current.get("market_id") || defaults.market_id);
+        }
+        if (current.get("chain_id") || defaults.chain_id) {
+          target.searchParams.set("chain_id", current.get("chain_id") || String(defaults.chain_id));
+        }
         link.href = target.pathname + target.search;
       });
     }
@@ -151,7 +164,14 @@
       $("updated").textContent = "正在读取 Robinhood 池数据…";
       try {
         const current = new URLSearchParams(location.search);
-        const query = new URLSearchParams({ market_id: current.get("market_id") || "dex-arbitrage-4663-uniswap-v3", chain_id: current.get("chain_id") || "4663" });
+        const defaults = defaultScopeParams();
+        const query = new URLSearchParams();
+        if (current.get("market_id") || defaults.market_id) {
+          query.set("market_id", current.get("market_id") || defaults.market_id);
+        }
+        if (current.get("chain_id") || defaults.chain_id) {
+          query.set("chain_id", current.get("chain_id") || String(defaults.chain_id));
+        }
         const response = await fetch(`/api/robinhood-dex/pools?${query}`, { cache: "no-cache", signal: controller.signal });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `请求失败（HTTP ${response.status}）`);

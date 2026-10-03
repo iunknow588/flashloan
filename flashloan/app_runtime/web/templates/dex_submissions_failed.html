@@ -128,9 +128,39 @@
       const parsed = raw ? new Date(raw).getTime() : NaN;
       return Number.isFinite(parsed) ? parsed : -1;
     };
+    const marketIdChainComponent = marketId => {
+      const normalized = String(marketId || "").trim().toLowerCase();
+      const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+      return match ? match[2] : "";
+    };
+    const normalizeScopeQuery = query => {
+      const normalized = new URLSearchParams(query);
+      const chainId = String(normalized.get("chain_id") || "").trim();
+      const marketId = String(normalized.get("market_id") || "").trim();
+      const marketChainId = marketIdChainComponent(marketId);
+      if (chainId && marketChainId && marketChainId !== chainId) {
+        normalized.delete("market_id");
+        normalized.delete("protocols");
+        normalized.delete("protocol_id");
+      }
+      if (chainId && !normalized.get("market_id")) {
+        const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+        const fallbackMarketId = String(fallback.market_id || "").trim();
+        const fallbackChainId = marketIdChainComponent(fallbackMarketId);
+        if (fallbackChainId && fallbackChainId === chainId) {
+          normalized.set("market_id", fallbackMarketId);
+        }
+      }
+      return normalized;
+    };
     const apiPath = path => {
       const scoped = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       const url = new URL(scoped, window.location.origin);
+      if (!window.ChainSelector?.withSelection) {
+        url.search = normalizeScopeQuery(new URLSearchParams(window.location.search)).toString();
+      } else if (window.ChainSelector?.normalizeScopeQuery) {
+        url.search = window.ChainSelector.normalizeScopeQuery(url.searchParams).toString();
+      }
       url.searchParams.delete("protocols");
       return url.pathname + (url.search ? url.search : "");
     };
@@ -494,7 +524,7 @@
           return "自动扫描复核并链上广播未开启；链上执行条件已通过但未发起交易，请开启执行配置后重试";
         }
         if (lower.startsWith("broadcast disabled")) {
-          return "自动扫描复核并链上广播未开启；请检查测试网执行配置后重试";
+          return "自动扫描复核并链上广播未开启；请检查链上执行配置后重试";
         }
         if (lower === "missing_route_identity" || normalized.includes("missing_route_identity")) {
           return "路线缺少完整 token 地址身份；symbol 只能用于展示，不能作为链上复核或执行依据";

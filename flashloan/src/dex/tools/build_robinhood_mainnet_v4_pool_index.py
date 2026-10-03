@@ -12,6 +12,7 @@ if str(SRC_ROOT) not in sys.path:
 from dex.intent_trade.chains.robinhood.v4_pool_index import (  # noqa: E402
     build_v4_pool_index_from_initialize_logs,
     build_v4_pool_index_from_observation_pool_ids,
+    keep_token_addresses_from_payload,
     write_v4_pool_index_from_initialize_logs,
     write_v4_pool_index_from_observation_pool_ids,
 )
@@ -37,6 +38,7 @@ def main() -> int:
     parser.add_argument("--pool-limit", type=int, default=0, help="0 means no selected-pool limit (full scan only).")
     parser.add_argument("--non-eth-only", action="store_true", help="Store only non-ETH pools after counting all pools (full scan only).")
     parser.add_argument("--include-metadata", action="store_true", help="Fetch ERC20 symbol/decimals for display labels (full scan only).")
+    parser.add_argument("--eth-pair-candidate", default="", help="Path to eth_pair_tokens JSON; keep only ETH pools and bridge pools touching candidate tokens (full scan only).")
     parser.add_argument("--skip-recent-swaps", action="store_true", help="Do not mark recent Swap activity (full scan only).")
     parser.add_argument("--recent-swap-lookback-blocks", type=int, default=20_000)
     parser.add_argument("--no-write", action="store_true", help="Print evidence without writing to disk.")
@@ -49,6 +51,18 @@ def main() -> int:
     }
 
     if args.scope == "full":
+        keep_token_addresses = None
+        if args.eth_pair_candidate:
+            candidate_payload = {}
+            try:
+                candidate_payload = json.loads(Path(args.eth_pair_candidate).read_text(encoding="utf-8-sig"))
+            except Exception as exc:
+                raise SystemExit(f"failed to read --eth-pair-candidate: {exc}")
+            if not isinstance(candidate_payload, dict):
+                raise SystemExit("--eth-pair-candidate must contain a JSON object")
+            keep_token_addresses = keep_token_addresses_from_payload(candidate_payload)
+            if not keep_token_addresses:
+                raise SystemExit("--eth-pair-candidate did not yield any non-zero token addresses")
         kwargs.update(
             {
                 "from_block": max(0, int(args.from_block)),
@@ -57,6 +71,7 @@ def main() -> int:
                 "pool_limit": max(0, int(args.pool_limit)),
                 "non_eth_only": bool(args.non_eth_only),
                 "include_metadata": bool(args.include_metadata),
+                "keep_token_addresses": keep_token_addresses,
                 "mark_recent_swaps": not args.skip_recent_swaps,
                 "recent_swap_lookback_blocks": max(1, int(args.recent_swap_lookback_blocks)),
             }

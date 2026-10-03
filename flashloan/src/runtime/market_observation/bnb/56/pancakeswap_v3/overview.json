@@ -4760,7 +4760,7 @@
     "source": "flash_loan_pool_discovery_snapshot"
   },
   "flow_name": "dex_market_observation",
-  "generated_at": "2026-10-01T23:36:54.183574Z",
+  "generated_at": "2026-10-03T05:42:03.489616Z",
   "handler": null,
   "list_counts": {
     "borrowableSymbols": 2,

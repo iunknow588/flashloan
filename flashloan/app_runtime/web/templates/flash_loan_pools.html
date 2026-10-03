@@ -152,11 +152,36 @@
     };
     let refreshInFlight = false;
     const requestedProtocol = () => (new URLSearchParams(location.search).get("protocols") || "aave_v3").split(",")[0].trim().toLowerCase() || "aave_v3";
+    const marketIdChainComponent = marketId => {
+      const normalized = String(marketId || "").trim().toLowerCase();
+      const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+      return match ? match[2] : "";
+    };
+    const normalizeScopeQuery = query => {
+      const normalized = new URLSearchParams(query);
+      const chainId = String(normalized.get("chain_id") || "").trim();
+      const marketId = String(normalized.get("market_id") || "").trim();
+      const marketChainId = marketIdChainComponent(marketId);
+      if (chainId && marketChainId && marketChainId !== chainId) {
+        normalized.delete("market_id");
+        normalized.delete("protocols");
+        normalized.delete("protocol_id");
+      }
+      if (chainId && !normalized.get("market_id")) {
+        const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+        const fallbackMarketId = String(fallback.market_id || "").trim();
+        const fallbackChainId = marketIdChainComponent(fallbackMarketId);
+        if (fallbackChainId && fallbackChainId === chainId) {
+          normalized.set("market_id", fallbackMarketId);
+        }
+      }
+      return normalized;
+    };
     function scopedQuery() {
       const current = new URLSearchParams(location.search);
       return window.ChainSelector?.normalizeScopeQuery
         ? window.ChainSelector.normalizeScopeQuery(current)
-        : current;
+        : normalizeScopeQuery(current);
     }
     function setRefreshBusy(busy, label) {
       refreshInFlight = Boolean(busy);
@@ -182,7 +207,7 @@
     function setPoolTableHeaders(testnetV4Mode) {
       const header = testnetV4Mode
         ? "<tr><th>币种</th><th>Binance 符号</th><th>可借贷</th><th>PoolManager 余额</th><th>余额 raw</th><th>关联 PoolKey</th><th>来源地址</th></tr>"
-        : "<tr><th>资产/交易对</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>可借/可换流动性</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr>";
+        : "<tr><th>可借币种</th><th>Binance 符号</th><th>闪电贷可用性</th><th>深度 USD</th><th>关联 ETH 池数</th><th>借出/储备</th><th>供应/流动性</th><th>来源地址</th></tr>";
       $("stableTableHead").innerHTML = header;
       $("nonStableTableHead").innerHTML = header;
     }
@@ -192,7 +217,7 @@
         <td>${esc(row.binance_symbol || "-")}</td>
         <td>${depthBadge(row)}</td>
         <td>${num(row.depth_score_usd)}</td>
-        <td>${num(row.available_liquidity)}</td>
+        <td>${num(row.pool_count ?? row.available_liquidity)}</td>
         <td>${num(row.reserve_data_liquidity)}</td>
         <td>${num(row.a_token_total_supply)}</td>
         <td class="addr" title="${esc(row.token_address || "")}"><code>${esc(shortAddress(row.token_address))}</code></td>
@@ -280,12 +305,12 @@
       setPoolTableHeaders(testnetV4Mode);
       $("stableMetricLabel").textContent = testnetV4Mode ? "稳定币可借来源" : (observableMode ? "稳定币待验证证据" : (flashSwapMode ? "稳定币可用 Flash Swap" : "稳定币可用借贷来源"));
       $("nonStableMetricLabel").textContent = testnetV4Mode ? "非稳定币可借来源" : (observableMode ? "非稳定币待验证证据" : (flashSwapMode ? "非稳定币可用 Flash Swap" : "非稳定币可用借贷来源"));
-      $("borrowMetricLabel").textContent = testnetV4Mode ? "可借贷代币" : (observableMode ? "已验证闪电贷可用来源" : "闪电贷可借资产");
-      $("targetMetricLabel").textContent = testnetV4Mode ? "关联 PoolKey" : (observableMode ? "待验证 Flash 能力证据" : (flashSourceMode ? "已验证来源" : "目标资产"));
+      $("borrowMetricLabel").textContent = testnetV4Mode ? "可借贷代币" : (observableMode ? "候选可借币种" : "闪电贷可借资产");
+      $("targetMetricLabel").textContent = testnetV4Mode ? "关联 PoolKey" : (observableMode ? "关联 ETH 池数" : (flashSourceMode ? "已验证来源" : "目标资产"));
       $("stableCount").textContent = testnetV4Mode ? (summary.stable_borrow_pool_count ?? summary.stable_flash_accounting_source_count ?? stableRows.length) : (observableMode ? (summary.stable_observable_pool_count ?? stableRows.length) : (summary.stable_borrow_pool_count ?? 0));
       $("nonStableCount").textContent = testnetV4Mode ? (summary.non_stable_borrow_pool_count ?? summary.non_stable_pool_key_count ?? nonStableRows.length) : (observableMode ? (summary.non_stable_observable_pool_count ?? nonStableRows.length) : (summary.non_stable_borrow_pool_count ?? 0));
-      $("borrowCount").textContent = testnetV4Mode ? (summary.flash_accounting_asset_count ?? summary.flash_borrowable_asset_count ?? 0) : (summary.borrow_asset_count ?? 0);
-      $("targetCount").textContent = testnetV4Mode ? associatedPoolKeyCount : (observableMode ? (summary.flash_capable_pool_count ?? summary.observable_pool_count ?? stableRows.length + nonStableRows.length) : (summary.borrow_target_count ?? 0));
+      $("borrowCount").textContent = testnetV4Mode ? (summary.flash_accounting_asset_count ?? summary.flash_borrowable_asset_count ?? 0) : (observableMode ? (summary.observed_borrow_token_count ?? summary.borrow_asset_count ?? stableRows.length + nonStableRows.length) : (summary.borrow_asset_count ?? 0));
+      $("targetCount").textContent = testnetV4Mode ? associatedPoolKeyCount : (observableMode ? (summary.v4_pool_key_count ?? summary.flash_capable_pool_count ?? summary.observable_pool_count ?? stableRows.length + nonStableRows.length) : (summary.borrow_target_count ?? 0));
       $("blockNumber").textContent = cache.block_number || "-";
       const primaryIdentity = primaryCacheIdentity(cache, view);
       $("cacheMeta").textContent = [
@@ -301,15 +326,29 @@
         `<span class="chip">关联 PoolKey ${associatedPoolKeyCount}</span>`,
         `<span class="chip">eth_call 已验证 ${summary.eth_call_verified_flash_asset_count ?? 0}</span>`,
       ] : [
+        `<span class="chip">可观察 ${depth.observable || 0}</span>`,
         `<span class="chip">深 ${depth.deep || 0}</span>`,
         `<span class="chip">中 ${depth.medium || 0}</span>`,
         `<span class="chip">浅 ${depth.shallow || 0}</span>`,
         `<span class="chip">极浅 ${depth.dust || 0}</span>`,
-        `<span class="chip">不可用 ${depth.unavailable || 0}</span>`,
       ]).join("");
       $("statusPanel").classList.toggle("visible", Boolean(view.status));
-      $("statusTitle").textContent = view.status === "chain_protocol_not_supported" ? "当前链不支持该闪电贷协议" : (testnetV4Mode ? "V4 执行模拟未验证" : "闪电贷可用资金池缓存未接入");
-      $("statusMessage").textContent = view.status_message || "当前链暂不支持该协议或闪电贷可用资金池缓存尚未接入。";
+      if (view.status === "chain_protocol_not_supported") {
+        $("statusTitle").textContent = "当前链不支持该闪电贷协议";
+        $("statusMessage").textContent = view.status_message || "当前链暂不支持该协议或闪电贷可用资金池缓存尚未接入。";
+      } else if (testnetV4Mode) {
+        $("statusTitle").textContent = "V4 执行模拟未验证";
+        $("statusMessage").textContent = view.status_message || "已扫描 PoolManager 余额证据，但最终可用性仍以 eth_call 模拟为准。";
+      } else if (observableMode) {
+        $("statusTitle").textContent = "已检测到 V4 PoolKey 池证据";
+        $("statusMessage").textContent = view.status_message || "当前只展示已解码的链上池证据，尚未验证余额/可借额度；ETH 对已排在最前。";
+      } else if (flashSourceMode) {
+        $("statusTitle").textContent = "已检测到闪电贷来源";
+        $("statusMessage").textContent = view.status_message || "已从只读链上探测到可用来源，执行链上操作仍受观察模式开关限制。";
+      } else {
+        $("statusTitle").textContent = "闪电贷可用资金池缓存未接入";
+        $("statusMessage").textContent = view.status_message || "当前链暂不支持该协议或闪电贷可用资金池缓存尚未接入。";
+      }
       ["stableSection", "nonStableSection", "targetSection"].forEach(id => $(id).classList.toggle("hidden", unavailable));
       $("stableSectionTitle").textContent = testnetV4Mode ? "稳定币可借贷代币" : (observableMode ? "稳定币待验证 DEX 观察证据" : (flashSwapMode ? "稳定币闪电贷可用 Flash Swap 来源" : "稳定币闪电贷可用借贷来源"));
       $("nonStableSectionTitle").textContent = testnetV4Mode ? "非稳定币可借贷代币" : (observableMode ? "非稳定币待验证 DEX 观察证据" : (flashSwapMode ? "非稳定币闪电贷可用 Flash Swap 来源" : "非稳定币闪电贷可用借贷来源"));

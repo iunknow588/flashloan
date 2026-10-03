@@ -4,7 +4,7 @@ import runtime.dex_onchain_quote_evidence_official_v4 as official_v4
 
 def test_official_v4_arb_address_resolution_prefers_external_config(monkeypatch):
     monkeypatch.delenv("OFFICIAL_V4_ARB_ADDRESS", raising=False)
-    monkeypatch.setattr(official_v4, "_chain_data_official_v4_address", lambda field: "0x" + "c" * 40)
+    monkeypatch.setattr(official_v4, "_chain_data_official_v4_address", lambda field, chain_id=None: "0x" + "c" * 40)
     monkeypatch.setattr(official_v4, "_manifest_official_v4_address", lambda field, chain_id: "0x" + "d" * 40)
 
     monkeypatch.setenv("OFFICIAL_V4_ARB_ADDRESS", "0x" + "a" * 40)
@@ -13,8 +13,20 @@ def test_official_v4_arb_address_resolution_prefers_external_config(monkeypatch)
     monkeypatch.delenv("OFFICIAL_V4_ARB_ADDRESS", raising=False)
     assert official_v4._official_v4_arb_address() == "0x" + "c" * 40
 
-    monkeypatch.setattr(official_v4, "_chain_data_official_v4_address", lambda field: None)
+    monkeypatch.setattr(official_v4, "_chain_data_official_v4_address", lambda field, chain_id=None: None)
     assert official_v4._official_v4_arb_address() == "0x" + "d" * 40
+
+
+def test_official_v4_mainnet_env_address_resolution(monkeypatch):
+    monkeypatch.delenv("OFFICIAL_V4_ARB_ADDRESS", raising=False)
+    monkeypatch.delenv("OFFICIAL_V4_COMPOSER_ADDRESS", raising=False)
+    monkeypatch.delenv("ROBINHOOD_MAINNET_OFFICIAL_V4_ARB_ADDRESS", raising=False)
+    monkeypatch.delenv("ROBINHOOD_MAINNET_OFFICIAL_V4_COMPOSER_ADDRESS", raising=False)
+    monkeypatch.setenv("ROBINHOOD_MAINNET_OFFICIAL_V4_ARB_ADDRESS", "0x" + "a" * 40)
+    monkeypatch.setenv("ROBINHOOD_MAINNET_OFFICIAL_V4_COMPOSER_ADDRESS", "0x" + "b" * 40)
+
+    assert official_v4._official_v4_arb_address(chain_id=4663) == "0x" + "a" * 40
+    assert official_v4._official_v4_composer_address(chain_id=4663) == "0x" + "b" * 40
 
 
 def _pool(symbol_a: str, addr_a: str, symbol_b: str, addr_b: str, fee: int, pool_id: str) -> dict:
@@ -72,7 +84,7 @@ class FakeRunBest:
         self.calls.append((token_z, candidates, amount_in, min_profit, min_deviation))
 
         class CallResult:
-            def call(self):
+            def call(self, **kwargs):
                 result_data = encode(
                     ["uint256", "uint256", "uint256", "uint256", "uint256"],
                     [1000, 500, 1200, 200, 0],
@@ -130,8 +142,8 @@ def test_official_v4_group_static_hop_aggregates_closed_loop_routes(monkeypatch)
 
     contract = FakeContract()
     w3 = FakeW3(contract)
-    monkeypatch.setattr(official_v4, "_official_v4_arb_address", lambda: "0x" + "a" * 40)
-    monkeypatch.setattr(official_v4, "_official_v4_composer_address", lambda: "0x" + "b" * 40)
+    monkeypatch.setattr(official_v4, "_official_v4_arb_address", lambda chain_id=None: "0x" + "a" * 40)
+    monkeypatch.setattr(official_v4, "_official_v4_composer_address", lambda chain_id=None: "0x" + "b" * 40)
 
     result = official_v4.official_v4_arb_static_hop_rows(
         w3=w3,
@@ -170,8 +182,8 @@ def test_official_v4_group_static_hop_falls_back_without_composer(monkeypatch):
     class FakeRunArbitrageBest:
         def __call__(self, *args):
             class CallResult:
-                def call(self):
-                    return (1000, 500, 1200, 200, 1)
+                    def call(self, **kwargs):
+                        return (1000, 500, 1200, 200, 1)
             return CallResult()
 
     class FakeArbFunctions:
@@ -195,8 +207,8 @@ def test_official_v4_group_static_hop_falls_back_without_composer(monkeypatch):
             self.codec = FakeCodec()
 
     w3 = FakeW32(FakeArbContract())
-    monkeypatch.setattr(official_v4, "_official_v4_arb_address", lambda: "0x" + "a" * 40)
-    monkeypatch.setattr(official_v4, "_official_v4_composer_address", lambda: None)
+    monkeypatch.setattr(official_v4, "_official_v4_arb_address", lambda chain_id=None: "0x" + "a" * 40)
+    monkeypatch.setattr(official_v4, "_official_v4_composer_address", lambda chain_id=None: None)
 
     result = official_v4.official_v4_arb_static_hop_rows(
         w3=w3,

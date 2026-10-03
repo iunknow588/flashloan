@@ -46,7 +46,10 @@ CANONICAL_ETHEREUM_DEX = "dex-arbitrage-1-uniswap-v3"
 CANONICAL_POLYGON_DEX = "dex-arbitrage-137-uniswap-v3"
 CANONICAL_AVALANCHE_DEX = "dex-arbitrage-43114-uniswap-v3"
 CANONICAL_COW_DEX = "dex-arbitrage-0-cow-protocol"
-CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v3"
+CANONICAL_ROBINHOOD_DEX = "dex-arbitrage-4663-uniswap-v4"
+CANONICAL_ROBINHOOD_DEX_V3 = "dex-arbitrage-4663-uniswap-v3"
+CANONICAL_ROBINHOOD_DEX_V4_LEGACY = "robinhood-dex-shadow"
+CANONICAL_ROBINHOOD_DEX_V3_LEGACY = "robinhood-dex-v3-shadow"
 CANONICAL_ROBINHOOD_TESTNET_DEX = "dex-arbitrage-46630-uniswap-v4"
 CANONICAL_HYPERLIQUID_DEX = "dex-arbitrage-hyperliquid-hyperliquid-native"
 
@@ -193,7 +196,9 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["chain_id"] == 46630
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_BOT]["observation_only"] is True
     assert summaries[CANONICAL_ROBINHOOD_DEX]["feature"] == "dex_arbitrage"
-    assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_DEX_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == CANONICAL_ROBINHOOD_DEX_V4_LEGACY
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["protocol"] == "uniswap_v4"
+    assert summaries[CANONICAL_ROBINHOOD_DEX_V3]["legacy_market_id"] == CANONICAL_ROBINHOOD_DEX_V3_LEGACY
     assert summaries[CANONICAL_ROBINHOOD_DEX]["observation_only"] is True
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["feature"] == "dex_arbitrage"
     assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_TESTNET_DEX_MARKET_ID
@@ -213,7 +218,8 @@ def test_supported_market_summaries_classifies_migration_type():
     assert summaries[CANONICAL_AVALANCHE_DEX]["market_type"] == MARKET_TYPE_NATIVE_CHAIN
     assert summaries[CANONICAL_AVALANCHE_DEX]["is_default"] is False
     assert summaries[CANONICAL_ROBINHOOD_DEX]["market_type"] == MARKET_TYPE_SHADOW_CHAIN
-    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is True
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["is_default"] is True
+    assert summaries[CANONICAL_ROBINHOOD_TESTNET_DEX]["is_default"] is False
     assert summaries[CANONICAL_HYPERLIQUID_DEX]["legacy_market_id"] == "hyperliquid-dex-shadow"
     assert summaries[CANONICAL_HYPERLIQUID_DEX]["migration_type"] == "dex_native_protocol_placeholder"
 
@@ -225,7 +231,7 @@ def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
     market = liquidation_market_config_for(chain_id=4663, feature="dex_arbitrage")
 
     assert market.market_id == CANONICAL_ROBINHOOD_DEX
-    assert market.legacy_market_id == LEGACY_ROBINHOOD_DEX_MARKET_ID
+    assert market.legacy_market_id == CANONICAL_ROBINHOOD_DEX_V4_LEGACY
     assert market.feature == "dex_arbitrage"
     assert market.network == "robinhood"
     assert market.chain_id == 4663
@@ -233,7 +239,7 @@ def test_robinhood_dex_market_is_shadow_only_and_feature_scoped(monkeypatch):
     assert market.wrapped_native_address == "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
     assert market.multicall3_address == "0x2cAC2D899eCC914d704FeaAE33ac1bF36277DaD1"
     assert market.rpc_urls[0] == "https://robinhood-alchemy.example"
-    assert market.protocol_supported is False
+    assert market.protocol_supported is True
     assert market.observation_only is True
 
 
@@ -298,7 +304,7 @@ def test_supported_market_summaries_prefers_database_rows_when_available(monkeyp
             "chain_id": 4663,
             "network": "robinhood",
             "feature": "dex_arbitrage",
-            "protocol": "uniswap_v3",
+            "protocol": "uniswap_v4",
             "native_symbol": "ETH",
         }
     ]
@@ -311,7 +317,7 @@ def test_supported_market_summaries_prefers_database_rows_when_available(monkeyp
 
     assert summaries[0]["market_id"] == CANONICAL_ROBINHOOD_DEX
     assert summaries[0]["legacy_market_id"] == "db-robinhood-dex"
-    assert summaries[0]["protocol_id"] == "uniswap_v3"
+    assert summaries[0]["protocol_id"] == "uniswap_v4"
 
 
 def test_supported_market_summaries_falls_back_when_database_unavailable(monkeypatch):
@@ -325,7 +331,7 @@ def test_supported_market_summaries_falls_back_when_database_unavailable(monkeyp
     summaries = {row["market_id"]: row for row in supported_market_summaries("local_store_disabled.sqlite3")}
 
     assert CANONICAL_ROBINHOOD_DEX in summaries
-    assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == LEGACY_ROBINHOOD_DEX_MARKET_ID
+    assert summaries[CANONICAL_ROBINHOOD_DEX]["legacy_market_id"] == CANONICAL_ROBINHOOD_DEX_V4_LEGACY
     assert CANONICAL_ROBINHOOD_BOT in summaries
     assert summaries[CANONICAL_ROBINHOOD_BOT]["legacy_market_id"] == LEGACY_ROBINHOOD_BOT_MARKET_ID
 

@@ -13,8 +13,18 @@ from eth_abi import decode as abi_decode
 from eth_utils import keccak
 from web3 import Web3
 
-from core.chain_data_registry import chain_data_by_chain_id, chain_data_by_network
-from core.chain_data_registry import chain_data_file_path
+from dex.intent_trade.chains.robinhood_common.v4_quote_core import (
+    V4_CUSTOM_ERROR_SELECTORS,
+    V4_POOL_MANAGER_EXTSLOAD_ABI,
+    V4_POOLS_SLOT,
+    V4_QUOTER_ABI,
+    chain_row,
+    normalize_address,
+    normalize_pool_id,
+    pool_index_path,
+    read_json,
+    text,
+)
 from dex.intent_trade.chains.robinhood import config as robinhood
 from dex.intent_trade.chains.robinhood.shared import (
     ROBINHOOD_TESTNET_NETWORK,
@@ -25,61 +35,14 @@ getcontext().prec = 80
 logger = logging.getLogger(__name__)
 _POOL_ROWS_CACHE: dict[str, tuple[int, int, list[dict[str, Any]]]] = {}
 
-_V4_POOLS_SLOT = (6).to_bytes(32, "big")
-_V4_POOL_MANAGER_EXTSLOAD_ABI = [
-    {
-        "inputs": [{"internalType": "bytes32", "name": "slot", "type": "bytes32"}],
-        "name": "extsload",
-        "outputs": [{"internalType": "bytes32", "name": "value", "type": "bytes32"}],
-        "stateMutability": "view",
-        "type": "function",
-    }
-]
-_V4_CUSTOM_ERROR_SELECTORS = {
-    "0x6190b2b0": "UnexpectedRevertBytes(bytes)",
-    "0x7a5ed734": "NotEnoughLiquidity(bytes32)",
-    "0xe0752a5a": "UnexpectedCallSuccess()",
-    "0x486aa307": "PoolNotInitialized()",
-}
-_V4_QUOTER_ABI = [
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "components": [
-                            {"internalType": "Currency", "name": "currency0", "type": "address"},
-                            {"internalType": "Currency", "name": "currency1", "type": "address"},
-                            {"internalType": "uint24", "name": "fee", "type": "uint24"},
-                            {"internalType": "int24", "name": "tickSpacing", "type": "int24"},
-                            {"internalType": "address", "name": "hooks", "type": "address"},
-                        ],
-                        "internalType": "struct PoolKey",
-                        "name": "poolKey",
-                        "type": "tuple",
-                    },
-                    {"internalType": "bool", "name": "zeroForOne", "type": "bool"},
-                    {"internalType": "uint128", "name": "exactAmount", "type": "uint128"},
-                    {"internalType": "bytes", "name": "hookData", "type": "bytes"},
-                ],
-                "internalType": "struct IV4Quoter.QuoteExactSingleParams",
-                "name": "params",
-                "type": "tuple",
-            }
-        ],
-        "name": "quoteExactInputSingle",
-        "outputs": [
-            {"internalType": "uint256", "name": "amountOut", "type": "uint256"},
-            {"internalType": "uint256", "name": "gasEstimate", "type": "uint256"},
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    }
-]
+_V4_POOLS_SLOT = V4_POOLS_SLOT
+_V4_POOL_MANAGER_EXTSLOAD_ABI = V4_POOL_MANAGER_EXTSLOAD_ABI
+_V4_CUSTOM_ERROR_SELECTORS = V4_CUSTOM_ERROR_SELECTORS
+_V4_QUOTER_ABI = V4_QUOTER_ABI
 
 
 def _text(value: object) -> str:
-    return str(value or "").strip()
+    return text(value)
 
 
 def _canonical_testnet_network(network: object = None, chain_id: object = None) -> str:
@@ -96,23 +59,15 @@ def _canonical_testnet_network(network: object = None, chain_id: object = None) 
 
 
 def _normalize_address(value: object) -> str:
-    text = _text(value)
-    return text.lower() if text.startswith("0x") and len(text) == 42 else ""
+    return normalize_address(value)
 
 
 def _normalize_pool_id(value: object) -> str:
-    text = _text(value)
-    return text.lower() if text.startswith("0x") and len(text) == 66 else _normalize_address(value)
+    return normalize_pool_id(value)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    return read_json(path)
 
 
 def _pool_index_path(network: str | None = None, chain_id: int | None = None) -> Path | None:
@@ -121,29 +76,16 @@ def _pool_index_path(network: str | None = None, chain_id: int | None = None) ->
         raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve chain_id={chain_id}")
     if normalized not in (ROBINHOOD_TESTNET_NETWORK, ""):
         raise ValueError(f"{_chain_label(network, chain_id)} adapter cannot serve network={network}")
-    path = chain_data_file_path(ROBINHOOD_TESTNET_NETWORK, "v4_pool_index", chain_id=robinhood.TESTNET_CHAIN_ID)
-    if path is not None:
-        return path
     fallback = Path(__file__).resolve().parents[3] / "runtime" / "evidence" / ROBINHOOD_TESTNET_NETWORK / "v4_pool_index" / "latest.json"
-    return fallback
+    return pool_index_path(
+        network=ROBINHOOD_TESTNET_NETWORK,
+        chain_id=robinhood.TESTNET_CHAIN_ID,
+        fallback=fallback,
+    )
 
 
 def _chain_row(network: str | None, chain_id: int | None) -> dict[str, Any]:
-    if chain_id is not None:
-        try:
-            row = chain_data_by_chain_id(int(chain_id)) or {}
-        except Exception:
-            row = {}
-        if row:
-            return row
-    normalized = _text(network).lower()
-    if not normalized:
-        return {}
-    try:
-        row = chain_data_by_network(normalized) or {}
-    except Exception:
-        row = {}
-    return row if isinstance(row, dict) else {}
+    return chain_row(network, chain_id)
 
 
 def _chain_rpc_urls(network: str | None, chain_id: int | None) -> tuple[str, ...]:

@@ -7,7 +7,7 @@
   "module": "DEX",
   "projectRoot": "contract/robinhood/DEX",
   "chainKey": "chain:4663",
-  "marketId": "robinhood-dex-shadow",
+  "marketId": "dex-arbitrage-4663-uniswap-v4",
   "feature": "dex_arbitrage",
   "mode": "mainnet_read_only_deferred_deploy",
   "broadcastEnabled": false,
@@ -25,6 +25,10 @@
   "defaultV4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
   "defaultPositionManager": "0x58DaEC3116AAe6D93017BAAEA7749052E8a04fa7",
   "defaultFlashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "officialV4": {
+    "arb": "0xf73f921f0EcA56c8e5816390d2Af378fC8173D3F",
+    "composer": "0x1e1Fa70ca5af51d7F04716c7247b88c846703282"
+  },
   "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
   "v3Router": "0xCaf681a66D020601342297493863E78C959E5cb2",
   "flashSource": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
@@ -36,14 +40,16 @@
       "protocol": "aave_v3"
     },
     "dex_arbitrage": {
-      "default_market_id": "robinhood-dex-shadow",
-      "protocol": "uniswap_v3"
+      "default_market_id": "dex-arbitrage-4663-uniswap-v4",
+      "protocol": "uniswap_v4",
+      "observation_only": true,
+      "protocol_supported": true
     }
   },
   "flash_loan": {
-    "default_protocols": ["morpho_blue", "uniswap_v2", "uniswap_v3", "aave_v3"],
-    "candidate_protocols": ["morpho_blue", "uniswap_v2", "uniswap_v3", "uniswap_v4", "aave_v3"],
-    "supported_protocol_count": 5
+    "default_protocols": ["uniswap_v4"],
+    "candidate_protocols": ["uniswap_v4"],
+    "supported_protocol_count": 1
   },
   "data_files": {
     "flash_liquidity": "runtime/cache/flash_loan_pool_discovery_snapshot.json",
@@ -52,6 +58,7 @@
     "dex_discovery": "runtime/evidence/robinhood/dex_discovery",
     "v4_pool_index": "runtime/evidence/robinhood/v4_pool_index/latest.json",
     "v4_pool_liquidity": "runtime/evidence/robinhood/v4_pool_liquidity/latest.json",
+    "yc_zc_tokens": "runtime/evidence/robinhood/yc_zc_tokens.json",
     "market_observation": "runtime/market_observation/robinhood/4663/all/observation.json",
     "chain_test": "runtime/evidence/robinhood/chain_test/latest/plan.json"
   },

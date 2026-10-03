@@ -119,8 +119,19 @@
     let monitorCount = 0;
     const pageParams = new URLSearchParams(location.search);
     // Compatibility markers for static navigation tests: params.get("account"), /api/liquidation/account?account=
-    const marketParam = pageParams.get("market_id") || "";
-    const chainParam = pageParams.get("chain_id") || "";
+    const marketIdChainComponent = marketId => {
+      const normalized = String(marketId || "").trim().toLowerCase();
+      const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+      return match ? match[2] : "";
+    };
+    const normalizedPageParams = new URLSearchParams(pageParams);
+    const pageChain = String(normalizedPageParams.get("chain_id") || "").trim();
+    const pageMarket = String(normalizedPageParams.get("market_id") || "").trim();
+    if (pageChain && marketIdChainComponent(pageMarket) && marketIdChainComponent(pageMarket) !== pageChain) {
+      normalizedPageParams.delete("market_id");
+    }
+    const marketParam = normalizedPageParams.get("market_id") || "";
+    const chainParam = normalizedPageParams.get("chain_id") || "";
     function accountApiQuery(account, extra = {}) {
       const query = new URLSearchParams({ account });
       if (marketParam) query.set("market_id", marketParam);

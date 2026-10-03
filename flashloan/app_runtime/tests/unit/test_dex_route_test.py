@@ -479,7 +479,7 @@ def test_official_triangle_route_validation():
 
 
 def test_official_route_addresses_resolve_from_chain_allowlist():
-    addresses = _official_route_addresses(["TZ", "TB", "TA", "TZ"])
+    addresses = _official_route_addresses(["TZ", "TB", "TA", "TZ"], chain_id=46630)
     assert addresses == [
         "0x05a31b34a1bf8EDB08Cbfa2E9d860E6d0939313E",
         "0x28cc9a0b94aD34A3A0CB2734c8d58aD95862C6c4",
@@ -488,12 +488,16 @@ def test_official_route_addresses_resolve_from_chain_allowlist():
     ]
 
 
-def test_official_route_addresses_rejects_ambiguous_weth():
-    assert _official_route_addresses(["WETH", "ETH", "0XC9F9C8", "WETH"]) == []
+def test_official_route_addresses_resolves_canonical_weth_without_duplicate_ambiguity():
+    addresses = _official_route_addresses(["WETH", "ETH", "0XC9F9C8", "WETH"], chain_id=46630)
+    assert len(addresses) == 4
+    assert addresses[0].lower() == "0x7943e237c7f95da44e0301572d358911207852fa"
+    assert addresses[1].lower() == "0x0000000000000000000000000000000000000000"
+    assert addresses[3].lower() == addresses[0].lower()
 
 
 def test_official_route_addresses_rejects_unknown_symbol_instead_of_guessing():
-    assert _official_route_addresses(["WETH", "UNKNOWN_BAD_TOKEN", "WETH"]) == []
+    assert _official_route_addresses(["WETH", "UNKNOWN_BAD_TOKEN", "WETH"], chain_id=46630) == []
 
 
 def test_resolve_route_addresses_from_market_payload_falls_back_to_observed_route(monkeypatch):
@@ -607,6 +611,112 @@ def test_quote_route_test_broadcast_does_not_fallback_to_estimate(monkeypatch):
     assert data["broadcastPerformed"] is False
     assert data["error"] == "official_arb_broadcast_route_unsupported"
     assert data["bestAmountCalculation"]["method"] == "static_route_size_analysis_probe_ladder"
+
+
+def test_quote_route_test_official_triangle_requires_explicit_robinhood_testnet_chain(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    from web.control_panel import app
+
+    calls: list[dict] = []
+
+    def unexpected_official(**kwargs):
+        calls.append(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(route_test_module, "run_official_v4_arb_route_test", unexpected_official)
+
+    # No explicit chain_id query means the official V4 arb script must not run,
+    # even if the app defaults the chain scope to 46630.
+    response = app.test_client().post(
+        "/api/dex/quote-route/test",
+        json={
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "amount": 1,
+            "mode": "auto",
+            "broadcast": False,
+        },
+    )
+
+    data = response.get_json()
+    assert response.status_code == 400
+    assert data["error"] == "official_v4_arb_chain_required"
+    assert "Robinhood chain 4663" in data["detail"]
+    assert calls == []
+
+
+def test_quote_route_test_official_triangle_rejects_non_robinhood_testnet_chain(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    from web.control_panel import app
+
+    calls: list[dict] = []
+
+    def unexpected_official(**kwargs):
+        calls.append(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(route_test_module, "run_official_v4_arb_route_test", unexpected_official)
+
+    response = app.test_client().post(
+        "/api/dex/quote-route/test?chain_id=56&protocols=uniswap_v4",
+        json={
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "amount": 1,
+            "mode": "auto",
+            "broadcast": False,
+        },
+    )
+
+    data = response.get_json()
+    assert response.status_code == 400
+    # A non-testnet chain may be rejected by the chain-selection layer before
+    # the route test handler sees it; either way the official script must not
+    # be invoked.
+    assert data.get("error")
+    assert calls == []
+
+
+def test_quote_route_test_explicit_market_id_robinhood_testnet_allows_official_script(monkeypatch):
+    import market.binance_market.dex_route_test as route_test_module
+    from web.control_panel import app
+
+    calls: list[dict] = []
+
+    def fake_official(**kwargs):
+        calls.append(kwargs)
+        return {
+            "ok": True,
+            "txHash": None,
+            "routeSymbols": kwargs.get("route_symbols") or [],
+            "bestAmountCalculation": {"method": "mock"},
+            "analysis": {},
+        }
+
+    monkeypatch.setattr(route_test_module, "run_official_v4_arb_route_test", fake_official)
+    monkeypatch.setattr(
+        route_test_module,
+        "recommended_route_test_amount",
+        lambda **kwargs: 1.0,
+    )
+    monkeypatch.setattr(
+        "web.data_routes.dex_surfaces.record_dex_route_test_attempt",
+        lambda payload, **kwargs: {"recorded": 0, "ok": True},
+    )
+
+    response = app.test_client().post(
+        "/api/dex/quote-route/test?market_id=dex-arbitrage-46630-uniswap-v4&protocols=uniswap_v4",
+        json={
+            "routeSymbols": ["TZ", "TB", "TA", "TZ"],
+            "amount": 1,
+            "mode": "auto",
+            "broadcast": False,
+        },
+    )
+
+    data = response.get_json()
+    assert response.status_code == 200
+    assert data["ok"] is True
+    assert len(calls) == 1
+    assert calls[0]["chain_id"] == 46630
 
 
 def test_recommended_route_test_amount_uses_size_analysis(monkeypatch):
@@ -1078,12 +1188,12 @@ def test_run_official_v4_arb_route_test_payload_includes_best_amount_calculation
     script.write_text("", encoding="utf-8")
     dex_dir = tmp_path / "DEX"
     dex_dir.mkdir()
-    monkeypatch.setattr(route_test_module, "OFFICIAL_ARB_SCRIPT", script)
-    monkeypatch.setattr(route_test_module, "OFFICIAL_DEX_DIR", dex_dir)
+    monkeypatch.setattr(route_test_module, "_official_arb_script_for_chain", lambda chain_id: script)
+    monkeypatch.setattr(route_test_module, "_official_dex_dir_for_chain", lambda chain_id: dex_dir)
     monkeypatch.setattr(
         route_test_module,
-        "_probe_robinhood_testnet_rpc",
-        lambda: ("https://rpc.testnet.chain.robinhood.com", 12345),
+        "_probe_robinhood_family_rpc",
+        lambda chain_id: ("https://rpc.testnet.chain.robinhood.com", 12345),
     )
 
     def fake_routes_payload(**kwargs):
@@ -1166,12 +1276,12 @@ def test_run_official_v4_arb_route_test_uses_python_preview_without_hardhat(tmp_
     script.write_text("", encoding="utf-8")
     dex_dir = tmp_path / "DEX"
     dex_dir.mkdir()
-    monkeypatch.setattr(route_test_module, "OFFICIAL_ARB_SCRIPT", script)
-    monkeypatch.setattr(route_test_module, "OFFICIAL_DEX_DIR", dex_dir)
+    monkeypatch.setattr(route_test_module, "_official_arb_script_for_chain", lambda chain_id: script)
+    monkeypatch.setattr(route_test_module, "_official_dex_dir_for_chain", lambda chain_id: dex_dir)
     monkeypatch.setattr(
         route_test_module,
-        "_probe_robinhood_testnet_rpc",
-        lambda: ("https://rpc.testnet.chain.robinhood.com", 12345),
+        "_probe_robinhood_family_rpc",
+        lambda chain_id: ("https://rpc.testnet.chain.robinhood.com", 12345),
     )
     monkeypatch.setattr(
         route_test_module,
@@ -1287,12 +1397,12 @@ def test_run_official_v4_arb_route_test_best_amount_missing_does_not_pass_prefli
     script.write_text("", encoding="utf-8")
     dex_dir = tmp_path / "DEX"
     dex_dir.mkdir()
-    monkeypatch.setattr(route_test_module, "OFFICIAL_ARB_SCRIPT", script)
-    monkeypatch.setattr(route_test_module, "OFFICIAL_DEX_DIR", dex_dir)
+    monkeypatch.setattr(route_test_module, "_official_arb_script_for_chain", lambda chain_id: script)
+    monkeypatch.setattr(route_test_module, "_official_dex_dir_for_chain", lambda chain_id: dex_dir)
     monkeypatch.setattr(
         route_test_module,
-        "_probe_robinhood_testnet_rpc",
-        lambda: ("https://rpc.testnet.chain.robinhood.com", 12345),
+        "_probe_robinhood_family_rpc",
+        lambda chain_id: ("https://rpc.testnet.chain.robinhood.com", 12345),
     )
     monkeypatch.setattr(
         route_test_module,
@@ -1378,7 +1488,7 @@ def test_dex_submission_onchain_check_route(monkeypatch):
 def test_official_v4_manifest_route_pool_keys_uses_no_hook_middle_pool():
     from market.binance_market.dex_route_helpers import _official_v4_manifest_route_pool_keys
 
-    keys = _official_v4_manifest_route_pool_keys(["TZ", "TB", "TA", "TZ"])
+    keys = _official_v4_manifest_route_pool_keys(["TZ", "TB", "TA", "TZ"], chain_id=46630)
     assert len(keys) == 3
     assert all(
         str(key.get("hooks") or "").lower() == "0x0000000000000000000000000000000000000000"

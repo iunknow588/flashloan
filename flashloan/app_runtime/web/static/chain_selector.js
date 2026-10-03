@@ -68,6 +68,16 @@
     const marketChainId = marketIdChainComponent(marketId);
     if (chainId && marketChainId && marketChainId !== chainId) {
       normalized.delete("market_id");
+      normalized.delete("protocols");
+      normalized.delete("protocol_id");
+    }
+    if (chainId && !normalized.get("market_id")) {
+      const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+      const fallbackMarketId = String(fallback.market_id || "").trim();
+      const fallbackChainId = marketIdChainComponent(fallbackMarketId);
+      if (fallbackChainId && fallbackChainId === chainId) {
+        normalized.set("market_id", fallbackMarketId);
+      }
     }
     return normalized;
   }
@@ -844,6 +854,10 @@
             feature
           )
     );
+    if (window.history && originalQuery.toString() !== query.toString()) {
+      const normalizedUrl = window.location.pathname + (query.toString() ? "?" + query.toString() : "");
+      window.history.replaceState({}, "", normalizedUrl);
+    }
     const requestQuery = new URLSearchParams();
     requestQuery.set("page_path", window.location.pathname);
     if (feature) requestQuery.set("feature", feature);

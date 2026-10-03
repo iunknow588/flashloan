@@ -7,7 +7,10 @@ from typing import Any
 
 from web3 import Web3
 
-from dex.intent_trade.chains.robinhood.chain_test_policy import ROBINHOOD_TESTNET_CHAIN_ID
+from dex.intent_trade.chains.robinhood.chain_test_policy import (
+    ROBINHOOD_CHAIN_ID,
+    ROBINHOOD_TESTNET_CHAIN_ID,
+)
 
 
 _OFFICIAL_V4_ARB_ABI = [
@@ -167,18 +170,44 @@ _OFFICIAL_V4_COMPOSER_ABI = [
 ]
 
 
-def _env_official_v4_address(field: str) -> str | None:
-    env_name = {
-        "arb": "OFFICIAL_V4_ARB_ADDRESS",
-        "composer": "OFFICIAL_V4_COMPOSER_ADDRESS",
+def _env_official_v4_address(field: str, chain_id: int | None = None) -> str | None:
+    network_env_names = {
+        "arb": [
+            "OFFICIAL_V4_ARB_ADDRESS",
+            "ROBINHOOD_MAINNET_OFFICIAL_V4_ARB_ADDRESS",
+            "ROBINHOOD_TESTNET_OFFICIAL_V4_ARB_ADDRESS",
+        ],
+        "composer": [
+            "OFFICIAL_V4_COMPOSER_ADDRESS",
+            "ROBINHOOD_MAINNET_OFFICIAL_V4_COMPOSER_ADDRESS",
+            "ROBINHOOD_TESTNET_OFFICIAL_V4_COMPOSER_ADDRESS",
+        ],
     }.get(field)
-    if not env_name:
+    if not network_env_names:
         return None
-    value = os.getenv(env_name, "").strip()
-    return value or None
+    env_names = list(network_env_names)
+    if chain_id is not None:
+        try:
+            from core.chain_data_registry import chain_data_by_chain_id
+
+            row = chain_data_by_chain_id(int(chain_id)) or {}
+            network = str(row.get("network") or "").strip().lower()
+            if network == "robinhood":
+                env_names.insert(0, "ROBINHOOD_MAINNET_OFFICIAL_V4_ARB_ADDRESS" if field == "arb" else "ROBINHOOD_MAINNET_OFFICIAL_V4_COMPOSER_ADDRESS")
+            elif network == "robinhood-testnet":
+                env_names.insert(0, "ROBINHOOD_TESTNET_OFFICIAL_V4_ARB_ADDRESS" if field == "arb" else "ROBINHOOD_TESTNET_OFFICIAL_V4_COMPOSER_ADDRESS")
+        except Exception:
+            pass
+    for env_name in env_names:
+        value = os.getenv(env_name, "").strip()
+        if value:
+            return value
+    return None
 
 
-def _official_v4_chain_id() -> int | None:
+def _official_v4_chain_id(chain_id: int | None = None) -> int | None:
+    if chain_id is not None:
+        return int(chain_id)
     raw_chain_id = os.getenv("OFFICIAL_V4_CHAIN_ID", "").strip()
     if raw_chain_id:
         try:
@@ -194,12 +223,12 @@ def _official_v4_chain_id() -> int | None:
         return None
 
 
-def _chain_data_official_v4_address(field: str) -> str | None:
+def _chain_data_official_v4_address(field: str, chain_id: int | None = None) -> str | None:
     try:
         from core.chain_data_registry import chain_data_by_chain_id
     except Exception:
         return None
-    chain_id = _official_v4_chain_id()
+    chain_id = _official_v4_chain_id(chain_id)
     if chain_id is None:
         return None
     chain = chain_data_by_chain_id(chain_id)
@@ -225,10 +254,16 @@ def _chain_data_official_v4_address(field: str) -> str | None:
 
 
 def _manifest_official_v4_address(field: str, chain_id: int | None = None) -> str | None:
-    if chain_id is not None and int(chain_id) != ROBINHOOD_TESTNET_CHAIN_ID:
+    if chain_id is not None and int(chain_id) not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID}:
         return None
+    network = "robinhood-testnet"
+    if chain_id is not None:
+        from core.chain_data_registry import chain_data_by_chain_id
+
+        row = chain_data_by_chain_id(int(chain_id)) or {}
+        network = str(row.get("network") or "robinhood-testnet").strip().lower()
     for base in (Path(__file__).resolve().parents[4], Path.cwd()):
-        manifest_path = base / "test-token_create" / "config" / "testnet-v4-amm" / "manifest.json"
+        manifest_path = base / "test-token_create" / "config" / f"{network}-v4-amm" / "manifest.json"
         if not manifest_path.exists():
             continue
         try:
@@ -241,20 +276,20 @@ def _manifest_official_v4_address(field: str, chain_id: int | None = None) -> st
     return None
 
 
-def _official_v4_arb_address() -> str | None:
-    chain_id = _official_v4_chain_id()
+def _official_v4_arb_address(chain_id: int | None = None) -> str | None:
+    chain_id = _official_v4_chain_id(chain_id)
     return (
-        _env_official_v4_address("arb")
-        or _chain_data_official_v4_address("arb")
+        _env_official_v4_address("arb", chain_id)
+        or _chain_data_official_v4_address("arb", chain_id)
         or _manifest_official_v4_address("arb", chain_id)
     )
 
 
-def _official_v4_composer_address() -> str | None:
-    chain_id = _official_v4_chain_id()
+def _official_v4_composer_address(chain_id: int | None = None) -> str | None:
+    chain_id = _official_v4_chain_id(chain_id)
     return (
-        _env_official_v4_address("composer")
-        or _chain_data_official_v4_address("composer")
+        _env_official_v4_address("composer", chain_id)
+        or _chain_data_official_v4_address("composer", chain_id)
         or _manifest_official_v4_address("composer", chain_id)
     )
 
@@ -350,14 +385,14 @@ def official_v4_arb_static_hop_rows(
         _token_decimals,
     )
 
-    if int(chain_id or 0) != ROBINHOOD_TESTNET_CHAIN_ID or len(steps) != 3:
+    if int(chain_id or 0) not in {ROBINHOOD_CHAIN_ID, ROBINHOOD_TESTNET_CHAIN_ID} or len(steps) != 3:
         return None
     route_symbols = [_text(s).upper() for s in (route.get("routeSymbols") or [])]
     if len(route_symbols) != 4 or route_symbols[0] != route_symbols[-1]:
         return None
     if not all(_text(step.get("protocol") or step.get("dex") or "").lower() in {"uniswap_v4", "v4"} for step in steps):
         return None
-    arb_address = _official_v4_arb_address()
+    arb_address = _official_v4_arb_address(chain_id=int(chain_id or 0))
     if not arb_address:
         return None
     route_addresses = [str(item) for item in route.get("routeAddresses") or [] if str(item).strip()]
@@ -410,7 +445,7 @@ def official_v4_arb_static_hop_rows(
     composer_route_index: int | None = None
     broadcast_record: dict[str, Any] = {}
     result = None
-    composer_address = _official_v4_composer_address()
+    composer_address = _official_v4_composer_address(chain_id=int(chain_id or 0))
     try:
         if composer_address:
             candidate = [keysets, directionsets, 0, 0, 0, 0]
@@ -421,7 +456,7 @@ def official_v4_arb_static_hop_rows(
                 int(amount_in_raw),
                 1,
                 0,
-            ).call()
+            ).call(transaction={"gas": 50_000_000})
             executed, _candidate_index, _profit, result_data = composer_result
             if executed and result_data:
                 decoded = w3.codec.decode_abi(
@@ -444,7 +479,7 @@ def official_v4_arb_static_hop_rows(
                 directionsets,
                 int(amount_in_raw),
                 1,
-            ).call()
+            ).call(transaction={"gas": 50_000_000})
         except Exception:
             return None
     out_tb, out_ta, out_tz, _profit, route_index = (

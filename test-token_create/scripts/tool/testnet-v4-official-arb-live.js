@@ -437,9 +437,23 @@ async function main() {
           };
         } catch (error) {
           const revertInfo = decodeRevertData(error.data || error.info?.error?.data || "");
-          if (revertInfo.selector === "0x4f422847") {
+          const isRpcNetworkError =
+            typeof error === "object" && error &&
+            ["SERVER_ERROR", "TIMEOUT", "CONNECTION_ERROR", "NETWORK_ERROR", "ECONNRESET"].includes(
+              String(error.code || "").toUpperCase()
+            );
+          const isPlainCallRevert =
+            !isRpcNetworkError &&
+            (
+              String(error.code || "").toUpperCase() === "CALL_EXCEPTION" ||
+              revertInfo.data === "0x" ||
+              revertInfo.errorDetail === "no_revert_data"
+            );
+          if (revertInfo.selector === "0x4f422847" || isPlainCallRevert) {
             // With isBestAmount=true the contract reverts when this exact
-            // amount is not profitable; treat that as a miss and keep lowering.
+            // amount is not profitable or the amount is too large for the
+            // current pool. Treat those as a miss and keep lowering so the
+            // adaptive search can still find a smaller profitable amount.
             return {
               ok: false,
               amount,
@@ -576,7 +590,11 @@ async function main() {
         selectedProfit: selectedProfitLocal,
         attemptedCount,
       };
-      if (!preview.selectedAmount || preview.selectedAmount === 0n) throw new Error("NoProfitableRoute");
+      if (!preview.selectedAmount || preview.selectedAmount === 0n) {
+        const noProfitError = new Error("NoProfitableRoute");
+        noProfitError.data = "0x4f422847";
+        throw noProfitError;
+      }
       selectedAmountBig = preview.selectedAmount;
       selectedAmountText = ethers.formatUnits(selectedAmountBig, 18);
     } catch (error) {

@@ -866,3 +866,133 @@ def test_flash_loan_pools_uses_robinhood_uniswap_v2_flash_swap_liquidity(monkeyp
     assert view["cache"]["pool_address"] == ""
     assert view["cache"]["identities"][0]["kind"] == "factory"
     assert view["cache"]["identities"][0]["value"] == "0x8bCeAA40b9ACdFAEDF85Adf4FF01f5aD6517937f"
+
+
+def test_flash_loan_pools_uses_robinhood_mainnet_v4_pool_index(monkeypatch):
+    monkeypatch.setattr(
+        flash_loan_pools,
+        "supported_market_summaries",
+        lambda database_url=None: [
+            {
+                "market_id": "dex-arbitrage-4663-uniswap-v4",
+                "feature": "dex_arbitrage",
+                "display_name": "Robinhood Uniswap V4",
+                "network": "robinhood",
+                "chain_id": 4663,
+                "market_type": "shadow_chain",
+                "protocol": "uniswap_v4",
+                "protocol_supported": False,
+                "observation_only": True,
+            },
+        ],
+    )
+
+    def load_v4_index():
+        return {
+            "schemaVersion": "robinhood-v4-pool-index-v1",
+            "chainId": 4663,
+            "generatedAt": "2026-09-11T03:28:22Z",
+            "generatedBlockNumber": 59938454,
+            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "pools": [
+                {
+                    "protocol": "uniswap_v4",
+                    "poolId": "0x" + "a" * 64,
+                    "pool": "0x" + "a" * 64,
+                    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                    "poolKeyDecoded": True,
+                    "poolKey": {
+                        "currency0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                        "currency1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                        "fee": 200,
+                    },
+                    "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                    "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                    "token0Symbol": "0x0Bd7D308",
+                    "token1Symbol": "0x5fc5360D",
+                    "symbolPair": "0x0Bd7D308:0x5fc5360D",
+                    "fee": 200,
+                    "status": "initialized_pool",
+                    "liquidity": "",
+                    "tvlUsd": 0,
+                    "initializeBlockNumber": 11334809,
+                }
+            ],
+        }
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        robinhood_v4_pool_index_loader=load_v4_index,
+    )
+
+    view = payload["protocol_views"][0]
+    assert "status" not in view
+    assert view["display_mode"] == "observable_dex_pool"
+    assert view["summary"]["observable_pool_count"] == 1
+    assert view["summary"]["borrow_asset_count"] == 1
+    assert view["summary"]["observed_borrow_token_count"] == 1
+    assert view["summary"]["v4_pool_key_count"] == 1
+    assert view["non_stable_borrow_pools"][0]["token_symbol"] == "ETH"
+    assert view["non_stable_borrow_pools"][0]["pool_count"] == 1
+    assert view["non_stable_borrow_pools"][0]["paired_symbol_count"] == 1
+    assert view["cache"]["identities"][0]["kind"] == "pool_manager"
+    assert view["cache"]["identities"][0]["value"] == "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+
+
+def test_flash_loan_pools_robinhood_mainnet_v4_rejects_testnet_scoped_index(monkeypatch):
+    monkeypatch.setattr(
+        flash_loan_pools,
+        "supported_market_summaries",
+        lambda database_url=None: [
+            {
+                "market_id": "dex-arbitrage-4663-uniswap-v4",
+                "feature": "dex_arbitrage",
+                "display_name": "Robinhood Uniswap V4",
+                "network": "robinhood",
+                "chain_id": 4663,
+                "market_type": "shadow_chain",
+                "protocol": "uniswap_v4",
+                "protocol_supported": False,
+                "observation_only": True,
+            },
+        ],
+    )
+
+    def load_v4_index():
+        return {
+            "schemaVersion": "robinhood-v4-pool-index-v1",
+            "network": "robinhood-testnet",
+            "chainId": 46630,
+            "generatedAt": "2026-09-11T03:28:22Z",
+            "generatedBlockNumber": 59938454,
+            "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "pools": [
+                {
+                    "protocol": "uniswap_v4",
+                    "poolId": "0x" + "a" * 64,
+                    "pool": "0x" + "a" * 64,
+                    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+                    "token0": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+                    "token1": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+                    "token0Symbol": "WETH",
+                    "token1Symbol": "USDG",
+                    "symbolPair": "WETH:USDG",
+                    "fee": 200,
+                    "status": "initialized_pool",
+                }
+            ],
+        }
+
+    payload = flash_loan_pools.flash_loan_pools_payload(
+        chain_id=4663,
+        protocols=["uniswap_v4"],
+        robinhood_v4_pool_index_loader=load_v4_index,
+    )
+
+    view = payload["protocol_views"][0]
+    assert view["status"] == "protocol_pool_cache_not_available"
+    assert "not scoped" in view.get("status_message", "")
+    assert view["cache"]["asset_count"] == 0
+    assert view["stable_borrow_pools"] == []
+    assert view["non_stable_borrow_pools"] == []

@@ -36,6 +36,42 @@ def _protocols_include_uniswap_v4(protocols: list[str] | None) -> bool:
     return bool(lowered & {"uniswap_v4", "v4"})
 
 
+def _explicit_chain_id_is_robinhood_supported() -> bool:
+    from core.chain_data_registry import chain_data_by_chain_id
+
+    def chain_supports_official_v4(chain_id: int | None) -> bool:
+        if chain_id is None:
+            return False
+        row = chain_data_by_chain_id(chain_id) or {}
+        features = row.get("features") if isinstance(row.get("features"), dict) else {}
+        dex = features.get("dex_arbitrage") if isinstance(features.get("dex_arbitrage"), dict) else {}
+        flash_loan = row.get("flash_loan") if isinstance(row.get("flash_loan"), dict) else {}
+        return bool(dex.get("protocol_supported")) and "uniswap_v4" in {
+            str(protocol or "").strip().lower()
+            for protocol in flash_loan.get("candidate_protocols") or []
+        }
+
+    raw_chain = request.args.get("chain_id", "").strip()
+    if raw_chain:
+        try:
+            return chain_supports_official_v4(int(raw_chain))
+        except (TypeError, ValueError):
+            return False
+
+    # A canonical market id like dex-arbitrage-46630-uniswap-v4 also explicitly
+    # names the chain, but an explicit conflicting chain_id remains authoritative.
+    import re
+
+    raw_market = request.args.get("market_id", "").strip().lower()
+    match = re.match(r"^(?:liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$", raw_market)
+    if match:
+        try:
+            return chain_supports_official_v4(int(match.group(1)))
+        except (TypeError, ValueError):
+            return False
+    return False
+
+
 def _route_has_unresolved_zero_address(route: dict, protocols: list[str] | None) -> bool:
     """Zero address is a legal Uniswap V4 native-ETH sentinel.
 
@@ -379,7 +415,8 @@ def register_dex_quote_routes(app) -> None:
             filtered_routes = [
                 route
                 for route in payload["routes"]
-                if isinstance(route, dict) and not _route_has_unresolved_zero_address(route, protocols)
+                if isinstance(route, dict)
+                and not _route_has_unresolved_zero_address(route, protocols)
             ]
             payload["routes"] = filtered_routes
             summary = payload.get("summary")
@@ -558,6 +595,21 @@ def register_dex_quote_route_test_routes(app) -> None:
                     amount=amount,
                 )
             else:
+                requires_official = broadcast or is_official_triangle_route(route_symbols)
+                if requires_official and not _explicit_chain_id_is_robinhood_supported():
+                    return (
+                        jsonify(
+                            {
+                                "ok": False,
+                                "mode": "dex_quote_route_test",
+                                "error": "official_v4_arb_chain_required",
+                                "detail": "official V4 triangle arbitrage is only supported on Robinhood chain 4663 or Robinhood Testnet 46630 when explicitly requested",
+                                "routeSymbols": route_symbols,
+                                "broadcast": broadcast,
+                            }
+                        ),
+                        400,
+                    )
                 if broadcast:
                     payload = run_official_v4_arb_route_test(
                         route_symbols=route_symbols,

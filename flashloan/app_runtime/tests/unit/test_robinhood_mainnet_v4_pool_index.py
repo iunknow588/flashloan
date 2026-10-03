@@ -7,6 +7,7 @@ from dex.intent_trade.chains.robinhood import v4_quote_adapter
 from dex.intent_trade.chains.robinhood.v4_pool_index import (
     _iter_observation_pool_rows,
     default_v4_pool_index_path,
+    keep_token_addresses_from_payload,
 )
 from bot.execution import uniswap_v4_sdk_adapter
 from dex.runtime import dex_quote_evidence_common, dex_quote_evidence_helpers
@@ -43,6 +44,19 @@ def test_iter_observation_pool_rows_collects_pool_ids_from_sequences():
     }
     rows = _iter_observation_pool_rows(payload)
     assert len(rows) == 3
+
+
+def test_keep_token_addresses_from_payload_ignores_zero_and_bad_rows():
+    payload = {
+        "ycZc": [
+            {"address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"},
+            {"address": "0x0000000000000000000000000000000000000000"},
+            {"address": "not-an-address"},
+            {},
+        ]
+    }
+    kept = keep_token_addresses_from_payload(payload)
+    assert kept == {"0x5fc5360d0400a0fd4f2af552add042d716f1d168"}
 
 
 def test_mainnet_v4_quote_adapter_rejects_testnet_chain():

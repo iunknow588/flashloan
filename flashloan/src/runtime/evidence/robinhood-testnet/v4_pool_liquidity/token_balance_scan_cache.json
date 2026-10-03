@@ -1,6 +1,16 @@
 {
   "chainId": 46630,
   "entries": {
+    "0x0000000000000000000000000000000000000000": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "balanceRaw": "0",
+      "poolIds": [
+        "0xcd5b37560fdaf7cabd475c51d4e5127d7321d6eb45e3d5bacf61f59b91b6a069",
+        "0xf7ee4588caf4077852f49030019949ed10b010d6cad0e5e1efab441b4fcb5ffc"
+      ],
+      "scanScope": "active_plus_known",
+      "scannedAt": "2026-10-02T13:27:08.243902Z"
+    },
     "0x000000e08bc9a3eb9dabe6d8ff855dd48cc4f34f": {
       "address": "0x000000E08bC9a3Eb9dabE6D8fF855dd48CC4F34f",
       "balanceRaw": "1037193403809911684889260",
@@ -302114,11 +302124,11 @@
       "symbol": "JESUSCHRIST"
     }
   },
-  "entryCount": 25059,
+  "entryCount": 25060,
   "lastScanScope": "active_plus_known",
   "network": "robinhood-testnet",
   "poolIndexSource": "E:\\2026OPC大赛\\flashLoan\\flashloan\\src\\runtime\\evidence\\robinhood-testnet\\v4_pool_index\\latest.json",
   "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-  "refreshedAt": "2026-10-01T01:40:04.962783Z",
+  "refreshedAt": "2026-10-03T00:57:55.888609Z",
   "schemaVersion": "robinhood-testnet-v4-poolmanager-token-balance-scan-v1"
 }

@@ -1,0 +1,712 @@
+[
+  {
+    "ok": true,
+    "poolId": "0x5055f7dc15dad15d762f149d2d1314fef96eade2e48b50a2a36ac635b36fd9be",
+    "liquidity": 155371916,
+    "sqrtPriceX96": "10708443551073388653089561",
+    "tick": -178190,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 999999,
+    "tickSpacing": 10000
+  },
+  {
+    "ok": true,
+    "poolId": "0xdf575e7d1cf01c67a4a4488491d2631f4732af3ef72bd45303148dd7dd81727f",
+    "liquidity": 1585724340718,
+    "sqrtPriceX96": "5542387846009365365636245",
+    "tick": -191363,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 790000,
+    "tickSpacing": 15800
+  },
+  {
+    "ok": true,
+    "poolId": "0x6e2f6195f492295c9c669a8140cfc4e68bc4df8ae1e87054c06e0229cf7ec848",
+    "liquidity": 1001698700788,
+    "sqrtPriceX96": "4173081827071718806208102",
+    "tick": -197039,
+    "hooks": "0x7b46aD807928A93258320B433F9BDe48D04A10C0",
+    "fee": 0,
+    "tickSpacing": 50
+  },
+  {
+    "ok": true,
+    "poolId": "0xe80b98ea7bed83b0b55f6e8cff4532bebe91c4cb62d8c6af92e0ad50abf8d27b",
+    "liquidity": 5315274515774,
+    "sqrtPriceX96": "4154081950254326662624617",
+    "tick": -197130,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 300000,
+    "tickSpacing": 6000
+  },
+  {
+    "ok": true,
+    "poolId": "0x47673945b5a36501b8bcab425ecbe38e6005ced67234cd664b3b439ce8a605ad",
+    "liquidity": 878603456670,
+    "sqrtPriceX96": "4135246433973901614122982",
+    "tick": -197221,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 25000,
+    "tickSpacing": 250
+  },
+  {
+    "ok": true,
+    "poolId": "0x495d34d14cff1f2f75feb454d90df0a6317a6f34eebaa2713bac31f9ab41645a",
+    "liquidity": 196996814433,
+    "sqrtPriceX96": "4133352080822425923198911",
+    "tick": -197230,
+    "hooks": "0xF10b18EF576Ad9C894f92CE60BbEcfB244670080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xf2d7b3738515e38d5c7434dc5ccd8aa35610b8b1eae8fa37d815c4a01223802f",
+    "liquidity": 919376595859234,
+    "sqrtPriceX96": "4127620636571527770511857",
+    "tick": -197258,
+    "hooks": "0xc4D5FfAEf87D6864b96D684DFe1B39c71A290080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x5b439473ca95857dcda5292c441f7001d58a34679376a088d85368fdd756134e",
+    "liquidity": 39073320234267,
+    "sqrtPriceX96": "4125002563323899448694856",
+    "tick": -197271,
+    "hooks": "0xE04e323A611Acf0aD010f5423F73C165F504a880",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x43be6b051244a00b3b48e5680c5742078f31fdfb5bcbe3a5c901940570362b08",
+    "liquidity": 4436436795956721083,
+    "sqrtPriceX96": "4113936585553084019707369",
+    "tick": -197325,
+    "hooks": "0xBfA1918D012eb5ED21Df523790646630f41BCc8A",
+    "fee": 1,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xe78ac459ddd17482a53bdf0251758c2787aac6b213b0b9ecc80a558bfe5d4e12",
+    "liquidity": 456128816989,
+    "sqrtPriceX96": "4113137785411716651239925",
+    "tick": -197328,
+    "hooks": "0xe8069194581AcA096eDAdAe810306bafBAFc80C4",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xd2422e814785fb3514bd397b2cf3a6c2df8badb52d633844a3e8c3a1a75d0a13",
+    "liquidity": 518732829038,
+    "sqrtPriceX96": "4109824919789575112238519",
+    "tick": -197344,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 250000,
+    "tickSpacing": 2500
+  },
+  {
+    "ok": true,
+    "poolId": "0x717fd7ee0f0725ea031dc19e60b040b5dd21fdcc94cb3e871bf0e27b020effa1",
+    "liquidity": 1141577024086,
+    "sqrtPriceX96": "4109809800812472626331531",
+    "tick": -197345,
+    "hooks": "0x497DFc4A2a7aA7b5479Cb8191b495a7E405500c4",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xcfb4b1925419b56b69d103977c7ce3c5569e92c5a1980251f021f291fbb96e69",
+    "liquidity": 12840951218,
+    "sqrtPriceX96": "4106319717668989222305154",
+    "tick": -197362,
+    "hooks": "0x5a2F8Ce3332F9cD909DD80C32dfa2835214aC200",
+    "fee": 75,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x4f76e65b162606f0c846a979f198ec21b0350bfe17ac6ae3858df9aeebe7fbd3",
+    "liquidity": 74142717576656,
+    "sqrtPriceX96": "4106149215227338369016509",
+    "tick": -197362,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 392,
+    "tickSpacing": 4
+  },
+  {
+    "ok": true,
+    "poolId": "0xace7e9e3716679aa566f31c29bff430daf57108c6100807d921f7b60efe846d2",
+    "liquidity": 325161530882452,
+    "sqrtPriceX96": "4105731169463662455533383",
+    "tick": -197364,
+    "hooks": "0xC4A6B9E55df79289203Bd6cFA4872d24567AD0c4",
+    "fee": 8388608,
+    "tickSpacing": 10
+  },
+  {
+    "ok": true,
+    "poolId": "0x85aa9a7c2ef9deec7bcbc5e78c6b26d2598c2aaf3f810b267fa4f8f9b0854142",
+    "liquidity": 16190834192799830,
+    "sqrtPriceX96": "4105700184260442785109123",
+    "tick": -197365,
+    "hooks": "0x4445520306c9C70952bDFEc28F3989f53d9f80C4",
+    "fee": 25,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x1219e804816d95f93060f318ba8d1230621c4a6684f4e79abe2fb2ee6b034847",
+    "liquidity": 183997317365,
+    "sqrtPriceX96": "4105618250471877126417838",
+    "tick": -197365,
+    "hooks": "0x5660b49518D7DA97142F1387A88A899136B38080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xefcec38281d4cccaf9c9d7da02aff071d3b94d54fa50bb14b8e6b8e74529a16b",
+    "liquidity": 343810384612265,
+    "sqrtPriceX96": "4105510453204412630861670",
+    "tick": -197366,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 83,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x24107d152f14a76d292123265ae3f3c71f863fc2f4ef7ba49d64e78d28ea379e",
+    "liquidity": 81059022407841031,
+    "sqrtPriceX96": "4105416231966028535801865",
+    "tick": -197366,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 100,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x3b0cbf0603ecc67b5fc9bb4fbb6ac9e08d3b2f406b63d1662a36063a7fe5e866",
+    "liquidity": 6287327144440055,
+    "sqrtPriceX96": "4105337574440987998110355",
+    "tick": -197366,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 87,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xed517705e7047bcb81feb3769bc6c7d1875b26867300fdfcb1a53a34c2894b5a",
+    "liquidity": 357619116910853,
+    "sqrtPriceX96": "4105191959583821755001078",
+    "tick": -197367,
+    "hooks": "0xE76Ca7eFdF14a9144d11B98Fee72B90a2a1c8080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x2180843805e49f2ad9ec44a88229e3b37ad825ca537cc3bdcae20485cada59e4",
+    "liquidity": 127563225813254,
+    "sqrtPriceX96": "4105063543605309420427508",
+    "tick": -197368,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 91,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xbbf8b1d23b0442065b4f0a0d076c346d43b6b1239d6ed7a52e6d56fcbbc3061b",
+    "liquidity": 247395417404,
+    "sqrtPriceX96": "4104953970658077935284742",
+    "tick": -197368,
+    "hooks": "0x6D2aC09bF3E7Be9E1898e8429b000bfF6fb380C4",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xc7b615a3721594f73664eb3f62d8290d0fcc8d9d1156aed1ddecbd7f32efd9f5",
+    "liquidity": 33268088455748291,
+    "sqrtPriceX96": "4104948985414550671284276",
+    "tick": -197368,
+    "hooks": "0xcB787A5cDEA8B3715d984d82F1203Fd7bFeBE0c4",
+    "fee": 8388608,
+    "tickSpacing": 10
+  },
+  {
+    "ok": true,
+    "poolId": "0x3c5c41e03dad8d568e2e5acec32bc6883307cd20eae72a8bf0e36e8f7e7c481d",
+    "liquidity": 853167990809,
+    "sqrtPriceX96": "4104731029543334972540792",
+    "tick": -197369,
+    "hooks": "0x3993ED68BCC6929716c1c3E32cacDE2A65998080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xbac3aa3b91584a53a579b3c999a56756e954e59247e497bad1d25a4334bde551",
+    "liquidity": 16288086285304321176,
+    "sqrtPriceX96": "4104698597988867976961218",
+    "tick": -197369,
+    "hooks": "0x06a889870C8f83640D6816319f72e2aA579b6080",
+    "fee": 8388608,
+    "tickSpacing": 10
+  },
+  {
+    "ok": true,
+    "poolId": "0x54f7883914619af9105355bf83ed678bcf9f63560218ac61c9963b9503d0ba32",
+    "liquidity": 156393418995855589,
+    "sqrtPriceX96": "4104698449412606839020674",
+    "tick": -197369,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 460,
+    "tickSpacing": 9
+  },
+  {
+    "ok": true,
+    "poolId": "0x387bf619da4d3fb62bb276482693dba1b9b3520f573cabdfe033384a24125982",
+    "liquidity": 19505738831267349,
+    "sqrtPriceX96": "4104581485385304903536936",
+    "tick": -197370,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 500,
+    "tickSpacing": 10
+  },
+  {
+    "ok": true,
+    "poolId": "0x8dae3fd4176dc44ff6d85b90b5e532a5423d632f935ac0005d29daf70adfd447",
+    "liquidity": 51197741212330,
+    "sqrtPriceX96": "4104271576854582390724137",
+    "tick": -197372,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 200,
+    "tickSpacing": 4
+  },
+  {
+    "ok": true,
+    "poolId": "0x0115a48c046e8776f95f9d52fddc85d8d88f7ddc73ea65015a465ae04977077d",
+    "liquidity": 5839039344988,
+    "sqrtPriceX96": "4103930966957934815127807",
+    "tick": -197373,
+    "hooks": "0x475Cd840eFBd4875a5AbD55adE2710dbAE5d8080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xef5672974ad552f1ce24f2873f3e4237e82d44780ef623b6a239db42b08a7d5c",
+    "liquidity": 839181829648865,
+    "sqrtPriceX96": "4103902729996707741189051",
+    "tick": -197373,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 10000,
+    "tickSpacing": 200
+  },
+  {
+    "ok": true,
+    "poolId": "0xd2f69267612cd8c4941c740bb6d24d23123152875795612de6564916eb21ab85",
+    "liquidity": 34187957250,
+    "sqrtPriceX96": "4103795850702349160253509",
+    "tick": -197374,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 21,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x82324a20f34f0c4e3dd36859f06b7da5cc0eac901e57d258a5dfbb2852468a82",
+    "liquidity": 930109258,
+    "sqrtPriceX96": "4103652891178055317363473",
+    "tick": -197375,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 9111,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xb1a46fb88357dcf6993fb24be742c3f176bcc7bc819b796850993225cb8ea037",
+    "liquidity": 20166491722862,
+    "sqrtPriceX96": "4103135066646576402297208",
+    "tick": -197377,
+    "hooks": "0xbF0a78610fB309719980ef07670BD93Bd1942800",
+    "fee": 8388608,
+    "tickSpacing": 10
+  },
+  {
+    "ok": true,
+    "poolId": "0xa53aed8eb6f4c8a2c5d990c261868f45d2b2f10b13f1b14924ef5a6e614f2a28",
+    "liquidity": 69926483136578,
+    "sqrtPriceX96": "4102652563768553365778175",
+    "tick": -197379,
+    "hooks": "0x7266BA24C6Da4A8E6Ae931B61728625377eE00c4",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xab75e137d851202c01cc43a8d766cdc4b4227e5b4ad25146933a39bfc4b52d1c",
+    "liquidity": 21665418761182,
+    "sqrtPriceX96": "4102572030952267276099902",
+    "tick": -197380,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 800,
+    "tickSpacing": 16
+  },
+  {
+    "ok": true,
+    "poolId": "0x30dac7167c36242d1bacfd30561d444cf014529ee55978991d03e4ee178e725a",
+    "liquidity": 26662439698336,
+    "sqrtPriceX96": "4102140512479433258369704",
+    "tick": -197382,
+    "hooks": "0x42554Fa546995A393D19B3880D3a4C6709298080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xe4a9ec520748e8a96f1b231d975bdf78e00f8684b829ff04d0472382d769bd9d",
+    "liquidity": 18773877535142,
+    "sqrtPriceX96": "4101933060110727551385757",
+    "tick": -197383,
+    "hooks": "0xA258aE996e8c887F5Cbe1E0616d864EaA60c70c0",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xc42d69412ec253f5f7bf6a002e04472b46a147f9ea8c44dba37a21cb23272e22",
+    "liquidity": 268568684494,
+    "sqrtPriceX96": "4101679647101528907642207",
+    "tick": -197384,
+    "hooks": "0xC873902C8d7951DC6a1c6787A2e3F5565d8c00c4",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x8288e954fee4e7eadf995846c3dfe500e42b82cca2b6352233d62d9a37b8a416",
+    "liquidity": 1935113784426,
+    "sqrtPriceX96": "4101490870925218769926300",
+    "tick": -197385,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 870,
+    "tickSpacing": 17
+  },
+  {
+    "ok": true,
+    "poolId": "0xd313d79d9d6a714e7bdf02fc42a2c27ede7e51928ffd605126fe9e1192630cf8",
+    "liquidity": 48357661321792957,
+    "sqrtPriceX96": "4099937317879877101191006",
+    "tick": -197393,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 3000,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xaa539c18e9e4e16be42a0638259455b83aafe089131b005aebe27f752a4a41be",
+    "liquidity": 301260702560,
+    "sqrtPriceX96": "4099597788718538073390879",
+    "tick": -197394,
+    "hooks": "0x6D2aC09bF3E7Be9E1898e8429b000bfF6fb380C4",
+    "fee": 8388608,
+    "tickSpacing": 10
+  },
+  {
+    "ok": true,
+    "poolId": "0xe3ef4c0e1584f03adaf5ff48aef57cc12b10700a6fbe9285fa6bf7d298042cf5",
+    "liquidity": 1545498626338,
+    "sqrtPriceX96": "4096593184050083440085647",
+    "tick": -197409,
+    "hooks": "0x3Fb909bE36C1050117Ee6569d3dF1bcb987Dc088",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xa8dbda9315b7bc88cf8ebfb9b9415495bd69844a0b2aa48afe0281d3a40c62d1",
+    "liquidity": 11544904468186,
+    "sqrtPriceX96": "4091264130667107294161870",
+    "tick": -197435,
+    "hooks": "0x06B810071D69A123D8046Cc551981EAfc2BB8080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xb0de06e48ef22dbcbad242f9d122d6bfce0c2df1370e282e204e916bf4f3b23b",
+    "liquidity": 6394453261284295930,
+    "sqrtPriceX96": "4084424103109818752547526",
+    "tick": -197468,
+    "hooks": "0xb8348c5Fc1Dd23C1A9c10fa12CE5e1EDEC8F0C8A",
+    "fee": 1,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x60013a13e0321a3cd4b9ae9348f8ae799fb461af79a334c10e109eda9d95e0d0",
+    "liquidity": 251283736864921389,
+    "sqrtPriceX96": "4078710190959655043752467",
+    "tick": -197497,
+    "hooks": "0xFF52F61ac3Ca7c35199D385bf19b0152759c80c4",
+    "fee": 8388608,
+    "tickSpacing": 8
+  },
+  {
+    "ok": true,
+    "poolId": "0x02af9a24a5816f2f3d1d6aae1a0f924b3bf77371f8ab435392cecc6405c9f709",
+    "liquidity": 5495143312680,
+    "sqrtPriceX96": "4073277159683838243004995",
+    "tick": -197523,
+    "hooks": "0xB6fD4CACB5e9A09e082ce29d36d29C1CA5Bd4583",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x1a149e9542c2b9d85d7f4136e680588fe2d87738c3f09788288063480ddaa244",
+    "liquidity": 174935481509,
+    "sqrtPriceX96": "4049166780567014554162900",
+    "tick": -197642,
+    "hooks": "0xd752c20C0cAC2BbA45D4B1DC6532aABCbADEc0c4",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xf50ce56467e08fe308f949f69ff363c74192aabfb19f182a6a972d16db77337c",
+    "liquidity": 656542448239,
+    "sqrtPriceX96": "4037806793625867874613139",
+    "tick": -197698,
+    "hooks": "0xF30F24b0A1885be51D6FA9B5b397F12B051e0088",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xf57fc830e5739e8be85d66e54752c3399611312864afa48345aeedf912f3ddc0",
+    "liquidity": 25226724436258,
+    "sqrtPriceX96": "4017168590212758076378236",
+    "tick": -197801,
+    "hooks": "0x29C173bbe4cB431E3bfC229b305a1C3859101040",
+    "fee": 10000,
+    "tickSpacing": 200
+  },
+  {
+    "ok": true,
+    "poolId": "0x8ff111982bce89af937cc6f2b58e6a64d11d63ef1c58defb29ba233b53d1348a",
+    "liquidity": 7725437331048,
+    "sqrtPriceX96": "4009522448402010057129522",
+    "tick": -197839,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 100000,
+    "tickSpacing": 2000
+  },
+  {
+    "ok": true,
+    "poolId": "0x213e463817235f72c600861e751132e304934a15cc2c452b26bcf61cdb6f8f70",
+    "liquidity": 42717098569891,
+    "sqrtPriceX96": "3994353959653352081844840",
+    "tick": -197914,
+    "hooks": "0xdf672ab446510d66A39005375387C848178aC5C7",
+    "fee": 3000,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x873301364d7e66af1570e157954987ce7b2dbea69436fa5be714587553fbfd65",
+    "liquidity": 1584682182991,
+    "sqrtPriceX96": "3988790712231656637636714",
+    "tick": -197942,
+    "hooks": "0xC74E7983718DAEEfE5dA80690Afbd65d7eF74088",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x1f882bfea09434c406e157e2e8a8a587ae060186b7cd995aca2f462e3283263a",
+    "liquidity": 199417,
+    "sqrtPriceX96": "3987369687602855073071429",
+    "tick": -197950,
+    "hooks": "0xe7E47cD1C7AAB1c5Cf1069Ff5ce793E5E016C080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x77246e2994ead86abeeaa1df58f932426cf8d513aa20f5fcdb18fe9ec5b66352",
+    "liquidity": 198845,
+    "sqrtPriceX96": "3984381044729275941656482",
+    "tick": -197965,
+    "hooks": "0x475324F469B5e1d916b3E112d51fb71Bd36D0080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x76e364b41ae76d8415cbc6398192bf7859de6652dc82d72e3ecb111767d0b82a",
+    "liquidity": 199544,
+    "sqrtPriceX96": "3970441027599488737124263",
+    "tick": -198035,
+    "hooks": "0x2DD56e0540DacAF6Cf5b3Ac2B393dd2C003cc080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x23f8b06ac4fc410c3788d63802051192c2378a57a5ba7a96dac079c4da07f5e9",
+    "liquidity": 199556,
+    "sqrtPriceX96": "3970204931615355709952808",
+    "tick": -198036,
+    "hooks": "0x00A3B920720AF8dEa0a46Bdeebd484C9E0a00080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xe30f9344763208e799a6ef43901423864957ae6b4ea396f5c6bcbf56078cea95",
+    "liquidity": 199417,
+    "sqrtPriceX96": "3958765765808361698032447",
+    "tick": -198093,
+    "hooks": "0xE5f16B723183E0c75FE189935f9b05740fAbC080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x760505847896692fce0d3f9da0750bd1e639c71f7eef7fa6bd94816139f7f75d",
+    "liquidity": 481161,
+    "sqrtPriceX96": "3951844329807050444512240",
+    "tick": -198128,
+    "hooks": "0xF17Ade134864B39d3C78c11B52a2474bD6454080",
+    "fee": 8388608,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xa41ab21b1cedd8ce55f51d1b2ac3b5740370ad7b4e64688da94dc54fbc45a072",
+    "liquidity": 758952451524,
+    "sqrtPriceX96": "3930928517069393507223477",
+    "tick": -198235,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 110000,
+    "tickSpacing": 1100
+  },
+  {
+    "ok": true,
+    "poolId": "0xbb33e6c7689e471c316d119c6f7bb36a705d24fc453768746e85132e666bb7dd",
+    "liquidity": 424776262675,
+    "sqrtPriceX96": "3734389907075076666259403",
+    "tick": -199261,
+    "hooks": "0xb4f4949e8D0a177bb6D2fea33e9516Bb219610cc",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x9ebbdae552660fb9e5892c93942b5b4b83669406baf15cef405bb6056cce64f3",
+    "liquidity": 44723145093,
+    "sqrtPriceX96": "3504385039250953322946292",
+    "tick": -200532,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 660000,
+    "tickSpacing": 13200
+  },
+  {
+    "ok": true,
+    "poolId": "0x205e1ed57f21ef815cb8b8c8e28d5ff066206c8ad27cb83659348fe8cc609cbf",
+    "liquidity": 183871944044,
+    "sqrtPriceX96": "3471430830056459492345567",
+    "tick": -200721,
+    "hooks": "0xaDfb4aa0e5BB3593d3d39927DA2E0F6adE4A4080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0xca8cc1599f2c3e3d1d0bf777192927c18bf84e1bc0530648ccecb289da32e1ca",
+    "liquidity": 436538798,
+    "sqrtPriceX96": "3458687055872729686410878",
+    "tick": -200794,
+    "hooks": "0x04dbF064E36Abe54e09b193574463Bc0691740CC",
+    "fee": 75,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0x20d39bb39d7c3a375b1f81dd7c9afd157b3bd915b23e08118ebcb55569b12d71",
+    "liquidity": 93717322210616,
+    "sqrtPriceX96": "3456351653410686005733242",
+    "tick": -200808,
+    "hooks": "0x3cAAA038151D4Fb26C98542436bcAc519eC1C080",
+    "fee": 8388608,
+    "tickSpacing": 60
+  },
+  {
+    "ok": true,
+    "poolId": "0x4e81817db5cfa84a073f5a3c997626ace746c1e459f075905aedab87d574410c",
+    "liquidity": 21900274208,
+    "sqrtPriceX96": "3436795068267633794334850",
+    "tick": -200921,
+    "hooks": "0xAe2A546B2Dc534f3ce3Bb57484aB777015f60888",
+    "fee": 0,
+    "tickSpacing": 1
+  },
+  {
+    "ok": true,
+    "poolId": "0xcfdddbc517412997cff7c1efd758129ac011db369b3c80bf1d87462e92ec9758",
+    "liquidity": 589760855132,
+    "sqrtPriceX96": "3358486826684802229500816",
+    "tick": -201382,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 910000,
+    "tickSpacing": 18200
+  },
+  {
+    "ok": true,
+    "poolId": "0x6edae92d2715702b6bb0c5ef9eca94e0e771b08c69b9993bb215e43576dfd4b4",
+    "liquidity": 2120563111759,
+    "sqrtPriceX96": "3352743903149488690045787",
+    "tick": -201417,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 750000,
+    "tickSpacing": 15000
+  },
+  {
+    "ok": true,
+    "poolId": "0x3245d91fea6db7901fc3606e895d7c634d9c0748310daaac555b459835c50ec0",
+    "liquidity": 291268563,
+    "sqrtPriceX96": "3291329324822928386654909",
+    "tick": -201786,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 880000,
+    "tickSpacing": 17600
+  },
+  {
+    "ok": true,
+    "poolId": "0x2a79c74077057f4439e7d773b10f01784d97c96b73a7a93ef9baef4f37fe8ff7",
+    "liquidity": 2489802796791,
+    "sqrtPriceX96": "2997784250791445286047158",
+    "tick": -203655,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 500000,
+    "tickSpacing": 10000
+  },
+  {
+    "ok": true,
+    "poolId": "0x43ac4b8a0b12deb62483beff11cae82f2ce2d69fa021d6429b7744cce709f53e",
+    "liquidity": 7500094293622,
+    "sqrtPriceX96": "2823790263755817319777465",
+    "tick": -204851,
+    "hooks": "0x0000000000000000000000000000000000000000",
+    "fee": 900000,
+    "tickSpacing": 18000
+  }
+]

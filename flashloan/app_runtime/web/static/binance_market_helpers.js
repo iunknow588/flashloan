@@ -50,6 +50,31 @@
       },
     };
 
+    const marketIdChainComponent = marketId => {
+      const normalized = String(marketId || "").trim().toLowerCase();
+      const match = normalized.match(/^(liquidation|dex-arbitrage)-(\d+)-[a-z0-9_-]+$/);
+      return match ? match[2] : "";
+    };
+    const normalizeScopeQuery = query => {
+      const normalized = new URLSearchParams(query);
+      const chainId = String(normalized.get("chain_id") || "").trim();
+      const marketId = String(normalized.get("market_id") || "").trim();
+      const marketChainId = marketIdChainComponent(marketId);
+      if (chainId && marketChainId && marketChainId !== chainId) {
+        normalized.delete("market_id");
+        normalized.delete("protocols");
+        normalized.delete("protocol_id");
+      }
+      if (chainId && !normalized.get("market_id")) {
+        const fallback = window.__CHAIN_SELECTOR_DEFAULT__ || {};
+        const fallbackMarketId = String(fallback.market_id || "").trim();
+        const fallbackChainId = marketIdChainComponent(fallbackMarketId);
+        if (fallbackChainId && fallbackChainId === chainId) {
+          normalized.set("market_id", fallbackMarketId);
+        }
+      }
+      return normalized;
+    };
     const api = async (path, options = {}) => {
       let requestPath = window.ChainSelector?.withSelection ? window.ChainSelector.withSelection(path) : path;
       if (!window.ChainSelector?.withSelection) {
@@ -57,7 +82,7 @@
         const query = new URLSearchParams(window.location.search);
         const normalized = window.ChainSelector?.normalizeScopeQuery
           ? window.ChainSelector.normalizeScopeQuery(query)
-          : query;
+          : normalizeScopeQuery(query);
         ["chain_id", "market_id", "protocols", "protocol_id", "dex_strategy", "workflow", "execution_mode", "scope"].forEach(key => {
           const value = normalized.get(key);
           if (value && !url.searchParams.get(key)) url.searchParams.set(key, value);

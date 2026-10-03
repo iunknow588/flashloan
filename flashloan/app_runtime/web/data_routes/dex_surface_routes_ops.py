@@ -802,12 +802,12 @@ def register_dex_submission_routes(app) -> None:
         # can accidentally drop an older submitted transaction behind a huge
         # pile of quote-only/blocked attempts, so pass per-category rows
         # through instead of truncating by combined most-recent count.
-        attempt_rows = [
-            row
-            for group in groups.values()
-            for row in group.get("attempts") or []
-            if isinstance(row, dict)
-        ]
+        attempt_rows = []
+        for group in groups.values():
+            group_attempts = group.get("attempts") if isinstance(group, dict) else group
+            for row in group_attempts or []:
+                if isinstance(row, dict):
+                    attempt_rows.append(row)
         attempt_rows.sort(
             key=lambda row: str(row.get("created_at") or row.get("observed_at") or ""),
             reverse=True,
